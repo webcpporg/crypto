@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 [#crypto-backends]
-== Backends
+== The backends
 
 A backend is a C library that crypto wraps; the program links the ones it names in
 its Jamfile, and webcpp builds each from its sources, file by file. This page

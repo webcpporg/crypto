@@ -22,17 +22,11 @@ A key pair is `webcpp::crypto::secp256k1::keypair`, which is
 and it is the only owner of that secret: it keeps the key pair, never the
 bytes the program passed.
 
-[source,cpp]
-----
-namespace secp256k1 = webcpp::crypto::secp256k1;
-
-auto key = secp256k1::keypair::make(secret);          // result<keypair>
-auto xonly = key->xonly_public_key();                 // 32 bytes, BIP340
-auto compressed = key->public_key();                  // 33 bytes, SEC1
-auto sig = key->sign_schnorr(message, aux);           // 64 bytes, any message length
-auto ecdsa = key->sign_ecdsa(hash);                   // 64 bytes, compact, low-S
-auto shared = key->ecdh(other_public_key);            // 32 bytes
-----
+* `keypair::make(secret)` returns `result<keypair>`.
+* `xonly_public_key()` gives the 32 bytes of BIP340's public key, and `public_key()` the 33 bytes of the compressed one.
+* `sign_schnorr(message, aux)` gives a BIP340 signature of 64 bytes, for a message of any length.
+* `sign_ecdsa(hash)` gives a compact ECDSA signature of 64 bytes, in low-S form.
+* `ecdh(other_public_key)` gives a shared secret of 32 bytes.
 
 Verification does not need a key pair: `verify_schnorr(signature, message,
 xonly_public_key)` and `verify_ecdsa(signature, hash, public_key)` are free
@@ -57,11 +51,7 @@ holds one, allocated by `make` in the `std::pmr::memory_resource` the program
 passes as the second argument, which is the default resource when it passes
 none:
 
-[source,cpp]
-----
-std::pmr::monotonic_buffer_resource arena(buffer.data(), buffer.size());
-auto key = secp256k1::keypair::make(secret, &arena);
-----
+A program passes its resource as `keypair::make(secret, &arena)`, where `arena` is, for example, a `std::pmr::monotonic_buffer_resource` over a buffer of its own.
 
 This is the only allocation crypto makes for secp256k1, one block of
 `secp256k1_context_preallocated_size(SECP256K1_CONTEXT_NONE)` bytes aligned as
@@ -107,8 +97,12 @@ mathematically, and libsecp256k1 refuses it to close the malleability that
 Bitcoin's rules closed. `verify_ecdsa` returns `invalid_signature` for it, as it
 does for a compact signature whose `r` or `s` is not below the group order. A
 program that receives signatures from a signer that produces high-S ones
-normalises them with `secp256k1_ecdsa_signature_normalize` from the C API
-before it verifies them.
+normalises them with libsecp256k1's own functions before it verifies them: it
+parses the compact signature with `secp256k1_ecdsa_signature_parse_compact`,
+calls `secp256k1_ecdsa_signature_normalize` (which turns a high-S signature
+into its low-S twin and leaves a low-S one as it is), and serialises the result
+with `secp256k1_ecdsa_signature_serialize_compact`. The two parsing functions
+take a context, and `secp256k1_context_static` serves.
 
 [#crypto-secp256k1-errors]
 === Every error
@@ -139,9 +133,14 @@ v0.8.0 is built, recovery included.
 [#crypto-secp256k1-one-copy]
 === One copy per program
 
-libsecp256k1's precomputed tables are global symbols, so a program has one
-libsecp256k1 only. The copy that `/third_party//secp256k1` builds is the
-one crypto's canary expects: linking the program with another libsecp256k1, an
-external one included, is refused at link time, and a mismatch of the tables'
-configuration (small against large) is refused too. A program that already
-depends on another libsecp256k1 builds that dependency with webcpp's copy.
+libsecp256k1's precomputed tables are global symbols, so webcpp's build of
+libsecp256k1 is never linked together with another copy of it, an external one
+included. A program that already depends on another libsecp256k1 builds that
+dependency with webcpp's copy, `/third_party//secp256k1`.
+
+The canary of the backend catches two mistakes, and only these. A program linked
+with a libsecp256k1 that was not built by webcpp, so that webcpp's copy and its
+canary are not linked, fails to link, naming the canary. And a program whose
+objects were compiled for the small tables and linked with the large ones, or the
+other way round, fails to link, because the tables' configuration is part of the
+canary's name. It does not detect two copies linked side by side.

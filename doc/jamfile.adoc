@@ -14,7 +14,7 @@ and the library of each backend it uses. These are the programs of the
 [#crypto-jamfile-sign]
 === A program that signs with libsecp256k1
 
-[source,jam]
+[source,bash]
 ----
 exe sign : sign.cpp /webcpp/crypto//crypto /third_party//secp256k1 ;
 ----
@@ -26,10 +26,10 @@ signature and refuses a changed message. `b2` builds it and `./sign` prints
 The precomputed tables of libsecp256k1 are the size knob. On Emscripten the
 small tables are the default; natively and on wasip2 and wasip3 the large ones. A
 program chooses with the feature `webcpp-secp256k1-tables`, `auto`, `small` or
-`large`. The small tables make the program about 1 MB smaller (122 KB instead of
-1.2 MB natively) for verifications about a third slower:
+`large`. The small tables make the program about 1 MB smaller (on Emscripten at -Os, 141,922 bytes instead of
+1,211,251) for verifications about a third slower:
 
-[source,jam]
+[source,bash]
 ----
 exe sign_small : sign.cpp /webcpp/crypto//crypto /third_party//secp256k1
   : <webcpp-secp256k1-tables>small ;
@@ -42,7 +42,7 @@ exe sign_small : sign.cpp /webcpp/crypto//crypto /third_party//secp256k1
 
 A program that uses two backends names both libraries:
 
-[source,jam]
+[source,bash]
 ----
 exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl /third_party//secp256k1 ;
 ----
@@ -53,7 +53,7 @@ exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl /third_party//sec
 [#crypto-jamfile-block]
 === A block cipher with ctaes
 
-[source,jam]
+[source,bash]
 ----
 exe block : block.cpp /webcpp/crypto//crypto /third_party//ctaes ;
 ----

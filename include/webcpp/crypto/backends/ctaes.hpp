@@ -39,10 +39,13 @@ extern "C" {
 #include <string_view>
 
 #if defined(WEBCPP_CRYPTO_CTAES_CANARY_CONFIGURATION)
+/** The configuration the canary names: a test's, here. */
 #define WEBCPP_CRYPTO_DETAIL_CTAES_CONFIGURATION WEBCPP_CRYPTO_CTAES_CANARY_CONFIGURATION
 #else
+/** The configuration the canary names: ctaes has one, `default`. */
 #define WEBCPP_CRYPTO_DETAIL_CTAES_CONFIGURATION default
 #endif
+/** The canary's name, which every ctaes function of this header reads (spec section 4.3). */
 #define WEBCPP_CRYPTO_DETAIL_CTAES_CANARY                          \
     WEBCPP_CRYPTO_DETAIL_CANARY(ctaes, WEBCPP_CRYPTO_CTAES_COMMIT, \
                                 WEBCPP_CRYPTO_DETAIL_CTAES_CONFIGURATION)
@@ -74,15 +77,19 @@ struct ctaes_of;
 
 template <>
 struct ctaes_of<16> {
+    /** ctaes's AES-128 context, the key schedule. */
     using context = AES128_ctx;
 
+    /** Expands the key into the context. */
     static void init(context* c, unsigned char const* key) { AES128_init(c, key); }
 
+    /** Encrypts n blocks from in to out. */
     static void encrypt(context const* c, std::size_t n, unsigned char* out,
                         unsigned char const* in) {
         AES128_encrypt(c, n, out, in);
     }
 
+    /** Decrypts n blocks from in to out. */
     static void decrypt(context const* c, std::size_t n, unsigned char* out,
                         unsigned char const* in) {
         AES128_decrypt(c, n, out, in);
@@ -91,15 +98,19 @@ struct ctaes_of<16> {
 
 template <>
 struct ctaes_of<24> {
+    /** ctaes's AES-192 context, the key schedule. */
     using context = AES192_ctx;
 
+    /** Expands the key into the context. */
     static void init(context* c, unsigned char const* key) { AES192_init(c, key); }
 
+    /** Encrypts n blocks from in to out. */
     static void encrypt(context const* c, std::size_t n, unsigned char* out,
                         unsigned char const* in) {
         AES192_encrypt(c, n, out, in);
     }
 
+    /** Decrypts n blocks from in to out. */
     static void decrypt(context const* c, std::size_t n, unsigned char* out,
                         unsigned char const* in) {
         AES192_decrypt(c, n, out, in);
@@ -108,15 +119,19 @@ struct ctaes_of<24> {
 
 template <>
 struct ctaes_of<32> {
+    /** ctaes's AES-256 context, the key schedule. */
     using context = AES256_ctx;
 
+    /** Expands the key into the context. */
     static void init(context* c, unsigned char const* key) { AES256_init(c, key); }
 
+    /** Encrypts n blocks from in to out. */
     static void encrypt(context const* c, std::size_t n, unsigned char* out,
                         unsigned char const* in) {
         AES256_encrypt(c, n, out, in);
     }
 
+    /** Decrypts n blocks from in to out. */
     static void decrypt(context const* c, std::size_t n, unsigned char* out,
                         unsigned char const* in) {
         AES256_decrypt(c, n, out, in);
@@ -126,6 +141,7 @@ struct ctaes_of<32> {
 /** The block cipher's state on ctaes: the key schedule, inside the object. */
 template <std::size_t KeySize>
 struct block_state<backends::ctaes, KeySize> {
+    /** The key schedule. */
     typename ctaes_of<KeySize>::context schedule;
 };
 
@@ -135,31 +151,37 @@ struct block_state<backends::ctaes, KeySize> {
  */
 template <std::size_t KeySize>
 struct block_engine<backends::ctaes, KeySize> {
+    /** The state this engine works on. */
     using state = block_state<backends::ctaes, KeySize>;
 
+    /** Expands the key into the state. */
     static boost::system::result<void> init(state& s, std::span<std::uint8_t const> key) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_CTAES_CANARY);
         ctaes_of<KeySize>::init(&s.schedule, key.data());
         return {};
     }
 
+    /** Encrypts whole blocks in place. */
     static boost::system::result<void> encrypt(state& s, std::span<std::uint8_t> blocks) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_CTAES_CANARY);
         ctaes_of<KeySize>::encrypt(&s.schedule, blocks.size() / 16, blocks.data(), blocks.data());
         return {};
     }
 
+    /** Decrypts whole blocks in place. */
     static boost::system::result<void> decrypt(state& s, std::span<std::uint8_t> blocks) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_CTAES_CANARY);
         ctaes_of<KeySize>::decrypt(&s.schedule, blocks.size() / 16, blocks.data(), blocks.data());
         return {};
     }
 
+    /** Copies the schedule and wipes the source. */
     static void move(state& to, state& from) noexcept {
         to = from;
         wipe_object(from);
     }
 
+    /** Wipes the schedule. */
     static void reset(state& s) noexcept { wipe_object(s); }
 };
 

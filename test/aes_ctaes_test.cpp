@@ -12,7 +12,28 @@
 
 #include "support/aes_checks.hpp"
 
+#include <array>
+#include <cstdint>
+
+namespace {
+
+/** The round trip the guide shows: encrypts a block and decrypts it again. */
+bool round_trip() {
+    // tag::round_trip[]
+    std::array<std::uint8_t, 32> key{};
+    std::array<std::uint8_t, 16> block{};
+    auto aes = webcpp::crypto::aes256<webcpp::crypto::backends::ctaes>::make(key);
+    if (aes && aes->encrypt(block) && aes->decrypt(block)) {
+        return true;  // block holds the plaintext again
+    }
+    // end::round_trip[]
+    return false;
+}
+
+}  // namespace
+
 int main() {
+    BOOST_TEST(round_trip());
     using webcpp::crypto::backends::ctaes;
     webcpp::test::check_fips197<ctaes>();
     webcpp::test::check_aes_guards<ctaes>();

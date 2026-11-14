@@ -7,7 +7,8 @@
 // With the source failing (the test seam WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY), fill returns
 // entropy_unavailable and zeroes the whole buffer, a source that fails on the second
 // piece of 256 included; ENOTSUP is not_supported, Emscripten's answer in an audio
-// worklet; operator() throws the error with exceptions on.
+// worklet; a failure that leaves errno 0 is entropy_unavailable too; operator() throws the error
+// with exceptions on.
 
 #include <webcpp/crypto/random_device.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -33,8 +34,10 @@ int failure = EIO;
 }  // namespace
 
 extern "C" int webcpp_test_entropy(void* out, std::size_t size) {
+    // As getentropy does: 0 when it fills, -1 with errno set when it fails.
     if (answer_after == 0) {
-        return failure;
+        errno = failure;
+        return -1;
     }
     --answer_after;
     std::memset(out, 0x5a, size);
@@ -64,9 +67,9 @@ int main() {
     BOOST_TEST(!filled && filled.error() == boost::system::errc::not_supported);
     BOOST_TEST(std::all_of(buffer.begin(), buffer.end(), [](std::uint8_t b) { return b == 0; }));
 
-    // A failure the source reports without an errno value is still a failure.
+    // A failed call that leaves errno 0 is still a failure, never a filled piece.
     std::fill(buffer.begin(), buffer.end(), 0xff);
-    failure = -1;
+    failure = 0;
     filled = device.fill(buffer);
     BOOST_TEST(!filled && filled.error() == crypto::error::entropy_unavailable);
     BOOST_TEST(std::all_of(buffer.begin(), buffer.end(), [](std::uint8_t b) { return b == 0; }));

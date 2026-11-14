@@ -23,7 +23,8 @@
 #include <span>
 
 #if defined(WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY)
-// The test seam of spec section 8.4: a test defines the source, which returns 0 or an errno.
+// The test seam of spec section 8.4: a test defines the source, which behaves as getentropy:
+// it returns 0, or -1 with errno set.
 extern "C" int webcpp_test_entropy(void* out, std::size_t size);
 #elif !defined(_WIN32)
 #include <sys/random.h>  // lint-world: getentropy, the system's entropy, this header's purpose
@@ -50,16 +51,18 @@ inline constexpr std::size_t entropy_piece = 256;
  * `error::entropy_unavailable`.
  */
 inline boost::system::result<void> read_entropy(std::uint8_t* out, std::size_t size) noexcept {
-#if defined(WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY)
-    int const failed = webcpp_test_entropy(out, size);
-#elif defined(_WIN32)
+#if defined(_WIN32) && !defined(WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY)
     NTSTATUS const status =
         ::BCryptGenRandom(nullptr, out, static_cast<ULONG>(size), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
     int const failed = BCRYPT_SUCCESS(status) ? 0 : EIO;
 #else
+#if defined(WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY)
+    int const called = webcpp_test_entropy(out, size);
+#else
+    int const called = ::getentropy(out, size);  // lint-world: the entropy
+#endif
     // A failed call that leaves errno 0 is still a failure: never report it as a filled piece.
-    int const failed =
-        ::getentropy(out, size) == 0 ? 0 : (errno != 0 ? errno : EIO);  // lint-world: the entropy
+    int const failed = called == 0 ? 0 : (errno != 0 ? errno : EIO);
 #endif
     if (failed == ENOTSUP) {
         return boost::system::errc::make_error_code(boost::system::errc::not_supported);

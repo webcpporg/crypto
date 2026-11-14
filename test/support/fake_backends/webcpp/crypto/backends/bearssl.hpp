@@ -14,6 +14,8 @@
 
 #include <string_view>
 
+#define WEBCPP_TEST_FAKE_BACKEND 1
+
 namespace webcpp::crypto::backends {
 
 struct bearssl {

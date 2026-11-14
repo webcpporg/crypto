@@ -15,6 +15,10 @@
  gets that build. A program that wants BearSSL on those targets defines
  `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`, or names `gcm<aes256<backends::bearssl>>`.
 
+ The MSVC link-time net (`detect_mismatch`) covers the translation units that include this
+ header; a program that names `aes256<>` through `aes.hpp` gets the same choice from
+ `config.hpp` but no link-time net.
+
  @see "Using webcpp::crypto in your Jamfile", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_AES256_GCM_HPP

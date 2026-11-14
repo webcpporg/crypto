@@ -14,6 +14,10 @@
 
 #include <type_traits>
 
+#ifndef WEBCPP_TEST_FAKE_BACKEND
+#error "the real backend headers were included, not test/support/fake_backends"
+#endif
+
 namespace crypto = webcpp::crypto;
 
 #ifdef WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL

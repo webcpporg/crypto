@@ -33,3 +33,13 @@ webcpp.compile config_developer_defined : config_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS <define>WEBCPP_TEST_CRYPTO_DEVELOPER_DEFINED ;
 
 crypto-run error : error_test.cpp ;
+
+# The counter itself: counts each allocation as it documents, on the first thread and a new one.
+crypto-run counting : counting_test.cpp ;
+
+# Waiting for the backends (streams t5/gen, BearSSL, and t12, OpenSSL), whose sources are
+# written in this directory; the stream that merges them declares:
+#crypto-run allocation_bearssl : allocation_bearssl_test.cpp : <library>/third_party//bearssl ;
+#crypto-run allocation_openssl : allocation_openssl_test.cpp
+#  : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
+#crypto-run bearssl_seeder : bearssl_seeder_test.cpp : <library>/third_party//bearssl ;

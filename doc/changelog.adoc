@@ -18,4 +18,5 @@ of every version are on webcpp's index page.
 // tag::unreleased[]
 * Added crypto: authenticated encryption, randomness and secp256k1 over C backends.
 * Added the errors of crypto, with fixed values, in the category webcpp.crypto.
+* No allocation in a message on BearSSL or OpenSSL; BearSSL seeds from getentropy alone.
 // end::unreleased[]

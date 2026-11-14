@@ -23,8 +23,8 @@
 #include <span>
 
 #if defined(WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY)
-// The test seam of spec section 8.4: a test defines the source, which behaves as getentropy:
-// it returns 0, or -1 with errno set.
+// The test seam of spec section 8.4: a test defines the source, which returns 0, or -1 with
+// errno set, as getentropy does (lint-world: the call it stands in for, named, not made).
 extern "C" int webcpp_test_entropy(void* out, std::size_t size);
 #elif !defined(_WIN32)
 #include <sys/random.h>  // lint-world: getentropy, the system's entropy, this header's purpose

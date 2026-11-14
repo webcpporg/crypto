@@ -20,4 +20,8 @@ of every version are on webcpp's index page.
 * Added the errors of crypto, with fixed values, in the category webcpp.crypto.
 * Added equal, a constant-time comparison of tags and Boost.Hash2 digests.
 * /webcpp/crypto//openssl links the superproject's OpenSSL 3.5.9 on native, wasip2 and wasip3, and refuses Emscripten with the line to write.
+* Added the default backend, and the refusals of a build whose backends cannot work together.
+* Added aes128, aes192 and aes256, the AES block cipher on a backend that exports it.
+* Added gcm, AES-GCM in place: seal and open, every guard before any byte is read, and a failed open's data zeroed.
+* Added gcm's incremental seal, begin_seal, update and result, whose every error ends the message.
 // end::unreleased[]

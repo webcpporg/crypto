@@ -22,6 +22,9 @@ rule crypto-run ( name : sources + : requirements * : targets * )
 
 webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp crypto/error.hpp
   crypto/equal.hpp crypto/detail/wipe.hpp crypto/detail/limits.hpp ;
+webcpp.headers-alone crypto : ../include : crypto.hpp crypto/aes.hpp crypto/config.hpp crypto/error.hpp
+  crypto/gcm.hpp
+  crypto/detail/engines.hpp crypto/detail/limits.hpp crypto/detail/wipe.hpp ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
 # exceptions, keeps it when a developer defines it, defines it when
@@ -59,3 +62,40 @@ webcpp.compile-fail openssl_named_c_on_emscripten : openssl_named_c_test.c
   : <library>/webcpp/crypto//openssl : emscripten ;
 
 build-project msvc ;
+
+# The default backend (spec section 5), one combination of linked and selected
+# backends per program, each on the targets where its answer holds.
+webcpp.compile default_backend_none : default_backend_test.cpp
+  : <define>WEBCPP_TEST_CRYPTO_EXPECT_NONE_LINKED ;
+webcpp.compile default_backend_bearssl_linked : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 ;
+webcpp.compile default_backend_bearssl_selected : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL ;
+webcpp.compile default_backend_openssl_linked : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native ;
+webcpp.compile default_backend_openssl_linked_wasi : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 : wasip2 wasip3 ;
+webcpp.compile default_backend_both_linked : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1
+    <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native ;
+webcpp.compile default_backend_both_linked_wasi : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 : wasip2 wasip3 ;
+webcpp.compile default_backend_both_bearssl_selected : default_backend_test.cpp
+    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL : native ;
+webcpp.compile default_backend_openssl_selected : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+
+build-project messages ;
+
+# The generic layer on the mock backend (support/mock_backend.hpp), whose checks
+# (support/*_checks.hpp) every real backend's test runs as well.
+crypto-run aes_mock : aes_mock_test.cpp ;
+crypto-run gcm_mock : gcm_mock_test.cpp ;
+# The limits need a 64-bit size_t and address space reserved without memory.
+crypto-run gcm_limits_mock : gcm_limits_mock_test.cpp : : native ;
+
+# read_canary's load survives optimisation: without the canary the program does
+# not link, on every compiler; with it, it links and runs.
+webcpp.link-fail canary_read_absent : canary_read_test.cpp : <optimization>speed ;
+crypto-run canary_read : canary_read_test.cpp
+  : <optimization>speed <define>WEBCPP_TEST_CRYPTO_DEFINE_CANARY ;

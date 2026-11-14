@@ -82,7 +82,7 @@ void check_c_forms() {
 /** Every form of operator new, with the delete that releases it: one count, and its malloc. */
 void check_new_forms() {
     expect_delta(new_counted, [] {
-        int* volatile block = new int[4];
+        int const* volatile block = new int[4];
         delete[] block;
     });
     expect_delta(new_counted, [] {
@@ -137,7 +137,8 @@ void check_new_forms() {
 
 /** Counts `times` mallocs of each size and `times` operator news, and checks both counts. */
 void check_counts() {
-    for (std::size_t const size : std::array<std::size_t, 3>{40, 300 * 1024, 1024 * 1024}) {
+    for (std::size_t const size :
+         std::array<std::size_t, 3>{40, std::size_t{300} * 1024, std::size_t{1024} * 1024}) {
         std::size_t const before = webcpp::test::allocations();
         for (std::size_t i = 0; i < times; ++i) {
             void* volatile block = std::malloc(size);
@@ -147,7 +148,7 @@ void check_counts() {
     }
     std::size_t const before = webcpp::test::allocations();
     for (std::size_t i = 0; i < times; ++i) {
-        int* volatile block = new int(0);
+        int const* volatile block = new int(0);
         delete block;
     }
     BOOST_TEST_EQ(webcpp::test::allocations() - before, times * (1 + c_counted));

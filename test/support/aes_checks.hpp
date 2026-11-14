@@ -29,7 +29,7 @@ template <class Cipher>
 std::array<std::uint8_t, Cipher::key_size> block_key() {
     std::array<std::uint8_t, Cipher::key_size> key{};
     for (std::size_t i = 0; i < key.size(); ++i) {
-        key[i] = static_cast<std::uint8_t>(i * 13 + 7);
+        key[i] = static_cast<std::uint8_t>((i * 13) + 7);
     }
     return key;
 }
@@ -72,7 +72,7 @@ void check_block_round_trip() {
     }
     std::array<std::uint8_t, 48> blocks{};
     for (std::size_t i = 0; i < blocks.size(); ++i) {
-        blocks[i] = static_cast<std::uint8_t>(i * 5 + 1);
+        blocks[i] = static_cast<std::uint8_t>((i * 5) + 1);
     }
     auto const plain = blocks;
     BOOST_TEST(made->encrypt(blocks).has_value());
@@ -89,7 +89,7 @@ void check_block_round_trip() {
 
     // Another key gives other blocks.
     auto other_key = block_key<Cipher>();
-    other_key[0] ^= 1;
+    other_key[0] ^= 1U;
     auto other = Cipher::make(other_key);
     if (!BOOST_TEST(other.has_value())) {
         return;

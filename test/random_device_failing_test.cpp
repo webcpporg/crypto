@@ -52,27 +52,27 @@ int main() {
     answer_after = 0;
     auto filled = device.fill(buffer);
     BOOST_TEST(!filled && filled.error() == crypto::error::entropy_unavailable);
-    BOOST_TEST(std::all_of(buffer.begin(), buffer.end(), [](std::uint8_t b) { return b == 0; }));
+    BOOST_TEST(std::ranges::all_of(buffer, [](std::uint8_t b) { return b == 0; }));
 
-    std::fill(buffer.begin(), buffer.end(), 0xff);
+    std::ranges::fill(buffer, 0xff);
     answer_after = 1;  // the first piece of 256 succeeds, the second fails
     filled = device.fill(buffer);
     BOOST_TEST(!filled && filled.error() == crypto::error::entropy_unavailable);
-    BOOST_TEST(std::all_of(buffer.begin(), buffer.end(), [](std::uint8_t b) { return b == 0; }));
+    BOOST_TEST(std::ranges::all_of(buffer, [](std::uint8_t b) { return b == 0; }));
 
-    std::fill(buffer.begin(), buffer.end(), 0xff);
+    std::ranges::fill(buffer, 0xff);
     answer_after = 0;
     failure = ENOTSUP;
     filled = device.fill(buffer);
     BOOST_TEST(!filled && filled.error() == boost::system::errc::not_supported);
-    BOOST_TEST(std::all_of(buffer.begin(), buffer.end(), [](std::uint8_t b) { return b == 0; }));
+    BOOST_TEST(std::ranges::all_of(buffer, [](std::uint8_t b) { return b == 0; }));
 
     // A failed call that leaves errno 0 is still a failure, never a filled piece.
-    std::fill(buffer.begin(), buffer.end(), 0xff);
+    std::ranges::fill(buffer, 0xff);
     failure = 0;
     filled = device.fill(buffer);
     BOOST_TEST(!filled && filled.error() == crypto::error::entropy_unavailable);
-    BOOST_TEST(std::all_of(buffer.begin(), buffer.end(), [](std::uint8_t b) { return b == 0; }));
+    BOOST_TEST(std::ranges::all_of(buffer, [](std::uint8_t b) { return b == 0; }));
     failure = EIO;
 
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS

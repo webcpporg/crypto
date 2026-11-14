@@ -161,8 +161,14 @@ public:
                                                          from_hex(spec.additional_data), data);
             ciphertexts_[i] = to_hex(data);
             tags_[i] = to_hex(tag);
-            cases_[i] = {spec.key, spec.plaintext,  spec.additional_data,
-                         spec.iv,  ciphertexts_[i], tags_[i]};
+            cases_[i] = {
+                .key = spec.key,
+                .plaintext = spec.plaintext,
+                .additional_data = spec.additional_data,
+                .iv = spec.iv,
+                .ciphertext = ciphertexts_[i],
+                .tag = tags_[i],
+            };
         }
     }
 
@@ -171,7 +177,7 @@ public:
     ~mock_cases() = default;
 
     /** The 18 cases, in the specification's order. */
-    std::span<gcm_case const> view() const noexcept { return cases_; }
+    [[nodiscard]] std::span<gcm_case const> view() const noexcept { return cases_; }
 
 private:
     std::array<std::string, 18> ciphertexts_;
@@ -224,7 +230,8 @@ struct block_engine<test::mock, KeySize> {
         }
         for (std::size_t i = 0; i < blocks.size(); ++i) {
             auto const at = i % 16;
-            blocks[i] = static_cast<std::uint8_t>((blocks[i] - pad(s, at + 16)) ^ pad(s, at));
+            auto const unpadded = static_cast<std::uint8_t>(blocks[i] - pad(s, at + 16));
+            blocks[i] = static_cast<std::uint8_t>(unpadded ^ pad(s, at));
         }
         return {};
     }

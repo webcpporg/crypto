@@ -33,14 +33,14 @@ void fills(std::size_t size) {
     BOOST_TEST(device.fill(second));
     if (size >= 16) {
         BOOST_TEST(first != second);
-        BOOST_TEST(std::any_of(first.begin(), first.end(), [](std::uint8_t b) { return b != 0; }));
+        BOOST_TEST(std::ranges::any_of(first, [](std::uint8_t b) { return b != 0; }));
     }
 }
 
 }  // namespace
 
 int main() {
-    for (std::size_t size : {0, 1, 256, 257, 65'536, 65'537}) {
+    for (std::size_t const size : {0, 1, 256, 257, 65'536, 65'537}) {
         fills(size);
     }
     BOOST_TEST_EQ((crypto::random_device::min)(), 0U);

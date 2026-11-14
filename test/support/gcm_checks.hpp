@@ -47,7 +47,7 @@ using gcm_cases = std::span<gcm_case const>;
 
 /** Whether every byte is zero. */
 inline bool all_zero(std::span<std::uint8_t const> bytes) {
-    return std::all_of(bytes.begin(), bytes.end(), [](std::uint8_t b) { return b == 0; });
+    return std::ranges::all_of(bytes, [](std::uint8_t b) { return b == 0; });
 }
 
 /** Runs f with the gcm of the key's size on Backend: 16, 24 or 32 bytes. */
@@ -132,6 +132,16 @@ void check_guards() {
     }
 }
 
+/** An open of a changed message fails with authentication_failed and zeroes data. */
+template <class Aead>
+void expect_tampered(Aead& made, std::span<std::uint8_t const> iv,
+                     std::span<std::uint8_t const> additional_data, std::span<std::uint8_t> data,
+                     std::span<std::uint8_t const> tag) {
+    BOOST_TEST(made.open(iv, additional_data, data, tag).error() ==
+               crypto::error::authentication_failed);
+    BOOST_TEST(all_zero(data));
+}
+
 /** Changing any byte of ciphertext, tag, IV or additional data fails, and zeroes data. */
 template <class Backend>
 void check_tampering(gcm_cases cases = gcm_spec_cases) {
@@ -151,46 +161,54 @@ void check_tampering(gcm_cases cases = gcm_spec_cases) {
     }
     for (std::size_t i = 0; i < ciphertext.size(); ++i) {
         auto data = ciphertext;
-        data[i] ^= 1;
-        BOOST_TEST(made->open(iv, additional_data, data, tag).error() ==
-                   crypto::error::authentication_failed);
-        BOOST_TEST(all_zero(data));
+        data[i] ^= 1U;
+        expect_tampered(*made, iv, additional_data, data, tag);
     }
     for (std::size_t i = 0; i < tag.size(); ++i) {
         auto data = ciphertext;
         auto bad = tag;
-        bad[i] ^= 0x80;
-        BOOST_TEST(made->open(iv, additional_data, data, bad).error() ==
-                   crypto::error::authentication_failed);
-        BOOST_TEST(all_zero(data));
+        bad[i] ^= 0x80U;
+        expect_tampered(*made, iv, additional_data, data, bad);
     }
     for (std::size_t i = 0; i < additional_data.size(); ++i) {
         auto data = ciphertext;
         auto bad = additional_data;
-        bad[i] ^= 2;
-        BOOST_TEST(made->open(iv, bad, data, tag).error() == crypto::error::authentication_failed);
-        BOOST_TEST(all_zero(data));
+        bad[i] ^= 2U;
+        expect_tampered(*made, iv, bad, data, tag);
     }
     for (std::size_t i = 0; i < iv.size(); ++i) {
         auto data = ciphertext;
         auto bad = iv;
-        bad[i] ^= 4;
-        BOOST_TEST(made->open(bad, additional_data, data, tag).error() ==
-                   crypto::error::authentication_failed);
-        BOOST_TEST(all_zero(data));
+        bad[i] ^= 4U;
+        expect_tampered(*made, bad, additional_data, data, tag);
     }
     // A ciphertext one byte shorter, its tag unchanged, fails too.
     {
         auto data = ciphertext;
-        BOOST_TEST(
-            made->open(iv, additional_data, std::span(data).first(data.size() - 1), tag).error() ==
-            crypto::error::authentication_failed);
-        BOOST_TEST(all_zero(std::span(data).first(data.size() - 1)));
+        expect_tampered(*made, iv, additional_data, std::span(data).first(data.size() - 1), tag);
     }
     // The object works after failures.
     auto data = ciphertext;
     BOOST_TEST(made->open(iv, additional_data, data, tag).has_value());
     BOOST_TEST_EQ(to_hex(data), c.plaintext);
+}
+
+/** Every call of an empty gcm is refused with invalid_state, and leaves data untouched. */
+template <class Aead>
+void expect_all_refused(Aead& empty, std::span<std::uint8_t const> iv, std::span<std::uint8_t> data,
+                        std::span<std::uint8_t const> tag,
+                        std::span<std::uint8_t const> untouched) {
+    BOOST_TEST(empty.seal(iv, {}, data).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.open(iv, {}, data, tag).error() == crypto::error::invalid_state);
+    // The state is checked before the IV and the tag.
+    BOOST_TEST(empty.seal({}, {}, data).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.open({}, {}, data, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.begin_seal(iv, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.begin_seal({}, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.update(data).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.update({}).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.result().error() == crypto::error::invalid_state);
+    BOOST_TEST(std::ranges::equal(data, untouched));
 }
 
 /** A moved-from gcm answers invalid_state to everything but assignment and destruction. */
@@ -213,17 +231,7 @@ void check_moved_from(gcm_cases cases = gcm_spec_cases) {
     auto const untouched = data;
     std::array<std::uint8_t, 16> const tag{};
     auto const all_refused = [&](aead& empty) {
-        BOOST_TEST(empty.seal(iv, {}, data).error() == crypto::error::invalid_state);
-        BOOST_TEST(empty.open(iv, {}, data, tag).error() == crypto::error::invalid_state);
-        // The state is checked before the IV and the tag.
-        BOOST_TEST(empty.seal({}, {}, data).error() == crypto::error::invalid_state);
-        BOOST_TEST(empty.open({}, {}, data, {}).error() == crypto::error::invalid_state);
-        BOOST_TEST(empty.begin_seal(iv, {}).error() == crypto::error::invalid_state);
-        BOOST_TEST(empty.begin_seal({}, {}).error() == crypto::error::invalid_state);
-        BOOST_TEST(empty.update(data).error() == crypto::error::invalid_state);
-        BOOST_TEST(empty.update({}).error() == crypto::error::invalid_state);
-        BOOST_TEST(empty.result().error() == crypto::error::invalid_state);
-        BOOST_TEST(data == untouched);
+        expect_all_refused(empty, iv, data, tag, untouched);
     };
     all_refused(*made);
     // Moving an object that was moved from gives an empty object, and crashes nothing (I1).
@@ -256,6 +264,106 @@ void check_moved_from(gcm_cases cases = gcm_spec_cases) {
     BOOST_TEST(self_sealed && to_hex(*self_sealed) == one_block.tag);
 }
 
+/** Case 13: an empty message, through spans whose data() is null. */
+template <class Aead>
+void check_edge_empty(Aead& made, std::span<std::uint8_t const> iv, std::string_view tag_hex) {
+    // Case 13: empty plaintext and additional data, through spans whose data() is null.
+    auto const empty = made.seal(iv, std::span<std::uint8_t const>(), std::span<std::uint8_t>());
+    BOOST_TEST(empty && to_hex(*empty) == tag_hex);
+    BOOST_TEST(empty && made.open(iv, {}, std::span<std::uint8_t>(), *empty).has_value());
+    std::array<std::uint8_t, 16> const zero_tag{};
+    BOOST_TEST(made.open(iv, {}, std::span<std::uint8_t>(), zero_tag).error() ==
+               crypto::error::authentication_failed);
+}
+
+/** A tag right after the data in one buffer. */
+template <class Aead>
+void check_edge_wire_tag(Aead& made, std::span<std::uint8_t const> iv) {
+    // A wire buffer: ciphertext then tag, the tag a subspan right after the data; the open
+    // gives the plaintext back and leaves the tag's bytes as they were.
+    std::array<std::uint8_t, 32> wire{};
+    std::fill(wire.begin(), wire.begin() + 16, 0x33);
+    auto const sealed = made.seal(iv, {}, std::span(wire).first(16));
+    if (!BOOST_TEST(sealed.has_value())) {
+        return;
+    }
+    std::copy(sealed->begin(), sealed->end(), wire.begin() + 16);
+    BOOST_TEST(made.open(iv, {}, std::span(wire).first(16), std::span(wire).last(16)).has_value());
+    BOOST_TEST(
+        std::all_of(wire.begin(), wire.begin() + 16, [](std::uint8_t b) { return b == 0x33; }));
+    BOOST_TEST(std::equal(sealed->begin(), sealed->end(), wire.begin() + 16));
+}
+
+/** A tag that overlaps the data's end. */
+template <class Aead>
+void check_edge_overlap(Aead& made, std::span<std::uint8_t const> iv) {
+    // A tag that overlaps the data's end fails cleanly: the data is zeroed, and the bytes
+    // after the data, which only the tag covers, are as they were.
+    std::array<std::uint8_t, 24> overlap{};
+    overlap.fill(0x5a);
+    BOOST_TEST(
+        made.open(iv, {}, std::span(overlap).first(20), std::span(overlap).last(16)).error() ==
+        crypto::error::authentication_failed);
+    BOOST_TEST(all_zero(std::span(overlap).first(20)));
+    BOOST_TEST(
+        std::all_of(overlap.begin() + 20, overlap.end(), [](std::uint8_t b) { return b == 0x5a; }));
+}
+
+/** An IV and additional data inside the sealed buffer. */
+template <class Aead>
+void check_edge_in_place(Aead& made) {
+    // An IV and additional data inside the sealed buffer itself give what copies of them give:
+    // both are consumed before the first byte of data is written.
+    std::array<std::uint8_t, 44> buffer{};
+    for (std::size_t i = 0; i < buffer.size(); ++i) {
+        buffer[i] = static_cast<std::uint8_t>((i * 7) + 1);
+    }
+    std::array<std::uint8_t, 12> iv_copy{};
+    std::array<std::uint8_t, 16> additional_copy{};
+    auto data_copy = buffer;
+    std::copy(buffer.begin(), buffer.begin() + 12, iv_copy.begin());
+    std::copy(buffer.begin() + 12, buffer.begin() + 28, additional_copy.begin());
+    auto const expected = made.seal(iv_copy, additional_copy, data_copy);
+    auto const in_place =
+        made.seal(std::span(buffer).first(12), std::span(buffer).subspan(12, 16), buffer);
+    BOOST_TEST(expected && in_place && to_hex(*expected) == to_hex(*in_place));
+    BOOST_TEST(data_copy == buffer);
+}
+
+/** A wire buffer opened in place with spans into it. */
+template <class Aead>
+void check_edge_wire_open(Aead& made) {
+    // A wire buffer [IV | additional data | ciphertext], opened in place with spans into it,
+    // gives what an open of copies gives, and leaves the IV and the additional data as they
+    // were.
+    std::array<std::uint8_t, 12> wire_iv{};
+    std::array<std::uint8_t, 16> wire_additional{};
+    std::array<std::uint8_t, 32> wire_plain{};
+    for (std::size_t i = 0; i < wire_plain.size(); ++i) {
+        wire_plain[i] = static_cast<std::uint8_t>((i * 11) + 3);
+    }
+    wire_iv.fill(0x17);
+    wire_additional.fill(0x29);
+    auto wire_data = wire_plain;
+    auto const wire_sealed = made.seal(wire_iv, wire_additional, wire_data);
+    if (!BOOST_TEST(wire_sealed.has_value())) {
+        return;
+    }
+    std::array<std::uint8_t, 60> message{};
+    std::ranges::copy(wire_iv, message.begin());
+    std::ranges::copy(wire_additional, message.begin() + 12);
+    std::ranges::copy(wire_data, message.begin() + 28);
+    auto copy_data = wire_data;
+    BOOST_TEST(made.open(wire_iv, wire_additional, copy_data, *wire_sealed).has_value());
+    BOOST_TEST(made.open(std::span(message).first(12), std::span(message).subspan(12, 16),
+                         std::span(message).subspan(28), *wire_sealed)
+                   .has_value());
+    BOOST_TEST(std::equal(copy_data.begin(), copy_data.end(), message.begin() + 28));
+    BOOST_TEST(copy_data == wire_plain);
+    BOOST_TEST(std::equal(wire_iv.begin(), wire_iv.end(), message.begin()));
+    BOOST_TEST(std::equal(wire_additional.begin(), wire_additional.end(), message.begin() + 12));
+}
+
 /** Empty inputs, and spans that touch or overlap (Review Focus 2 and 3). */
 template <class Backend>
 void check_edges(gcm_cases cases = gcm_spec_cases) {
@@ -269,85 +377,11 @@ void check_edges(gcm_cases cases = gcm_spec_cases) {
         return;
     }
     std::array<std::uint8_t, 12> const iv{};
-    // Case 13: empty plaintext and additional data, through spans whose data() is null.
-    auto const empty = made->seal(iv, std::span<std::uint8_t const>(), std::span<std::uint8_t>());
-    BOOST_TEST(empty && to_hex(*empty) == cases[12].tag);
-    BOOST_TEST(empty && made->open(iv, {}, std::span<std::uint8_t>(), *empty).has_value());
-    std::array<std::uint8_t, 16> const zero_tag{};
-    BOOST_TEST(made->open(iv, {}, std::span<std::uint8_t>(), zero_tag).error() ==
-               crypto::error::authentication_failed);
-
-    // A wire buffer: ciphertext then tag, the tag a subspan right after the data; the open
-    // gives the plaintext back and leaves the tag's bytes as they were.
-    std::array<std::uint8_t, 32> wire{};
-    std::fill(wire.begin(), wire.begin() + 16, 0x33);
-    auto const sealed = made->seal(iv, {}, std::span(wire).first(16));
-    if (!BOOST_TEST(sealed.has_value())) {
-        return;
-    }
-    std::copy(sealed->begin(), sealed->end(), wire.begin() + 16);
-    BOOST_TEST(made->open(iv, {}, std::span(wire).first(16), std::span(wire).last(16)).has_value());
-    BOOST_TEST(
-        std::all_of(wire.begin(), wire.begin() + 16, [](std::uint8_t b) { return b == 0x33; }));
-    BOOST_TEST(std::equal(sealed->begin(), sealed->end(), wire.begin() + 16));
-
-    // A tag that overlaps the data's end fails cleanly: the data is zeroed, and the bytes
-    // after the data, which only the tag covers, are as they were.
-    std::array<std::uint8_t, 24> overlap{};
-    overlap.fill(0x5a);
-    BOOST_TEST(
-        made->open(iv, {}, std::span(overlap).first(20), std::span(overlap).last(16)).error() ==
-        crypto::error::authentication_failed);
-    BOOST_TEST(all_zero(std::span(overlap).first(20)));
-    BOOST_TEST(
-        std::all_of(overlap.begin() + 20, overlap.end(), [](std::uint8_t b) { return b == 0x5a; }));
-
-    // An IV and additional data inside the sealed buffer itself give what copies of them give:
-    // both are consumed before the first byte of data is written.
-    std::array<std::uint8_t, 44> buffer{};
-    for (std::size_t i = 0; i < buffer.size(); ++i) {
-        buffer[i] = static_cast<std::uint8_t>(i * 7 + 1);
-    }
-    std::array<std::uint8_t, 12> iv_copy{};
-    std::array<std::uint8_t, 16> additional_copy{};
-    auto data_copy = buffer;
-    std::copy(buffer.begin(), buffer.begin() + 12, iv_copy.begin());
-    std::copy(buffer.begin() + 12, buffer.begin() + 28, additional_copy.begin());
-    auto const expected = made->seal(iv_copy, additional_copy, data_copy);
-    auto const in_place =
-        made->seal(std::span(buffer).first(12), std::span(buffer).subspan(12, 16), buffer);
-    BOOST_TEST(expected && in_place && to_hex(*expected) == to_hex(*in_place));
-    BOOST_TEST(data_copy == buffer);
-
-    // A wire buffer [IV | additional data | ciphertext], opened in place with spans into it,
-    // gives what an open of copies gives, and leaves the IV and the additional data as they
-    // were.
-    std::array<std::uint8_t, 12> wire_iv{};
-    std::array<std::uint8_t, 16> wire_additional{};
-    std::array<std::uint8_t, 32> wire_plain{};
-    for (std::size_t i = 0; i < wire_plain.size(); ++i) {
-        wire_plain[i] = static_cast<std::uint8_t>(i * 11 + 3);
-    }
-    wire_iv.fill(0x17);
-    wire_additional.fill(0x29);
-    auto wire_data = wire_plain;
-    auto const wire_sealed = made->seal(wire_iv, wire_additional, wire_data);
-    if (!BOOST_TEST(wire_sealed.has_value())) {
-        return;
-    }
-    std::array<std::uint8_t, 60> message{};
-    std::copy(wire_iv.begin(), wire_iv.end(), message.begin());
-    std::copy(wire_additional.begin(), wire_additional.end(), message.begin() + 12);
-    std::copy(wire_data.begin(), wire_data.end(), message.begin() + 28);
-    auto copy_data = wire_data;
-    BOOST_TEST(made->open(wire_iv, wire_additional, copy_data, *wire_sealed).has_value());
-    BOOST_TEST(made->open(std::span(message).first(12), std::span(message).subspan(12, 16),
-                          std::span(message).subspan(28), *wire_sealed)
-                   .has_value());
-    BOOST_TEST(std::equal(copy_data.begin(), copy_data.end(), message.begin() + 28));
-    BOOST_TEST(copy_data == wire_plain);
-    BOOST_TEST(std::equal(wire_iv.begin(), wire_iv.end(), message.begin()));
-    BOOST_TEST(std::equal(wire_additional.begin(), wire_additional.end(), message.begin() + 12));
+    check_edge_empty(*made, iv, cases[12].tag);
+    check_edge_wire_tag(*made, iv);
+    check_edge_overlap(*made, iv);
+    check_edge_in_place(*made);
+    check_edge_wire_open(*made);
 }
 
 /**
@@ -401,6 +435,95 @@ void check_incremental(gcm_cases cases = gcm_spec_cases) {
     }
 }
 
+/** A fresh message of case 14 (AES-256, one zero block) seals as the specification says. */
+template <class Aead>
+void expect_fresh_message(Aead& made, std::span<std::uint8_t const> iv, gcm_case const& one_block) {
+    std::array<std::uint8_t, 16> data{};
+    BOOST_TEST(made.begin_seal(iv, {}).has_value());
+    BOOST_TEST(made.update(data).has_value());
+    auto const tag = made.result();
+    BOOST_TEST_EQ(to_hex(data), one_block.ciphertext);
+    BOOST_TEST(tag && to_hex(*tag) == one_block.tag);
+}
+
+/**
+ * A source moved from during a message is empty and in no message: each call of the machine is
+ * refused, and none reaches the engine with the source's wiped state.
+ */
+template <class Aead>
+void expect_source_refuses(Aead& source, std::span<std::uint8_t const> iv) {
+    std::array<std::uint8_t, 16> data{};
+    BOOST_TEST(source.begin_seal(iv, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST(source.update(data).error() == crypto::error::invalid_state);
+    BOOST_TEST(source.result().error() == crypto::error::invalid_state);
+    BOOST_TEST(source.begin_seal(iv, {}).error() == crypto::error::invalid_state);
+}
+
+/** The machine's wrong calls, each followed by a fresh message. */
+template <class Aead>
+void check_machine_calls(Aead& made, std::span<std::uint8_t const> iv, gcm_case const& one_block) {
+    std::array<std::uint8_t, 16> data{};
+    BOOST_TEST(made.update(data).error() == crypto::error::invalid_state);
+    BOOST_TEST(made.result().error() == crypto::error::invalid_state);
+    expect_fresh_message(made, iv, one_block);
+    BOOST_TEST(made.result().error() == crypto::error::invalid_state);      // a second result
+    BOOST_TEST(made.update(data).error() == crypto::error::invalid_state);  // after result
+
+    BOOST_TEST(made.begin_seal(iv, {}).has_value());
+    BOOST_TEST(made.begin_seal(iv, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST(made.result().error() == crypto::error::invalid_state);  // the error ended it
+    expect_fresh_message(made, iv, one_block);
+
+    BOOST_TEST(made.begin_seal(iv, {}).has_value());
+    std::array<std::uint8_t, 129> const long_iv{};
+    BOOST_TEST(made.begin_seal(long_iv, {}).error() == crypto::error::invalid_state);
+    expect_fresh_message(made, iv, one_block);
+    BOOST_TEST(made.begin_seal(long_iv, {}).error() == crypto::error::invalid_iv_size);
+    BOOST_TEST(made.begin_seal({}, {}).error() == crypto::error::invalid_iv_size);
+    BOOST_TEST(made.update(data).error() == crypto::error::invalid_state);  // none began
+    expect_fresh_message(made, iv, one_block);
+
+    // A message abandoned halfway leaves nothing behind: the next one is whole.
+    BOOST_TEST(made.begin_seal(iv, {}).has_value());
+    BOOST_TEST(made.update(std::span(data).first(7)).has_value());
+    BOOST_TEST(made.begin_seal(iv, {}).error() == crypto::error::invalid_state);
+    expect_fresh_message(made, iv, one_block);
+}
+
+/** A move abandons the message on both sides, and leaves the source refusing every call. */
+template <class Aead>
+void check_machine_moves(Aead& made, std::span<std::uint8_t const> key,
+                         std::span<std::uint8_t const> iv, gcm_case const& one_block) {
+    BOOST_TEST(made.begin_seal(iv, {}).has_value());
+    Aead moved = std::move(made);  // a move abandons the message on both sides
+    BOOST_TEST(moved.result().error() == crypto::error::invalid_state);
+    expect_source_refuses(made, iv);
+    made = std::move(moved);
+    expect_fresh_message(made, iv, one_block);
+
+    // A move assignment from an object in a message: the same for its source.
+    auto other = Aead::make(key);
+    if (!BOOST_TEST(other.has_value())) {
+        return;
+    }
+    BOOST_TEST(other->begin_seal(iv, {}).has_value());
+    made = std::move(*other);
+    BOOST_TEST(made.result().error() == crypto::error::invalid_state);
+    expect_source_refuses(*other, iv);
+    expect_fresh_message(made, iv, one_block);
+
+    // A move assignment over an object in a message abandons that message too.
+    BOOST_TEST(made.begin_seal(iv, {}).has_value());
+    auto third = Aead::make(key);
+    if (!BOOST_TEST(third.has_value())) {
+        return;
+    }
+    made = std::move(*third);
+    BOOST_TEST(made.result().error() == crypto::error::invalid_state);
+    expect_source_refuses(*third, iv);
+    expect_fresh_message(made, iv, one_block);
+}
+
 /** The incremental seal's machine (spec section 2.4): each wrong call, then a fresh message. */
 template <class Backend>
 void check_machine(gcm_cases cases = gcm_spec_cases) {
@@ -415,78 +538,8 @@ void check_machine(gcm_cases cases = gcm_spec_cases) {
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    std::array<std::uint8_t, 16> data{};
-    auto const fresh_message_works = [&] {
-        data.fill(0);
-        BOOST_TEST(made->begin_seal(iv, {}).has_value());
-        BOOST_TEST(made->update(data).has_value());
-        auto const tag = made->result();
-        BOOST_TEST_EQ(to_hex(data), one_block.ciphertext);
-        BOOST_TEST(tag && to_hex(*tag) == one_block.tag);
-    };
-    BOOST_TEST(made->update(data).error() == crypto::error::invalid_state);
-    BOOST_TEST(made->result().error() == crypto::error::invalid_state);
-    fresh_message_works();
-    BOOST_TEST(made->result().error() == crypto::error::invalid_state);      // a second result
-    BOOST_TEST(made->update(data).error() == crypto::error::invalid_state);  // after result
-
-    BOOST_TEST(made->begin_seal(iv, {}).has_value());
-    BOOST_TEST(made->begin_seal(iv, {}).error() == crypto::error::invalid_state);
-    BOOST_TEST(made->result().error() == crypto::error::invalid_state);  // the error ended it
-    fresh_message_works();
-
-    BOOST_TEST(made->begin_seal(iv, {}).has_value());
-    std::array<std::uint8_t, 129> const long_iv{};
-    BOOST_TEST(made->begin_seal(long_iv, {}).error() == crypto::error::invalid_state);
-    fresh_message_works();
-    BOOST_TEST(made->begin_seal(long_iv, {}).error() == crypto::error::invalid_iv_size);
-    BOOST_TEST(made->begin_seal({}, {}).error() == crypto::error::invalid_iv_size);
-    BOOST_TEST(made->update(data).error() == crypto::error::invalid_state);  // none began
-    fresh_message_works();
-
-    // A message abandoned halfway leaves nothing behind: the next one is whole.
-    BOOST_TEST(made->begin_seal(iv, {}).has_value());
-    BOOST_TEST(made->update(std::span(data).first(7)).has_value());
-    BOOST_TEST(made->begin_seal(iv, {}).error() == crypto::error::invalid_state);
-    fresh_message_works();
-
-    // A source moved from during a message is empty and in no message: each call of the
-    // machine is refused, and none reaches the engine with the source's wiped state.
-    auto const source_refuses = [&](aead& source) {
-        BOOST_TEST(source.begin_seal(iv, {}).error() == crypto::error::invalid_state);
-        BOOST_TEST(source.update(data).error() == crypto::error::invalid_state);
-        BOOST_TEST(source.result().error() == crypto::error::invalid_state);
-        BOOST_TEST(source.begin_seal(iv, {}).error() == crypto::error::invalid_state);
-    };
-
-    BOOST_TEST(made->begin_seal(iv, {}).has_value());
-    aead moved = std::move(*made);  // a move abandons the message on both sides
-    BOOST_TEST(moved.result().error() == crypto::error::invalid_state);
-    source_refuses(*made);
-    *made = std::move(moved);
-    fresh_message_works();
-
-    // A move assignment from an object in a message: the same for its source.
-    auto other = aead::make(key);
-    if (!BOOST_TEST(other.has_value())) {
-        return;
-    }
-    BOOST_TEST(other->begin_seal(iv, {}).has_value());
-    *made = std::move(*other);
-    BOOST_TEST(made->result().error() == crypto::error::invalid_state);
-    source_refuses(*other);
-    fresh_message_works();
-
-    // A move assignment over an object in a message abandons that message too.
-    BOOST_TEST(made->begin_seal(iv, {}).has_value());
-    auto third = aead::make(key);
-    if (!BOOST_TEST(third.has_value())) {
-        return;
-    }
-    *made = std::move(*third);
-    BOOST_TEST(made->result().error() == crypto::error::invalid_state);
-    source_refuses(*third);
-    fresh_message_works();
+    check_machine_calls(*made, iv, one_block);
+    check_machine_moves(*made, key, iv, one_block);
 }
 
 /** A one-shot seal or open during an incremental message is refused (Review Focus 1). */

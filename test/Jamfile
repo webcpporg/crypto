@@ -111,3 +111,6 @@ crypto-run random_device_failing : random_device_failing_test.cpp
   : <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
 webcpp.compile-diagnostic random_device_no_call : random_device_no_call_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS : native wasip2 ;
+
+# The C libraries' own suites, in the own lane c-suites.
+build-project c_suites ;

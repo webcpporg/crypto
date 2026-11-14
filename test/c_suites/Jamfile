@@ -28,6 +28,30 @@ webcpp.run ctaes_test : $(CTAES)/test.c : <library>/third_party//ctaes <warnings
 webcpp.run ctaes_test_fast : $(CTAES)/test.c : <library>/third_party//ctaes <warnings>off
   <warnings-as-errors>off <undef>NDEBUG ;
 
+# libsecp256k1's tests, which include secp256k1.c and so recompile it with these
+# defines, third_party/Jamfile's for the library (a change of one is a change of
+# both), and VERIFY, as libsecp256k1's CMake builds them. The archive webcpp
+# links is tested by the vectors of the library's own tests.
+path-constant SECP256K1 : ../../../../third_party/libs/secp256k1 ;
+.secp256k1 = <include>$(SECP256K1)/include <include>$(SECP256K1)/src
+    <define>ENABLE_MODULE_ECDH=1 <define>ENABLE_MODULE_RECOVERY=1
+    <define>ENABLE_MODULE_EXTRAKEYS=1 <define>ENABLE_MODULE_SCHNORRSIG=1
+    <define>ENABLE_MODULE_MUSIG=1 <define>ENABLE_MODULE_ELLSWIFT=1
+    <define>ENABLE_MODULE_SILENTPAYMENTS=1 <warnings>off <warnings-as-errors>off ;
+# Optimised in every variant: VERIFY's checks at -O0 under wasmtime and node would
+# not end within the own-lanes job's 60 minutes. The framework runs 16 iterations
+# of each test; measured on 2026-11-14, on a machine at load 100 to 160: native
+# 106 s, Emscripten under node 477 s (above the support's 120 s, so
+# secp256k1_tests_bound.cpp re-arms node's bound), wasip2 774 s, above the 600 s
+# bound of tools/boost/asio-wasip2/run.sh and asio-wasip3/run.sh, which stopped
+# both WASI runs. On WASI it runs 4 iterations, so that it ends within that
+# bound; natively and on Emscripten 16, as libsecp256k1's CI runs it.
+webcpp.run secp256k1_tests : $(SECP256K1)/src/tests.c
+    $(SECP256K1)/src/precomputed_ecmult.c $(SECP256K1)/src/precomputed_ecmult_gen.c
+  : $(.secp256k1) <define>VERIFY <optimization>speed
+    <toolset>emscripten:<source>secp256k1_tests_bound.cpp
+    <target-os>wasi:<testing.arg>--iterations=4 ;
+
 # The lane names its targets, so that the CI runs it on each (an own lane that
 # names none runs natively alone, tools/webcpp.jam's lane rule).
-webcpp.lane c-suites : bearssl_test_crypto ctaes_test : native wasip2 wasip3 emscripten ;
+webcpp.lane c-suites : bearssl_test_crypto ctaes_test secp256k1_tests : native wasip2 wasip3 emscripten ;

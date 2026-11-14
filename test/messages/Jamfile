@@ -14,3 +14,4 @@ build-project openssl_not_linked ;
 build-project openssl_old ;
 build-project ctaes_not_linked ;
 build-project gcm_on_ctaes ;
+build-project secp256k1_not_linked ;

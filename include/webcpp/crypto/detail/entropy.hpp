@@ -22,7 +22,7 @@
 #include <cstdint>
 #include <span>
 
-#if defined(WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY)
+#ifdef WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY
 // The test seam of spec section 8.4: a test defines the source, which returns 0, or -1 with
 // errno set, as getentropy does (lint-world: the call it stands in for, named, not made).
 extern "C" int webcpp_test_entropy(void* out, std::size_t size);
@@ -56,7 +56,7 @@ inline boost::system::result<void> read_entropy(std::uint8_t* out, std::size_t s
         ::BCryptGenRandom(nullptr, out, static_cast<ULONG>(size), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
     int const failed = BCRYPT_SUCCESS(status) ? 0 : EIO;
 #else
-#if defined(WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY)
+#ifdef WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY
     int const called = webcpp_test_entropy(out, size);
 #else
     int const called = ::getentropy(out, size);  // lint-world: the entropy

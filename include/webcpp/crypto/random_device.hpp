@@ -62,6 +62,8 @@ public:
      * @return The largest `unsigned int`.
      */
     static constexpr result_type(max)() noexcept {
+        // The parentheses keep windows.h's max macro out.
+        // NOLINTNEXTLINE(readability-redundant-parentheses)
         return (std::numeric_limits<result_type>::max)();
     }
 
@@ -70,7 +72,9 @@ public:
      *
      * @return The digits of `result_type`.
      */
-    double entropy() const noexcept {
+    // A member, as the standard library's random device has it.
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    [[nodiscard]] double entropy() const noexcept {
         return static_cast<double>(std::numeric_limits<result_type>::digits);
     }
 
@@ -81,6 +85,8 @@ public:
      * @return Nothing; `error::entropy_unavailable` when the source fails;
      * `errc::not_supported` where there is none (an Emscripten audio worklet).
      */
+    // A member, so that a generator of another kind can stand in for this one.
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     boost::system::result<void> fill(std::span<std::uint8_t> out) noexcept {
         return detail::fill_from_system(out);
     }

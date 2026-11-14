@@ -92,7 +92,7 @@
 // natively the first linked of OpenSSL, BearSSL; else BearSSL, whose header then says that
 // no backend is linked when neither is, and that BearSSL is not linked when OpenSSL alone is
 // (on WebAssembly, where the program selects OpenSSL with its define).
-#if defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL)
+#ifdef WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
 #define WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL 1
 #elif defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL)
 #define WEBCPP_CRYPTO_DETAIL_DEFAULT_BEARSSL 1
@@ -121,7 +121,7 @@ struct secp256k1;
 namespace webcpp::crypto {
 
 /** The backend of `aes256<>`, `gcm<aes256<>>` and `aes256_gcm`, as section 5 chooses it. */
-#if defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL)
+#ifdef WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL
 using default_backend = backends::openssl;
 #else
 using default_backend = backends::bearssl;

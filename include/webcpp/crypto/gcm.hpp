@@ -43,7 +43,7 @@ namespace webcpp::crypto {
  */
 template <class Cipher>
 class gcm {
-    using backend = typename Cipher::backend_type;
+    using backend = Cipher::backend_type;
     using state_type = detail::gcm_state<backend, Cipher::key_size>;
     using engine = detail::gcm_engine<backend, Cipher::key_size>;
 
@@ -63,9 +63,9 @@ public:
     /** The longest IV accepted, OpenSSL's limit, applied on every backend. */
     static constexpr std::size_t max_iv_size = 128;
     /** The longest message, 2^36 - 32 bytes (NIST SP 800-38D section 5.2.1.1). */
-    static constexpr std::uint64_t max_message_size = (std::uint64_t{1} << 36) - 32;
+    static constexpr std::uint64_t max_message_size = (std::uint64_t{1} << 36U) - 32;
     /** The longest additional data, 2^61 - 1 bytes (the same section, 2^64 - 1 bits). */
-    static constexpr std::uint64_t max_additional_data_size = (std::uint64_t{1} << 61) - 1;
+    static constexpr std::uint64_t max_additional_data_size = (std::uint64_t{1} << 61U) - 1;
 
     /**
      * Expands a key into a new object.
@@ -188,7 +188,7 @@ public:
         }
         // The tag may lie in data, which decryption overwrites: a copy is checked.
         std::array<std::uint8_t, tag_size> expected{};
-        std::copy(tag.begin(), tag.end(), expected.begin());
+        std::ranges::copy(tag, expected.begin());
         auto const started = engine::start(state_, false, iv, additional_data);
         auto const opened = started ? engine::run(state_, data) : started;
         auto const checked = opened ? engine::check(state_, expected) : opened;
@@ -289,9 +289,9 @@ private:
 
     // Every guard of a message, in spec section 2.4's order: the state, the IV, the tag
     // (open's; seal passes tag_size), the lengths. None reads a byte of the spans.
-    boost::system::result<void> guard_message(std::span<std::uint8_t const> iv,
-                                              std::span<std::uint8_t const> additional_data,
-                                              std::size_t size, std::size_t tag) const noexcept {
+    [[nodiscard]] boost::system::result<void> guard_message(
+        std::span<std::uint8_t const> iv, std::span<std::uint8_t const> additional_data,
+        std::size_t size, std::size_t tag) const noexcept {
         if (!keyed_ || in_message_) {
             return error::invalid_state;
         }

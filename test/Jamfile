@@ -20,7 +20,8 @@ rule crypto-run ( name : sources + : requirements * : targets * )
       : $(requirements) <exception-handling>off : $(targets) ;
 }
 
-webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp crypto/error.hpp ;
+webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp crypto/error.hpp
+  crypto/equal.hpp crypto/detail/wipe.hpp crypto/detail/limits.hpp ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
 # exceptions, keeps it when a developer defines it, defines it when
@@ -33,3 +34,5 @@ webcpp.compile config_developer_defined : config_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS <define>WEBCPP_TEST_CRYPTO_DEVELOPER_DEFINED ;
 
 crypto-run error : error_test.cpp ;
+crypto-run equal : equal_test.cpp ;
+crypto-run wipe : wipe_test.cpp ;

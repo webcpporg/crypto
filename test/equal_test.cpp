@@ -1,0 +1,49 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+// equal compares two digests, a digest and an array, or two spans, and tells them apart
+// by any byte; spans of different sizes are unequal, and two empty spans are equal.
+
+#include <webcpp/crypto/equal.hpp>
+#include <webcpp/test/exit_status.hpp>
+
+#include <boost/core/lightweight_test.hpp>
+#include <boost/hash2/digest.hpp>
+#include <boost/hash2/hmac.hpp>
+#include <boost/hash2/sha2.hpp>
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+
+namespace crypto = webcpp::crypto;
+
+int main() {
+    boost::hash2::digest<16> a{};
+    boost::hash2::digest<16> b{};
+    BOOST_TEST(crypto::equal(a, b));
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        for (unsigned bit = 0; bit < 8; ++bit) {
+            b = a;
+            b.data()[i] ^= static_cast<unsigned char>(1U << bit);
+            BOOST_TEST(!crypto::equal(a, b));
+        }
+    }
+    std::array<std::uint8_t, 16> const array{};
+    BOOST_TEST(crypto::equal(a, array));
+    std::array<std::uint8_t, 15> const shorter{};
+    BOOST_TEST(!crypto::equal(a, shorter));
+    BOOST_TEST(crypto::equal(std::span<std::uint8_t const>(), std::span<std::uint8_t const>()));
+
+    // Hash2's MAC, which equal serves too: two results of the same key and message agree.
+    boost::hash2::hmac_sha2_256 first(reinterpret_cast<unsigned char const*>("key"), 3);
+    boost::hash2::hmac_sha2_256 second(reinterpret_cast<unsigned char const*>("key"), 3);
+    first.update("message", 7);
+    second.update("message", 7);
+    BOOST_TEST(crypto::equal(first.result(), second.result()));
+    return webcpp::test::exit_status(boost::report_errors());
+}

@@ -4,8 +4,9 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// OpenSSL's error queue (spec section 3.3): an entry of the caller's survives a make, a
-// seal, a good open and a failed one, and nothing of webcpp's is left beside it.
+// OpenSSL's error queue (spec section 3.3): on an empty queue, a make of the block cipher
+// and of gcm leaves it empty; an entry of the caller's survives a make, a seal, a good open
+// and a failed one, and nothing of webcpp's is left beside it.
 
 #include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/backends/openssl.hpp>
@@ -40,6 +41,13 @@ int main() {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
     std::array<std::uint8_t, 32> data{};
+
+    // OpenSSL's first fetch and its initialisation leave nothing behind either.
+    BOOST_TEST_EQ(ERR_peek_error(), 0UL);
+    BOOST_TEST(crypto::aes256<crypto::backends::openssl>::make(key).has_value());
+    BOOST_TEST_EQ(ERR_peek_error(), 0UL);
+    BOOST_TEST(aead::make(key).has_value());
+    BOOST_TEST_EQ(ERR_peek_error(), 0UL);
 
     ERR_raise(ERR_LIB_USER, ERR_R_PASSED_INVALID_ARGUMENT);
     unsigned long const ours = ERR_peek_last_error();

@@ -14,6 +14,13 @@
  configured with (`/etc/ssl/openssl.cnf`, when the machine has one), as any program of
  OpenSSL does; what it raises meanwhile is popped with the backend's mark.
 
+ The thread's error queue is left as the backend found it, through a mark set before a call
+ that can raise and a pop after it. The queue is a ring of 16 slots (`ERR_NUM_ERRORS`), which
+ holds 15 entries: when the caller's entries and those OpenSSL raises between the mark and
+ the pop are more than 15, the oldest are overwritten, the marked one among them, and the pop
+ then empties the queue, the caller's entries with it. A caller that keeps entries across a
+ call of the backend keeps few.
+
  @see "The backends", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_BACKENDS_OPENSSL_HPP
@@ -41,7 +48,6 @@
 #include <boost/system/errc.hpp>
 #include <boost/system/result.hpp>
 
-#include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 
@@ -56,7 +62,7 @@
 
 namespace webcpp::crypto::backends {
 
-/** The backend OpenSSL (spec section 3.3). */
+// The backend OpenSSL, declared and documented in config.hpp (spec section 3.3).
 struct openssl {
     /** The backend's name, which the examples print. */
     static constexpr std::string_view name = "openssl";
@@ -219,18 +225,39 @@ struct gcm_engine<backends::openssl, KeySize> {
         }
         std::array<std::uint8_t, 16> final_block{};
         int written = 0;
-        // A tag that does not match raises nothing in the queue (CR-PROBES ossl_open.out).
+        // With the tag set just above, and the IV given by start, the provider's final
+        // (ossl_gcm_stream_final, gcm_cipher_internal) fails only where its comparison of
+        // the tags fails: its other refusals, no key, no IV, an IV already finished or no
+        // tag, cannot hold in this order of calls. So a failure is the tag's, which raises
+        // nothing in the queue (CR-PROBES ossl_open.out).
         if (EVP_DecryptFinal_ex(s.context, final_block.data(), &written) != 1) {
             return error::authentication_failed;
         }
         return {};
     }
 
-    // The next start re-initialises the context; this one resets the message now.
+    // Ends the message by starting another in its place, with the zero IV of 12 bytes, and
+    // sealing one zero byte of it. The provider keeps an IV given to EVP_CipherInit_ex until
+    // the next update, where CRYPTO_gcm128_setiv zeroes the lengths and the GHASH value (Xi)
+    // and derives the counter blocks (Yi, EK0) from it; the byte sealed then replaces the
+    // last keystream block (EKi), the one other value of the abandoned message. What the
+    // context holds after it is derived from the key and the zero IV alone, or is public:
+    // ciphertext and additional data that GHASH's buffer (Xn) may still hold. A failure,
+    // which OpenSSL does not have for a keyed context, leaves the message until the next
+    // start or the reset; what it raises is popped with the mark.
     static void abandon(state& s) noexcept {
-        if (EVP_CipherInit_ex(s.context, nullptr, nullptr, nullptr, nullptr, -1) != 1) {
-            ERR_clear_error();
-        }
+        std::array<std::uint8_t, 12> const zero_iv{};
+        std::array<std::uint8_t, 1> byte{};
+        int written = 0;
+        ERR_set_mark();
+        static_cast<void>(
+            EVP_CipherInit_ex(s.context, nullptr, nullptr, nullptr, nullptr, 1) == 1 &&
+            EVP_CIPHER_CTX_ctrl(s.context, EVP_CTRL_GCM_SET_IVLEN, 12, nullptr) == 1 &&
+            EVP_CipherInit_ex(s.context, nullptr, nullptr, nullptr, zero_iv.data(), 1) == 1 &&
+            EVP_CipherUpdate(s.context, byte.data(), &written, byte.data(), 1) == 1);
+        ERR_pop_to_mark();
+        // The byte holds a keystream byte of the key's: wiped as key material is.
+        wipe(byte.data(), byte.size());
     }
 
     static void move(state& to, state& from) noexcept {

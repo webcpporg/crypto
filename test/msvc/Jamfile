@@ -11,9 +11,9 @@
 # nothing here is built: the project's requirements make every case <build>no.
 #
 # A case is declared here with a build-project line once its sources exist:
-# its directory holds its Jamfile, written beforehand, and the stream that
-# adds the sources it needs (the backends, the canary, OpenSSL) adds the line
-# in the same commit. Cases a directory is waiting for are listed below.
+# its directory holds its Jamfile, written beforehand, and the line is added
+# in the commit that adds the sources the case needs. Each case waits below
+# for what it needs.
 rule msvc-only ( properties * )
 {
     if ! ( <toolset>msvc in $(properties) )
@@ -24,16 +24,17 @@ rule msvc-only ( properties * )
 
 project : requirements <conditional>@msvc-only ;
 
-# Waiting for the compile-diagnostic sources of Tasks 6, 7 and 12 (app.cpp):
+# Waiting for the backends and their compile-time diagnostics (app.cpp):
 # build-project no_backend ;
 # build-project bearssl_not_linked ;
 # build-project openssl_not_linked ;
 # build-project two_defaults ;
 # build-project aes_on_bearssl ;
-# Waiting for Task 5's canary and Task 7's gcm (app.cpp):
+# Waiting for the BearSSL canary and the gcm header (app.cpp):
 # build-project canary_missing ;
 # build-project canary_other_commit ;
 # build-project canary_other_configuration ;
-# Waiting for Task 5's canary, Task 12's openssl and Task 7's gcm (the sources):
+# Waiting for the BearSSL canary, the gcm header and the OpenSSL backend
+# (the sources):
 # build-project canary_two_files ;
 # build-project default_two_files ;

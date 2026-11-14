@@ -26,4 +26,5 @@ of every version are on webcpp's index page.
 * Added gcm's incremental seal, begin_seal, update and result, whose every error ends the message.
 * Added random_device, which reads the system's or the browser's generator and nothing else.
 * Added the link-time canary of the backend BearSSL, and BearSSL's own test suite on webcpp's build.
+* Added backends::openssl, AES and AES-GCM on OpenSSL 3.5.9, on native, wasip2 and wasip3.
 // end::unreleased[]

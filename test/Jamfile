@@ -25,6 +25,10 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/aes.hpp
   crypto/random_device.hpp crypto/detail/engines.hpp crypto/detail/entropy.hpp
   crypto/detail/limits.hpp crypto/detail/windows.hpp crypto/detail/wipe.hpp ;
 
+# The backend OpenSSL's header alone, with OpenSSL linked.
+webcpp.headers-alone crypto : ../include : crypto/backends/openssl.hpp
+  : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
+
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
 # exceptions, keeps it when a developer defines it, defines it when
 # WEBCPP_NO_EXCEPTIONS is, and classifies the target.
@@ -114,3 +118,21 @@ webcpp.compile-diagnostic random_device_no_call : random_device_no_call_test.cpp
 
 # The C libraries' own suites, in the own lane c-suites.
 build-project c_suites ;
+
+# The backend OpenSSL: the source-built OpenSSL 3.5.9 on native, wasip2 and
+# wasip3 (Task 11); Emscripten has none.
+crypto-run gcm_openssl : gcm_openssl_test.cpp : <library>/webcpp/crypto//openssl
+  : native wasip2 wasip3 ;
+# The limits need 64-bit sizes: natively, as BearSSL's twin.
+crypto-run gcm_limits_openssl : gcm_limits_openssl_test.cpp
+  : <library>/webcpp/crypto//openssl : native ;
+crypto-run gcm_wycheproof_openssl : gcm_wycheproof_openssl_test.cpp
+  : <library>/webcpp/crypto//openssl <library>/third_party//wycheproof
+    <library>/webcpp//boost_json : native wasip2 wasip3 ;
+crypto-run aes_openssl : aes_openssl_test.cpp : <library>/webcpp/crypto//openssl
+  : native wasip2 wasip3 ;
+crypto-run openssl_error_queue : openssl_error_queue_test.cpp
+  : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
+# OpenSSL on two threads: the provider configured with threads.
+crypto-run gcm_openssl_threads : gcm_openssl_threads_test.cpp
+  : <library>/webcpp/crypto//openssl <threading>multi : native ;

@@ -10,3 +10,5 @@
 
 build-project two_defaults ;
 build-project openssl_on_wasi ;
+build-project openssl_not_linked ;
+build-project openssl_old ;

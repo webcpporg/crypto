@@ -1,0 +1,13 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+project : requirements <library>/webcpp/crypto//crypto ;
+
+import webcpp ;
+
+# include/openssl/opensslv.h stands for the headers of an OpenSSL older than 3.0.
+webcpp.compile-diagnostic openssl_old : openssl_old.cpp
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <include>include : native wasip2 ;

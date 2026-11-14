@@ -1,0 +1,147 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-secp256k1]
+== secp256k1
+
+`<webcpp/crypto/secp256k1.hpp>` signs and verifies on the curve secp256k1 with
+libsecp256k1, the backend `backends::secp256k1`: BIP340 Schnorr signatures,
+ECDSA signatures, their verification, and ECDH. libsecp256k1 is the only
+backend of this header. The program links it with `/third_party//secp256k1`
+(see <<crypto-jamfile-programs>>), and a program that includes the header
+without it stops at compile time with a message that names the Jamfile line to add.
+
+[#crypto-secp256k1-shape]
+=== The shape
+
+A key pair is `webcpp::crypto::secp256k1::keypair`, which is
+`basic_keypair<backends::secp256k1>`. It is made from a secret key of 32 bytes,
+and it is the only owner of that secret: it keeps the key pair, never the
+bytes the program passed.
+
+[source,cpp]
+----
+namespace secp256k1 = webcpp::crypto::secp256k1;
+
+auto key = secp256k1::keypair::make(secret);          // result<keypair>
+auto xonly = key->xonly_public_key();                 // 32 bytes, BIP340
+auto compressed = key->public_key();                  // 33 bytes, SEC1
+auto sig = key->sign_schnorr(message, aux);           // 64 bytes, any message length
+auto ecdsa = key->sign_ecdsa(hash);                   // 64 bytes, compact, low-S
+auto shared = key->ecdh(other_public_key);            // 32 bytes
+----
+
+Verification does not need a key pair: `verify_schnorr(signature, message,
+xonly_public_key)` and `verify_ecdsa(signature, hash, public_key)` are free
+functions that return `result<void>`, with the error `invalid_signature` when
+the signature does not verify.
+
+* `sign_schnorr` signs a message of any length, the empty one included, and
+takes 32 bytes `aux` of fresh randomness that are the caller's, as BIP340
+recommends. A caller that has none passes zeros: the signature stays valid.
+* `sign_ecdsa` signs a hash of exactly 32 bytes. The nonce is RFC 6979's, and
+the signature is in compact form (`r` then `s`, 32 bytes each) and in low-S form.
+* A key pair is movable and not copyable. The key pair moved from is wiped and
+empty, and every function of it but assignment and destruction returns
+`invalid_state`.
+* The destructor wipes the key pair and gives its context back.
+
+[#crypto-secp256k1-context]
+=== The context lives in your resource
+
+libsecp256k1 signs with a context, a block of precomputed memory. A key pair
+holds one, allocated by `make` in the `std::pmr::memory_resource` the program
+passes as the second argument, which is the default resource when it passes
+none:
+
+[source,cpp]
+----
+std::pmr::monotonic_buffer_resource arena(buffer.data(), buffer.size());
+auto key = secp256k1::keypair::make(secret, &arena);
+----
+
+This is the only allocation crypto makes for secp256k1, one block of
+`secp256k1_context_preallocated_size(SECP256K1_CONTEXT_NONE)` bytes aligned as
+any object. The signatures, `ecdh`, the public keys and both verifications
+allocate nothing. The resource must outlive the key pair. A failed allocation is
+reported as the resource reports it, by throwing `std::bad_alloc` with
+exceptions on; `make` is the one function of the header that is not `noexcept`.
+
+`make` also randomises the context with 32 bytes from `random_device`, as
+libsecp256k1 recommends to protect the signing against side channels. When the
+generator fails, or the target has none (an Emscripten audio worklet), `make`
+returns `entropy_unavailable`: a program handles one error for both.
+
+[#crypto-secp256k1-static]
+=== Verification and the static context
+
+`verify_schnorr` and `verify_ecdsa` use libsecp256k1's static context, which
+allocates nothing, and which libsecp256k1 asks to use only after its
+self-test. Each verification therefore calls `secp256k1_selftest()` first: it
+hashes one short string with SHA-256 and compares the digest, which is small
+next to a verification of about 20 microseconds. The self-test keeps no flag,
+since crypto has no static mutable state. If it fails, the library was built
+wrongly, and libsecp256k1 calls its default error callback, which aborts the
+program. `make` needs no call, because the preallocated context runs the
+self-test itself.
+
+[#crypto-secp256k1-ecdh]
+=== ECDH and the secret it needs
+
+`ecdh(public_key)` returns the SHA-256 of the compressed shared point,
+libsecp256k1's default hash. The public key is 33 bytes (compressed) or 65
+bytes (uncompressed). libsecp256k1's function takes the secret key, so `ecdh`
+reads it out of the key pair into a local array and wipes that array before it
+returns, on every path.
+
+[#crypto-secp256k1-high-s]
+=== High-S signatures are refused
+
+`verify_ecdsa` accepts only the low-S form of a signature, as
+`secp256k1_ecdsa_verify` does. A signature in high-S form is the same
+signature with `s` replaced by the group order minus `s`; it is valid
+mathematically, and libsecp256k1 refuses it to close the malleability that
+Bitcoin's rules closed. `verify_ecdsa` returns `invalid_signature` for it, as it
+does for a compact signature whose `r` or `s` is not below the group order. A
+program that receives signatures from a signer that produces high-S ones
+normalises them with `secp256k1_ecdsa_signature_normalize` from the C API
+before it verifies them.
+
+[#crypto-secp256k1-errors]
+=== Every error
+
+[cols="2,5"]
+|===
+|Error |Raised by
+
+|`invalid_key_size` |`make`, a secret that is not 32 bytes.
+|`invalid_secret_key` |`make`, a secret that is zero or not below the group order.
+|`entropy_unavailable` |`make`, when the context cannot be randomised: the generator failed, or there is none.
+|`invalid_state` |Every function of a key pair that was moved from, except assignment and destruction.
+|`invalid_public_key` |`ecdh` and `verify_ecdsa`, a key whose size is not 33 or 65 bytes, or that libsecp256k1 refuses to parse (a prefix other than 02, 03 or 04, a coordinate not below the field's prime, a point not on the curve, an x with no point); `verify_schnorr`, an x-only key that libsecp256k1 refuses.
+|`invalid_signature` |`verify_schnorr` and `verify_ecdsa`, a signature that does not verify; `verify_ecdsa` also for a compact signature that cannot be parsed and for the high-S form.
+|`backend_failure` |`sign_schnorr`, or `ecdh` on a parsed key, when libsecp256k1 returns failure where its contract says it does not; a valid key pair never causes it.
+|===
+
+[#crypto-secp256k1-c-api]
+=== The whole C API stays reachable
+
+The C types cover the common uses, and nothing hides the rest. The program
+includes `<secp256k1.h>` and the headers of the modules it wants
+(`<secp256k1_ecdh.h>`, `<secp256k1_recovery.h>`, `<secp256k1_extrakeys.h>`,
+`<secp256k1_schnorrsig.h>`, `<secp256k1_musig.h>`, `<secp256k1_ellswift.h>`,
+`<secp256k1_silentpayments.h>`) and calls libsecp256k1 directly: every module of
+v0.8.0 is built, recovery included.
+
+[#crypto-secp256k1-one-copy]
+=== One copy per program
+
+libsecp256k1's precomputed tables are global symbols, so a program has one
+libsecp256k1 only. The copy that `/third_party//secp256k1` builds is the
+one crypto's canary expects: linking the program with another libsecp256k1, an
+external one included, is refused at link time, and a mismatch of the tables'
+configuration (small against large) is refused too. A program that already
+depends on another libsecp256k1 builds that dependency with webcpp's copy.

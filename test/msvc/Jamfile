@@ -38,3 +38,8 @@ project : requirements <conditional>@msvc-only ;
 # (the sources):
 # build-project canary_two_files ;
 # build-project default_two_files ;
+# Waiting for Task 26 (the feature webcpp-secp256k1-tables):
+# build-project canary_secp256k1_missing ;
+# build-project canary_secp256k1_small ;
+build-project canary_ctaes_missing ;
+build-project gcm_on_ctaes ;

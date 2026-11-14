@@ -1,0 +1,75 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-block]
+== Block ciphers
+
+`aes128`, `aes192` and `aes256` are the AES block cipher with keys of 16, 24
+and 32 bytes. They work in place on whole blocks of 16 bytes, so `encrypt` and
+`decrypt` take a span whose size is a multiple of `block_size`, which is 16,
+and give `invalid_input_size` for a partial block. Each is made with
+`make(key)`, which gives `invalid_key_size` for a key of another size; an
+object moved from is wiped and empty, and returns `invalid_state`.
+
+A raw block cipher is a building block, not encryption by itself: it
+encrypts each block alone, and equal blocks give equal ciphertext. A program
+that encrypts messages uses `gcm` (`aes256_gcm`).
+
+[#crypto-block-ctaes]
+=== The block cipher on ctaes
+
+The block cipher is available on the backends that export it: ctaes, OpenSSL and
+Botan. BearSSL exports AES only inside its modes, with no single-block class,
+so `aes256<backends::bearssl>` is a complete type, which `gcm` needs to name
+its cipher, but its `make` does not compile, and a `static_assert` says
+which backends to use. `aes256<>` is the cipher of `aes256_gcm`, so it
+follows the AEADs' default backend, which is BearSSL on WebAssembly: a program
+that wants the block cipher there names its backend and includes the header of
+that backend.
+
+ctaes is Pieter Wuille's constant-time bitsliced AES, the one Bitcoin Core
+ships. It exports AES-128, AES-192 and AES-256 on whole blocks, encryption and
+decryption, and nothing else. It allocates nothing: the key schedule lives
+inside the object, and is wiped when the object is destroyed or moved from.
+
+[source,cpp]
+----
+#include <webcpp/crypto/aes.hpp>
+#include <webcpp/crypto/backends/ctaes.hpp>
+
+#include <array>
+#include <cstdint>
+
+std::array<std::uint8_t, 32> key{};
+std::array<std::uint8_t, 16> block{};
+auto aes = webcpp::crypto::aes256<webcpp::crypto::backends::ctaes>::make(key);
+if (aes && aes->encrypt(block) && aes->decrypt(block)) {
+    // block holds the plaintext again
+}
+----
+
+The program's Jamfile names ctaes, since crypto builds it from its sources, as
+described in <<crypto-jamfile-block>>:
+
+----
+exe block : block.cpp /webcpp/crypto//crypto /third_party//ctaes ;
+----
+
+The program prints `ctaes aes256 ok` on every target: native, wasip2, wasip3 and
+Emscripten.
+
+[#crypto-block-gcm]
+=== GCM is not available on ctaes
+
+ctaes has the block cipher alone, and webcpp builds no GCM of its own on another
+library's AES. So `gcm<aes256<backends::ctaes>>` does not compile, and its
+`static_assert` says:
+
+----
+webcpp::crypto: gcm<aes256<backends::ctaes>>: ctaes exports the AES block cipher alone, and webcpp builds no GCM on another library's AES. Use a backend that exports GCM: gcm<aes256<backends::bearssl>>, gcm<aes256<backends::openssl>> or gcm<aes256<backends::botan>>.
+----
+
+A program that wants AES-GCM links BearSSL or OpenSSL and uses `aes256_gcm`.

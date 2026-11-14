@@ -23,6 +23,14 @@ closes it lists every name the headers declare.
 
 include::overview.adoc[]
 
+include::jamfile.adoc[]
+
+include::block.adoc[]
+
+include::secp256k1.adoc[]
+
+include::backends.adoc[]
+
 include::errors.adoc[]
 
 include::testing.adoc[]

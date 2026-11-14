@@ -31,4 +31,8 @@
 #include <webcpp/crypto/aes256_gcm.hpp>
 #endif
 
+#if defined(WEBCPP_CRYPTO_HAS_CTAES)
+#include <webcpp/crypto/backends/ctaes.hpp>
+#endif
+
 #endif  // WEBCPP_CRYPTO_HPP

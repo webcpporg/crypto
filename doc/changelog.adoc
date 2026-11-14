@@ -28,4 +28,6 @@ of every version are on webcpp's index page.
 * Added the link-time canary of the backend BearSSL, and BearSSL's own test suite on webcpp's build.
 * Added backends::openssl, AES and AES-GCM on OpenSSL 3.5.9, on native, wasip2 and wasip3.
 * Added aes128_gcm and aes256_gcm on the default backend, and <webcpp/crypto.hpp> includes the header of each backend the build links.
+* Added the backend ctaes, the AES block cipher alone on every target: `aes128/192/256<backends::ctaes>`; `gcm` on it is refused with the backends that have one.
+* Added the pages on libsecp256k1, the block cipher, the backends and the user's Jamfiles.
 // end::unreleased[]

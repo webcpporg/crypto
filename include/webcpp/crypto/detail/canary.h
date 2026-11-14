@@ -25,6 +25,12 @@
 #define WEBCPP_CRYPTO_BEARSSL_COMMIT 7bea48e
 #endif
 
+#ifdef WEBCPP_CRYPTO_CTAES_CANARY_COMMIT
+#define WEBCPP_CRYPTO_CTAES_COMMIT WEBCPP_CRYPTO_CTAES_CANARY_COMMIT
+#else
+#define WEBCPP_CRYPTO_CTAES_COMMIT 9be056a
+#endif
+
 #define WEBCPP_CRYPTO_DETAIL_CANARY_I(name, commit, configuration) \
     webcpp_crypto_##name##_##commit##_##configuration##__add_third_party_##name##_to_your_link
 #define WEBCPP_CRYPTO_DETAIL_CANARY(name, commit, configuration) \

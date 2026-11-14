@@ -12,3 +12,5 @@ build-project two_defaults ;
 build-project openssl_on_wasi ;
 build-project openssl_not_linked ;
 build-project openssl_old ;
+build-project ctaes_not_linked ;
+build-project gcm_on_ctaes ;

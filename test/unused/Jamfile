@@ -1,0 +1,11 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+# A backend built from source, named and not called, adds no byte, on every
+# target it builds on (spec sections 4.2 and 8.7). Task 21 creates this file and app.cpp
+# with webcpp.same-program; the line of ctaes, which waits for it:
+#
+#   webcpp.same-program unused_ctaes : app.cpp : /third_party//ctaes : : <library>/webcpp/crypto//crypto ;

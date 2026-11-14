@@ -35,11 +35,7 @@ namespace {
 std::atomic<std::size_t> openssl_allocations{0};
 
 #if defined(__GLIBC__)
-extern "C" {
-void* __libc_malloc(std::size_t);
-void* __libc_realloc(void*, std::size_t);
-void __libc_free(void*);
-}
+// __libc_malloc, __libc_realloc and __libc_free are declared by support/counting.hpp.
 #define WEBCPP_TEST_OPENSSL_C(name) __libc_##name
 #else
 #define WEBCPP_TEST_OPENSSL_C(name) std::name

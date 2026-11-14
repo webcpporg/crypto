@@ -5,19 +5,26 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Counts every allocation of the program that includes this header once (spec section 8.5):
-// every form of the global operator new, and the C library's malloc, calloc, realloc,
-// aligned_alloc and posix_memalign, where a program can see them: glibc's replaced and
-// forwarded to its __libc_* functions, Emscripten's replaced and forwarded to its
-// emscripten_builtin_* (its dlmalloc defines them weak), macOS's through malloc_logger, the
-// hook libsystem_malloc calls on every allocation. WASI's wasi-libc defines malloc and its
-// __libc_malloc in one object (dlmalloc.c.obj, measured with nm), so a program cannot
-// replace one and keep the other, and MSVC's C runtime has no hook: there the C library's
-// allocations are not counted, and c_allocations_counted says so, which the tests print.
+// every form of the global operator new (plain, array, aligned, nothrow, aligned nothrow), and
+// the C library's malloc, calloc, realloc, aligned_alloc and posix_memalign, where a program
+// can see them: glibc's replaced and forwarded to its __libc_* functions, Emscripten's replaced
+// and forwarded to its emscripten_builtin_* (its dlmalloc defines them weak), macOS's through
+// malloc_logger, the hook libsystem_malloc calls on every allocation. The glibc functions
+// memalign, valloc, pvalloc and reallocarray are not replaced and so not counted. WASI's
+// wasi-libc defines malloc and its __libc_malloc in one object (dlmalloc.c.obj, measured with
+// nm), so a program cannot replace one and keep the other, and MSVC's C runtime has no hook:
+// there the C library's allocations are not counted, and c_allocations_counted says so, which
+// the tests print.
 // A block of operator new is counted twice where the C library is counted (once by new, once
 // by the malloc it calls): every test compares a count before and after a window, so this
-// changes no verdict. Nothing here reads a thread_local: on macOS the first read of one on a
-// thread allocates through dyld (_tlv_get_addr), inside malloc_logger, which recursed until
-// the stack ended (N1, measured in the review's rr1/logger.cpp).
+// changes no verdict. The replaced throwing operator new does not run the new_handler loop: a
+// failed allocation throws std::bad_alloc (or aborts without exceptions) at once.
+// Nothing here reads a thread_local: on macOS the first read of one on a thread allocates
+// through dyld (_tlv_get_addr), inside malloc_logger, which recursed until the stack ended
+// (N1: measured with a malloc_logger that read a thread_local, which crashed before main).
+// On macOS the hook is installed at static initialisation, relies on the private malloc_logger
+// symbol of libsystem_malloc, and overwrites any hook already there (MallocStackLogging's, a
+// sanitizer's).
 
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_COUNTING_HPP
 #define WEBCPP_TEST_CRYPTO_SUPPORT_COUNTING_HPP
@@ -60,19 +67,28 @@ inline void count_c() noexcept {
     ++counted_c;
 }
 
-inline void* new_block(std::size_t size, std::size_t alignment) {
+/**
+ * Allocates for an operator new form: plain forms use malloc, aligned forms the aligned
+ * allocator of the platform (on Windows always _aligned_malloc, so that _aligned_free matches).
+ */
+inline void* new_block(std::size_t size, std::size_t alignment, bool aligned) {
     ++counted_new;
-    void* p = nullptr;
-    if (alignment <= alignof(std::max_align_t)) {
-        p = std::malloc(size == 0 ? 1 : size);
-    } else {
-#ifdef _WIN32
-        p = _aligned_malloc(size == 0 ? 1 : size, alignment);
-#else
-        p = std::aligned_alloc(alignment, (size + alignment - 1) / alignment * alignment);
-#endif
+    std::size_t const bytes = size == 0 ? 1 : size;
+    if (!aligned) {
+        return std::malloc(bytes);
     }
-    return p;
+#ifdef _WIN32
+    return _aligned_malloc(bytes, alignment);
+#else
+    if (alignment < sizeof(void*)) {
+        alignment = sizeof(void*);  // posix_memalign's and macOS's minimum
+    }
+    std::size_t const padded = bytes + alignment - 1;
+    if (padded < bytes) {
+        return nullptr;  // the rounding overflows: a failure, never a small block
+    }
+    return std::aligned_alloc(alignment, padded / alignment * alignment);
+#endif
 }
 
 }  // namespace webcpp::test
@@ -86,7 +102,7 @@ inline void* new_block(std::size_t size, std::size_t alignment) {
 }
 
 void* operator new(std::size_t size) {
-    if (void* const p = webcpp::test::new_block(size, alignof(std::max_align_t))) {
+    if (void* const p = webcpp::test::new_block(size, alignof(std::max_align_t), false)) {
         return p;
     }
     webcpp_test_out_of_memory();
@@ -97,7 +113,7 @@ void* operator new[](std::size_t size) {
 }
 
 void* operator new(std::size_t size, std::align_val_t alignment) {
-    if (void* const p = webcpp::test::new_block(size, static_cast<std::size_t>(alignment))) {
+    if (void* const p = webcpp::test::new_block(size, static_cast<std::size_t>(alignment), true)) {
         return p;
     }
     webcpp_test_out_of_memory();
@@ -108,11 +124,19 @@ void* operator new[](std::size_t size, std::align_val_t alignment) {
 }
 
 void* operator new(std::size_t size, std::nothrow_t const&) noexcept {
-    return webcpp::test::new_block(size, alignof(std::max_align_t));
+    return webcpp::test::new_block(size, alignof(std::max_align_t), false);
 }
 
 void* operator new[](std::size_t size, std::nothrow_t const&) noexcept {
-    return webcpp::test::new_block(size, alignof(std::max_align_t));
+    return webcpp::test::new_block(size, alignof(std::max_align_t), false);
+}
+
+void* operator new(std::size_t size, std::align_val_t alignment, std::nothrow_t const&) noexcept {
+    return webcpp::test::new_block(size, static_cast<std::size_t>(alignment), true);
+}
+
+void* operator new[](std::size_t size, std::align_val_t alignment, std::nothrow_t const&) noexcept {
+    return webcpp::test::new_block(size, static_cast<std::size_t>(alignment), true);
 }
 
 void operator delete(void* p) noexcept {
@@ -130,6 +154,14 @@ void operator delete(void* p, std::size_t) noexcept {
 void operator delete[](void* p, std::size_t) noexcept {
     std::free(p);
 }
+
+void operator delete(void* p, std::nothrow_t const&) noexcept {
+    std::free(p);
+}
+
+void operator delete[](void* p, std::nothrow_t const&) noexcept {
+    std::free(p);
+}
 #ifdef _WIN32
 void operator delete(void* p, std::align_val_t) noexcept {
     _aligned_free(p);
@@ -146,6 +178,14 @@ void operator delete(void* p, std::size_t, std::align_val_t) noexcept {
 void operator delete[](void* p, std::size_t, std::align_val_t) noexcept {
     _aligned_free(p);
 }
+
+void operator delete(void* p, std::align_val_t, std::nothrow_t const&) noexcept {
+    _aligned_free(p);
+}
+
+void operator delete[](void* p, std::align_val_t, std::nothrow_t const&) noexcept {
+    _aligned_free(p);
+}
 #else
 void operator delete(void* p, std::align_val_t) noexcept {
     std::free(p);
@@ -162,6 +202,14 @@ void operator delete(void* p, std::size_t, std::align_val_t) noexcept {
 void operator delete[](void* p, std::size_t, std::align_val_t) noexcept {
     std::free(p);
 }
+
+void operator delete(void* p, std::align_val_t, std::nothrow_t const&) noexcept {
+    std::free(p);
+}
+
+void operator delete[](void* p, std::align_val_t, std::nothrow_t const&) noexcept {
+    std::free(p);
+}
 #endif
 
 #if defined(__GLIBC__) || defined(__EMSCRIPTEN__)
@@ -174,40 +222,44 @@ void* __libc_memalign(std::size_t, std::size_t);
 void __libc_free(void*);
 }
 #define WEBCPP_TEST_C(name) __libc_##name
+// glibc declares these with __THROW, noexcept in C++11 and later: a replacement must match.
+#define WEBCPP_TEST_C_NOEXCEPT noexcept
 #else
 #define WEBCPP_TEST_C(name) emscripten_builtin_##name
+// Emscripten's musl declares them without an exception specification.
+#define WEBCPP_TEST_C_NOEXCEPT
 #endif
 // The C library's allocation functions, replaced for this program alone; cert-dcl58-cpp takes
 // a replacement of what <cstdlib> declares for a change to namespace std.
 // NOLINTBEGIN(readability-inconsistent-declaration-parameter-name,cert-dcl58-cpp)
 extern "C" {
-void* malloc(std::size_t size) {
+void* malloc(std::size_t size) WEBCPP_TEST_C_NOEXCEPT {
     webcpp::test::count_c();
     return WEBCPP_TEST_C(malloc)(size);
 }
 
-void* calloc(std::size_t count, std::size_t size) {
+void* calloc(std::size_t count, std::size_t size) WEBCPP_TEST_C_NOEXCEPT {
     webcpp::test::count_c();
     return WEBCPP_TEST_C(calloc)(count, size);
 }
 
-void* realloc(void* p, std::size_t size) {
+void* realloc(void* p, std::size_t size) WEBCPP_TEST_C_NOEXCEPT {
     webcpp::test::count_c();
     return WEBCPP_TEST_C(realloc)(p, size);
 }
 
-void* aligned_alloc(std::size_t alignment, std::size_t size) {
+void* aligned_alloc(std::size_t alignment, std::size_t size) WEBCPP_TEST_C_NOEXCEPT {
     webcpp::test::count_c();
     return WEBCPP_TEST_C(memalign)(alignment, size);
 }
 
-int posix_memalign(void** p, std::size_t alignment, std::size_t size) {
+int posix_memalign(void** p, std::size_t alignment, std::size_t size) WEBCPP_TEST_C_NOEXCEPT {
     webcpp::test::count_c();
     *p = WEBCPP_TEST_C(memalign)(alignment, size);
     return *p == nullptr ? 12 /* ENOMEM */ : 0;
 }
 
-void free(void* p) {
+void free(void* p) WEBCPP_TEST_C_NOEXCEPT {
     WEBCPP_TEST_C(free)(p);
 }
 }

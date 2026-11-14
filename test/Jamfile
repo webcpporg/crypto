@@ -33,3 +33,8 @@ webcpp.compile config_developer_defined : config_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS <define>WEBCPP_TEST_CRYPTO_DEVELOPER_DEFINED ;
 
 crypto-run error : error_test.cpp ;
+
+# asio's and crypto's OpenSSL in one program: one provider, each archive once
+# (CODING-GUIDELINES.md chapter 5 rule 10).
+crypto-run openssl_one_copy : openssl_one_copy_test.cpp
+  : <library>/webcpp/crypto//openssl <library>/webcpp/asio//openssl : native wasip2 wasip3 ;

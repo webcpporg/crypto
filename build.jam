@@ -11,6 +11,8 @@
 #
 #     exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ;
 
+import webcpp-target ;
+
 project /webcpp/crypto ;
 
 # Header-only, on webcpp's configuration. random_device reads Windows'
@@ -19,3 +21,27 @@ project /webcpp/crypto ;
 alias crypto : : : : <include>include <library>/boost//headers
   <library>/webcpp/config//config <target-os>windows:<find-shared-library>bcrypt ;
 # end::crypto[]
+
+# tag::openssl[]
+# OpenSSL, the backend backends::openssl: the superproject's source-built
+# OpenSSL 3.5.9 (/webcpp/third_party//openssl, static; CODING-GUIDELINES.md
+# chapter 5 rule 7) with the define the backend's header checks, on native,
+# wasip2 and wasip3. Never a system OpenSSL, never shared.
+rule openssl-linked ( properties * )
+{
+    if [ webcpp-target.target-of $(properties) ] in native wasip2 wasip3
+    {
+        return <library>/webcpp/third_party//openssl
+            <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 ;
+    }
+}
+
+# Refused on Emscripten: every source of a program built for emscripten that
+# names it stops at the forced include, whose message says what to write.
+# Quoted, as the Jamroot quotes Boost's directory, for a path that holds a
+# space.
+path-constant WEBCPP_CRYPTO_ROOT : . ;
+alias openssl : : : : <conditional>@openssl-linked
+    <toolset>emscripten:<cflags>"-include \"$(WEBCPP_CRYPTO_ROOT)/src/openssl_on_emscripten.hpp\""
+    <toolset>emscripten:<cxxflags>"-include \"$(WEBCPP_CRYPTO_ROOT)/src/openssl_on_emscripten.hpp\"" ;
+# end::openssl[]

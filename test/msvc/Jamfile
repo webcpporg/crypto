@@ -1,0 +1,40 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+# Each message of the build on MSVC (spec section 8.6), a directory per case:
+# on the CI's msvc lanes each case must fail to compile or to link. Its text
+# is checked on clang, GNU ld and wasm-ld by tools/test/crypto_jamfiles_test.py;
+# MSVC's is not checked (CODING-GUIDELINES.md chapter 19). Elsewhere than MSVC
+# nothing here is built: the project's requirements make every case <build>no.
+#
+# A case is declared here with a build-project line once its sources exist:
+# its directory holds its Jamfile, written beforehand, and the line is added
+# in the commit that adds the sources the case needs. Each case waits below
+# for what it needs.
+rule msvc-only ( properties * )
+{
+    if ! ( <toolset>msvc in $(properties) )
+    {
+        return <build>no ;
+    }
+}
+
+project : requirements <conditional>@msvc-only ;
+
+# Waiting for the backends and their compile-time diagnostics (app.cpp):
+# build-project no_backend ;
+# build-project bearssl_not_linked ;
+# build-project openssl_not_linked ;
+# build-project two_defaults ;
+# build-project aes_on_bearssl ;
+# Waiting for the BearSSL canary and the gcm header (app.cpp):
+# build-project canary_missing ;
+# build-project canary_other_commit ;
+# build-project canary_other_configuration ;
+# Waiting for the BearSSL canary, the gcm header and the OpenSSL backend
+# (the sources):
+# build-project canary_two_files ;
+# build-project default_two_files ;

@@ -57,3 +57,5 @@ webcpp.compile-fail openssl_named_on_emscripten : openssl_named_test.cpp
   : <library>/webcpp/crypto//openssl : emscripten ;
 webcpp.compile-fail openssl_named_c_on_emscripten : openssl_named_c_test.c
   : <library>/webcpp/crypto//openssl : emscripten ;
+
+build-project msvc ;

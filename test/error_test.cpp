@@ -5,7 +5,8 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // The values of webcpp::crypto::error are fixed (spec section 2.9), its category is
-// webcpp.crypto, and the two messages the spec writes out are exact.
+// webcpp.crypto, every defined value has a message of its own, a value that is not defined
+// has the unknown message, and the buffer form of message() copies and truncates exactly.
 
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -14,6 +15,8 @@
 #include <boost/system/result.hpp>
 
 #include <array>
+#include <set>
+#include <string>
 #include <string_view>
 
 namespace crypto = webcpp::crypto;
@@ -55,5 +58,30 @@ int main() {
         std::string_view(crypto::error_category().message(6, buffer.data(), buffer.size())),
         "the authentication tag does not match");
     BOOST_TEST_EQ(std::string_view(buffer.data()), "the aut");
+
+    // Every defined value has its own message, never the unknown one.
+    std::set<std::string> messages;
+    for (int value = 1; value <= 12; ++value) {
+        std::string const text = crypto::error_category().message(value);
+        BOOST_TEST(!text.empty());
+        BOOST_TEST_NE(text, "unknown webcpp.crypto error");
+        messages.insert(text);
+    }
+    BOOST_TEST_EQ(messages.size(), 12u);
+
+    // The guards of the buffer form: a null buffer or a size of 0 writes nothing, a size of 1
+    // writes the terminating zero alone, and a message longer than the buffer is cut with one.
+    BOOST_TEST_EQ(std::string_view(crypto::error_category().message(6, nullptr, 8)),
+                  "the authentication tag does not match");
+    std::array<char, 4> guard{'x', 'x', 'x', 'x'};
+    BOOST_TEST_EQ(std::string_view(crypto::error_category().message(6, guard.data(), 0)),
+                  "the authentication tag does not match");
+    BOOST_TEST(guard == (std::array<char, 4>{'x', 'x', 'x', 'x'}));
+    BOOST_TEST_EQ(std::string_view(crypto::error_category().message(6, guard.data(), 1)),
+                  "the authentication tag does not match");
+    BOOST_TEST(guard == (std::array<char, 4>{'\0', 'x', 'x', 'x'}));
+    guard = {'x', 'x', 'x', 'x'};
+    crypto::error_category().message(6, guard.data(), guard.size());
+    BOOST_TEST(guard == (std::array<char, 4>{'t', 'h', 'e', '\0'}));
     return webcpp::test::exit_status(boost::report_errors());
 }

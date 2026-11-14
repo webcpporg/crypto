@@ -23,6 +23,8 @@ closes it lists every name the headers declare.
 
 include::overview.adoc[]
 
+include::errors.adoc[]
+
 include::testing.adoc[]
 
 [#reference]

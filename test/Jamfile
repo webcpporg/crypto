@@ -68,3 +68,9 @@ crypto-run aes_mock : aes_mock_test.cpp ;
 crypto-run gcm_mock : gcm_mock_test.cpp ;
 # The limits need a 64-bit size_t and address space reserved without memory.
 crypto-run gcm_limits_mock : gcm_limits_mock_test.cpp : : native ;
+
+# read_canary's load survives optimisation: without the canary the program does
+# not link, on every compiler; with it, it links and runs.
+webcpp.link-fail canary_read_absent : canary_read_test.cpp : <optimization>speed ;
+crypto-run canary_read : canary_read_test.cpp
+  : <optimization>speed <define>WEBCPP_TEST_CRYPTO_DEFINE_CANARY ;

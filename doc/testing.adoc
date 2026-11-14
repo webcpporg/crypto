@@ -1,0 +1,33 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-testing]
+== Testing
+
+crypto is tested by lightweight_test programs under `test/`, each declared in
+`test/Jamfile`, and each compiled alone, as the only include of its
+translation unit, for every public header. Every test program is built twice,
+with exceptions and with `exception-handling=off`, by the Jamfile's rule
+`crypto-run`.
+
+crypto is built and run on native, wasip2, wasip3 and emscripten; each lane
+builds from scratch, as the continuous integration does, from the root of a
+webcpp checkout:
+
+`b2 -a --build-dir=bin/lane-native libs/crypto/test libs/crypto/example`::
+The {n-tests-native} tests natively, and each of the {n-headers} public
+headers compiled alone.
+
+`b2 -a --build-dir=bin/lane-wasip2 toolset=clang-wasip2 testing.launcher=tools/boost/asio-wasip2/run.sh libs/crypto/test libs/crypto/example`::
+The same for wasm32-wasip2: {n-tests-wasip2} tests, each run by wasmtime.
+`toolset=clang-wasip3` with `tools/boost/asio-wasip3/run.sh` does the same for
+wasm32-wasip3: {n-tests-wasip3} tests.
+
+`b2 -a --build-dir=bin/lane-emscripten toolset=emscripten libs/crypto/test libs/crypto/example`::
+The same on emscripten: {n-tests-emscripten} tests, each run by node.
+
+The test matrix of every lane is published with the documentation, at
+https://webcpporg.github.io/report/.

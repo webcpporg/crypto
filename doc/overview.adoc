@@ -1,0 +1,58 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-overview]
+== Why crypto
+
+webcpp::crypto gives a {cpp} program the cryptography that Boost does not
+provide, on every target webcpp has: native (Linux, macOS, Windows with MSVC),
+wasip2, wasip3 and Emscripten.
+
+* *Authenticated encryption.* AES-GCM first, with keys of 16, 24 and 32 bytes.
+ChaCha20-Poly1305 where a backend exports it.
+* *Randomness.* A `random_device` that reads the operating system's or the
+browser's generator, and nothing else.
+* *secp256k1.* BIP340 Schnorr signatures, ECDSA signatures, their verification
+and ECDH, through the libsecp256k1 backend.
+* *A constant-time `equal`* for tags and MACs, Boost.Hash2's included.
+
+The algorithms are not webcpp's. Each runs on a backend, a C library that
+webcpp wraps behind an interface shaped as Boost.Hash2's. A backend is named
+after its library: `backends::bearssl`, `backends::openssl`,
+`backends::ctaes` and `backends::secp256k1`. Every call is synchronous: with C
+code on every target, nothing waits.
+
+[#crypto-overview-hash2]
+=== What stays with Boost.Hash2
+
+Hashing and HMAC are Boost.Hash2's: SHA-1, SHA-2, SHA-3, RIPEMD, BLAKE2 and
+`boost::hash2::hmac<H>`. crypto offers no second interface for them. What
+crypto adds for Hash2's users is `equal`: the `operator==` of Hash2's digests
+is `memcmp`, which is not constant time, so a MAC is never checked with it.
+
+[#crypto-jamfile]
+== Using webcpp::crypto in your Jamfile
+
+crypto is header-only, and a program names it with the library of each backend
+it uses; webcpp builds each backend from its sources.
+The target `/webcpp/crypto//crypto` is an alias that adds crypto's `include`
+directory, Boost's headers and webcpp's configuration.
+
+A program's Jamfile names the target and the backends it links, as
+`exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ;`. On Windows
+the target links `bcrypt`, a system library, through which the random device
+reads Windows' generator.
+
+[#crypto-exceptions]
+== Exceptions
+
+Every operation reports its errors as values, whether or not the program has
+exceptions. `<webcpp/crypto/config.hpp>`, which every header of crypto
+includes first, defines `WEBCPP_CRYPTO_NO_EXCEPTIONS` when webcpp has no
+exceptions (the compiler has none, or the program defined
+`WEBCPP_NO_EXCEPTIONS` for every webcpp library), and a program may define it
+for crypto alone. Whatever throws is declared only when the macro is not
+defined, and raises through `boost::throw_exception`.

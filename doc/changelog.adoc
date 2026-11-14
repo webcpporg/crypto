@@ -24,4 +24,5 @@ of every version are on webcpp's index page.
 * Added aes128, aes192 and aes256, the AES block cipher on a backend that exports it.
 * Added gcm, AES-GCM in place: seal and open, every guard before any byte is read, and a failed open's data zeroed.
 * Added gcm's incremental seal, begin_seal, update and result, whose every error ends the message.
+* Added random_device, which reads the system's or the browser's generator and nothing else.
 // end::unreleased[]

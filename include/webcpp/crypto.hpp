@@ -16,5 +16,6 @@
 #include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/gcm.hpp>
+#include <webcpp/crypto/random_device.hpp>  // lint-world: the system's entropy, a purpose of crypto
 
 #endif  // WEBCPP_CRYPTO_HPP

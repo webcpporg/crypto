@@ -138,8 +138,7 @@ public:
      * @param additional_data Authenticated, not encrypted.
      * @param data The message.
      * @return The tag; `invalid_state` moved from or during an incremental message, which
-     * goes on;
-     * `invalid_iv_size`; `message_too_long`; `backend_failure`.
+     * goes on; `invalid_iv_size`; `message_too_long`; `backend_failure`.
      */
     boost::system::result<result_type> seal(std::span<std::uint8_t const> iv,
                                             std::span<std::uint8_t const> additional_data,
@@ -176,8 +175,8 @@ public:
      * @param data The ciphertext.
      * @param tag The seal's tag, 16 bytes, which may lie anywhere, `data` included.
      * @return Nothing; `invalid_state` moved from or during an incremental message, which
-     * goes on; `invalid_iv_size`; `invalid_tag_size`;
-     * `message_too_long`; `authentication_failed`; `backend_failure`.
+     * goes on; `invalid_iv_size`; `invalid_tag_size`; `message_too_long`;
+     * `authentication_failed`; `backend_failure`.
      */
     boost::system::result<void> open(std::span<std::uint8_t const> iv,
                                      std::span<std::uint8_t const> additional_data,
@@ -214,6 +213,9 @@ public:
      */
     boost::system::result<void> begin_seal(std::span<std::uint8_t const> iv,
                                            std::span<std::uint8_t const> additional_data) noexcept {
+        if (!keyed_) {
+            return error::invalid_state;
+        }
         if (in_message_) {
             abandon();
             return error::invalid_state;

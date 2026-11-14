@@ -20,4 +20,5 @@ of every version are on webcpp's index page.
 * Added the errors of crypto, with fixed values, in the category webcpp.crypto.
 * Added the default backend, and the refusals of a build whose backends cannot work together.
 * Added aes128, aes192 and aes256, the AES block cipher on a backend that exports it.
+* Added gcm, AES-GCM in place: seal and open, every guard before any byte is read, and a failed open's data zeroed.
 // end::unreleased[]

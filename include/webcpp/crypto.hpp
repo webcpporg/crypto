@@ -14,5 +14,6 @@
 #include <webcpp/crypto/config.hpp>
 #include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/gcm.hpp>
 
 #endif  // WEBCPP_CRYPTO_HPP

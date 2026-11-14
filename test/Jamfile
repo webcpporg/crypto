@@ -21,6 +21,7 @@ rule crypto-run ( name : sources + : requirements * : targets * )
 }
 
 webcpp.headers-alone crypto : ../include : crypto.hpp crypto/aes.hpp crypto/config.hpp crypto/error.hpp
+  crypto/gcm.hpp
   crypto/detail/engines.hpp crypto/detail/limits.hpp crypto/detail/wipe.hpp ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
@@ -64,3 +65,4 @@ build-project messages ;
 # The generic layer on the mock backend (support/mock_backend.hpp), whose checks
 # (support/*_checks.hpp) every real backend's test runs as well.
 crypto-run aes_mock : aes_mock_test.cpp ;
+crypto-run gcm_mock : gcm_mock_test.cpp ;

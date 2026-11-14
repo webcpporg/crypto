@@ -137,7 +137,8 @@ public:
      * @param iv 1 to `max_iv_size` bytes, never reused under this key; 12 recommended.
      * @param additional_data Authenticated, not encrypted.
      * @param data The message.
-     * @return The tag; `invalid_state` moved from or during an incremental message;
+     * @return The tag; `invalid_state` moved from or during an incremental message, which
+     * goes on;
      * `invalid_iv_size`; `message_too_long`; `backend_failure`.
      */
     boost::system::result<result_type> seal(std::span<std::uint8_t const> iv,
@@ -174,7 +175,8 @@ public:
      * @param additional_data The additional data of the seal.
      * @param data The ciphertext.
      * @param tag The seal's tag, 16 bytes, which may lie anywhere, `data` included.
-     * @return Nothing; `invalid_state`; `invalid_iv_size`; `invalid_tag_size`;
+     * @return Nothing; `invalid_state` moved from or during an incremental message, which
+     * goes on; `invalid_iv_size`; `invalid_tag_size`;
      * `message_too_long`; `authentication_failed`; `backend_failure`.
      */
     boost::system::result<void> open(std::span<std::uint8_t const> iv,
@@ -198,8 +200,90 @@ public:
         return {};
     }
 
+    /**
+     * Begins an incremental seal: the IV and the whole additional data first, both read
+     * before this returns.
+     *
+     * Any error of `begin_seal`, `update` or `result` ends the message, which is abandoned:
+     * the pieces already encrypted have no tag and are not to be sent.
+     *
+     * @param iv 1 to `max_iv_size` bytes, never reused under this key.
+     * @param additional_data Authenticated, not encrypted.
+     * @return Nothing; `invalid_state` moved from or with a message in progress, which ends
+     * it; `invalid_iv_size`; `message_too_long`; `backend_failure`.
+     */
+    boost::system::result<void> begin_seal(std::span<std::uint8_t const> iv,
+                                           std::span<std::uint8_t const> additional_data) noexcept {
+        if (in_message_) {
+            abandon();
+            return error::invalid_state;
+        }
+        auto const refused = guard_message(iv, additional_data, 0, tag_size);
+        if (!refused) {
+            return refused.error();
+        }
+        auto const started = engine::start(state_, true, iv, additional_data);
+        if (!started) {
+            engine::abandon(state_);
+            return started.error();
+        }
+        in_message_ = true;
+        message_bytes_ = 0;
+        return {};
+    }
+
+    /**
+     * Encrypts the next piece of the message in place.
+     *
+     * @param data The piece, of any size, empty included.
+     * @return Nothing; `invalid_state` without a message; `message_too_long` when the pieces
+     * pass `max_message_size`, which ends the message; `backend_failure`, which ends it.
+     */
+    boost::system::result<void> update(std::span<std::uint8_t> data) noexcept {
+        if (!keyed_ || !in_message_) {
+            return error::invalid_state;
+        }
+        if (detail::exceeds(data.size(), max_message_size - message_bytes_)) {
+            abandon();
+            return error::message_too_long;
+        }
+        auto const ran = engine::run(state_, data);
+        if (!ran) {
+            abandon();
+            return ran.error();
+        }
+        message_bytes_ += data.size();
+        return {};
+    }
+
+    /**
+     * Ends the message with its tag.
+     *
+     * @return The tag; `invalid_state` without a message; `backend_failure`, which ends it
+     * too.
+     */
+    boost::system::result<result_type> result() noexcept {
+        if (!keyed_ || !in_message_) {
+            return error::invalid_state;
+        }
+        result_type tag{};
+        auto const tagged = engine::tag(state_, tag);
+        end_message();
+        if (!tagged) {
+            engine::abandon(state_);
+            return tagged.error();
+        }
+        return tag;
+    }
+
 private:
     gcm() noexcept = default;
+
+    // The message's state is wiped by the engine, the key kept; no message is in progress.
+    void abandon() noexcept {
+        engine::abandon(state_);
+        end_message();
+    }
 
     // Every guard of a message, in spec section 2.4's order: the state, the IV, the tag
     // (open's; seal passes tag_size), the lengths. None reads a byte of the spans.

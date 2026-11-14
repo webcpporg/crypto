@@ -61,6 +61,8 @@ struct mock_knobs {
     bool skip_data = false;
     /** The breaches of the engine contract seen so far. */
     int violations = 0;
+    /** The calls of GCM's `abandon` so far. */
+    int abandons = 0;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the knobs a test turns
@@ -69,8 +71,10 @@ inline mock_knobs mock_control{};
 /** Clears every error and setting of the knobs; the counters stay. */
 inline void mock_clear() {
     auto const violations = mock_control.violations;
+    auto const abandons = mock_control.abandons;
     mock_control = mock_knobs{};
     mock_control.violations = violations;
+    mock_control.abandons = abandons;
 }
 
 namespace mock_detail {
@@ -257,7 +261,7 @@ struct gcm_state<test::mock, KeySize> {
     bool sealing;
 };
 
-/** GCM's work on the mock, with the contract of every GCM engine (Task 7). */
+/** GCM's work on the mock, with the contract of every GCM engine (Tasks 7 and 8). */
 template <std::size_t KeySize>
 struct gcm_engine<test::mock, KeySize> {
     using state = gcm_state<test::mock, KeySize>;
@@ -345,6 +349,16 @@ struct gcm_engine<test::mock, KeySize> {
     }
 
     static void reset(state& s) noexcept { s = state{}; }
+
+    // The message's state is dropped, the key kept (Task 8).
+    static void abandon(state& s) noexcept {
+        breach(!s.live);
+        ++test::mock_control.abandons;
+        auto const key = s.key;
+        s = state{};
+        s.key = key;
+        s.live = true;
+    }
 
 private:
     static void breach(bool happened) noexcept {

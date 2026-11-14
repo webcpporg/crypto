@@ -19,6 +19,10 @@
 #include "gcm_spec_vectors.hpp"
 #include "hex.hpp"
 
+#if !defined(__wasi__) && !defined(__EMSCRIPTEN__)
+#include "reserved.hpp"
+#endif
+
 #include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/gcm.hpp>
@@ -30,6 +34,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -213,6 +218,11 @@ void check_moved_from(gcm_cases cases = gcm_spec_cases) {
         // The state is checked before the IV and the tag.
         BOOST_TEST(empty.seal({}, {}, data).error() == crypto::error::invalid_state);
         BOOST_TEST(empty.open({}, {}, data, {}).error() == crypto::error::invalid_state);
+        BOOST_TEST(empty.begin_seal(iv, {}).error() == crypto::error::invalid_state);
+        BOOST_TEST(empty.begin_seal({}, {}).error() == crypto::error::invalid_state);
+        BOOST_TEST(empty.update(data).error() == crypto::error::invalid_state);
+        BOOST_TEST(empty.update({}).error() == crypto::error::invalid_state);
+        BOOST_TEST(empty.result().error() == crypto::error::invalid_state);
         BOOST_TEST(data == untouched);
     };
     all_refused(*made);
@@ -309,6 +319,184 @@ void check_edges(gcm_cases cases = gcm_spec_cases) {
     BOOST_TEST(expected && in_place && to_hex(*expected) == to_hex(*in_place));
     BOOST_TEST(data_copy == buffer);
 }
+
+/**
+ * Seals `plaintext` through the incremental seal in pieces of `piece` bytes (and one empty
+ * piece), checks the ciphertext and the tag against the expected hex, and opens the result
+ * one shot (spec 8.1: every case sealed incrementally as well).
+ */
+template <class Aead>
+void check_in_pieces(Aead& made, std::span<std::uint8_t const> iv,
+                     std::span<std::uint8_t const> additional_data,
+                     std::vector<std::uint8_t> const& plaintext, std::string_view ciphertext,
+                     std::string_view tag_hex, std::size_t piece) {
+    auto data = plaintext;
+    BOOST_TEST(made.begin_seal(iv, additional_data).has_value());
+    for (std::size_t at = 0; at < data.size(); at += piece) {
+        auto const size = (std::min)(piece, data.size() - at);
+        BOOST_TEST(made.update(std::span(data).subspan(at, size)).has_value());
+    }
+    BOOST_TEST(made.update(std::span<std::uint8_t>()).has_value());  // an empty piece
+    auto const tag = made.result();
+    BOOST_TEST_EQ(to_hex(data), ciphertext);
+    BOOST_TEST(tag && to_hex(*tag) == tag_hex);
+    BOOST_TEST(tag && made.open(iv, additional_data, data, *tag).has_value());
+    BOOST_TEST(data == plaintext);
+}
+
+/** Every piece size from 1 to the whole message, the whole included (at least 1). */
+template <class Aead>
+void check_every_piece(Aead& made, std::span<std::uint8_t const> iv,
+                       std::span<std::uint8_t const> additional_data,
+                       std::vector<std::uint8_t> const& plaintext, std::string_view ciphertext,
+                       std::string_view tag_hex) {
+    for (std::size_t piece = 1; piece <= (std::max)(plaintext.size(), std::size_t{1}); ++piece) {
+        check_in_pieces(made, iv, additional_data, plaintext, ciphertext, tag_hex, piece);
+    }
+}
+
+/** The 18 cases, each sealed in pieces of every size. */
+template <class Backend>
+void check_incremental(gcm_cases cases = gcm_spec_cases) {
+    BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size());
+    for (auto const& c : cases) {
+        auto const iv = from_hex(c.iv);
+        auto const additional_data = from_hex(c.additional_data);
+        auto const plaintext = from_hex(c.plaintext);
+        with_gcm<Backend>(from_hex(c.key), [&](auto made) {
+            if (BOOST_TEST(made.has_value())) {
+                check_every_piece(*made, iv, additional_data, plaintext, c.ciphertext, c.tag);
+            }
+        });
+    }
+}
+
+/** The incremental seal's machine (spec section 2.4): each wrong call, then a fresh message. */
+template <class Backend>
+void check_machine(gcm_cases cases = gcm_spec_cases) {
+    using aead = crypto::gcm<crypto::aes256<Backend>>;
+    if (!BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size())) {
+        return;
+    }
+    auto const& one_block = cases[13];  // case 14: AES-256, one zero block
+    std::array<std::uint8_t, 32> const key{};
+    std::array<std::uint8_t, 12> const iv{};
+    auto made = aead::make(key);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    std::array<std::uint8_t, 16> data{};
+    auto const fresh_message_works = [&] {
+        data.fill(0);
+        BOOST_TEST(made->begin_seal(iv, {}).has_value());
+        BOOST_TEST(made->update(data).has_value());
+        auto const tag = made->result();
+        BOOST_TEST_EQ(to_hex(data), one_block.ciphertext);
+        BOOST_TEST(tag && to_hex(*tag) == one_block.tag);
+    };
+    BOOST_TEST(made->update(data).error() == crypto::error::invalid_state);
+    BOOST_TEST(made->result().error() == crypto::error::invalid_state);
+    fresh_message_works();
+    BOOST_TEST(made->result().error() == crypto::error::invalid_state);      // a second result
+    BOOST_TEST(made->update(data).error() == crypto::error::invalid_state);  // after result
+
+    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    BOOST_TEST(made->begin_seal(iv, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST(made->result().error() == crypto::error::invalid_state);  // the error ended it
+    fresh_message_works();
+
+    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    std::array<std::uint8_t, 129> const long_iv{};
+    BOOST_TEST(made->begin_seal(long_iv, {}).error() == crypto::error::invalid_state);
+    fresh_message_works();
+    BOOST_TEST(made->begin_seal(long_iv, {}).error() == crypto::error::invalid_iv_size);
+    BOOST_TEST(made->begin_seal({}, {}).error() == crypto::error::invalid_iv_size);
+    BOOST_TEST(made->update(data).error() == crypto::error::invalid_state);  // none began
+    fresh_message_works();
+
+    // A message abandoned halfway leaves nothing behind: the next one is whole.
+    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    BOOST_TEST(made->update(std::span(data).first(7)).has_value());
+    BOOST_TEST(made->begin_seal(iv, {}).error() == crypto::error::invalid_state);
+    fresh_message_works();
+
+    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    aead moved = std::move(*made);  // a move abandons the message on both sides
+    BOOST_TEST(moved.result().error() == crypto::error::invalid_state);
+    BOOST_TEST(made->update(data).error() == crypto::error::invalid_state);
+    *made = std::move(moved);
+    fresh_message_works();
+
+    // A move assignment over an object in a message abandons that message too.
+    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    auto other = aead::make(key);
+    if (!BOOST_TEST(other.has_value())) {
+        return;
+    }
+    *made = std::move(*other);
+    BOOST_TEST(made->result().error() == crypto::error::invalid_state);
+    fresh_message_works();
+}
+
+/** A one-shot seal or open during an incremental message is refused (Review Focus 1). */
+template <class Backend>
+void check_one_shot_during_message(gcm_cases cases = gcm_spec_cases) {
+    using aead = crypto::gcm<crypto::aes256<Backend>>;
+    if (!BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size())) {
+        return;
+    }
+    auto const& one_block = cases[13];  // case 14: AES-256, one zero block
+    std::array<std::uint8_t, 32> const key{};
+    std::array<std::uint8_t, 12> const iv{};
+    auto made = aead::make(key);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    std::array<std::uint8_t, 16> message{};
+    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    BOOST_TEST(made->update(std::span(message).first(5)).has_value());
+    std::array<std::uint8_t, 16> other{};
+    other.fill(9);
+    auto const untouched = other;
+    std::array<std::uint8_t, 16> const tag{};
+    BOOST_TEST(made->seal(iv, {}, other).error() == crypto::error::invalid_state);
+    BOOST_TEST(made->open(iv, {}, other, tag).error() == crypto::error::invalid_state);
+    BOOST_TEST(other == untouched);
+    BOOST_TEST(made->update(std::span(message).subspan(5)).has_value());
+    auto const result = made->result();
+    BOOST_TEST_EQ(to_hex(message), one_block.ciphertext);
+    BOOST_TEST(result && to_hex(*result) == one_block.tag);
+}
+
+#if !defined(__wasi__) && !defined(__EMSCRIPTEN__)
+/**
+ * The message's limit, refused before any byte is read: in one call to seal and open, and
+ * summed over update. The additional data's own limit (2^61 - 1 bytes) cannot be reached by
+ * a span a guard refuses before reading; it is pinned by detail::exceeds's test.
+ */
+template <class Backend>
+void check_limits() {
+    using aead = crypto::gcm<crypto::aes256<Backend>>;
+    static_assert(sizeof(std::size_t) == 8, "the limits are reachable only with 64-bit sizes");
+    std::array<std::uint8_t, 32> const key{};
+    std::array<std::uint8_t, 12> const iv{};
+    auto made = aead::make(key);
+    auto const huge = reserved(static_cast<std::size_t>(aead::max_message_size) + 1);
+    if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(!huge.empty())) {
+        return;
+    }
+    BOOST_TEST(made->seal(iv, {}, huge).error() == crypto::error::message_too_long);
+    std::array<std::uint8_t, 16> const tag{};
+    BOOST_TEST(made->open(iv, {}, huge, tag).error() == crypto::error::message_too_long);
+    std::array<std::uint8_t, 16> first{};
+    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    BOOST_TEST(made->update(first).has_value());
+    BOOST_TEST(
+        made->update(huge.first(static_cast<std::size_t>(aead::max_message_size) - 15)).error() ==
+        crypto::error::message_too_long);
+    BOOST_TEST(made->result().error() == crypto::error::invalid_state);  // the error ended it
+}
+#endif
 
 }  // namespace webcpp::test
 

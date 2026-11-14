@@ -83,6 +83,56 @@ void check_one_shot_failures(webcpp::test::gcm_cases cases) {
     BOOST_TEST(webcpp::test::all_zero(data));  // case 14's plaintext, one zero block
 }
 
+// An engine error in begin_seal, update or result ends the message, abandoned through the
+// engine, and the object begins the next one.
+void check_incremental_failures(webcpp::test::gcm_cases cases) {
+    std::array<std::uint8_t, 32> const key{};
+    std::array<std::uint8_t, 12> const iv{};
+    auto made = aead::make(key);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    boost::system::error_code const failed = crypto::error::backend_failure;
+    std::array<std::uint8_t, 16> data{};
+
+    auto abandons = mock_control.abandons;
+    mock_control.start = failed;
+    BOOST_TEST(made->begin_seal(iv, {}).error() == failed);
+    webcpp::test::mock_clear();
+    BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
+    BOOST_TEST(made->update(data).error() == crypto::error::invalid_state);
+
+    abandons = mock_control.abandons;
+    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    mock_control.run = failed;
+    BOOST_TEST(made->update(data).error() == failed);
+    webcpp::test::mock_clear();
+    BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
+    BOOST_TEST(made->update(data).error() == crypto::error::invalid_state);
+    BOOST_TEST(made->result().error() == crypto::error::invalid_state);
+
+    abandons = mock_control.abandons;
+    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    mock_control.tag = failed;
+    BOOST_TEST(made->result().error() == failed);
+    webcpp::test::mock_clear();
+    BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
+    BOOST_TEST(made->result().error() == crypto::error::invalid_state);
+
+    // A refused begin_seal during a message abandons it through the engine as well.
+    abandons = mock_control.abandons;
+    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    BOOST_TEST(made->begin_seal(iv, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
+
+    data.fill(0);
+    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    BOOST_TEST(made->update(data).has_value());
+    auto const tag = made->result();
+    BOOST_TEST_EQ(webcpp::test::to_hex(data), cases[13].ciphertext);
+    BOOST_TEST(tag && webcpp::test::to_hex(*tag) == cases[13].tag);
+}
+
 }  // namespace
 
 int main() {
@@ -92,8 +142,12 @@ int main() {
     webcpp::test::check_tampering<mock>(cases.view());
     webcpp::test::check_moved_from<mock>(cases.view());
     webcpp::test::check_edges<mock>(cases.view());
+    webcpp::test::check_incremental<mock>(cases.view());
+    webcpp::test::check_machine<mock>(cases.view());
+    webcpp::test::check_one_shot_during_message<mock>(cases.view());
     check_make_failures();
     check_one_shot_failures(cases.view());
+    check_incremental_failures(cases.view());
     BOOST_TEST_EQ(mock_control.violations, 0);
     return webcpp::test::exit_status(boost::report_errors());
 }

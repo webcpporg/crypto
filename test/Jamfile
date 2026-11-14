@@ -66,3 +66,5 @@ build-project messages ;
 # (support/*_checks.hpp) every real backend's test runs as well.
 crypto-run aes_mock : aes_mock_test.cpp ;
 crypto-run gcm_mock : gcm_mock_test.cpp ;
+# The limits need a 64-bit size_t and address space reserved without memory.
+crypto-run gcm_limits_mock : gcm_limits_mock_test.cpp : : native ;

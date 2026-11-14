@@ -133,6 +133,11 @@ webcpp.compile default_selection_openssl_selected : default_selection_test.cpp
 crypto-run secp256k1 : secp256k1_test.cpp : <library>/third_party//secp256k1 ;
 crypto-run secp256k1_allocation : secp256k1_allocation_test.cpp
   : <library>/third_party//secp256k1 ;
+crypto-run secp256k1_bip340 : secp256k1_bip340_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//bips ;
+crypto-run secp256k1_wycheproof : secp256k1_wycheproof_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
 
 build-project messages ;
 

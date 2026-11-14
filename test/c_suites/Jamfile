@@ -5,17 +5,20 @@
 # https://www.boost.org/LICENSE_1_0.txt)
 
 # The C libraries' own test programs, built against webcpp's build of each, on
-# every target (CODING-GUIDELINES.md chapter 5, rule 11). BearSSL's 88 tests take 28 to
-# 46 s per target, so they are the own lane c-suites, outside the ordinary
-# lanes.
+# every target (CODING-GUIDELINES.md chapter 5, rule 11). BearSSL's 88 tests take
+# 116 to 126 s of CPU per target in a debug build, so they are the own lane c-suites,
+# outside the ordinary lanes. The program's main is bearssl_bound.cpp's, which runs
+# BearSSL's only when it is given the argument all, and fails otherwise: upstream's
+# main lists its tests and returns 0 for any other argument, which would read green.
 import webcpp ;
 
 webcpp.targets native wasip2 wasip3 emscripten ;
 
 path-constant BEARSSL : ../../../../third_party/libs/bearssl ;
 webcpp.run bearssl_test_crypto : $(BEARSSL)/test/test_crypto.c bearssl_bound.cpp
-  : <testing.arg>all <library>/third_party//bearssl <include>$(BEARSSL)/src <warnings>off
-    <warnings-as-errors>off ;
+  : <testing.arg>all <library>/third_party//bearssl
+    <library>/third_party//bearssl-test-config <define>main=bearssl_test_main
+    <warnings>off <warnings-as-errors>off ;
 
 # The lane names its targets, so that the CI runs it on each (an own lane that
 # names none runs natively alone, tools/webcpp.jam's lane rule).

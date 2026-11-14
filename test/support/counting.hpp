@@ -29,13 +29,14 @@
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_COUNTING_HPP
 #define WEBCPP_TEST_CRYPTO_SUPPORT_COUNTING_HPP
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <new>
 
-#if defined(__APPLE__)
+#ifdef __APPLE__
 #include <malloc/malloc.h>
 #elif defined(__EMSCRIPTEN__)
 #include <emscripten/heap.h>
@@ -80,9 +81,7 @@ inline void* new_block(std::size_t size, std::size_t alignment, bool aligned) {
 #ifdef _WIN32
     return _aligned_malloc(bytes, alignment);
 #else
-    if (alignment < sizeof(void*)) {
-        alignment = sizeof(void*);  // posix_memalign's and macOS's minimum
-    }
+    alignment = std::max(alignment, sizeof(void*));  // posix_memalign's and macOS's minimum
     std::size_t const padded = bytes + alignment - 1;
     if (padded < bytes) {
         return nullptr;  // the rounding overflows: a failure, never a small block
@@ -101,6 +100,9 @@ inline void* new_block(std::size_t size, std::size_t alignment, bool aligned) {
 #endif
 }
 
+// The replaceable global allocation functions cannot be inline: they are defined here, in the
+// one translation unit of a program that includes this header, under the standard's names.
+// NOLINTBEGIN(misc-definitions-in-headers,readability-inconsistent-declaration-parameter-name)
 void* operator new(std::size_t size) {
     if (void* const p = webcpp::test::new_block(size, alignof(std::max_align_t), false)) {
         return p;
@@ -123,19 +125,21 @@ void* operator new[](std::size_t size, std::align_val_t alignment) {
     return operator new(size, alignment);
 }
 
-void* operator new(std::size_t size, std::nothrow_t const&) noexcept {
+void* operator new(std::size_t size, std::nothrow_t const& /*unused*/) noexcept {
     return webcpp::test::new_block(size, alignof(std::max_align_t), false);
 }
 
-void* operator new[](std::size_t size, std::nothrow_t const&) noexcept {
+void* operator new[](std::size_t size, std::nothrow_t const& /*unused*/) noexcept {
     return webcpp::test::new_block(size, alignof(std::max_align_t), false);
 }
 
-void* operator new(std::size_t size, std::align_val_t alignment, std::nothrow_t const&) noexcept {
+void* operator new(std::size_t size, std::align_val_t alignment,
+                   std::nothrow_t const& /*unused*/) noexcept {
     return webcpp::test::new_block(size, static_cast<std::size_t>(alignment), true);
 }
 
-void* operator new[](std::size_t size, std::align_val_t alignment, std::nothrow_t const&) noexcept {
+void* operator new[](std::size_t size, std::align_val_t alignment,
+                     std::nothrow_t const& /*unused*/) noexcept {
     return webcpp::test::new_block(size, static_cast<std::size_t>(alignment), true);
 }
 
@@ -147,70 +151,75 @@ void operator delete[](void* p) noexcept {
     std::free(p);
 }
 
-void operator delete(void* p, std::size_t) noexcept {
+void operator delete(void* p, std::size_t /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete[](void* p, std::size_t) noexcept {
+void operator delete[](void* p, std::size_t /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete(void* p, std::nothrow_t const&) noexcept {
+void operator delete(void* p, std::nothrow_t const& /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete[](void* p, std::nothrow_t const&) noexcept {
+void operator delete[](void* p, std::nothrow_t const& /*unused*/) noexcept {
     std::free(p);
 }
 #ifdef _WIN32
-void operator delete(void* p, std::align_val_t) noexcept {
+void operator delete(void* p, std::align_val_t /*unused*/) noexcept {
     _aligned_free(p);
 }
 
-void operator delete[](void* p, std::align_val_t) noexcept {
+void operator delete[](void* p, std::align_val_t /*unused*/) noexcept {
     _aligned_free(p);
 }
 
-void operator delete(void* p, std::size_t, std::align_val_t) noexcept {
+void operator delete(void* p, std::size_t /*unused*/, std::align_val_t /*unused*/) noexcept {
     _aligned_free(p);
 }
 
-void operator delete[](void* p, std::size_t, std::align_val_t) noexcept {
+void operator delete[](void* p, std::size_t /*unused*/, std::align_val_t /*unused*/) noexcept {
     _aligned_free(p);
 }
 
-void operator delete(void* p, std::align_val_t, std::nothrow_t const&) noexcept {
+void operator delete(void* p, std::align_val_t /*unused*/,
+                     std::nothrow_t const& /*unused*/) noexcept {
     _aligned_free(p);
 }
 
-void operator delete[](void* p, std::align_val_t, std::nothrow_t const&) noexcept {
+void operator delete[](void* p, std::align_val_t /*unused*/,
+                       std::nothrow_t const& /*unused*/) noexcept {
     _aligned_free(p);
 }
 #else
-void operator delete(void* p, std::align_val_t) noexcept {
+void operator delete(void* p, std::align_val_t /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete[](void* p, std::align_val_t) noexcept {
+void operator delete[](void* p, std::align_val_t /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete(void* p, std::size_t, std::align_val_t) noexcept {
+void operator delete(void* p, std::size_t /*unused*/, std::align_val_t /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete[](void* p, std::size_t, std::align_val_t) noexcept {
+void operator delete[](void* p, std::size_t /*unused*/, std::align_val_t /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete(void* p, std::align_val_t, std::nothrow_t const&) noexcept {
+void operator delete(void* p, std::align_val_t /*unused*/,
+                     std::nothrow_t const& /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete[](void* p, std::align_val_t, std::nothrow_t const&) noexcept {
+void operator delete[](void* p, std::align_val_t /*unused*/,
+                       std::nothrow_t const& /*unused*/) noexcept {
     std::free(p);
 }
 #endif
+// NOLINTEND(misc-definitions-in-headers,readability-inconsistent-declaration-parameter-name)
 
 #if defined(__GLIBC__) || defined(__EMSCRIPTEN__)
 #ifdef __GLIBC__
@@ -270,8 +279,9 @@ using webcpp_test_malloc_logger = void(std::uint32_t, std::uintptr_t, std::uintp
                                        std::uintptr_t, std::uintptr_t, std::uint32_t);
 extern "C" webcpp_test_malloc_logger* malloc_logger;
 
-inline void webcpp_test_count_c_allocation(std::uint32_t type, std::uintptr_t, std::uintptr_t,
-                                           std::uintptr_t, std::uintptr_t, std::uint32_t) {
+inline void webcpp_test_count_c_allocation(std::uint32_t type, std::uintptr_t /*unused*/,
+                                           std::uintptr_t /*unused*/, std::uintptr_t /*unused*/,
+                                           std::uintptr_t /*unused*/, std::uint32_t /*unused*/) {
     constexpr std::uint32_t allocate = 2;  // MALLOC_LOG_TYPE_ALLOCATE
     if ((type & allocate) != 0) {
         webcpp::test::count_c();

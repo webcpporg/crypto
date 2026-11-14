@@ -1,0 +1,154 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+/**
+ The errors of webcpp::crypto, in the category `webcpp.crypto`.
+
+ @see "Errors", in the guide.
+*/
+#ifndef WEBCPP_CRYPTO_ERROR_HPP
+#define WEBCPP_CRYPTO_ERROR_HPP
+
+#include <webcpp/crypto/config.hpp>
+
+#include <boost/system/error_category.hpp>
+#include <boost/system/error_code.hpp>
+
+#include <cstddef>
+#include <cstring>
+#include <string>
+#include <string_view>
+#include <type_traits>
+
+namespace webcpp::crypto {
+
+/**
+ Why an operation of webcpp::crypto failed.
+
+ The values are fixed and never reused.
+
+ @see "Errors", in the guide.
+*/
+enum class error : int {
+    /** A key of another size than the algorithm's `key_size`, or a secret key not of 32 bytes. */
+    invalid_key_size = 1,
+    /** A GCM IV that is empty or longer than 128 bytes. */
+    invalid_iv_size = 2,
+    /** A tag given to `open` that is not of 16 bytes. */
+    invalid_tag_size = 3,
+    /** Data given to a block cipher that is not a whole number of blocks. */
+    invalid_input_size = 4,
+    /** A message or additional data longer than the algorithm allows. */
+    message_too_long = 5,
+    /** The tag does not match: the message or its additional data changed, or the key differs. */
+    authentication_failed = 6,
+    /** An object moved from, or the incremental seal called out of order. */
+    invalid_state = 7,
+    /** The system's or the browser's generator failed. */
+    entropy_unavailable = 8,
+    /** A secret key that is zero or not below the group order. */
+    invalid_secret_key = 9,
+    /** A public key of the wrong size, or not a point of the curve. */
+    invalid_public_key = 10,
+    /** A signature that does not verify, or cannot be parsed. */
+    invalid_signature = 11,
+    /** A backend failed where its contract says it does not. */
+    backend_failure = 12,
+    // 13 and 14 are reserved for OpenSSL's memory option (spec 2.9: memory_functions_refused
+    // and memory_functions_not_installed), which declares them; never reused.
+};
+
+namespace detail {
+
+/** The message of a value of @ref error, or the unknown message for a value it does not define. */
+inline const char* message_of(int value) noexcept {
+    switch (static_cast<error>(value)) {
+        case error::invalid_key_size: return "the key is not of the algorithm's size";
+        case error::invalid_iv_size: return "the IV is not of a size the algorithm accepts";
+        case error::invalid_tag_size: return "the tag is not of 16 bytes";
+        case error::invalid_input_size: return "the data is not a whole number of blocks";
+        case error::message_too_long: return "the message is longer than the algorithm allows";
+        case error::authentication_failed: return "the authentication tag does not match";
+        case error::invalid_state: return "the object was moved from, or the call is out of order";
+        case error::entropy_unavailable: return "the system's generator of entropy failed";
+        case error::invalid_secret_key:
+            return "the secret key is zero or not below the group order";
+        case error::invalid_public_key: return "the public key is not a point of the curve";
+        case error::invalid_signature: return "the signature does not verify";
+        case error::backend_failure: return "the backend failed where it should not";
+    }
+    return "unknown webcpp.crypto error";
+}
+
+/**
+ A constant category with a fixed identity, so it holds no mutable state.
+
+ @note The identity is the ASCII of "crypto" followed by two zero bytes.
+*/
+class category final : public boost::system::error_category {
+public:
+    /** Constructs the category with its fixed identity. */
+    constexpr category() noexcept : boost::system::error_category(0x63727970746f0000ULL) {}
+
+    /** The category's name, "webcpp.crypto". */
+    const char* name() const noexcept override { return "webcpp.crypto"; }
+
+    /** The message of the error `value`, as @ref message_of spells it. */
+    std::string message(int value) const override { return message_of(value); }
+
+    /**
+     Copies the message of the error `value` into `buffer`, cut to fit `size` bytes with its
+     terminating zero, and returns the whole message, a static text.
+    */
+    const char* message(int value, char* buffer, std::size_t size) const noexcept override {
+        const char* text = message_of(value);
+        if (buffer != nullptr && size != 0) {
+            const std::string_view spelling(text);
+            const std::size_t limit = size - 1;
+            const std::size_t count = spelling.size() < limit ? spelling.size() : limit;
+            std::memcpy(buffer, spelling.data(), count);
+            buffer[count] = '\0';
+        }
+        return text;
+    }
+};
+
+/** The one category of crypto's errors, which @ref error_category returns. */
+inline constexpr category the_category{};
+
+}  // namespace detail
+
+/**
+ The category of every @ref error.
+
+ Its `name()` is "webcpp.crypto", and its `message(value)` the message of the error, or
+ "unknown webcpp.crypto error" for a value @ref error does not define.
+
+ @return The category, a constant with a fixed identity.
+ @see "Errors", in the guide.
+*/
+inline const boost::system::error_category& error_category() noexcept {
+    return detail::the_category;
+}
+
+/**
+ Makes the `error_code` of an @ref error, as its implicit conversion does.
+
+ @param e The error.
+ @return `e` as an `error_code` of the category @ref error_category.
+*/
+inline boost::system::error_code make_error_code(error e) noexcept {
+    return {static_cast<int>(e), error_category()};
+}
+
+}  // namespace webcpp::crypto
+
+namespace boost::system {
+template <>
+struct is_error_code_enum<webcpp::crypto::error> : std::true_type {};
+}  // namespace boost::system
+
+#endif  // WEBCPP_CRYPTO_ERROR_HPP

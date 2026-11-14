@@ -1,7 +1,7 @@
 {
     "boundaries": [
         {
-            "headers": ["include/webcpp/crypto/config.hpp"],
+            "headers": ["include/webcpp/crypto/config.hpp", "include/webcpp/crypto/error.hpp"],
             "must-not-include": ["bearssl", "openssl/", "ctaes", "secp256k1", "webcpp/crypto/backends/"],
             "why": "a program that only draws random bytes or compares tags names no backend library (spec section 2.2)"
         }

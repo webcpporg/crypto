@@ -12,5 +12,6 @@
 #define WEBCPP_CRYPTO_HPP
 
 #include <webcpp/crypto/config.hpp>
+#include <webcpp/crypto/error.hpp>
 
 #endif  // WEBCPP_CRYPTO_HPP

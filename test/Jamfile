@@ -33,3 +33,5 @@ webcpp.compile config_developer_defined : config_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS <define>WEBCPP_TEST_CRYPTO_DEVELOPER_DEFINED ;
 
 crypto-run error : error_test.cpp ;
+
+build-project msvc ;

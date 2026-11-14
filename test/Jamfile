@@ -20,7 +20,8 @@ rule crypto-run ( name : sources + : requirements * : targets * )
       : $(requirements) <exception-handling>off : $(targets) ;
 }
 
-webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp crypto/error.hpp ;
+webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp crypto/error.hpp
+  crypto/random_device.hpp crypto/detail/entropy.hpp crypto/detail/windows.hpp ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
 # exceptions, keeps it when a developer defines it, defines it when
@@ -33,3 +34,10 @@ webcpp.compile config_developer_defined : config_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS <define>WEBCPP_TEST_CRYPTO_DEVELOPER_DEFINED ;
 
 crypto-run error : error_test.cpp ;
+
+# random_device: the system's generator, and a planted failing source.
+crypto-run random_device : random_device_test.cpp ;
+crypto-run random_device_failing : random_device_failing_test.cpp
+  : <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
+webcpp.compile-diagnostic random_device_no_call : random_device_no_call_test.cpp
+  : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS : native wasip2 ;

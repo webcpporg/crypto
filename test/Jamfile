@@ -20,7 +20,7 @@ rule crypto-run ( name : sources + : requirements * : targets * )
       : $(requirements) <exception-handling>off : $(targets) ;
 }
 
-webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp crypto/error.hpp
+webcpp.headers-alone crypto : ../include : crypto.hpp crypto/aes.hpp crypto/config.hpp crypto/error.hpp
   crypto/detail/engines.hpp crypto/detail/limits.hpp crypto/detail/wipe.hpp ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
@@ -60,3 +60,7 @@ webcpp.compile default_backend_openssl_selected : default_backend_test.cpp
     <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native ;
 
 build-project messages ;
+
+# The generic layer on the mock backend (support/mock_backend.hpp), whose checks
+# (support/*_checks.hpp) every real backend's test runs as well.
+crypto-run aes_mock : aes_mock_test.cpp ;

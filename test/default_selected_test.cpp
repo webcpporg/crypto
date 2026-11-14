@@ -1,0 +1,20 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+// With OpenSSL and BearSSL linked and WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL defined, BearSSL is
+// the default, on every target.
+
+#include <webcpp/crypto/aes256_gcm.hpp>
+#include <webcpp/test/exit_status.hpp>
+
+#include <boost/core/lightweight_test.hpp>
+
+int main() {
+    BOOST_TEST_EQ(webcpp::crypto::aes256_gcm::backend_type::name, "bearssl");
+    BOOST_TEST_EQ(webcpp::crypto::aes128_gcm::backend_type::name, "bearssl");
+    BOOST_TEST_EQ(webcpp::crypto::aes256<>::backend_type::name, "bearssl");
+    return webcpp::test::exit_status(boost::report_errors());
+}

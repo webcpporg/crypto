@@ -46,3 +46,14 @@ crypto-run counting : counting_test.cpp ;
 #crypto-run allocation_openssl : allocation_openssl_test.cpp
 #  : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
 #crypto-run bearssl_seeder : bearssl_seeder_test.cpp : <library>/third_party//bearssl ;
+
+# asio's and crypto's OpenSSL in one program: one provider, each archive once
+# (CODING-GUIDELINES.md chapter 5 rule 10).
+crypto-run openssl_one_copy : openssl_one_copy_test.cpp
+  : <library>/webcpp/crypto//openssl <library>/webcpp/asio//openssl : native wasip2 wasip3 ;
+
+# Naming the alias refuses an Emscripten program, in C++ and in C, by the forced include.
+webcpp.compile-fail openssl_named_on_emscripten : openssl_named_test.cpp
+  : <library>/webcpp/crypto//openssl : emscripten ;
+webcpp.compile-fail openssl_named_c_on_emscripten : openssl_named_c_test.c
+  : <library>/webcpp/crypto//openssl : emscripten ;

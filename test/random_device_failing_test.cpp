@@ -57,10 +57,19 @@ int main() {
     BOOST_TEST(!filled && filled.error() == crypto::error::entropy_unavailable);
     BOOST_TEST(std::all_of(buffer.begin(), buffer.end(), [](std::uint8_t b) { return b == 0; }));
 
+    std::fill(buffer.begin(), buffer.end(), 0xff);
     answer_after = 0;
     failure = ENOTSUP;
     filled = device.fill(buffer);
     BOOST_TEST(!filled && filled.error() == boost::system::errc::not_supported);
+    BOOST_TEST(std::all_of(buffer.begin(), buffer.end(), [](std::uint8_t b) { return b == 0; }));
+
+    // A failure the source reports without an errno value is still a failure.
+    std::fill(buffer.begin(), buffer.end(), 0xff);
+    failure = -1;
+    filled = device.fill(buffer);
+    BOOST_TEST(!filled && filled.error() == crypto::error::entropy_unavailable);
+    BOOST_TEST(std::all_of(buffer.begin(), buffer.end(), [](std::uint8_t b) { return b == 0; }));
     failure = EIO;
 
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS

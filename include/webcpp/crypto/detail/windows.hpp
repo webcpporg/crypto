@@ -25,7 +25,7 @@
 #define WEBCPP_CRYPTO_DETAIL_DEFINED_WIN32_LEAN_AND_MEAN
 #endif
 
-#include <windows.h>  // lint-world: BCryptGenRandom and GetProcAddress, this header's purpose
+#include <windows.h>  // lint-world: BCryptGenRandom, this header's purpose
 
 #include <bcrypt.h>  // lint-world: BCryptGenRandom, Windows' one generator
 

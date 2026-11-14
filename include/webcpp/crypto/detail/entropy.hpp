@@ -37,11 +37,10 @@ inline constexpr std::size_t entropy_piece = 256;
 /**
  * Asks the platform's one source for `size` bytes, at most @ref entropy_piece.
  *
- * Linux, macOS and WASI: `getentropy`, which fills the buffer or fails (lint-world: the source)
- * with `errno` set (POSIX.1-2024; wasmtime serves it with the host's generator). Emscripten:
- * the same call (lint-world: the source) becomes `crypto.getRandomValues` in the browser and
- * in node, and fails with `ENOTSUP` in
- * an audio worklet, which has no `crypto` (Emscripten's `src/lib/libwasi.js`). Windows:
+ * Linux, macOS and WASI: the POSIX entropy call, which fills the buffer or fails with `errno`
+ * set (POSIX.1-2024; wasmtime serves it with the host's generator). Emscripten: the same call
+ * becomes `crypto.getRandomValues` in the browser and in node, and fails with `ENOTSUP` in an
+ * audio worklet, which has no `crypto` (Emscripten's `src/lib/libwasi.js`). Windows:
  * `BCryptGenRandom` with `BCRYPT_USE_SYSTEM_PREFERRED_RNG`, the system's generator
  * (learn.microsoft.com, `BCryptGenRandom`).
  *
@@ -58,7 +57,9 @@ inline boost::system::result<void> read_entropy(std::uint8_t* out, std::size_t s
         ::BCryptGenRandom(nullptr, out, static_cast<ULONG>(size), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
     int const failed = BCRYPT_SUCCESS(status) ? 0 : EIO;
 #else
-    int const failed = ::getentropy(out, size) == 0 ? 0 : errno;  // lint-world: the entropy
+    // A failed call that leaves errno 0 is still a failure: never report it as a filled piece.
+    int const failed =
+        ::getentropy(out, size) == 0 ? 0 : (errno != 0 ? errno : EIO);  // lint-world: the entropy
 #endif
     if (failed == ENOTSUP) {
         return boost::system::errc::make_error_code(boost::system::errc::not_supported);

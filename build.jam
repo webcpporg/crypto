@@ -7,7 +7,7 @@
 # crypto: authenticated encryption, randomness and secp256k1 over C backends.
 # A program names /webcpp/crypto//crypto and the library of each backend it
 # uses, /third_party//<backend> (third_party/Jamfile), or, for OpenSSL,
-# /webcpp/crypto//openssl (Task 11):
+# /webcpp/crypto//openssl:
 #
 #     exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ;
 

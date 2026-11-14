@@ -36,3 +36,13 @@ webcpp.compile config_developer_defined : config_test.cpp
 crypto-run error : error_test.cpp ;
 crypto-run equal : equal_test.cpp ;
 crypto-run wipe : wipe_test.cpp ;
+
+# The counter itself: counts each allocation as it documents, on the first thread and a new one.
+crypto-run counting : counting_test.cpp ;
+
+# Declared with the BearSSL and OpenSSL backends, whose allocation tests are in this
+# directory:
+#crypto-run allocation_bearssl : allocation_bearssl_test.cpp : <library>/third_party//bearssl ;
+#crypto-run allocation_openssl : allocation_openssl_test.cpp
+#  : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
+#crypto-run bearssl_seeder : bearssl_seeder_test.cpp : <library>/third_party//bearssl ;

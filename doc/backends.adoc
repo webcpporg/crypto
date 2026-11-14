@@ -37,12 +37,13 @@ GCM is not available on ctaes: see <<crypto-block-gcm>>.
 |Library |libsecp256k1 v0.8.0, built from its sources with every module on, recovery included
 |Licence |MIT
 |Tables |the feature `webcpp-secp256k1-tables`: `auto` (the default: small on Emscripten, large elsewhere), `small` (window 2, comb 2x5) or `large` (window 15, comb 11x6)
-|Allocation |the signing context, in the resource of the user's key pair; none elsewhere
-|Exports |`webcpp::crypto::secp256k1::keypair`, `verify_schnorr` and `verify_ecdsa` in `<webcpp/crypto/secp256k1.hpp>`; the C API of `<secp256k1.h>` and its modules
+|Allocation |the signing context, in the user's resource; none elsewhere
+|Exports |the C API of `<secp256k1.h>` and its modules
 |===
 
 The small tables make a program about 1 MB smaller, and verification about a
 third slower. The configuration enters the canary, so a program cannot be linked
 with tables other than those it was compiled for. With MSVC the static library
 needs `SECP256K1_STATIC`, which the target's usage requirements define. A
-program has one copy of libsecp256k1: see <<crypto-secp256k1-one-copy>>.
+program has one copy of libsecp256k1: the library's tables are global symbols, so
+webcpp's build is never linked with another copy, an external one included.

@@ -50,7 +50,10 @@ struct chacha_engine;
  * @param canary The canary's symbol.
  */
 inline void read_canary(char const volatile& canary) noexcept {
-    static_cast<void>(canary);
+    // The volatile glvalue is converted to a value: a discarded one is not read by gcc
+    // ("conversion to void will not access object").
+    char const value = canary;
+    static_cast<void>(value);
 }
 
 }  // namespace webcpp::crypto::detail

@@ -20,12 +20,10 @@ rule crypto-run ( name : sources + : requirements * : targets * )
       : $(requirements) <exception-handling>off : $(targets) ;
 }
 
-webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp crypto/error.hpp
-  crypto/equal.hpp crypto/detail/wipe.hpp crypto/detail/limits.hpp ;
-webcpp.headers-alone crypto : ../include : crypto.hpp crypto/aes.hpp crypto/config.hpp crypto/error.hpp
-  crypto/gcm.hpp
-  crypto/detail/engines.hpp crypto/detail/limits.hpp crypto/detail/wipe.hpp ;
-  crypto/random_device.hpp crypto/detail/entropy.hpp crypto/detail/windows.hpp ;
+webcpp.headers-alone crypto : ../include : crypto.hpp crypto/aes.hpp
+  crypto/config.hpp crypto/equal.hpp crypto/error.hpp crypto/gcm.hpp
+  crypto/random_device.hpp crypto/detail/engines.hpp crypto/detail/entropy.hpp
+  crypto/detail/limits.hpp crypto/detail/windows.hpp crypto/detail/wipe.hpp ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
 # exceptions, keeps it when a developer defines it, defines it when
@@ -41,22 +39,26 @@ crypto-run error : error_test.cpp ;
 crypto-run equal : equal_test.cpp ;
 crypto-run wipe : wipe_test.cpp ;
 
-# The counter itself: counts each allocation as it documents, on the first thread and a new one.
+# The counter itself: counts each allocation as it documents, on the first
+# thread and a new one.
 crypto-run counting : counting_test.cpp ;
 
-# Declared with the BearSSL and OpenSSL backends, whose allocation tests are in this
-# directory:
-#crypto-run allocation_bearssl : allocation_bearssl_test.cpp : <library>/third_party//bearssl ;
+# Declared with the BearSSL and OpenSSL backends, whose allocation tests are in
+# this directory:
+#crypto-run allocation_bearssl : allocation_bearssl_test.cpp
+#  : <library>/third_party//bearssl ;
 #crypto-run allocation_openssl : allocation_openssl_test.cpp
 #  : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
-#crypto-run bearssl_seeder : bearssl_seeder_test.cpp : <library>/third_party//bearssl ;
+#crypto-run bearssl_seeder : bearssl_seeder_test.cpp
+#  : <library>/third_party//bearssl ;
 
 # asio's and crypto's OpenSSL in one program: one provider, each archive once
 # (CODING-GUIDELINES.md chapter 5 rule 10).
 crypto-run openssl_one_copy : openssl_one_copy_test.cpp
   : <library>/webcpp/crypto//openssl <library>/webcpp/asio//openssl : native wasip2 wasip3 ;
 
-# Naming the alias refuses an Emscripten program, in C++ and in C, by the forced include.
+# Naming the alias refuses an Emscripten program, in C++ and in C, by the
+# forced include.
 webcpp.compile-fail openssl_named_on_emscripten : openssl_named_test.cpp
   : <library>/webcpp/crypto//openssl : emscripten ;
 webcpp.compile-fail openssl_named_c_on_emscripten : openssl_named_c_test.c
@@ -82,9 +84,11 @@ webcpp.compile default_backend_both_linked : default_backend_test.cpp
 webcpp.compile default_backend_both_linked_wasi : default_backend_test.cpp
   : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 : wasip2 wasip3 ;
 webcpp.compile default_backend_both_bearssl_selected : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1
     <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL : native ;
 webcpp.compile default_backend_openssl_selected : default_backend_test.cpp
   : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+    <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native ;
 
 build-project messages ;
 

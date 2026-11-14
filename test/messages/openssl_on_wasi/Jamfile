@@ -1,0 +1,15 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+project : requirements <library>/webcpp/crypto//crypto ;
+
+import webcpp ;
+
+# OpenSSL is a backend on wasip2 and wasip3, where the provider builds it:
+# config.hpp refuses it on Emscripten alone.
+webcpp.compile openssl_on_wasi : openssl_on_wasi.cpp
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+  : wasip2 wasip3 ;

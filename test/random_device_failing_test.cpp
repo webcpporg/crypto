@@ -84,7 +84,7 @@ int main() {
 
     // The pieces of a fill that succeeds: 257 bytes are two calls (256 and 1), 600 are three,
     // none of more than 256 bytes (checked in the source), and the buffer holds what it gave.
-    for (auto const [size, pieces] : {std::pair<std::size_t, std::size_t>{257, 2}, {600, 3}}) {
+    for (auto const& [size, pieces] : {std::pair<std::size_t, std::size_t>{257, 2}, {600, 3}}) {
         std::ranges::fill(buffer, 0xff);
         answer_after = 100;
         calls = 0;

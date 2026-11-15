@@ -37,12 +37,19 @@
 /** Defined on the WebAssembly targets, wasip2, wasip3 and Emscripten. */
 #define WEBCPP_CRYPTO_WEBASSEMBLY 1
 #undef WEBCPP_CRYPTO_WEBASSEMBLY
+#ifdef WEBCPP_CRYPTO_HAS_BEARSSL
+/** Defined while config.hpp reads a reference's build that links BearSSL (doc/Jamfile). */
+#define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_BEARSSL
+#endif
 /**
  Defined by `/third_party//bearssl` when the program links BearSSL; a program built without
  b2 defines it to 1 itself.
 */
 #define WEBCPP_CRYPTO_HAS_BEARSSL 1
+#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_BEARSSL
 #undef WEBCPP_CRYPTO_HAS_BEARSSL
+#endif
+#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_BEARSSL
 #ifdef WEBCPP_CRYPTO_HAS_OPENSSL
 /** Defined while config.hpp reads a reference's build that links OpenSSL (doc/Jamfile). */
 #define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_OPENSSL

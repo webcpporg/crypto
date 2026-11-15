@@ -46,17 +46,21 @@
 #include <span>
 #include <string_view>
 
-// The configuration the canary names: BearSSL's seeder as third_party/Jamfile builds it.
 #ifdef WEBCPP_CRYPTO_BEARSSL_CANARY_CONFIGURATION
+/** The configuration the canary names: a test's, here. */
 #define WEBCPP_CRYPTO_DETAIL_BEARSSL_CONFIGURATION WEBCPP_CRYPTO_BEARSSL_CANARY_CONFIGURATION
 #elif defined(_WIN32)
+/** The configuration the canary names: BearSSL's seeder on Windows, none. */
 #define WEBCPP_CRYPTO_DETAIL_BEARSSL_CONFIGURATION noseeder
 #else
+/** The configuration the canary names: BearSSL's seeder as third_party/Jamfile builds it. */
 #define WEBCPP_CRYPTO_DETAIL_BEARSSL_CONFIGURATION getentropy  // lint-world: a canary's name
 #endif
-// The second layer: the canary's symbol, which src/canary_bearssl.c defines in the library,
-// read by every function that calls BearSSL; the third, on MSVC, the linker's comparison of
-// the same three facts.
+/**
+ * The canary's name (spec section 4.3, the second layer): src/canary_bearssl.c defines it in
+ * the library, and every function that calls BearSSL reads it; on MSVC the linker also compares
+ * the same three facts, the third layer.
+ */
 #define WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY                            \
     WEBCPP_CRYPTO_DETAIL_CANARY(bearssl, WEBCPP_CRYPTO_BEARSSL_COMMIT, \
                                 WEBCPP_CRYPTO_DETAIL_BEARSSL_CONFIGURATION)

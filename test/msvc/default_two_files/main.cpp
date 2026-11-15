@@ -8,7 +8,7 @@
 // natively), with.cpp selects BearSSL. MSVC's linker compares the values of aes256_gcm.hpp's
 // #pragma detect_mismatch and fails with LNK2038 (spec section 5). Elsewhere the program links;
 // it is MSVC's case alone.
-#include <webcpp/crypto/aes256_gcm.hpp>
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 
 #include <array>
 #include <cstdint>
@@ -19,6 +19,6 @@ int main() {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
     std::array<std::uint8_t, 16> data{};
-    auto aead = webcpp::crypto::aes256_gcm::make(key);
+    auto aead = webcpp::crypto::ciphers::aes256_gcm::make(key);
     return aead && aead->seal(iv, {}, data) && seal_with_bearssl() ? 0 : 1;
 }

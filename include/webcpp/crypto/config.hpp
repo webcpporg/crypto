@@ -141,10 +141,12 @@ struct secp256k1;
 namespace webcpp::crypto {
 
 #ifdef WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL
-/** The backend of `aes256<>`, `gcm<aes256<>>` and `aes256_gcm`, as section 5 chooses it. */
+/** The backend of `ciphers::aes256<>`, `ciphers::gcm<aes256<>>` and `ciphers::aes256_gcm`, as
+ * section 5 chooses it. */
 using default_backend = backends::openssl;
 #else
-/** The backend of `aes256<>`, `gcm<aes256<>>` and `aes256_gcm`, as section 5 chooses it. */
+/** The backend of `ciphers::aes256<>`, `ciphers::gcm<aes256<>>` and `ciphers::aes256_gcm`, as
+ * section 5 chooses it. */
 using default_backend = backends::bearssl;
 #endif
 

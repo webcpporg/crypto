@@ -23,10 +23,10 @@
 #include "reserved.hpp"
 #endif
 
-#include <webcpp/crypto/aes.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/gcm.hpp>
 
 #include <boost/core/lightweight_test.hpp>
 
@@ -55,9 +55,9 @@ inline bool all_zero(std::span<std::uint8_t const> bytes) {
 template <class Backend, class F>
 void with_gcm(std::span<std::uint8_t const> key, F&& f) {
     switch (key.size()) {
-        case 16: f(crypto::gcm<crypto::aes128<Backend>>::make(key)); break;
-        case 24: f(crypto::gcm<crypto::aes192<Backend>>::make(key)); break;
-        default: f(crypto::gcm<crypto::aes256<Backend>>::make(key)); break;
+        case 16: f(crypto::ciphers::gcm<crypto::ciphers::aes128<Backend>>::make(key)); break;
+        case 24: f(crypto::ciphers::gcm<crypto::ciphers::aes192<Backend>>::make(key)); break;
+        default: f(crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>::make(key)); break;
     }
 }
 
@@ -89,7 +89,7 @@ void check_spec_cases(gcm_cases cases = gcm_spec_cases) {
 /** Every guard of spec section 2.4, in its order, each leaving data untouched. */
 template <class Backend>
 void check_guards() {
-    using aead = crypto::gcm<crypto::aes256<Backend>>;
+    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     std::array<std::uint8_t, 31> const short_key{};
     BOOST_TEST(aead::make(short_key).error() == crypto::error::invalid_key_size);
     std::array<std::uint8_t, 16> const key16{};
@@ -146,7 +146,7 @@ void expect_tampered(Aead& made, std::span<std::uint8_t const> iv,
 /** Changing any byte of ciphertext, tag, IV or additional data fails, and zeroes data. */
 template <class Backend>
 void check_tampering(gcm_cases cases = gcm_spec_cases) {
-    using aead = crypto::gcm<crypto::aes128<Backend>>;
+    using aead = crypto::ciphers::gcm<crypto::ciphers::aes128<Backend>>;
     if (!BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size())) {
         return;
     }
@@ -215,7 +215,7 @@ void expect_all_refused(Aead& empty, std::span<std::uint8_t const> iv, std::span
 /** A moved-from gcm answers invalid_state to everything but assignment and destruction. */
 template <class Backend>
 void check_moved_from(gcm_cases cases = gcm_spec_cases) {
-    using aead = crypto::gcm<crypto::aes256<Backend>>;
+    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     if (!BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size())) {
         return;
     }
@@ -368,7 +368,7 @@ void check_edge_wire_open(Aead& made) {
 /** Empty inputs, and spans that touch or overlap (Review Focus 2 and 3). */
 template <class Backend>
 void check_edges(gcm_cases cases = gcm_spec_cases) {
-    using aead = crypto::gcm<crypto::aes256<Backend>>;
+    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     if (!BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size())) {
         return;
     }
@@ -528,7 +528,7 @@ void check_machine_moves(Aead& made, std::span<std::uint8_t const> key,
 /** The incremental seal's machine (spec section 2.4): each wrong call, then a fresh message. */
 template <class Backend>
 void check_machine(gcm_cases cases = gcm_spec_cases) {
-    using aead = crypto::gcm<crypto::aes256<Backend>>;
+    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     if (!BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size())) {
         return;
     }
@@ -546,7 +546,7 @@ void check_machine(gcm_cases cases = gcm_spec_cases) {
 /** A one-shot seal or open during an incremental message is refused (Review Focus 1). */
 template <class Backend>
 void check_one_shot_during_message(gcm_cases cases = gcm_spec_cases) {
-    using aead = crypto::gcm<crypto::aes256<Backend>>;
+    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     if (!BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size())) {
         return;
     }
@@ -585,7 +585,7 @@ void check_one_shot_during_message(gcm_cases cases = gcm_spec_cases) {
  */
 template <class Backend>
 void check_limits() {
-    using aead = crypto::gcm<crypto::aes256<Backend>>;
+    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     static_assert(sizeof(std::size_t) == 8, "the limits are reachable only with 64-bit sizes");
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};

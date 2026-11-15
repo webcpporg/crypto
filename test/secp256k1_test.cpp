@@ -9,7 +9,7 @@
 // parties, every error of make, a moved-from key pair, and public keys refused in every way
 // they can be wrong.
 
-#include <webcpp/crypto/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -24,7 +24,7 @@
 #include <utility>
 
 namespace crypto = webcpp::crypto;
-namespace secp = webcpp::crypto::secp256k1;
+namespace secp = webcpp::crypto::curves::secp256k1;
 
 namespace {
 

@@ -8,8 +8,8 @@
 // and the ECDH vectors, in ASN.1 and JWK form, through libsecp256k1's C API and webcpp's
 // keypair::ecdh, which must agree with it.
 
+#include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secp256k1.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -35,7 +35,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
-namespace secp = webcpp::crypto::secp256k1;
+namespace secp = webcpp::crypto::curves::secp256k1;
 namespace test = webcpp::test;
 namespace json = boost::json;
 

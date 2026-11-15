@@ -7,14 +7,14 @@
 // A program that makes the block cipher on BearSSL, which has none, stops at the static_assert
 // that names the backends that export it (spec section 2.3): on MSVC the compile fails. The text
 // is checked on clang, in test/messages/aes_on_bearssl.
-#include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/backends/bearssl.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
 
 #include <array>
 #include <cstdint>
 
 int main() {
     std::array<std::uint8_t, 32> const key{};
-    auto const made = webcpp::crypto::aes256<webcpp::crypto::backends::bearssl>::make(key);
+    auto const made = webcpp::crypto::ciphers::aes256<webcpp::crypto::backends::bearssl>::make(key);
     return made ? 0 : 1;
 }

@@ -20,16 +20,16 @@ namespace webcpp::crypto::detail {
  * names the backends that have it. A backend whose header is not included leaves both
  * undefined, and the compiler names the specialisation it lacks.
  *
- * Tip: `gcm<aes256<backends::bearssl>>` reads `aes256<backends::bearssl>::key_size`, which
- * instantiates the class and its members' types, so a refusal in the block cipher's state
- * would refuse BearSSL's GCM too.
+ * Tip: `ciphers::gcm<aes256<backends::bearssl>>` reads
+ * `ciphers::aes256<backends::bearssl>::key_size`, which instantiates the class and its members'
+ * types, so a refusal in the block cipher's state would refuse BearSSL's GCM too.
  */
 template <class Backend, std::size_t KeySize>
 struct block_state;
 /** The work of the AES block cipher on a backend (see @ref block_state). */
 template <class Backend, std::size_t KeySize>
 struct block_engine;
-/** What a `gcm` stores (see @ref block_state). */
+/** What a `ciphers::gcm` stores (see @ref block_state). */
 template <class Backend, std::size_t KeySize>
 struct gcm_state;
 /** The work of GCM on a backend (see @ref block_state). */

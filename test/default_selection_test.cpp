@@ -16,7 +16,7 @@
 #include "support/fake_backends/webcpp/crypto/backends/openssl.hpp"
 // clang-format on
 
-#include <webcpp/crypto/aes256_gcm.hpp>
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 
 #include <type_traits>
 
@@ -33,6 +33,8 @@ using expected = crypto::backends::bearssl;
 #endif
 
 static_assert(std::is_same_v<crypto::default_backend, expected>);
-static_assert(std::is_same_v<crypto::aes256<>, crypto::aes256<expected>>);
-static_assert(std::is_same_v<crypto::aes256_gcm, crypto::gcm<crypto::aes256<expected>>>);
-static_assert(std::is_same_v<crypto::aes128_gcm, crypto::gcm<crypto::aes128<expected>>>);
+static_assert(std::is_same_v<crypto::ciphers::aes256<>, crypto::ciphers::aes256<expected>>);
+static_assert(std::is_same_v<crypto::ciphers::aes256_gcm,
+                             crypto::ciphers::gcm<crypto::ciphers::aes256<expected>>>);
+static_assert(std::is_same_v<crypto::ciphers::aes128_gcm,
+                             crypto::ciphers::gcm<crypto::ciphers::aes128<expected>>>);

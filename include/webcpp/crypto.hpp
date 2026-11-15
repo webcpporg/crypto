@@ -7,7 +7,7 @@
 /**
  Every header of webcpp::crypto that needs no backend, and the header of each
  backend the build links. It includes the default backend's header too (through
- `aes256_gcm.hpp`), so a WebAssembly program that links OpenSSL alone defines
+ `ciphers/aes256_gcm.hpp`), so a WebAssembly program that links OpenSSL alone defines
  `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL`, or includes the headers it uses instead.
 */
 #ifndef WEBCPP_CRYPTO_HPP
@@ -15,10 +15,10 @@
 
 #include <webcpp/crypto/config.hpp>
 
-#include <webcpp/crypto/aes.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/gcm.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the system's entropy, a purpose of crypto
 
 #ifdef WEBCPP_CRYPTO_HAS_BEARSSL
@@ -28,7 +28,7 @@
 #include <webcpp/crypto/backends/openssl.hpp>
 #endif
 #if defined(WEBCPP_CRYPTO_HAS_BEARSSL) || defined(WEBCPP_CRYPTO_HAS_OPENSSL)
-#include <webcpp/crypto/aes256_gcm.hpp>
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #endif
 
 #ifdef WEBCPP_CRYPTO_HAS_CTAES
@@ -36,7 +36,7 @@
 #endif
 
 #ifdef WEBCPP_CRYPTO_HAS_SECP256K1
-#include <webcpp/crypto/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1.hpp>
 #endif
 
 #endif  // WEBCPP_CRYPTO_HPP

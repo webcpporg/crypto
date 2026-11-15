@@ -16,14 +16,14 @@ of every version are on webcpp's index page.
 === Unreleased
 
 // tag::unreleased[]
-* Added crypto: authenticated encryption, randomness and secp256k1 over C backends, with errors of fixed values in webcpp.crypto.
-* Added equal, random_device, and aes128, aes192 and aes256, the AES block cipher.
-* Added gcm, AES-GCM in place with an incremental seal, whose failed open zeroes the data.
-* Added the default backend, aes128_gcm, aes256_gcm and the refusals of backends that conflict.
+* Added crypto, primitives over C backends: ciphers, curves and randomness, with errors of fixed values in webcpp.crypto.
+* Added equal and random_device, and ciphers::aes128, aes192 and aes256, the AES block cipher.
+* Added ciphers::gcm, AES-GCM in place with an incremental seal, whose failed open zeroes the data.
+* Added the default backend, ciphers::aes128_gcm and aes256_gcm, and the refusals of backends that conflict.
 * Added backends::bearssl: AES-GCM on every target allocating nothing, the block cipher refused, and the Jamfile line a program lacks without it.
 * Added backends::openssl and /webcpp/crypto//openssl on native and WASI; a message on it allocates nothing after make.
-* Added backends::ctaes, the AES block cipher alone on every target; gcm refuses it.
-* Added secp256k1 on libsecp256k1: key pairs, BIP340 and ECDSA signatures, ECDH, DER, low-S and the Taproot tweak.
+* Added backends::ctaes, the AES block cipher alone on every target; ciphers::gcm refuses it.
+* Added curves::secp256k1: key pairs, BIP340 and ECDSA signatures, ECDH, DER, low-S and the Taproot tweak.
 * Added the link-time canaries of BearSSL, ctaes and libsecp256k1, and their own suites on webcpp's build.
-* Added the pages on the block cipher, AES-GCM, entropy, secp256k1, the backends and the user's Jamfiles.
+* Added the pages on the namespaces, the block cipher, AES-GCM, entropy, secp256k1, the backends and the Jamfiles.
 // end::unreleased[]

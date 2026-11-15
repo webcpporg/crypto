@@ -8,8 +8,8 @@
 // (support/aes_checks.hpp), and FIPS-197 appendix C. NIST's known answers are deferred
 // (ruling R5).
 
-#include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/backends/ctaes.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/aes_checks.hpp"
@@ -35,7 +35,7 @@ bool round_trip() {
     // tag::round_trip[]
     std::array<std::uint8_t, 32> key{};
     std::array<std::uint8_t, 16> block{};
-    auto aes = webcpp::crypto::aes256<webcpp::crypto::backends::ctaes>::make(key);
+    auto aes = webcpp::crypto::ciphers::aes256<webcpp::crypto::backends::ctaes>::make(key);
     // On success, block holds the plaintext again.
     bool const ok = aes && aes->encrypt(block) && aes->decrypt(block);
     // end::round_trip[]
@@ -65,11 +65,11 @@ void check_fips197() {
         key[i] = static_cast<std::uint8_t>(i);
     }
     constexpr std::string_view plain = "00112233445566778899aabbccddeeff";
-    check_answer<crypto::aes128<ctaes>>(std::span(key).first(16), plain,
-                                        "69c4e0d86a7b0430d8cdb78070b4c55a");
-    check_answer<crypto::aes192<ctaes>>(std::span(key).first(24), plain,
-                                        "dda97ca4864cdfe06eaf70a0ec0d7191");
-    check_answer<crypto::aes256<ctaes>>(key, plain, "8ea2b7ca516745bfeafc49904b496089");
+    check_answer<crypto::ciphers::aes128<ctaes>>(std::span(key).first(16), plain,
+                                                 "69c4e0d86a7b0430d8cdb78070b4c55a");
+    check_answer<crypto::ciphers::aes192<ctaes>>(std::span(key).first(24), plain,
+                                                 "dda97ca4864cdfe06eaf70a0ec0d7191");
+    check_answer<crypto::ciphers::aes256<ctaes>>(key, plain, "8ea2b7ca516745bfeafc49904b496089");
 }
 
 }  // namespace

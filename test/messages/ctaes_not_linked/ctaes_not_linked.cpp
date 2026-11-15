@@ -10,10 +10,10 @@
 // clang-format off
 // expected-error@webcpp/crypto/backends/ctaes.hpp:* {{webcpp::crypto: the backend ctaes is used and not linked. In the program's Jamfile, add /third_party//ctaes beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_CTAES=1 and link ctaes.c with webcpp's src/canary_ctaes.c)}}
 // clang-format on
-#include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/backends/ctaes.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
 
-webcpp::crypto::aes256<webcpp::crypto::backends::ctaes>* unused = nullptr;
+webcpp::crypto::ciphers::aes256<webcpp::crypto::backends::ctaes>* unused = nullptr;
 
 int main() {
     return 0;

@@ -6,7 +6,7 @@
 
 /**
  The backend BearSSL: BearSSL's own C code, built from its sources by
- `/third_party//bearssl`. It serves `gcm<aes128/192/256<backends::bearssl>>`, and has no
+ `/third_party//bearssl`. It serves `ciphers::gcm<aes128/192/256<backends::bearssl>>`, and has no
  block cipher.
 
  @see "The backends", in the guide.
@@ -261,8 +261,8 @@ struct gcm_engine<backends::bearssl, KeySize> {
 };
 
 /**
- * BearSSL has no AES block cipher: its state is empty, so `aes256<backends::bearssl>` is
- * complete, and `gcm<aes256<backends::bearssl>>` can read its key size.
+ * BearSSL has no AES block cipher: its state is empty, so `ciphers::aes256<backends::bearssl>` is
+ * complete, and `ciphers::gcm<aes256<backends::bearssl>>` can read its key size.
  */
 template <std::size_t KeySize>
 struct block_state<backends::bearssl, KeySize> {};
@@ -270,7 +270,7 @@ struct block_state<backends::bearssl, KeySize> {};
 /**
  * BearSSL's refusal of the block cipher (spec section 2.3). The assertions sit in member
  * templates, which only `make`, `encrypt` and `decrypt` instantiate: the class's moves and
- * destructor, which `gcm<aes256<backends::bearssl>>` needs, never fire them.
+ * destructor, which `ciphers::gcm<aes256<backends::bearssl>>` needs, never fire them.
  */
 template <std::size_t KeySize>
 struct block_engine<backends::bearssl, KeySize> {
@@ -286,9 +286,9 @@ struct block_engine<backends::bearssl, KeySize> {
     template <bool Never = false>
     static void refuse() noexcept {
         // clang-format off
-        static_assert(Never || KeySize != 16, "webcpp::crypto: aes128<backends::bearssl>: BearSSL exports AES only inside its modes, with no block cipher. Name a backend that exports it, as in aes128<backends::ctaes> or aes128<backends::openssl>, and add its library to the program's Jamfile.");
-        static_assert(Never || KeySize != 24, "webcpp::crypto: aes192<backends::bearssl>: BearSSL exports AES only inside its modes, with no block cipher. Name a backend that exports it, as in aes192<backends::ctaes> or aes192<backends::openssl>, and add its library to the program's Jamfile.");
-        static_assert(Never || KeySize != 32, "webcpp::crypto: aes256<backends::bearssl>: BearSSL exports AES only inside its modes, with no block cipher. Name a backend that exports it, as in aes256<backends::ctaes> or aes256<backends::openssl>, and add its library to the program's Jamfile.");
+        static_assert(Never || KeySize != 16, "webcpp::crypto: ciphers::aes128<backends::bearssl>: BearSSL exports AES only inside its modes, with no block cipher. Name a backend that exports it, as in ciphers::aes128<backends::ctaes> or ciphers::aes128<backends::openssl>, and add its library to the program's Jamfile.");
+        static_assert(Never || KeySize != 24, "webcpp::crypto: ciphers::aes192<backends::bearssl>: BearSSL exports AES only inside its modes, with no block cipher. Name a backend that exports it, as in ciphers::aes192<backends::ctaes> or ciphers::aes192<backends::openssl>, and add its library to the program's Jamfile.");
+        static_assert(Never || KeySize != 32, "webcpp::crypto: ciphers::aes256<backends::bearssl>: BearSSL exports AES only inside its modes, with no block cipher. Name a backend that exports it, as in ciphers::aes256<backends::ctaes> or ciphers::aes256<backends::openssl>, and add its library to the program's Jamfile.");
         // clang-format on
     }
 

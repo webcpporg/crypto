@@ -10,8 +10,8 @@
 
  @see "The block cipher", in the guide.
 */
-#ifndef WEBCPP_CRYPTO_AES_HPP
-#define WEBCPP_CRYPTO_AES_HPP
+#ifndef WEBCPP_CRYPTO_CIPHERS_AES_HPP
+#define WEBCPP_CRYPTO_CIPHERS_AES_HPP
 
 #include <webcpp/crypto/config.hpp>
 
@@ -25,9 +25,7 @@
 #include <span>
 #include <utility>
 
-namespace webcpp::crypto {
-
-namespace detail {
+namespace webcpp::crypto::detail {
 
 /**
  * The AES block cipher with keys of `KeySize` bytes on `Backend`, of which `aes128`, `aes192`
@@ -150,7 +148,9 @@ private:
     bool keyed_ = false;
 };
 
-}  // namespace detail
+}  // namespace webcpp::crypto::detail
+
+namespace webcpp::crypto::ciphers {
 
 /**
  * AES-128, the block cipher, on a backend that exports it: ctaes, OpenSSL.
@@ -224,6 +224,6 @@ private:
     aes256() noexcept = default;
 };
 
-}  // namespace webcpp::crypto
+}  // namespace webcpp::crypto::ciphers
 
-#endif  // WEBCPP_CRYPTO_AES_HPP
+#endif  // WEBCPP_CRYPTO_CIPHERS_AES_HPP

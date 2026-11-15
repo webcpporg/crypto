@@ -67,13 +67,13 @@ int main() {
     std::array<std::uint8_t, 16> block{};
 
     std::size_t const first = openssl_allocations.load();
-    auto made = crypto::gcm<crypto::aes256<crypto::backends::openssl>>::make(key);
+    auto made = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::openssl>>::make(key);
     std::size_t const made_count = openssl_allocations.load() - first;
     BOOST_TEST(made.has_value());
     std::printf("make: %zu allocations through OpenSSL's functions, first make included\n",
                 made_count);
     std::size_t const second_first = openssl_allocations.load();
-    auto second = crypto::aes256<crypto::backends::openssl>::make(key);
+    auto second = crypto::ciphers::aes256<crypto::backends::openssl>::make(key);
     std::size_t const second_count = openssl_allocations.load() - second_first;
     BOOST_TEST(second.has_value());
     std::printf("second make: %zu\n", second_count);

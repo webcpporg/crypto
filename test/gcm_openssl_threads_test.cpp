@@ -9,9 +9,9 @@
 // own error queue as it left it, its one entry first and alone. Built <threading>multi, so
 // that the provider has threads.
 
-#include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/backends/openssl.hpp>
-#include <webcpp/crypto/gcm.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -30,7 +30,7 @@
 namespace {
 
 namespace crypto = webcpp::crypto;
-using aead = crypto::gcm<crypto::aes256<crypto::backends::openssl>>;
+using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::openssl>>;
 
 /** What a thread saw; checked on the main thread, since the test's counters are not atomic. */
 struct outcome {

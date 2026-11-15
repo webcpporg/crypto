@@ -8,9 +8,9 @@
 // and of gcm leaves it empty; an entry of the caller's survives a make, a seal, a good open
 // and a failed one, and nothing of webcpp's is left beside it.
 
-#include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/backends/openssl.hpp>
-#include <webcpp/crypto/gcm.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -37,14 +37,14 @@ std::size_t drain(unsigned long& first) {
 
 int main() {
     namespace crypto = webcpp::crypto;
-    using aead = crypto::gcm<crypto::aes256<crypto::backends::openssl>>;
+    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::openssl>>;
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
     std::array<std::uint8_t, 32> data{};
 
     // OpenSSL's first fetch and its initialisation leave nothing behind either.
     BOOST_TEST_EQ(ERR_peek_error(), 0UL);
-    BOOST_TEST(crypto::aes256<crypto::backends::openssl>::make(key).has_value());
+    BOOST_TEST(crypto::ciphers::aes256<crypto::backends::openssl>::make(key).has_value());
     BOOST_TEST_EQ(ERR_peek_error(), 0UL);
     BOOST_TEST(aead::make(key).has_value());
     BOOST_TEST_EQ(ERR_peek_error(), 0UL);

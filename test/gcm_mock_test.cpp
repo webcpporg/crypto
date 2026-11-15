@@ -9,9 +9,9 @@
 // each engine error passed through as it is with a failed open's data zeroed, and the
 // engine's contract kept throughout.
 
-#include <webcpp/crypto/aes.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/gcm.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/gcm_checks.hpp"
@@ -29,7 +29,7 @@ using webcpp::test::mock_control;
 
 namespace {
 
-using aead = crypto::gcm<crypto::aes256<mock>>;
+using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<mock>>;
 
 // make returns the engine's error as it is: not_enough_memory, backend_failure.
 void check_make_failures() {

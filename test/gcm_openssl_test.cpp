@@ -8,9 +8,9 @@
 // objects, aliasing spans and the incremental seal (support/gcm_checks.hpp), and the
 // engine's abandon, which leaves nothing of the abandoned message in the context.
 
-#include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/backends/openssl.hpp>
-#include <webcpp/crypto/gcm.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/gcm_checks.hpp"
@@ -37,7 +37,7 @@ void check_abandon_forgets_the_message() {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const zero_iv{};
     std::array<std::uint8_t, 1> one_byte{};
-    auto fresh = crypto::gcm<crypto::aes256<openssl>>::make(key);
+    auto fresh = crypto::ciphers::gcm<crypto::ciphers::aes256<openssl>>::make(key);
     if (!BOOST_TEST(fresh.has_value())) {
         return;
     }

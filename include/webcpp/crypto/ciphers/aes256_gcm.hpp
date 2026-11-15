@@ -16,18 +16,18 @@
  `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`, or names `gcm<aes256<backends::bearssl>>`.
 
  The MSVC link-time net (`detect_mismatch`) covers the translation units that include this
- header; a program that names `aes256<>` through `aes.hpp` gets the same choice from
+ header; a program that names `aes256<>` through `ciphers/aes.hpp` gets the same choice from
  `config.hpp` but no link-time net.
 
  @see "Using webcpp::crypto in your Jamfile", in the guide.
 */
-#ifndef WEBCPP_CRYPTO_AES256_GCM_HPP
-#define WEBCPP_CRYPTO_AES256_GCM_HPP
+#ifndef WEBCPP_CRYPTO_CIPHERS_AES256_GCM_HPP
+#define WEBCPP_CRYPTO_CIPHERS_AES256_GCM_HPP
 
 #include <webcpp/crypto/config.hpp>
 
-#include <webcpp/crypto/aes.hpp>
-#include <webcpp/crypto/gcm.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/gcm.hpp>
 
 #ifdef WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL
 #include <webcpp/crypto/backends/openssl.hpp>
@@ -43,13 +43,13 @@
 #pragma detect_mismatch("webcpp_crypto_default_backend", "bearssl")
 #endif
 
-namespace webcpp::crypto {
+namespace webcpp::crypto::ciphers {
 
 /** AES-128-GCM on the default backend. */
 using aes128_gcm = gcm<aes128<>>;
 /** AES-256-GCM on the default backend. */
 using aes256_gcm = gcm<aes256<>>;
 
-}  // namespace webcpp::crypto
+}  // namespace webcpp::crypto::ciphers
 
-#endif  // WEBCPP_CRYPTO_AES256_GCM_HPP
+#endif  // WEBCPP_CRYPTO_CIPHERS_AES256_GCM_HPP

@@ -11,7 +11,7 @@
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_AES_CHECKS_HPP
 #define WEBCPP_TEST_CRYPTO_SUPPORT_AES_CHECKS_HPP
 
-#include <webcpp/crypto/aes.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -155,15 +155,15 @@ void check_block_moved_from() {
 /** Every check of the block cipher, for aes128, aes192 and aes256 on Backend. */
 template <class Backend>
 void check_block_cipher() {
-    check_block_guards<webcpp::crypto::aes128<Backend>>();
-    check_block_guards<webcpp::crypto::aes192<Backend>>();
-    check_block_guards<webcpp::crypto::aes256<Backend>>();
-    check_block_round_trip<webcpp::crypto::aes128<Backend>>();
-    check_block_round_trip<webcpp::crypto::aes192<Backend>>();
-    check_block_round_trip<webcpp::crypto::aes256<Backend>>();
-    check_block_moved_from<webcpp::crypto::aes128<Backend>>();
-    check_block_moved_from<webcpp::crypto::aes192<Backend>>();
-    check_block_moved_from<webcpp::crypto::aes256<Backend>>();
+    check_block_guards<webcpp::crypto::ciphers::aes128<Backend>>();
+    check_block_guards<webcpp::crypto::ciphers::aes192<Backend>>();
+    check_block_guards<webcpp::crypto::ciphers::aes256<Backend>>();
+    check_block_round_trip<webcpp::crypto::ciphers::aes128<Backend>>();
+    check_block_round_trip<webcpp::crypto::ciphers::aes192<Backend>>();
+    check_block_round_trip<webcpp::crypto::ciphers::aes256<Backend>>();
+    check_block_moved_from<webcpp::crypto::ciphers::aes128<Backend>>();
+    check_block_moved_from<webcpp::crypto::ciphers::aes192<Backend>>();
+    check_block_moved_from<webcpp::crypto::ciphers::aes256<Backend>>();
 }
 
 }  // namespace webcpp::test

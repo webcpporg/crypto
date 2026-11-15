@@ -8,8 +8,8 @@
 // the strict and the lax decoder against Wycheproof's Bitcoin ECDSA vectors (DER, counted per
 // flag), every refusal of to_der, and low-S normalization of a high-S signature.
 
+#include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secp256k1.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -31,7 +31,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
-namespace secp = webcpp::crypto::secp256k1;
+namespace secp = webcpp::crypto::curves::secp256k1;
 namespace test = webcpp::test;
 namespace json = boost::json;
 

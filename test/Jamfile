@@ -20,15 +20,16 @@ rule crypto-run ( name : sources + : requirements * : targets * )
       : $(requirements) <exception-handling>off : $(targets) ;
 }
 
-webcpp.headers-alone crypto : ../include : crypto.hpp crypto/aes.hpp
-  crypto/config.hpp crypto/equal.hpp crypto/error.hpp crypto/gcm.hpp
+webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
+  crypto/equal.hpp crypto/error.hpp crypto/ciphers/aes.hpp crypto/ciphers/gcm.hpp
   crypto/random_device.hpp crypto/detail/declassify.hpp crypto/detail/engines.hpp
   crypto/detail/entropy.hpp crypto/detail/limits.hpp crypto/detail/windows.hpp
   crypto/detail/wipe.hpp ;
 
 # The backend BearSSL's header and the default backend's, with BearSSL linked,
 # on every target.
-webcpp.headers-alone crypto : ../include : crypto/aes256_gcm.hpp crypto/backends/bearssl.hpp
+webcpp.headers-alone crypto : ../include
+  : crypto/ciphers/aes256_gcm.hpp crypto/backends/bearssl.hpp
   : <library>/third_party//bearssl ;
 # The backend OpenSSL's header, with OpenSSL linked and selected; BearSSL, ctaes
 # and libsecp256k1 are linked too, so that every public header compiles with
@@ -44,7 +45,8 @@ webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp
   : <library>/third_party//ctaes ;
 # libsecp256k1's headers compile alone only with its library, which defines
 # WEBCPP_CRYPTO_HAS_SECP256K1 (without it, each stops with its message).
-webcpp.headers-alone crypto : ../include : crypto/secp256k1.hpp crypto/backends/secp256k1.hpp
+webcpp.headers-alone crypto : ../include
+  : crypto/curves/secp256k1.hpp crypto/backends/secp256k1.hpp
   : <library>/third_party//secp256k1 ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no

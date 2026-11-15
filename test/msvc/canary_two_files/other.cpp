@@ -8,9 +8,9 @@
 // not MSVC's, so its detect_mismatch value differs from app.cpp's.
 #define WEBCPP_CRYPTO_BEARSSL_CANARY_CONFIGURATION getentropy  // lint-world: a canary's name
 
-#include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/backends/bearssl.hpp>
-#include <webcpp/crypto/gcm.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/gcm.hpp>
 
 #include <array>
 #include <cstdint>
@@ -19,7 +19,7 @@ bool seal_other() {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
     std::array<std::uint8_t, 16> data{};
-    auto aead =
-        webcpp::crypto::gcm<webcpp::crypto::aes256<webcpp::crypto::backends::bearssl>>::make(key);
+    auto aead = webcpp::crypto::ciphers::gcm<
+        webcpp::crypto::ciphers::aes256<webcpp::crypto::backends::bearssl>>::make(key);
     return aead && aead->seal(iv, {}, data);
 }

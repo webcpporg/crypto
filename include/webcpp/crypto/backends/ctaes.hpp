@@ -6,7 +6,7 @@
 
 /**
  The backend ctaes: Bitcoin Core's constant-time AES, built from its source by
- `/third_party//ctaes`. It serves `aes128/192/256<backends::ctaes>`, the block cipher
+ `/third_party//ctaes`. It serves `ciphers::aes128/192/256<backends::ctaes>`, the block cipher
  alone, on every target.
 
  @see "The backends", in the guide.
@@ -190,19 +190,22 @@ template <std::size_t KeySize>
 struct gcm_state<backends::ctaes, KeySize> {
     static_assert(
         KeySize != 16,
-        "webcpp::crypto: gcm<aes128<backends::ctaes>>: ctaes exports the AES block cipher alone, "
-        "and webcpp builds no GCM on another library's AES. Use a backend that exports GCM: "
-        "gcm<aes128<backends::bearssl>> or gcm<aes128<backends::openssl>>.");
+        "webcpp::crypto: ciphers::gcm<ciphers::aes128<backends::ctaes>>: ctaes exports "
+        "the AES block cipher alone, and webcpp builds no GCM on another library's AES. "
+        "Use a backend that exports GCM: ciphers::gcm<ciphers::aes128<backends::bearssl>> "
+        "or ciphers::gcm<ciphers::aes128<backends::openssl>>.");
     static_assert(
         KeySize != 24,
-        "webcpp::crypto: gcm<aes192<backends::ctaes>>: ctaes exports the AES block cipher alone, "
-        "and webcpp builds no GCM on another library's AES. Use a backend that exports GCM: "
-        "gcm<aes192<backends::bearssl>> or gcm<aes192<backends::openssl>>.");
+        "webcpp::crypto: ciphers::gcm<ciphers::aes192<backends::ctaes>>: ctaes exports "
+        "the AES block cipher alone, and webcpp builds no GCM on another library's AES. "
+        "Use a backend that exports GCM: ciphers::gcm<ciphers::aes192<backends::bearssl>> "
+        "or ciphers::gcm<ciphers::aes192<backends::openssl>>.");
     static_assert(
         KeySize != 32,
-        "webcpp::crypto: gcm<aes256<backends::ctaes>>: ctaes exports the AES block cipher alone, "
-        "and webcpp builds no GCM on another library's AES. Use a backend that exports GCM: "
-        "gcm<aes256<backends::bearssl>> or gcm<aes256<backends::openssl>>.");
+        "webcpp::crypto: ciphers::gcm<ciphers::aes256<backends::ctaes>>: ctaes exports "
+        "the AES block cipher alone, and webcpp builds no GCM on another library's AES. "
+        "Use a backend that exports GCM: ciphers::gcm<ciphers::aes256<backends::bearssl>> "
+        "or ciphers::gcm<ciphers::aes256<backends::openssl>>.");
 };
 
 }  // namespace webcpp::crypto::detail

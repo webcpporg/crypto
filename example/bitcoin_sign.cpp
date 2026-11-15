@@ -9,7 +9,7 @@
 // secp256k1's ECDSA (RFC 6979, low-S), encoded as strict DER, and checked against the
 // sighash and the signature BIP143 publishes; the program prints the input's witness.
 
-#include <webcpp/crypto/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1.hpp>
 
 #include <boost/hash2/sha2.hpp>
 
@@ -23,7 +23,7 @@
 #include <string_view>
 #include <vector>
 
-namespace secp = webcpp::crypto::secp256k1;
+namespace secp = webcpp::crypto::curves::secp256k1;
 
 namespace {
 

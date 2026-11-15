@@ -8,8 +8,8 @@
 // secret key gives its public key and its signature, every row verifies as its result says,
 // and the refusals are the error the row's reason names.
 
+#include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secp256k1.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -28,7 +28,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
-namespace secp = webcpp::crypto::secp256k1;
+namespace secp = webcpp::crypto::curves::secp256k1;
 namespace test = webcpp::test;
 
 namespace {

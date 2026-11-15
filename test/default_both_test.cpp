@@ -7,14 +7,14 @@
 // Natively, with OpenSSL and BearSSL linked, OpenSSL is the default (spec section 5), on MSVC
 // too.
 
-#include <webcpp/crypto/aes256_gcm.hpp>
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
 
 int main() {
-    BOOST_TEST_EQ(webcpp::crypto::aes256_gcm::backend_type::name, "openssl");
-    BOOST_TEST_EQ(webcpp::crypto::aes128_gcm::backend_type::name, "openssl");
-    BOOST_TEST_EQ(webcpp::crypto::aes256<>::backend_type::name, "openssl");
+    BOOST_TEST_EQ(webcpp::crypto::ciphers::aes256_gcm::backend_type::name, "openssl");
+    BOOST_TEST_EQ(webcpp::crypto::ciphers::aes128_gcm::backend_type::name, "openssl");
+    BOOST_TEST_EQ(webcpp::crypto::ciphers::aes256<>::backend_type::name, "openssl");
     return webcpp::test::exit_status(boost::report_errors());
 }

@@ -8,9 +8,9 @@
 // support/gcm_checks.hpp, which a real backend's test runs as well, and the limit summed
 // over many updates, which only a mock that leaves the data unread can reach.
 
-#include <webcpp/crypto/aes.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/gcm.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/gcm_checks.hpp"
@@ -29,7 +29,7 @@ using webcpp::test::mock_control;
 
 namespace {
 
-using aead = crypto::gcm<crypto::aes128<mock>>;
+using aead = crypto::ciphers::gcm<crypto::ciphers::aes128<mock>>;
 
 // Pieces of 2^35 bytes, which the mock does not read: the second reaches 2^36 bytes, more
 // than max_message_size, and is refused, ending the message; a message of exactly the

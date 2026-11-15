@@ -42,7 +42,8 @@ int main() {
     {
         crypto::random_device device;  // lint-world: a test
         BOOST_TEST(device.fill(key).has_value());
-        auto made = crypto::gcm<crypto::aes256<crypto::backends::bearssl>>::make(key);
+        auto made =
+            crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>::make(key);
         BOOST_TEST(made.has_value());
         auto const tag = made->seal(iv, {}, data);
         BOOST_TEST(tag.has_value());

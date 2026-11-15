@@ -16,7 +16,7 @@
 #error "the test needs /third_party//secp256k1, which defines WEBCPP_CRYPTO_HAS_SECP256K1"
 #endif
 
-namespace secp = webcpp::crypto::secp256k1;
+namespace secp = webcpp::crypto::curves::secp256k1;
 
 static_assert(std::is_same_v<secp::keypair::backend_type, webcpp::crypto::backends::secp256k1>);
 static_assert(std::is_function_v<decltype(secp::verify_schnorr<>)>);

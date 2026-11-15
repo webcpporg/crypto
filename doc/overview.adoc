@@ -25,6 +25,20 @@ after its library: `backends::bearssl`, `backends::openssl`,
 `backends::ctaes` and `backends::secp256k1`. Every call is synchronous: with C
 code on every target, nothing waits.
 
+[#crypto-overview-namespaces]
+=== Namespaces and headers
+
+crypto holds primitives only; a protocol built on them (a Bitcoin, Ethereum or
+Nostr rule) belongs to a domain library. Its names are grouped by kind, and the
+headers mirror the namespaces as `<webcpp/crypto/<group>/<name>.hpp>`:
+
+* `webcpp::crypto`: `error`, `random_device`, `equal` and the configuration;
+* `webcpp::crypto::backends`: the backends;
+* `webcpp::crypto::ciphers`: `aes128`, `aes192`, `aes256`, `gcm`, `aes128_gcm`
+and `aes256_gcm`;
+* `webcpp::crypto::curves::secp256k1`: key pairs, signatures, ECDH and the
+x-only tweak on secp256k1.
+
 [#crypto-overview-hash2]
 === What stays with Boost.Hash2
 

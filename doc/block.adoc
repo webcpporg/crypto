@@ -7,7 +7,8 @@
 [#crypto-block]
 == The block cipher
 
-`aes128`, `aes192` and `aes256` are the AES block cipher with keys of 16, 24
+`aes128`, `aes192` and `aes256`, in the namespace `webcpp::crypto::ciphers`
+(`<webcpp/crypto/ciphers/aes.hpp>`), are the AES block cipher with keys of 16, 24
 and 32 bytes. They work in place on whole blocks of 16 bytes, so `encrypt` and
 `decrypt` take a span whose size is a multiple of `block_size`, which is 16,
 and give `invalid_input_size` for a partial block. Each is made with
@@ -55,12 +56,12 @@ Emscripten.
 === GCM is not available on ctaes
 
 ctaes has the block cipher alone, and webcpp builds no GCM of its own on another
-library's AES. So `gcm<aes256<backends::ctaes>>` does not compile, and its
+library's AES. So `ciphers::gcm<ciphers::aes256<backends::ctaes>>` does not compile, and its
 `static_assert` says:
 
 [source,bash]
 ----
-webcpp::crypto: gcm<aes256<backends::ctaes>>: ctaes exports the AES block cipher alone, and webcpp builds no GCM on another library's AES. Use a backend that exports GCM: gcm<aes256<backends::bearssl>> or gcm<aes256<backends::openssl>>.
+webcpp::crypto: ciphers::gcm<ciphers::aes256<backends::ctaes>>: ctaes exports the AES block cipher alone, and webcpp builds no GCM on another library's AES. Use a backend that exports GCM: ciphers::gcm<ciphers::aes256<backends::bearssl>> or ciphers::gcm<ciphers::aes256<backends::openssl>>.
 ----
 
 A program that wants AES-GCM links BearSSL or OpenSSL and uses `aes256_gcm`.

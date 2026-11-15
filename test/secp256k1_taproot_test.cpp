@@ -10,8 +10,8 @@
 // vector's tweaked secret key and through its BIP340 signature (all-zero aux) of the sighash
 // with the expected witness; then the tweak's refusals.
 
+#include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secp256k1.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -32,7 +32,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
-namespace secp = webcpp::crypto::secp256k1;
+namespace secp = webcpp::crypto::curves::secp256k1;
 namespace test = webcpp::test;
 namespace json = boost::json;
 

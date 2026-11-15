@@ -7,14 +7,14 @@
 // On wasip2 and wasip3, with OpenSSL and BearSSL linked, BearSSL is the default: OpenSSL is
 // never the default on WebAssembly unless selected (spec section 5).
 
-#include <webcpp/crypto/aes256_gcm.hpp>
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
 
 int main() {
-    BOOST_TEST_EQ(webcpp::crypto::aes256_gcm::backend_type::name, "bearssl");
-    BOOST_TEST_EQ(webcpp::crypto::aes128_gcm::backend_type::name, "bearssl");
-    BOOST_TEST_EQ(webcpp::crypto::aes256<>::backend_type::name, "bearssl");
+    BOOST_TEST_EQ(webcpp::crypto::ciphers::aes256_gcm::backend_type::name, "bearssl");
+    BOOST_TEST_EQ(webcpp::crypto::ciphers::aes128_gcm::backend_type::name, "bearssl");
+    BOOST_TEST_EQ(webcpp::crypto::ciphers::aes256<>::backend_type::name, "bearssl");
     return webcpp::test::exit_status(boost::report_errors());
 }

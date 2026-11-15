@@ -8,9 +8,9 @@
 // random message of 0 to 64 blocks for each, from a seeded generator; encrypting and decrypting
 // give the same bytes on both backends.
 
-#include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/backends/ctaes.hpp>
 #include <webcpp/crypto/backends/openssl.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -75,8 +75,8 @@ int main() {
     // A fixed seed, so that a failure repeats.
     // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): see above
     std::mt19937_64 generator(0x5eedae5ULL);
-    agree<crypto::aes128, 16>(generator);
-    agree<crypto::aes192, 24>(generator);
-    agree<crypto::aes256, 32>(generator);
+    agree<crypto::ciphers::aes128, 16>(generator);
+    agree<crypto::ciphers::aes192, 24>(generator);
+    agree<crypto::ciphers::aes256, 32>(generator);
     return webcpp::test::exit_status(boost::report_errors());
 }

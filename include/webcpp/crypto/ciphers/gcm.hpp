@@ -9,8 +9,8 @@
 
  @see "AES-GCM", in the guide.
 */
-#ifndef WEBCPP_CRYPTO_GCM_HPP
-#define WEBCPP_CRYPTO_GCM_HPP
+#ifndef WEBCPP_CRYPTO_CIPHERS_GCM_HPP
+#define WEBCPP_CRYPTO_CIPHERS_GCM_HPP
 
 #include <webcpp/crypto/config.hpp>
 
@@ -29,7 +29,7 @@
 #include <span>
 #include <utility>
 
-namespace webcpp::crypto {
+namespace webcpp::crypto::ciphers {
 
 /**
  * AES-GCM (NIST SP 800-38D) with the key size of `Cipher`, on the backend of `Cipher`, which
@@ -331,6 +331,6 @@ private:
     std::uint64_t message_bytes_ = 0;
 };
 
-}  // namespace webcpp::crypto
+}  // namespace webcpp::crypto::ciphers
 
-#endif  // WEBCPP_CRYPTO_GCM_HPP
+#endif  // WEBCPP_CRYPTO_CIPHERS_GCM_HPP

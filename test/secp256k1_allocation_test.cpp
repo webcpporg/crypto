@@ -11,7 +11,7 @@
 // low-S functions and the Taproot tweak allocate nothing, each counted alone; the destructor
 // gives the block back; a refused make allocates nothing. A control proves the counter moves.
 
-#include <webcpp/crypto/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/counting.hpp"
@@ -27,7 +27,7 @@
 #include <utility>
 
 namespace crypto = webcpp::crypto;
-namespace secp = webcpp::crypto::secp256k1;
+namespace secp = webcpp::crypto::curves::secp256k1;
 
 namespace {
 

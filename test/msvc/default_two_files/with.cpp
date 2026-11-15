@@ -8,7 +8,7 @@
 // before its includes, so its detect_mismatch value differs from main.cpp's.
 #define WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL
 
-#include <webcpp/crypto/aes256_gcm.hpp>
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 
 #include <array>
 #include <cstdint>
@@ -17,6 +17,6 @@ bool seal_with_bearssl() {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
     std::array<std::uint8_t, 16> data{};
-    auto aead = webcpp::crypto::aes256_gcm::make(key);
+    auto aead = webcpp::crypto::ciphers::aes256_gcm::make(key);
     return aead && aead->seal(iv, {}, data);
 }

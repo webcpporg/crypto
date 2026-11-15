@@ -6,7 +6,7 @@
 
 /**
  The backend libsecp256k1: its v0.8.0, built from its sources by `/third_party//secp256k1`,
- every module on, with its `contrib/lax_der_parsing.c`. It serves `secp256k1::keypair`,
+ every module on, with its `contrib/lax_der_parsing.c`. It serves `curves::secp256k1::keypair`,
  `verify_schnorr`, `verify_ecdsa`, the DER and low-S functions and the Taproot tweak, and its
  whole C API stays reachable through `<secp256k1*.h>`.
 
@@ -19,7 +19,7 @@
 
 #ifndef WEBCPP_CRYPTO_HAS_SECP256K1
 #error \
-    "webcpp::crypto: <webcpp/crypto/secp256k1.hpp> needs libsecp256k1, which is not linked. In the program's Jamfile, add /third_party//secp256k1 beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_SECP256K1=1 and link libsecp256k1 built with webcpp's src/canary_secp256k1.c and, for from_lax_der, libsecp256k1's contrib/lax_der_parsing.c)"
+    "webcpp::crypto: <webcpp/crypto/curves/secp256k1.hpp> needs libsecp256k1, which is not linked. In the program's Jamfile, add /third_party//secp256k1 beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_SECP256K1=1 and link libsecp256k1 built with webcpp's src/canary_secp256k1.c and, for from_lax_der, libsecp256k1's contrib/lax_der_parsing.c)"
 #else
 
 #include <webcpp/crypto/detail/canary.h>

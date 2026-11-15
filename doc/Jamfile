@@ -9,6 +9,6 @@ import webcpp ;
 webcpp.doc crypto : crypto.adoc ;
 # The reference reads the backend headers, which refuse a build that does not
 # link their library: it links every backend, OpenSSL natively the default
-# whose header aes256_gcm.hpp includes.
+# whose header ciphers/aes256_gcm.hpp includes.
 webcpp.reference crypto : <library>/webcpp/crypto//openssl <library>/third_party//bearssl
   <library>/third_party//ctaes <library>/third_party//secp256k1 ;

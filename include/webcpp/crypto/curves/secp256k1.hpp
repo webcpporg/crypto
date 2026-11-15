@@ -10,8 +10,8 @@
 
  @see "secp256k1", in the guide.
 */
-#ifndef WEBCPP_CRYPTO_SECP256K1_HPP
-#define WEBCPP_CRYPTO_SECP256K1_HPP
+#ifndef WEBCPP_CRYPTO_CURVES_SECP256K1_HPP
+#define WEBCPP_CRYPTO_CURVES_SECP256K1_HPP
 
 #include <webcpp/crypto/config.hpp>
 
@@ -30,7 +30,7 @@
 #include <span>
 #include <utility>
 
-namespace webcpp::crypto::secp256k1 {
+namespace webcpp::crypto::curves::secp256k1 {
 
 namespace detail {
 
@@ -631,6 +631,6 @@ boost::system::result<taproot_output> taproot_output_key(
     return out;
 }
 
-}  // namespace webcpp::crypto::secp256k1
+}  // namespace webcpp::crypto::curves::secp256k1
 
-#endif  // WEBCPP_CRYPTO_SECP256K1_HPP
+#endif  // WEBCPP_CRYPTO_CURVES_SECP256K1_HPP

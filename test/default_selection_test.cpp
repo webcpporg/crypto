@@ -7,8 +7,14 @@
 // The types aes128_gcm, aes256_gcm and aes256<> name, from the defines alone (spec section 5):
 // test/Jamfile builds this file once per combination of linked and selected backends, and
 // tells it the answer through WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL (else BearSSL). The backends'
-// headers are stand-ins from test/support/fake_backends, so nothing here needs a real
-// backend, and nothing is instantiated: the aliases are only named.
+// headers are stand-ins from test/support/fake_backends, included first under the real
+// headers' guards, so nothing here needs a real backend, and nothing is instantiated: the
+// aliases are only named.
+
+// clang-format off
+#include "support/fake_backends/webcpp/crypto/backends/bearssl.hpp"
+#include "support/fake_backends/webcpp/crypto/backends/openssl.hpp"
+// clang-format on
 
 #include <webcpp/crypto/aes256_gcm.hpp>
 

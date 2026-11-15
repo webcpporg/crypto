@@ -25,14 +25,14 @@ extern "C" int bearssl_test_main(int argc, char** argv);
 
 namespace {
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): a static initialiser is
-// run for its effect, and nothing reads this.
+// NOLINTNEXTLINE(cert-err58-cpp): a static initialiser run for its effect; nothing reads it
 [[maybe_unused]] bool const armed = (webcpp::test::bound(std::chrono::seconds(900)), true);
 
 }  // namespace
 
 int main(int argc, char** argv) {
     if (argc != 2 || std::strcmp(argv[1], "all") != 0) {
+        // NOLINTNEXTLINE(cert-err33-c): the program fails either way; nothing to do if stderr fails
         std::fputs("bearssl_test_crypto: the argument all did not arrive, so no test ran\n",
                    stderr);
         return webcpp::test::exit_status(1);

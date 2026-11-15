@@ -118,7 +118,9 @@ struct secret {
            nonzero(std::span<std::uint8_t const, 64>(out).last<32>());
 }
 
-// BIP341's tag of the tweak, "TapTweak".
+/**
+ * BIP341's tag of the tweak, "TapTweak", the tag `tap_tweak` gives libsecp256k1's tagged hash.
+ */
 inline constexpr std::array<unsigned char, 8> tap_tweak_tag{'T', 'a', 'p', 'T', 'w', 'e', 'a', 'k'};
 
 /**
@@ -370,12 +372,11 @@ public:
         if (!keyed_) {
             return error::invalid_state;
         }
-        webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-        secp256k1_xonly_pubkey xonly{};
-        std::array<std::uint8_t, 32> internal{};
-        secp256k1_keypair_xonly_pub(context_, &xonly, nullptr, &keypair_);
-        secp256k1_xonly_pubkey_serialize(context_, internal.data(), &xonly);
-        auto const tweak = detail::tap_tweak(internal, merkle_root);
+        auto const internal = xonly_public_key();
+        if (!internal) {
+            return internal.error();
+        }
+        auto const tweak = detail::tap_tweak(*internal, merkle_root);
         if (secp256k1_keypair_xonly_tweak_add(context_, &keypair_, tweak.data()) == 0) {
             release();
             return error::invalid_secret_key;

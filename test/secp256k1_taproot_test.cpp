@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <span>
@@ -111,6 +112,13 @@ void check_input(json::value const& input, int index) {
     auto const signature = key.sign_schnorr(sighash, aux);
     auto const witness = test::from_hex(str(input.at("expected").at("witness").as_array().at(0)));
     BOOST_TEST(witness.size() == 64 || witness.size() == 65);
+    // A 65th byte is the hash type, which SIGHASH_DEFAULT (0) leaves out.
+    auto const hash_type = given.at("hashType").to_number<int>();
+    if (witness.size() == 65) {
+        BOOST_TEST_EQ(int{witness.back()}, hash_type);
+    } else {
+        BOOST_TEST_EQ(hash_type, 0);
+    }
     if (!signature || witness.size() < 64 ||
         !std::ranges::equal(*signature, std::span(witness).first(64))) {
         fail("keyPathSpending input " + std::to_string(index) + ": signature differs");
@@ -135,12 +143,13 @@ void refusals() {
     auto const before = *key.public_key();
     std::array<std::uint8_t, 31> const short_root{};
     BOOST_TEST(key.tweak_taproot(short_root).error() == crypto::error::invalid_input_size);
+    std::array<std::uint8_t, 33> const long_root{};
+    BOOST_TEST(key.tweak_taproot(long_root).error() == crypto::error::invalid_input_size);
     // Refused before anything changes.
     BOOST_TEST(*key.public_key() == before);
     auto const internal = *key.xonly_public_key();
     BOOST_TEST(secp::taproot_output_key(internal, short_root).error() ==
                crypto::error::invalid_input_size);
-    std::array<std::uint8_t, 33> const long_root{};
     BOOST_TEST(secp::taproot_output_key(internal, long_root).error() ==
                crypto::error::invalid_input_size);
     std::array<std::uint8_t, 32> const not_a_point{};  // x = 0 has no point
@@ -150,6 +159,8 @@ void refusals() {
     // NOLINTBEGIN(bugprone-use-after-move): a moved-from pair is what this case tests
     auto moved = std::move(key);
     BOOST_TEST(key.tweak_taproot({}).error() == crypto::error::invalid_state);
+    // The root's size is checked first, moved from or not.
+    BOOST_TEST(key.tweak_taproot(short_root).error() == crypto::error::invalid_input_size);
     // NOLINTEND(bugprone-use-after-move)
     // The tweaked pair moves as any pair does.
     BOOST_TEST(moved.tweak_taproot({}).has_value());

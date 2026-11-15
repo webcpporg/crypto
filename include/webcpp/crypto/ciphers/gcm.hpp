@@ -70,21 +70,21 @@ public:
     /**
      * Expands a key into a new object.
      *
-     * @param key `key_size` bytes.
+     * @param key_bytes `key_size` bytes.
      * @return The object; `invalid_key_size`, `errc::not_enough_memory` or `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<gcm> make(
-        std::span<std::uint8_t const> key) noexcept {
-        if (key.size() != key_size) {
+        std::span<std::uint8_t const> key_bytes) noexcept {
+        if (key_bytes.size() != key_size) {
             return error::invalid_key_size;
         }
-        gcm made;
-        auto const keyed = engine::init(made.state_, key);
-        if (!keyed) {
-            return keyed.error();
+        gcm made_object;
+        auto const key_result = engine::init(made_object.state_, key_bytes);
+        if (!key_result) {
+            return key_result.error();
         }
-        made.keyed_ = true;
-        return made;
+        made_object.keyed_ = true;
+        return made_object;
     }
 
     /**
@@ -93,33 +93,33 @@ public:
      * Moving an empty object gives an empty one: BearSSL's move initialises the destination's
      * context through the schedule's vtable, which a wiped state does not have.
      *
-     * @param other The source, empty afterwards.
+     * @param moved_source The source, empty afterwards.
      */
-    gcm(gcm&& other) noexcept : keyed_(std::exchange(other.keyed_, false)) {
+    gcm(gcm&& moved_source) noexcept : keyed_(std::exchange(moved_source.keyed_, false)) {
         if (keyed_) {
-            other.abandon_message();
-            engine::move(state_, other.state_);
+            moved_source.abandon_message();
+            engine::move(state_, moved_source.state_);
         }
-        other.end_message();
+        moved_source.end_message();
     }
 
     /**
      * Moves the key over this one, which is wiped first; a message in progress on either
      * side is abandoned.
      *
-     * @param other The source, empty afterwards.
+     * @param moved_source The source, empty afterwards.
      * @return This object.
      */
-    gcm& operator=(gcm&& other) noexcept {
-        if (this != &other) {
+    gcm& operator=(gcm&& moved_source) noexcept {
+        if (this != &moved_source) {
             engine::reset(state_);
-            keyed_ = std::exchange(other.keyed_, false);
+            keyed_ = std::exchange(moved_source.keyed_, false);
             if (keyed_) {
-                other.abandon_message();
-                engine::move(state_, other.state_);
+                moved_source.abandon_message();
+                engine::move(state_, moved_source.state_);
             }
             end_message();
-            other.end_message();
+            moved_source.end_message();
         }
         return *this;
     }
@@ -133,69 +133,71 @@ public:
     ~gcm() { engine::reset(state_); }
 
     /**
-     * Seals a message in place: `data` holds the plaintext before and the ciphertext after.
+     * Seals a message in place: `data_bytes` holds the plaintext before and the ciphertext after.
      *
-     * The IV and the additional data are read before the first byte of `data` is written, so
-     * they may lie in `data`.
+     * The IV and the additional data are read before the first byte of `data_bytes` is written, so
+     * they may lie in `data_bytes`.
      *
-     * @param iv 1 to `max_iv_size` bytes, never reused under this key; 12 recommended.
-     * @param additional_data Authenticated, not encrypted.
-     * @param data The message.
+     * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key; 12 recommended.
+     * @param additional_data_bytes Authenticated, not encrypted.
+     * @param data_bytes The message.
      * @return The tag; `invalid_state` moved from or during an incremental message, which
      * goes on; `invalid_iv_size`; `message_too_long`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<result_type> seal(
-        std::span<std::uint8_t const> iv, std::span<std::uint8_t const> additional_data,
-        std::span<std::uint8_t> data) noexcept {
-        auto const refused = guard_message(iv, additional_data, data.size(), tag_size);
-        if (!refused) {
-            return refused.error();
+        std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
+        std::span<std::uint8_t> data_bytes) noexcept {
+        auto const guard_result =
+            guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_size);
+        if (!guard_result) {
+            return guard_result.error();
         }
-        auto const started = engine::start(state_, true, iv, additional_data);
-        auto const ran = started ? engine::run(state_, data) : started;
-        result_type tag{};
-        auto const tagged = ran ? engine::tag(state_, tag) : ran;
-        if (!tagged) {
+        auto const start_result = engine::start(state_, true, iv_bytes, additional_data_bytes);
+        auto const run_result = start_result ? engine::run(state_, data_bytes) : start_result;
+        result_type tag_bytes{};
+        auto const tag_result = run_result ? engine::tag(state_, tag_bytes) : run_result;
+        if (!tag_result) {
             // Nothing of the failed message stays in the context, as after an incremental one.
             engine::abandon(state_);
-            return tagged.error();
+            return tag_result.error();
         }
-        return tag;
+        return tag_bytes;
     }
 
     /**
-     * Opens a message in place: `data` holds the ciphertext before and the plaintext after.
+     * Opens a message in place: `data_bytes` holds the ciphertext before and the plaintext after.
      *
-     * While it runs, the decrypted bytes are in `data` before the tag is checked; when the
-     * tag does not match, or the backend fails, `data` is zeroed. A guard's refusal leaves it
+     * While it runs, the decrypted bytes are in `data_bytes` before the tag is checked; when the
+     * tag does not match, or the backend fails, `data_bytes` is zeroed. A guard's refusal leaves it
      * untouched.
      *
-     * @param iv The IV of the seal.
-     * @param additional_data The additional data of the seal.
-     * @param data The ciphertext.
-     * @param tag The seal's tag, 16 bytes, which may lie anywhere, `data` included.
+     * @param iv_bytes The IV of the seal.
+     * @param additional_data_bytes The additional data of the seal.
+     * @param data_bytes The ciphertext.
+     * @param tag_bytes The seal's tag, 16 bytes, which may lie anywhere, `data_bytes` included.
      * @return Nothing; `invalid_state` moved from or during an incremental message, which
      * goes on; `invalid_iv_size`; `invalid_tag_size`; `message_too_long`;
      * `authentication_failed`; `backend_failure`.
      */
-    [[nodiscard]] boost::system::result<void> open(std::span<std::uint8_t const> iv,
-                                                   std::span<std::uint8_t const> additional_data,
-                                                   std::span<std::uint8_t> data,
-                                                   std::span<std::uint8_t const> tag) noexcept {
-        auto const refused = guard_message(iv, additional_data, data.size(), tag.size());
-        if (!refused) {
-            return refused.error();
+    [[nodiscard]] boost::system::result<void> open(
+        std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
+        std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes) noexcept {
+        auto const guard_result =
+            guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_bytes.size());
+        if (!guard_result) {
+            return guard_result.error();
         }
         // The tag may lie in data, which decryption overwrites: a copy is checked.
-        std::array<std::uint8_t, tag_size> expected{};
-        std::ranges::copy(tag, expected.begin());
-        auto const started = engine::start(state_, false, iv, additional_data);
-        auto const opened = started ? engine::run(state_, data) : started;
-        auto const checked = opened ? engine::check(state_, expected) : opened;
-        if (!checked) {
-            detail::wipe(data.data(), data.size());
+        std::array<std::uint8_t, tag_size> expected_tag{};
+        std::ranges::copy(tag_bytes, expected_tag.begin());
+        auto const start_result = engine::start(state_, false, iv_bytes, additional_data_bytes);
+        auto const open_result = start_result ? engine::run(state_, data_bytes) : start_result;
+        auto const tag_check_result =
+            open_result ? engine::check(state_, expected_tag) : open_result;
+        if (!tag_check_result) {
+            detail::wipe(data_bytes.data(), data_bytes.size());
             engine::abandon(state_);
-            return checked.error();
+            return tag_check_result.error();
         }
         return {};
     }
@@ -207,13 +209,14 @@ public:
      * Any error of `begin_seal`, `update` or `result` ends the message, which is abandoned:
      * the pieces already encrypted have no tag and are not to be sent.
      *
-     * @param iv 1 to `max_iv_size` bytes, never reused under this key.
-     * @param additional_data Authenticated, not encrypted.
+     * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key.
+     * @param additional_data_bytes Authenticated, not encrypted.
      * @return Nothing; `invalid_state` moved from or with a message in progress, which ends
      * it; `invalid_iv_size`; `message_too_long`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<void> begin_seal(
-        std::span<std::uint8_t const> iv, std::span<std::uint8_t const> additional_data) noexcept {
+        std::span<std::uint8_t const> iv_bytes,
+        std::span<std::uint8_t const> additional_data_bytes) noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -221,14 +224,14 @@ public:
             abandon();
             return error::invalid_state;
         }
-        auto const refused = guard_message(iv, additional_data, 0, tag_size);
-        if (!refused) {
-            return refused.error();
+        auto const guard_result = guard_message(iv_bytes, additional_data_bytes, 0, tag_size);
+        if (!guard_result) {
+            return guard_result.error();
         }
-        auto const started = engine::start(state_, true, iv, additional_data);
-        if (!started) {
+        auto const start_result = engine::start(state_, true, iv_bytes, additional_data_bytes);
+        if (!start_result) {
             engine::abandon(state_);
-            return started.error();
+            return start_result.error();
         }
         in_message_ = true;
         message_bytes_ = 0;
@@ -238,24 +241,24 @@ public:
     /**
      * Encrypts the next piece of the message in place.
      *
-     * @param data The piece, of any size, empty included.
+     * @param data_bytes The piece, of any size, empty included.
      * @return Nothing; `invalid_state` without a message; `message_too_long` when the pieces
      * pass `max_message_size`, which ends the message; `backend_failure`, which ends it.
      */
-    [[nodiscard]] boost::system::result<void> update(std::span<std::uint8_t> data) noexcept {
+    [[nodiscard]] boost::system::result<void> update(std::span<std::uint8_t> data_bytes) noexcept {
         if (!keyed_ || !in_message_) {
             return error::invalid_state;
         }
-        if (detail::exceeds(data.size(), max_message_size - message_bytes_)) {
+        if (detail::exceeds(data_bytes.size(), max_message_size - message_bytes_)) {
             abandon();
             return error::message_too_long;
         }
-        auto const ran = engine::run(state_, data);
-        if (!ran) {
+        auto const run_result = engine::run(state_, data_bytes);
+        if (!run_result) {
             abandon();
-            return ran.error();
+            return run_result.error();
         }
-        message_bytes_ += data.size();
+        message_bytes_ += data_bytes.size();
         return {};
     }
 
@@ -269,14 +272,14 @@ public:
         if (!keyed_ || !in_message_) {
             return error::invalid_state;
         }
-        result_type tag{};
-        auto const tagged = engine::tag(state_, tag);
+        result_type tag_bytes{};
+        auto const tag_result = engine::tag(state_, tag_bytes);
         end_message();
-        if (!tagged) {
+        if (!tag_result) {
             engine::abandon(state_);
-            return tagged.error();
+            return tag_result.error();
         }
-        return tag;
+        return tag_bytes;
     }
 
 private:
@@ -300,19 +303,19 @@ private:
     // Every guard of a message, in the documented order: the state, the IV, the tag
     // (open's; seal passes tag_size), the lengths. None reads a byte of the spans.
     [[nodiscard]] boost::system::result<void> guard_message(
-        std::span<std::uint8_t const> iv, std::span<std::uint8_t const> additional_data,
-        std::size_t size, std::size_t tag) const noexcept {
+        std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
+        std::size_t byte_count, std::size_t tag_bytes) const noexcept {
         if (!keyed_ || in_message_) {
             return error::invalid_state;
         }
-        if (iv.empty() || iv.size() > max_iv_size) {
+        if (iv_bytes.empty() || iv_bytes.size() > max_iv_size) {
             return error::invalid_iv_size;
         }
-        if (tag != tag_size) {
+        if (tag_bytes != tag_size) {
             return error::invalid_tag_size;
         }
-        if (detail::exceeds(size, max_message_size) ||
-            detail::exceeds(additional_data.size(), max_additional_data_size)) {
+        if (detail::exceeds(byte_count, max_message_size) ||
+            detail::exceeds(additional_data_bytes.size(), max_additional_data_size)) {
             return error::message_too_long;
         }
         return {};

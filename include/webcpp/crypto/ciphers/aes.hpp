@@ -51,26 +51,27 @@ public:
      * Moves the key schedule; the source is wiped and empty. Moving an empty object gives an
      * empty one: the engine is not asked to move a state it wiped.
      *
-     * @param other The source, empty afterwards.
+     * @param moved_source The source, empty afterwards.
      */
-    basic_aes(basic_aes&& other) noexcept : keyed_(std::exchange(other.keyed_, false)) {
+    basic_aes(basic_aes&& moved_source) noexcept
+        : keyed_(std::exchange(moved_source.keyed_, false)) {
         if (keyed_) {
-            engine::move(state_, other.state_);
+            engine::move(state_, moved_source.state_);
         }
     }
 
     /**
      * Moves the key schedule over this one, which is wiped first.
      *
-     * @param other The source, empty afterwards.
+     * @param moved_source The source, empty afterwards.
      * @return This object.
      */
-    basic_aes& operator=(basic_aes&& other) noexcept {
-        if (this != &other) {
+    basic_aes& operator=(basic_aes&& moved_source) noexcept {
+        if (this != &moved_source) {
             engine::reset(state_);
-            keyed_ = std::exchange(other.keyed_, false);
+            keyed_ = std::exchange(moved_source.keyed_, false);
             if (keyed_) {
-                engine::move(state_, other.state_);
+                engine::move(state_, moved_source.state_);
             }
         }
         return *this;
@@ -87,35 +88,37 @@ public:
     /**
      * Encrypts whole blocks in place.
      *
-     * @param blocks The data, a multiple of @ref block_size bytes, empty included.
+     * @param block_bytes The data, a multiple of @ref block_size bytes, empty included.
      * @return Nothing; `invalid_state` moved from; `invalid_input_size` for a partial block;
      * the backend's errors.
      */
-    [[nodiscard]] boost::system::result<void> encrypt(std::span<std::uint8_t> blocks) noexcept {
+    [[nodiscard]] boost::system::result<void> encrypt(
+        std::span<std::uint8_t> block_bytes) noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
-        if (blocks.size() % block_size != 0) {
+        if (block_bytes.size() % block_size != 0) {
             return error::invalid_input_size;
         }
-        return engine::encrypt(state_, blocks);
+        return engine::encrypt(state_, block_bytes);
     }
 
     /**
      * Decrypts whole blocks in place.
      *
-     * @param blocks The data, a multiple of @ref block_size bytes, empty included.
+     * @param block_bytes The data, a multiple of @ref block_size bytes, empty included.
      * @return Nothing; `invalid_state` moved from; `invalid_input_size` for a partial block;
      * the backend's errors.
      */
-    [[nodiscard]] boost::system::result<void> decrypt(std::span<std::uint8_t> blocks) noexcept {
+    [[nodiscard]] boost::system::result<void> decrypt(
+        std::span<std::uint8_t> block_bytes) noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
-        if (blocks.size() % block_size != 0) {
+        if (block_bytes.size() % block_size != 0) {
             return error::invalid_input_size;
         }
-        return engine::decrypt(state_, blocks);
+        return engine::decrypt(state_, block_bytes);
     }
 
 protected:
@@ -126,22 +129,22 @@ protected:
      * The work of `make`, after which the derived type is the result.
      *
      * @tparam Derived `aes128<Backend>`, `aes192<Backend>` or `aes256<Backend>`.
-     * @param key The key.
+     * @param key_bytes The key.
      * @return The cipher; `invalid_key_size`; the backend's errors.
      */
     template <class Derived>
     [[nodiscard]] static boost::system::result<Derived> make_as(
-        std::span<std::uint8_t const> key) noexcept {
-        if (key.size() != key_size) {
+        std::span<std::uint8_t const> key_bytes) noexcept {
+        if (key_bytes.size() != key_size) {
             return error::invalid_key_size;
         }
-        Derived made;
-        auto const keyed = engine::init(made.state_, key);
-        if (!keyed) {
-            return keyed.error();
+        Derived made_object;
+        auto const key_result = engine::init(made_object.state_, key_bytes);
+        if (!key_result) {
+            return key_result.error();
         }
-        made.keyed_ = true;
-        return made;
+        made_object.keyed_ = true;
+        return made_object;
     }
 
 private:
@@ -165,12 +168,12 @@ public:
     /**
      * Expands a key.
      *
-     * @param key 16 bytes.
+     * @param key_bytes 16 bytes.
      * @return The cipher; `invalid_key_size`; the backend's errors.
      */
     [[nodiscard]] static boost::system::result<aes128> make(
-        std::span<std::uint8_t const> key) noexcept {
-        return detail::basic_aes<16, Backend>::template make_as<aes128>(key);
+        std::span<std::uint8_t const> key_bytes) noexcept {
+        return detail::basic_aes<16, Backend>::template make_as<aes128>(key_bytes);
     }
 
 private:
@@ -190,12 +193,12 @@ public:
     /**
      * Expands a key.
      *
-     * @param key 24 bytes.
+     * @param key_bytes 24 bytes.
      * @return The cipher; `invalid_key_size`; the backend's errors.
      */
     [[nodiscard]] static boost::system::result<aes192> make(
-        std::span<std::uint8_t const> key) noexcept {
-        return detail::basic_aes<24, Backend>::template make_as<aes192>(key);
+        std::span<std::uint8_t const> key_bytes) noexcept {
+        return detail::basic_aes<24, Backend>::template make_as<aes192>(key_bytes);
     }
 
 private:
@@ -215,12 +218,12 @@ public:
     /**
      * Expands a key.
      *
-     * @param key 32 bytes.
+     * @param key_bytes 32 bytes.
      * @return The cipher; `invalid_key_size`; the backend's errors.
      */
     [[nodiscard]] static boost::system::result<aes256> make(
-        std::span<std::uint8_t const> key) noexcept {
-        return detail::basic_aes<32, Backend>::template make_as<aes256>(key);
+        std::span<std::uint8_t const> key_bytes) noexcept {
+        return detail::basic_aes<32, Backend>::template make_as<aes256>(key_bytes);
     }
 
 private:

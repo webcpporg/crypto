@@ -78,20 +78,20 @@ namespace webcpp::crypto::detail {
 inline constexpr std::size_t openssl_piece = static_cast<std::size_t>(INT_MAX) / 16 * 16;
 
 /**
- * OpenSSL's name of AES with keys of `key_size` bytes: GCM, or ECB, the block cipher.
+ * OpenSSL's name of AES with keys of `key_length` bytes: GCM, or ECB, the block cipher.
  *
- * @param key_size The key's size: 16, 24 or 32 bytes.
- * @param gcm Whether the name is GCM's, else ECB's.
+ * @param key_length The key's size: 16, 24 or 32 bytes.
+ * @param is_gcm Whether the name is GCM's, else ECB's.
  * @return The name, for `EVP_CIPHER_fetch`.
  */
-constexpr char const* openssl_aes_name(std::size_t key_size, bool gcm) noexcept {
-    if (key_size == 16) {
-        return gcm ? "AES-128-GCM" : "AES-128-ECB";
+constexpr char const* openssl_aes_name(std::size_t key_length, bool is_gcm) noexcept {
+    if (key_length == 16) {
+        return is_gcm ? "AES-128-GCM" : "AES-128-ECB";
     }
-    if (key_size == 24) {
-        return gcm ? "AES-192-GCM" : "AES-192-ECB";
+    if (key_length == 24) {
+        return is_gcm ? "AES-192-GCM" : "AES-192-ECB";
     }
-    return gcm ? "AES-256-GCM" : "AES-256-ECB";
+    return is_gcm ? "AES-256-GCM" : "AES-256-ECB";
 }
 
 /** OpenSSL's name of AES-GCM with keys of `KeySize` bytes. */
@@ -103,45 +103,47 @@ template <std::size_t KeySize>
 inline constexpr char const* openssl_ecb_name = openssl_aes_name(KeySize, false);
 
 /**
- * Keys a context for `cipher`, or gives the error of the call that failed:
+ * Keys a context for `cipher_name`, or gives the error of the call that failed:
  * `errc::not_enough_memory` when `EVP_CIPHER_CTX_new` returns null, `backend_failure` when
  * `EVP_CIPHER_fetch` returns null or the key's `EVP_CipherInit_ex` fails. The thread's
  * error queue is left as it was found, through a mark set before the first call that can
  * raise.
  *
- * @param made Set to the context, which the caller frees with `EVP_CIPHER_CTX_free`.
- * @param cipher OpenSSL's name of the cipher.
- * @param key The key, of the cipher's size.
- * @param encrypting The context's direction.
- * @param padding Whether the block cipher pads; GCM ignores it.
+ * @param made_context Set to the context, which the caller frees with `EVP_CIPHER_CTX_free`.
+ * @param cipher_name OpenSSL's name of the cipher.
+ * @param key_bytes The key, of the cipher's size.
+ * @param is_encrypting The context's direction.
+ * @param use_padding Whether the block cipher pads; GCM ignores it.
  * @return Nothing on success, else the error.
  */
-inline boost::system::error_code openssl_context(EVP_CIPHER_CTX*& made, char const* cipher,
-                                                 std::span<std::uint8_t const> key, bool encrypting,
-                                                 bool padding) noexcept {
+inline boost::system::error_code openssl_context(EVP_CIPHER_CTX*& made_context,
+                                                 char const* cipher_name,
+                                                 std::span<std::uint8_t const> key_bytes,
+                                                 bool is_encrypting, bool use_padding) noexcept {
     ERR_set_mark();
-    EVP_CIPHER* const fetched = EVP_CIPHER_fetch(nullptr, cipher, nullptr);
-    if (fetched == nullptr) {
+    EVP_CIPHER* const fetched_cipher = EVP_CIPHER_fetch(nullptr, cipher_name, nullptr);
+    if (fetched_cipher == nullptr) {
         ERR_pop_to_mark();
         return error::backend_failure;
     }
-    EVP_CIPHER_CTX* const context = EVP_CIPHER_CTX_new();
-    if (context == nullptr) {
-        EVP_CIPHER_free(fetched);
+    EVP_CIPHER_CTX* const cipher_context = EVP_CIPHER_CTX_new();
+    if (cipher_context == nullptr) {
+        EVP_CIPHER_free(fetched_cipher);
         ERR_pop_to_mark();
         return boost::system::errc::make_error_code(boost::system::errc::not_enough_memory);
     }
     // The context holds a reference of its own to the fetched cipher.
-    bool const keyed = EVP_CipherInit_ex(context, fetched, nullptr, key.data(), nullptr,
-                                         encrypting ? 1 : 0) == 1 &&
-                       EVP_CIPHER_CTX_set_padding(context, padding ? 1 : 0) == 1;
-    EVP_CIPHER_free(fetched);
+    bool const key_result =
+        EVP_CipherInit_ex(cipher_context, fetched_cipher, nullptr, key_bytes.data(), nullptr,
+                          is_encrypting ? 1 : 0) == 1 &&
+        EVP_CIPHER_CTX_set_padding(cipher_context, use_padding ? 1 : 0) == 1;
+    EVP_CIPHER_free(fetched_cipher);
     ERR_pop_to_mark();
-    if (!keyed) {
-        EVP_CIPHER_CTX_free(context);
+    if (!key_result) {
+        EVP_CIPHER_CTX_free(cipher_context);
         return error::backend_failure;
     }
-    made = context;
+    made_context = cipher_context;
     return {};
 }
 
@@ -156,18 +158,19 @@ inline boost::system::error_code openssl_failed() noexcept {
 }
 
 /**
- * Runs `EVP_CipherUpdate` over `data` in place, in pieces EVP's `int` can hold.
+ * Runs `EVP_CipherUpdate` over `data_bytes` in place, in pieces EVP's `int` can hold.
  *
  * @return Nothing, or `backend_failure`.
  */
 [[nodiscard]] inline boost::system::result<void> openssl_update(
-    EVP_CIPHER_CTX* context, std::span<std::uint8_t> data) noexcept {
-    for (std::size_t at = 0; at < data.size(); at += openssl_piece) {
-        std::size_t const piece = (std::min)(openssl_piece, data.size() - at);
-        int written = 0;
-        if (EVP_CipherUpdate(context, data.data() + at, &written, data.data() + at,
-                             static_cast<int>(piece)) != 1 ||
-            std::cmp_not_equal(written, piece)) {
+    EVP_CIPHER_CTX* cipher_context, std::span<std::uint8_t> data_bytes) noexcept {
+    for (std::size_t piece_start = 0; piece_start < data_bytes.size();
+         piece_start += openssl_piece) {
+        std::size_t const piece_size = (std::min)(openssl_piece, data_bytes.size() - piece_start);
+        int written_count = 0;
+        if (EVP_CipherUpdate(cipher_context, data_bytes.data() + piece_start, &written_count,
+                             data_bytes.data() + piece_start, static_cast<int>(piece_size)) != 1 ||
+            std::cmp_not_equal(written_count, piece_size)) {
             return openssl_failed();
         }
     }
@@ -189,12 +192,13 @@ struct gcm_engine<backends::openssl, KeySize> {
 
     /** Keys a context for AES-GCM with the key. */
     [[nodiscard]] static boost::system::result<void> init(
-        state& s, std::span<std::uint8_t const> key) noexcept {
-        EVP_CIPHER_CTX* made = nullptr;
-        if (auto const failed = openssl_context(made, openssl_gcm_name<KeySize>, key, true, true)) {
-            return failed;
+        state& engine_state, std::span<std::uint8_t const> key_bytes) noexcept {
+        EVP_CIPHER_CTX* made_context = nullptr;
+        if (auto const failure_code =
+                openssl_context(made_context, openssl_gcm_name<KeySize>, key_bytes, true, true)) {
+            return failure_code;
         }
-        s.context = made;
+        engine_state.context = made_context;
         return {};
     }
 
@@ -202,21 +206,26 @@ struct gcm_engine<backends::openssl, KeySize> {
     // and switches its direction.
     /** Starts a message: its direction, its IV and its additional data. */
     [[nodiscard]] static boost::system::result<void> start(
-        state& s, bool sealing, std::span<std::uint8_t const> iv,
-        std::span<std::uint8_t const> additional_data) noexcept {
-        int const direction = sealing ? 1 : 0;
-        if (EVP_CipherInit_ex(s.context, nullptr, nullptr, nullptr, nullptr, direction) != 1 ||
-            EVP_CIPHER_CTX_ctrl(s.context, EVP_CTRL_GCM_SET_IVLEN, static_cast<int>(iv.size()),
-                                nullptr) != 1 ||
-            EVP_CipherInit_ex(s.context, nullptr, nullptr, nullptr, iv.data(), direction) != 1) {
+        state& engine_state, bool is_sealing, std::span<std::uint8_t const> iv_bytes,
+        std::span<std::uint8_t const> additional_data_bytes) noexcept {
+        int const cipher_direction = is_sealing ? 1 : 0;
+        if (EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, nullptr,
+                              cipher_direction) != 1 ||
+            EVP_CIPHER_CTX_ctrl(engine_state.context, EVP_CTRL_GCM_SET_IVLEN,
+                                static_cast<int>(iv_bytes.size()), nullptr) != 1 ||
+            EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, iv_bytes.data(),
+                              cipher_direction) != 1) {
             return openssl_failed();
         }
         // A null output makes EVP_CipherUpdate take additional data; none is fed as no call.
-        for (std::size_t at = 0; at < additional_data.size(); at += openssl_piece) {
-            std::size_t const piece = (std::min)(openssl_piece, additional_data.size() - at);
-            int written = 0;
-            if (EVP_CipherUpdate(s.context, nullptr, &written, additional_data.data() + at,
-                                 static_cast<int>(piece)) != 1) {
+        for (std::size_t piece_start = 0; piece_start < additional_data_bytes.size();
+             piece_start += openssl_piece) {
+            std::size_t const piece_size =
+                (std::min)(openssl_piece, additional_data_bytes.size() - piece_start);
+            int written_count = 0;
+            if (EVP_CipherUpdate(engine_state.context, nullptr, &written_count,
+                                 additional_data_bytes.data() + piece_start,
+                                 static_cast<int>(piece_size)) != 1) {
                 return openssl_failed();
             }
         }
@@ -224,18 +233,20 @@ struct gcm_engine<backends::openssl, KeySize> {
     }
 
     /** Encrypts or decrypts a piece of the message in place. */
-    [[nodiscard]] static boost::system::result<void> run(state& s,
-                                                         std::span<std::uint8_t> data) noexcept {
-        return openssl_update(s.context, data);
+    [[nodiscard]] static boost::system::result<void> run(
+        state& engine_state, std::span<std::uint8_t> data_bytes) noexcept {
+        return openssl_update(engine_state.context, data_bytes);
     }
 
     /** Ends a sealed message and gives its tag. */
-    [[nodiscard]] static boost::system::result<void> tag(state& s,
-                                                         boost::hash2::digest<16>& out) noexcept {
-        std::array<std::uint8_t, 16> final_block{};
-        int written = 0;
-        if (EVP_EncryptFinal_ex(s.context, final_block.data(), &written) != 1 ||
-            EVP_CIPHER_CTX_ctrl(s.context, EVP_CTRL_GCM_GET_TAG, 16, out.data()) != 1) {
+    [[nodiscard]] static boost::system::result<void> tag(
+        state& engine_state, boost::hash2::digest<16>& output_bytes) noexcept {
+        std::array<std::uint8_t, 16> final_block_bytes{};
+        int written_count = 0;
+        if (EVP_EncryptFinal_ex(engine_state.context, final_block_bytes.data(), &written_count) !=
+                1 ||
+            EVP_CIPHER_CTX_ctrl(engine_state.context, EVP_CTRL_GCM_GET_TAG, 16,
+                                output_bytes.data()) != 1) {
             return openssl_failed();
         }
         return {};
@@ -243,20 +254,22 @@ struct gcm_engine<backends::openssl, KeySize> {
 
     /** Ends an opened message and checks its tag. */
     [[nodiscard]] static boost::system::result<void> check(
-        state& s, std::array<std::uint8_t, 16> const& tag) noexcept {
+        state& engine_state, std::array<std::uint8_t, 16> const& tag_bytes) noexcept {
         // OpenSSL takes the expected tag through a pointer to mutable bytes, and only reads it.
-        std::array<std::uint8_t, 16> expected = tag;
-        if (EVP_CIPHER_CTX_ctrl(s.context, EVP_CTRL_GCM_SET_TAG, 16, expected.data()) != 1) {
+        std::array<std::uint8_t, 16> expected_tag = tag_bytes;
+        if (EVP_CIPHER_CTX_ctrl(engine_state.context, EVP_CTRL_GCM_SET_TAG, 16,
+                                expected_tag.data()) != 1) {
             return openssl_failed();
         }
-        std::array<std::uint8_t, 16> final_block{};
-        int written = 0;
+        std::array<std::uint8_t, 16> final_block_bytes{};
+        int written_count = 0;
         // With the tag set just above, and the IV given by start, the provider's final
         // (ossl_gcm_stream_final, gcm_cipher_internal) fails only where its comparison of
         // the tags fails: its other refusals, no key, no IV, an IV already finished or no
         // tag, cannot hold in this order of calls. So a failure is the tag's, which raises
         // nothing in the queue.
-        if (EVP_DecryptFinal_ex(s.context, final_block.data(), &written) != 1) {
+        if (EVP_DecryptFinal_ex(engine_state.context, final_block_bytes.data(), &written_count) !=
+            1) {
             return error::authentication_failed;
         }
         return {};
@@ -274,28 +287,32 @@ struct gcm_engine<backends::openssl, KeySize> {
     // context, leaves the message until the next start or the reset, and clears the queue as
     // every failure of a message does (openssl_failed).
     /** Ends a message without its tag, leaving nothing of it in the context. */
-    static void abandon(state& s) noexcept {
-        std::array<std::uint8_t, 12> const zero_iv{};
-        std::array<std::uint8_t, 1> byte{};
-        int written = 0;
-        if (EVP_CipherInit_ex(s.context, nullptr, nullptr, nullptr, nullptr, 1) != 1 ||
-            EVP_CIPHER_CTX_ctrl(s.context, EVP_CTRL_GCM_SET_IVLEN, 12, nullptr) != 1 ||
-            EVP_CipherInit_ex(s.context, nullptr, nullptr, nullptr, zero_iv.data(), 1) != 1 ||
-            EVP_CipherUpdate(s.context, byte.data(), &written, byte.data(), 1) != 1) {
+    static void abandon(state& engine_state) noexcept {
+        std::array<std::uint8_t, 12> const zero_iv_bytes{};
+        std::array<std::uint8_t, 1> padding_byte{};
+        int written_count = 0;
+        if (EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, nullptr, 1) != 1 ||
+            EVP_CIPHER_CTX_ctrl(engine_state.context, EVP_CTRL_GCM_SET_IVLEN, 12, nullptr) != 1 ||
+            EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, zero_iv_bytes.data(),
+                              1) != 1 ||
+            EVP_CipherUpdate(engine_state.context, padding_byte.data(), &written_count,
+                             padding_byte.data(), 1) != 1) {
             ERR_clear_error();  // as openssl_failed does for every failure of a message
         }
         // The byte holds a keystream byte of the key's: wiped as key material is.
-        wipe(byte.data(), byte.size());
+        wipe(padding_byte.data(), padding_byte.size());
     }
 
     /** Moves the context, leaving the source empty. */
-    static void move(state& to, state& from) noexcept {
-        to.context = std::exchange(from.context, nullptr);
+    static void move(state& target_state, state& source_state) noexcept {
+        target_state.context = std::exchange(source_state.context, nullptr);
     }
 
     // EVP_CIPHER_CTX_free cleanses the expanded key before it frees.
     /** Frees the context. */
-    static void reset(state& s) noexcept { EVP_CIPHER_CTX_free(std::exchange(s.context, nullptr)); }
+    static void reset(state& engine_state) noexcept {
+        EVP_CIPHER_CTX_free(std::exchange(engine_state.context, nullptr));
+    }
 };
 
 /**
@@ -318,45 +335,45 @@ struct block_engine<backends::openssl, KeySize> {
 
     /** Keys a context per direction with the key. */
     [[nodiscard]] static boost::system::result<void> init(
-        state& s, std::span<std::uint8_t const> key) noexcept {
-        EVP_CIPHER_CTX* encrypting = nullptr;
-        if (auto const failed =
-                openssl_context(encrypting, openssl_ecb_name<KeySize>, key, true, false)) {
-            return failed;
+        state& engine_state, std::span<std::uint8_t const> key_bytes) noexcept {
+        EVP_CIPHER_CTX* is_encrypting = nullptr;
+        if (auto const failure_code =
+                openssl_context(is_encrypting, openssl_ecb_name<KeySize>, key_bytes, true, false)) {
+            return failure_code;
         }
-        EVP_CIPHER_CTX* decrypting = nullptr;
-        if (auto const failed =
-                openssl_context(decrypting, openssl_ecb_name<KeySize>, key, false, false)) {
-            EVP_CIPHER_CTX_free(encrypting);
-            return failed;
+        EVP_CIPHER_CTX* decrypting_context = nullptr;
+        if (auto const failure_code = openssl_context(decrypting_context, openssl_ecb_name<KeySize>,
+                                                      key_bytes, false, false)) {
+            EVP_CIPHER_CTX_free(is_encrypting);
+            return failure_code;
         }
-        s.encrypting = encrypting;
-        s.decrypting = decrypting;
+        engine_state.encrypting = is_encrypting;
+        engine_state.decrypting = decrypting_context;
         return {};
     }
 
     /** Encrypts whole blocks in place. */
     [[nodiscard]] static boost::system::result<void> encrypt(
-        state& s, std::span<std::uint8_t> blocks) noexcept {
-        return openssl_update(s.encrypting, blocks);
+        state& engine_state, std::span<std::uint8_t> block_bytes) noexcept {
+        return openssl_update(engine_state.encrypting, block_bytes);
     }
 
     /** Decrypts whole blocks in place. */
     [[nodiscard]] static boost::system::result<void> decrypt(
-        state& s, std::span<std::uint8_t> blocks) noexcept {
-        return openssl_update(s.decrypting, blocks);
+        state& engine_state, std::span<std::uint8_t> block_bytes) noexcept {
+        return openssl_update(engine_state.decrypting, block_bytes);
     }
 
     /** Moves both contexts, leaving the source empty. */
-    static void move(state& to, state& from) noexcept {
-        to.encrypting = std::exchange(from.encrypting, nullptr);
-        to.decrypting = std::exchange(from.decrypting, nullptr);
+    static void move(state& target_state, state& source_state) noexcept {
+        target_state.encrypting = std::exchange(source_state.encrypting, nullptr);
+        target_state.decrypting = std::exchange(source_state.decrypting, nullptr);
     }
 
     /** Frees both contexts. */
-    static void reset(state& s) noexcept {
-        EVP_CIPHER_CTX_free(std::exchange(s.encrypting, nullptr));
-        EVP_CIPHER_CTX_free(std::exchange(s.decrypting, nullptr));
+    static void reset(state& engine_state) noexcept {
+        EVP_CIPHER_CTX_free(std::exchange(engine_state.encrypting, nullptr));
+        EVP_CIPHER_CTX_free(std::exchange(engine_state.decrypting, nullptr));
     }
 };
 

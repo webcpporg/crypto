@@ -20,7 +20,7 @@ shape of the data shows through, the mode called ECB
 AES block cipher with keys of 16, 24 and 32 bytes. They work in place on whole
 blocks: `encrypt` and `decrypt` take a span whose size is a multiple of
 `block_size`, 16, and give `invalid_input_size` for a partial block. Each is
-made with `make(key)`, which gives `invalid_key_size` for a key of another size;
+made with `make(key_bytes)`, which gives `invalid_key_size` for a key of another size;
 an object moved from is wiped and empty, and returns `invalid_state`.
 
 include::generated/backends-aes_block.adoc[]

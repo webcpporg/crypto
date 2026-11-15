@@ -37,9 +37,9 @@ std::size_t calls = 0;
 
 }  // namespace
 
-extern "C" int webcpp_test_entropy(void* out, std::size_t size) {
+extern "C" int webcpp_test_entropy(void* output_bytes, std::size_t byte_count) {
     // getentropy refuses more than 256 bytes at once: the device never asks for more.
-    BOOST_TEST(size <= 256);
+    BOOST_TEST(byte_count <= 256);
     ++calls;
     // As getentropy does: 0 when it fills, -1 with errno set when it fails.
     if (answer_after == 0) {
@@ -47,7 +47,7 @@ extern "C" int webcpp_test_entropy(void* out, std::size_t size) {
         return -1;
     }
     --answer_after;
-    std::memset(out, 0x5a, size);
+    std::memset(output_bytes, 0x5a, byte_count);
     return 0;
 }
 

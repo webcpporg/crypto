@@ -81,18 +81,20 @@ struct ctaes_of<16> {
     using context = AES128_ctx;
 
     /** Expands the key into the context. */
-    static void init(context* c, unsigned char const* key) { AES128_init(c, key); }
-
-    /** Encrypts n blocks from in to out. */
-    static void encrypt(context const* c, std::size_t n, unsigned char* out,
-                        unsigned char const* in) {
-        AES128_encrypt(c, n, out, in);
+    static void init(context* aes_context, unsigned char const* key_bytes) {
+        AES128_init(aes_context, key_bytes);
     }
 
-    /** Decrypts n blocks from in to out. */
-    static void decrypt(context const* c, std::size_t n, unsigned char* out,
-                        unsigned char const* in) {
-        AES128_decrypt(c, n, out, in);
+    /** Encrypts `block_count` blocks from `input_blocks` to `output_blocks`. */
+    static void encrypt(context const* aes_context, std::size_t block_count,
+                        unsigned char* output_blocks, unsigned char const* input_blocks) {
+        AES128_encrypt(aes_context, block_count, output_blocks, input_blocks);
+    }
+
+    /** Decrypts `block_count` blocks from `input_blocks` to `output_blocks`. */
+    static void decrypt(context const* aes_context, std::size_t block_count,
+                        unsigned char* output_blocks, unsigned char const* input_blocks) {
+        AES128_decrypt(aes_context, block_count, output_blocks, input_blocks);
     }
 };
 
@@ -102,18 +104,20 @@ struct ctaes_of<24> {
     using context = AES192_ctx;
 
     /** Expands the key into the context. */
-    static void init(context* c, unsigned char const* key) { AES192_init(c, key); }
-
-    /** Encrypts n blocks from in to out. */
-    static void encrypt(context const* c, std::size_t n, unsigned char* out,
-                        unsigned char const* in) {
-        AES192_encrypt(c, n, out, in);
+    static void init(context* aes_context, unsigned char const* key_bytes) {
+        AES192_init(aes_context, key_bytes);
     }
 
-    /** Decrypts n blocks from in to out. */
-    static void decrypt(context const* c, std::size_t n, unsigned char* out,
-                        unsigned char const* in) {
-        AES192_decrypt(c, n, out, in);
+    /** Encrypts `block_count` blocks from `input_blocks` to `output_blocks`. */
+    static void encrypt(context const* aes_context, std::size_t block_count,
+                        unsigned char* output_blocks, unsigned char const* input_blocks) {
+        AES192_encrypt(aes_context, block_count, output_blocks, input_blocks);
+    }
+
+    /** Decrypts `block_count` blocks from `input_blocks` to `output_blocks`. */
+    static void decrypt(context const* aes_context, std::size_t block_count,
+                        unsigned char* output_blocks, unsigned char const* input_blocks) {
+        AES192_decrypt(aes_context, block_count, output_blocks, input_blocks);
     }
 };
 
@@ -123,18 +127,20 @@ struct ctaes_of<32> {
     using context = AES256_ctx;
 
     /** Expands the key into the context. */
-    static void init(context* c, unsigned char const* key) { AES256_init(c, key); }
-
-    /** Encrypts n blocks from in to out. */
-    static void encrypt(context const* c, std::size_t n, unsigned char* out,
-                        unsigned char const* in) {
-        AES256_encrypt(c, n, out, in);
+    static void init(context* aes_context, unsigned char const* key_bytes) {
+        AES256_init(aes_context, key_bytes);
     }
 
-    /** Decrypts n blocks from in to out. */
-    static void decrypt(context const* c, std::size_t n, unsigned char* out,
-                        unsigned char const* in) {
-        AES256_decrypt(c, n, out, in);
+    /** Encrypts `block_count` blocks from `input_blocks` to `output_blocks`. */
+    static void encrypt(context const* aes_context, std::size_t block_count,
+                        unsigned char* output_blocks, unsigned char const* input_blocks) {
+        AES256_encrypt(aes_context, block_count, output_blocks, input_blocks);
+    }
+
+    /** Decrypts `block_count` blocks from `input_blocks` to `output_blocks`. */
+    static void decrypt(context const* aes_context, std::size_t block_count,
+                        unsigned char* output_blocks, unsigned char const* input_blocks) {
+        AES256_decrypt(aes_context, block_count, output_blocks, input_blocks);
     }
 };
 
@@ -156,36 +162,38 @@ struct block_engine<backends::ctaes, KeySize> {
 
     /** Expands the key into the state. */
     [[nodiscard]] static boost::system::result<void> init(
-        state& s, std::span<std::uint8_t const> key) noexcept {
+        state& engine_state, std::span<std::uint8_t const> key_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_CTAES_CANARY);
-        ctaes_of<KeySize>::init(&s.schedule, key.data());
+        ctaes_of<KeySize>::init(&engine_state.schedule, key_bytes.data());
         return {};
     }
 
     /** Encrypts whole blocks in place. */
     [[nodiscard]] static boost::system::result<void> encrypt(
-        state& s, std::span<std::uint8_t> blocks) noexcept {
+        state& engine_state, std::span<std::uint8_t> block_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_CTAES_CANARY);
-        ctaes_of<KeySize>::encrypt(&s.schedule, blocks.size() / 16, blocks.data(), blocks.data());
+        ctaes_of<KeySize>::encrypt(&engine_state.schedule, block_bytes.size() / 16,
+                                   block_bytes.data(), block_bytes.data());
         return {};
     }
 
     /** Decrypts whole blocks in place. */
     [[nodiscard]] static boost::system::result<void> decrypt(
-        state& s, std::span<std::uint8_t> blocks) noexcept {
+        state& engine_state, std::span<std::uint8_t> block_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_CTAES_CANARY);
-        ctaes_of<KeySize>::decrypt(&s.schedule, blocks.size() / 16, blocks.data(), blocks.data());
+        ctaes_of<KeySize>::decrypt(&engine_state.schedule, block_bytes.size() / 16,
+                                   block_bytes.data(), block_bytes.data());
         return {};
     }
 
     /** Copies the schedule and wipes the source. */
-    static void move(state& to, state& from) noexcept {
-        to = from;
-        wipe_object(from);
+    static void move(state& target_state, state& source_state) noexcept {
+        target_state = source_state;
+        wipe_object(source_state);
     }
 
     /** Wipes the schedule. */
-    static void reset(state& s) noexcept { wipe_object(s); }
+    static void reset(state& engine_state) noexcept { wipe_object(engine_state); }
 };
 
 /** ctaes exports no GCM, and webcpp builds none on another library's AES. */

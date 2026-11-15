@@ -73,8 +73,8 @@ enum class error : int {
 namespace detail {
 
 /** The message of a value of @ref error, or the unknown message for a value it does not define. */
-inline const char* message_of(int value) noexcept {
-    switch (static_cast<error>(value)) {
+inline const char* message_of(int error_value) noexcept {
+    switch (static_cast<error>(error_value)) {
         case error::invalid_key_size: return "the key is not of the algorithm's size";
         case error::invalid_iv_size: return "the IV is not of a size the algorithm accepts";
         case error::invalid_tag_size: return "the tag is not of 16 bytes";
@@ -106,23 +106,25 @@ public:
     /** The category's name, "webcpp.crypto". */
     const char* name() const noexcept override { return "webcpp.crypto"; }
 
-    /** The message of the error `value`, as @ref message_of spells it. */
-    std::string message(int value) const override { return message_of(value); }
+    /** The message of the error `error_value`, as @ref message_of spells it. */
+    std::string message(int error_value) const override { return message_of(error_value); }
 
     /**
-     Copies the message of the error `value` into `buffer`, cut to fit `size` bytes with its
-     terminating zero, and returns the whole message, a static text.
+     Copies the message of the error `error_value` into `text_buffer`, cut to fit `byte_count` bytes
+     with its terminating zero, and returns the whole message, a static text.
     */
-    const char* message(int value, char* buffer, std::size_t size) const noexcept override {
-        const char* text = message_of(value);
-        if (buffer != nullptr && size != 0) {
-            const std::string_view spelling(text);
-            const std::size_t limit = size - 1;
-            const std::size_t count = spelling.size() < limit ? spelling.size() : limit;
-            std::memcpy(buffer, spelling.data(), count);
-            buffer[count] = '\0';
+    const char* message(int error_value, char* text_buffer,
+                        std::size_t byte_count) const noexcept override {
+        const char* message_text = message_of(error_value);
+        if (text_buffer != nullptr && byte_count != 0) {
+            const std::string_view message_spelling(message_text);
+            const std::size_t size_limit = byte_count - 1;
+            const std::size_t copied_count =
+                message_spelling.size() < size_limit ? message_spelling.size() : size_limit;
+            std::memcpy(text_buffer, message_spelling.data(), copied_count);
+            text_buffer[copied_count] = '\0';
         }
-        return text;
+        return message_text;
     }
 };
 
@@ -147,11 +149,11 @@ inline const boost::system::error_category& error_category() noexcept {
 /**
  Makes the `error_code` of an @ref error, as its implicit conversion does.
 
- @param e The error.
- @return `e` as an `error_code` of the category @ref error_category.
+ @param error_value The error.
+ @return `error_value` as an `error_code` of the category @ref error_category.
 */
-inline boost::system::error_code make_error_code(error e) noexcept {
-    return {static_cast<int>(e), error_category()};
+inline boost::system::error_code make_error_code(error error_value) noexcept {
+    return {static_cast<int>(error_value), error_category()};
 }
 
 }  // namespace webcpp::crypto

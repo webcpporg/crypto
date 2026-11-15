@@ -79,16 +79,16 @@ public:
     }
 
     /**
-     * Fills `out` from the system's generator.
+     * Fills `output_bytes` from the system's generator.
      *
-     * @param out The bytes to fill; zeroed on error.
+     * @param output_bytes The bytes to fill; zeroed on error.
      * @return Nothing; `error::entropy_unavailable` when the source fails;
      * `errc::not_supported` where there is none (an Emscripten audio worklet).
      */
     // A member, so that a generator of another kind can stand in for this one.
     // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-    [[nodiscard]] boost::system::result<void> fill(std::span<std::uint8_t> out) noexcept {
-        return detail::fill_from_system(out);
+    [[nodiscard]] boost::system::result<void> fill(std::span<std::uint8_t> output_bytes) noexcept {
+        return detail::fill_from_system(output_bytes);
     }
 
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
@@ -101,14 +101,14 @@ public:
      * @return The value.
      */
     [[nodiscard]] result_type operator()() {
-        std::array<std::uint8_t, sizeof(result_type)> bytes{};
-        auto const filled = fill(bytes);
-        if (!filled) {
-            boost::throw_exception(boost::system::system_error(filled.error()));
+        std::array<std::uint8_t, sizeof(result_type)> drawn_bytes{};
+        auto const fill_result = fill(drawn_bytes);
+        if (!fill_result) {
+            boost::throw_exception(boost::system::system_error(fill_result.error()));
         }
-        result_type value = 0;
-        std::memcpy(&value, bytes.data(), bytes.size());
-        return value;
+        result_type drawn_value = 0;
+        std::memcpy(&drawn_value, drawn_bytes.data(), drawn_bytes.size());
+        return drawn_value;
     }
 #endif
 };

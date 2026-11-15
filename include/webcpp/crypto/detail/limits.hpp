@@ -14,17 +14,17 @@
 namespace webcpp::crypto::detail {
 
 /**
- * Whether `value` is above `limit`, both in 64 bits.
+ * Whether `checked_value` is above `size_limit`, both in 64 bits.
  *
  * Tip: a `size_t` compared with a 64-bit limit is a tautology on wasm32, which clang reports
  * as an error under `<warnings-as-errors>on`; a function of two `uint64_t` is not.
  *
- * @param value The size, widened.
- * @param limit The limit.
+ * @param checked_value The size, widened.
+ * @param size_limit The limit.
  * @return `value > limit`.
  */
-inline bool exceeds(std::uint64_t value, std::uint64_t limit) noexcept {
-    return value > limit;
+inline bool exceeds(std::uint64_t checked_value, std::uint64_t size_limit) noexcept {
+    return checked_value > size_limit;
 }
 
 }  // namespace webcpp::crypto::detail

@@ -25,7 +25,7 @@
 #ifdef WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY
 // The test seam: a test defines the source, which returns 0, or -1 with
 // errno set, as getentropy does (lint-world: the call it stands in for, named, not made).
-extern "C" int webcpp_test_entropy(void* out, std::size_t size);
+extern "C" int webcpp_test_entropy(void* output_bytes, std::size_t byte_count);
 #elif !defined(_WIN32)
 #include <sys/random.h>  // lint-world: getentropy, the system's entropy, this header's purpose
 #endif
@@ -36,7 +36,7 @@ namespace webcpp::crypto::detail {
 inline constexpr std::size_t entropy_piece = 256;
 
 /**
- * Asks the platform's one source for `size` bytes, at most @ref entropy_piece.
+ * Asks the platform's one source for `byte_count` bytes, at most @ref entropy_piece.
  *
  * Linux, macOS and WASI: the POSIX entropy call, which fills the buffer or fails with `errno`
  * set (POSIX.1-2024; wasmtime serves it with the host's generator). Emscripten: the same call
@@ -45,53 +45,56 @@ inline constexpr std::size_t entropy_piece = 256;
  * `BCryptGenRandom` with `BCRYPT_USE_SYSTEM_PREFERRED_RNG`, the system's generator
  * (learn.microsoft.com, `BCryptGenRandom`).
  *
- * @param out Where to write.
- * @param size How many bytes, 1 to @ref entropy_piece.
+ * @param output_bytes Where to write.
+ * @param byte_count How many bytes, 1 to @ref entropy_piece.
  * @return Nothing, `errc::not_supported` where there is no generator, or
  * `error::entropy_unavailable`.
  */
-[[nodiscard]] inline boost::system::result<void> read_entropy(std::uint8_t* out,
-                                                              std::size_t size) noexcept {
+[[nodiscard]] inline boost::system::result<void> read_entropy(std::uint8_t* output_bytes,
+                                                              std::size_t byte_count) noexcept {
 #if defined(_WIN32) && !defined(WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY)
-    NTSTATUS const status = ::BCryptGenRandom(  // lint-world: the entropy, on Windows
-        nullptr, out, static_cast<ULONG>(size), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
-    int const failed = BCRYPT_SUCCESS(status) ? 0 : EIO;
+    NTSTATUS const status_code = ::BCryptGenRandom(  // lint-world: the entropy, on Windows
+        nullptr, output_bytes, static_cast<ULONG>(byte_count), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    int const failure_code = BCRYPT_SUCCESS(status_code) ? 0 : EIO;
 #else
 #ifdef WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY
-    int const called = webcpp_test_entropy(out, size);  // lint-world: a test's planted entropy
+    int const call_result =
+        webcpp_test_entropy(output_bytes, byte_count);  // lint-world: a test's planted entropy
 #else
-    int const called = ::getentropy(out, size);  // lint-world: the entropy
+    int const call_result = ::getentropy(output_bytes, byte_count);  // lint-world: the entropy
 #endif
     // A failed call that leaves errno 0 is still a failure: never report it as a filled piece.
-    int const failed = called == 0 ? 0 : (errno != 0 ? errno : EIO);
+    int const failure_code = call_result == 0 ? 0 : (errno != 0 ? errno : EIO);
 #endif
-    if (failed == ENOTSUP) {
+    if (failure_code == ENOTSUP) {
         return boost::system::errc::make_error_code(boost::system::errc::not_supported);
     }
-    if (failed != 0) {
+    if (failure_code != 0) {
         return error::entropy_unavailable;
     }
     return {};
 }
 
 /**
- * Fills `out` from the platform's source, in pieces of at most @ref entropy_piece bytes.
+ * Fills `output_bytes` from the platform's source, in pieces of at most @ref entropy_piece bytes.
  *
- * No generator of webcpp's or of a backend's stands between the source and `out`, and no
- * weaker source is ever tried: when the source fails, `out` is zeroed whole, so that nothing
- * the caller may use is left in it.
+ * No generator of webcpp's or of a backend's stands between the source and `output_bytes`, and no
+ * weaker source is ever tried: when the source fails, `output_bytes` is zeroed whole, so that
+ * nothing the caller may use is left in it.
  *
- * @param out The bytes to fill.
+ * @param output_bytes The bytes to fill.
  * @return Nothing, or the source's error.
  */
 [[nodiscard]] inline boost::system::result<void> fill_from_system(
-    std::span<std::uint8_t> out) noexcept {
-    for (std::size_t done = 0; done < out.size(); done += entropy_piece) {
-        std::size_t const piece = (std::min)(out.size() - done, entropy_piece);
-        auto const read = read_entropy(out.data() + done, piece);
-        if (!read) {
-            wipe(out.data(), out.size());
-            return read.error();
+    std::span<std::uint8_t> output_bytes) noexcept {
+    for (std::size_t filled_count = 0; filled_count < output_bytes.size();
+         filled_count += entropy_piece) {
+        std::size_t const piece_size =
+            (std::min)(output_bytes.size() - filled_count, entropy_piece);
+        auto const read_result = read_entropy(output_bytes.data() + filled_count, piece_size);
+        if (!read_result) {
+            wipe(output_bytes.data(), output_bytes.size());
+            return read_result.error();
         }
     }
     return {};

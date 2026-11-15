@@ -26,14 +26,14 @@ and the AEAD of browsers' WebCrypto
 size of `Cipher`, on the backend of `Cipher`, which must export GCM over its own
 AES: BearSSL or OpenSSL. `aes128_gcm` and `aes256_gcm`, in
 `<webcpp/crypto/ciphers/aes256_gcm.hpp>`, name it on the default backend. It is
-made with `make(key)`, and works in place:
+made with `make(key_bytes)`, and works in place:
 
-* `seal(iv, additional_data, data)` encrypts `data` in place and returns its
-16-byte tag, a `boost::hash2::digest<16>`;
-* `open(iv, additional_data, data, tag)` checks the tag and decrypts `data` in
-place;
-* `begin_seal(iv, additional_data)`, `update(data)` and `result()` seal a
-message in pieces.
+* `seal(iv_bytes, additional_data_bytes, data_bytes)` encrypts `data_bytes`
+in place and returns its 16-byte tag, a `boost::hash2::digest<16>`;
+* `open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)` checks the
+tag and decrypts `data_bytes` in place;
+* `begin_seal(iv_bytes, additional_data_bytes)`, `update(data_bytes)` and
+`result()` seal a message in pieces.
 
 include::generated/backends-gcm.adoc[]
 
@@ -93,19 +93,19 @@ fails the same way everywhere.
 * *Keys of 16, 24 or 32 bytes.* A key shared with a browser's WebCrypto is of
 16 or 32 bytes: Chromium refuses 192-bit AES keys
 (link:https://chromium.googlesource.com/chromium/src/+/refs/heads/main/components/webcrypto/status.cc[Chromium]).
-* *In place, the tag apart.* `data` is both input and output, so no buffer is
-copied; the tag is separate, so that a wire format that appends it or sends it
-apart is a matter of the caller's spans.
-* *A failed `open` zeroes `data`.* Every backend decrypts and checks the tag in
-one pass; when the tag does not match, crypto zeroes the whole of `data`, so
-that no unauthenticated plaintext is left. A caller who needs the ciphertext
-after a failure keeps a copy. A guard's refusal (`invalid_state`,
-`invalid_iv_size`, `invalid_tag_size`, `message_too_long`) comes before any
-work and leaves `data` untouched.
-* *Plaintext is in `data` while `open` runs.* The decrypted bytes sit in `data`
-before the tag is checked. When `data` is memory another party can read during
-the call (a shared segment, a `SharedArrayBuffer` that JavaScript sees), open
-into private memory and copy the result out.
+* *In place, the tag apart.* `data_bytes` is both input and output, so no
+buffer is copied; the tag is separate, so that a wire format that appends it
+or sends it apart is a matter of the caller's spans.
+* *A failed `open` zeroes `data_bytes`.* Every backend decrypts and checks the
+tag in one pass; when the tag does not match, crypto zeroes the whole of
+`data_bytes`, so that no unauthenticated plaintext is left. A caller who
+needs the ciphertext after a failure keeps a copy. A guard's refusal
+(`invalid_state`, `invalid_iv_size`, `invalid_tag_size`, `message_too_long`)
+comes before any work and leaves `data_bytes` untouched.
+* *Plaintext is in `data_bytes` while `open` runs.* The decrypted bytes sit in
+`data_bytes` before the tag is checked. When `data_bytes` is memory another
+party can read during the call (a shared segment, a `SharedArrayBuffer` that
+JavaScript sees), open into private memory and copy the result out.
 * *No incremental `open`.* Decrypting piece by piece would hand out plaintext
 before the tag is known, and code that acts on unverified plaintext is how many
 protocols were broken. A large message is split into records, each sealed and

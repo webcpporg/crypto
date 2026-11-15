@@ -47,13 +47,13 @@ struct chacha_engine;
  * without the backend's library, or with one of another commit or configuration, then
  * fails to link, naming the canary.
  *
- * @param canary The canary's symbol.
+ * @param canary_byte The canary's symbol.
  */
-inline void read_canary(char const volatile& canary) noexcept {
+inline void read_canary(char const volatile& canary_byte) noexcept {
     // The volatile glvalue is converted to a value: a discarded one is not read by gcc
     // ("conversion to void will not access object").
-    char const value = canary;
-    static_cast<void>(value);
+    char const canary_copy = canary_byte;
+    static_cast<void>(canary_copy);
 }
 
 }  // namespace webcpp::crypto::detail

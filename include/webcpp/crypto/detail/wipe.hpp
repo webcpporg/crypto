@@ -16,18 +16,18 @@
 namespace webcpp::crypto::detail {
 
 /**
- * Zeroes `size` bytes at `data` with stores the optimiser cannot drop.
+ * Zeroes `byte_count` bytes at `wiped_data` with stores the optimiser cannot drop.
  *
  * Tip: a `memset` before an object dies is a dead store a compiler may remove; stores through
  * a volatile pointer, then a signal fence, are kept.
  *
- * @param data The first byte, or null when `size` is 0.
- * @param size How many bytes.
+ * @param wiped_data The first byte, or null when `byte_count` is 0.
+ * @param byte_count How many bytes.
  */
-inline void wipe(void* data, std::size_t size) noexcept {
-    auto* const bytes = static_cast<unsigned char volatile*>(data);
-    for (std::size_t i = 0; i < size; ++i) {
-        bytes[i] = 0;
+inline void wipe(void* wiped_data, std::size_t byte_count) noexcept {
+    auto* const wiped_bytes = static_cast<unsigned char volatile*>(wiped_data);
+    for (std::size_t byte_index = 0; byte_index < byte_count; ++byte_index) {
+        wiped_bytes[byte_index] = 0;
     }
     std::atomic_signal_fence(std::memory_order_seq_cst);
 }
@@ -36,12 +36,12 @@ inline void wipe(void* data, std::size_t size) noexcept {
  * Zeroes an object's bytes, as @ref wipe does.
  *
  * @tparam T A trivially copyable type, a C library's key schedule or context.
- * @param object The object.
+ * @param wiped_object The object.
  */
 template <class T>
-void wipe_object(T& object) noexcept {
+void wipe_object(T& wiped_object) noexcept {
     static_assert(std::is_trivially_copyable_v<T>, "only a C library's plain state is wiped");
-    wipe(&object, sizeof object);
+    wipe(&wiped_object, sizeof wiped_object);
 }
 
 }  // namespace webcpp::crypto::detail

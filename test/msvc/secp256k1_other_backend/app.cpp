@@ -15,7 +15,8 @@ int main() {
     std::array<std::uint8_t, 64> const signature{};
     std::array<std::uint8_t, 32> const hash{};
     std::array<std::uint8_t, 33> const key{};
-    auto const verified = webcpp::crypto::curves::secp256k1::verify_ecdsa<
-        webcpp::crypto::backends::bearssl>(signature, hash, key);
+    auto const verified =
+        webcpp::crypto::curves::secp256k1::verify_ecdsa<webcpp::crypto::backends::bearssl>(
+            signature, hash, key);
     return verified ? 0 : 1;
 }

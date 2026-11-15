@@ -16,7 +16,7 @@
 
 #include <webcpp/test/exit_status.hpp>
 
-#if defined(WEBCPP_TEST_WIPE_BEARSSL)
+#ifdef WEBCPP_TEST_WIPE_BEARSSL
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
@@ -156,28 +156,30 @@ void check_wiped(region where) {
 }  // namespace
 
 int main() {
-#if defined(WEBCPP_TEST_WIPE_BEARSSL)
+#ifdef WEBCPP_TEST_WIPE_BEARSSL
     // The state is gcm's first member: the schedule and the context of BearSSL.
     using type = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>;
-    check_wiped<type>({0, sizeof(crypto::detail::gcm_state<crypto::backends::bearssl, 32>)});
+    check_wiped<type>(
+        {.offset = 0, .size = sizeof(crypto::detail::gcm_state<crypto::backends::bearssl, 32>)});
 #elif defined(WEBCPP_TEST_WIPE_CTAES)
     // The state is the block cipher's first member: the expanded schedule.
     using type = crypto::ciphers::aes256<crypto::backends::ctaes>;
-    check_wiped<type>({0, sizeof(crypto::detail::block_state<crypto::backends::ctaes, 32>)});
+    check_wiped<type>(
+        {.offset = 0, .size = sizeof(crypto::detail::block_state<crypto::backends::ctaes, 32>)});
 #elif defined(WEBCPP_TEST_WIPE_SECP256K1)
     // After the context's pointer and the resource's, the key pair of libsecp256k1, which holds
     // the secret key; the context's pointer is nulled but the resource's stays, so the layout
     // is part of what this checks (a wrong offset fails the zero reads).
     using type = crypto::curves::secp256k1::keypair;
     static_assert(sizeof(type) >= (2 * sizeof(void*)) + sizeof(secp256k1_keypair));
-    check_wiped<type>({2 * sizeof(void*), sizeof(secp256k1_keypair)});
+    check_wiped<type>({.offset = 2 * sizeof(void*), .size = sizeof(secp256k1_keypair)});
 #elif defined(WEBCPP_TEST_WIPE_OPENSSL)
     // OpenSSL cleanses the expanded key in EVP_CIPHER_CTX_free (its own, not webcpp's); what
     // webcpp holds is the pointers, which are null once the key is given up.
     check_wiped<crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::openssl>>>(
-        {0, sizeof(crypto::detail::gcm_state<crypto::backends::openssl, 32>)});
+        {.offset = 0, .size = sizeof(crypto::detail::gcm_state<crypto::backends::openssl, 32>)});
     check_wiped<crypto::ciphers::aes256<crypto::backends::openssl>>(
-        {0, sizeof(crypto::detail::block_state<crypto::backends::openssl, 32>)});
+        {.offset = 0, .size = sizeof(crypto::detail::block_state<crypto::backends::openssl, 32>)});
 #endif
     return webcpp::test::exit_status(boost::report_errors());
 }

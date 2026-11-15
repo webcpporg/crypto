@@ -29,7 +29,8 @@ namespace webcpp::test {
 inline void expect_empty_keypair(webcpp::crypto::curves::secp256k1::keypair& key) {
     auto const live = webcpp::crypto::curves::secp256k1::keypair::make(std::array<std::uint8_t, 32>{
         1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
-        17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32});
+        17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+    });
     std::array<std::uint8_t, 32> const message{};
     std::array<std::uint8_t, 32> const aux{};
     std::array<std::uint8_t, 32> const tweak{};

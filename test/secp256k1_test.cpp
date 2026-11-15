@@ -37,8 +37,10 @@ std::array<std::uint8_t, 65> uncompressed(secp::keypair const& key) {
                                          compressed.size()) == 1);
     std::array<std::uint8_t, 65> out{};
     std::size_t size = out.size();
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): libsecp256k1's macro shifts a signed constant
+    unsigned const flags = SECP256K1_EC_UNCOMPRESSED;
     BOOST_TEST(secp256k1_ec_pubkey_serialize(secp256k1_context_static, out.data(), &size, &parsed,
-                                             SECP256K1_EC_UNCOMPRESSED) == 1);
+                                             flags) == 1);
     return out;
 }
 

@@ -42,14 +42,14 @@ int main() {
     // Spans of one size: equal ones, and ones that differ in any byte (the first, the last).
     std::array<std::uint8_t, 8> const eight{1, 2, 3, 4, 5, 6, 7, 8};
     auto different_first = eight;
-    different_first.front() ^= 0x80;
+    different_first.front() ^= 0x80U;
     auto different_last = eight;
-    different_last.back() ^= 0x01;
+    different_last.back() ^= 0x01U;
     BOOST_TEST(crypto::equal(std::span<std::uint8_t const>(eight), std::span(eight)));
     BOOST_TEST(!crypto::equal(std::span<std::uint8_t const>(eight), std::span(different_first)));
     BOOST_TEST(!crypto::equal(std::span<std::uint8_t const>(eight), std::span(different_last)));
     // Two 32-byte digests (a SHA-256 tag's size) that differ in the last byte only.
-    boost::hash2::digest<32> first_digest{};
+    boost::hash2::digest<32> const first_digest{};
     boost::hash2::digest<32> second_digest{};
     BOOST_TEST(crypto::equal(first_digest, second_digest));
     second_digest.data()[31] = 1;

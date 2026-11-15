@@ -282,7 +282,7 @@ struct gcm_engine<backends::openssl, KeySize> {
             EVP_CIPHER_CTX_ctrl(s.context, EVP_CTRL_GCM_SET_IVLEN, 12, nullptr) != 1 ||
             EVP_CipherInit_ex(s.context, nullptr, nullptr, nullptr, zero_iv.data(), 1) != 1 ||
             EVP_CipherUpdate(s.context, byte.data(), &written, byte.data(), 1) != 1) {
-            static_cast<void>(openssl_failed());
+            ERR_clear_error();  // as openssl_failed does for every failure of a message
         }
         // The byte holds a keystream byte of the key's: wiped as key material is.
         wipe(byte.data(), byte.size());

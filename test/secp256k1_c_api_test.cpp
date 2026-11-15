@@ -34,16 +34,16 @@ using compressed_key = std::array<std::uint8_t, 33>;
 compressed_key serialised(secp256k1_context const* context, secp256k1_pubkey const& key) {
     compressed_key out{};
     std::size_t size = out.size();
-    BOOST_TEST_EQ(
-        secp256k1_ec_pubkey_serialize(context, out.data(), &size, &key, SECP256K1_EC_COMPRESSED),
-        1);
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): libsecp256k1's macro shifts a signed constant
+    unsigned const flags = SECP256K1_EC_COMPRESSED;
+    BOOST_TEST_EQ(secp256k1_ec_pubkey_serialize(context, out.data(), &size, &key, flags), 1);
     BOOST_TEST_EQ(size, out.size());
     return out;
 }
 
 // Recovery: a recoverable signature of a hash, its compact form and recovery id, and the
 // public key recovered from it, which is the key pair's; another hash recovers another key.
-void recovery(secp256k1_context* context, secret_key const& secret,
+void recovery(secp256k1_context const* context, secret_key const& secret,
               compressed_key const& expected) {
     std::array<std::uint8_t, 32> hash{};
     hash.fill(0x5a);
@@ -77,7 +77,7 @@ void recovery(secp256k1_context* context, secret_key const& secret,
 }
 
 // ElligatorSwift: the 64-byte encoding of the public key of a secret decodes to that key.
-void ellswift(secp256k1_context* context, secret_key const& secret,
+void ellswift(secp256k1_context const* context, secret_key const& secret,
               compressed_key const& expected) {
     std::array<std::uint8_t, 64> encoded{};
     std::array<std::uint8_t, 32> randomness{};
@@ -103,6 +103,7 @@ int main() {
         return webcpp::test::exit_status(boost::report_errors());
     }
 
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): libsecp256k1's macro shifts a signed constant
     secp256k1_context* const context = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
     if (!BOOST_TEST(context != nullptr)) {
         return webcpp::test::exit_status(boost::report_errors());

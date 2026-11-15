@@ -10,8 +10,8 @@
 *Authenticated encryption* keeps data secret and proves it unchanged with one
 key (link:https://en.wikipedia.org/wiki/Authenticated_encryption[Wikipedia]).
 Encryption alone does not: with counter mode alone, flipping a bit of a
-ciphertext flips the same bit of the plaintext, and the receiver cannot tell; a forged "amount" field in an
-encrypted cookie goes through. *AES-GCM* (Galois/Counter Mode) encrypts with AES
+ciphertext flips the same bit of the plaintext, and the receiver cannot tell; a
+forged "amount" field in an encrypted cookie goes through. *AES-GCM* (Galois/Counter Mode) encrypts with AES
 in counter mode and computes a 16-byte *tag* over the ciphertext and over
 *additional data* that travels in clear
 (link:https://en.wikipedia.org/wiki/Galois/Counter_Mode[Wikipedia];
@@ -146,7 +146,8 @@ but none for ARM's AES instructions
 (link:https://www.bearssl.org/support.html[BearSSL]): on an ARM server it runs
 its portable constant-time code, while OpenSSL's assembly uses ARMv8's AES and
 polynomial multiplication instructions
-(link:https://github.com/openssl/openssl/tree/master/crypto/modes/asm[OpenSSL]).
+(link:https://github.com/openssl/openssl/tree/master/crypto/aes/asm[OpenSSL's AES];
+link:https://github.com/openssl/openssl/tree/master/crypto/modes/asm[OpenSSL's GHASH]).
 How much slower is not measured yet. A server on ARM names
 `/webcpp/crypto//openssl` (<<crypto-backends-defaults>>).
 

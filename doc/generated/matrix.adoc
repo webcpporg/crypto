@@ -37,15 +37,15 @@
 
 |`+ciphers::aes128, aes192, aes256+`
 |refused at compile time (`+aes_on_bearssl+`)
-|native, wasip2, wasip3 (tested by `+aes_openssl+`); not on emscripten: /webcpp/crypto//openssl stops the build there
-|native, wasip2, wasip3, emscripten (tested by `+aes_ctaes+`)
+|native, wasip2, wasip3 (tested by `+aes_openssl+`, `+agreement_aes+`); not on emscripten: /webcpp/crypto//openssl stops the build there
+|native, wasip2, wasip3, emscripten (tested by `+aes_ctaes+`, `+agreement_aes+`)
 |no
 |no
 |no
 
 |`+ciphers::gcm, aes128_gcm, aes256_gcm+`
-|native, wasip2, wasip3, emscripten (tested by `+gcm_bearssl+`, `+gcm_wycheproof_bearssl+`)
-|native, wasip2, wasip3 (tested by `+gcm_openssl+`, `+gcm_wycheproof_openssl+`); not on emscripten: /webcpp/crypto//openssl stops the build there
+|native, wasip2, wasip3, emscripten (tested by `+gcm_bearssl+`, `+gcm_wycheproof_bearssl+`, `+agreement_gcm+`, `+agreement_gcm_portable+`)
+|native, wasip2, wasip3 (tested by `+gcm_openssl+`, `+gcm_wycheproof_openssl+`, `+agreement_gcm+`, `+agreement_gcm_portable+`); not on emscripten: /webcpp/crypto//openssl stops the build there
 |refused at compile time (`+gcm_on_ctaes+`)
 |no
 |no

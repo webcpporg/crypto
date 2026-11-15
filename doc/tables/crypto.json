@@ -11,7 +11,8 @@
         "rfc7714": ["RFC 7714, AES-GCM for SRTP", "https://www.rfc-editor.org/rfc/rfc7714"],
         "rfc8827": ["RFC 8827, WebRTC security architecture", "https://www.rfc-editor.org/rfc/rfc8827"],
         "bearssl-aes": ["BearSSL, the AES implementations it selects", "https://www.bearssl.org/support.html"],
-        "openssl-armv8": ["OpenSSL's AES and GHASH assembly for ARMv8 and x86-64", "https://github.com/openssl/openssl/tree/master/crypto/modes/asm"],
+        "openssl-armv8": ["OpenSSL's AES assembly for ARMv8 and x86-64", "https://github.com/openssl/openssl/tree/master/crypto/aes/asm"],
+        "openssl-ghash-asm": ["OpenSSL's GHASH and AES-GCM assembly", "https://github.com/openssl/openssl/tree/master/crypto/modes/asm"],
         "webcrypto": ["W3C Web Cryptography API", "https://www.w3.org/TR/WebCryptoAPI/"],
         "chromium-aes192": ["Chromium's WebCrypto refuses 192-bit AES keys", "https://chromium.googlesource.com/chromium/src/+/refs/heads/main/components/webcrypto/status.cc"],
         "joux": ["A. Joux, Authentication Failures in NIST version of GCM, 2006", "https://csrc.nist.gov/csrc/media/projects/block-cipher-techniques/documents/bcm/comments/800-38-series-drafts/gcm/joux_comments.pdf"],
@@ -165,8 +166,8 @@
             "what": "The AES block cipher on whole 16-byte blocks: a building block, not encryption of data.",
             "section": "crypto-block",
             "backends": {
-                "openssl": {"tests": ["aes_openssl"]},
-                "ctaes": {"tests": ["aes_ctaes"]},
+                "openssl": {"tests": ["aes_openssl", "agreement_aes"]},
+                "ctaes": {"tests": ["aes_ctaes", "agreement_aes"]},
                 "bearssl": {"refused": "aes_on_bearssl"}
             }
         },
@@ -179,8 +180,10 @@
             "what": "AES-GCM, authenticated encryption in place with an incremental seal.",
             "section": "crypto-gcm",
             "backends": {
-                "bearssl": {"tests": ["gcm_bearssl", "gcm_wycheproof_bearssl"]},
-                "openssl": {"tests": ["gcm_openssl", "gcm_wycheproof_openssl"]},
+                "bearssl": {"tests": ["gcm_bearssl", "gcm_wycheproof_bearssl", "agreement_gcm",
+                                      "agreement_gcm_portable"]},
+                "openssl": {"tests": ["gcm_openssl", "gcm_wycheproof_openssl", "agreement_gcm",
+                                      "agreement_gcm_portable"]},
                 "ctaes": {"refused": "gcm_on_ctaes"}
             }
         },
@@ -234,7 +237,7 @@
         {"target": "emscripten", "linked": "BearSSL", "default": "bearssl", "tests": ["default_bearssl"], "why": "the only AEAD backend there: webcpp does not build OpenSSL for Emscripten; size and speed not measured yet"},
         {"target": "wasip2, wasip3", "linked": "BearSSL, with or without OpenSSL", "default": "bearssl", "tests": ["default_bearssl", "default_both_wasm"], "why": "constant time by design ({bearssl-ct}), where OpenSSL is built no-asm and its AES and GHASH are table-based ({openssl-install})"},
         {"target": "wasip2, wasip3", "linked": "BearSSL and OpenSSL, with WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL", "default": "openssl", "tests": ["default_openssl_wasm"], "why": "the program's choice"},
-        {"target": "native", "linked": "OpenSSL, with or without BearSSL", "default": "openssl", "tests": ["default_both"], "why": "OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 ({openssl-armv8}); BearSSL has them on x86 only ({bearssl-aes}); speed not measured yet"},
+        {"target": "native", "linked": "OpenSSL, with or without BearSSL", "default": "openssl", "tests": ["default_both"], "why": "OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 ({openssl-armv8}; {openssl-ghash-asm}); BearSSL has them on x86 only ({bearssl-aes}); speed not measured yet"},
         {"target": "native", "linked": "BearSSL and OpenSSL, with WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL", "default": "bearssl", "tests": ["default_selected"], "why": "the program's choice: on MSVC OpenSSL is built no-asm, and its AES and GHASH are table-based ({openssl-install})"},
         {"target": "native", "linked": "BearSSL alone", "default": "bearssl", "tests": ["default_bearssl"], "why": "the backend that is linked"}
     ],
@@ -289,7 +292,7 @@
         "both_bearssl_default": "Both backends linked, BearSSL chosen as the default with a define; the same program.",
         "block": "The AES block cipher on ctaes: the FIPS 197 block encrypted and decrypted again.",
         "encrypt_and_sign": "Two backends in one program: AES-256-GCM on the default backend and a BIP 340 signature.",
-        "openssl_linked": "OpenSSL, built from source, as the default backend natively and on WASI.",
+        "openssl_linked": "OpenSSL, built from source, named in the type: natively and on WASI.",
         "sign": "A BIP 340 signature with libsecp256k1's default tables.",
         "sign_small": "The same program with libsecp256k1's small tables, smaller and slower to verify.",
         "canary_missing": "BearSSL's headers used without its library, built by other means than b2.",

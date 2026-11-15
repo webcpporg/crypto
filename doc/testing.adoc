@@ -39,9 +39,18 @@ What the tests check:
 
 * *The vectors.* AES-GCM against the GCM specification's cases and Project
 Wycheproof's vectors, on BearSSL and on OpenSSL; AES against FIPS 197 on ctaes
-and OpenSSL, and ctaes against OpenSSL on random keys; secp256k1 against BIP
-340's vectors and Wycheproof's ECDSA and DER vectors, and the x-only tweak
-against BIP 341's.
+and OpenSSL; secp256k1 against BIP 340's vectors and Wycheproof's ECDSA and DER
+vectors, and the x-only tweak against BIP 341's.
+* *The backends against each other,* on random keys, IVs, additional data and
+messages of every size around a block's: BearSSL and OpenSSL seal the same
+bytes with AES-GCM and each opens what the other sealed, with BearSSL on its
+x86-64 instructions and on its portable code; ctaes and OpenSSL encrypt the
+same blocks. Natively, on wasip2 and on wasip3, from a fixed seed and from a
+seed drawn at each run, which a disagreement prints.
+* *`<windows.h>`,* bare, included before and after every public header with
+every backend linked: no macro of it breaks a header, and the headers leave
+`NOMINMAX` and `WIN32_LEAN_AND_MEAN` as they found them. Its teeth are on the
+continuous integration's MSVC lanes.
 * *Every guard and every error,* on a mock backend whose checks every real
 backend's test runs as well, and the limits natively.
 * *Allocation:* every `operator new` and the C library's allocator counted

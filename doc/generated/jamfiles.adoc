@@ -56,7 +56,7 @@ a|
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/encrypt_and_sign/encrypt_and_sign.outcome[tag=output]
 ----
 
-|`+openssl_linked+`: OpenSSL, built from source, as the default backend natively and on WASI.
+|`+openssl_linked+`: OpenSSL, built from source, named in the type: natively and on WASI.
 a|
 
 [source,bash]

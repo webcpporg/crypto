@@ -32,7 +32,7 @@
 |native
 |OpenSSL, with or without BearSSL
 |OpenSSL
-|OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 (link:https://github.com/openssl/openssl/tree/master/crypto/modes/asm[OpenSSL's AES and GHASH assembly for ARMv8 and x86-64]); BearSSL has them on x86 only (link:https://www.bearssl.org/support.html[BearSSL, the AES implementations it selects]); speed not measured yet
+|OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 (link:https://github.com/openssl/openssl/tree/master/crypto/aes/asm[OpenSSL's AES assembly for ARMv8 and x86-64]; link:https://github.com/openssl/openssl/tree/master/crypto/modes/asm[OpenSSL's GHASH and AES-GCM assembly]); BearSSL has them on x86 only (link:https://www.bearssl.org/support.html[BearSSL, the AES implementations it selects]); speed not measured yet
 |`+default_both+`
 
 |native

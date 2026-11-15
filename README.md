@@ -11,11 +11,12 @@ MSVC), wasip2, wasip3 and Emscripten.
 - `webcpp::crypto::curves::secp256k1`: BIP 340 Schnorr and ECDSA signatures, their verification,
   ECDH, ECDSA's strict DER and low-S forms, and the x-only tweak.
 
-The algorithms are those of widely used, reviewed C libraries, each a backend that a program names in its own
-Jamfile and that webcpp builds from its sources: BearSSL (`/third_party//bearssl`), OpenSSL 3.5.9
-(`/webcpp/crypto//openssl`, never the system's, refused on Emscripten), ctaes
-(`/third_party//ctaes`) and libsecp256k1 (`/third_party//secp256k1`). Which operation runs on
-which backend and target is the page's generated table, from the tests that run each. Hashing and
+The algorithms are those of widely used, reviewed C libraries, each a backend that a program
+names in its own Jamfile and that webcpp builds from its sources: BearSSL
+(`/third_party//bearssl`), OpenSSL 3.5.9 (`/webcpp/crypto//openssl`, never the system's, refused
+on Emscripten), ctaes (`/third_party//ctaes`) and libsecp256k1 (`/third_party//secp256k1`). Which
+operation runs on which backend and target is the page's generated table, from the tests that run
+each. Hashing and
 HMAC stay with Boost.Hash2. Protocols built on these primitives (Bitcoin, Ethereum, Nostr) belong
 to domain libraries.
 

@@ -16,12 +16,12 @@ The backends of `+ciphers::gcm, aes128_gcm, aes256_gcm+`, from the test programs
 |BearSSL
 |`+/third_party//bearssl+`
 |`+<webcpp/crypto/backends/bearssl.hpp>+`
-|native, wasip2, wasip3, emscripten (tested by `+gcm_bearssl+`, `+gcm_wycheproof_bearssl+`)
+|native, wasip2, wasip3, emscripten (tested by `+gcm_bearssl+`, `+gcm_wycheproof_bearssl+`, `+agreement_gcm+`, `+agreement_gcm_portable+`)
 
 |OpenSSL
 |`+/webcpp/crypto//openssl+`
 |`+<webcpp/crypto/backends/openssl.hpp>+`
-|native, wasip2, wasip3 (tested by `+gcm_openssl+`, `+gcm_wycheproof_openssl+`); not on emscripten: /webcpp/crypto//openssl stops the build there
+|native, wasip2, wasip3 (tested by `+gcm_openssl+`, `+gcm_wycheproof_openssl+`, `+agreement_gcm+`, `+agreement_gcm_portable+`); not on emscripten: /webcpp/crypto//openssl stops the build there
 
 |ctaes
 |`+/third_party//ctaes+`

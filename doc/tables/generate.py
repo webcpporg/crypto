@@ -15,7 +15,7 @@ superproject's fixtures of the user's Jamfiles (tools/test/fixtures/crypto_jamfi
 Jamfile lines and printed results the page shows as the fixtures hold them. crypto.json holds what
 no build produces: the facts about the world with their sources, the use cases, the fix of each
 message and the description of each fixture. A measurement no lane takes yet (size, throughput,
-constant time measured) is written as not measured yet, with the task that will take it.
+constant time measured) is written as not measured yet.
 
 Each fact is checked against the tree: a test, a message case, a fixture or an example that
 crypto.json names and the tree does not hold is a fault, and so is a fixture or a message case of
@@ -448,6 +448,9 @@ def use_cases_page(data: Data, library: Path) -> str:
 
 
 HEADER = re.compile(r'<(webcpp/crypto/[\w/]+\.hpp)>')
+# A reference to a line of a header, "(`include/secp256k1.h:235-247`)": the headers' own
+# business, and stale once the line moves, so llms.txt leaves it out.
+LINE_REFERENCE = re.compile(r'\s*\(`[\w./-]+:\d+(?:-\d+)?`\)')
 DOC_COMMENT = re.compile(r'/\*\*(.*?)\*/', re.S)
 
 
@@ -474,7 +477,8 @@ def declared_brief(library: Path, operation: Data, function: str) -> str:
             if found and '(' not in declaration[:found.start()] and '/*' not in declaration:
                 words = ' '.join(line.strip().lstrip('*').strip()
                                  for line in comment.group(1).splitlines()).strip()
-                return re.split(r'(?<=\.)\s', words.replace('@ref ', ''), maxsplit=1)[0]
+                words = LINE_REFERENCE.sub('', words.replace('@ref ', ''))
+                return re.split(r'(?<=\.)\s', words, maxsplit=1)[0]
     raise Fault(f'crypto.json names {function} of {operation["id"]}, which no Doc Comment of '
                 f'{operation["header"]} declares')
 

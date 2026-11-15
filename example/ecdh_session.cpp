@@ -70,7 +70,7 @@ std::array<std::uint8_t, Length> hkdf_sha256(std::span<std::uint8_t const> input
     }
     hash2::hmac_sha2_256 extract(salt.data(), salt.size());
     extract.update(input.data(), input.size());
-    auto const prk = extract.result();
+    auto prk = extract.result();
 
     std::array<std::uint8_t, Length> out{};
     std::array<std::uint8_t, 32> previous{};
@@ -81,13 +81,17 @@ std::array<std::uint8_t, Length> hkdf_sha256(std::span<std::uint8_t const> input
         expand.update(previous.data(), previous_size);
         expand.update(info.data(), info.size());
         expand.update(&counter, 1);
-        auto const block = expand.result();
+        auto block = expand.result();
         std::copy_n(block.data(), block.size(), previous.begin());
+        wipe(std::as_writable_bytes(std::span(block)));
         previous_size = previous.size();
         std::size_t const taken = std::min(previous.size(), Length - offset);
         std::copy_n(previous.begin(), taken, out.begin() + static_cast<std::ptrdiff_t>(offset));
         offset += taken;
     }
+    // The pseudorandom key and the last block are as secret as the input: wipe them.
+    wipe(std::as_writable_bytes(std::span(prk)));
+    wipe(std::as_writable_bytes(std::span(previous)));
     return out;
 }
 
@@ -113,8 +117,11 @@ boost::system::result<secp256k1::keypair> generate_key() {
 // Both sides derive their session key the same way.
 boost::system::result<crypto::ciphers::aes256_gcm> session_cipher(
     std::array<std::uint8_t, 32> const& shared) {
-    auto const key = hkdf_sha256<32>(shared, {}, bytes_of("example chat v1 session key"));
-    return crypto::ciphers::aes256_gcm::make(key);
+    auto key = hkdf_sha256<32>(shared, {}, bytes_of("example chat v1 session key"));
+    auto cipher = crypto::ciphers::aes256_gcm::make(key);
+    // The cipher keeps its own copy of the key, which it wipes; this one goes now.
+    wipe(std::as_writable_bytes(std::span(key)));
+    return cipher;
 }
 
 // Checks the function against the RFC's first test vector before it is trusted.
@@ -148,8 +155,8 @@ int main() {
     if (!alice_public || !bob_public) {
         return 1;
     }
-    auto const alice_shared = alice->ecdh(*bob_public);
-    auto const bob_shared = bob->ecdh(*alice_public);
+    auto alice_shared = alice->ecdh(*bob_public);
+    auto bob_shared = bob->ecdh(*alice_public);
     if (!alice_shared || !bob_shared || !crypto::equal(*alice_shared, *bob_shared)) {
         return 1;
     }
@@ -158,6 +165,9 @@ int main() {
 
     auto alice_cipher = session_cipher(*alice_shared);
     auto bob_cipher = session_cipher(*bob_shared);
+    // The shared secrets have given their keys: wipe them.
+    wipe(std::as_writable_bytes(std::span(*alice_shared)));
+    wipe(std::as_writable_bytes(std::span(*bob_shared)));
     if (!alice_cipher || !bob_cipher) {
         return 1;
     }

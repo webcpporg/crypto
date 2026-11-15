@@ -21,10 +21,10 @@ The backends of `+ciphers::aes128, aes192, aes256+`, from the test programs that
 |OpenSSL
 |`+/webcpp/crypto//openssl+`
 |`+<webcpp/crypto/backends/openssl.hpp>+`
-|native, wasip2, wasip3 (tested by `+aes_openssl+`); not on emscripten: /webcpp/crypto//openssl stops the build there
+|native, wasip2, wasip3 (tested by `+aes_openssl+`, `+agreement_aes+`); not on emscripten: /webcpp/crypto//openssl stops the build there
 
 |ctaes
 |`+/third_party//ctaes+`
 |`+<webcpp/crypto/backends/ctaes.hpp>+`
-|native, wasip2, wasip3, emscripten (tested by `+aes_ctaes+`)
+|native, wasip2, wasip3, emscripten (tested by `+aes_ctaes+`, `+agreement_aes+`)
 |===

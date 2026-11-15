@@ -5,8 +5,9 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Seals one zero block with AES-256-GCM on BearSSL, names the backend in the type, checks the
-// result against test case 14 of the GCM specification, and opens it again. Naming the backend pins
-// the implementation, so the same bytes and the same code run on every target. tag::program[]
+// result against test case 14 of the GCM specification, and opens it again. Naming the backend
+// pins the implementation, so the same bytes and the same code run on every target.
+// tag::program[]
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>

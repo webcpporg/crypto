@@ -228,6 +228,21 @@ crypto-run default_both_wasm : default_both_wasm_test.cpp
 # (ruling R5).
 crypto-run aes_ctaes : aes_ctaes_test.cpp : <library>/third_party//ctaes ;
 
-# ctaes against OpenSSL on 10,000 random keys of each size (spec section 8.2).
+# ctaes against OpenSSL on 10,000 random keys of each size (spec section 8.2),
+# on native, wasip2 and wasip3 (on WASI OpenSSL runs its portable C code).
 crypto-run agreement_aes : agreement_aes_test.cpp
-  : <library>/third_party//ctaes <library>/webcpp/crypto//openssl : native ;
+  : <library>/third_party//ctaes <library>/webcpp/crypto//openssl
+  : native wasip2 wasip3 ;
+
+# BearSSL against OpenSSL on AES-GCM (spec section 8.2), on native, wasip2 and
+# wasip3. The portable twin keeps BearSSL on aes_ct64 and ghash_ctmul64
+# through the backend's test seam, so that on x86-64 both of BearSSL's code
+# paths are compared with OpenSSL's. On WASI OpenSSL runs its portable C code
+# (no-asm, tools/openssl/build.py), another pair of implementations.
+crypto-run agreement_gcm : agreement_gcm_test.cpp
+  : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
+  : native wasip2 wasip3 ;
+crypto-run agreement_gcm_portable : agreement_gcm_portable_test.cpp
+  : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
+    <define>WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE
+  : native wasip2 wasip3 ;

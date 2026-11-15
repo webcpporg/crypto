@@ -58,12 +58,13 @@ crypto-run wipe : wipe_test.cpp ;
 # thread and a new one.
 crypto-run counting : counting_test.cpp ;
 
-# Declared with the BearSSL and OpenSSL backends, whose allocation tests are in
+# A message on OpenSSL allocates nothing after make.
+crypto-run allocation_openssl : allocation_openssl_test.cpp
+  : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
+# Declared with the BearSSL backend (backends/bearssl.hpp), whose tests are in
 # this directory:
 #crypto-run allocation_bearssl : allocation_bearssl_test.cpp
 #  : <library>/third_party//bearssl ;
-#crypto-run allocation_openssl : allocation_openssl_test.cpp
-#  : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
 #crypto-run bearssl_seeder : bearssl_seeder_test.cpp
 #  : <library>/third_party//bearssl ;
 

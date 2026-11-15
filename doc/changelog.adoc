@@ -34,4 +34,5 @@ of every version are on webcpp's index page.
 * Added secp256k1's key pair, BIP340 and ECDSA signatures, their verifications and ECDH, on libsecp256k1.
 * Added secp256k1's tests against BIP340's vectors, Wycheproof's Bitcoin ECDSA and its ECDH.
 * Added DER encoding and decoding of ECDSA signatures, low-S normalization and the BIP341 Taproot tweak to secp256k1.
+* Added the check that a message on OpenSSL allocates nothing after make: seal, open, the incremental seal, encrypt and decrypt.
 // end::unreleased[]

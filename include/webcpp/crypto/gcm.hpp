@@ -96,6 +96,7 @@ public:
      */
     gcm(gcm&& other) noexcept : keyed_(std::exchange(other.keyed_, false)) {
         if (keyed_) {
+            other.abandon_message();
             engine::move(state_, other.state_);
         }
         other.end_message();
@@ -113,6 +114,7 @@ public:
             engine::reset(state_);
             keyed_ = std::exchange(other.keyed_, false);
             if (keyed_) {
+                other.abandon_message();
                 engine::move(state_, other.state_);
             }
             end_message();
@@ -286,6 +288,15 @@ private:
     void abandon() noexcept {
         engine::abandon(state_);
         end_message();
+    }
+
+    // Before a move: a message in progress is abandoned through the engine, so that a
+    // backend whose move copies its context whole (OpenSSL's) carries none of it into the
+    // destination.
+    void abandon_message() noexcept {
+        if (in_message_) {
+            abandon();
+        }
     }
 
     // Every guard of a message, in spec section 2.4's order: the state, the IV, the tag

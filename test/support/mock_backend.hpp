@@ -11,7 +11,8 @@
 // a real backend exists, and its knobs make each engine call fail on demand. Every engine
 // call also checks the contract the generic layer owes a backend (a move into an empty
 // state, no work on a moved-from state, a tag only after a start) and counts each breach in
-// mock_control.violations, which a test expects to stay 0.
+// mock_control.violations, which a test expects to stay 0; a move that carries a message in
+// progress into its destination is counted in mock_control.carried.
 
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_MOCK_BACKEND_HPP
 #define WEBCPP_TEST_CRYPTO_SUPPORT_MOCK_BACKEND_HPP
@@ -63,6 +64,8 @@ struct mock_knobs {
     int violations = 0;
     /** The calls of GCM's `abandon` so far. */
     int abandons = 0;
+    /** The moves of GCM's state that carried a message in progress into the destination. */
+    int carried = 0;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the knobs a test turns
@@ -72,9 +75,11 @@ inline mock_knobs mock_control{};
 inline void mock_clear() {
     auto const violations = mock_control.violations;
     auto const abandons = mock_control.abandons;
+    auto const carried = mock_control.carried;
     mock_control = mock_knobs{};
     mock_control.violations = violations;
     mock_control.abandons = abandons;
+    mock_control.carried = carried;
 }
 
 namespace mock_detail {
@@ -346,12 +351,14 @@ struct gcm_engine<test::mock, KeySize> {
         return {};
     }
 
-    // As BearSSL's: the key moves, a message in progress does not.
+    // As OpenSSL's, whose context is copied whole: the key moves, and a message in progress
+    // moves with it unless the generic layer abandoned it first, which `carried` counts.
     static void move(state& to, state& from) noexcept {
         breach(to.live || !from.live);
-        to = state{};
-        to.key = from.key;
-        to.live = true;
+        if (from.started) {
+            ++test::mock_control.carried;
+        }
+        to = from;
         from = state{};
     }
 

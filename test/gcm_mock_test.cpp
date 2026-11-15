@@ -133,6 +133,43 @@ void check_incremental_failures(webcpp::test::gcm_cases cases) {
     BOOST_TEST(tag && webcpp::test::to_hex(*tag) == cases[13].tag);
 }
 
+// A move abandons a message in progress through the engine before it moves the state, so
+// the destination carries nothing of it: the move constructor, and a move assignment from
+// an object in a message.
+void check_move_abandons(webcpp::test::gcm_cases cases) {
+    std::array<std::uint8_t, 32> const key{};
+    std::array<std::uint8_t, 12> const iv{};
+    auto made = aead::make(key);
+    auto other = aead::make(key);
+    if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(other.has_value())) {
+        return;
+    }
+    std::array<std::uint8_t, 16> data{};
+    auto const carried = mock_control.carried;
+
+    auto abandons = mock_control.abandons;
+    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    BOOST_TEST(made->update(std::span(data).first(5)).has_value());
+    aead moved = std::move(*made);
+    BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
+    BOOST_TEST_EQ(mock_control.carried, carried);
+
+    abandons = mock_control.abandons;
+    BOOST_TEST(other->begin_seal(iv, {}).has_value());
+    BOOST_TEST(other->update(std::span(data).first(7)).has_value());
+    moved = std::move(*other);
+    BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
+    BOOST_TEST_EQ(mock_control.carried, carried);
+
+    // The destination's next message is whole: case 14's answer.
+    data.fill(0);
+    BOOST_TEST(moved.begin_seal(iv, {}).has_value());
+    BOOST_TEST(moved.update(data).has_value());
+    auto const tag = moved.result();
+    BOOST_TEST_EQ(webcpp::test::to_hex(data), cases[13].ciphertext);
+    BOOST_TEST(tag && webcpp::test::to_hex(*tag) == cases[13].tag);
+}
+
 }  // namespace
 
 int main() {
@@ -148,6 +185,8 @@ int main() {
     check_make_failures();
     check_one_shot_failures(cases.view());
     check_incremental_failures(cases.view());
+    check_move_abandons(cases.view());
     BOOST_TEST_EQ(mock_control.violations, 0);
+    BOOST_TEST_EQ(mock_control.carried, 0);  // no check's move carried a message
     return webcpp::test::exit_status(boost::report_errors());
 }

@@ -126,9 +126,10 @@ crypto-run gcm_openssl : gcm_openssl_test.cpp : <library>/webcpp/crypto//openssl
 # The limits need 64-bit sizes: natively, as BearSSL's twin.
 crypto-run gcm_limits_openssl : gcm_limits_openssl_test.cpp
   : <library>/webcpp/crypto//openssl : native ;
-crypto-run gcm_wycheproof_openssl : gcm_wycheproof_openssl_test.cpp
-  : <library>/webcpp/crypto//openssl <library>/third_party//wycheproof
-    <library>/webcpp//boost_json : native wasip2 wasip3 ;
+# Waits for Task 9's library half (support/wycheproof_gcm.hpp, support/test_data.hpp):
+#crypto-run gcm_wycheproof_openssl : gcm_wycheproof_openssl_test.cpp
+#  : <library>/webcpp/crypto//openssl <library>/third_party//wycheproof
+#    <library>/webcpp//boost_json : native wasip2 wasip3 ;
 crypto-run aes_openssl : aes_openssl_test.cpp : <library>/webcpp/crypto//openssl
   : native wasip2 wasip3 ;
 crypto-run openssl_error_queue : openssl_error_queue_test.cpp

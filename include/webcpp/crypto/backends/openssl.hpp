@@ -15,11 +15,13 @@
  OpenSSL does; what it raises meanwhile is popped with the backend's mark.
 
  The thread's error queue is left as the backend found it, through a mark set before a call
- that can raise and a pop after it. The queue is a ring of 16 slots (`ERR_NUM_ERRORS`), which
- holds 15 entries: when the caller's entries and those OpenSSL raises between the mark and
- the pop are more than 15, the oldest are overwritten, the marked one among them, and the pop
- then empties the queue, the caller's entries with it. A caller that keeps entries across a
- call of the backend keeps few.
+ that can raise and a pop after it, with one exception: a failure of a message's call that
+ OpenSSL's contract says does not fail clears the queue, the caller's entries with it
+ (`openssl_failed`). The queue is a ring of 16 slots (`ERR_NUM_ERRORS`), which holds 15
+ entries: when the caller's entries and those OpenSSL raises between the mark and the pop are
+ more than 15, the oldest are overwritten, the marked one among them, and the pop then empties
+ the queue, the caller's entries with it. A caller that keeps entries across a call of the
+ backend keeps few.
 
  @see "The backends", in the guide.
 */

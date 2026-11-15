@@ -6,8 +6,9 @@
 
 /**
  The backend libsecp256k1: its v0.8.0, built from its sources by `/third_party//secp256k1`,
- every module on. It serves `secp256k1::keypair`, `verify_schnorr` and `verify_ecdsa`, and
- its whole C API stays reachable through `<secp256k1*.h>`.
+ every module on, with its `contrib/lax_der_parsing.c`. It serves `secp256k1::keypair`,
+ `verify_schnorr`, `verify_ecdsa` and the DER and low-S functions, and its whole C API stays
+ reachable through `<secp256k1*.h>`.
 
  @see "secp256k1", in the guide.
 */
@@ -52,6 +53,14 @@
 #endif
 
 extern "C" const char WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY;
+
+// libsecp256k1's contrib/lax_der_parsing.c, which /third_party//secp256k1 compiles unmodified;
+// its header stays out of the user's include path, so its prototype is declared here, exactly.
+// A program that compiles its own copy of the file, as the file suggests, defines the same
+// function: the static library's member is then not linked.
+extern "C" int ecdsa_signature_parse_der_lax(const secp256k1_context* ctx,
+                                             secp256k1_ecdsa_signature* sig,
+                                             const unsigned char* input, size_t inputlen);
 
 namespace webcpp::crypto::backends {
 

@@ -6,7 +6,7 @@
 
 /**
  secp256k1 on libsecp256k1: BIP340 Schnorr and ECDSA signatures, their verification, and
- ECDH.
+ ECDH; ECDSA's DER and low-S forms.
 
  @see "secp256k1", in the guide.
 */
@@ -78,7 +78,50 @@ struct secret {
                0;
 }
 
+/**
+ * Whether 32 bytes of a compact signature, its r or its s, are not zero.
+ *
+ * @param half The 32 bytes.
+ * @return Whether one byte is not zero.
+ */
+[[nodiscard]] inline bool nonzero(std::span<std::uint8_t const, 32> half) noexcept {
+    return std::ranges::any_of(half, [](std::uint8_t b) { return b != 0; });
+}
+
+/**
+ * Parses a compact ECDSA signature, r then s, each below the group order and not zero.
+ *
+ * @param compact The 64 bytes.
+ * @param parsed Where the parsed signature goes.
+ * @return Whether it is a signature: false in every way it can be wrong, `invalid_signature` to
+ * the caller.
+ */
+[[nodiscard]] inline bool parse(std::span<std::uint8_t const, 64> compact,
+                                secp256k1_ecdsa_signature& parsed) noexcept {
+    return secp256k1_ecdsa_signature_parse_compact(secp256k1_context_static, &parsed,
+                                                   compact.data()) != 0 &&
+           nonzero(compact.first<32>()) && nonzero(compact.last<32>());
+}
+
+/**
+ * The compact form of a signature a DER parser read, refused when its r or its s is zero,
+ * which is how libsecp256k1's parsers give a number not below the group order.
+ *
+ * @param parsed The signature.
+ * @param out Where the 64 bytes go.
+ * @return Whether r and s are both in range.
+ */
+[[nodiscard]] inline bool compact_of(secp256k1_ecdsa_signature const& parsed,
+                                     std::array<std::uint8_t, 64>& out) noexcept {
+    secp256k1_ecdsa_signature_serialize_compact(secp256k1_context_static, out.data(), &parsed);
+    return nonzero(std::span<std::uint8_t const, 64>(out).first<32>()) &&
+           nonzero(std::span<std::uint8_t const, 64>(out).last<32>());
+}
+
 }  // namespace detail
+
+/** The longest strict DER encoding of a secp256k1 ECDSA signature, in bytes. */
+inline constexpr std::size_t max_der_size = 72;
 
 /**
  * A secp256k1 key pair on libsecp256k1, with a signing context of its own in the resource it
@@ -356,6 +399,112 @@ boost::system::result<void> verify_ecdsa(std::span<std::uint8_t const, 64> signa
         return error::invalid_signature;
     }
     return {};
+}
+
+/**
+ * Encodes a compact ECDSA signature as strict DER (BIP66), with libsecp256k1's own encoder.
+ *
+ * @param compact 64 bytes, r then s.
+ * @param out At least `max_der_size` bytes, whatever this signature's length; nothing is
+ * written on an error.
+ * @return The number of bytes written, at most `max_der_size`; `invalid_input_size` when `out`
+ * is shorter than `max_der_size`; `invalid_signature` when r or s is zero or not below the
+ * group order.
+ */
+template <class Backend = backends::secp256k1>
+boost::system::result<std::size_t> to_der(std::span<std::uint8_t const, 64> compact,
+                                          std::span<std::uint8_t> out) noexcept {
+    if (out.size() < max_der_size) {
+        return error::invalid_input_size;
+    }
+    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+    secp256k1_ecdsa_signature parsed{};
+    if (!detail::parse(compact, parsed)) {
+        return error::invalid_signature;
+    }
+    std::array<std::uint8_t, max_der_size> der{};
+    std::size_t size = der.size();
+    secp256k1_ecdsa_signature_serialize_der(secp256k1_context_static, der.data(), &size, &parsed);
+    std::ranges::copy(std::span<std::uint8_t const>(der).first(size), out.begin());
+    return size;
+}
+
+/**
+ * Decodes a strict DER ECDSA signature (BIP66, `secp256k1_ecdsa_signature_parse_der`) to its
+ * compact form.
+ *
+ * @param der The encoding, exactly: nothing may follow it.
+ * @return 64 bytes, r then s; `invalid_signature` for anything that is not strict DER, and for
+ * an r or an s that is zero or not below the group order.
+ */
+template <class Backend = backends::secp256k1>
+boost::system::result<std::array<std::uint8_t, 64>> from_der(
+    std::span<std::uint8_t const> der) noexcept {
+    if (der.empty()) {
+        return error::invalid_signature;
+    }
+    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+    secp256k1_ecdsa_signature parsed{};
+    std::array<std::uint8_t, 64> out{};
+    if (secp256k1_ecdsa_signature_parse_der(secp256k1_context_static, &parsed, der.data(),
+                                            der.size()) == 0 ||
+        !detail::compact_of(parsed, out)) {
+        return error::invalid_signature;
+    }
+    return out;
+}
+
+/**
+ * Decodes a DER ECDSA signature as Bitcoin Core does for transactions before BIP66
+ * (libsecp256k1's `contrib/lax_der_parsing.c`, `ecdsa_signature_parse_der_lax`): negative and
+ * overlong integers, long length forms and trailing bytes are accepted.
+ *
+ * Tip: only for validating historical signatures; a new signature is strict DER, `from_der`.
+ *
+ * @param der The encoding.
+ * @return 64 bytes, r then s; `invalid_signature` for what the lax parser refuses, and for an r
+ * or an s that is zero or not below the group order.
+ */
+template <class Backend = backends::secp256k1>
+boost::system::result<std::array<std::uint8_t, 64>> from_lax_der(
+    std::span<std::uint8_t const> der) noexcept {
+    if (der.empty()) {
+        return error::invalid_signature;
+    }
+    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+    secp256k1_ecdsa_signature parsed{};
+    std::array<std::uint8_t, 64> out{};
+    if (ecdsa_signature_parse_der_lax(secp256k1_context_static, &parsed, der.data(), der.size()) ==
+            0 ||
+        !detail::compact_of(parsed, out)) {
+        return error::invalid_signature;
+    }
+    return out;
+}
+
+/**
+ * The low-S form of a compact ECDSA signature (`secp256k1_ecdsa_signature_normalize`), the
+ * only form `verify_ecdsa` accepts; a low-S signature is returned unchanged.
+ *
+ * Tip: normalizing makes a signature malleable on purpose; only for signatures from a signer
+ * that does not enforce low-S.
+ *
+ * @param compact 64 bytes, r then s.
+ * @return 64 bytes, r then n - s when s was above half the group order;
+ * `invalid_signature` when r or s is zero or not below the group order.
+ */
+template <class Backend = backends::secp256k1>
+boost::system::result<std::array<std::uint8_t, 64>> normalize_ecdsa(
+    std::span<std::uint8_t const, 64> compact) noexcept {
+    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+    secp256k1_ecdsa_signature parsed{};
+    if (!detail::parse(compact, parsed)) {
+        return error::invalid_signature;
+    }
+    secp256k1_ecdsa_signature_normalize(secp256k1_context_static, &parsed, &parsed);
+    std::array<std::uint8_t, 64> out{};
+    secp256k1_ecdsa_signature_serialize_compact(secp256k1_context_static, out.data(), &parsed);
+    return out;
 }
 
 }  // namespace webcpp::crypto::secp256k1

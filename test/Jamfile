@@ -140,6 +140,9 @@ crypto-run secp256k1_bip340 : secp256k1_bip340_test.cpp
 crypto-run secp256k1_wycheproof : secp256k1_wycheproof_test.cpp
   : <library>/third_party//secp256k1 <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;
+crypto-run secp256k1_der : secp256k1_der_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
 
 build-project messages ;
 

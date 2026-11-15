@@ -7,9 +7,9 @@
 // secp256k1's one allocation (spec section 8.5): make allocates the signing context once, in
 // the resource it is given, of libsecp256k1's preallocated size and aligned to max_align_t,
 // and never through operator new nor the C library's allocator where the target lets a
-// program count it; the signatures, ECDH, the public keys and both verifications allocate
-// nothing; the destructor gives the block back; a refused make allocates nothing. A control
-// proves the counter moves.
+// program count it; the signatures, ECDH, the public keys, both verifications, the DER and
+// low-S functions and the Taproot tweak allocate nothing, each counted alone; the destructor
+// gives the block back; a refused make allocates nothing. A control proves the counter moves.
 
 #include <webcpp/crypto/secp256k1.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory_resource>
+#include <span>
 #include <utility>
 
 namespace crypto = webcpp::crypto;
@@ -92,7 +93,7 @@ int main() {
         BOOST_TEST_EQ(resource.size,
                       secp256k1_context_preallocated_size(secp::detail::context_flags));
         BOOST_TEST_EQ(resource.alignment, alignof(std::max_align_t));
-        secp::keypair const key = std::move(*made);
+        secp::keypair key = std::move(*made);
 
         auto const schnorr = key.sign_schnorr(message, aux);
         auto const ecdsa = key.sign_ecdsa(message);
@@ -103,6 +104,28 @@ int main() {
         BOOST_TEST(secp::verify_schnorr(*schnorr, message, *xonly).has_value());
         BOOST_TEST(secp::verify_ecdsa(*ecdsa, message, *public_key).has_value());
         BOOST_TEST_EQ(webcpp::test::allocations(), before);
+
+        // Each of the DER and low-S functions and the Taproot tweak, alone: no allocation.
+        auto const none = [](char const* name, auto&& call) {
+            std::size_t const at = webcpp::test::allocations();
+            bool const succeeded = static_cast<bool>(call());
+            if (!succeeded || webcpp::test::allocations() != at) {
+                BOOST_ERROR(name);
+            }
+        };
+        std::array<std::uint8_t, secp::max_der_size> der{};
+        std::size_t der_size = 0;
+        none("to_der", [&] {
+            auto const r = secp::to_der(*ecdsa, der);
+            der_size = r ? *r : 0;
+            return r;
+        });
+        auto const encoded = std::span<std::uint8_t const>(der).first(der_size);
+        none("from_der", [&] { return secp::from_der(encoded); });
+        none("from_lax_der", [&] { return secp::from_lax_der(encoded); });
+        none("normalize_ecdsa", [&] { return secp::normalize_ecdsa(*ecdsa); });
+        none("taproot_output_key", [&] { return secp::taproot_output_key(*xonly, {}); });
+        none("tweak_taproot", [&] { return key.tweak_taproot(message); });
         BOOST_TEST_EQ(resource.allocated, 1U);
         BOOST_TEST_EQ(resource.deallocated, 0U);
     }

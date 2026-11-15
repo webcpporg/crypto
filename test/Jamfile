@@ -169,6 +169,10 @@ crypto-run gcm_limits_mock : gcm_limits_mock_test.cpp : : native ;
 crypto-run gcm_bearssl : gcm_bearssl_test.cpp : <library>/third_party//bearssl ;
 crypto-run gcm_limits_bearssl : gcm_limits_bearssl_test.cpp
   : <library>/third_party//bearssl : native ;
+# The vectors of spec section 8.1, read at run time from third_party/libs.
+crypto-run gcm_wycheproof_bearssl : gcm_wycheproof_bearssl_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
 
 # read_canary's load survives optimisation: without the canary the program does
 # not link, on every compiler; with it, it links and runs.

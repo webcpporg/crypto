@@ -14,6 +14,7 @@
 #include <boost/hash2/sha2.hpp>
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
@@ -28,13 +29,15 @@ namespace {
 
 using bytes = std::vector<std::uint8_t>;
 
+unsigned hex_digit(char c) {
+    return static_cast<unsigned>(c <= '9' ? c - '0' : c - 'a' + 10);
+}
+
 bytes from_hex(std::string_view hex) {
-    auto const digit = [](char c) {
-        return static_cast<unsigned>(c <= '9' ? c - '0' : c - 'a' + 10);
-    };
     bytes out(hex.size() / 2);
     for (std::size_t i = 0; i < out.size(); ++i) {
-        out[i] = static_cast<std::uint8_t>((digit(hex[2 * i]) << 4U) | digit(hex[(2 * i) + 1]));
+        out[i] =
+            static_cast<std::uint8_t>((hex_digit(hex[2 * i]) << 4U) | hex_digit(hex[(2 * i) + 1]));
     }
     return out;
 }
@@ -64,6 +67,28 @@ std::array<std::uint8_t, 32> double_sha256(std::span<std::uint8_t const> data) {
     return out;
 }
 
+// A secret key that is zeroed when it goes out of scope, on every path. A wallet must never
+// keep a secret in a buffer nobody wipes: a vector or a string leaves it in freed memory. The
+// stores go through a volatile pointer and a signal fence, so the compiler cannot drop them as
+// dead stores.
+struct wiped_secret {
+    std::array<std::uint8_t, 32> bytes{};
+
+    wiped_secret() = default;
+    wiped_secret(wiped_secret const&) = delete;
+    wiped_secret& operator=(wiped_secret const&) = delete;
+    wiped_secret(wiped_secret&&) = delete;
+    wiped_secret& operator=(wiped_secret&&) = delete;
+
+    ~wiped_secret() {
+        auto* const volatile_bytes = static_cast<std::uint8_t volatile*>(bytes.data());
+        for (std::size_t i = 0; i < bytes.size(); ++i) {
+            volatile_bytes[i] = 0;
+        }
+        std::atomic_signal_fence(std::memory_order_seq_cst);
+    }
+};
+
 void append(bytes& out, std::span<std::uint8_t const> data) {
     out.insert(out.end(), data.begin(), data.end());
 }
@@ -85,9 +110,16 @@ int main() {
     append(outputs, "9093510d000000001976a9143bde42dbee7e4dbe6a21b2d50ce2f0167faa815988ac");
 
     // The second input's key, whose P2WPKH program is HASH160 of its compressed public key.
-    auto const secret =
-        from_hex("619c335025c7f4012e556c2a58b2506e30b8511b53ade95ea316fd8c3286feb9");
-    auto key = secp::keypair::make(secret);
+    // The key is read straight into a holder that wipes it; the key pair keeps its own copy,
+    // which it wipes too.
+    wiped_secret secret;
+    constexpr std::string_view secret_hex =
+        "619c335025c7f4012e556c2a58b2506e30b8511b53ade95ea316fd8c3286feb9";
+    for (std::size_t i = 0; i < secret.bytes.size(); ++i) {
+        secret.bytes[i] = static_cast<std::uint8_t>((hex_digit(secret_hex[2 * i]) << 4U) |
+                                                    hex_digit(secret_hex[(2 * i) + 1]));
+    }
+    auto key = secp::keypair::make(secret.bytes);
     if (!key) {
         std::cerr << "make: " << key.error().message() << '\n';
         return 1;

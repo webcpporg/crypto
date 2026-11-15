@@ -4,18 +4,31 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// The AES block cipher on ctaes: FIPS-197, the guards and moved-from objects
-// (support/aes_checks.hpp), on every target. NIST's known answers are deferred (ruling R5).
+// The AES block cipher on ctaes, on every target: the block cipher's checks
+// (support/aes_checks.hpp), and FIPS-197 appendix C. NIST's known answers are deferred
+// (ruling R5).
 
+#include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/backends/ctaes.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/aes_checks.hpp"
+#include "support/hex.hpp"
+
+#include <boost/core/lightweight_test.hpp>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <span>
+#include <string_view>
 
 namespace {
+
+namespace crypto = webcpp::crypto;
+using crypto::backends::ctaes;
+using webcpp::test::from_hex;
+using webcpp::test::to_hex;
 
 /** The round trip the guide shows: encrypts a block and decrypts it again. */
 bool round_trip() {
@@ -30,13 +43,41 @@ bool round_trip() {
     return false;
 }
 
+/** Encrypts `plain` with `Cipher` under `key`, checks `expected`, and decrypts it back. */
+template <class Cipher>
+void check_answer(std::span<std::uint8_t const> key, std::string_view plain,
+                  std::string_view expected) {
+    auto made = Cipher::make(key);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    auto const plaintext = from_hex(plain);
+    auto block = plaintext;
+    BOOST_TEST(made->encrypt(block).has_value());
+    BOOST_TEST_EQ(to_hex(block), expected);
+    BOOST_TEST(made->decrypt(block).has_value());
+    BOOST_TEST(block == plaintext);
+}
+
+/** FIPS-197 appendix C.1, C.2 and C.3: the key 00 01 02 ..., the block 00 11 22 ... ff. */
+void check_fips197() {
+    std::array<std::uint8_t, 32> key{};
+    for (std::size_t i = 0; i < key.size(); ++i) {
+        key[i] = static_cast<std::uint8_t>(i);
+    }
+    constexpr std::string_view plain = "00112233445566778899aabbccddeeff";
+    check_answer<crypto::aes128<ctaes>>(std::span(key).first(16), plain,
+                                        "69c4e0d86a7b0430d8cdb78070b4c55a");
+    check_answer<crypto::aes192<ctaes>>(std::span(key).first(24), plain,
+                                        "dda97ca4864cdfe06eaf70a0ec0d7191");
+    check_answer<crypto::aes256<ctaes>>(key, plain, "8ea2b7ca516745bfeafc49904b496089");
+}
+
 }  // namespace
 
 int main() {
     BOOST_TEST(round_trip());
-    using webcpp::crypto::backends::ctaes;
-    webcpp::test::check_fips197<ctaes>();
-    webcpp::test::check_aes_guards<ctaes>();
-    webcpp::test::check_aes_moved_from<ctaes>();
+    webcpp::test::check_block_cipher<ctaes>();
+    check_fips197();
     return webcpp::test::exit_status(boost::report_errors());
 }

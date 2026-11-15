@@ -25,7 +25,8 @@ extern "C" int bearssl_test_main(int argc, char** argv);
 
 namespace {
 
-// NOLINTNEXTLINE(bugprone-throwing-static-initialization): run for its effect; nothing reads it
+// A static initialiser run for its effect; nothing reads it.
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization,cert-err58-cpp): see above
 [[maybe_unused]] bool const armed = (webcpp::test::bound(std::chrono::seconds(900)), true);
 
 }  // namespace

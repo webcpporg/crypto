@@ -72,7 +72,8 @@ void agree(std::mt19937_64& generator) {
 }  // namespace
 
 int main() {
-    // NOLINTNEXTLINE(bugprone-random-generator-seed): a fixed seed, so a failure repeats
+    // A fixed seed, so that a failure repeats.
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): see above
     std::mt19937_64 generator(0x5eedae5ULL);
     agree<crypto::aes128, 16>(generator);
     agree<crypto::aes192, 24>(generator);

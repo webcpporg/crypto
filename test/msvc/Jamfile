@@ -9,11 +9,6 @@
 # is checked on clang, GNU ld and wasm-ld by tools/test/crypto_jamfiles_test.py;
 # MSVC's is not checked (CODING-GUIDELINES.md chapter 19). Elsewhere than MSVC
 # nothing here is built: the project's requirements make every case <build>no.
-#
-# A case is declared here with a build-project line once its sources exist:
-# its directory holds its Jamfile, written beforehand, and the line is added
-# in the commit that adds the sources the case needs. Each case waits below
-# for what it needs.
 rule msvc-only ( properties * )
 {
     if ! ( <toolset>msvc in $(properties) )
@@ -30,14 +25,11 @@ build-project canary_secp256k1_missing ;
 build-project canary_secp256k1_small ;
 build-project canary_ctaes_missing ;
 build-project gcm_on_ctaes ;
-# Waiting for backends/bearssl.hpp and a diagnostic source (app.cpp):
-# build-project no_backend ;
-# build-project bearssl_not_linked ;
-# build-project aes_on_bearssl ;
-# Waiting for backends/bearssl.hpp, to read the BearSSL canary (app.cpp):
-# build-project canary_missing ;
-# build-project canary_other_commit ;
-# build-project canary_other_configuration ;
-# Waiting for backends/bearssl.hpp (the sources):
-# build-project canary_two_files ;
-# build-project default_two_files ;
+build-project no_backend ;
+build-project bearssl_not_linked ;
+build-project aes_on_bearssl ;
+build-project canary_missing ;
+build-project canary_other_commit ;
+build-project canary_other_configuration ;
+build-project canary_two_files ;
+build-project default_two_files ;

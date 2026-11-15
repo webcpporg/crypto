@@ -7,8 +7,8 @@
 /**
  The backend libsecp256k1: its v0.8.0, built from its sources by `/third_party//secp256k1`,
  every module on, with its `contrib/lax_der_parsing.c`. It serves `secp256k1::keypair`,
- `verify_schnorr`, `verify_ecdsa` and the DER and low-S functions, and its whole C API stays
- reachable through `<secp256k1*.h>`.
+ `verify_schnorr`, `verify_ecdsa`, the DER and low-S functions and the Taproot tweak, and its
+ whole C API stays reachable through `<secp256k1*.h>`.
 
  @see "secp256k1", in the guide.
 */

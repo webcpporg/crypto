@@ -33,5 +33,5 @@ of every version are on webcpp's index page.
 * Added the backend libsecp256k1, its link-time canary, and its own tests on webcpp's build.
 * Added secp256k1's key pair, BIP340 and ECDSA signatures, their verifications and ECDH, on libsecp256k1.
 * Added secp256k1's tests against BIP340's vectors, Wycheproof's Bitcoin ECDSA and its ECDH.
-* Added DER encoding and decoding of ECDSA signatures and low-S normalization to secp256k1.
+* Added DER encoding and decoding of ECDSA signatures, low-S normalization and the BIP341 Taproot tweak to secp256k1.
 // end::unreleased[]

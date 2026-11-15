@@ -6,7 +6,7 @@
 
 /**
  secp256k1 on libsecp256k1: BIP340 Schnorr and ECDSA signatures, their verification, and
- ECDH; ECDSA's DER and low-S forms.
+ ECDH; ECDSA's DER and low-S forms, and BIP341's Taproot tweak.
 
  @see "secp256k1", in the guide.
 */
@@ -118,10 +118,41 @@ struct secret {
            nonzero(std::span<std::uint8_t const, 64>(out).last<32>());
 }
 
+// BIP341's tag of the tweak, "TapTweak".
+inline constexpr std::array<unsigned char, 8> tap_tweak_tag{'T', 'a', 'p', 'T', 'w', 'e', 'a', 'k'};
+
+/**
+ * BIP341's tweak, `tagged_hash("TapTweak", internal_key || merkle_root)`, with libsecp256k1's
+ * tagged hash.
+ *
+ * @param internal_key The x-only internal key, 32 bytes.
+ * @param merkle_root Empty, or 32 bytes: the caller checked.
+ * @return The 32-byte tweak.
+ */
+[[nodiscard]] inline std::array<std::uint8_t, 32> tap_tweak(
+    std::span<std::uint8_t const, 32> internal_key,
+    std::span<std::uint8_t const> merkle_root) noexcept {
+    std::array<std::uint8_t, 64> message{};
+    std::ranges::copy(internal_key, message.begin());
+    std::ranges::copy(merkle_root, message.begin() + 32);
+    std::array<std::uint8_t, 32> tweak{};
+    secp256k1_tagged_sha256(secp256k1_context_static, tweak.data(), tap_tweak_tag.data(),
+                            tap_tweak_tag.size(), message.data(), 32 + merkle_root.size());
+    return tweak;
+}
+
 }  // namespace detail
 
 /** The longest strict DER encoding of a secp256k1 ECDSA signature, in bytes. */
 inline constexpr std::size_t max_der_size = 72;
+
+/** A BIP341 output key: the tweaked x-only key and the parity of its point's y. */
+struct taproot_output {
+    /** The 32-byte x-only output key, a Taproot output's witness program. */
+    std::array<std::uint8_t, 32> key;
+    /** 0 when the tweaked point's y is even, 1 when it is odd (a script path's control byte). */
+    int parity;
+};
 
 /**
  * A secp256k1 key pair on libsecp256k1, with a signing context of its own in the resource it
@@ -320,6 +351,38 @@ public:
         return out;
     }
 
+    /**
+     * Tweaks this key pair in place into the BIP341 output key pair a Taproot key-path spend
+     * signs with: the internal x-only key tweaked by
+     * `tagged_hash("TapTweak", internal_key || merkle_root)`
+     * (`secp256k1_keypair_xonly_tweak_add`). Allocates nothing; the pair keeps its context,
+     * its wiping and its behaviour when moved from.
+     *
+     * @param merkle_root Empty for a key-path-only output, or the script tree's 32-byte root.
+     * @return Nothing; `invalid_input_size` for a root neither empty nor of 32 bytes;
+     * `invalid_state` moved from; `invalid_secret_key` if the tweak gives no valid key
+     * (negligible, but checked), after which the pair is wiped and empty, as moved from.
+     */
+    boost::system::result<void> tweak_taproot(std::span<std::uint8_t const> merkle_root) noexcept {
+        if (!merkle_root.empty() && merkle_root.size() != 32) {
+            return error::invalid_input_size;
+        }
+        if (!keyed_) {
+            return error::invalid_state;
+        }
+        webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+        secp256k1_xonly_pubkey xonly{};
+        std::array<std::uint8_t, 32> internal{};
+        secp256k1_keypair_xonly_pub(context_, &xonly, nullptr, &keypair_);
+        secp256k1_xonly_pubkey_serialize(context_, internal.data(), &xonly);
+        auto const tweak = detail::tap_tweak(internal, merkle_root);
+        if (secp256k1_keypair_xonly_tweak_add(context_, &keypair_, tweak.data()) == 0) {
+            release();
+            return error::invalid_secret_key;
+        }
+        return {};
+    }
+
 private:
     basic_keypair() noexcept = default;
 
@@ -504,6 +567,43 @@ boost::system::result<std::array<std::uint8_t, 64>> normalize_ecdsa(
     secp256k1_ecdsa_signature_normalize(secp256k1_context_static, &parsed, &parsed);
     std::array<std::uint8_t, 64> out{};
     secp256k1_ecdsa_signature_serialize_compact(secp256k1_context_static, out.data(), &parsed);
+    return out;
+}
+
+/**
+ * The BIP341 output key of an internal x-only key: the internal key tweaked by
+ * `t = tagged_hash("TapTweak", internal_key || merkle_root)`, with libsecp256k1's static
+ * context, which allocates nothing.
+ *
+ * @param internal_key The 32-byte x-only internal key.
+ * @param merkle_root Empty for a key-path-only output, or the script tree's 32-byte root.
+ * @return The 32-byte x-only output key and its parity; `invalid_input_size` for a root
+ * neither empty nor of 32 bytes; `invalid_public_key` for an internal key that is not a
+ * point's x, or whose tweak gives no valid key (negligible, but checked).
+ */
+template <class Backend = backends::secp256k1>
+boost::system::result<taproot_output> taproot_output_key(
+    std::span<std::uint8_t const, 32> internal_key,
+    std::span<std::uint8_t const> merkle_root) noexcept {
+    if (!merkle_root.empty() && merkle_root.size() != 32) {
+        return error::invalid_input_size;
+    }
+    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+    secp256k1_xonly_pubkey internal{};
+    if (secp256k1_xonly_pubkey_parse(secp256k1_context_static, &internal, internal_key.data()) ==
+        0) {
+        return error::invalid_public_key;
+    }
+    auto const tweak = detail::tap_tweak(internal_key, merkle_root);
+    secp256k1_pubkey tweaked{};
+    if (secp256k1_xonly_pubkey_tweak_add(secp256k1_context_static, &tweaked, &internal,
+                                         tweak.data()) == 0) {
+        return error::invalid_public_key;
+    }
+    secp256k1_xonly_pubkey output{};
+    taproot_output out{};
+    secp256k1_xonly_pubkey_from_pubkey(secp256k1_context_static, &output, &out.parity, &tweaked);
+    secp256k1_xonly_pubkey_serialize(secp256k1_context_static, out.key.data(), &output);
     return out;
 }
 

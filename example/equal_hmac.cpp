@@ -16,6 +16,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdio>
+#include <span>
 #include <string_view>
 
 namespace crypto = webcpp::crypto;

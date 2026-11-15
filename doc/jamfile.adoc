@@ -58,6 +58,18 @@ run; what it prints is checked. The table is generated from the fixtures.
 
 include::generated/jamfiles.adoc[]
 
+A user builds a case from its directory with `b2` natively,
+`b2 toolset=emscripten` for the browser, and `b2 toolset=clang-wasip2` or
+`b2 toolset=clang-wasip3` for WASI, and runs the program as each target runs one:
+`./app`, `node app.js`, or a WASI runtime such as wasmtime. The cases `web`,
+`server` and `both_bearssl_default` are one program, byte for byte (the test
+checks the copies), whose output names the backend that ran: BearSSL wherever
+it is the default, OpenSSL natively when the program names it, and BearSSL
+again when a define chooses it with both linked. On WASI the default is BearSSL
+even when OpenSSL is linked (<<crypto-backends-defaults>>), so `server` is a
+native case; a WASI program that wants OpenSSL names the backend in the type,
+as `openssl_linked` does, or defines `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL`.
+
 The examples of this page are built the same way: `example/Jamfile` names
 `/webcpp/crypto//crypto` in its project's requirements, and each example the
 libraries of its backends. The program of <<crypto-gcm>>, for instance, names

@@ -23,6 +23,15 @@ using cipher_type = crypto::ciphers::aes256<crypto::backends::ctaes>;
 
 namespace {
 
+// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
+// store: crypto wipes its own copies of keys this way, and the program wipes its own.
+void wipe(std::span<std::byte> secret) {
+    std::byte volatile* const bytes = secret.data();
+    for (std::size_t i = 0; i < secret.size(); ++i) {
+        bytes[i] = std::byte{0};
+    }
+}
+
 bool padding_is_zero(std::span<std::uint8_t const, 16> block) {
     return std::ranges::all_of(block.last<8>(), [](std::uint8_t b) { return b == 0; });
 }
@@ -37,6 +46,7 @@ int main() {
         key[i] = static_cast<std::uint8_t>(i);
     }
     auto cipher = cipher_type::make(key);
+    wipe(std::as_writable_bytes(std::span(key)));
     if (!cipher) {
         return 1;
     }

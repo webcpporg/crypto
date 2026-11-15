@@ -78,5 +78,6 @@ safe only because the nonce also depends on the key and the message, and the
 examples use zeros only to print fixed signatures.
 * `verify_ecdsa` refuses a high-S signature, as libsecp256k1 does:
 `normalize_ecdsa` gives the low-S form of a signature from a signer that does
-not enforce it, and makes it malleable on purpose
+not enforce it. A verifier that normalizes before verifying accepts both forms
+of a signature, so it must not rely on the signature's bytes being unique
 (link:https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki[BIP 146]).

@@ -31,6 +31,15 @@ namespace hash2 = boost::hash2;
 
 namespace {
 
+// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
+// store: crypto wipes its own copies of keys this way, and the program wipes its own.
+void wipe(std::span<std::byte> secret) {
+    std::byte volatile* const bytes = secret.data();
+    for (std::size_t i = 0; i < secret.size(); ++i) {
+        bytes[i] = std::byte{0};
+    }
+}
+
 std::span<std::uint8_t const> bytes_of(std::string_view text) {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
     return {reinterpret_cast<std::uint8_t const*>(text.data()), text.size()};
@@ -94,6 +103,8 @@ boost::system::result<secp256k1::keypair> generate_key() {
         }
         auto key = secp256k1::keypair::make(secret);
         if (key || key.error() != crypto::error::invalid_secret_key) {
+            // The key pair keeps its own copy, which it wipes; this one goes now.
+            wipe(std::as_writable_bytes(std::span(secret)));
             return key;
         }
     }

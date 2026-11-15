@@ -14,7 +14,7 @@ webcpp.targets native wasip2 wasip3 emscripten ;
 # the key pair tweaked and used again.
 webcpp.example schnorr_sign.cpp : <library>/third_party//secp256k1 ;
 
-# AES-256-GCM with the backend named, checked against NIST test case 14.
+# AES-256-GCM with the backend named, against the GCM spec's test case 14.
 # tag::aes256_gcm_bearssl[]
 webcpp.example aes256_gcm_bearssl.cpp : <library>/third_party//bearssl ;
 # end::aes256_gcm_bearssl[]

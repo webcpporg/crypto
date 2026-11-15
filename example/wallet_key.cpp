@@ -28,12 +28,12 @@ namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
 
-// A plain fill could be removed by the optimiser as a dead store; writing through a volatile
-// pointer cannot.
-void wipe(std::span<std::uint8_t> bytes) {
-    std::uint8_t volatile* const p = bytes.data();
-    for (std::size_t i = 0; i < bytes.size(); ++i) {
-        p[i] = 0;
+// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
+// store: crypto wipes its own copies of keys this way, and the program wipes its own.
+void wipe(std::span<std::byte> secret) {
+    std::byte volatile* const bytes = secret.data();
+    for (std::size_t i = 0; i < secret.size(); ++i) {
+        bytes[i] = std::byte{0};
     }
 }
 
@@ -87,12 +87,12 @@ int main() {
         return 1;
     }
     auto aead = crypto::ciphers::aes256_gcm::make(device_key);
-    wipe(device_key);
+    wipe(std::as_writable_bytes(std::span(device_key)));
     if (!aead) {
         return 1;
     }
     auto stored = secret;
-    wipe(secret);
+    wipe(std::as_writable_bytes(std::span(secret)));
     // "wallet v1" ties the ciphertext to its purpose and format version.
     auto const tag = aead->seal(iv, bytes_of("wallet v1"), stored);
     if (!tag) {
@@ -105,7 +105,7 @@ int main() {
         return 1;
     }
     auto restored = secp256k1::keypair::make(stored);
-    wipe(stored);
+    wipe(std::as_writable_bytes(std::span(stored)));
     if (!restored) {
         return 1;
     }

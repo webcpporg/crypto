@@ -20,8 +20,11 @@ key pair. Every buffer is the caller's.
 * *BearSSL and ctaes allocate nothing,* `make` included: the key schedule lives
 inside the object.
 * *OpenSSL's `make` allocates its cipher context through OpenSSL's own
-allocator,* outside the program's resource. A program that needs every
-allocation in its arena uses BearSSL.
+allocator,* outside the program's resource; the first `make` of a process also
+initialises OpenSSL. The test `allocation_openssl` counts and prints these
+allocations on each target at every run, and fails if a message allocates; the
+count depends on the target and on OpenSSL's build, so the page does not copy
+it. A program that needs every allocation in its arena uses BearSSL.
 * *Keys are wiped.* The key schedules that live inside crypto's objects
 (BearSSL's, ctaes's, libsecp256k1's key pair) are overwritten on destruction
 and on move by stores the optimiser cannot drop; OpenSSL wipes its own

@@ -16,11 +16,21 @@
 #include <cstdint>
 #include <cstdio>
 #include <memory_resource>
+#include <span>
 
 namespace crypto = webcpp::crypto;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
+
+// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
+// store: crypto wipes its own copies of keys this way, and the program wipes its own.
+void wipe(std::span<std::byte> secret) {
+    std::byte volatile* const bytes = secret.data();
+    for (std::size_t i = 0; i < secret.size(); ++i) {
+        bytes[i] = std::byte{0};
+    }
+}
 
 // tag::counting[]
 // Counts allocations and forwards them to the arena.
@@ -60,9 +70,12 @@ int main() {
                                               std::pmr::null_memory_resource());
     counting_resource counting(&arena);
 
+    // A demonstration secret, so that the output is the same on every run; a real one is drawn
+    // from random_device.
     std::array<std::uint8_t, 32> secret{};
     secret.fill(0x42);
     auto key = secp256k1::keypair::make(secret, &counting);
+    wipe(std::as_writable_bytes(std::span(secret)));
     if (!key) {
         return 1;
     }
@@ -81,11 +94,14 @@ int main() {
     // BearSSL's make and seal allocate nothing anywhere, which the library's counting tests
     // prove. The seal below never touches the arena, and the counter shows it.
     std::size_t const before = counting.allocations();
+    // A demonstration key and IV; a real program draws the key from random_device and never
+    // reuses an IV under it.
     std::array<std::uint8_t, 32> aead_key{};
     aead_key.fill(0x07);
     std::array<std::uint8_t, 12> const iv{};
     std::array<std::uint8_t, 16> data{};
     auto aead = crypto::ciphers::aes256_gcm::make(aead_key);
+    wipe(std::as_writable_bytes(std::span(aead_key)));
     if (!aead || !aead->seal(iv, {}, data)) {
         return 1;
     }

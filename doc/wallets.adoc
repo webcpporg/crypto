@@ -60,7 +60,9 @@ in a backup. Wipe every copy of the secret once the key pair is made.
 DER (link:https://github.com/bitcoin/bips/blob/master/bip-0066.mediawiki[BIP 66])
 over a hash the protocol defines
 (link:https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki[BIP 143]),
-in low-S form (link:https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki[BIP 146]).
+in low-S form, which Bitcoin nodes require to relay a transaction (a policy;
+link:https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki[BIP 146]
+proposed it as a consensus rule).
 
 *The idea.* The domain library computes the signature hash (SHA-256 twice over
 the preimage it serialized); crypto signs it, deterministically and in low-S
@@ -122,6 +124,7 @@ commitment, a derived key of a hierarchy, a blinded key. crypto checks the key
 and the tweak, and wipes the pair if the tweak gives no valid key; what the
 tweak means is the domain library's.
 
-*Mistakes to avoid.* A tweak is a secret's relative: anyone who knows the tweak
-and the tweaked secret key knows the original one, so both are kept as secrets.
+*Mistakes to avoid.* A Taproot tweak is computed from public data (the internal
+key and the Merkle root), so the tweaked secret key is as sensitive as the
+original: anyone who knows the tweak and either secret key knows the other.
 Check the domain library's tweak against BIP 341's published vectors.

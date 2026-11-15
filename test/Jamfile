@@ -258,3 +258,30 @@ crypto-run windows_h_after : windows_h_after_test.cpp
   : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
     <library>/third_party//ctaes <library>/third_party//secp256k1
   : native ;
+
+# The programs of the user's Jamfiles that the page shows, fixtures of
+# tools/test/crypto_jamfiles_test.py, compiled once each with their libraries,
+# so that the ordinary lanes and clang-tidy read the documentation's code; the
+# fixtures that must fail are left to that test.
+webcpp.compile doc_web_app : ../../../tools/test/fixtures/crypto_jamfiles/web/app.cpp
+  : <library>/third_party//bearssl ;
+webcpp.compile doc_server_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/server/app.cpp
+  : <library>/webcpp/crypto//openssl : native ;
+webcpp.compile doc_both_bearssl_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/both_bearssl_default/app.cpp
+  : <library>/webcpp/crypto//openssl <library>/third_party//bearssl
+    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL : native wasip2 wasip3 ;
+webcpp.compile doc_block : ../../../tools/test/fixtures/crypto_jamfiles/block/block.cpp
+  : <library>/third_party//ctaes ;
+webcpp.compile doc_encrypt_and_sign
+  : ../../../tools/test/fixtures/crypto_jamfiles/encrypt_and_sign/app.cpp
+  : <library>/third_party//bearssl <library>/third_party//secp256k1 ;
+webcpp.compile doc_openssl_linked
+  : ../../../tools/test/fixtures/crypto_jamfiles/openssl_linked/app.cpp
+  : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
+webcpp.compile doc_sign : ../../../tools/test/fixtures/crypto_jamfiles/sign/sign.cpp
+  : <library>/third_party//secp256k1 ;
+webcpp.compile doc_sign_small
+  : ../../../tools/test/fixtures/crypto_jamfiles/sign_small/sign.cpp
+  : <library>/third_party//secp256k1 <webcpp-secp256k1-tables>small ;

@@ -40,7 +40,7 @@ Three rules run through every chapter, each because its absence is how real
 programs were broken.
 
 * *Never write your own cryptographic primitive.* crypto writes none either:
-every cipher, mode and curve is a C library that has been audited and used for
+every cipher, mode and curve is a C library that has been reviewed and used for
 years. webcpp adds a uniform {cpp} interface on top, and the checks that the C
 interfaces leave to their caller.
 * *Every failure is a value.* Each operation returns

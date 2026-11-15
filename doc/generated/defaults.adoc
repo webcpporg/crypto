@@ -14,13 +14,13 @@
 |emscripten
 |BearSSL
 |BearSSL
-|the only AEAD backend there: webcpp does not build OpenSSL for Emscripten, and BearSSL's code is small
+|the only AEAD backend there: webcpp does not build OpenSSL for Emscripten; size and speed not measured yet
 |`+default_bearssl+`
 
 |wasip2, wasip3
 |BearSSL, with or without OpenSSL
 |BearSSL
-|small, and constant time by design, where OpenSSL is built no-asm
+|constant time by design (link:https://www.bearssl.org/constanttime.html[BearSSL, constant-time crypto]), where OpenSSL is built no-asm and its AES and GHASH are table-based (link:https://github.com/openssl/openssl/blob/master/INSTALL.md[OpenSSL's INSTALL.md, no-asm])
 |`+default_bearssl+`, `+default_both_wasm+`
 
 |wasip2, wasip3
@@ -32,13 +32,13 @@
 |native
 |OpenSSL, with or without BearSSL
 |OpenSSL
-|the fastest natively: assembly with the CPU's AES and carry-less multiplication instructions, on x86-64 and on ARMv8, where BearSSL has no ARM hardware path
+|OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 (link:https://github.com/openssl/openssl/tree/master/crypto/modes/asm[OpenSSL's AES and GHASH assembly for ARMv8 and x86-64]); BearSSL has them on x86 only (link:https://www.bearssl.org/support.html[BearSSL, the AES implementations it selects]); speed not measured yet
 |`+default_both+`
 
 |native
 |BearSSL and OpenSSL, with WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL
 |BearSSL
-|the program's choice: on MSVC, OpenSSL is built no-asm
+|the program's choice: on MSVC OpenSSL is built no-asm, and its AES and GHASH are table-based (link:https://github.com/openssl/openssl/blob/master/INSTALL.md[OpenSSL's INSTALL.md, no-asm])
 |`+default_selected+`
 
 |native

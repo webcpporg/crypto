@@ -13,29 +13,29 @@
 
 |BearSSL
 |by design: aes_ct64 and ghash_ctmul64, or AES-NI and PCLMUL where the CPU has them; on a 32-bit host a 64-bit multiplication may not be constant time, which BearSSL documents; link:https://www.bearssl.org/constanttime.html[BearSSL, constant-time crypto]; link:https://www.bearssl.org/ctmul.html[BearSSL, constant-time multiplications]
-|not measured yet (Task 20)
-|not measured yet (Task 20)
-|not measured yet (Task 20)
-|not measured yet (Task 20)
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
 
 |OpenSSL
-|with assembly (native Clang and GCC), AES-NI and carry-less multiplication where the CPU has them; built no-asm (MSVC, wasip2, wasip3), table-based AES and 4-bit GHASH, not constant time unless OpenSSL is built with OPENSSL_AES_CONST_TIME; link:https://github.com/openssl/openssl/blob/master/INSTALL.md[OpenSSL's INSTALL.md, no-asm]; link:https://github.com/openssl/openssl/blob/master/crypto/aes/aes_core.c[OpenSSL's crypto/aes/aes_core.c, OPENSSL_AES_CONST_TIME]
-|not measured yet (Task 20)
-|not measured yet (Task 20)
-|not measured yet (Task 20)
-|not measured yet (Task 20)
+|with assembly (native Clang and GCC), AES-NI and carry-less multiplication where the CPU has them; built no-asm (MSVC, wasip2, wasip3), table-based AES and 4-bit GHASH, neither constant time (OPENSSL_AES_CONST_TIME makes only the AES core constant time; GHASH stays table-based); link:https://github.com/openssl/openssl/blob/master/INSTALL.md[OpenSSL's INSTALL.md, no-asm]; link:https://github.com/openssl/openssl/blob/master/crypto/aes/aes_core.c[OpenSSL's crypto/aes/aes_core.c, OPENSSL_AES_CONST_TIME]
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
 
 |ctaes
 |by design: bitsliced, no table and no branch on secret data; link:https://github.com/bitcoin/bitcoin/tree/master/src/crypto/ctaes[ctaes, constant-time AES]
-|not measured yet (Task 20)
-|not measured yet (Task 20)
-|not measured yet (Task 20)
-|not measured yet (Task 20)
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
 
 |libsecp256k1
-|by design: signing, key generation and ECDH are constant time and constant memory access; link:https://github.com/bitcoin-core/secp256k1#readme[libsecp256k1's README]
-|not measured yet (Task 20)
-|not measured yet (Task 20)
-|not measured yet (Task 20)
-|not measured yet (Task 20)
+|by design: signing and key generation are constant time and constant memory access; link:https://github.com/bitcoin-core/secp256k1#readme[libsecp256k1's README]
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
 |===

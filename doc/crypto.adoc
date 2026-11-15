@@ -16,7 +16,7 @@ crypto gives a {cpp}20 program the cryptographic primitives that Boost does not
 provide, on every target webcpp has: native (Linux, macOS, Windows with MSVC),
 wasip2, wasip3 and Emscripten. It is one of the libraries of
 https://github.com/webcpporg/webcpp[webcpp]. The algorithms are those of
-audited C libraries, BearSSL, OpenSSL, ctaes and libsecp256k1, each a backend
+widely used, reviewed C libraries, BearSSL, OpenSSL, ctaes and libsecp256k1, each a backend
 that the program names in its own Jamfile.
 
 The page is written for two readers at once: a developer who knows little

@@ -9,6 +9,9 @@
         "rfc5647": ["RFC 5647, AES-GCM for SSH", "https://www.rfc-editor.org/rfc/rfc5647"],
         "rfc4106": ["RFC 4106, GCM in IPsec ESP", "https://www.rfc-editor.org/rfc/rfc4106"],
         "rfc7714": ["RFC 7714, AES-GCM for SRTP", "https://www.rfc-editor.org/rfc/rfc7714"],
+        "rfc8827": ["RFC 8827, WebRTC security architecture", "https://www.rfc-editor.org/rfc/rfc8827"],
+        "bearssl-aes": ["BearSSL, the AES implementations it selects", "https://www.bearssl.org/support.html"],
+        "openssl-armv8": ["OpenSSL's AES and GHASH assembly for ARMv8 and x86-64", "https://github.com/openssl/openssl/tree/master/crypto/modes/asm"],
         "webcrypto": ["W3C Web Cryptography API", "https://www.w3.org/TR/WebCryptoAPI/"],
         "chromium-aes192": ["Chromium's WebCrypto refuses 192-bit AES keys", "https://chromium.googlesource.com/chromium/src/+/refs/heads/main/components/webcrypto/status.cc"],
         "joux": ["A. Joux, Authentication Failures in NIST version of GCM, 2006", "https://csrc.nist.gov/csrc/media/projects/block-cipher-techniques/documents/bcm/comments/800-38-series-drafts/gcm/joux_comments.pdf"],
@@ -74,7 +77,7 @@
             "licence": "Apache-2.0",
             "own_api": "<openssl/*.h>",
             "allocation": "make allocates the cipher's context through OpenSSL's own allocator, outside the program's resource; a message allocates nothing after make",
-            "constant_time": "with assembly (native Clang and GCC), AES-NI and carry-less multiplication where the CPU has them; built no-asm (MSVC, wasip2, wasip3), table-based AES and 4-bit GHASH, not constant time unless OpenSSL is built with OPENSSL_AES_CONST_TIME",
+            "constant_time": "with assembly (native Clang and GCC), AES-NI and carry-less multiplication where the CPU has them; built no-asm (MSVC, wasip2, wasip3), table-based AES and 4-bit GHASH, neither constant time (OPENSSL_AES_CONST_TIME makes only the AES core constant time; GHASH stays table-based)",
             "constant_time_sources": ["openssl-install", "openssl-aes-core"]
         },
         "ctaes": {
@@ -96,7 +99,7 @@
             "licence": "MIT",
             "own_api": "<secp256k1.h> and its modules",
             "allocation": "keypair::make allocates the signing context, once, in the std::pmr::memory_resource it is given; nothing else allocates",
-            "constant_time": "by design: signing, key generation and ECDH are constant time and constant memory access",
+            "constant_time": "by design: signing and key generation are constant time and constant memory access",
             "constant_time_sources": ["libsecp256k1"]
         },
         "system": {
@@ -125,6 +128,7 @@
     "operations": [
         {
             "id": "random_device",
+            "functions": ["fill", "operator()", "min", "max", "entropy"],
             "namespace": "root",
             "api": "random_device",
             "header": "<webcpp/crypto/random_device.hpp>",
@@ -134,6 +138,7 @@
         },
         {
             "id": "equal",
+            "functions": ["equal"],
             "namespace": "root",
             "api": "equal",
             "header": "<webcpp/crypto/equal.hpp>",
@@ -143,6 +148,7 @@
         },
         {
             "id": "error",
+            "functions": ["error_category", "make_error_code", "message_of"],
             "namespace": "root",
             "api": "error",
             "header": "<webcpp/crypto/error.hpp>",
@@ -152,6 +158,7 @@
         },
         {
             "id": "aes_block",
+            "functions": ["make", "encrypt", "decrypt"],
             "namespace": "ciphers",
             "api": "ciphers::aes128, aes192, aes256",
             "header": "<webcpp/crypto/ciphers/aes.hpp>",
@@ -165,6 +172,7 @@
         },
         {
             "id": "gcm",
+            "functions": ["make", "seal", "open", "begin_seal", "update", "result"],
             "namespace": "ciphers",
             "api": "ciphers::gcm, aes128_gcm, aes256_gcm",
             "header": "<webcpp/crypto/ciphers/gcm.hpp>, <webcpp/crypto/ciphers/aes256_gcm.hpp>",
@@ -178,6 +186,7 @@
         },
         {
             "id": "keypair",
+            "functions": ["make", "xonly_public_key", "public_key", "sign_schnorr", "sign_ecdsa", "ecdh", "tweak_xonly"],
             "namespace": "curves",
             "api": "curves::secp256k1::keypair",
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
@@ -187,6 +196,7 @@
         },
         {
             "id": "verify",
+            "functions": ["verify_schnorr", "verify_ecdsa"],
             "namespace": "curves",
             "api": "curves::secp256k1::verify_schnorr, verify_ecdsa",
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
@@ -196,6 +206,7 @@
         },
         {
             "id": "encodings",
+            "functions": ["to_der", "from_der", "normalize_ecdsa"],
             "namespace": "curves",
             "api": "curves::secp256k1::to_der, from_der, normalize_ecdsa",
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
@@ -205,6 +216,8 @@
         },
         {
             "id": "tweak",
+            "free": true,
+            "functions": ["tweak_xonly"],
             "namespace": "curves",
             "api": "curves::secp256k1::tweak_xonly",
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
@@ -218,11 +231,11 @@
         "refused": "refused at compile time"
     },
     "defaults": [
-        {"target": "emscripten", "linked": "BearSSL", "default": "bearssl", "tests": ["default_bearssl"], "why": "the only AEAD backend there: webcpp does not build OpenSSL for Emscripten, and BearSSL's code is small"},
-        {"target": "wasip2, wasip3", "linked": "BearSSL, with or without OpenSSL", "default": "bearssl", "tests": ["default_bearssl", "default_both_wasm"], "why": "small, and constant time by design, where OpenSSL is built no-asm"},
+        {"target": "emscripten", "linked": "BearSSL", "default": "bearssl", "tests": ["default_bearssl"], "why": "the only AEAD backend there: webcpp does not build OpenSSL for Emscripten; size and speed not measured yet"},
+        {"target": "wasip2, wasip3", "linked": "BearSSL, with or without OpenSSL", "default": "bearssl", "tests": ["default_bearssl", "default_both_wasm"], "why": "constant time by design ({bearssl-ct}), where OpenSSL is built no-asm and its AES and GHASH are table-based ({openssl-install})"},
         {"target": "wasip2, wasip3", "linked": "BearSSL and OpenSSL, with WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL", "default": "openssl", "tests": ["default_openssl_wasm"], "why": "the program's choice"},
-        {"target": "native", "linked": "OpenSSL, with or without BearSSL", "default": "openssl", "tests": ["default_both"], "why": "the fastest natively: assembly with the CPU's AES and carry-less multiplication instructions, on x86-64 and on ARMv8, where BearSSL has no ARM hardware path"},
-        {"target": "native", "linked": "BearSSL and OpenSSL, with WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL", "default": "bearssl", "tests": ["default_selected"], "why": "the program's choice: on MSVC, OpenSSL is built no-asm"},
+        {"target": "native", "linked": "OpenSSL, with or without BearSSL", "default": "openssl", "tests": ["default_both"], "why": "OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 ({openssl-armv8}); BearSSL has them on x86 only ({bearssl-aes}); speed not measured yet"},
+        {"target": "native", "linked": "BearSSL and OpenSSL, with WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL", "default": "bearssl", "tests": ["default_selected"], "why": "the program's choice: on MSVC OpenSSL is built no-asm, and its AES and GHASH are table-based ({openssl-install})"},
         {"target": "native", "linked": "BearSSL alone", "default": "bearssl", "tests": ["default_bearssl"], "why": "the backend that is linked"}
     ],
     "namespaces": {
@@ -239,15 +252,15 @@
             "title": "webcpp::crypto::ciphers",
             "columns": ["Algorithm", "AEAD", "Key", "Nonce (IV)", "Nonce misuse", "Speed, with and without hardware support", "Constant time, by design", "Constant time, measured", "Standards", "Where it is used", "Browsers' WebCrypto", "Choose it when"],
             "rows": [
-                ["`gcm`, `aes128_gcm`, `aes256_gcm`: AES-GCM", "yes", "16, 24 or 32 bytes", "1 to 128 bytes; 12 recommended", "not resistant: a repeated IV under one key reveals the plaintexts' XOR and lets tags be forged ({joux}, {nonce-reuse})", "not measured yet (Task 22)", "BearSSL and OpenSSL with assembly: yes; OpenSSL no-asm (MSVC, wasip2, wasip3): no", "not measured yet (Task 20)", "{sp800-38d}", "TLS 1.3 ({rfc8446}), SSH ({rfc5647}), IPsec ({rfc4106}), SRTP, which carries WebRTC's media ({rfc7714})", "yes, with 16- or 32-byte keys ({webcrypto}; {chromium-aes192})", "you encrypt a message, a record or a file: secrecy and integrity together"],
-                ["`aes128`, `aes192`, `aes256`: the AES block cipher", "no", "16, 24 or 32 bytes", "none", "not applicable: equal blocks give equal ciphertext", "not measured yet (Task 22)", "ctaes: yes; OpenSSL with assembly: yes; OpenSSL no-asm: no", "not measured yet (Task 20)", "{fips197}", "inside every AES mode", "no raw block cipher ({webcrypto})", "you need one keyed permutation of a 16-byte block, such as an opaque identifier; for data, use AES-GCM"]
+                ["`gcm`, `aes128_gcm`, `aes256_gcm`: AES-GCM", "yes", "16, 24 or 32 bytes", "1 to 128 bytes; 12 recommended", "not resistant: a repeated IV under one key reveals the plaintexts' XOR and lets tags be forged ({joux}, {nonce-reuse})", "not measured yet", "BearSSL and OpenSSL with assembly: yes; OpenSSL no-asm (MSVC, wasip2, wasip3): no", "not measured yet", "{sp800-38d}", "TLS 1.3 ({rfc8446}), SSH ({rfc5647}), IPsec ({rfc4106}), SRTP ({rfc7714}), optional for WebRTC's media ({rfc8827})", "yes, with 16- or 32-byte keys ({webcrypto}; {chromium-aes192})", "you encrypt a message, a record or a file: secrecy and integrity together"],
+                ["`aes128`, `aes192`, `aes256`: the AES block cipher", "no", "16, 24 or 32 bytes", "none", "not applicable: equal blocks give equal ciphertext", "not measured yet", "ctaes: yes; OpenSSL with assembly: yes; OpenSSL no-asm: no", "not measured yet", "{fips197}", "inside every AES mode", "no raw block cipher ({webcrypto})", "you need one keyed permutation of a 16-byte block, such as an opaque identifier; for data, use AES-GCM"]
             ]
         },
         "curves": {
             "title": "webcpp::crypto::curves",
             "columns": ["Curve", "What it does", "Security level", "Key sizes", "Signature sizes", "Speed", "Constant time, measured", "Standards", "Ecosystems that require it", "Browsers' WebCrypto", "Choose it for compatibility with"],
             "rows": [
-                ["`secp256k1`", "BIP 340 Schnorr and ECDSA signatures, ECDH, the x-only tweak", "about 128 bits ({sec2})", "secret 32 bytes; public 33 bytes compressed, 32 bytes x-only", "64 bytes; ECDSA in DER up to 72", "not measured yet (Task 22)", "not measured yet (Task 20)", "{sec2}, {bip340}, {rfc6979}", "Bitcoin ({bip340}), Ethereum ({ethereum}), Nostr ({nip01})", "no: WebCrypto's curves are the NIST ones ({webcrypto})", "Bitcoin, Ethereum and Nostr keys and signatures"]
+                ["`secp256k1`", "BIP 340 Schnorr and ECDSA signatures, ECDH, the x-only tweak", "about 128 bits ({sec2})", "secret 32 bytes; public 33 bytes compressed, 32 bytes x-only", "64 bytes; ECDSA in DER up to 72", "not measured yet", "not measured yet", "{sec2}, {bip340}, {rfc6979}", "Bitcoin ({bip340}), Ethereum ({ethereum}), Nostr ({nip01})", "no: WebCrypto offers P-256, P-384, P-521, Ed25519 and X25519, not secp256k1 ({webcrypto})", "Bitcoin, Ethereum and Nostr keys and signatures"]
             ]
         }
     },
@@ -271,6 +284,9 @@
         {"need": "Use P-256 (passkeys, JWT's ES256), Ed25519 or X25519", "namespace": "none in this version", "api": "none: secp256k1 keys and signatures do not interoperate with these curves", "backend": "none", "jamfile": "none", "example": "", "section": "crypto-curves"}
     ],
     "fixtures": {
+        "web": "A web application: AES-256-GCM on BearSSL, the default on every target.",
+        "server": "A server, natively: the same program with OpenSSL, the default natively when linked.",
+        "both_bearssl_default": "Both backends linked, BearSSL chosen as the default with a define; the same program.",
         "block": "The AES block cipher on ctaes: the FIPS 197 block encrypted and decrypted again.",
         "encrypt_and_sign": "Two backends in one program: AES-256-GCM on the default backend and a BIP 340 signature.",
         "openssl_linked": "OpenSSL, built from source, as the default backend natively and on WASI.",

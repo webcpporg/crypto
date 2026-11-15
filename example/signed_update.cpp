@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <span>
@@ -27,6 +28,15 @@ namespace crypto = webcpp::crypto;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
+
+// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
+// store: crypto wipes its own copies of keys this way, and the program wipes its own.
+void wipe(std::span<std::byte> secret) {
+    std::byte volatile* const bytes = secret.data();
+    for (std::size_t i = 0; i < secret.size(); ++i) {
+        bytes[i] = std::byte{0};
+    }
+}
 
 std::array<std::uint8_t, 32> sha256(std::string_view text) {
     boost::hash2::sha2_256 hash;
@@ -47,6 +57,8 @@ boost::system::result<secp256k1::keypair> generate_key() {
         }
         auto key = secp256k1::keypair::make(secret);
         if (key || key.error() != crypto::error::invalid_secret_key) {
+            // The key pair keeps its own copy, which it wipes; this one goes now.
+            wipe(std::as_writable_bytes(std::span(secret)));
             return key;
         }
     }

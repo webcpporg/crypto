@@ -24,7 +24,10 @@ include::generated/matrix.adoc[]
 [#crypto-backends-defaults]
 === The default backend per target
 
-The rule is the smallest binary on the web and the fastest code on servers.
+The rule, and its reasons, are in the table: on WebAssembly BearSSL, the only
+AEAD backend on Emscripten and constant time by design where OpenSSL is built
+without assembly; natively OpenSSL, whose assembly uses the CPU's AES
+instructions on x86-64 and ARMv8. Sizes and speeds are not measured yet.
 It applies to `aes128_gcm`, `aes256_gcm` and `aes256<>`; libsecp256k1 and ctaes
 are the only backends of what they implement.
 
@@ -46,8 +49,10 @@ state are global symbols, so webcpp's build is never linked with another copy.
 
 libsecp256k1's precomputed tables are a size knob, the feature
 `webcpp-secp256k1-tables`: `auto`, the default, small on Emscripten and large
-elsewhere; `small`; or `large`. The small tables make a program smaller and its
-verifications slower; the fixtures `sign` and `sign_small` of
+elsewhere; `small`; or `large`. libsecp256k1 documents the trade: a larger window
+means a larger precomputed table and faster verification
+(link:https://github.com/bitcoin-core/secp256k1/blob/master/configure.ac[configure.ac]);
+the sizes and speeds of webcpp's two settings are not measured yet; the fixtures `sign` and `sign_small` of
 <<crypto-jamfile-cases>> build both. The tables enter the canary, so a program
 cannot be linked with tables other than those it was compiled for. With MSVC
 the static library needs `SECP256K1_STATIC`, which the target's usage
@@ -61,7 +66,7 @@ its memory accesses do not depend on secret data; otherwise a timing attack
 can recover the key (link:https://en.wikipedia.org/wiki/Timing_attack[Wikipedia];
 link:https://www.bearssl.org/constanttime.html[BearSSL's explanation]). Each
 backend's design is stated by its library; crypto's own measurement of the code
-as webcpp compiles it, per target, is Task 20's, not taken in this version.
+as webcpp compiles it, per target, is not taken in this version.
 
 include::generated/constant-time.adoc[]
 
@@ -69,7 +74,7 @@ include::generated/constant-time.adoc[]
 === Size and speed
 
 What each operation adds to a program, per target, and how fast it runs, are
-measured by Task 22's lanes, which this version does not have. Until they run,
+not measured in this version. Until they are,
 the table says so rather than repeat numbers no lane of this version measured.
 
 include::generated/sizes.adoc[]

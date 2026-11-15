@@ -1,5 +1,4 @@
 incremental seal opened whole: 3 chunks
-record 0 ok
-record 1 ok
-record 2 ok
+3 records opened, the last as the last
 record 2 as record 1: authentication_failed
+stream cut after record 1: authentication_failed

@@ -9,14 +9,15 @@
 
 *Authenticated encryption* keeps data secret and proves it unchanged with one
 key (link:https://en.wikipedia.org/wiki/Authenticated_encryption[Wikipedia]).
-Encryption alone does not: flipping a bit of a ciphertext flips the same bit of
-the plaintext, and the receiver cannot tell; a forged "amount" field in an
+Encryption alone does not: with counter mode alone, flipping a bit of a
+ciphertext flips the same bit of the plaintext, and the receiver cannot tell; a forged "amount" field in an
 encrypted cookie goes through. *AES-GCM* (Galois/Counter Mode) encrypts with AES
 in counter mode and computes a 16-byte *tag* over the ciphertext and over
 *additional data* that travels in clear
 (link:https://en.wikipedia.org/wiki/Galois/Counter_Mode[Wikipedia];
 link:https://csrc.nist.gov/pubs/sp/800/38/d/final[NIST SP 800-38D]). Opening
-recomputes the tag and decrypts only if it matches. It is the mandatory cipher
+recomputes the tag and returns the plaintext only if it matches; on a mismatch
+the data is zeroed. It is the mandatory cipher
 of TLS 1.3 (link:https://www.rfc-editor.org/rfc/rfc8446#section-9.1[RFC 8446])
 and the AEAD of browsers' WebCrypto
 (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]).
@@ -141,8 +142,12 @@ it reads a secret byte:
 ==== A warning for ARM servers
 
 Natively without OpenSSL, the default is BearSSL, which has AES-NI code for x86
-but none for ARM's AES instructions: on an ARM server it runs its portable
-constant-time code, many times slower than OpenSSL there. A server on ARM names
+but none for ARM's AES instructions
+(link:https://www.bearssl.org/support.html[BearSSL]): on an ARM server it runs
+its portable constant-time code, while OpenSSL's assembly uses ARMv8's AES and
+polynomial multiplication instructions
+(link:https://github.com/openssl/openssl/tree/master/crypto/modes/asm[OpenSSL]).
+How much slower is not measured yet. A server on ARM names
 `/webcpp/crypto//openssl` (<<crypto-backends-defaults>>).
 
 [#crypto-gcm-incremental]
@@ -160,9 +165,12 @@ include::{examples}/sealed_records.cpp[tag=incremental,indent=0]
 ----
 
 What is sealed in pieces is opened whole. To open a large file piece by piece,
-split it into *records*, each sealed alone with its own IV and with its number
-in the additional data, so that records cannot be reordered, dropped or
-replayed in another place without failing:
+split it into *records*, each sealed alone with its own IV, and with two things
+in its additional data: its number, so that a record cannot be reordered or
+replayed at another position, and a flag that is 1 for the last record and 0
+for every other, so that a stream cut after any record does not open: the
+receiver opens the last record it got as the last, and a record that was not
+sealed as the last fails.
 
 [source,cpp]
 ----
@@ -174,6 +182,6 @@ include::{examples}/sealed_records.cpp[tag=records,indent=0]
 include::{examples}/sealed_records.expected[]
 ----
 
-*Pitfalls.* Put the record number and the last record's flag in the additional
-data: without them an attacker can cut a file short at a record boundary. Never
-send the pieces of an abandoned message.
+*Pitfalls.* Without the last-record flag, an attacker who drops the final
+records leaves a stream that opens record by record, shorter than the one sent.
+Never send the pieces of an abandoned message.

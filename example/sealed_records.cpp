@@ -5,8 +5,9 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Seals data in pieces two ways: one message in chunks with the incremental seal, and a stream
-// as separate records, each bound to its position. Binding the record number stops an attacker
-// from reordering, replaying or dropping records without being noticed.
+// as separate records, each bound to its position and to whether it is the last. The number in
+// the additional data stops records from being reordered or replayed at another position, and
+// the last-record flag stops a stream from being cut short without being noticed.
 // tag::program[]
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
@@ -14,12 +15,15 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
 
+#include <boost/system/result.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -28,13 +32,22 @@ using aead_type = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends:
 
 namespace {
 
+// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
+// store: crypto wipes its own copies of keys this way, and the program wipes its own.
+void wipe(std::span<std::byte> secret) {
+    std::byte volatile* const bytes = secret.data();
+    for (std::size_t i = 0; i < secret.size(); ++i) {
+        bytes[i] = std::byte{0};
+    }
+}
+
 // A record sealed alone: its bytes and its tag.
 struct record {
     std::vector<std::uint8_t> data;
     std::array<std::uint8_t, 16> tag{};
 };
 
-// The record number, big-endian: it is both the IV's last 8 bytes and the additional data.
+// The record number, big-endian: the IV's last 8 bytes, and the additional data's first 8.
 std::array<std::uint8_t, 8> number_bytes(std::uint64_t number) {
     std::array<std::uint8_t, 8> out{};
     for (std::size_t i = 0; i < out.size(); ++i) {
@@ -51,6 +64,32 @@ std::array<std::uint8_t, 12> counter_iv(std::uint64_t number) {
     return iv;
 }
 
+// The additional data of a record: its number, then 1 for the last record of the stream and 0
+// for every other, so that a stream cut after any record fails to open.
+std::array<std::uint8_t, 9> record_data(std::uint64_t number, bool last) {
+    std::array<std::uint8_t, 9> out{};
+    std::ranges::copy(number_bytes(number), out.begin());
+    out[8] = last ? 1 : 0;
+    return out;
+}
+
+// Opens the records received, in order, the last of them as the last of the stream; the first
+// failure ends the stream, with its error.
+boost::system::result<std::string> open_stream(aead_type& aead, std::span<record const> received) {
+    std::string text;
+    for (std::uint64_t number = 0; number < received.size(); ++number) {
+        auto data = received[number].data;
+        bool const last = number + 1 == received.size();
+        auto const opened =
+            aead.open(counter_iv(number), record_data(number, last), data, received[number].tag);
+        if (!opened) {
+            return opened.error();
+        }
+        text.append(data.begin(), data.end());
+    }
+    return text;
+}
+
 bool incremental() {
     std::array<std::uint8_t, 32> key{};
     std::array<std::uint8_t, 12> iv{};
@@ -58,6 +97,7 @@ bool incremental() {
         return false;
     }
     auto aead = aead_type::make(key);
+    wipe(std::as_writable_bytes(std::span(key)));
     if (!aead) {
         return false;
     }
@@ -99,6 +139,7 @@ bool records() {
         return false;
     }
     auto aead = aead_type::make(key);
+    wipe(std::as_writable_bytes(std::span(key)));
     if (!aead) {
         return false;
     }
@@ -111,7 +152,8 @@ bool records() {
         auto const part = message.substr(number * piece, piece);
         record made;
         made.data.assign(part.begin(), part.end());
-        auto const tag = aead->seal(counter_iv(number), number_bytes(number), made.data);
+        bool const last = number == 2;
+        auto const tag = aead->seal(counter_iv(number), record_data(number, last), made.data);
         if (!tag) {
             return false;
         }
@@ -119,23 +161,26 @@ bool records() {
         sent.push_back(std::move(made));
     }
 
-    std::string received;
-    for (std::uint64_t number = 0; number < 3; ++number) {
-        auto data = sent[number].data;
-        if (!aead->open(counter_iv(number), number_bytes(number), data, sent[number].tag)) {
-            return false;
-        }
-        received.append(data.begin(), data.end());
-        std::printf("record %llu ok\n", static_cast<unsigned long long>(number));
+    // The whole stream opens, record by record.
+    auto const whole = open_stream(*aead, sent);
+    if (!whole || *whole != message) {
+        return false;
     }
-    // A record presented at another position fails: its number is part of what is authenticated.
-    auto replayed = sent[2].data;
-    auto const refused = aead->open(counter_iv(1), number_bytes(1), replayed, sent[2].tag);
+    std::printf("3 records opened, the last as the last\n");
+
+    // A record presented at another position fails: its number is authenticated.
+    auto moved = sent[2].data;
+    auto const reordered = aead->open(counter_iv(1), record_data(1, false), moved, sent[2].tag);
+
+    // A stream cut after record 1 fails: record 1 was not sealed as the last.
+    auto const truncated = open_stream(*aead, std::span<record const>(sent).first(2));
     // end::records[]
-    if (received != message || refused || refused.error() != crypto::error::authentication_failed) {
+    if (reordered || reordered.error() != crypto::error::authentication_failed || truncated ||
+        truncated.error() != crypto::error::authentication_failed) {
         return false;
     }
     std::printf("record 2 as record 1: authentication_failed\n");
+    std::printf("stream cut after record 1: authentication_failed\n");
     return true;
 }
 

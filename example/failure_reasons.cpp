@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <span>
@@ -25,6 +26,15 @@ using aead_type = crypto::ciphers::aes256_gcm;
 
 namespace {
 
+// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
+// store: crypto wipes its own copies of keys this way, and the program wipes its own.
+void wipe(std::span<std::byte> secret) {
+    std::byte volatile* const bytes = secret.data();
+    for (std::size_t i = 0; i < secret.size(); ++i) {
+        bytes[i] = std::byte{0};
+    }
+}
+
 bool all_zero(std::span<std::uint8_t const> bytes) {
     return std::ranges::all_of(bytes, [](std::uint8_t b) { return b == 0; });
 }
@@ -32,6 +42,8 @@ bool all_zero(std::span<std::uint8_t const> bytes) {
 }  // namespace
 
 int main() {
+    // A demonstration key and IV, so that the output is the same on every run; a real program
+    // draws the key from random_device and never reuses an IV under it.
     std::array<std::uint8_t, 32> key{};
     key.fill(0x2a);
     std::array<std::uint8_t, 12> iv{};
@@ -41,6 +53,7 @@ int main() {
     std::ranges::copy(text, sealed.begin());
 
     auto aead = aead_type::make(key);
+    wipe(std::as_writable_bytes(std::span(key)));
     if (!aead) {
         return 1;
     }

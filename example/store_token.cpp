@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <span>
@@ -24,6 +25,15 @@ namespace crypto = webcpp::crypto;
 using aead_type = crypto::ciphers::aes256_gcm;
 
 namespace {
+
+// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
+// store: crypto wipes its own copies of keys this way, and the program wipes its own.
+void wipe(std::span<std::byte> secret) {
+    std::byte volatile* const bytes = secret.data();
+    for (std::size_t i = 0; i < secret.size(); ++i) {
+        bytes[i] = std::byte{0};
+    }
+}
 
 // What the database holds: the IV and the tag are not secret, only the key is.
 struct row {
@@ -48,6 +58,8 @@ int main() {
         return 1;
     }
     auto aead = aead_type::make(storage_key);
+    // The object keeps its own key schedule, which it wipes; this copy goes now.
+    wipe(std::as_writable_bytes(std::span(storage_key)));
     if (!aead) {
         return 1;
     }

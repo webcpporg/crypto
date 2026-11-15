@@ -11,6 +11,7 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <span>
@@ -18,6 +19,15 @@
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
+
+// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
+// store: crypto wipes its own copies of keys this way, and the program wipes its own.
+void wipe(std::span<std::byte> secret) {
+    std::byte volatile* const bytes = secret.data();
+    for (std::size_t i = 0; i < secret.size(); ++i) {
+        bytes[i] = std::byte{0};
+    }
+}
 
 void print(char const* name, std::span<std::uint8_t const> bytes) {
     std::printf("%s ", name);
@@ -43,10 +53,13 @@ bool sign_and_verify(secp256k1::keypair const& key, std::span<std::uint8_t const
 }  // namespace
 
 int main() {
+    // BIP340's first test vector key, public on purpose; a real secret is drawn from
+    // random_device.
     std::array<std::uint8_t, 32> secret{};
     secret.back() = 3;
     std::array<std::uint8_t, 32> const message{};
     auto key = secp256k1::keypair::make(secret);
+    wipe(std::as_writable_bytes(std::span(secret)));
     if (!key || !sign_and_verify(*key, message)) {
         return 1;
     }

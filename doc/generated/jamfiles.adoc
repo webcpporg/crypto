@@ -16,14 +16,29 @@ a|
 
 [source,bash]
 ----
-exe block : block.cpp /webcpp/crypto//crypto /third_party//ctaes ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/block/Jamfile[tag=jamfile]
 ----
 |native, wasip2, wasip3, emscripten
 a|
 
 [listing]
 ----
-ctaes aes256 ok
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/block/block.outcome[tag=output]
+----
+
+|`+both_bearssl_default+`: Both backends linked, BearSSL chosen as the default with a define; the same program.
+a|
+
+[source,bash]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_default/Jamfile[tag=jamfile]
+----
+|native, wasip2, wasip3
+a|
+
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_default/both_bearssl_default.outcome[tag=output]
 ----
 
 |`+encrypt_and_sign+`: Two backends in one program: AES-256-GCM on the default backend and a BIP 340 signature.
@@ -31,15 +46,14 @@ a|
 
 [source,bash]
 ----
-exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl /third_party//secp256k1 ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/encrypt_and_sign/Jamfile[tag=jamfile]
 ----
 |native, wasip2, wasip3, emscripten
 a|
 
 [listing]
 ----
-aes256_gcm ok backend=bearssl
-schnorr ok
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/encrypt_and_sign/encrypt_and_sign.outcome[tag=output]
 ----
 
 |`+openssl_linked+`: OpenSSL, built from source, as the default backend natively and on WASI.
@@ -47,15 +61,29 @@ a|
 
 [source,bash]
 ----
-exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//openssl ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_linked/Jamfile[tag=jamfile]
 ----
 |native, wasip2, wasip3
 a|
 
 [listing]
 ----
-HAS_OPENSSL=1
-tag 530f8afbc74536b9a963b4f1c4cb738b
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_linked/openssl_linked.outcome[tag=output]
+----
+
+|`+server+`: A server, natively: the same program with OpenSSL, the default natively when linked.
+a|
+
+[source,bash]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/server/Jamfile[tag=jamfile]
+----
+|native
+a|
+
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/server/server.outcome[tag=output]
 ----
 
 |`+sign+`: A BIP 340 signature with libsecp256k1's default tables.
@@ -63,14 +91,14 @@ a|
 
 [source,bash]
 ----
-exe sign : sign.cpp /webcpp/crypto//crypto /third_party//secp256k1 ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sign/Jamfile[tag=jamfile]
 ----
 |native, wasip2, wasip3, emscripten
 a|
 
 [listing]
 ----
-schnorr ok
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sign/sign.outcome[tag=output]
 ----
 
 |`+sign_small+`: The same program with libsecp256k1's small tables, smaller and slower to verify.
@@ -78,14 +106,28 @@ a|
 
 [source,bash]
 ----
-exe sign : sign.cpp /webcpp/crypto//crypto /third_party//secp256k1
-  : <webcpp-secp256k1-tables>small ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sign_small/Jamfile[tag=jamfile]
 ----
 |native, wasip2, wasip3, emscripten
 a|
 
 [listing]
 ----
-schnorr ok
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sign_small/sign_small.outcome[tag=output]
+----
+
+|`+web+`: A web application: AES-256-GCM on BearSSL, the default on every target.
+a|
+
+[source,bash]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/web/Jamfile[tag=jamfile]
+----
+|native, wasip2, wasip3, emscripten
+a|
+
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/web/web.outcome[tag=output]
 ----
 |===

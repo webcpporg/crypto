@@ -135,24 +135,13 @@ a|
 
 [source,bash]
 ----
-exe app : app.cpp /webcpp/crypto//crypto
-  : <define>WEBCPP_CRYPTO_HAS_CTAES=1 <include>../../third_party/libs/bitcoin/src/crypto/ctaes ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_ctaes_missing/Jamfile[tag=jamfile]
 ----
 a|
 
 [listing]
 ----
-native-darwin: Undefined symbols for architecture
-native-darwin: _webcpp_crypto_ctaes_9be056a_default__add_third_party_ctaes_to_your_link
-native-linux: webcpp_crypto_ctaes_9be056a_default__add_third_party_ctaes_to_your_link
-native-linux: undefined reference to `webcpp_crypto_ctaes_9be056a_default__add_third_party_ctaes_to_your_link'
-wasip2: wasm-ld: error:
-wasip2: undefined symbol: webcpp_crypto_ctaes_9be056a_default__add_third_party_ctaes_to_your_link
-wasip3: wasm-ld: error:
-wasip3: undefined symbol: webcpp_crypto_ctaes_9be056a_default__add_third_party_ctaes_to_your_link
-emscripten: wasm-ld: error:
-emscripten: undefined symbol: webcpp_crypto_ctaes_9be056a_default__add_third_party_ctaes_to_your_link
-emscripten: em++: error:
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_ctaes_missing/canary_ctaes_missing.outcome[tag=messages]
 ----
 |Link /third_party//ctaes.
 
@@ -161,24 +150,13 @@ a|
 
 [source,bash]
 ----
-exe app : app.cpp /webcpp/crypto//crypto
-  : <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 <include>../../third_party/libs/bearssl/inc ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_missing/Jamfile[tag=jamfile]
 ----
 a|
 
 [listing]
 ----
-native-darwin: Undefined symbols for architecture
-native-darwin: _webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link
-native-linux: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link
-native-linux: undefined reference to `webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link'
-wasip2: wasm-ld: error:
-wasip2: undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link
-wasip3: wasm-ld: error:
-wasip3: undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link
-emscripten: wasm-ld: error:
-emscripten: undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link
-emscripten: em++: error:
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_missing/canary_missing.outcome[tag=messages]
 ----
 |Link the library through b2, /third_party//bearssl; built by other means, it must be the pinned commit, with webcpp's src/canary_bearssl.c.
 
@@ -187,24 +165,13 @@ a|
 
 [source,bash]
 ----
-exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl
-  : <define>WEBCPP_CRYPTO_BEARSSL_CANARY_COMMIT=0000000 ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_other_commit/Jamfile[tag=jamfile]
 ----
 a|
 
 [listing]
 ----
-native-darwin: Undefined symbols for architecture
-native-darwin: _webcpp_crypto_bearssl_0000000_getentropy__add_third_party_bearssl_to_your_link
-native-linux: webcpp_crypto_bearssl_0000000_getentropy__add_third_party_bearssl_to_your_link
-native-linux: undefined reference to `webcpp_crypto_bearssl_0000000_getentropy__add_third_party_bearssl_to_your_link'
-wasip2: wasm-ld: error:
-wasip2: undefined symbol: webcpp_crypto_bearssl_0000000_getentropy__add_third_party_bearssl_to_your_link
-wasip3: wasm-ld: error:
-wasip3: undefined symbol: webcpp_crypto_bearssl_0000000_getentropy__add_third_party_bearssl_to_your_link
-emscripten: wasm-ld: error:
-emscripten: undefined symbol: webcpp_crypto_bearssl_0000000_getentropy__add_third_party_bearssl_to_your_link
-emscripten: em++: error:
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_other_commit/canary_other_commit.outcome[tag=messages]
 ----
 |Build the library at the commit of webcpp's submodule, or link it through b2.
 
@@ -213,24 +180,13 @@ a|
 
 [source,bash]
 ----
-exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl
-  : <define>WEBCPP_CRYPTO_BEARSSL_CANARY_CONFIGURATION=sysrng ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_other_configuration/Jamfile[tag=jamfile]
 ----
 a|
 
 [listing]
 ----
-native-darwin: Undefined symbols for architecture
-native-darwin: _webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link
-native-linux: webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link
-native-linux: undefined reference to `webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link'
-wasip2: wasm-ld: error:
-wasip2: undefined symbol: webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link
-wasip3: wasm-ld: error:
-wasip3: undefined symbol: webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link
-emscripten: wasm-ld: error:
-emscripten: undefined symbol: webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link
-emscripten: em++: error:
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_other_configuration/canary_other_configuration.outcome[tag=messages]
 ----
 |Build BearSSL in webcpp's configuration (getentropy), or link it through b2.
 
@@ -239,24 +195,13 @@ a|
 
 [source,bash]
 ----
-exe app : app.cpp /webcpp/crypto//crypto
-  : <define>WEBCPP_CRYPTO_HAS_SECP256K1=1 <include>../../third_party/libs/secp256k1/include ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_secp256k1_missing/Jamfile[tag=jamfile]
 ----
 a|
 
 [listing]
 ----
-native-darwin: Undefined symbols for architecture
-native-darwin: _webcpp_crypto_secp256k1_6e2c8bc_w15c11x6__add_third_party_secp256k1_to_your_link
-native-linux: webcpp_crypto_secp256k1_6e2c8bc_w15c11x6__add_third_party_secp256k1_to_your_link
-native-linux: undefined reference to `webcpp_crypto_secp256k1_6e2c8bc_w15c11x6__add_third_party_secp256k1_to_your_link'
-wasip2: wasm-ld: error:
-wasip2: undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w15c11x6__add_third_party_secp256k1_to_your_link
-wasip3: wasm-ld: error:
-wasip3: undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w15c11x6__add_third_party_secp256k1_to_your_link
-emscripten: wasm-ld: error:
-emscripten: undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w15c11x6__add_third_party_secp256k1_to_your_link
-emscripten: em++: error:
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_secp256k1_missing/canary_secp256k1_missing.outcome[tag=messages]
 ----
 |Link /third_party//secp256k1.
 
@@ -265,24 +210,13 @@ a|
 
 [source,bash]
 ----
-exe app : app.cpp /webcpp/crypto//crypto /third_party//secp256k1
-  : <webcpp-secp256k1-tables>large <define>WEBCPP_CRYPTO_SECP256K1_CANARY_CONFIGURATION=w2c2x5 ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_secp256k1_small/Jamfile[tag=jamfile]
 ----
 a|
 
 [listing]
 ----
-native-darwin: Undefined symbols for architecture
-native-darwin: _webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link
-native-linux: webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link
-native-linux: undefined reference to `webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link'
-wasip2: wasm-ld: error:
-wasip2: undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link
-wasip3: wasm-ld: error:
-wasip3: undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link
-emscripten: wasm-ld: error:
-emscripten: undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link
-emscripten: em++: error:
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_secp256k1_small/canary_secp256k1_small.outcome[tag=messages]
 ----
 |Give the program and the library the same <webcpp-secp256k1-tables>, or link through b2.
 
@@ -291,27 +225,13 @@ a|
 
 [source,bash]
 ----
-path-constant BEARSSL : ../../third_party/libs/bearssl ;
-lib bearssl-plain : [ glob $(BEARSSL)/src/*.c $(BEARSSL)/src/*/*.c ]
-  : <link>static <warnings>off <include>$(BEARSSL)/inc <include>$(BEARSSL)/src
-  : : <include>$(BEARSSL)/inc <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 ;
-exe app : app.cpp bearssl-plain /webcpp/crypto//crypto ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_without/Jamfile[tag=jamfile]
 ----
 a|
 
 [listing]
 ----
-native-darwin: Undefined symbols for architecture
-native-darwin: _webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link
-native-linux: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link
-native-linux: undefined reference to `webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link'
-wasip2: wasm-ld: error:
-wasip2: undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link
-wasip3: wasm-ld: error:
-wasip3: undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link
-emscripten: wasm-ld: error:
-emscripten: undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link
-emscripten: em++: error:
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_without/canary_without.outcome[tag=messages]
 ----
 |Compile webcpp's src/canary_bearssl.c with the library, or link it through b2.
 
@@ -320,13 +240,13 @@ a|
 
 [source,bash]
 ----
-exe app : app.cpp /webcpp/crypto//crypto : <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/default_openssl_on_emscripten/Jamfile[tag=jamfile]
 ----
 a|
 
 [listing]
 ----
-all: webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL selects OpenSSL, which is not built for Emscripten. Remove that define, or make it WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL.
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/default_openssl_on_emscripten/default_openssl_on_emscripten.outcome[tag=messages]
 ----
 |Remove the define, or make it WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL.
 
@@ -335,13 +255,13 @@ a|
 
 [source,bash]
 ----
-exe app : app.cpp /webcpp/crypto//crypto : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/has_openssl_on_emscripten/Jamfile[tag=jamfile]
 ----
 a|
 
 [listing]
 ----
-all: webcpp::crypto: OpenSSL is not built for Emscripten. In the program's Jamfile, replace /webcpp/crypto//openssl with /third_party//bearssl.
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/has_openssl_on_emscripten/has_openssl_on_emscripten.outcome[tag=messages]
 ----
 |Replace /webcpp/crypto//openssl with /third_party//bearssl.
 
@@ -350,13 +270,13 @@ a|
 
 [source,bash]
 ----
-exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//openssl ;
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_on_emscripten/Jamfile[tag=jamfile]
 ----
 a|
 
 [listing]
 ----
-all: webcpp::crypto: /webcpp/crypto//openssl is named in a build for Emscripten, where webcpp does not build OpenSSL.
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_on_emscripten/openssl_on_emscripten.outcome[tag=messages]
 ----
 |Name /third_party//bearssl in its place for the Emscripten build.
 |===

@@ -68,6 +68,8 @@
                                         WEBCPP_CRYPTO_DETAIL_BEARSSL_CONFIGURATION))
 #endif
 
+// src/canary_bearssl.c defines the canary with a constant; this is its declaration.
+// NOLINTNEXTLINE(bugprone-dynamic-static-initializers): a declaration, never initialised here
 extern "C" const char WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY;
 
 namespace webcpp::crypto::backends {

@@ -7,7 +7,8 @@
 import webcpp ;
 
 webcpp.doc crypto : crypto.adoc ;
-# The reference reads the backend headers, which refuse a build that does not link their
-# library: ctaes's is given the define and the header's directory (webcpp.reference's requirements).
+# The reference reads the backend headers, which refuse a build that does not
+# link their library: ctaes's is given the define and the header's directory
+# (webcpp.reference's requirements).
 webcpp.reference crypto : <define>WEBCPP_CRYPTO_HAS_CTAES=1
   <include>../../../third_party/libs/bitcoin/src/crypto/ctaes ;

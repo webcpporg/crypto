@@ -110,7 +110,9 @@ void check_input(json::value const& input, int index) {
     std::array<std::uint8_t, 32> const aux{};
     auto const sighash = fixed<32>(intermediary.at("sigHash"));
     auto const signature = key.sign_schnorr(sighash, aux);
-    auto const witness = test::from_hex(str(input.at("expected").at("witness").as_array().at(0)));
+    auto const& expected = input.at("expected");
+    auto const& witnesses = expected.at("witness").as_array();
+    auto const witness = test::from_hex(str(witnesses.at(0)));
     BOOST_TEST(witness.size() == 64 || witness.size() == 65);
     // A 65th byte is the hash type, which SIGHASH_DEFAULT (0) leaves out.
     auto const hash_type = given.at("hashType").to_number<int>();

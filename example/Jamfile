@@ -10,5 +10,6 @@ import webcpp ;
 
 webcpp.targets native wasip2 wasip3 emscripten ;
 
-# The guide's Bitcoin program: BIP143's native P2WPKH input signed, its witness printed.
+# The guide's Bitcoin program: BIP143's native P2WPKH input signed, its witness
+# printed.
 webcpp.example bitcoin_sign.cpp : <library>/third_party//secp256k1 ;

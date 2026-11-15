@@ -45,7 +45,9 @@ path-constant SECP256K1 : ../../../../third_party/libs/secp256k1 ;
 # secp256k1_tests_bound.cpp re-arms node's bound), wasip2 774 s, above the 600 s
 # bound of tools/boost/asio-wasip2/run.sh and asio-wasip3/run.sh, which stopped
 # both WASI runs. On WASI it runs 4 iterations, so that it ends within that
-# bound; natively and on Emscripten 16, as libsecp256k1's CI runs it.
+# bound (220 s on wasip2, 218 s on wasip3, the same day; a ruling of the
+# controller, 2026-11-14, accepted it); natively and on Emscripten 16, as
+# libsecp256k1's CI runs it.
 webcpp.run secp256k1_tests : $(SECP256K1)/src/tests.c
     $(SECP256K1)/src/precomputed_ecmult.c $(SECP256K1)/src/precomputed_ecmult_gen.c
   : $(.secp256k1) <define>VERIFY <optimization>speed

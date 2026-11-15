@@ -16,7 +16,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
-#if !defined(WEBCPP_CRYPTO_HAS_SECP256K1)
+#ifndef WEBCPP_CRYPTO_HAS_SECP256K1
 #error \
     "webcpp::crypto: <webcpp/crypto/secp256k1.hpp> needs libsecp256k1, which is not linked. In the program's Jamfile, add /third_party//secp256k1 beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_SECP256K1=1 and link libsecp256k1 built with webcpp's src/canary_secp256k1.c)"
 #else
@@ -33,7 +33,7 @@
 #include <string_view>
 
 // The configuration the canary names: the tables third_party/Jamfile built.
-#if defined(WEBCPP_CRYPTO_SECP256K1_CANARY_CONFIGURATION)
+#ifdef WEBCPP_CRYPTO_SECP256K1_CANARY_CONFIGURATION
 #define WEBCPP_CRYPTO_DETAIL_SECP256K1_CONFIGURATION WEBCPP_CRYPTO_SECP256K1_CANARY_CONFIGURATION
 #elif defined(WEBCPP_CRYPTO_SECP256K1_SMALL_TABLES)
 #define WEBCPP_CRYPTO_DETAIL_SECP256K1_CONFIGURATION w2c2x5
@@ -44,7 +44,7 @@
     WEBCPP_CRYPTO_DETAIL_CANARY(secp256k1, WEBCPP_CRYPTO_SECP256K1_COMMIT, \
                                 WEBCPP_CRYPTO_DETAIL_SECP256K1_CONFIGURATION)
 
-#if defined(_MSC_VER)
+#ifdef _MSC_VER
 #pragma detect_mismatch(                                                           \
     "webcpp_crypto_backend_secp256k1",                                             \
     WEBCPP_CRYPTO_DETAIL_MISMATCH_VALUE(secp256k1, WEBCPP_CRYPTO_SECP256K1_COMMIT, \

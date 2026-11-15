@@ -42,4 +42,5 @@ The page is published at <https://webcpporg.github.io/libs/crypto/>.
 ## Licence
 
 crypto is under the Boost Software License, Version 1.0 (`LICENSE_1_0.txt`). The backends keep
-their own: BearSSL is MIT, ctaes is MIT, libsecp256k1 is MIT and OpenSSL is Apache-2.0.
+their own: BearSSL is MIT (`LICENSE-BEARSSL.txt`), ctaes is MIT, libsecp256k1 is MIT
+(`LICENSE-SECP256K1.txt`) and OpenSSL is Apache-2.0.

@@ -24,22 +24,20 @@ rule msvc-only ( properties * )
 
 project : requirements <conditional>@msvc-only ;
 
-# Waiting for the backends and their compile-time diagnostics (app.cpp):
+build-project openssl_not_linked ;
+build-project two_defaults ;
+build-project canary_secp256k1_missing ;
+build-project canary_secp256k1_small ;
+build-project canary_ctaes_missing ;
+build-project gcm_on_ctaes ;
+# Waiting for backends/bearssl.hpp and a diagnostic source (app.cpp):
 # build-project no_backend ;
 # build-project bearssl_not_linked ;
-# build-project openssl_not_linked ;
-# build-project two_defaults ;
 # build-project aes_on_bearssl ;
-# Waiting for the BearSSL canary and the gcm header (app.cpp):
+# Waiting for backends/bearssl.hpp, to read the BearSSL canary (app.cpp):
 # build-project canary_missing ;
 # build-project canary_other_commit ;
 # build-project canary_other_configuration ;
-# Waiting for the BearSSL canary, the gcm header and the OpenSSL backend
-# (the sources):
+# Waiting for backends/bearssl.hpp (the sources):
 # build-project canary_two_files ;
 # build-project default_two_files ;
-# Waiting for Task 26 (the feature webcpp-secp256k1-tables):
-# build-project canary_secp256k1_missing ;
-# build-project canary_secp256k1_small ;
-build-project canary_ctaes_missing ;
-build-project gcm_on_ctaes ;

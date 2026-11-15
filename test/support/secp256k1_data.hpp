@@ -32,7 +32,7 @@ inline std::string read_text(std::string const& path) {
         std::cerr << "cannot open test data: " << path << '\n';
         std::abort();
     }
-    return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
 }
 
 /**
@@ -43,7 +43,7 @@ inline std::vector<std::uint8_t> from_base64url(std::string_view text) {
     std::vector<std::uint8_t> out;
     std::uint32_t bits = 0;
     int count = 0;
-    for (char c : text) {
+    for (char const c : text) {
         std::uint32_t v = 0;
         if (c >= 'A' && c <= 'Z') {
             v = static_cast<std::uint32_t>(c - 'A');
@@ -67,6 +67,12 @@ inline std::vector<std::uint8_t> from_base64url(std::string_view text) {
                 static_cast<std::uint8_t>((bits >> static_cast<unsigned>(count)) & 0xFFU));
         }
     }
+    // Without padding, 2 or 3 characters of a last group leave 4 or 2 bits over, which a
+    // canonical encoding zeroes; 1 character (6 bits over) is never a whole byte.
+    if (count >= 6 || (bits & ((1U << static_cast<unsigned>(count)) - 1U)) != 0) {
+        std::cerr << "not canonical base64url: " << text << '\n';
+        std::abort();
+    }
     return out;
 }
 
@@ -75,8 +81,7 @@ inline std::vector<std::uint8_t> from_base64url(std::string_view text) {
  * zeros; a value longer than 32 bytes once stripped ends the test, by name.
  */
 inline std::array<std::uint8_t, 32> scalar32(std::span<std::uint8_t const> bytes) {
-    auto const first =
-        std::find_if(bytes.begin(), bytes.end(), [](std::uint8_t b) { return b != 0; });
+    auto const first = std::ranges::find_if(bytes, [](std::uint8_t b) { return b != 0; });
     auto const size = static_cast<std::size_t>(bytes.end() - first);
     if (size > 32) {
         std::cerr << "scalar32: scalar of " << size << " bytes after stripping\n";
@@ -89,4 +94,4 @@ inline std::array<std::uint8_t, 32> scalar32(std::span<std::uint8_t const> bytes
 
 }  // namespace webcpp::test
 
-#endif
+#endif  // WEBCPP_TEST_CRYPTO_SUPPORT_SECP256K1_DATA_HPP

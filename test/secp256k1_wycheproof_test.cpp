@@ -74,7 +74,7 @@ void ecdsa_bitcoin() {
             hasher.update(message.data(), message.size());
             auto const digest = hasher.result();
             std::array<std::uint8_t, 32> hash{};
-            std::copy(digest.begin(), digest.end(), hash.begin());
+            std::ranges::copy(digest, hash.begin());
 
             auto const der = test::from_hex(str(t.at("sig")));
             secp256k1_ecdsa_signature parsed{};
@@ -136,59 +136,75 @@ struct counts {
     int agreed_default = 0;
 };
 
-// One taken case: the point as SEC1 bytes and the private key as 32 bytes.
-void ecdh_case(std::string const& label, std::string const& verdict, bytes const& point,
-               std::array<std::uint8_t, 32> const& scalar, bytes const& shared, counts& c) {
-    ++c.taken;
-    bool const is_valid = verdict == "valid";
-    bool const is_invalid = verdict == "invalid";
-    (is_valid ? c.valid : is_invalid ? c.invalid : c.acceptable)++;
-
+// What libsecp256k1's C API makes of a taken case: the point parsed, and the shared x.
+struct c_api_result {
     secp256k1_pubkey parsed{};
-    bool const parses = secp256k1_ec_pubkey_parse(secp256k1_context_static, &parsed, point.data(),
-                                                  point.size()) == 1;
+    bool parses = false;
+    bool computes = false;
+};
+
+// The C API on one taken case, against its verdict: a valid case agrees with the expected x,
+// an invalid one is refused, an acceptable one is counted by what the C API does.
+c_api_result c_api_case(std::string const& label, std::string const& verdict, bytes const& point,
+                        std::array<std::uint8_t, 32> const& scalar, bytes const& shared,
+                        counts& c) {
+    c_api_result r;
+    r.parses = secp256k1_ec_pubkey_parse(secp256k1_context_static, &r.parsed, point.data(),
+                                         point.size()) == 1;
     std::array<std::uint8_t, 32> x{};
-    bool const computes = parses && secp256k1_ecdh(secp256k1_context_static, x.data(), &parsed,
-                                                   scalar.data(), copy_x, nullptr) == 1;
-    if (!computes) {
+    r.computes = r.parses && secp256k1_ecdh(secp256k1_context_static, x.data(), &r.parsed,
+                                            scalar.data(), copy_x, nullptr) == 1;
+    if (!r.computes) {
         ++c.refused;
     }
-    if (is_valid) {
-        BOOST_TEST(computes);
-        if (computes && !std::equal(x.begin(), x.end(), shared.begin(), shared.end())) {
+    if (verdict == "valid") {
+        ++c.valid;
+        BOOST_TEST(r.computes);
+        if (r.computes && !std::ranges::equal(x, shared)) {
             fail(label + ": shared secret differs");
         }
-    } else if (is_invalid) {
-        if (computes) {
+    } else if (verdict == "invalid") {
+        ++c.invalid;
+        if (r.computes) {
             fail(label + ": invalid case taken by the C API");
         }
     } else {
-        ++(computes ? c.acceptable_taken : c.acceptable_refused);
+        ++c.acceptable;
+        ++(r.computes ? c.acceptable_taken : c.acceptable_refused);
     }
+    return r;
+}
 
+// One taken case: the point as SEC1 bytes and the private key as 32 bytes, through the C API,
+// then through keypair::ecdh, which refuses what the C API cannot parse and otherwise equals
+// the C API's default hash.
+void ecdh_case(std::string const& label, std::string const& verdict, bytes const& point,
+               std::array<std::uint8_t, 32> const& scalar, bytes const& shared, counts& c) {
+    ++c.taken;
+    auto const r = c_api_case(label, verdict, point, scalar, shared, c);
     auto const key = secp::keypair::make(scalar);
     if (!key.has_value()) {
         // A scalar libsecp256k1 refuses (zero or not below the order) gives no shared secret.
         ++c.bad_scalar;
-        BOOST_TEST(!computes);
+        BOOST_TEST(!r.computes);
         return;
     }
     auto const mine = key->ecdh(point);
-    if (!parses) {
+    if (!r.parses) {
         BOOST_TEST(mine.has_error() && mine.error() == crypto::error::invalid_public_key);
         return;
     }
     std::array<std::uint8_t, 32> reference{};
-    bool const reference_ok = secp256k1_ecdh(secp256k1_context_static, reference.data(), &parsed,
+    bool const reference_ok = secp256k1_ecdh(secp256k1_context_static, reference.data(), &r.parsed,
                                              scalar.data(), nullptr, nullptr) == 1;
-    BOOST_TEST_EQ(reference_ok, computes);
-    if (reference_ok) {
-        BOOST_TEST(mine.has_value());
-        if (mine.has_value() && *mine == reference) {
-            ++c.agreed_default;
-        } else {
-            fail(label + ": ecdh differs from the C API's default");
-        }
+    BOOST_TEST_EQ(reference_ok, r.computes);
+    if (!reference_ok) {
+        return;
+    }
+    if (mine.has_value() && *mine == reference) {
+        ++c.agreed_default;
+    } else {
+        fail(label + ": ecdh differs from the C API's default");
     }
 }
 
@@ -216,11 +232,11 @@ void ecdh_asn() {
                 "ecdh asn tcId " + std::to_string(t.at("tcId").to_number<std::int64_t>());
             auto const pub = str(t.at("public"));
             std::string_view tail;
-            if (pub.size() == 2 * (uncompressed_prefix.size() / 2 + 65) &&
+            if (pub.size() == 2 * ((uncompressed_prefix.size() / 2) + 65) &&
                 std::string_view(pub).starts_with(uncompressed_prefix)) {
                 tail = std::string_view(pub).substr(uncompressed_prefix.size());
                 ++c.uncompressed;
-            } else if (pub.size() == 2 * (compressed_prefix.size() / 2 + 33) &&
+            } else if (pub.size() == 2 * ((compressed_prefix.size() / 2) + 33) &&
                        std::string_view(pub).starts_with(compressed_prefix)) {
                 tail = std::string_view(pub).substr(compressed_prefix.size());
                 ++c.compressed;

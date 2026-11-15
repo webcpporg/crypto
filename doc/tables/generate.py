@@ -153,6 +153,7 @@ class Outcome:
         self.succeeds = False
         self.output: List[str] = []
         self.contains: List[Tuple[str, str]] = []
+        self.absent: List[Tuple[str, str]] = []
         section = 'all'
         printing = False
         for line in path.read_text(encoding='utf-8').splitlines():
@@ -169,6 +170,8 @@ class Outcome:
                 printing = True
             elif line.startswith('contains:'):
                 self.contains.append((section, line[len('contains:'):].strip()))
+            elif line.startswith('not-contains:'):
+                self.absent.append((section, line[len('not-contains:'):].strip()))
             elif printing:
                 self.output.append(line)
 
@@ -184,8 +187,10 @@ def fixtures(root: Path) -> Dict[str, Tuple[List[str], Outcome]]:
         if not any('/webcpp/crypto//crypto' in line for line in lines):
             continue
         outcome = Outcome(case / f'{case.name}.outcome')
-        tag = 'output' if outcome.succeeds else 'messages'
-        for file, wanted in (('Jamfile', 'jamfile'), (f'{case.name}.outcome', tag)):
+        regions = [('Jamfile', 'jamfile')]
+        if outcome.succeeds:
+            regions.append((f'{case.name}.outcome', 'output'))
+        for file, wanted in regions:
             text = (case / file).read_text(encoding='utf-8')
             if f'tag::{wanted}[]' not in text or f'end::{wanted}[]' not in text:
                 raise Fault(f'the fixture {case.name}: {file} has no region {wanted}, which '
@@ -204,13 +209,31 @@ def cite(data: Data, text: str) -> str:
     return SOURCE.sub(link, text)
 
 
+def cite_markdown(data: Data, text: str) -> str:
+    """text with each {source} written as a Markdown link to the source crypto.json names, as
+    llms.txt writes links."""
+    def link(match: 're.Match[str]') -> str:
+        source = data['sources'].get(match.group(1))
+        if source is None:
+            raise Fault(f'crypto.json names the source {match.group(1)}, which it does not list')
+        return f'[{source[0]}]({source[1]})'
+    return SOURCE.sub(link, text)
+
+
 def cell(text: str) -> str:
     """text made safe in a cell of a table: no | read as the cell's end."""
     return text.replace('|', '\\|')
 
 
 def code(text: str) -> str:
-    """text as inline code, every character as it is."""
+    """text as inline code, every character as it is. A text that holds a `+` or a backtick is
+    a raw passthrough inside the code, its HTML written here: a `+` would end a constrained one,
+    `+em++: error:+` read as `+em+` and the rest, and a backtick is written as the reference
+    the page keeps for it, as a literal one reads as two spans run together."""
+    if '+' in text or '`' in text:
+        escaped = (text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                   .replace('`', '&#96;').replace(']', '\\]'))
+        return f'`pass:[{escaped}]`'
     return f'`+{text}+`'
 
 
@@ -312,14 +335,29 @@ class Matrix:
         return text + rest
 
 
+# A namespace table's column named by its names of code, then its plain name.
+NAMED_COLUMN = re.compile(r'^((?:`[^`]+`(?:, )?)+): (.+)$')
+
+
 def namespace_page(data: Data, namespace: str) -> str:
     """A namespace's comparison table: a column per name it holds, a row per question asked of
     each, the question in the row's first cell, so that the many questions stack down the page
     rather than across it."""
     entry = data['namespaces'][namespace]
-    columns = [entry['columns'][0]] + [row[0] for row in entry['rows']]
+    # A column named "`gcm`, `aes128_gcm`: AES-GCM" is headed by its plain name, AES-GCM, and
+    # its names of code go to a row of their own: a phone's style labels each stacked cell with
+    # its column's header as plain text, which would show the names of code as prose.
+    headers: List[str] = []
+    named: List[str] = []
+    for row in entry['rows']:
+        found = NAMED_COLUMN.match(row[0])
+        headers.append(found.group(2) if found else row[0])
+        named.append(found.group(1) if found else '')
+    columns = [entry['columns'][0]] + headers
     rows = [[entry['columns'][index]] + [cite(data, row[index]) for row in entry['rows']]
             for index in range(1, len(entry['columns']))]
+    if any(named):
+        rows.insert(0, ['Names'] + named)
     widths = ','.join(['2h'] + ['5'] * len(entry['rows']))
     return table(columns, rows, f'cols="{widths}",')
 
@@ -331,8 +369,15 @@ def api_backends(data: Data, matrix: Matrix, operation: Data) -> str:
         facts = data['backends'][backend]
         rows.append([facts['title'], code(facts['jamfile']), names(facts['header']),
                      matrix.describe(operation['id'], backend)])
-    return (f'The backends of {names(operation["api"])}, from the test programs that run it:\n\n'
+    text = (f'The backends of {names(operation["api"])}, from the test programs that run it:\n\n'
             + table(['Backend', 'Jamfile', 'Header', 'Targets'], rows, 'cols="1,2,2,4",'))
+    if 'default' in operation:
+        defaults = [[entry['target'], marked(entry['linked']),
+                     data['backends'][entry['default']]['title']] for entry in data['defaults']]
+        text += (f'\n{marked(operation["default"])} The default per target and what the program '
+                 'links, as <<crypto-backends-defaults>> gives it with its reasons and tests:\n\n'
+                 + table(['Target', 'Linked', 'Default'], defaults, '.wrap-names,cols="2,4,2",'))
+    return text
 
 
 def matrix_page(data: Data, matrix: Matrix) -> str:
@@ -386,7 +431,10 @@ def defaults_page(data: Data, declared: Dict[str, List[str]]) -> str:
         rows.append([entry['target'], marked(entry['linked']),
                      data['backends'][entry['default']]['title'], cite(data, entry['why']),
                      ', '.join(code(name) for name in entry['tests'])])
-    return table(['Target', 'Linked', 'Default', 'Why', 'Tested by'], rows, 'cols="2,4,2,5,3",')
+    # wrap-names: a define of 37 characters in "Linked" breaks between its parts at every
+    # width, rather than take the width "Why" needs (tools/doc/docinfo.html).
+    return table(['Target', 'Linked', 'Default', 'Why', 'Tested by'], rows,
+                 '.wrap-names,cols="2,4,2,5,3",')
 
 
 def constant_time_page(data: Data) -> str:
@@ -422,6 +470,28 @@ def included(case: str, file: str, tag: str) -> str:
     return block([f'include::{{webcpp-root}}/{FIXTURES}/{case}/{file}[tag={tag}]'])
 
 
+def printed(data: Data, outcome: Outcome) -> str:
+    """What a failing fixture's build prints, as its outcome checks it: a list with an item per
+    target and linker, which names it, and under it an item per text the output contains, as inline
+    code, so that a long text breaks between its words as a sentence does rather than scroll."""
+    labels: Dict[str, str] = data['outcome_sections']
+    sections: List[str] = []
+    for section, _ in outcome.contains:
+        if section not in sections:
+            sections.append(section)
+    items: List[str] = []
+    for section in sections:
+        if section not in labels:
+            raise Fault(f'a fixture\'s outcome has the section [{section}], which '
+                        'crypto.json\'s outcome_sections does not name')
+        texts = [code(text) for name, text in outcome.contains if name == section]
+        label = labels[section]
+        if section == 'all':
+            label = ', '.join(outcome.targets) if outcome.targets else label
+        items.append(f'* {label}:\n' + '\n'.join(f'** {text}' for text in texts))
+    return '\n'.join(items)
+
+
 def case_list(entries: List[Tuple[str, str, List[Tuple[str, str]]]]) -> str:
     """Cases as a list: each name with its description, then its blocks, each after the sentence
     that says what it is. A case's lines are as wide as its Jamfile and its build make them, so
@@ -442,7 +512,7 @@ def jamfiles_page(data: Data, cases: Dict[str, Tuple[List[str], Outcome]]) -> st
     for name, (_, outcome) in cases.items():
         if not outcome.succeeds:
             continue
-        entries.append((code(name), marked(data['fixtures'][name]), [
+        entries.append((code(name), marked(cite(data, data['fixtures'][name])), [
             (f'Its Jamfile, built and run on {", ".join(outcome.targets)}:',
              included(name, 'Jamfile', 'jamfile')),
             ('It prints:', included(name, f'{name}.outcome', 'output'))]))
@@ -473,13 +543,14 @@ def messages_page(data: Data, refusals: Dict[str, Tuple[str, List[str]]],
         if name not in fixes:
             raise Fault(f'the fixture {name} has no fix in crypto.json')
         entries.append((code(name),
-                        f'{marked(data["fixtures"][name])} The fix: {marked(fixes[name])}', [
+                        f'{marked(cite(data, data["fixtures"][name]))} '
+                        f'The fix: {marked(fixes[name])}', [
                             ('Its Jamfile:', included(name, 'Jamfile', 'jamfile')),
-                            ('The build prints, per target and linker:',
-                             included(name, f'{name}.outcome', 'messages'))]))
+                            ('On each target, the build\'s output contains:',
+                             printed(data, outcome))]))
     text += ('\nAt build and link time, from the fixtures of the user\'s Jamfiles, each built on '
-             'a scratch superproject: what the build prints, per target and linker, as each '
-             'fixture checks it.\n\n')
+             'a scratch superproject: the texts the build\'s output contains, per target and '
+             'linker, as each fixture checks them.\n\n')
     text += case_list(entries)
     windows: List[List[str]] = []
     for name, stage in msvc.items():
@@ -517,10 +588,17 @@ def use_cases_page(data: Data, library: Path) -> str:
             use = f'In {code(namespace[len(ROOT_NAMESPACE) + 2:])}: {marked(entry["api"])}'
         else:
             use = f'{namespace[:1].upper()}{namespace[1:]}: {marked(entry["api"])}'
-        jamfile = marked(entry['jamfile']) if '`' in entry['jamfile'] else code(entry['jamfile'])
+        if '`' in entry['jamfile']:
+            jamfile = marked(entry['jamfile'])
+        elif entry['jamfile'] == 'none':
+            jamfile = 'none'
+        else:
+            jamfile = code(entry['jamfile'])
         rows.append([entry['need'], use, entry['backend'], jamfile, shown])
+    # wrap-names: the names break between their parts at every width, so that the column a
+    # reader starts from, "I need to", keeps its share of the width (tools/doc/docinfo.html).
     return table(['I need to', 'Use', 'Backend', 'Jamfile', 'Example'], rows,
-                 'cols="3,3,2,3,2",')
+                 '.wrap-names,cols="3,3,2,3,2",')
 
 
 HEADER = re.compile(r'<(webcpp/crypto/[\w/]+\.hpp)>')
@@ -601,7 +679,12 @@ def llms(data: Data, matrix: Matrix, library: Path) -> str:
     out += ['## Default backend of aes128_gcm, aes256_gcm and aes256<>', '']
     for entry in data['defaults']:
         out.append(f'- {entry["target"]}, linked {entry["linked"]}: '
-                   f'{data["backends"][entry["default"]]["title"]}.')
+                   f'{data["backends"][entry["default"]]["title"]}; '
+                   f'{cite_markdown(data, entry["why"])}.')
+    out += ['', '## Rules of use', '']
+    for rule in data['rules']:
+        out.append(f'- [{rule["title"]}]({page}#{rule["section"]}): '
+                   f'{cite_markdown(data, rule["text"])}')
     out += ['', '## Choose by use case', '']
     for entry in data['use_cases']:
         example = f' Example: example/{entry["example"]}.cpp.' if entry['example'] else ''

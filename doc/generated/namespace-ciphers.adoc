@@ -9,7 +9,11 @@
 
 [cols="2h,5,5",options="header"]
 |===
-|Algorithm |`gcm`, `aes128_gcm`, `aes256_gcm`: AES-GCM |`aes128`, `aes192`, `aes256`: the AES block cipher
+|Algorithm |AES-GCM |AES block cipher
+
+|Names
+|`gcm`, `aes128_gcm`, `aes256_gcm`
+|`aes128`, `aes192`, `aes256`
 
 |AEAD
 |yes

@@ -28,3 +28,38 @@ The backends of `+ciphers::gcm+`, `+aes128_gcm+`, `+aes256_gcm+`, from the test 
 |`+<webcpp/crypto/backends/ctaes.hpp>+`
 |refused at compile time (`+gcm_on_ctaes+`)
 |===
+
+`+aes128_gcm+` and `+aes256_gcm+` name the default backend. The default per target and what the program links, as <<crypto-backends-defaults>> gives it with its reasons and tests:
+
+[.wrap-names,cols="2,4,2",options="header"]
+|===
+|Target |Linked |Default
+
+|emscripten
+|BearSSL
+|BearSSL
+
+|wasip2, wasip3
+|BearSSL, with or without OpenSSL
+|BearSSL
+
+|wasip2, wasip3
+|BearSSL and OpenSSL, with `+WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL+`
+|OpenSSL
+
+|native, Clang and GCC
+|OpenSSL, with or without BearSSL
+|OpenSSL
+
+|native, MSVC
+|OpenSSL, with or without BearSSL
+|OpenSSL
+
+|native
+|BearSSL and OpenSSL, with `+WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL+`
+|BearSSL
+
+|native
+|BearSSL alone
+|BearSSL
+|===

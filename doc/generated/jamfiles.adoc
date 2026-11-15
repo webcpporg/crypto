@@ -103,7 +103,7 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sign/sign.outcome[tag=output]
 ----
 
-`+sign_small+`:: The same program with libsecp256k1's small tables, smaller and slower to verify.
+`+sign_small+`:: The same program with libsecp256k1's small tables, which libsecp256k1 documents as smaller and slower to verify (link:https://github.com/bitcoin-core/secp256k1/blob/master/configure.ac[libsecp256k1's configure.ac, the precomputed tables' trade]); not measured here yet.
 +
 Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
 +

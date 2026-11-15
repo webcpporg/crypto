@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 [#crypto-root]
-== The root utilities: webcpp::crypto
+== The root utilities: `webcpp::crypto`
 
 The namespace `webcpp::crypto` holds what every other chapter relies on: where
 secrets come from (`random_device`), how a secret is checked (`equal`) and how

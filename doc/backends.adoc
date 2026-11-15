@@ -26,8 +26,12 @@ include::generated/matrix.adoc[]
 
 The rule, and its reasons, are in the table: on WebAssembly BearSSL, the only
 AEAD backend on Emscripten and constant time by design where OpenSSL is built
-without assembly; natively OpenSSL, whose assembly uses the CPU's AES
-instructions on x86-64 and ARMv8. Sizes and speeds are not measured yet.
+without assembly; natively OpenSSL when it is linked, whose assembly uses the
+CPU's AES instructions on x86-64 and ARMv8 with Clang and GCC. On MSVC the
+rule is the same, but OpenSSL is built without assembly there: the default is
+then table-based and not constant time, and a program that timing attacks
+threaten defines `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`. Sizes and speeds are
+not measured yet.
 It applies to `aes128_gcm`, `aes256_gcm` and `aes256<>`; libsecp256k1 and ctaes
 are the only backends of what they implement.
 
@@ -52,11 +56,11 @@ libsecp256k1's precomputed tables are a size knob, the feature
 elsewhere; `small`; or `large`. libsecp256k1 documents the trade: a larger window
 means a larger precomputed table and faster verification
 (link:https://github.com/bitcoin-core/secp256k1/blob/master/configure.ac[configure.ac]);
-the sizes and speeds of webcpp's two settings are not measured yet; the fixtures `sign` and `sign_small` of
-<<crypto-jamfile-cases>> build both. The tables enter the canary, so a program
-cannot be linked with tables other than those it was compiled for. With MSVC
-the static library needs `SECP256K1_STATIC`, which the target's usage
-requirements define.
+the sizes and speeds of webcpp's two settings are not measured yet; the fixtures
+`sign` and `sign_small` of <<crypto-jamfile-cases>> build both. The tables
+enter the canary, so a program cannot be linked with tables other than those it
+was compiled for. With MSVC the static library needs `SECP256K1_STATIC`, which
+the target's usage requirements define.
 
 [#crypto-backends-constant-time]
 === Constant time

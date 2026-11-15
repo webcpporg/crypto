@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 [#crypto-curves]
-== Curves: webcpp::crypto::curves
+== Curves: `webcpp::crypto::curves`
 
 An *elliptic curve* gives public-key cryptography with short keys: a secret key
 is a number, its public key a point of the curve computed from it, and going
@@ -18,7 +18,12 @@ on a key*, so that two parties who only exchanged public keys share a secret
 The namespace `webcpp::crypto::curves` holds one curve in this version,
 secp256k1 (link:https://www.secg.org/sec2-v2.pdf[SEC 2];
 link:https://en.bitcoin.it/wiki/Secp256k1[Bitcoin Wiki]), the curve of
-Bitcoin, Ethereum and Nostr. A program chooses a curve for compatibility: a
+Bitcoin, Ethereum and Nostr. This version covers Bitcoin's keys and signatures,
+Nostr's event signatures (NIP-01) and the verification of Ethereum's ECDSA
+signatures with a known key. It does not cover Ethereum's recoverable
+signatures (the recovery id `v`, and the recovery of a public key from a
+signature), nor ECDH in the raw x-coordinate form that Nostr's encrypted
+messages (NIP-44) use. A program chooses a curve for compatibility: a
 signature on secp256k1 is checked only with secp256k1, and the curves of
 passkeys, SSH or TLS certificates are others, which this version does not
 offer.

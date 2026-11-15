@@ -59,4 +59,4 @@ webcpp.example ecdsa_der.cpp : <library>/third_party//secp256k1 ;
 webcpp.example taproot_tweak.cpp : <library>/third_party//secp256k1 ;
 
 # The key pair's one allocation counted in the program's own arena.
-webcpp.example arena_signer.cpp : <library>/third_party//secp256k1 <library>/third_party//bearssl ;
+webcpp.example arena_signer.cpp : <library>/third_party//secp256k1 ;

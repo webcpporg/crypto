@@ -8,7 +8,6 @@
 // counts it. With a null upstream nothing else can allocate, so a program with strict memory
 // limits knows exactly what the library needs and that it never reaches for the heap.
 // tag::program[]
-#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 
 #include <array>
@@ -18,7 +17,6 @@
 #include <memory_resource>
 #include <span>
 
-namespace crypto = webcpp::crypto;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
@@ -90,22 +88,6 @@ int main() {
     std::printf("allocations in the arena: %zu\n", counting.allocations());
     // end::arena[]
     std::printf("signed and verified\n");
-
-    // BearSSL's make and seal allocate nothing anywhere, which the library's counting tests
-    // prove. The seal below never touches the arena, and the counter shows it.
-    std::size_t const before = counting.allocations();
-    // A demonstration key and IV; a real program draws the key from random_device and never
-    // reuses an IV under it.
-    std::array<std::uint8_t, 32> aead_key{};
-    aead_key.fill(0x07);
-    std::array<std::uint8_t, 12> const iv{};
-    std::array<std::uint8_t, 16> data{};
-    auto aead = crypto::ciphers::aes256_gcm::make(aead_key);
-    wipe(std::as_writable_bytes(std::span(aead_key)));
-    if (!aead || !aead->seal(iv, {}, data)) {
-        return 1;
-    }
-    std::printf("seal allocations: %zu\n", counting.allocations() - before);
     return 0;
 }
 

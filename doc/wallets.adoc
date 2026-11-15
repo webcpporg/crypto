@@ -119,10 +119,21 @@ include::{examples}/taproot_tweak.cpp[tag=spend,indent=0]
 include::{examples}/taproot_tweak.expected[]
 ----
 
-The same two calls serve any protocol that tweaks a key: a pay-to-contract
-commitment, a derived key of a hierarchy, a blinded key. crypto checks the key
-and the tweak, and wipes the pair if the tweak gives no valid key; what the
-tweak means is the domain library's.
+Without a script tree, as here, the Merkle root is omitted and the tweak
+hashes the internal key alone (BIP 341). crypto checks the key and the tweak,
+and wipes the pair if the tweak gives no valid key; what the tweak means is
+the domain library's.
+
+The x-only tweak is BIP 341's arithmetic: it lifts the key to the point with an
+even y, and the key pair's version negates the secret key when the public
+key's y is odd. It serves the protocols built on x-only keys, such as Taproot's
+output key or a pay-to-contract commitment to an x-only key. It is not BIP 32's
+child derivation, which adds to the parent's full point and secret key without
+that negation: for the half of the parents whose public key has an odd y, an
+x-only tweak derives another child than every BIP 32 wallet, whose addresses a
+wallet restored from the same seed never finds. BIP 32 needs a tweak of the
+full key, which this version does not offer
+(link:https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki[BIP 32]).
 
 *Mistakes to avoid.* A Taproot tweak is computed from public data (the internal
 key and the Merkle root), so the tweaked secret key is as sensitive as the

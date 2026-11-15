@@ -25,12 +25,18 @@ Each signature's nonce is RFC 6979's, derived from the key and the hash, so
 that no weak generator can leak the key
 (link:https://www.rfc-editor.org/rfc/rfc6979[RFC 6979]), and each is in low-S
 form;
-* *ECDH*, a 32-byte shared secret, the SHA-256 of the shared point.
+* *ECDH*, a 32-byte shared secret: libsecp256k1's hashed form, the SHA-256 of
+the shared point in its 33-byte compressed encoding. It interoperates only with
+peers that hash the same way, such as another program on libsecp256k1's
+default. It does not interoperate with Nostr's encrypted messages
+(link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44]) or
+other protocols that take the shared point's raw x coordinate, which this
+version does not give.
 
 A `keypair` is made from a 32-byte secret key with `make(secret)`, which
-allocates its signing context, the one allocation of crypto, in the
-`std::pmr::memory_resource` it is given (<<crypto-memory>>), and randomises it
-from `random_device`. A key pair gives its x-only public key
+allocates its signing context in the `std::pmr::memory_resource` it is given,
+and randomises it from `random_device`; crypto's own code allocates nothing
+else (<<crypto-memory>>). A key pair gives its x-only public key
 (`xonly_public_key`) and its compressed one (`public_key`), signs
 (`sign_schnorr`, `sign_ecdsa`), derives an ECDH secret (`ecdh`), and is tweaked
 in place (`tweak_xonly`). `verify_schnorr` and `verify_ecdsa` check signatures

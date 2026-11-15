@@ -88,4 +88,12 @@ is Bob's: an attacker in the middle can swap both keys and read everything
 (link:https://en.wikipedia.org/wiki/Man-in-the-middle_attack[Wikipedia]). Sign
 the public keys (<<crypto-p2p-signed>>), or compare a fingerprint out of band.
 Never use the shared secret directly as a key, or as several keys: derive one
-key per purpose, each with its own label.
+key per purpose, each with its own label. Draw fresh key pairs for each
+session, as the example does: with long-lived key pairs, whoever later steals
+a secret key computes every past session's secret from the recorded public
+keys, while fresh pairs wiped after the session give *forward secrecy*
+(link:https://en.wikipedia.org/wiki/Forward_secrecy[Wikipedia]); a long-lived
+key signs the fresh public keys instead. `ecdh` returns libsecp256k1's hashed
+form, the SHA-256 of the compressed shared point: both sides must use it, and
+it does not interoperate with protocols that take the raw x coordinate, such
+as Nostr's NIP-44 (<<crypto-secp256k1>>).

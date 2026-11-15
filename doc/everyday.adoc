@@ -16,8 +16,14 @@ to the chapter that teaches the primitive.
 === A login: session tokens and reset links
 
 A session token or a password-reset link is a bearer secret: whoever has it is
-the user. It is drawn from `random_device`, 32 bytes, and compared with `equal`
-when it comes back. <<crypto-entropy>> shows the program, `reset_token`.
+the user. It is drawn from `random_device`, 32 bytes. The server stores the
+token's SHA-256 (Boost.Hash2's `sha2_256`), not the token, and looks the hash up
+when the token comes back, so that a leaked database hands out no live session
+or reset link (OWASP asks that reset tokens be stored securely,
+link:https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html[Forgot
+Password Cheat Sheet]); a random token of 32 bytes needs no slow password hash.
+`equal` is for a token or a MAC checked against one value the program already
+knows. <<crypto-entropy>> shows the program, `reset_token`.
 A password itself is never encrypted: it is hashed with a password hash, a
 hashing library's job, not crypto's.
 

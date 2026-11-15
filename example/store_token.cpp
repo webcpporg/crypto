@@ -87,6 +87,8 @@ int main() {
     }
     std::printf("opened for user-42: %.*s\n", static_cast<int>(plain.size()),
                 reinterpret_cast<char const*>(plain.data()));
+    // The decrypted token is a secret: once used, wipe it.
+    wipe(std::as_writable_bytes(std::span(plain)));
     // end::open[]
 
     // The same row copied to user 43's record does not open.

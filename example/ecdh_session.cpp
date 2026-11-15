@@ -24,6 +24,7 @@
 #include <cstdio>
 #include <span>
 #include <string_view>
+#include <type_traits>
 
 namespace crypto = webcpp::crypto;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
@@ -38,6 +39,14 @@ void wipe(std::span<std::byte> secret) {
     for (std::size_t i = 0; i < secret.size(); ++i) {
         bytes[i] = std::byte{0};
     }
+}
+
+// Wipes an object of key-derived state, such as an HMAC whose inner and outer states hold the
+// key: its bytes are all it is, so overwriting them leaves nothing of the key.
+template <class T>
+void wipe_object(T& object) {
+    static_assert(std::is_trivially_copyable_v<T>);
+    wipe(std::as_writable_bytes(std::span(&object, 1)));
 }
 
 std::span<std::uint8_t const> bytes_of(std::string_view text) {
@@ -71,6 +80,7 @@ std::array<std::uint8_t, Length> hkdf_sha256(std::span<std::uint8_t const> input
     hash2::hmac_sha2_256 extract(salt.data(), salt.size());
     extract.update(input.data(), input.size());
     auto prk = extract.result();
+    wipe_object(extract);
 
     std::array<std::uint8_t, Length> out{};
     std::array<std::uint8_t, 32> previous{};
@@ -82,6 +92,7 @@ std::array<std::uint8_t, Length> hkdf_sha256(std::span<std::uint8_t const> input
         expand.update(info.data(), info.size());
         expand.update(&counter, 1);
         auto block = expand.result();
+        wipe_object(expand);
         std::copy_n(block.data(), block.size(), previous.begin());
         wipe(std::as_writable_bytes(std::span(block)));
         previous_size = previous.size();
@@ -89,7 +100,8 @@ std::array<std::uint8_t, Length> hkdf_sha256(std::span<std::uint8_t const> input
         std::copy_n(previous.begin(), taken, out.begin() + static_cast<std::ptrdiff_t>(offset));
         offset += taken;
     }
-    // The pseudorandom key and the last block are as secret as the input: wipe them.
+    // The pseudorandom key and the last block are as secret as the input, and so are the HMACs
+    // keyed with them, wiped above: wipe them.
     wipe(std::as_writable_bytes(std::span(prk)));
     wipe(std::as_writable_bytes(std::span(previous)));
     return out;

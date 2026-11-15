@@ -11,9 +11,9 @@
 key (link:https://en.wikipedia.org/wiki/Authenticated_encryption[Wikipedia]).
 Encryption alone does not: with counter mode alone, flipping a bit of a
 ciphertext flips the same bit of the plaintext, and the receiver cannot tell; a
-forged "amount" field in an encrypted cookie goes through. *AES-GCM* (Galois/Counter Mode) encrypts with AES
-in counter mode and computes a 16-byte *tag* over the ciphertext and over
-*additional data* that travels in clear
+forged "amount" field in an encrypted cookie goes through. *AES-GCM*
+(Galois/Counter Mode) encrypts with AES in counter mode and computes a 16-byte
+*tag* over the ciphertext and over *additional data* that travels in clear
 (link:https://en.wikipedia.org/wiki/Galois/Counter_Mode[Wikipedia];
 link:https://csrc.nist.gov/pubs/sp/800/38/d/final[NIST SP 800-38D]). Opening
 recomputes the tag and returns the plaintext only if it matches; on a mismatch
@@ -120,8 +120,9 @@ placed in memory shared with another process, and a key never should be.
 [#crypto-gcm-guards]
 ==== The guards
 
-Each function checks every condition first, in this order, and returns before
-it reads a secret byte:
+Each function checks its guards first, in the order of the table, and returns
+before it reads a secret byte; the last three rows are the failures of the work
+itself, which come after the guards:
 
 [cols="3,1"]
 |===
@@ -129,10 +130,13 @@ it reads a secret byte:
 
 |`make`: a key of another size than `key_size` |`invalid_key_size`
 |any other function: the object was moved from |`invalid_state`
-|`begin_seal` while a message is in progress; `update` or `result` with no message begun |`invalid_state`
+|`begin_seal` while a message is in progress; `update` or `result` with no
+message begun |`invalid_state`
 |an empty IV, or one longer than `max_iv_size`, 128 bytes |`invalid_iv_size`
 |`open`: a tag of another size than 16 |`invalid_tag_size`
-|a message longer than `max_message_size`, 2^36^ - 32 bytes, in one call or summed over `update`, or additional data longer than 2^61^ - 1 bytes (NIST SP 800-38D, section 5.2.1.1) |`message_too_long`
+|a message longer than `max_message_size`, 2^36^ - 32 bytes, in one call or
+summed over `update`, or additional data longer than 2^61^ - 1 bytes (NIST SP
+800-38D, section 5.2.1.1) |`message_too_long`
 |`open`: the tag does not match |`authentication_failed`
 |the backend fails where it should not |`backend_failure`
 |`make`: OpenSSL cannot allocate its context |`errc::not_enough_memory`
@@ -172,6 +176,19 @@ replayed at another position, and a flag that is 1 for the last record and 0
 for every other, so that a stream cut after any record does not open: the
 receiver opens the last record it got as the last, and a record that was not
 sealed as the last fails.
+
+The record's number is its IV, so *each stream has a key of its own*. Every
+stream numbers its records from 0: two files sealed under one key would both
+seal record 0 with the same IV, which reveals the XOR of the two records and
+lets an attacker forge tags under that key (<<crypto-gcm-rules>>), and a
+record of one file could be spliced into the other at the same position. The
+example draws a fresh random key per stream. A program that keeps one
+long-lived storage key derives the stream's key from it, for example with HKDF
+of the storage key and a random salt of 32 bytes stored in the file's header
+(link:https://www.rfc-editor.org/rfc/rfc5869[RFC 5869]); or it makes the IV's
+first 8 bytes a random identifier drawn for the stream and its last 4 the
+record number, and counts every record against the key's usage limit of 2^32^
+messages, since the identifiers are random.
 
 [source,cpp]
 ----

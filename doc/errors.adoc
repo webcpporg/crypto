@@ -23,17 +23,23 @@ random value to use: the operation that needed one fails.
 |===
 |Value |Name |Raised when
 
-|1 |`invalid_key_size` |A key of another size than the algorithm's `key_size`, or a secret key not of 32 bytes.
+|1 |`invalid_key_size` |A key of another size than the algorithm's `key_size`, or a secret key not
+of 32 bytes.
 |2 |`invalid_iv_size` |A GCM IV that is empty or longer than 128 bytes.
 |3 |`invalid_tag_size` |A tag given to `open` that is not of 16 bytes.
-|4 |`invalid_input_size` |Data given to a block cipher that is not a whole number of blocks, or a DER output shorter than `max_der_size`.
+|4 |`invalid_input_size` |Data given to a block cipher that is not a whole number of blocks, or a
+DER output shorter than `max_der_size`.
 |5 |`message_too_long` |A message or additional data longer than the algorithm allows.
-|6 |`authentication_failed` |The tag does not match: the message or its additional data changed, or the key differs.
+|6 |`authentication_failed` |The tag does not match: the message or its additional data changed, or
+the key differs.
 |7 |`invalid_state` |An object moved from, or the incremental seal called out of order.
 |8 |`entropy_unavailable` |The system's or the browser's generator failed.
-|9 |`invalid_secret_key` |A secret key or a tweak that is zero or not below the group order, or a tweak that gives no valid key.
-|10 |`invalid_public_key` |A public key of the wrong size, or not a point of the curve.
-|11 |`invalid_signature` |A signature that does not verify, or cannot be parsed.
+|9 |`invalid_secret_key` |A secret key or a tweak that is zero or not below the group order, or a
+tweak that gives no valid key.
+|10 |`invalid_public_key` |A public key of the wrong size, with a prefix other than 02 or 03 (33
+bytes) or 04 (65 bytes), or not a point of the curve.
+|11 |`invalid_signature` |A signature that does not verify, or is not a valid encoding: not strict
+DER, or an r or an s that is zero or not below the group order.
 |12 |`backend_failure` |A backend failed where its contract says it does not.
 |===
 

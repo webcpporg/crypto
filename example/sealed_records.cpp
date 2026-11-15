@@ -7,7 +7,9 @@
 // Seals data in pieces two ways: one message in chunks with the incremental seal, and a stream
 // as separate records, each bound to its position and to whether it is the last. The number in
 // the additional data stops records from being reordered or replayed at another position, and
-// the last-record flag stops a stream from being cut short without being noticed.
+// the last-record flag stops a stream from being cut short without being noticed. Each stream has
+// a key of its own, drawn when the stream starts: the counter IVs 0, 1, 2 of one stream are safe
+// only because no other stream seals under its key.
 // tag::program[]
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
@@ -133,7 +135,12 @@ bool incremental() {
 }
 
 bool records() {
-    // A fresh random key per stream makes the counter IVs safe.
+    std::string_view const message = "records are sealed one by one, each with its own number";
+
+    // tag::records[]
+    // The stream's own key, drawn for it alone: every stream numbers its records from 0, so two
+    // streams under one key would seal record 0 twice with one IV. The receiver gets this key
+    // from the protocol, for example sealed under a long-lived key or agreed with ECDH.
     std::array<std::uint8_t, 32> key{};
     if (!crypto::random_device().fill(key)) {
         return false;
@@ -143,9 +150,7 @@ bool records() {
     if (!aead) {
         return false;
     }
-    std::string_view const message = "records are sealed one by one, each with its own number";
 
-    // tag::records[]
     std::vector<record> sent;
     std::size_t const piece = (message.size() + 2) / 3;
     for (std::uint64_t number = 0; number < 3; ++number) {

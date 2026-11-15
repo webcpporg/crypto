@@ -39,5 +39,5 @@
 |no: WebCrypto offers P-256, P-384, P-521, Ed25519 and X25519, not secp256k1 (link:https://www.w3.org/TR/WebCryptoAPI/[W3C Web Cryptography API])
 
 |Choose it for compatibility with
-|Bitcoin, Ethereum and Nostr keys and signatures
+|Bitcoin's keys and signatures; Nostr's event signatures (link:https://github.com/nostr-protocol/nips/blob/master/01.md[Nostr NIP-01, events signed with BIP 340 on secp256k1]); Ethereum's ECDSA verification with a known key. Not in this version: Ethereum's recoverable signatures and its addresses from the uncompressed key; ECDH in the raw x-coordinate form of Nostr's encrypted messages (link:https://github.com/nostr-protocol/nips/blob/master/44.md[Nostr NIP-44, encrypted payloads]); BIP 32's derivation (link:https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki[BIP 32, hierarchical deterministic wallets])
 |===

@@ -29,10 +29,15 @@ void wipe(std::span<std::byte> secret) {
     }
 }
 
+// Prints bytes in hex after a name, 32 bytes (64 digits) to a line, the lines after the first
+// indented under the first, so that a long value stays readable on a narrow page.
 void print(char const* name, std::span<std::uint8_t const> bytes) {
-    std::printf("%s ", name);
-    for (std::uint8_t const b : bytes) {
-        std::printf("%02x", b);
+    int const indent = std::printf("%s ", name);
+    for (std::size_t i = 0; i < bytes.size(); ++i) {
+        if (i != 0 && i % 32 == 0) {
+            std::printf("\n%*s", indent, "");
+        }
+        std::printf("%02x", bytes[i]);
     }
     std::printf("\n");
 }

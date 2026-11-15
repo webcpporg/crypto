@@ -56,7 +56,10 @@
         "wikipedia-mitm": ["Wikipedia, Man-in-the-middle attack", "https://en.wikipedia.org/wiki/Man-in-the-middle_attack"],
         "wikipedia-wallet": ["Wikipedia, Cryptocurrency wallet", "https://en.wikipedia.org/wiki/Cryptocurrency_wallet"],
         "wikipedia-p2p": ["Wikipedia, Peer-to-peer", "https://en.wikipedia.org/wiki/Peer-to-peer"],
-        "bitcoin-wiki-secp256k1": ["Bitcoin Wiki, secp256k1", "https://en.bitcoin.it/wiki/Secp256k1"]
+        "bitcoin-wiki-secp256k1": ["Bitcoin Wiki, secp256k1", "https://en.bitcoin.it/wiki/Secp256k1"],
+        "secp256k1-configure": ["libsecp256k1's configure.ac, the precomputed tables' trade", "https://github.com/bitcoin-core/secp256k1/blob/master/configure.ac"],
+        "nip44": ["Nostr NIP-44, encrypted payloads", "https://github.com/nostr-protocol/nips/blob/master/44.md"],
+        "bip32": ["BIP 32, hierarchical deterministic wallets", "https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki"]
     },
     "backends": {
         "bearssl": {
@@ -165,6 +168,7 @@
             "header": "<webcpp/crypto/ciphers/aes.hpp>",
             "what": "The AES block cipher on whole 16-byte blocks: a building block, not encryption of data.",
             "section": "crypto-block",
+            "default": "`aes256<>` names the default backend; where that is BearSSL, its `make` does not compile, and the program names `aes256<backends::ctaes>`.",
             "backends": {
                 "openssl": {"tests": ["aes_openssl", "agreement_aes"]},
                 "ctaes": {"tests": ["aes_ctaes", "agreement_aes"]},
@@ -179,6 +183,7 @@
             "header": "<webcpp/crypto/ciphers/gcm.hpp>, <webcpp/crypto/ciphers/aes256_gcm.hpp>",
             "what": "AES-GCM, authenticated encryption in place with an incremental seal.",
             "section": "crypto-gcm",
+            "default": "`aes128_gcm` and `aes256_gcm` name the default backend.",
             "backends": {
                 "bearssl": {"tests": ["gcm_bearssl", "gcm_wycheproof_bearssl", "agreement_gcm",
                                       "agreement_gcm_portable"]},
@@ -229,6 +234,26 @@
             "backends": {"secp256k1": {"tests": ["secp256k1_xonly_tweak"]}}
         }
     ],
+    "rules": [
+        {"title": "Never reuse an IV under one key", "section": "crypto-gcm-rules", "text": "two AES-GCM messages under one key and one IV reveal the XOR of their plaintexts and let an attacker forge tags for every later message ({joux}; {nonce-reuse}); draw a random 12-byte IV per message, or use a counter that never repeats, a restart included."},
+        {"title": "The usage limit", "section": "crypto-gcm-rules", "text": "with random IVs, at most 2^32 messages under one key ({sp800-38d}, section 8.3); rotate the key before."},
+        {"title": "A failed open zeroes data", "section": "crypto-gcm-rules", "text": "when the tag does not match, `open` returns `authentication_failed` and zeroes the whole of `data`; keep a copy of the ciphertext if it is needed after a failure. There is no incremental open: a large message is split into records."},
+        {"title": "Records: each stream its own key", "section": "crypto-gcm-incremental", "text": "records numbered from 0 with the number as IV are safe only under a key used for that one stream: derive a key per stream (HKDF of the storage key with a random salt) or draw one; never number two streams' records under one key."},
+        {"title": "ECDH's form", "section": "crypto-secp256k1", "text": "`keypair::ecdh` returns libsecp256k1's hashed form, the SHA-256 of the compressed shared point; it does not interoperate with protocols that take the raw x coordinate, such as Nostr's NIP-44 ({nip44}). Derive keys from it with HKDF, never use it directly."},
+        {"title": "The x-only tweak is not BIP 32", "section": "crypto-wallets-taproot", "text": "`tweak_xonly` is BIP 341's even-y arithmetic ({bip341}); BIP 32's child derivation needs a tweak of the full key, which this version does not offer ({bip32})."},
+        {"title": "Ethereum", "section": "crypto-curves", "text": "this version verifies Ethereum's ECDSA signatures with a known key but has no recoverable signature (no recovery id `v`, no public key recovery) and no uncompressed public key output, so it cannot sign Ethereum transactions or derive addresses."},
+        {"title": "Compare secrets in constant time", "section": "crypto-equal", "text": "compare a tag, a MAC or a token with `equal`, never `==` or `memcmp` ({cwe208})."},
+        {"title": "Secrets come from random_device", "section": "crypto-entropy", "text": "keys, IVs and tokens are drawn from `random_device`, never `std::mt19937` or `rand` ({cwe338})."},
+        {"title": "The default on MSVC is not constant time", "section": "crypto-backends-defaults", "text": "natively with OpenSSL linked the default is OpenSSL, which MSVC builds no-asm, table-based ({openssl-install}); where timing attacks matter, link BearSSL and define `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`."}
+    ],
+    "outcome_sections": {
+        "all": "every target",
+        "native-darwin": "native, macOS",
+        "native-linux": "native, Linux",
+        "wasip2": "wasip2",
+        "wasip3": "wasip3",
+        "emscripten": "emscripten"
+    },
     "elsewhere": {
         "openssl": "`/webcpp/crypto//openssl` stops the build there",
         "refused": "refused at compile time"
@@ -237,8 +262,9 @@
         {"target": "emscripten", "linked": "BearSSL", "default": "bearssl", "tests": ["default_bearssl"], "why": "the only AEAD backend there: webcpp does not build OpenSSL for Emscripten; size and speed not measured yet"},
         {"target": "wasip2, wasip3", "linked": "BearSSL, with or without OpenSSL", "default": "bearssl", "tests": ["default_bearssl", "default_both_wasm"], "why": "constant time by design ({bearssl-ct}), where OpenSSL is built no-asm and its AES and GHASH are table-based ({openssl-install})"},
         {"target": "wasip2, wasip3", "linked": "BearSSL and OpenSSL, with `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL`", "default": "openssl", "tests": ["default_openssl_wasm"], "why": "the program's choice"},
-        {"target": "native", "linked": "OpenSSL, with or without BearSSL", "default": "openssl", "tests": ["default_both"], "why": "OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 ({openssl-armv8}; {openssl-ghash-asm}); BearSSL has them on x86 only ({bearssl-aes}); speed not measured yet"},
-        {"target": "native", "linked": "BearSSL and OpenSSL, with `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`", "default": "bearssl", "tests": ["default_selected"], "why": "the program's choice: on MSVC OpenSSL is built no-asm, and its AES and GHASH are table-based ({openssl-install})"},
+        {"target": "native, Clang and GCC", "linked": "OpenSSL, with or without BearSSL", "default": "openssl", "tests": ["default_both"], "why": "OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 ({openssl-armv8}; {openssl-ghash-asm}); BearSSL has them on x86 only ({bearssl-aes}); speed not measured yet"},
+        {"target": "native, MSVC", "linked": "OpenSSL, with or without BearSSL", "default": "openssl", "tests": ["default_both"], "why": "the same rule as with Clang and GCC, but here OpenSSL is built no-asm: table-based AES and 4-bit GHASH, no AES-NI, not constant time ({openssl-install}); where timing attacks matter, link BearSSL and define `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`"},
+        {"target": "native", "linked": "BearSSL and OpenSSL, with `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`", "default": "bearssl", "tests": ["default_selected"], "why": "the program's choice, constant time by design ({bearssl-ct}): on MSVC, where OpenSSL is built no-asm, the choice for code that timing attacks threaten"},
         {"target": "native", "linked": "BearSSL alone", "default": "bearssl", "tests": ["default_bearssl"], "why": "the backend that is linked"}
     ],
     "namespaces": {
@@ -256,14 +282,14 @@
             "columns": ["Algorithm", "AEAD", "Key", "Nonce (IV)", "Nonce misuse", "Speed, with and without hardware support", "Constant time, by design", "Constant time, measured", "Standards", "Where it is used", "Browsers' WebCrypto", "Choose it when"],
             "rows": [
                 ["`gcm`, `aes128_gcm`, `aes256_gcm`: AES-GCM", "yes", "16, 24 or 32 bytes", "1 to 128 bytes; 12 recommended", "not resistant: a repeated IV under one key reveals the plaintexts' XOR and lets tags be forged ({joux}, {nonce-reuse})", "not measured yet", "BearSSL and OpenSSL with assembly: yes; OpenSSL no-asm (MSVC, wasip2, wasip3): no", "not measured yet", "{sp800-38d}", "TLS 1.3 ({rfc8446}), SSH ({rfc5647}), IPsec ({rfc4106}), SRTP ({rfc7714}), optional for WebRTC's media ({rfc8827})", "yes, with 16- or 32-byte keys ({webcrypto}; {chromium-aes192})", "you encrypt a message, a record or a file: secrecy and integrity together"],
-                ["`aes128`, `aes192`, `aes256`: the AES block cipher", "no", "16, 24 or 32 bytes", "none", "not applicable: equal blocks give equal ciphertext", "not measured yet", "ctaes: yes; OpenSSL with assembly: yes; OpenSSL no-asm: no", "not measured yet", "{fips197}", "inside every AES mode", "no raw block cipher ({webcrypto})", "you need one keyed permutation of a 16-byte block, such as an opaque identifier; for data, use AES-GCM"]
+                ["`aes128`, `aes192`, `aes256`: AES block cipher", "no", "16, 24 or 32 bytes", "none", "not applicable: equal blocks give equal ciphertext", "not measured yet", "ctaes: yes; OpenSSL with assembly: yes; OpenSSL no-asm: no", "not measured yet", "{fips197}", "inside every AES mode", "no raw block cipher ({webcrypto})", "you need one keyed permutation of a 16-byte block, such as an opaque identifier; for data, use AES-GCM"]
             ]
         },
         "curves": {
             "title": "webcpp::crypto::curves",
             "columns": ["Curve", "What it does", "Security level", "Key sizes", "Signature sizes", "Speed", "Constant time, measured", "Standards", "Ecosystems that require it", "Browsers' WebCrypto", "Choose it for compatibility with"],
             "rows": [
-                ["`secp256k1`", "BIP 340 Schnorr and ECDSA signatures, ECDH, the x-only tweak", "about 128 bits ({sec2})", "secret 32 bytes; public 33 bytes compressed, 32 bytes x-only", "64 bytes; ECDSA in DER up to 72", "not measured yet", "not measured yet", "{sec2}, {bip340}, {rfc6979}", "Bitcoin ({bip340}), Ethereum ({ethereum}), Nostr ({nip01})", "no: WebCrypto offers P-256, P-384, P-521, Ed25519 and X25519, not secp256k1 ({webcrypto})", "Bitcoin, Ethereum and Nostr keys and signatures"]
+                ["`secp256k1`", "BIP 340 Schnorr and ECDSA signatures, ECDH, the x-only tweak", "about 128 bits ({sec2})", "secret 32 bytes; public 33 bytes compressed, 32 bytes x-only", "64 bytes; ECDSA in DER up to 72", "not measured yet", "not measured yet", "{sec2}, {bip340}, {rfc6979}", "Bitcoin ({bip340}), Ethereum ({ethereum}), Nostr ({nip01})", "no: WebCrypto offers P-256, P-384, P-521, Ed25519 and X25519, not secp256k1 ({webcrypto})", "Bitcoin's keys and signatures; Nostr's event signatures ({nip01}); Ethereum's ECDSA verification with a known key. Not in this version: Ethereum's recoverable signatures and its addresses from the uncompressed key; ECDH in the raw x-coordinate form of Nostr's encrypted messages ({nip44}); BIP 32's derivation ({bip32})"]
             ]
         }
     },
@@ -277,7 +303,7 @@
         {"need": "Turn a sequential id into an opaque reference", "namespace": "webcpp::crypto::ciphers", "api": "`aes256<backends::ctaes>`", "backend": "ctaes, or OpenSSL natively and on WASI", "jamfile": "/webcpp/crypto//crypto /third_party//ctaes", "example": "order_reference", "section": "crypto-block"},
         {"need": "Prove who wrote a message posted to a relay", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign_schnorr`, `verify_schnorr`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "signed_message", "section": "crypto-p2p-signed"},
         {"need": "Check a software update or a licence file", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign_ecdsa`, `verify_ecdsa`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "signed_update", "section": "crypto-everyday-update"},
-        {"need": "Agree on a key with a peer through a relay that sees everything", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::ecdh`, then HKDF on Boost.Hash2 and `aes256_gcm`", "backend": "libsecp256k1 and BearSSL", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /third_party//bearssl", "example": "ecdh_session", "section": "crypto-p2p-session"},
+        {"need": "Agree on a key with a peer through a relay that sees everything", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::ecdh` (SHA-256 of the shared point: not NIP-44's raw x coordinate), then HKDF on Boost.Hash2 and `aes256_gcm`", "backend": "libsecp256k1 and BearSSL", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /third_party//bearssl", "example": "ecdh_session", "section": "crypto-p2p-session"},
         {"need": "Make and keep a wallet's key", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::make`, `xonly_public_key`, `public_key`; `aes256_gcm` at rest", "backend": "libsecp256k1 and BearSSL", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /third_party//bearssl", "example": "wallet_key", "section": "crypto-wallets-key"},
         {"need": "Sign a Bitcoin SegWit v0 input (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`sign_ecdsa`, `to_der`, `normalize_ecdsa`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ecdsa_der", "section": "crypto-wallets-der"},
         {"need": "Derive a Bitcoin Taproot output key and spend by key path (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`tweak_xonly`, `keypair::tweak_xonly`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "taproot_tweak", "section": "crypto-wallets-taproot"},
@@ -294,7 +320,7 @@
         "encrypt_and_sign": "Two backends in one program: AES-256-GCM on the default backend and a BIP 340 signature.",
         "openssl_linked": "OpenSSL, built from source, named in the type: natively and on WASI.",
         "sign": "A BIP 340 signature with libsecp256k1's default tables.",
-        "sign_small": "The same program with libsecp256k1's small tables, smaller and slower to verify.",
+        "sign_small": "The same program with libsecp256k1's small tables, which libsecp256k1 documents as smaller and slower to verify ({secp256k1-configure}); not measured here yet.",
         "canary_missing": "BearSSL's headers used without its library, built by other means than b2.",
         "canary_other_commit": "A BearSSL of another commit than the headers'.",
         "canary_other_configuration": "A BearSSL compiled with another entropy configuration than webcpp's.",
@@ -304,7 +330,8 @@
         "canary_secp256k1_small": "A program compiled for other tables than its libsecp256k1 was built with.",
         "default_openssl_on_emscripten": "OpenSSL selected as the default in a build for Emscripten.",
         "has_openssl_on_emscripten": "OpenSSL declared linked, without b2, in a build for Emscripten.",
-        "openssl_on_emscripten": "`/webcpp/crypto//openssl` named in a build for Emscripten."
+        "openssl_on_emscripten": "`/webcpp/crypto//openssl` named in a build for Emscripten.",
+        "no_backend_on_emscripten": "A program for Emscripten that uses the default backend and links none."
     },
     "fixes": {
         "no_backend_native": "Add `/webcpp/crypto//openssl` or `/third_party//bearssl` to the program's sources.",
@@ -316,6 +343,7 @@
         "ctaes_not_linked": "Add `/third_party//ctaes`.",
         "secp256k1_not_linked": "Add `/third_party//secp256k1`.",
         "gcm_on_ctaes": "Use `aes256_gcm` with BearSSL or OpenSSL linked.",
+        "secp256k1_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::keypair`.",
         "aes_on_bearssl": "Name `ciphers::aes256<backends::ctaes>`, include `<webcpp/crypto/backends/ctaes.hpp>` and add `/third_party//ctaes`.",
         "two_defaults": "Keep one of the two defines.",
         "default_openssl_on_emscripten": "Remove the define, or make it `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`.",
@@ -328,6 +356,8 @@
         "canary_ctaes_missing": "Link `/third_party//ctaes`.",
         "canary_secp256k1_missing": "Link `/third_party//secp256k1`.",
         "canary_secp256k1_small": "Give the program and the library the same `<webcpp-secp256k1-tables>`, or link through b2.",
+        "no_backend_on_emscripten": "Add `/third_party//bearssl` to the program's sources.",
+        "canary_secp256k1_two_files": "Compile every file of the program with the same backend settings.",
         "canary_two_files": "Compile every file of the program with the same backend settings.",
         "default_two_files": "Give `WEBCPP_CRYPTO_DEFAULT_BACKEND_*` in the requirements of the program's project, so that every file gets it.",
         "no_backend": "As `no_backend_native`.",

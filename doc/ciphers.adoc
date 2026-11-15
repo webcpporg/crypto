@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 [#crypto-ciphers]
-== Ciphers: webcpp::crypto::ciphers
+== Ciphers: `webcpp::crypto::ciphers`
 
 A *cipher* turns readable data into bytes that reveal nothing without the key,
 and back. The namespace `webcpp::crypto::ciphers` holds AES, the cipher the

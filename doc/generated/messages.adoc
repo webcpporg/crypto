@@ -73,6 +73,12 @@ The fix: On WASI the default is BearSSL: add `+/third_party//bearssl+`, or defin
 
 The fix: Add `+/third_party//secp256k1+`.
 
+|`+secp256k1_other_backend+`
+|native, wasip2
+|`+webcpp::crypto: curves::secp256k1 runs on libsecp256k1 alone. Name backends::secp256k1, or leave the backend out, as in curves::secp256k1::keypair.+`
+
+The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::keypair+`.
+
 |`+two_defaults+`
 |native
 |`+webcpp::crypto: both WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL and WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL are defined. Keep one.+`
@@ -80,7 +86,7 @@ The fix: Add `+/third_party//secp256k1+`.
 The fix: Keep one of the two defines.
 |===
 
-At build and link time, from the fixtures of the user's Jamfiles, each built on a scratch superproject: what the build prints, per target and linker, as each fixture checks it.
+At build and link time, from the fixtures of the user's Jamfiles, each built on a scratch superproject: the texts the build's output contains, per target and linker, as each fixture checks them.
 
 `+canary_ctaes_missing+`:: ctaes's headers used without its library. The fix: Link `+/third_party//ctaes+`.
 +
@@ -91,12 +97,24 @@ Its Jamfile:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_ctaes_missing/Jamfile[tag=jamfile]
 ----
 +
-The build prints, per target and linker:
+On each target, the build's output contains:
 +
-[listing]
-----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_ctaes_missing/canary_ctaes_missing.outcome[tag=messages]
-----
+* native, macOS:
+** `+Undefined symbols for architecture+`
+** `+_webcpp_crypto_ctaes_9be056a_default__add_third_party_ctaes_to_your_link+`
+* native, Linux:
+** `+webcpp_crypto_ctaes_9be056a_default__add_third_party_ctaes_to_your_link+`
+** `pass:[undefined reference to &#96;webcpp_crypto_ctaes_9be056a_default__add_third_party_ctaes_to_your_link']`
+* wasip2:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_ctaes_9be056a_default__add_third_party_ctaes_to_your_link+`
+* wasip3:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_ctaes_9be056a_default__add_third_party_ctaes_to_your_link+`
+* emscripten:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_ctaes_9be056a_default__add_third_party_ctaes_to_your_link+`
+** `pass:[em++: error:]`
 
 `+canary_missing+`:: BearSSL's headers used without its library, built by other means than b2. The fix: Link the library through b2, `+/third_party//bearssl+`; built by other means, it must be the pinned commit, with webcpp's `+src/canary_bearssl.c+`.
 +
@@ -107,12 +125,24 @@ Its Jamfile:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_missing/Jamfile[tag=jamfile]
 ----
 +
-The build prints, per target and linker:
+On each target, the build's output contains:
 +
-[listing]
-----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_missing/canary_missing.outcome[tag=messages]
-----
+* native, macOS:
+** `+Undefined symbols for architecture+`
+** `+_webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+* native, Linux:
+** `+webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+** `pass:[undefined reference to &#96;webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link']`
+* wasip2:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+* wasip3:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+* emscripten:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+** `pass:[em++: error:]`
 
 `+canary_other_commit+`:: A BearSSL of another commit than the headers'. The fix: Build the library at the commit of webcpp's submodule, or link it through b2.
 +
@@ -123,12 +153,24 @@ Its Jamfile:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_other_commit/Jamfile[tag=jamfile]
 ----
 +
-The build prints, per target and linker:
+On each target, the build's output contains:
 +
-[listing]
-----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_other_commit/canary_other_commit.outcome[tag=messages]
-----
+* native, macOS:
+** `+Undefined symbols for architecture+`
+** `+_webcpp_crypto_bearssl_0000000_getentropy__add_third_party_bearssl_to_your_link+`
+* native, Linux:
+** `+webcpp_crypto_bearssl_0000000_getentropy__add_third_party_bearssl_to_your_link+`
+** `pass:[undefined reference to &#96;webcpp_crypto_bearssl_0000000_getentropy__add_third_party_bearssl_to_your_link']`
+* wasip2:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_bearssl_0000000_getentropy__add_third_party_bearssl_to_your_link+`
+* wasip3:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_bearssl_0000000_getentropy__add_third_party_bearssl_to_your_link+`
+* emscripten:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_bearssl_0000000_getentropy__add_third_party_bearssl_to_your_link+`
+** `pass:[em++: error:]`
 
 `+canary_other_configuration+`:: A BearSSL compiled with another entropy configuration than webcpp's. The fix: Build BearSSL in webcpp's configuration (`+getentropy+`), or link it through b2.
 +
@@ -139,12 +181,24 @@ Its Jamfile:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_other_configuration/Jamfile[tag=jamfile]
 ----
 +
-The build prints, per target and linker:
+On each target, the build's output contains:
 +
-[listing]
-----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_other_configuration/canary_other_configuration.outcome[tag=messages]
-----
+* native, macOS:
+** `+Undefined symbols for architecture+`
+** `+_webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link+`
+* native, Linux:
+** `+webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link+`
+** `pass:[undefined reference to &#96;webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link']`
+* wasip2:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link+`
+* wasip3:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link+`
+* emscripten:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link+`
+** `pass:[em++: error:]`
 
 `+canary_secp256k1_missing+`:: libsecp256k1's headers used without its library. The fix: Link `+/third_party//secp256k1+`.
 +
@@ -155,12 +209,24 @@ Its Jamfile:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_secp256k1_missing/Jamfile[tag=jamfile]
 ----
 +
-The build prints, per target and linker:
+On each target, the build's output contains:
 +
-[listing]
-----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_secp256k1_missing/canary_secp256k1_missing.outcome[tag=messages]
-----
+* native, macOS:
+** `+Undefined symbols for architecture+`
+** `+_webcpp_crypto_secp256k1_6e2c8bc_w15c11x6__add_third_party_secp256k1_to_your_link+`
+* native, Linux:
+** `+webcpp_crypto_secp256k1_6e2c8bc_w15c11x6__add_third_party_secp256k1_to_your_link+`
+** `pass:[undefined reference to &#96;webcpp_crypto_secp256k1_6e2c8bc_w15c11x6__add_third_party_secp256k1_to_your_link']`
+* wasip2:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w15c11x6__add_third_party_secp256k1_to_your_link+`
+* wasip3:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w15c11x6__add_third_party_secp256k1_to_your_link+`
+* emscripten:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w15c11x6__add_third_party_secp256k1_to_your_link+`
+** `pass:[em++: error:]`
 
 `+canary_secp256k1_small+`:: A program compiled for other tables than its libsecp256k1 was built with. The fix: Give the program and the library the same `+<webcpp-secp256k1-tables>+`, or link through b2.
 +
@@ -171,12 +237,24 @@ Its Jamfile:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_secp256k1_small/Jamfile[tag=jamfile]
 ----
 +
-The build prints, per target and linker:
+On each target, the build's output contains:
 +
-[listing]
-----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_secp256k1_small/canary_secp256k1_small.outcome[tag=messages]
-----
+* native, macOS:
+** `+Undefined symbols for architecture+`
+** `+_webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link+`
+* native, Linux:
+** `+webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link+`
+** `pass:[undefined reference to &#96;webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link']`
+* wasip2:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link+`
+* wasip3:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link+`
+* emscripten:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link+`
+** `pass:[em++: error:]`
 
 `+canary_without+`:: A BearSSL built from its sources without webcpp's `+src/canary_bearssl.c+`. The fix: Compile webcpp's `+src/canary_bearssl.c+` with the library, or link it through b2.
 +
@@ -187,12 +265,24 @@ Its Jamfile:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_without/Jamfile[tag=jamfile]
 ----
 +
-The build prints, per target and linker:
+On each target, the build's output contains:
 +
-[listing]
-----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_without/canary_without.outcome[tag=messages]
-----
+* native, macOS:
+** `+Undefined symbols for architecture+`
+** `+_webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+* native, Linux:
+** `+webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+** `pass:[undefined reference to &#96;webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link']`
+* wasip2:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+* wasip3:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+* emscripten:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+** `pass:[em++: error:]`
 
 `+default_openssl_on_emscripten+`:: OpenSSL selected as the default in a build for Emscripten. The fix: Remove the define, or make it `+WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL+`.
 +
@@ -203,12 +293,10 @@ Its Jamfile:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/default_openssl_on_emscripten/Jamfile[tag=jamfile]
 ----
 +
-The build prints, per target and linker:
+On each target, the build's output contains:
 +
-[listing]
-----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/default_openssl_on_emscripten/default_openssl_on_emscripten.outcome[tag=messages]
-----
+* emscripten:
+** `+webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL selects OpenSSL, which is not built for Emscripten. Remove that define, or make it WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL.+`
 
 `+has_openssl_on_emscripten+`:: OpenSSL declared linked, without b2, in a build for Emscripten. The fix: Replace `+/webcpp/crypto//openssl+` with `+/third_party//bearssl+`.
 +
@@ -219,12 +307,24 @@ Its Jamfile:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/has_openssl_on_emscripten/Jamfile[tag=jamfile]
 ----
 +
-The build prints, per target and linker:
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: OpenSSL is not built for Emscripten. In the program's Jamfile, replace /webcpp/crypto//openssl with /third_party//bearssl.+`
+
+`+no_backend_on_emscripten+`:: A program for Emscripten that uses the default backend and links none. The fix: Add `+/third_party//bearssl+` to the program's sources.
++
+Its Jamfile:
 +
 [listing]
 ----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/has_openssl_on_emscripten/has_openssl_on_emscripten.outcome[tag=messages]
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/no_backend_on_emscripten/Jamfile[tag=jamfile]
 ----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: no backend is linked. On WebAssembly the backend is BearSSL: in the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
 
 `+openssl_on_emscripten+`:: `+/webcpp/crypto//openssl+` named in a build for Emscripten. The fix: Name `+/third_party//bearssl+` in its place for the Emscripten build.
 +
@@ -235,12 +335,10 @@ Its Jamfile:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_on_emscripten/Jamfile[tag=jamfile]
 ----
 +
-The build prints, per target and linker:
+On each target, the build's output contains:
 +
-[listing]
-----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_on_emscripten/openssl_on_emscripten.outcome[tag=messages]
-----
+* emscripten:
+** `+webcpp::crypto: /webcpp/crypto//openssl is named in a build for Emscripten, where webcpp does not build OpenSSL.+`
 
 On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at link time; its text is MSVC's own, the same instruction in MSVC's words, and two files compiled with different settings stop the link with LNK2038.
 
@@ -280,9 +378,17 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the link
 |Give the program and the library the same `+<webcpp-secp256k1-tables>+`, or link through b2.
 
+|`+canary_secp256k1_two_files+`
+|the link
+|Compile every file of the program with the same backend settings.
+
 |`+canary_two_files+`
 |the link
 |Compile every file of the program with the same backend settings.
+
+|`+ctaes_not_linked+`
+|the compile
+|Add `+/third_party//ctaes+`.
 
 |`+default_two_files+`
 |the link
@@ -299,6 +405,18 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+openssl_not_linked+`
 |the compile
 |Add `+/webcpp/crypto//openssl+`.
+
+|`+openssl_old+`
+|the compile
+|Name `+/webcpp/crypto//openssl+`, which builds OpenSSL 3.5.9; without b2, put OpenSSL 3's `+include/+` first.
+
+|`+secp256k1_not_linked+`
+|the compile
+|Add `+/third_party//secp256k1+`.
+
+|`+secp256k1_other_backend+`
+|the compile
+|Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::keypair+`.
 
 |`+two_defaults+`
 |the compile

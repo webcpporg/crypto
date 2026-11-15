@@ -33,14 +33,17 @@
 
 #include <string_view>
 
-// The configuration the canary names: the tables third_party/Jamfile built.
 #ifdef WEBCPP_CRYPTO_SECP256K1_CANARY_CONFIGURATION
+/** The configuration the canary names: a test's, here. */
 #define WEBCPP_CRYPTO_DETAIL_SECP256K1_CONFIGURATION WEBCPP_CRYPTO_SECP256K1_CANARY_CONFIGURATION
 #elif defined(WEBCPP_CRYPTO_SECP256K1_SMALL_TABLES)
+/** The configuration the canary names: the small tables third_party/Jamfile built. */
 #define WEBCPP_CRYPTO_DETAIL_SECP256K1_CONFIGURATION w2c2x5
 #else
+/** The configuration the canary names: the large tables third_party/Jamfile built. */
 #define WEBCPP_CRYPTO_DETAIL_SECP256K1_CONFIGURATION w15c11x6
 #endif
+/** The canary's name, which every libsecp256k1 function of crypto reads (spec section 4.3). */
 #define WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY                              \
     WEBCPP_CRYPTO_DETAIL_CANARY(secp256k1, WEBCPP_CRYPTO_SECP256K1_COMMIT, \
                                 WEBCPP_CRYPTO_DETAIL_SECP256K1_CONFIGURATION)

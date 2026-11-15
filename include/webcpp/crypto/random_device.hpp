@@ -95,8 +95,10 @@ public:
     /**
      * A value from the system's generator, as the standard library's random device gives one.
      *
+     * A failure of the read is thrown as `boost::system::system_error`, carrying @ref fill's
+     * error.
+     *
      * @return The value.
-     * @throws boost::system::system_error carrying @ref fill's error.
      */
     result_type operator()() {
         std::array<std::uint8_t, sizeof(result_type)> bytes{};

@@ -88,6 +88,7 @@ public:
 
     /**
      * Moves the key; a message in progress is abandoned, and the source is wiped and empty.
+     *
      * Moving an empty object gives an empty one: BearSSL's move initialises the destination's
      * context through the schedule's vtable, which a wiped state does not have (I1).
      *

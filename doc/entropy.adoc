@@ -1,0 +1,16 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-entropy]
+== Entropy
+
+`random_device` reads the operating system's or the browser's generator, and
+nothing else: every call reads the source, with no cache and no generator in
+between. It holds no state and needs no backend. `fill(bytes)` fills a span
+and gives `entropy_unavailable` when the source fails, or `not_supported`
+where there is none (an Emscripten audio worklet), the bytes then zeroed.
+With exceptions it is also a UniformRandomBitGenerator, as the standard
+library's random device is.

@@ -27,6 +27,12 @@ include::jamfile.adoc[]
 
 include::block.adoc[]
 
+include::gcm.adoc[]
+
+include::entropy.adoc[]
+
+include::secp256k1.adoc[]
+
 include::backends.adoc[]
 
 include::errors.adoc[]

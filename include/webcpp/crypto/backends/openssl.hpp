@@ -177,14 +177,17 @@ inline boost::system::result<void> openssl_update(EVP_CIPHER_CTX* context,
 /** GCM's state on OpenSSL: one context, keyed once, its expanded key OpenSSL's. */
 template <std::size_t KeySize>
 struct gcm_state<backends::openssl, KeySize> {
+    /** The context, keyed for GCM; null when the object holds no key. */
     EVP_CIPHER_CTX* context = nullptr;
 };
 
 /** GCM's work on OpenSSL. */
 template <std::size_t KeySize>
 struct gcm_engine<backends::openssl, KeySize> {
+    /** The state this engine works on. */
     using state = gcm_state<backends::openssl, KeySize>;
 
+    /** Keys a context for AES-GCM with the key. */
     static boost::system::result<void> init(state& s, std::span<std::uint8_t const> key) noexcept {
         EVP_CIPHER_CTX* made = nullptr;
         if (auto const failed = openssl_context(made, openssl_gcm_name<KeySize>, key, true, true)) {
@@ -196,6 +199,7 @@ struct gcm_engine<backends::openssl, KeySize> {
 
     // Each message re-initialises the context with a null key, which keeps the expanded one,
     // and switches its direction (CR-PROBES ossl_open.c: "good open: ok=1").
+    /** Starts a message: its direction, its IV and its additional data. */
     static boost::system::result<void> start(
         state& s, bool sealing, std::span<std::uint8_t const> iv,
         std::span<std::uint8_t const> additional_data) noexcept {
@@ -218,10 +222,12 @@ struct gcm_engine<backends::openssl, KeySize> {
         return {};
     }
 
+    /** Encrypts or decrypts a piece of the message in place. */
     static boost::system::result<void> run(state& s, std::span<std::uint8_t> data) noexcept {
         return openssl_update(s.context, data);
     }
 
+    /** Ends a sealed message and gives its tag. */
     static boost::system::result<void> tag(state& s, boost::hash2::digest<16>& out) noexcept {
         std::array<std::uint8_t, 16> final_block{};
         int written = 0;
@@ -232,6 +238,7 @@ struct gcm_engine<backends::openssl, KeySize> {
         return {};
     }
 
+    /** Ends an opened message and checks its tag. */
     static boost::system::result<void> check(state& s,
                                              std::array<std::uint8_t, 16> const& tag) noexcept {
         // OpenSSL takes the expected tag through a pointer to mutable bytes, and only reads it.
@@ -261,6 +268,7 @@ struct gcm_engine<backends::openssl, KeySize> {
     // ciphertext and additional data that GHASH's buffer (Xn) may still hold. A failure,
     // which OpenSSL does not have for a keyed context, leaves the message until the next
     // start or the reset; what it raises is popped with the mark.
+    /** Ends a message without its tag, leaving nothing of it in the context. */
     static void abandon(state& s) noexcept {
         std::array<std::uint8_t, 12> const zero_iv{};
         std::array<std::uint8_t, 1> byte{};
@@ -276,11 +284,13 @@ struct gcm_engine<backends::openssl, KeySize> {
         wipe(byte.data(), byte.size());
     }
 
+    /** Moves the context, leaving the source empty. */
     static void move(state& to, state& from) noexcept {
         to.context = std::exchange(from.context, nullptr);
     }
 
     // EVP_CIPHER_CTX_free cleanses the expanded key before it frees.
+    /** Frees the context. */
     static void reset(state& s) noexcept { EVP_CIPHER_CTX_free(std::exchange(s.context, nullptr)); }
 };
 
@@ -290,15 +300,19 @@ struct gcm_engine<backends::openssl, KeySize> {
  */
 template <std::size_t KeySize>
 struct block_state<backends::openssl, KeySize> {
+    /** The context keyed for encryption; null when the object holds no key. */
     EVP_CIPHER_CTX* encrypting = nullptr;
+    /** The context keyed for decryption; null when the object holds no key. */
     EVP_CIPHER_CTX* decrypting = nullptr;
 };
 
 /** The block cipher's work on OpenSSL: ECB without padding over whole blocks. */
 template <std::size_t KeySize>
 struct block_engine<backends::openssl, KeySize> {
+    /** The state this engine works on. */
     using state = block_state<backends::openssl, KeySize>;
 
+    /** Keys a context per direction with the key. */
     static boost::system::result<void> init(state& s, std::span<std::uint8_t const> key) noexcept {
         EVP_CIPHER_CTX* encrypting = nullptr;
         if (auto const failed =
@@ -316,19 +330,23 @@ struct block_engine<backends::openssl, KeySize> {
         return {};
     }
 
+    /** Encrypts whole blocks in place. */
     static boost::system::result<void> encrypt(state& s, std::span<std::uint8_t> blocks) noexcept {
         return openssl_update(s.encrypting, blocks);
     }
 
+    /** Decrypts whole blocks in place. */
     static boost::system::result<void> decrypt(state& s, std::span<std::uint8_t> blocks) noexcept {
         return openssl_update(s.decrypting, blocks);
     }
 
+    /** Moves both contexts, leaving the source empty. */
     static void move(state& to, state& from) noexcept {
         to.encrypting = std::exchange(from.encrypting, nullptr);
         to.decrypting = std::exchange(from.decrypting, nullptr);
     }
 
+    /** Frees both contexts. */
     static void reset(state& s) noexcept {
         EVP_CIPHER_CTX_free(std::exchange(s.encrypting, nullptr));
         EVP_CIPHER_CTX_free(std::exchange(s.decrypting, nullptr));

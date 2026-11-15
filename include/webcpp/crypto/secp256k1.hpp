@@ -34,13 +34,13 @@ namespace webcpp::crypto::secp256k1 {
 
 namespace detail {
 
-// A context that signs and verifies needs no flag.
-// NOLINTNEXTLINE(bugprone-signed-bitwise): libsecp256k1's macro shifts a signed constant
+// NOLINTBEGIN(bugprone-signed-bitwise): libsecp256k1's macros shift a signed constant
+/** The flags of a context that signs and verifies: none. */
 inline constexpr unsigned context_flags = SECP256K1_CONTEXT_NONE;
 
-// The SEC1 compressed form's flag.
-// NOLINTNEXTLINE(bugprone-signed-bitwise): libsecp256k1's macro shifts a signed constant
+/** The flag of the SEC1 compressed form. */
 inline constexpr unsigned compressed = SECP256K1_EC_COMPRESSED;
+// NOLINTEND(bugprone-signed-bitwise)
 
 /**
  * The error of a key pair whose context could not be randomised: every failure of the
@@ -58,8 +58,10 @@ inline boost::system::error_code seed_error(boost::system::error_code /*generato
  * ends on every path, a failure's or an exception's included.
  */
 struct secret {
+    /** The secret bytes. */
     std::array<unsigned char, 32> bytes{};
 
+    /** Wipes the bytes. */
     ~secret() { webcpp::crypto::detail::wipe(bytes.data(), bytes.size()); }
 };
 
@@ -210,7 +212,11 @@ public:
         return made;
     }
 
-    /** Moves the key pair and its context; the source is wiped and empty. */
+    /**
+     * Moves the key pair and its context; the source is wiped and empty.
+     *
+     * @param other The source, empty afterwards.
+     */
     basic_keypair(basic_keypair&& other) noexcept
         : context_(std::exchange(other.context_, nullptr)),
           memory_(other.memory_),
@@ -219,7 +225,12 @@ public:
         webcpp::crypto::detail::wipe_object(other.keypair_);
     }
 
-    /** Moves over this key pair, which is wiped and gives its context back first. */
+    /**
+     * Moves over this key pair, which is wiped and gives its context back first.
+     *
+     * @param other The source, empty afterwards.
+     * @return This key pair.
+     */
     basic_keypair& operator=(basic_keypair&& other) noexcept {
         if (this != &other) {
             release();
@@ -353,8 +364,10 @@ public:
      * Tweaks this key pair in place into the BIP341 output key pair a Taproot key-path spend
      * signs with: the internal x-only key tweaked by
      * `tagged_hash("TapTweak", internal_key || merkle_root)`
-     * (`secp256k1_keypair_xonly_tweak_add`). Allocates nothing; the pair keeps its context,
-     * its wiping and its behaviour when moved from.
+     * (`secp256k1_keypair_xonly_tweak_add`).
+     *
+     * Allocates nothing; the pair keeps its context, its wiping and its behaviour when moved
+     * from.
      *
      * @param merkle_root Empty for a key-path-only output, or the script tree's 32-byte root.
      * @return Nothing; `invalid_input_size` for a root neither empty nor of 32 bytes;
@@ -417,6 +430,7 @@ using keypair = basic_keypair<>;
  * Verifies a BIP340 signature with libsecp256k1's static context, which allocates nothing,
  * after its self-test (`include/secp256k1.h:235-247`).
  *
+ * @tparam Backend The backend, `backends::secp256k1`.
  * @param signature 64 bytes.
  * @param message The message, of any length.
  * @param xonly_public_key 32 bytes.
@@ -444,6 +458,7 @@ boost::system::result<void> verify_schnorr(
  * Verifies an ECDSA signature in compact form with the static context, after its self-test;
  * a high-S signature is refused, as libsecp256k1 refuses it.
  *
+ * @tparam Backend The backend, `backends::secp256k1`.
  * @param signature 64 bytes, r then s.
  * @param hash The 32-byte hash signed.
  * @param public_key 33 or 65 bytes, SEC1.
@@ -471,6 +486,7 @@ boost::system::result<void> verify_ecdsa(std::span<std::uint8_t const, 64> signa
 /**
  * Encodes a compact ECDSA signature as strict DER (BIP66), with libsecp256k1's own encoder.
  *
+ * @tparam Backend The backend, `backends::secp256k1`.
  * @param compact 64 bytes, r then s.
  * @param out At least `max_der_size` bytes, whatever this signature's length; nothing is
  * written on an error.
@@ -500,6 +516,7 @@ boost::system::result<std::size_t> to_der(std::span<std::uint8_t const, 64> comp
  * Decodes a strict DER ECDSA signature (BIP66, `secp256k1_ecdsa_signature_parse_der`) to its
  * compact form.
  *
+ * @tparam Backend The backend, `backends::secp256k1`.
  * @param der The encoding, exactly: nothing may follow it.
  * @return 64 bytes, r then s; `invalid_signature` for anything that is not strict DER, and for
  * an r or an s that is zero or not below the group order.
@@ -528,6 +545,7 @@ boost::system::result<std::array<std::uint8_t, 64>> from_der(
  *
  * Tip: only for validating historical signatures; a new signature is strict DER, `from_der`.
  *
+ * @tparam Backend The backend, `backends::secp256k1`.
  * @param der The encoding.
  * @return 64 bytes, r then s; `invalid_signature` for what the lax parser refuses, and for an r
  * or an s that is zero or not below the group order.
@@ -556,6 +574,7 @@ boost::system::result<std::array<std::uint8_t, 64>> from_lax_der(
  * Tip: normalizing makes a signature malleable on purpose; only for signatures from a signer
  * that does not enforce low-S.
  *
+ * @tparam Backend The backend, `backends::secp256k1`.
  * @param compact 64 bytes, r then s.
  * @return 64 bytes, r then n - s when s was above half the group order;
  * `invalid_signature` when r or s is zero or not below the group order.
@@ -579,6 +598,7 @@ boost::system::result<std::array<std::uint8_t, 64>> normalize_ecdsa(
  * `t = tagged_hash("TapTweak", internal_key || merkle_root)`, with libsecp256k1's static
  * context, which allocates nothing.
  *
+ * @tparam Backend The backend, `backends::secp256k1`.
  * @param internal_key The 32-byte x-only internal key.
  * @param merkle_root Empty for a key-path-only output, or the script tree's 32-byte root.
  * @return The 32-byte x-only output key and its parity; `invalid_input_size` for a root

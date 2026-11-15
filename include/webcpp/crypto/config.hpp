@@ -18,7 +18,8 @@
 
 // MrDocs parses crypto natively, as a build with exceptions does, where neither
 // macro is defined: these definitions, each undone at once, are the ones the
-// reference lists.
+// reference lists. WEBCPP_CRYPTO_HAS_OPENSSL stays when the reference's build
+// defines it, linking OpenSSL to read the backend headers (doc/Jamfile).
 #ifdef __MRDOCS__
 /**
  Defined when webcpp::crypto is built without exceptions: when webcpp has none (the
@@ -42,12 +43,19 @@
 */
 #define WEBCPP_CRYPTO_HAS_BEARSSL 1
 #undef WEBCPP_CRYPTO_HAS_BEARSSL
+#ifdef WEBCPP_CRYPTO_HAS_OPENSSL
+/** Defined while config.hpp reads a reference's build that links OpenSSL (doc/Jamfile). */
+#define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_OPENSSL
+#endif
 /**
  Defined by `/webcpp/crypto//openssl` when the program links OpenSSL; a program built without
  b2 defines it to 1 itself. Refused on Emscripten, where OpenSSL is not built.
 */
 #define WEBCPP_CRYPTO_HAS_OPENSSL 1
+#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_OPENSSL
 #undef WEBCPP_CRYPTO_HAS_OPENSSL
+#endif
+#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_OPENSSL
 /**
  Defined by a program to make BearSSL the default backend, on every target, when OpenSSL
  is linked as well.
@@ -93,14 +101,19 @@
 // no backend is linked when neither is, and that BearSSL is not linked when OpenSSL alone is
 // (on WebAssembly, where the program selects OpenSSL with its define).
 #ifdef WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+/** Defined when OpenSSL is the default backend: the program selects it. */
 #define WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL 1
 #elif defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL)
+/** Defined when BearSSL is the default backend: the program selects it. */
 #define WEBCPP_CRYPTO_DETAIL_DEFAULT_BEARSSL 1
 #elif !defined(WEBCPP_CRYPTO_WEBASSEMBLY) && defined(WEBCPP_CRYPTO_HAS_OPENSSL)
+/** Defined when OpenSSL is the default backend: natively, the first linked. */
 #define WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL 1
 #else
+/** Defined when BearSSL is the default backend: on WebAssembly, or natively without OpenSSL. */
 #define WEBCPP_CRYPTO_DETAIL_DEFAULT_BEARSSL 1
 #if !defined(WEBCPP_CRYPTO_HAS_BEARSSL) && !defined(WEBCPP_CRYPTO_HAS_OPENSSL)
+/** Defined when no backend is linked, which BearSSL's header then says. */
 #define WEBCPP_CRYPTO_DETAIL_NONE_LINKED 1
 #endif
 #endif
@@ -120,10 +133,11 @@ struct secp256k1;
 
 namespace webcpp::crypto {
 
-/** The backend of `aes256<>`, `gcm<aes256<>>` and `aes256_gcm`, as section 5 chooses it. */
 #ifdef WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL
+/** The backend of `aes256<>`, `gcm<aes256<>>` and `aes256_gcm`, as section 5 chooses it. */
 using default_backend = backends::openssl;
 #else
+/** The backend of `aes256<>`, `gcm<aes256<>>` and `aes256_gcm`, as section 5 chooses it. */
 using default_backend = backends::bearssl;
 #endif
 

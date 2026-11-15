@@ -18,21 +18,12 @@ of every version are on webcpp's index page.
 // tag::unreleased[]
 * Added crypto: authenticated encryption, randomness and secp256k1 over C backends.
 * Added the errors of crypto, with fixed values, in the category webcpp.crypto.
-* Added equal, a constant-time comparison of tags and Boost.Hash2 digests.
-* Added /webcpp/crypto//openssl, which links the superproject's OpenSSL 3.5.9 on native, wasip2 and wasip3, and refuses Emscripten with the line to write.
-* Added the default backend, and the refusals of a build whose backends cannot work together.
-* Added aes128, aes192 and aes256, the AES block cipher on a backend that exports it.
-* Added gcm, AES-GCM in place: seal and open, every guard before any byte is read, and a failed open's data zeroed.
-* Added gcm's incremental seal, begin_seal, update and result, whose every error ends the message.
-* Added random_device, which reads the system's or the browser's generator and nothing else.
-* Added the link-time canary of the backend BearSSL, and BearSSL's own test suite on webcpp's build.
-* Added backends::openssl, AES and AES-GCM on OpenSSL 3.5.9, on native, wasip2 and wasip3.
-* Added aes128_gcm and aes256_gcm on the default backend, and <webcpp/crypto.hpp> includes the header of each backend the build links.
-* Added the backend ctaes, the AES block cipher alone on every target: `aes128/192/256<backends::ctaes>`; `gcm` on it is refused with the backends that have one.
+* Added equal, random_device, and aes128, aes192 and aes256, the AES block cipher.
+* Added gcm, AES-GCM in place with an incremental seal, whose failed open zeroes the data.
+* Added the default backend, aes128_gcm, aes256_gcm and the refusals of backends that conflict.
+* Added backends::openssl and /webcpp/crypto//openssl on native and WASI; a message on it allocates nothing after make.
+* Added backends::ctaes, the AES block cipher alone on every target; gcm refuses it.
+* Added secp256k1 on libsecp256k1: key pairs, BIP340 and ECDSA signatures, ECDH, DER, low-S and the Taproot tweak.
+* Added the link-time canaries of BearSSL, ctaes and libsecp256k1, and their own suites on webcpp's build.
 * Added the pages on the block cipher, the backends and the user's Jamfiles.
-* Added the backend libsecp256k1, its link-time canary, and its own tests on webcpp's build.
-* Added secp256k1's key pair, BIP340 and ECDSA signatures, their verifications and ECDH, on libsecp256k1.
-* Added secp256k1's tests against BIP340's vectors, Wycheproof's Bitcoin ECDSA and its ECDH.
-* Added DER encoding and decoding of ECDSA signatures, low-S normalization and the BIP341 Taproot tweak to secp256k1.
-* Added the check that a message on OpenSSL allocates nothing after make: seal, open, the incremental seal, encrypt and decrypt.
 // end::unreleased[]

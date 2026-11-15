@@ -19,7 +19,7 @@
  * Tip: the object marked is never const, so the branch that follows reads it again after the
  * mark instead of a register the compiler kept from before it (BoringSSL's practice, n1).
  */
-#if defined(WEBCPP_CRYPTO_DETAIL_CT_VALGRIND)
+#ifdef WEBCPP_CRYPTO_DETAIL_CT_VALGRIND
 #include <valgrind/memcheck.h>
 #define WEBCPP_CRYPTO_DETAIL_DECLASSIFY(address, size) \
     static_cast<void>(VALGRIND_MAKE_MEM_DEFINED((address), (size)))

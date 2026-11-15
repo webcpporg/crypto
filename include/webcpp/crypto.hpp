@@ -21,17 +21,17 @@
 #include <webcpp/crypto/gcm.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the system's entropy, a purpose of crypto
 
-#if defined(WEBCPP_CRYPTO_HAS_BEARSSL)
+#ifdef WEBCPP_CRYPTO_HAS_BEARSSL
 #include <webcpp/crypto/backends/bearssl.hpp>
 #endif
-#if defined(WEBCPP_CRYPTO_HAS_OPENSSL)
+#ifdef WEBCPP_CRYPTO_HAS_OPENSSL
 #include <webcpp/crypto/backends/openssl.hpp>
 #endif
 #if defined(WEBCPP_CRYPTO_HAS_BEARSSL) || defined(WEBCPP_CRYPTO_HAS_OPENSSL)
 #include <webcpp/crypto/aes256_gcm.hpp>
 #endif
 
-#if defined(WEBCPP_CRYPTO_HAS_CTAES)
+#ifdef WEBCPP_CRYPTO_HAS_CTAES
 #include <webcpp/crypto/backends/ctaes.hpp>
 #endif
 

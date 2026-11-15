@@ -30,7 +30,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
-#if !defined(WEBCPP_CRYPTO_HAS_OPENSSL)
+#ifndef WEBCPP_CRYPTO_HAS_OPENSSL
 #error \
     "webcpp::crypto: the backend OpenSSL is used and not linked. In the program's Jamfile, add /webcpp/crypto//openssl beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)"
 #else
@@ -77,35 +77,48 @@ namespace webcpp::crypto::detail {
 /** EVP takes lengths as `int`: a span goes in pieces of at most this many bytes, whole blocks. */
 inline constexpr std::size_t openssl_piece = static_cast<std::size_t>(INT_MAX) / 16 * 16;
 
+/**
+ * OpenSSL's name of AES with keys of `key_size` bytes: GCM, or ECB, the block cipher.
+ *
+ * @param key_size The key's size: 16, 24 or 32 bytes.
+ * @param gcm Whether the name is GCM's, else ECB's.
+ * @return The name, for `EVP_CIPHER_fetch`.
+ */
+constexpr char const* openssl_aes_name(std::size_t key_size, bool gcm) noexcept {
+    if (key_size == 16) {
+        return gcm ? "AES-128-GCM" : "AES-128-ECB";
+    }
+    if (key_size == 24) {
+        return gcm ? "AES-192-GCM" : "AES-192-ECB";
+    }
+    return gcm ? "AES-256-GCM" : "AES-256-ECB";
+}
+
 /** OpenSSL's name of AES-GCM with keys of `KeySize` bytes. */
 template <std::size_t KeySize>
-inline constexpr char const* openssl_gcm_name = KeySize == 16   ? "AES-128-GCM"
-                                                : KeySize == 24 ? "AES-192-GCM"
-                                                                : "AES-256-GCM";
+inline constexpr char const* openssl_gcm_name = openssl_aes_name(KeySize, true);
 
 /** OpenSSL's name of the AES block cipher, ECB without padding, of `KeySize` bytes. */
 template <std::size_t KeySize>
-inline constexpr char const* openssl_ecb_name = KeySize == 16   ? "AES-128-ECB"
-                                                : KeySize == 24 ? "AES-192-ECB"
-                                                                : "AES-256-ECB";
+inline constexpr char const* openssl_ecb_name = openssl_aes_name(KeySize, false);
 
 /**
- * A context keyed for `cipher`, or the error of the call that failed (spec section 3.3):
+ * Keys a context for `cipher`, or gives the error of the call that failed (spec section 3.3):
  * `errc::not_enough_memory` when `EVP_CIPHER_CTX_new` returns null, `backend_failure` when
  * `EVP_CIPHER_fetch` returns null or the key's `EVP_CipherInit_ex` fails. The thread's
  * error queue is left as it was found, through a mark set before the first call that can
  * raise.
  *
+ * @param made Set to the context, which the caller frees with `EVP_CIPHER_CTX_free`.
  * @param cipher OpenSSL's name of the cipher.
  * @param key The key, of the cipher's size.
  * @param encrypting The context's direction.
  * @param padding Whether the block cipher pads; GCM ignores it.
- * @return The context, which the caller frees with `EVP_CIPHER_CTX_free`.
+ * @return Nothing on success, else the error.
  */
-inline boost::system::result<EVP_CIPHER_CTX*> openssl_context(char const* cipher,
-                                                              std::span<std::uint8_t const> key,
-                                                              bool encrypting,
-                                                              bool padding) noexcept {
+inline boost::system::error_code openssl_context(EVP_CIPHER_CTX*& made, char const* cipher,
+                                                 std::span<std::uint8_t const> key, bool encrypting,
+                                                 bool padding) noexcept {
     ERR_set_mark();
     EVP_CIPHER* const fetched = EVP_CIPHER_fetch(nullptr, cipher, nullptr);
     if (fetched == nullptr) {
@@ -128,7 +141,8 @@ inline boost::system::result<EVP_CIPHER_CTX*> openssl_context(char const* cipher
         EVP_CIPHER_CTX_free(context);
         return error::backend_failure;
     }
-    return context;
+    made = context;
+    return {};
 }
 
 /**
@@ -153,7 +167,7 @@ inline boost::system::result<void> openssl_update(EVP_CIPHER_CTX* context,
         int written = 0;
         if (EVP_CipherUpdate(context, data.data() + at, &written, data.data() + at,
                              static_cast<int>(piece)) != 1 ||
-            static_cast<std::size_t>(written) != piece) {
+            std::cmp_not_equal(written, piece)) {
             return openssl_failed();
         }
     }
@@ -172,11 +186,11 @@ struct gcm_engine<backends::openssl, KeySize> {
     using state = gcm_state<backends::openssl, KeySize>;
 
     static boost::system::result<void> init(state& s, std::span<std::uint8_t const> key) noexcept {
-        auto const made = openssl_context(openssl_gcm_name<KeySize>, key, true, true);
-        if (!made) {
-            return made.error();
+        EVP_CIPHER_CTX* made = nullptr;
+        if (auto const failed = openssl_context(made, openssl_gcm_name<KeySize>, key, true, true)) {
+            return failed;
         }
-        s.context = *made;
+        s.context = made;
         return {};
     }
 
@@ -286,17 +300,19 @@ struct block_engine<backends::openssl, KeySize> {
     using state = block_state<backends::openssl, KeySize>;
 
     static boost::system::result<void> init(state& s, std::span<std::uint8_t const> key) noexcept {
-        auto const encrypting = openssl_context(openssl_ecb_name<KeySize>, key, true, false);
-        if (!encrypting) {
-            return encrypting.error();
+        EVP_CIPHER_CTX* encrypting = nullptr;
+        if (auto const failed =
+                openssl_context(encrypting, openssl_ecb_name<KeySize>, key, true, false)) {
+            return failed;
         }
-        auto const decrypting = openssl_context(openssl_ecb_name<KeySize>, key, false, false);
-        if (!decrypting) {
-            EVP_CIPHER_CTX_free(*encrypting);
-            return decrypting.error();
+        EVP_CIPHER_CTX* decrypting = nullptr;
+        if (auto const failed =
+                openssl_context(decrypting, openssl_ecb_name<KeySize>, key, false, false)) {
+            EVP_CIPHER_CTX_free(encrypting);
+            return failed;
         }
-        s.encrypting = *encrypting;
-        s.decrypting = *decrypting;
+        s.encrypting = encrypting;
+        s.decrypting = decrypting;
         return {};
     }
 

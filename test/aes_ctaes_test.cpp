@@ -36,11 +36,10 @@ bool round_trip() {
     std::array<std::uint8_t, 32> key{};
     std::array<std::uint8_t, 16> block{};
     auto aes = webcpp::crypto::aes256<webcpp::crypto::backends::ctaes>::make(key);
-    if (aes && aes->encrypt(block) && aes->decrypt(block)) {
-        return true;  // block holds the plaintext again
-    }
+    // On success, block holds the plaintext again.
+    bool const ok = aes && aes->encrypt(block) && aes->decrypt(block);
     // end::round_trip[]
-    return false;
+    return ok;
 }
 
 /** Encrypts `plain` with `Cipher` under `key`, checks `expected`, and decrypts it back. */

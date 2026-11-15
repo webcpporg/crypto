@@ -49,6 +49,7 @@ int main() {
     BOOST_TEST(aead::make(key).has_value());
     BOOST_TEST_EQ(ERR_peek_error(), 0UL);
 
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): OpenSSL's reason macro ORs signed flags
     ERR_raise(ERR_LIB_USER, ERR_R_PASSED_INVALID_ARGUMENT);
     unsigned long const ours = ERR_peek_last_error();
     auto made = aead::make(key);

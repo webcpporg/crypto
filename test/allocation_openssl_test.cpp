@@ -34,24 +34,24 @@ namespace {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): OpenSSL's allocation count
 std::atomic<std::size_t> openssl_allocations{0};
 
-#if defined(__GLIBC__)
+#ifdef __GLIBC__
 // __libc_malloc, __libc_realloc and __libc_free are declared by support/counting.hpp.
 #define WEBCPP_TEST_OPENSSL_C(name) __libc_##name
 #else
 #define WEBCPP_TEST_OPENSSL_C(name) std::name
 #endif
 
-void* counting_malloc(std::size_t size, char const*, int) {
+void* counting_malloc(std::size_t size, char const* /*file*/, int /*line*/) {
     ++openssl_allocations;
     return WEBCPP_TEST_OPENSSL_C(malloc)(size);
 }
 
-void* counting_realloc(void* p, std::size_t size, char const*, int) {
+void* counting_realloc(void* p, std::size_t size, char const* /*file*/, int /*line*/) {
     ++openssl_allocations;
     return WEBCPP_TEST_OPENSSL_C(realloc)(p, size);
 }
 
-void counting_free(void* p, char const*, int) {
+void counting_free(void* p, char const* /*file*/, int /*line*/) {
     WEBCPP_TEST_OPENSSL_C(free)(p);
 }
 

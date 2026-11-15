@@ -16,7 +16,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
-#if !defined(WEBCPP_CRYPTO_HAS_CTAES)
+#ifndef WEBCPP_CRYPTO_HAS_CTAES
 #error \
     "webcpp::crypto: the backend ctaes is used and not linked. In the program's Jamfile, add /third_party//ctaes beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_CTAES=1 and link ctaes.c with webcpp's src/canary_ctaes.c)"
 #else
@@ -38,7 +38,7 @@ extern "C" {
 #include <span>
 #include <string_view>
 
-#if defined(WEBCPP_CRYPTO_CTAES_CANARY_CONFIGURATION)
+#ifdef WEBCPP_CRYPTO_CTAES_CANARY_CONFIGURATION
 /** The configuration the canary names: a test's, here. */
 #define WEBCPP_CRYPTO_DETAIL_CTAES_CONFIGURATION WEBCPP_CRYPTO_CTAES_CANARY_CONFIGURATION
 #else
@@ -50,7 +50,7 @@ extern "C" {
     WEBCPP_CRYPTO_DETAIL_CANARY(ctaes, WEBCPP_CRYPTO_CTAES_COMMIT, \
                                 WEBCPP_CRYPTO_DETAIL_CTAES_CONFIGURATION)
 
-#if defined(_MSC_VER)
+#ifdef _MSC_VER
 #pragma detect_mismatch(                                                   \
     "webcpp_crypto_backend_ctaes",                                         \
     WEBCPP_CRYPTO_DETAIL_MISMATCH_VALUE(ctaes, WEBCPP_CRYPTO_CTAES_COMMIT, \
@@ -142,7 +142,7 @@ struct ctaes_of<32> {
 template <std::size_t KeySize>
 struct block_state<backends::ctaes, KeySize> {
     /** The key schedule. */
-    typename ctaes_of<KeySize>::context schedule;
+    ctaes_of<KeySize>::context schedule;
 };
 
 /**

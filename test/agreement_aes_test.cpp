@@ -35,29 +35,35 @@ void fill(std::mt19937_64& generator, std::span<std::uint8_t> bytes) {
     }
 }
 
-/** Runs the agreement for one key size. */
+/** Checks one random key and message on both backends; false once they disagree. */
+template <template <class> class Cipher, std::size_t KeySize>
+bool agree_once(std::mt19937_64& generator, std::vector<std::uint8_t>& key) {
+    fill(generator, key);
+    auto ours = Cipher<crypto::backends::ctaes>::make(key);
+    auto theirs = Cipher<crypto::backends::openssl>::make(key);
+    if (!BOOST_TEST(ours.has_value()) || !BOOST_TEST(theirs.has_value())) {
+        return false;
+    }
+    std::vector<std::uint8_t> message(16 * (generator() % (max_blocks + 1)));
+    fill(generator, message);
+    auto a = message;
+    auto b = message;
+    BOOST_TEST(ours->encrypt(a).has_value());
+    BOOST_TEST(theirs->encrypt(b).has_value());
+    if (!BOOST_TEST(a == b)) {
+        return false;
+    }
+    BOOST_TEST(ours->decrypt(a).has_value());
+    BOOST_TEST(theirs->decrypt(b).has_value());
+    return BOOST_TEST(a == message) && BOOST_TEST(b == message);
+}
+
+/** Runs the agreement for one key size, stopping at the first disagreement. */
 template <template <class> class Cipher, std::size_t KeySize>
 void agree(std::mt19937_64& generator) {
     std::vector<std::uint8_t> key(KeySize);
     for (int i = 0; i < keys_per_size; ++i) {
-        fill(generator, key);
-        auto ours = Cipher<crypto::backends::ctaes>::make(key);
-        auto theirs = Cipher<crypto::backends::openssl>::make(key);
-        if (!BOOST_TEST(ours.has_value()) || !BOOST_TEST(theirs.has_value())) {
-            return;
-        }
-        std::vector<std::uint8_t> message(16 * (generator() % (max_blocks + 1)));
-        fill(generator, message);
-        auto a = message;
-        auto b = message;
-        BOOST_TEST(ours->encrypt(a).has_value());
-        BOOST_TEST(theirs->encrypt(b).has_value());
-        if (!BOOST_TEST(a == b)) {
-            return;
-        }
-        BOOST_TEST(ours->decrypt(a).has_value());
-        BOOST_TEST(theirs->decrypt(b).has_value());
-        if (!BOOST_TEST(a == message) || !BOOST_TEST(b == message)) {
+        if (!agree_once<Cipher, KeySize>(generator, key)) {
             return;
         }
     }
@@ -66,6 +72,7 @@ void agree(std::mt19937_64& generator) {
 }  // namespace
 
 int main() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed): a fixed seed, so a failure repeats
     std::mt19937_64 generator(0x5eedae5ULL);
     agree<crypto::aes128, 16>(generator);
     agree<crypto::aes192, 24>(generator);

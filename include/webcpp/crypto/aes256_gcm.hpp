@@ -29,7 +29,7 @@
 #include <webcpp/crypto/aes.hpp>
 #include <webcpp/crypto/gcm.hpp>
 
-#if defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL)
+#ifdef WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL
 #include <webcpp/crypto/backends/openssl.hpp>
 #else
 #include <webcpp/crypto/backends/bearssl.hpp>

@@ -45,6 +45,7 @@ struct outcome {
 void work(std::uint8_t seed, std::latch& start, outcome& out) {
     // Both threads make their first gcm, and run their loops, at the same time.
     start.arrive_and_wait();
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): OpenSSL's reason macro ORs signed flags
     ERR_raise(ERR_LIB_USER, ERR_R_PASSED_INVALID_ARGUMENT);
     unsigned long const ours = ERR_peek_last_error();
     // GCM test case 13: the zero key, the zero IV, nothing sealed.
@@ -52,9 +53,10 @@ void work(std::uint8_t seed, std::latch& start, outcome& out) {
     std::array<std::uint8_t, 12> const zero_iv{};
     if (auto zero = aead::make(key)) {
         auto const tag = zero->seal(zero_iv, {}, std::span<std::uint8_t>());
-        constexpr std::array<std::uint8_t, 16> case_13{0x53, 0x0f, 0x8a, 0xfb, 0xc7, 0x45,
-                                                       0x36, 0xb9, 0xa9, 0x63, 0xb4, 0xf1,
-                                                       0xc4, 0xcb, 0x73, 0x8b};
+        constexpr std::array<std::uint8_t, 16> case_13{
+            0x53, 0x0f, 0x8a, 0xfb, 0xc7, 0x45, 0x36, 0xb9,
+            0xa9, 0x63, 0xb4, 0xf1, 0xc4, 0xcb, 0x73, 0x8b,
+        };
         out.known_answer = tag && std::equal(tag->begin(), tag->end(), case_13.begin());
     }
     key.fill(seed);

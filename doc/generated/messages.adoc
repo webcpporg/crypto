@@ -9,277 +9,238 @@
 
 At compile time, checked word for word by the message tests of `test/messages` with clang:
 
-[cols="1,1,5,2",options="header"]
+[cols="2,1,7",options="header"]
 |===
-|Case |Checked on |Message |Fix
+|Case |Checked on |The message, and its fix
 
 |`+aes_on_bearssl+`
 |native, wasip2
-a|
+|`+webcpp::crypto: ciphers::aes256<backends::bearssl>: BearSSL exports AES only inside its modes, with no block cipher. Name a backend that exports it, as in ciphers::aes256<backends::ctaes> or ciphers::aes256<backends::openssl>, and add its library to the program's Jamfile.+`
 
-[listing]
-----
-webcpp::crypto: ciphers::aes256<backends::bearssl>: BearSSL exports AES only inside its modes, with no block cipher. Name a backend that exports it, as in ciphers::aes256<backends::ctaes> or ciphers::aes256<backends::openssl>, and add its library to the program's Jamfile.
-----
-|Name ciphers::aes256<backends::ctaes>, include <webcpp/crypto/backends/ctaes.hpp> and add /third_party//ctaes.
+The fix: Name `+ciphers::aes256<backends::ctaes>+`, include `+<webcpp/crypto/backends/ctaes.hpp>+` and add `+/third_party//ctaes+`.
 
 |`+bearssl_not_linked+`
 |native, wasip2
-a|
+|`+webcpp::crypto: the backend BearSSL is used and not linked. In the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, or, with /webcpp/crypto//openssl linked, select OpenSSL with <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL. (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
 
-[listing]
-----
-webcpp::crypto: the backend BearSSL is used and not linked. In the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, or, with /webcpp/crypto//openssl linked, select OpenSSL with <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL. (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)
-----
-|Add /third_party//bearssl, or, with OpenSSL linked, define WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL.
+The fix: Add `+/third_party//bearssl+`, or, with OpenSSL linked, define `+WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL+`.
 
 |`+ctaes_not_linked+`
 |native, wasip2, wasip3
-a|
+|`+webcpp::crypto: the backend ctaes is used and not linked. In the program's Jamfile, add /third_party//ctaes beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_CTAES=1 and link ctaes.c with webcpp's src/canary_ctaes.c)+`
 
-[listing]
-----
-webcpp::crypto: the backend ctaes is used and not linked. In the program's Jamfile, add /third_party//ctaes beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_CTAES=1 and link ctaes.c with webcpp's src/canary_ctaes.c)
-----
-|Add /third_party//ctaes.
+The fix: Add `+/third_party//ctaes+`.
 
 |`+gcm_on_ctaes+`
 |native, wasip2, wasip3
-a|
+|`+webcpp::crypto: ciphers::gcm<ciphers::aes256<backends::ctaes>>: ctaes exports the AES block cipher alone, and webcpp builds no GCM on another library's AES. Use a backend that exports GCM: ciphers::gcm<ciphers::aes256<backends::bearssl>> or ciphers::gcm<ciphers::aes256<backends::openssl>>.+`
 
-[listing]
-----
-webcpp::crypto: ciphers::gcm<ciphers::aes256<backends::ctaes>>: ctaes exports the AES block cipher alone, and webcpp builds no GCM on another library's AES. Use a backend that exports GCM: ciphers::gcm<ciphers::aes256<backends::bearssl>> or ciphers::gcm<ciphers::aes256<backends::openssl>>.
-----
-|Use aes256_gcm with BearSSL or OpenSSL linked.
+The fix: Use `+aes256_gcm+` with BearSSL or OpenSSL linked.
 
 |`+no_backend_native+`
 |native
-a|
+|`+webcpp::crypto: no backend is linked. In the program's Jamfile, add /webcpp/crypto//openssl (OpenSSL built from source) or /third_party//bearssl (built from source) beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//openssl ; (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto, or define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
 
-[listing]
-----
-webcpp::crypto: no backend is linked. In the program's Jamfile, add /webcpp/crypto//openssl (OpenSSL built from source) or /third_party//bearssl (built from source) beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//openssl ; (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto, or define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)
-----
-|Add /webcpp/crypto//openssl or /third_party//bearssl to the program's sources.
+The fix: Add `+/webcpp/crypto//openssl+` or `+/third_party//bearssl+` to the program's sources.
 
 |`+no_backend_wasm+`
 |wasip2, wasip3
-a|
+|`+webcpp::crypto: no backend is linked. On WebAssembly the backend is BearSSL: in the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
 
-[listing]
-----
-webcpp::crypto: no backend is linked. On WebAssembly the backend is BearSSL: in the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)
-----
-|Add /third_party//bearssl to the program's sources.
+The fix: Add `+/third_party//bearssl+` to the program's sources.
 
 |`+openssl_not_linked+`
 |native, wasip2
-a|
+|`+webcpp::crypto: the backend OpenSSL is used and not linked. In the program's Jamfile, add /webcpp/crypto//openssl beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)+`
 
-[listing]
-----
-webcpp::crypto: the backend OpenSSL is used and not linked. In the program's Jamfile, add /webcpp/crypto//openssl beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)
-----
-|Add /webcpp/crypto//openssl.
+The fix: Add `+/webcpp/crypto//openssl+`.
 
 |`+openssl_old+`
 |native, wasip2
-a|
+|`+webcpp::crypto: the backend OpenSSL needs OpenSSL 3.0 or later, and the headers found are of an older OpenSSL. In the program's Jamfile, name /webcpp/crypto//openssl, which builds OpenSSL 3.5.9. (without b2: put OpenSSL 3's include/ first)+`
 
-[listing]
-----
-webcpp::crypto: the backend OpenSSL needs OpenSSL 3.0 or later, and the headers found are of an older OpenSSL. In the program's Jamfile, name /webcpp/crypto//openssl, which builds OpenSSL 3.5.9. (without b2: put OpenSSL 3's include/ first)
-----
-|Name /webcpp/crypto//openssl, which builds OpenSSL 3.5.9; without b2, put OpenSSL 3's include/ first.
+The fix: Name `+/webcpp/crypto//openssl+`, which builds OpenSSL 3.5.9; without b2, put OpenSSL 3's `+include/+` first.
 
 |`+openssl_only_on_wasi+`
 |wasip2, wasip3
-a|
+|`+webcpp::crypto: the backend BearSSL is used and not linked. In the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, or, with /webcpp/crypto//openssl linked, select OpenSSL with <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL. (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
 
-[listing]
-----
-webcpp::crypto: the backend BearSSL is used and not linked. In the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, or, with /webcpp/crypto//openssl linked, select OpenSSL with <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL. (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)
-----
-|On WASI the default is BearSSL: add /third_party//bearssl, or define WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL.
+The fix: On WASI the default is BearSSL: add `+/third_party//bearssl+`, or define `+WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL+`.
 
 |`+secp256k1_not_linked+`
 |native, wasip2
-a|
+|`+webcpp::crypto: <webcpp/crypto/curves/secp256k1.hpp> needs libsecp256k1, which is not linked. In the program's Jamfile, add /third_party//secp256k1 beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_SECP256K1=1 and link libsecp256k1 built with webcpp's src/canary_secp256k1.c)+`
 
-[listing]
-----
-webcpp::crypto: <webcpp/crypto/curves/secp256k1.hpp> needs libsecp256k1, which is not linked. In the program's Jamfile, add /third_party//secp256k1 beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_SECP256K1=1 and link libsecp256k1 built with webcpp's src/canary_secp256k1.c)
-----
-|Add /third_party//secp256k1.
+The fix: Add `+/third_party//secp256k1+`.
 
 |`+two_defaults+`
 |native
-a|
+|`+webcpp::crypto: both WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL and WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL are defined. Keep one.+`
 
-[listing]
-----
-webcpp::crypto: both WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL and WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL are defined. Keep one.
-----
-|Keep one of the two defines.
+The fix: Keep one of the two defines.
 |===
 
 At build and link time, from the fixtures of the user's Jamfiles, each built on a scratch superproject: what the build prints, per target and linker, as each fixture checks it.
 
-[cols="2,3,4,2",options="header"]
-|===
-|Case |Jamfile |The build prints |Fix
-
-|`+canary_ctaes_missing+`: ctaes's headers used without its library.
-a|
-
-[source,bash]
+`+canary_ctaes_missing+`:: ctaes's headers used without its library. The fix: Link `+/third_party//ctaes+`.
++
+Its Jamfile:
++
+[listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_ctaes_missing/Jamfile[tag=jamfile]
 ----
-a|
-
++
+The build prints, per target and linker:
++
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_ctaes_missing/canary_ctaes_missing.outcome[tag=messages]
 ----
-|Link /third_party//ctaes.
 
-|`+canary_missing+`: BearSSL's headers used without its library, built by other means than b2.
-a|
-
-[source,bash]
+`+canary_missing+`:: BearSSL's headers used without its library, built by other means than b2. The fix: Link the library through b2, `+/third_party//bearssl+`; built by other means, it must be the pinned commit, with webcpp's `+src/canary_bearssl.c+`.
++
+Its Jamfile:
++
+[listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_missing/Jamfile[tag=jamfile]
 ----
-a|
-
++
+The build prints, per target and linker:
++
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_missing/canary_missing.outcome[tag=messages]
 ----
-|Link the library through b2, /third_party//bearssl; built by other means, it must be the pinned commit, with webcpp's src/canary_bearssl.c.
 
-|`+canary_other_commit+`: A BearSSL of another commit than the headers'.
-a|
-
-[source,bash]
+`+canary_other_commit+`:: A BearSSL of another commit than the headers'. The fix: Build the library at the commit of webcpp's submodule, or link it through b2.
++
+Its Jamfile:
++
+[listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_other_commit/Jamfile[tag=jamfile]
 ----
-a|
-
++
+The build prints, per target and linker:
++
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_other_commit/canary_other_commit.outcome[tag=messages]
 ----
-|Build the library at the commit of webcpp's submodule, or link it through b2.
 
-|`+canary_other_configuration+`: A BearSSL compiled with another entropy configuration than webcpp's.
-a|
-
-[source,bash]
+`+canary_other_configuration+`:: A BearSSL compiled with another entropy configuration than webcpp's. The fix: Build BearSSL in webcpp's configuration (`+getentropy+`), or link it through b2.
++
+Its Jamfile:
++
+[listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_other_configuration/Jamfile[tag=jamfile]
 ----
-a|
-
++
+The build prints, per target and linker:
++
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_other_configuration/canary_other_configuration.outcome[tag=messages]
 ----
-|Build BearSSL in webcpp's configuration (getentropy), or link it through b2.
 
-|`+canary_secp256k1_missing+`: libsecp256k1's headers used without its library.
-a|
-
-[source,bash]
+`+canary_secp256k1_missing+`:: libsecp256k1's headers used without its library. The fix: Link `+/third_party//secp256k1+`.
++
+Its Jamfile:
++
+[listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_secp256k1_missing/Jamfile[tag=jamfile]
 ----
-a|
-
++
+The build prints, per target and linker:
++
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_secp256k1_missing/canary_secp256k1_missing.outcome[tag=messages]
 ----
-|Link /third_party//secp256k1.
 
-|`+canary_secp256k1_small+`: A program compiled for other tables than its libsecp256k1 was built with.
-a|
-
-[source,bash]
+`+canary_secp256k1_small+`:: A program compiled for other tables than its libsecp256k1 was built with. The fix: Give the program and the library the same `+<webcpp-secp256k1-tables>+`, or link through b2.
++
+Its Jamfile:
++
+[listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_secp256k1_small/Jamfile[tag=jamfile]
 ----
-a|
-
++
+The build prints, per target and linker:
++
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_secp256k1_small/canary_secp256k1_small.outcome[tag=messages]
 ----
-|Give the program and the library the same <webcpp-secp256k1-tables>, or link through b2.
 
-|`+canary_without+`: A BearSSL built from its sources without webcpp's src/canary_bearssl.c.
-a|
-
-[source,bash]
+`+canary_without+`:: A BearSSL built from its sources without webcpp's `+src/canary_bearssl.c+`. The fix: Compile webcpp's `+src/canary_bearssl.c+` with the library, or link it through b2.
++
+Its Jamfile:
++
+[listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_without/Jamfile[tag=jamfile]
 ----
-a|
-
++
+The build prints, per target and linker:
++
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_without/canary_without.outcome[tag=messages]
 ----
-|Compile webcpp's src/canary_bearssl.c with the library, or link it through b2.
 
-|`+default_openssl_on_emscripten+`: OpenSSL selected as the default in a build for Emscripten.
-a|
-
-[source,bash]
+`+default_openssl_on_emscripten+`:: OpenSSL selected as the default in a build for Emscripten. The fix: Remove the define, or make it `+WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL+`.
++
+Its Jamfile:
++
+[listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/default_openssl_on_emscripten/Jamfile[tag=jamfile]
 ----
-a|
-
++
+The build prints, per target and linker:
++
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/default_openssl_on_emscripten/default_openssl_on_emscripten.outcome[tag=messages]
 ----
-|Remove the define, or make it WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL.
 
-|`+has_openssl_on_emscripten+`: OpenSSL declared linked, without b2, in a build for Emscripten.
-a|
-
-[source,bash]
+`+has_openssl_on_emscripten+`:: OpenSSL declared linked, without b2, in a build for Emscripten. The fix: Replace `+/webcpp/crypto//openssl+` with `+/third_party//bearssl+`.
++
+Its Jamfile:
++
+[listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/has_openssl_on_emscripten/Jamfile[tag=jamfile]
 ----
-a|
-
++
+The build prints, per target and linker:
++
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/has_openssl_on_emscripten/has_openssl_on_emscripten.outcome[tag=messages]
 ----
-|Replace /webcpp/crypto//openssl with /third_party//bearssl.
 
-|`+openssl_on_emscripten+`: /webcpp/crypto//openssl named in a build for Emscripten.
-a|
-
-[source,bash]
+`+openssl_on_emscripten+`:: `+/webcpp/crypto//openssl+` named in a build for Emscripten. The fix: Name `+/third_party//bearssl+` in its place for the Emscripten build.
++
+Its Jamfile:
++
+[listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_on_emscripten/Jamfile[tag=jamfile]
 ----
-a|
-
++
+The build prints, per target and linker:
++
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_on_emscripten/openssl_on_emscripten.outcome[tag=messages]
 ----
-|Name /third_party//bearssl in its place for the Emscripten build.
-|===
 
 On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at link time; its text is MSVC's own, the same instruction in MSVC's words, and two files compiled with different settings stop the link with LNK2038.
 
@@ -289,19 +250,19 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+aes_on_bearssl+`
 |the compile
-|Name ciphers::aes256<backends::ctaes>, include <webcpp/crypto/backends/ctaes.hpp> and add /third_party//ctaes.
+|Name `+ciphers::aes256<backends::ctaes>+`, include `+<webcpp/crypto/backends/ctaes.hpp>+` and add `+/third_party//ctaes+`.
 
 |`+bearssl_not_linked+`
 |the compile
-|Add /third_party//bearssl, or, with OpenSSL linked, define WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL.
+|Add `+/third_party//bearssl+`, or, with OpenSSL linked, define `+WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL+`.
 
 |`+canary_ctaes_missing+`
 |the link
-|Link /third_party//ctaes.
+|Link `+/third_party//ctaes+`.
 
 |`+canary_missing+`
 |the link
-|Link the library through b2, /third_party//bearssl; built by other means, it must be the pinned commit, with webcpp's src/canary_bearssl.c.
+|Link the library through b2, `+/third_party//bearssl+`; built by other means, it must be the pinned commit, with webcpp's `+src/canary_bearssl.c+`.
 
 |`+canary_other_commit+`
 |the link
@@ -309,15 +270,15 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+canary_other_configuration+`
 |the link
-|Build BearSSL in webcpp's configuration (getentropy), or link it through b2.
+|Build BearSSL in webcpp's configuration (`+getentropy+`), or link it through b2.
 
 |`+canary_secp256k1_missing+`
 |the link
-|Link /third_party//secp256k1.
+|Link `+/third_party//secp256k1+`.
 
 |`+canary_secp256k1_small+`
 |the link
-|Give the program and the library the same <webcpp-secp256k1-tables>, or link through b2.
+|Give the program and the library the same `+<webcpp-secp256k1-tables>+`, or link through b2.
 
 |`+canary_two_files+`
 |the link
@@ -325,19 +286,19 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+default_two_files+`
 |the link
-|Give WEBCPP_CRYPTO_DEFAULT_BACKEND_* in the requirements of the program's project, so that every file gets it.
+|Give `+WEBCPP_CRYPTO_DEFAULT_BACKEND_*+` in the requirements of the program's project, so that every file gets it.
 
 |`+gcm_on_ctaes+`
 |the compile
-|Use aes256_gcm with BearSSL or OpenSSL linked.
+|Use `+aes256_gcm+` with BearSSL or OpenSSL linked.
 
 |`+no_backend+`
 |the compile
-|As no_backend_native.
+|As `+no_backend_native+`.
 
 |`+openssl_not_linked+`
 |the compile
-|Add /webcpp/crypto//openssl.
+|Add `+/webcpp/crypto//openssl+`.
 
 |`+two_defaults+`
 |the compile

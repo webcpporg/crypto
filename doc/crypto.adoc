@@ -25,7 +25,8 @@ person's application from this page alone. <<crypto-choose>> answers "what do
 I use for ..." in one table; each chapter opens with a table that compares
 what it holds; every program shown is an example of the library's `example`
 directory, built and run on every target with the output printed beside it.
-The same content, as a machine-readable index, is `llms.txt`, beside this page.
+The same content, as a machine-readable index, is link:llms.txt[`llms.txt`],
+beside this page.
 
 include::overview.adoc[]
 

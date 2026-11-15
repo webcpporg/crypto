@@ -15,6 +15,6 @@ The backends of `+error+`, from the test programs that run it:
 
 |no backend
 |`+/webcpp/crypto//crypto+`
-|`+<webcpp/crypto/equal.hpp>, <webcpp/crypto/error.hpp>+`
+|`+<webcpp/crypto/equal.hpp>+`, `+<webcpp/crypto/error.hpp>+`
 |native, wasip2, wasip3, emscripten (tested by `+error+`)
 |===

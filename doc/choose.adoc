@@ -7,11 +7,12 @@
 [#crypto-choose]
 == Choose by use case
 
-Find the row that says what the program needs, and follow it: the namespace and
-the name to use, the backend that runs it, the Jamfile line that links it, and
-the example that does it, built and run on every target. The backend column
-gives the default; <<crypto-backends>> says which backend runs where, and
-<<crypto-jamfile>> how to name another.
+Find the row that says what the program needs, and follow it: the name to use,
+in the namespace under `webcpp::crypto` that holds it (no namespace is written
+for `webcpp::crypto` itself), the backend that runs it, the Jamfile line that
+links it, and the example that does it, built and run on every target. The
+backend column gives the default; <<crypto-backends>> says which backend runs
+where, and <<crypto-jamfile>> how to name another.
 
 Read the rows as rules. A need that is not in the table is not met by this
 version of crypto, and the program must not improvise one from the primitives

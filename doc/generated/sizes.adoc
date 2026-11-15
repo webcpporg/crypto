@@ -11,7 +11,7 @@
 |===
 |Operation |Size, native |Size, wasip2 |Size, wasip3 |Size, emscripten |Throughput, native |Throughput, node
 
-|`+ciphers::aes128, aes192, aes256+`
+|`+ciphers::aes128+`, `+aes192+`, `+aes256+`
 |not measured yet
 |not measured yet
 |not measured yet
@@ -19,7 +19,7 @@
 |not measured yet
 |not measured yet
 
-|`+ciphers::gcm, aes128_gcm, aes256_gcm+`
+|`+ciphers::gcm+`, `+aes128_gcm+`, `+aes256_gcm+`
 |not measured yet
 |not measured yet
 |not measured yet
@@ -35,7 +35,7 @@
 |not measured yet
 |not measured yet
 
-|`+curves::secp256k1::verify_schnorr, verify_ecdsa+`
+|`+curves::secp256k1::verify_schnorr+`, `+verify_ecdsa+`
 |not measured yet
 |not measured yet
 |not measured yet
@@ -43,7 +43,7 @@
 |not measured yet
 |not measured yet
 
-|`+curves::secp256k1::to_der, from_der, normalize_ecdsa+`
+|`+curves::secp256k1::to_der+`, `+from_der+`, `+normalize_ecdsa+`
 |not measured yet
 |not measured yet
 |not measured yet

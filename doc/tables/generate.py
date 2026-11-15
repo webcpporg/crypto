@@ -214,6 +214,21 @@ def code(text: str) -> str:
     return f'`+{text}+`'
 
 
+# A name in crypto.json's text, `between backticks`, as Markdown writes code: llms.txt keeps it.
+TICKED = re.compile(r'`([^`]+)`')
+
+
+def marked(text: str) -> str:
+    """text of crypto.json with each name between backticks written as inline code."""
+    return TICKED.sub(lambda match: code(match.group(1)), text)
+
+
+def names(text: str) -> str:
+    """A list of names, "ciphers::gcm, aes128_gcm", each as inline code of its own, so that
+    the list breaks between its names as a sentence does."""
+    return ', '.join(code(name) for name in text.split(', '))
+
+
 def table(columns: List[str], rows: List[List[str]], style: str = '') -> str:
     """An AsciiDoc table with a header row."""
     head = f'[{style}options="header"]\n' if style else '[options="header"]\n'
@@ -265,28 +280,48 @@ class Matrix:
                  for target in targets}
         return [target for target in self.data['targets'] if target in found]
 
-    def describe(self, operation: str, backend: str) -> str:
-        """A cell: the targets an operation runs on with a backend, or why it does not."""
+    def targets(self, operation: str, backend: str) -> str:
+        """A cell: the targets an operation runs on with a backend, or that it is refused."""
         key = (operation, backend)
-        if key in self.supported:
-            targets = ', '.join(self.supported[key])
-            missing = [target for target in self.data['targets']
-                       if target not in self.supported[key]]
-            proven = ', '.join(code(name) for name in self.proofs[key])
-            text = f'{targets} (tested by {proven})'
-            if missing and backend == 'openssl':
-                text += f'; not on {", ".join(missing)}: {self.data["elsewhere"]["openssl"]}'
-            return text
         if key in self.refused:
-            return f'{self.data["elsewhere"]["refused"]} ({code(self.refused[key])})'
-        return 'no'
+            return self.data['elsewhere']['refused']
+        text = ', '.join(self.supported[key])
+        missing = [target for target in self.data['targets']
+                   if target not in self.supported[key]]
+        if missing and backend == 'openssl':
+            text += f'; not on {", ".join(missing)}: {marked(self.data["elsewhere"]["openssl"])}'
+        return text
+
+    def tests(self, operation: str, backend: str) -> str:
+        """A cell: the tests that run an operation on a backend, or the message test that
+        refuses it."""
+        key = (operation, backend)
+        if key in self.refused:
+            return code(self.refused[key])
+        return ', '.join(code(name) for name in self.proofs[key])
+
+    def describe(self, operation: str, backend: str) -> str:
+        """A cell: the targets an operation runs on with a backend and the tests that run it, or
+        the message test that refuses it."""
+        key = (operation, backend)
+        if key in self.refused:
+            return f'{self.targets(operation, backend)} ({self.tests(operation, backend)})'
+        targets = ', '.join(self.supported[key])
+        text = f'{targets} (tested by {self.tests(operation, backend)})'
+        rest = self.targets(operation, backend)[len(targets):]
+        return text + rest
 
 
 def namespace_page(data: Data, namespace: str) -> str:
-    """A namespace's comparison table."""
+    """A namespace's comparison table: a column per name it holds, a row per question asked of
+    each, the question in the row's first cell, so that the many questions stack down the page
+    rather than across it."""
     entry = data['namespaces'][namespace]
-    rows = [[cite(data, value) for value in row] for row in entry['rows']]
-    return table(entry['columns'], rows)
+    columns = [entry['columns'][0]] + [row[0] for row in entry['rows']]
+    rows = [[entry['columns'][index]] + [cite(data, row[index]) for row in entry['rows']]
+            for index in range(1, len(entry['columns']))]
+    widths = ','.join(['2h'] + ['5'] * len(entry['rows']))
+    return table(columns, rows, f'cols="{widths}",')
 
 
 def api_backends(data: Data, matrix: Matrix, operation: Data) -> str:
@@ -294,27 +329,29 @@ def api_backends(data: Data, matrix: Matrix, operation: Data) -> str:
     rows: List[List[str]] = []
     for backend in matrix.backends_of(operation['id']):
         facts = data['backends'][backend]
-        rows.append([facts['title'], code(facts['jamfile']), code(facts['header']),
+        rows.append([facts['title'], code(facts['jamfile']), names(facts['header']),
                      matrix.describe(operation['id'], backend)])
-    return (f'The backends of {code(operation["api"])}, from the test programs that run it:\n\n'
+    return (f'The backends of {names(operation["api"])}, from the test programs that run it:\n\n'
             + table(['Backend', 'Jamfile', 'Header', 'Targets'], rows, 'cols="1,2,2,4",'))
 
 
 def matrix_page(data: Data, matrix: Matrix) -> str:
-    """Operations x backends, then operations x targets."""
-    backends = list(BACKEND_ORDER)
-    rows = [[code(operation['api'])] + [matrix.describe(operation['id'], backend)
-                                         for backend in backends]
-            for operation in data['operations']]
-    text = table(['Operation'] + [data['backends'][backend]['title'] for backend in backends],
-                 rows)
+    """Each operation with each backend that implements or refuses it, then operations x
+    targets."""
+    rows: List[List[str]] = []
+    for operation in data['operations']:
+        for backend in matrix.backends_of(operation['id']):
+            rows.append([names(operation['api']), data['backends'][backend]['title'],
+                         matrix.targets(operation['id'], backend),
+                         matrix.tests(operation['id'], backend)])
+    text = table(['Operation', 'Backend', 'Targets', 'Tested by'], rows, 'cols="3,2,3,3",')
     by_target: List[List[str]] = []
     for operation in data['operations']:
-        row = [code(operation['api'])]
+        row = [names(operation['api'])]
         for target in data['targets']:
-            names = [data['backends'][backend]['title'] for backend in backends
-                     if target in matrix.supported.get((operation['id'], backend), [])]
-            row.append(', '.join(names) if names else 'none')
+            titles = [data['backends'][backend]['title'] for backend in BACKEND_ORDER
+                      if target in matrix.supported.get((operation['id'], backend), [])]
+            row.append(', '.join(titles) if titles else 'none')
         by_target.append(row)
     text += '\nThe same, by target: the backends each operation runs on.\n\n'
     text += table(['Operation'] + data['targets'], by_target)
@@ -322,15 +359,20 @@ def matrix_page(data: Data, matrix: Matrix) -> str:
 
 
 def facts_page(data: Data, matrix: Matrix) -> str:
-    """Each backend: its Jamfile line, header, library, licence, own API, allocation, targets."""
+    """Each backend: how a program names it, its Jamfile line, header and targets; then what it
+    is, its library, licence, own API and allocation. Two tables, each as wide as the page."""
+    named: List[List[str]] = []
     rows: List[List[str]] = []
     for backend in BACKEND_ORDER[:4]:
         facts = data['backends'][backend]
-        rows.append([facts['title'], code(facts['jamfile']), code(facts['header']),
-                     facts['library'], facts['licence'], code(facts['own_api']),
-                     facts['allocation'], ', '.join(matrix.targets_of(backend))])
-    return table(['Backend', 'Jamfile', 'Header', 'Library', 'Licence', 'Its own API, reachable',
-                  'Allocation', 'Targets'], rows)
+        named.append([facts['title'], code(facts['jamfile']), names(facts['header']),
+                      ', '.join(matrix.targets_of(backend))])
+        rows.append([facts['title'], marked(facts['library']), facts['licence'],
+                     marked(facts['own_api']), marked(facts['allocation'])])
+    return (table(['Backend', 'Jamfile', 'Header', 'Targets'], named, 'cols="1,2,3,2",')
+            + '\nThe library behind each, and what it costs a program:\n\n'
+            + table(['Backend', 'Library', 'Licence', 'Its own API, reachable', 'Allocation'],
+                    rows, 'cols="1,2,1,2,3",'))
 
 
 def defaults_page(data: Data, declared: Dict[str, List[str]]) -> str:
@@ -341,10 +383,10 @@ def defaults_page(data: Data, declared: Dict[str, List[str]]) -> str:
             if name not in declared:
                 raise Fault(f'crypto.json: the default on {entry["target"]} names the test '
                             f'{name}, which no test Jamfile declares')
-        rows.append([entry['target'], entry['linked'],
+        rows.append([entry['target'], marked(entry['linked']),
                      data['backends'][entry['default']]['title'], cite(data, entry['why']),
                      ', '.join(code(name) for name in entry['tests'])])
-    return table(['Target', 'Linked', 'Default', 'Why', 'Tested by'], rows)
+    return table(['Target', 'Linked', 'Default', 'Why', 'Tested by'], rows, 'cols="2,4,2,5,3",')
 
 
 def constant_time_page(data: Data) -> str:
@@ -353,7 +395,7 @@ def constant_time_page(data: Data) -> str:
     for backend in BACKEND_ORDER[:4]:
         facts = data['backends'][backend]
         sources = ''.join(f'; {{{source}}}' for source in facts['constant_time_sources'])
-        rows.append([facts['title'], cite(data, facts['constant_time'] + sources)]
+        rows.append([facts['title'], marked(cite(data, facts['constant_time'] + sources))]
                     + [NOT_MEASURED for _ in data['targets']])
     return table(['Backend', 'By design'] + [f'Measured, {target}' for target in data['targets']],
                  rows)
@@ -361,36 +403,50 @@ def constant_time_page(data: Data) -> str:
 
 def sizes_page(data: Data) -> str:
     """Size per target and throughput per operation: no lane measures them yet."""
-    rows = [[code(operation['api'])] + [NOT_MEASURED for _ in data['targets']]
+    rows = [[names(operation['api'])] + [NOT_MEASURED for _ in data['targets']]
             + [NOT_MEASURED, NOT_MEASURED]
             for operation in data['operations'] if operation['namespace'] != 'root']
     return table(['Operation'] + [f'Size, {target}' for target in data['targets']]
                  + ['Throughput, native', 'Throughput, node'], rows)
 
 
-def listing(lines: List[str], language: str = '') -> str:
-    """A cell holding a block of lines as they are."""
-    style = f'[source,{language}]\n' if language else '[listing]\n'
-    # The block's attribute list on a line of its own, after a blank line, as Asciidoctor and
-    # doc-check read a block that opens a cell.
-    return 'a|\n\n' + style + '----\n' + '\n'.join(lines) + '\n----'
+def block(lines: List[str]) -> str:
+    """A block of lines as they are, with no language: a Jamfile, which highlight.js does not
+    know, or what a build prints."""
+    return '[listing]\n----\n' + '\n'.join(lines) + '\n----'
 
 
-def included(case: str, file: str, tag: str, language: str = '') -> str:
-    """A cell that includes a tagged region of a fixture's file, as the superproject tracks it."""
-    return listing([f'include::{{webcpp-root}}/{FIXTURES}/{case}/{file}[tag={tag}]'], language)
+def included(case: str, file: str, tag: str) -> str:
+    """A block that includes a tagged region of a fixture's file, as the superproject tracks
+    it."""
+    return block([f'include::{{webcpp-root}}/{FIXTURES}/{case}/{file}[tag={tag}]'])
+
+
+def case_list(entries: List[Tuple[str, str, List[Tuple[str, str]]]]) -> str:
+    """Cases as a list: each name with its description, then its blocks, each after the sentence
+    that says what it is. A case's lines are as wide as its Jamfile and its build make them, so
+    each block takes the page's width, rather than a column of a table that the widest line of
+    any case would make wider than the page."""
+    items: List[str] = []
+    for term, description, blocks in entries:
+        item = [f'{term}:: {description}']
+        for caption, text in blocks:
+            item += ['+', caption, '+', text]
+        items.append('\n'.join(item))
+    return '\n\n'.join(items) + '\n'
 
 
 def jamfiles_page(data: Data, cases: Dict[str, Tuple[List[str], Outcome]]) -> str:
     """Every fixture that builds: its Jamfile, its targets and what it prints."""
-    rows: List[List[str]] = []
+    entries: List[Tuple[str, str, List[Tuple[str, str]]]] = []
     for name, (_, outcome) in cases.items():
         if not outcome.succeeds:
             continue
-        rows.append([f'{code(name)}: {data["fixtures"][name]}',
-                     included(name, 'Jamfile', 'jamfile', 'bash'),
-                     ', '.join(outcome.targets), included(name, f'{name}.outcome', 'output')])
-    return table(['Case', 'Jamfile', 'Built and run on', 'It prints'], rows, 'cols="2,4,1,2",')
+        entries.append((code(name), marked(data['fixtures'][name]), [
+            (f'Its Jamfile, built and run on {", ".join(outcome.targets)}:',
+             included(name, 'Jamfile', 'jamfile')),
+            ('It prints:', included(name, f'{name}.outcome', 'output'))]))
+    return case_list(entries)
 
 
 def messages_page(data: Data, refusals: Dict[str, Tuple[str, List[str]]],
@@ -401,29 +457,36 @@ def messages_page(data: Data, refusals: Dict[str, Tuple[str, List[str]]],
     for name, (text, targets) in refusals.items():
         if name not in fixes:
             raise Fault(f'the message test {name} has no fix in crypto.json')
-        rows.append([code(name), ', '.join(targets), listing([text]), fixes[name]])
+        # The message as a sentence of code, which breaks between its words as the cell
+        # does: one line of hundreds of characters would make the table scroll for all of it.
+        # Its fix is the cell's second paragraph, so that the longest name of each does not
+        # widen a column of its own.
+        rows.append([code(name), ', '.join(targets),
+                     f'{cell(code(text))}\n\nThe fix: {marked(fixes[name])}'])
     text = ('At compile time, checked word for word by the message tests of `test/messages` '
             'with clang:\n\n')
-    text += table(['Case', 'Checked on', 'Message', 'Fix'], rows, 'cols="1,1,5,2",')
-    build: List[List[str]] = []
+    text += table(['Case', 'Checked on', 'The message, and its fix'], rows, 'cols="2,1,7",')
+    entries: List[Tuple[str, str, List[Tuple[str, str]]]] = []
     for name, (_, outcome) in cases.items():
         if outcome.succeeds:
             continue
         if name not in fixes:
             raise Fault(f'the fixture {name} has no fix in crypto.json')
-        build.append([f'{code(name)}: {data["fixtures"][name]}',
-                      included(name, 'Jamfile', 'jamfile', 'bash'),
-                      included(name, f'{name}.outcome', 'messages'), fixes[name]])
+        entries.append((code(name),
+                        f'{marked(data["fixtures"][name])} The fix: {marked(fixes[name])}', [
+                            ('Its Jamfile:', included(name, 'Jamfile', 'jamfile')),
+                            ('The build prints, per target and linker:',
+                             included(name, f'{name}.outcome', 'messages'))]))
     text += ('\nAt build and link time, from the fixtures of the user\'s Jamfiles, each built on '
              'a scratch superproject: what the build prints, per target and linker, as each '
              'fixture checks it.\n\n')
-    text += table(['Case', 'Jamfile', 'The build prints', 'Fix'], build, 'cols="2,3,4,2",')
+    text += case_list(entries)
     windows: List[List[str]] = []
     for name, stage in msvc.items():
         fix = fixes.get(name) or fixes.get(f'{name}_msvc')
         if fix is None:
             raise Fault(f'the MSVC case {name} has no fix in crypto.json')
-        windows.append([code(name), f'the {stage}', fix])
+        windows.append([code(name), f'the {stage}', marked(fix)])
     text += ('\nOn MSVC, each case of `test/msvc` is proven to stop the build, at compile or '
              'at link time; its text is MSVC\'s own, the same instruction in MSVC\'s words, and '
              'two files compiled with different settings stop the link with LNK2038.\n\n')
@@ -431,20 +494,33 @@ def messages_page(data: Data, refusals: Dict[str, Tuple[str, List[str]]],
     return text
 
 
+# The namespace every name of the decision table is in, which its cells leave out.
+ROOT_NAMESPACE = 'webcpp::crypto'
+
+
 def use_cases_page(data: Data, library: Path) -> str:
-    """The decision table: what a program needs, and what to use."""
+    """The decision table: what a program needs, and what to use. A name is written in the
+    namespace under webcpp::crypto that holds it, so that no column is as wide as a namespace's
+    full name."""
     rows: List[List[str]] = []
     for entry in data['use_cases']:
         example = entry['example']
         if example and not (library / 'example' / f'{example}.cpp').is_file():
             raise Fault(f'crypto.json: the use case "{entry["need"]}" names the example '
                         f'{example}, which example/ does not hold')
-        shown = (f'<<{entry["section"]},{code(f"example/{example}.cpp")}>>' if example
+        shown = (f'<<{entry["section"]},{code(f"{example}.cpp")}>>' if example
                  else f'<<{entry["section"]}>>')
-        rows.append([entry['need'], entry['namespace'], code(entry['api']), entry['backend'],
-                     code(entry['jamfile']), shown])
-    return table(['I need to', 'Namespace', 'Use', 'Backend', 'Jamfile', 'Example'], rows,
-                 'cols="3,2,3,2,3,2",')
+        namespace = entry['namespace']
+        if namespace == ROOT_NAMESPACE:
+            use = marked(entry['api'])
+        elif namespace.startswith(f'{ROOT_NAMESPACE}::'):
+            use = f'In {code(namespace[len(ROOT_NAMESPACE) + 2:])}: {marked(entry["api"])}'
+        else:
+            use = f'{namespace[:1].upper()}{namespace[1:]}: {marked(entry["api"])}'
+        jamfile = marked(entry['jamfile']) if '`' in entry['jamfile'] else code(entry['jamfile'])
+        rows.append([entry['need'], use, entry['backend'], jamfile, shown])
+    return table(['I need to', 'Use', 'Backend', 'Jamfile', 'Example'], rows,
+                 'cols="3,3,2,3,2",')
 
 
 HEADER = re.compile(r'<(webcpp/crypto/[\w/]+\.hpp)>')

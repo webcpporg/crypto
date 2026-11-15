@@ -54,7 +54,7 @@ defines `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`, or names
 Each case below is a fixture of the superproject's
 `tools/test/crypto_jamfiles_test.py`: its Jamfile is built on a scratch copy of
 the superproject, as a user's would be, on each target named, and the program
-run; what it prints is checked. The table is generated from the fixtures.
+run; what it prints is checked. The list is generated from the fixtures.
 
 include::generated/jamfiles.adoc[]
 
@@ -88,7 +88,7 @@ At compile time, the first error is the one to read: the lines after it come
 from it and go away with it. At link time, a symbol whose name is the
 instruction reports a backend library that is missing, or of another commit or
 configuration than the headers; with b2 it cannot happen, and it guards
-builds made by other means. Every table below is generated from the tests that
+builds made by other means. Everything below is generated from the tests that
 fix each text.
 
 include::generated/messages.adoc[]

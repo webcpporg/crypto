@@ -171,6 +171,9 @@ webcpp.compile-diagnostic random_device_no_call : random_device_no_call_test.cpp
 # The C libraries' own suites, in the own lane c-suites.
 build-project c_suites ;
 
+# A backend named and not called adds no byte (webcpp.same-program).
+build-project unused ;
+
 # The backend OpenSSL: the source-built OpenSSL 3.5.9 on native, wasip2 and
 # wasip3 (Task 11); Emscripten has none.
 crypto-run gcm_openssl : gcm_openssl_test.cpp : <library>/webcpp/crypto//openssl

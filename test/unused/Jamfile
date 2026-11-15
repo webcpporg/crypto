@@ -5,7 +5,11 @@
 # https://www.boost.org/LICENSE_1_0.txt)
 
 # A backend built from source, named and not called, adds no byte, on every
-# target it builds on (spec sections 4.2 and 8.7). Task 21 creates this file and app.cpp
-# with webcpp.same-program; the line of ctaes, which waits for it:
-#
-#   webcpp.same-program unused_ctaes : app.cpp : /third_party//ctaes : : <library>/webcpp/crypto//crypto ;
+# target it builds on (spec sections 4.2 and 8.7): app.cpp, built with the
+# backend's library named and without it, is the same bytes.
+import webcpp ;
+
+webcpp.targets native wasip2 wasip3 emscripten ;
+
+webcpp.same-program unused_bearssl : app.cpp : /third_party//bearssl
+  : : <library>/webcpp/crypto//crypto ;

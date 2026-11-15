@@ -20,7 +20,7 @@ of every version are on webcpp's index page.
 * Added equal, random_device, and aes128, aes192 and aes256, the AES block cipher.
 * Added gcm, AES-GCM in place with an incremental seal, whose failed open zeroes the data.
 * Added the default backend, aes128_gcm, aes256_gcm and the refusals of backends that conflict.
-* Added backends::bearssl, whose header names the line a program's Jamfile lacks when it uses BearSSL without linking it.
+* Added backends::bearssl: AES-GCM on every target, the block cipher refused, and the Jamfile line a program lacks when BearSSL is not linked.
 * Added backends::openssl and /webcpp/crypto//openssl on native and WASI; a message on it allocates nothing after make.
 * Added backends::ctaes, the AES block cipher alone on every target; gcm refuses it.
 * Added secp256k1 on libsecp256k1: key pairs, BIP340 and ECDSA signatures, ECDH, DER, low-S and the Taproot tweak.

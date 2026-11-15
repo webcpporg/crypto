@@ -1,0 +1,16 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+project : requirements <library>/webcpp/crypto//crypto <library>/third_party//bearssl ;
+
+import webcpp ;
+
+webcpp.compile-diagnostic aes_on_bearssl : aes_on_bearssl.cpp : : native wasip2 ;
+
+# The refusal stays in the block cipher's functions: BearSSL's GCM, which names
+# the cipher, compiles on every target.
+webcpp.compile gcm_names_aes_on_bearssl : gcm_names_aes_on_bearssl.cpp
+  : : native wasip2 wasip3 emscripten ;

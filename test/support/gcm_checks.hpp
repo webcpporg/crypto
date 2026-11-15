@@ -24,6 +24,7 @@
 #endif
 
 #include <webcpp/crypto/aes.hpp>
+#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/gcm.hpp>
 
@@ -78,7 +79,7 @@ void check_spec_cases(gcm_cases cases = gcm_spec_cases) {
             auto const sealed = made->seal(iv, additional_data, data);
             BOOST_TEST(sealed.has_value());
             BOOST_TEST_EQ(to_hex(data), c.ciphertext);
-            BOOST_TEST(sealed && to_hex(*sealed) == c.tag);
+            BOOST_TEST(sealed && crypto::equal(*sealed, std::span<std::uint8_t const>(tag)));
             BOOST_TEST(made->open(iv, additional_data, data, tag).has_value());
             BOOST_TEST_EQ(to_hex(data), c.plaintext);
         });

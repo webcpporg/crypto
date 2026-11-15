@@ -15,3 +15,5 @@ webcpp.same-program unused_bearssl : app.cpp : /third_party//bearssl
   : : <library>/webcpp/crypto//crypto ;
 webcpp.same-program unused_secp256k1 : app.cpp : /third_party//secp256k1
   : : <library>/webcpp/crypto//crypto ;
+webcpp.same-program unused_ctaes : app.cpp : /third_party//ctaes
+  : : <library>/webcpp/crypto//crypto ;

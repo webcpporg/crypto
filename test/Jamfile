@@ -246,3 +246,15 @@ crypto-run agreement_gcm_portable : agreement_gcm_portable_test.cpp
   : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
     <define>WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE
   : native wasip2 wasip3 ;
+
+# <windows.h> before and after every public header (spec sections 2.2 and 8.6),
+# with every backend linked: on MSVC (the CI's msvc lanes) the headers beside a
+# bare <windows.h>; elsewhere the headers alone.
+crypto-run windows_h_before : windows_h_before_test.cpp
+  : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
+    <library>/third_party//ctaes <library>/third_party//secp256k1
+  : native ;
+crypto-run windows_h_after : windows_h_after_test.cpp
+  : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
+    <library>/third_party//ctaes <library>/third_party//secp256k1
+  : native ;

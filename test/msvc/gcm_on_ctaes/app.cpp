@@ -14,6 +14,7 @@
 
 int main() {
     std::array<std::uint8_t, 32> const key{};
-    auto aead = webcpp::crypto::gcm<webcpp::crypto::aes256<webcpp::crypto::backends::ctaes>>::make(key);
+    auto aead =
+        webcpp::crypto::gcm<webcpp::crypto::aes256<webcpp::crypto::backends::ctaes>>::make(key);
     return aead ? 0 : 1;
 }

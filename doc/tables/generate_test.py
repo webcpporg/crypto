@@ -141,10 +141,17 @@ def test_the_decision_table_writes_no_jamfile_as_prose(scratch: Path) -> None:
     entry = {'need': 'n', 'namespace': 'webcpp::crypto', 'api': '`f`', 'backend': 'b',
              'example': 'app', 'section': 's'}
     page = generate.use_cases_page({'use_cases': [
-        dict(entry, jamfile='none'), dict(entry, jamfile='/webcpp/crypto//crypto')]}, scratch)
-    assert page.startswith('[.wrap-names,cols="3,3,2,3,2",options="header"]\n'), page
+        dict(entry, jamfile='none'), dict(entry, jamfile='/webcpp/crypto//crypto'),
+        dict(entry, jamfile='/webcpp/crypto//crypto /third_party//ctaes'),
+        dict(entry, jamfile="`/webcpp/crypto//crypto` brings Boost's headers")]}, scratch)
+    assert page.startswith('[.wrap-names.key-column,cols="3,3,2,3,2",options="header"]\n'), page
     assert '\n|none\n' in page, page
-    assert '\n|`+/webcpp/crypto//crypto+`\n' in page, page
+    # A target and an example's file, which a reader copies, stay whole on a line of their own
+    # (the role keep); the other names of the table break between their parts.
+    assert '\n|[.keep]`+/webcpp/crypto//crypto+`\n' in page, page
+    assert '\n|[.keep]`+/webcpp/crypto//crypto+` +\n[.keep]`+/third_party//ctaes+`\n' in page, page
+    assert "\n|[.keep]`+/webcpp/crypto//crypto+` brings Boost's headers\n" in page, page
+    assert '\n|<<s,[.keep]`+app.cpp+`>>\n' in page, page
 
 
 CASES: list[Callable[[Path], None]] = [

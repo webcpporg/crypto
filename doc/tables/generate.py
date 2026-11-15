@@ -241,6 +241,12 @@ def code(text: str) -> str:
 TICKED = re.compile(r'`([^`]+)`')
 
 
+def kept(text: str) -> str:
+    """text as inline code the page keeps on one line at every width, a target or a file a
+    reader copies (the role keep, tools/doc/docinfo.html)."""
+    return f'[.keep]{code(text)}'
+
+
 def marked(text: str) -> str:
     """text of crypto.json with each name between backticks written as inline code."""
     return TICKED.sub(lambda match: code(match.group(1)), text)
@@ -579,7 +585,7 @@ def use_cases_page(data: Data, library: Path) -> str:
         if example and not (library / 'example' / f'{example}.cpp').is_file():
             raise Fault(f'crypto.json: the use case "{entry["need"]}" names the example '
                         f'{example}, which example/ does not hold')
-        shown = (f'<<{entry["section"]},{code(f"{example}.cpp")}>>' if example
+        shown = (f'<<{entry["section"]},{kept(f"{example}.cpp")}>>' if example
                  else f'<<{entry["section"]}>>')
         namespace = entry['namespace']
         if namespace == ROOT_NAMESPACE:
@@ -588,17 +594,21 @@ def use_cases_page(data: Data, library: Path) -> str:
             use = f'In {code(namespace[len(ROOT_NAMESPACE) + 2:])}: {marked(entry["api"])}'
         else:
             use = f'{namespace[:1].upper()}{namespace[1:]}: {marked(entry["api"])}'
+        # Each target whole, on a line of its own.
         if '`' in entry['jamfile']:
-            jamfile = marked(entry['jamfile'])
+            jamfile = TICKED.sub(lambda match: kept(match.group(1)), entry['jamfile'])
         elif entry['jamfile'] == 'none':
             jamfile = 'none'
         else:
-            jamfile = code(entry['jamfile'])
+            jamfile = ' +\n'.join(kept(target) for target in entry['jamfile'].split())
         rows.append([entry['need'], use, entry['backend'], jamfile, shown])
     # wrap-names: the names break between their parts at every width, so that the column a
-    # reader starts from, "I need to", keeps its share of the width (tools/doc/docinfo.html).
+    # reader starts from, "I need to", keeps its share of the width; key-column: that column
+    # keeps room for a few words a line, the names of "Use" breaking between their parts where
+    # the table does not fit otherwise; targets and examples' files stay whole, as a reader
+    # copies them (tools/doc/docinfo.html).
     return table(['I need to', 'Use', 'Backend', 'Jamfile', 'Example'], rows,
-                 '.wrap-names,cols="3,3,2,3,2",')
+                 '.wrap-names.key-column,cols="3,3,2,3,2",')
 
 
 HEADER = re.compile(r'<(webcpp/crypto/[\w/]+\.hpp)>')

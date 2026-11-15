@@ -4,18 +4,21 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Readers the secp256k1 vector tests share: a whole file as text, a base64url string
-// without padding, and a scalar normalised to the 32 bytes the secp256k1 API takes.
+// Readers the secp256k1 vector tests share (a whole file is test_data.hpp's): a base64url
+// string without padding, a scalar normalised to the 32 bytes the secp256k1 API takes, and the
+// high-S twin of a compact signature.
 
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_SECP256K1_DATA_HPP
 #define WEBCPP_TEST_CRYPTO_SUPPORT_SECP256K1_DATA_HPP
+
+#include "hex.hpp"
+#include "test_data.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <fstream>
 #include <iostream>
 #include <iterator>
 #include <span>
@@ -24,16 +27,6 @@
 #include <vector>
 
 namespace webcpp::test {
-
-/** The whole file at path; one that cannot be opened ends the test, by name. */
-inline std::string read_text(std::string const& path) {
-    std::ifstream in(path, std::ios::binary);
-    if (!in) {
-        std::cerr << "cannot open test data: " << path << '\n';
-        std::abort();
-    }
-    return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
-}
 
 /**
  * The bytes of a base64url string without padding (`-` and `_`); any other character ends
@@ -89,6 +82,24 @@ inline std::array<std::uint8_t, 32> scalar32(std::span<std::uint8_t const> bytes
     }
     std::array<std::uint8_t, 32> out{};
     std::copy(first, bytes.end(), out.begin() + static_cast<std::ptrdiff_t>(32 - size));
+    return out;
+}
+
+/**
+ * The high-S twin of a compact ECDSA signature: r, then n - s in unsigned arithmetic, with n the
+ * group order.
+ */
+inline std::array<std::uint8_t, 64> negate_s(std::span<std::uint8_t const, 64> compact) {
+    auto const order = from_hex("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
+    std::array<std::uint8_t, 64> out{};
+    std::ranges::copy(compact, out.begin());
+    // Each byte's difference: bit 8 is set when it borrowed.
+    unsigned borrow = 0;
+    for (std::size_t i = 32; i-- > 0;) {
+        unsigned const d = unsigned{order[i]} - unsigned{compact[32 + i]} - borrow;
+        out[32 + i] = static_cast<std::uint8_t>(d & 0xffU);
+        borrow = (d >> 8U) & 1U;
+    }
     return out;
 }
 

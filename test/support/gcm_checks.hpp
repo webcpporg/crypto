@@ -581,9 +581,10 @@ void check_one_shot_during_message(gcm_cases cases = gcm_spec_cases) {
 /**
  * The message's limit, refused before any byte is read: in one call to seal and open, and
  * summed over update. The additional data's own limit (2^61 - 1 bytes) cannot be reached by
- * a span a guard refuses before reading; it is pinned by detail::exceeds's test.
+ * a span a guard refuses before reading; it is pinned by detail::exceeds's test. A real backend
+ * (`Specified`) then seals a fresh message as the specification says.
  */
-template <class Backend>
+template <class Backend, bool Specified = true>
 void check_limits() {
     using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     static_assert(sizeof(std::size_t) == 8, "the limits are reachable only with 64-bit sizes");
@@ -604,6 +605,11 @@ void check_limits() {
         made->update(huge.first(static_cast<std::size_t>(aead::max_message_size) - 15)).error() ==
         crypto::error::message_too_long);
     BOOST_TEST(made->result().error() == crypto::error::invalid_state);  // the error ended it
+    // The error ends the message, not the object: a fresh message seals as the specification
+    // says (case 14: AES-256, the zero key and IV, one zero block). The mock answers its own.
+    if constexpr (Specified) {
+        expect_fresh_message(*made, iv, gcm_spec_cases[13]);
+    }
 }
 #endif
 

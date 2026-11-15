@@ -12,6 +12,15 @@
 // The program calls max in parentheses: a bare <windows.h> included first defines the macros
 // min and max for the whole program, which is what its author asked for and what webcpp's
 // headers keep; their own (max)() is what is under test.
+//
+// OpenSSL after a bare <windows.h> (read, not run, in the headers of 3.5.9): the macros of
+// wincrypt.h that name OpenSSL types are X509_NAME, X509_EXTENSIONS, PKCS7_SIGNER_INFO,
+// OCSP_REQUEST and OCSP_RESPONSE (and X509_CERT_PAIR and PKCS7_ISSUER_AND_SERIAL, which
+// x509.h and pkcs7.h use). include/openssl/types.h, the first header that names any of them,
+// undefines the first five before its include guard and defines WINCRYPT_USE_SYMBOL_PREFIX for
+// a <windows.h> that follows; the 29 headers backends/openssl.hpp reaches (evp.h, err.h and
+// what they include) use no other name wincrypt.h defines, and include neither x509.h nor
+// pkcs7.h. So nothing breaks; a bare <windows.h> first is what this program tests on MSVC.
 
 #ifdef _WIN32
 #include <windows.h>

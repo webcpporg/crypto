@@ -289,7 +289,7 @@ inline void webcpp_test_count_c_allocation(std::uint32_t type, std::uintptr_t /*
 }
 
 namespace webcpp::test {
-/** Installs the hook once, from the first counting call. */
+/** Installs the hook at static initialisation, before main, as this inline variable is defined. */
 inline bool const logger_installed = (malloc_logger = &webcpp_test_count_c_allocation, true);
 }  // namespace webcpp::test
 #endif

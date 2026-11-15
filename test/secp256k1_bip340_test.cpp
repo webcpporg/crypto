@@ -123,7 +123,7 @@ std::string without_cr(std::string line) {
 }  // namespace
 
 int main() {
-    auto const text = test::read_text(WEBCPP_TEST_BIPS "/bip-0340/test-vectors.csv");
+    auto const text = test::read_file(WEBCPP_TEST_BIPS "/bip-0340/test-vectors.csv");
     std::istringstream in(text);
     std::string line;
     std::getline(in, line);

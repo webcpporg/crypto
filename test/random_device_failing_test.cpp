@@ -22,6 +22,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <span>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -30,10 +32,15 @@ namespace {
 int answer_after = 0;
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the planted source's script
 int failure = EIO;
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the planted source's tally
+std::size_t calls = 0;
 
 }  // namespace
 
 extern "C" int webcpp_test_entropy(void* out, std::size_t size) {
+    // getentropy refuses more than 256 bytes at once: the device never asks for more.
+    BOOST_TEST(size <= 256);
+    ++calls;
     // As getentropy does: 0 when it fills, -1 with errno set when it fails.
     if (answer_after == 0) {
         errno = failure;
@@ -74,6 +81,19 @@ int main() {
     BOOST_TEST(!filled && filled.error() == crypto::error::entropy_unavailable);
     BOOST_TEST(std::ranges::all_of(buffer, [](std::uint8_t b) { return b == 0; }));
     failure = EIO;
+
+    // The pieces of a fill that succeeds: 257 bytes are two calls (256 and 1), 600 are three,
+    // none of more than 256 bytes (checked in the source), and the buffer holds what it gave.
+    for (auto const [size, pieces] : {std::pair<std::size_t, std::size_t>{257, 2}, {600, 3}}) {
+        std::ranges::fill(buffer, 0xff);
+        answer_after = 100;
+        calls = 0;
+        filled = device.fill(std::span(buffer).first(size));
+        BOOST_TEST(filled.has_value());
+        BOOST_TEST_EQ(calls, pieces);
+        BOOST_TEST(std::all_of(buffer.begin(), buffer.begin() + static_cast<std::ptrdiff_t>(size),
+                               [](std::uint8_t b) { return b == 0x5a; }));
+    }
 
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
     answer_after = 0;

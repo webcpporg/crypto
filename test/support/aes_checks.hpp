@@ -6,7 +6,8 @@
 
 // The checks of the block cipher on one backend that exports it, whatever its algorithm:
 // the guards and their order, the round trip, blocks that are independent, and moved-from
-// objects (spec section 2.3). A backend's own known answers (FIPS-197) are its test's.
+// objects (spec section 2.3), and FIPS-197 appendix C's known answers, which every backend
+// that exports the block cipher must give.
 
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_AES_CHECKS_HPP
 #define WEBCPP_TEST_CRYPTO_SUPPORT_AES_CHECKS_HPP
@@ -14,12 +15,15 @@
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/error.hpp>
 
+#include "hex.hpp"
+
 #include <boost/core/lightweight_test.hpp>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string_view>
 #include <utility>
 
 namespace webcpp::test {
@@ -164,6 +168,38 @@ void check_block_cipher() {
     check_block_moved_from<webcpp::crypto::ciphers::aes128<Backend>>();
     check_block_moved_from<webcpp::crypto::ciphers::aes192<Backend>>();
     check_block_moved_from<webcpp::crypto::ciphers::aes256<Backend>>();
+}
+
+/** Encrypts `plain` with `Cipher` under `key`, checks `expected`, and decrypts it back. */
+template <class Cipher>
+void check_answer(std::span<std::uint8_t const> key, std::string_view plain,
+                  std::string_view expected) {
+    auto made = Cipher::make(key);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    auto const plaintext = from_hex(plain);
+    auto block = plaintext;
+    BOOST_TEST(made->encrypt(block).has_value());
+    BOOST_TEST_EQ(to_hex(block), expected);
+    BOOST_TEST(made->decrypt(block).has_value());
+    BOOST_TEST(block == plaintext);
+}
+
+/** FIPS-197 appendix C.1, C.2 and C.3: the key 00 01 02 ..., the block 00 11 22 ... ff. */
+template <class Backend>
+void check_fips197() {
+    std::array<std::uint8_t, 32> key{};
+    for (std::size_t i = 0; i < key.size(); ++i) {
+        key[i] = static_cast<std::uint8_t>(i);
+    }
+    constexpr std::string_view plain = "00112233445566778899aabbccddeeff";
+    check_answer<webcpp::crypto::ciphers::aes128<Backend>>(std::span(key).first(16), plain,
+                                                           "69c4e0d86a7b0430d8cdb78070b4c55a");
+    check_answer<webcpp::crypto::ciphers::aes192<Backend>>(std::span(key).first(24), plain,
+                                                           "dda97ca4864cdfe06eaf70a0ec0d7191");
+    check_answer<webcpp::crypto::ciphers::aes256<Backend>>(key, plain,
+                                                           "8ea2b7ca516745bfeafc49904b496089");
 }
 
 }  // namespace webcpp::test

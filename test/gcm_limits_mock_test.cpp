@@ -65,7 +65,7 @@ void check_summed_limit() {
 }  // namespace
 
 int main() {
-    webcpp::test::check_limits<mock>();
+    webcpp::test::check_limits<mock, false>();
     check_summed_limit();
     BOOST_TEST_EQ(mock_control.violations, 0);
     return webcpp::test::exit_status(boost::report_errors());

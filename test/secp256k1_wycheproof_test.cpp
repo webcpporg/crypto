@@ -48,7 +48,7 @@ void fail(std::string const& message) {
 }
 
 json::value load(std::string const& name) {
-    auto const text = test::read_text(WEBCPP_TEST_WYCHEPROOF "/testvectors_v1/" + name + ".json");
+    auto const text = test::read_file(WEBCPP_TEST_WYCHEPROOF "/testvectors_v1/" + name + ".json");
     boost::system::error_code ec;
     auto value = json::parse(text, ec);
     BOOST_TEST(!ec);

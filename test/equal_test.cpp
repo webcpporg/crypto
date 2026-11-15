@@ -39,6 +39,22 @@ int main() {
     BOOST_TEST(!crypto::equal(a, shorter));
     BOOST_TEST(crypto::equal(std::span<std::uint8_t const>(), std::span<std::uint8_t const>()));
 
+    // Spans of one size: equal ones, and ones that differ in any byte (the first, the last).
+    std::array<std::uint8_t, 8> const eight{1, 2, 3, 4, 5, 6, 7, 8};
+    auto different_first = eight;
+    different_first.front() ^= 0x80;
+    auto different_last = eight;
+    different_last.back() ^= 0x01;
+    BOOST_TEST(crypto::equal(std::span<std::uint8_t const>(eight), std::span(eight)));
+    BOOST_TEST(!crypto::equal(std::span<std::uint8_t const>(eight), std::span(different_first)));
+    BOOST_TEST(!crypto::equal(std::span<std::uint8_t const>(eight), std::span(different_last)));
+    // Two 32-byte digests (a SHA-256 tag's size) that differ in the last byte only.
+    boost::hash2::digest<32> first_digest{};
+    boost::hash2::digest<32> second_digest{};
+    BOOST_TEST(crypto::equal(first_digest, second_digest));
+    second_digest.data()[31] = 1;
+    BOOST_TEST(!crypto::equal(first_digest, second_digest));
+
     // Hash2's MAC, which equal serves too: two results of the same key and message agree.
     boost::hash2::hmac_sha2_256 first(reinterpret_cast<unsigned char const*>("key"), 3);
     boost::hash2::hmac_sha2_256 second(reinterpret_cast<unsigned char const*>("key"), 3);

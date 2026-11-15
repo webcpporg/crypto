@@ -39,10 +39,6 @@ namespace {
 
 using bytes = std::vector<std::uint8_t>;
 
-// The group order n, big-endian.
-constexpr std::string_view order_hex =
-    "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141";
-
 std::array<std::uint8_t, 32> sha256(std::span<std::uint8_t const> data) {
     boost::hash2::sha2_256 hasher;
     hasher.update(data.data(), data.size());
@@ -56,20 +52,6 @@ std::array<std::uint8_t, 32> sha256(std::span<std::uint8_t const> data) {
 secp::keypair key_of(std::uint8_t i) {
     std::array<std::uint8_t, 2> const seed{0x6b, i};
     return *secp::keypair::make(sha256(seed));
-}
-
-// n - s of a compact signature, in unsigned arithmetic: its high-S twin.
-std::array<std::uint8_t, 64> negate_s(std::span<std::uint8_t const, 64> compact) {
-    auto const order = test::from_hex(order_hex);
-    std::array<std::uint8_t, 64> out{};
-    std::ranges::copy(compact, out.begin());
-    unsigned borrow = 0;
-    for (std::size_t i = 32; i-- > 0;) {
-        unsigned const d = unsigned{order[i]} - unsigned{compact[32 + i]} - borrow;
-        out[32 + i] = static_cast<std::uint8_t>(d & 0xffU);
-        borrow = (d >> 8U) & 1U;
-    }
-    return out;
 }
 
 // Strict DER of a signature: SEQUENCE of two minimal, non-negative INTEGERs, nothing after.
@@ -158,7 +140,7 @@ void normalization() {
     hash.fill(0x77);
     auto const signature = *key.sign_ecdsa(hash);
     auto const public_key = *key.public_key();
-    auto const high = negate_s(signature);
+    auto const high = test::negate_s(signature);
     BOOST_TEST(high != signature);
     BOOST_TEST(secp::verify_ecdsa(high, hash, public_key).error() ==
                crypto::error::invalid_signature);
@@ -229,7 +211,7 @@ tallies const& expected_tallies() {
 }
 
 void wycheproof() {
-    auto const text = test::read_text(WEBCPP_TEST_WYCHEPROOF
+    auto const text = test::read_file(WEBCPP_TEST_WYCHEPROOF
                                       "/testvectors_v1/ecdsa_secp256k1_sha256_bitcoin_test.json");
     boost::system::error_code ec;
     auto const doc = json::parse(text, ec);

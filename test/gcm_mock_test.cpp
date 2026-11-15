@@ -31,6 +31,16 @@ namespace {
 
 using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<mock>>;
 
+// Spec section 2.4, "GCM sizes": the sizes are constants of the type, whatever the backend.
+static_assert(aead::key_size == 32);
+static_assert(aead::tag_size == 16);
+static_assert(aead::iv_size == 12);
+static_assert(aead::max_iv_size == 128);
+static_assert(aead::max_message_size == (std::uint64_t{1} << 36U) - 32);
+static_assert(aead::max_additional_data_size == (std::uint64_t{1} << 61U) - 1);
+static_assert(crypto::ciphers::gcm<crypto::ciphers::aes128<mock>>::key_size == 16);
+static_assert(crypto::ciphers::gcm<crypto::ciphers::aes192<mock>>::key_size == 24);
+
 // make returns the engine's error as it is: not_enough_memory, backend_failure.
 void check_make_failures() {
     std::array<std::uint8_t, 32> const key{};

@@ -61,7 +61,21 @@ webcpp.compile config_developer_defined : config_test.cpp
 
 crypto-run error : error_test.cpp ;
 crypto-run equal : equal_test.cpp ;
+# <webcpp/crypto.hpp> alone, with no backend linked, compiles, links and runs.
+crypto-run convenience_header : convenience_header_test.cpp ;
 crypto-run wipe : wipe_test.cpp ;
+
+# A destroyed or moved-from key schedule is zero in its storage, read at -O2 where a dropped
+# store would show (spec section 2.11): one program per keyed type, one source.
+crypto-run wipe_objects_bearssl : wipe_objects_test.cpp
+  : <library>/third_party//bearssl <define>WEBCPP_TEST_WIPE_BEARSSL <optimization>speed ;
+crypto-run wipe_objects_ctaes : wipe_objects_test.cpp
+  : <library>/third_party//ctaes <define>WEBCPP_TEST_WIPE_CTAES <optimization>speed ;
+crypto-run wipe_objects_secp256k1 : wipe_objects_test.cpp
+  : <library>/third_party//secp256k1 <define>WEBCPP_TEST_WIPE_SECP256K1 <optimization>speed ;
+crypto-run wipe_objects_openssl : wipe_objects_test.cpp
+  : <library>/webcpp/crypto//openssl <define>WEBCPP_TEST_WIPE_OPENSSL <optimization>speed
+  : native wasip2 wasip3 ;
 
 # The counter itself: counts each allocation as it documents, on the first
 # thread and a new one.
@@ -146,6 +160,9 @@ crypto-run secp256k1_bip340 : secp256k1_bip340_test.cpp
 crypto-run secp256k1_wycheproof : secp256k1_wycheproof_test.cpp
   : <library>/third_party//secp256k1 <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;
+# libsecp256k1's recovery and ElligatorSwift modules, which webcpp does not wrap, called through
+# the C API and linked (spec section 2.8).
+crypto-run secp256k1_c_api : secp256k1_c_api_test.cpp : <library>/third_party//secp256k1 ;
 crypto-run secp256k1_der : secp256k1_der_test.cpp
   : <library>/third_party//secp256k1 <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;

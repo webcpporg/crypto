@@ -34,7 +34,11 @@ void check_code_paths() {
 #elif defined(__x86_64__) || defined(_M_X64)
     // Without the seam, an x86-64 CPU with AES-NI and PCLMUL runs them.
     if (br_aes_x86ni_ctr_get_vtable() == nullptr || br_ghash_pclmul_get() == nullptr) {
-        std::printf("this CPU lacks AES-NI or PCLMUL: BearSSL runs its portable code\n");
+        // The vtable is null when the CPU lacks the instructions and when BearSSL compiled the
+        // code out: in both, the two programs of this test run the same portable path.
+        std::printf(
+            "AES-NI or PCLMUL unavailable (the CPU or the build): BearSSL runs its "
+            "portable code\n");
     } else {
         BOOST_TEST(crypto::detail::bearssl_ctr() == br_aes_x86ni_ctr_get_vtable());
         BOOST_TEST(crypto::detail::bearssl_ghash() == br_ghash_pclmul_get());

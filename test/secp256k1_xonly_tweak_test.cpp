@@ -17,6 +17,7 @@
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
+#include "support/secp256k1_checks.hpp"
 #include "support/secp256k1_data.hpp"
 
 #include <boost/core/lightweight_test.hpp>
@@ -170,8 +171,8 @@ void refusals() {
     {
         auto refused = *secp::keypair::make(secret);
         BOOST_TEST(refused.tweak_xonly(over).error() == crypto::error::invalid_secret_key);
-        // Refused, the pair is wiped and empty, as moved from.
-        BOOST_TEST(refused.xonly_public_key().error() == crypto::error::invalid_state);
+        // Refused, the pair is wiped and empty, as moved from: every operation says so.
+        test::expect_empty_keypair(refused);
     }
 
     // NOLINTBEGIN(bugprone-use-after-move): a moved-from pair is what this case tests
@@ -190,7 +191,7 @@ void refusals() {
 }  // namespace
 
 int main() {
-    auto const text = test::read_text(WEBCPP_TEST_BIPS "/bip-0341/wallet-test-vectors.json");
+    auto const text = test::read_file(WEBCPP_TEST_BIPS "/bip-0341/wallet-test-vectors.json");
     boost::system::error_code ec;
     auto const doc = json::parse(text, ec);
     BOOST_TEST(!ec);

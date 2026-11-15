@@ -32,4 +32,8 @@ build-project canary_missing ;
 build-project canary_other_commit ;
 build-project canary_other_configuration ;
 build-project canary_two_files ;
+build-project canary_secp256k1_two_files ;
 build-project default_two_files ;
+build-project ctaes_not_linked ;
+build-project secp256k1_not_linked ;
+build-project openssl_old ;

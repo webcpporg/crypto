@@ -74,6 +74,12 @@ void check_wycheproof_gcm_test(Aead& made, wycheproof_gcm_test const& t,
     if (t.iv.empty() || t.iv.size() > Aead::max_iv_size) {
         BOOST_TEST(opened.error() == crypto::error::invalid_iv_size);
         BOOST_TEST(data == t.ciphertext);
+        // Sealed as well (spec section 2.4: the 257-byte IV is refused by seal too), and the
+        // data is left as it was.
+        auto plaintext = t.message;
+        BOOST_TEST(made.seal(t.iv, t.additional_data, plaintext).error() ==
+                   crypto::error::invalid_iv_size);
+        BOOST_TEST(plaintext == t.message);
         ++(t.iv.empty() ? counts.empty_iv : counts.over_cap);
         return;
     }

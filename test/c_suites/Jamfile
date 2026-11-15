@@ -22,12 +22,10 @@ webcpp.run bearssl_test_crypto : $(BEARSSL)/test/test_crypto.c bearssl_bound.cpp
     <warnings>off <warnings-as-errors>off ;
 
 # ctaes's own test program (spec section 8.1): asserts, so NDEBUG stays off. It
-# is fast, so it is declared twice: in the lane c-suites, and as ctaes_test_fast
-# on the ordinary lanes.
+# is fast, so it is not in the lane c-suites: it runs on every ordinary lane, on
+# every compiler, which the lane's four toolsets would only repeat.
 path-constant CTAES : ../../../../third_party/libs/bitcoin/src/crypto/ctaes ;
 webcpp.run ctaes_test : $(CTAES)/test.c : <library>/third_party//ctaes <warnings>off
-  <warnings-as-errors>off <undef>NDEBUG ;
-webcpp.run ctaes_test_fast : $(CTAES)/test.c : <library>/third_party//ctaes <warnings>off
   <warnings-as-errors>off <undef>NDEBUG ;
 
 # libsecp256k1's tests, which include secp256k1.c and so compile the library
@@ -54,4 +52,4 @@ webcpp.run secp256k1_tests : $(SECP256K1)/src/tests.c
 
 # The lane names its targets, so that the CI runs it on each (an own lane that
 # names none runs natively alone, tools/webcpp.jam's lane rule).
-webcpp.lane c-suites : bearssl_test_crypto ctaes_test secp256k1_tests : native wasip2 wasip3 emscripten ;
+webcpp.lane c-suites : bearssl_test_crypto secp256k1_tests : native wasip2 wasip3 emscripten ;

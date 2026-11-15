@@ -14,6 +14,7 @@
 #include <boost/core/lightweight_test.hpp>
 
 #include <algorithm>
+#include <array>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -40,7 +41,7 @@ void fills(std::size_t size) {
 }  // namespace
 
 int main() {
-    for (std::size_t const size : {0, 1, 256, 257, 65'536, 65'537}) {
+    for (std::size_t const size : std::array<std::size_t, 6>{0, 1, 256, 257, 65'536, 65'537}) {
         fills(size);
     }
     BOOST_TEST_EQ((crypto::random_device::min)(), 0U);

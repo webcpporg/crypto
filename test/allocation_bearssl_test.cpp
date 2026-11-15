@@ -30,9 +30,11 @@ int main() {
     std::size_t const control = webcpp::test::allocations();
     void* volatile block = std::malloc(40);
     std::free(block);
-    BOOST_TEST_EQ(webcpp::test::allocations() - control,
-                  webcpp::test::c_allocations_counted ? 1U : 0U);
-    if (!webcpp::test::c_allocations_counted) {
+    // A constant condition: `if constexpr`, which MSVC's C4127 (an error under /W4 /WX) leaves be.
+    if constexpr (webcpp::test::c_allocations_counted) {
+        BOOST_TEST_EQ(webcpp::test::allocations() - control, 1U);
+    } else {
+        BOOST_TEST_EQ(webcpp::test::allocations() - control, 0U);
         std::printf("the C library's allocations are not counted on this target\n");
     }
     std::array<std::uint8_t, 32> key{};

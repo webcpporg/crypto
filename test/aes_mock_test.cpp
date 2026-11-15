@@ -27,6 +27,12 @@ using webcpp::test::mock_control;
 
 namespace {
 
+// The key sizes are constants of the type (spec section 2.3), and the block is 16 bytes.
+static_assert(crypto::ciphers::aes128<mock>::key_size == 16);
+static_assert(crypto::ciphers::aes192<mock>::key_size == 24);
+static_assert(crypto::ciphers::aes256<mock>::key_size == 32);
+static_assert(crypto::ciphers::aes256<mock>::block_size == 16);
+
 // make returns the engine's error as it is: not_enough_memory, backend_failure.
 void check_make_failures() {
     std::array<std::uint8_t, 16> const key{};

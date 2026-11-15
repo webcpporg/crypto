@@ -1,0 +1,49 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-memory]
+== Allocation
+
+An audio worklet, a game loop or an embedded device must not allocate on its
+hot path, or must allocate only from its own arena. crypto's own code allocates
+one thing: a secp256k1 key pair's signing context, once, in `keypair::make`,
+from the `std::pmr::memory_resource` the program passes, which must outlive the
+key pair. Every buffer is the caller's.
+
+* *Nothing allocates per message, on any backend:* `seal`, `open`,
+`begin_seal`, `update`, `result`, `encrypt`, `decrypt`, `fill`, the signatures,
+`ecdh` and the verifications. The counting tests of `test/` prove it, every
+`operator new` and the C library's allocator counted.
+* *BearSSL and ctaes allocate nothing,* `make` included: the key schedule lives
+inside the object.
+* *OpenSSL's `make` allocates its cipher context through OpenSSL's own
+allocator,* outside the program's resource. A program that needs every
+allocation in its arena uses BearSSL.
+* *Keys are wiped.* The key schedules that live inside crypto's objects
+(BearSSL's, ctaes's, libsecp256k1's key pair) are overwritten on destruction
+and on move by stores the optimiser cannot drop; OpenSSL wipes its own
+contexts when they are freed.
+* *No type is shareable.* An object holds a key, and OpenSSL's hold pointers
+into OpenSSL's heap: none is placed in memory shared with another process,
+and a key never should be.
+
+*Example.* A key pair whose context comes from an arena on the stack, through a
+resource that counts what it gives:
+
+[source,cpp]
+----
+include::{examples}/arena_signer.cpp[tag=counting]
+----
+
+[source,cpp]
+----
+include::{examples}/arena_signer.cpp[tag=arena,indent=0]
+----
+
+[listing]
+----
+include::{examples}/arena_signer.expected[]
+----

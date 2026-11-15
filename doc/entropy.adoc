@@ -5,12 +5,92 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 [#crypto-entropy]
-== Entropy
+=== Entropy
 
-`random_device` reads the operating system's or the browser's generator, and
-nothing else: every call reads the source, with no cache and no generator in
-between. It holds no state and needs no backend. `fill(bytes)` fills a span
-and gives `entropy_unavailable` when the source fails, or `not_supported`
-where there is none (an Emscripten audio worklet), the bytes then zeroed.
-With exceptions it is also a UniformRandomBitGenerator, as the standard
-library's random device is.
+A *cryptographically secure random number generator* produces numbers that an
+attacker cannot predict, even after seeing many of them
+(link:https://en.wikipedia.org/wiki/Cryptographically_secure_pseudorandom_number_generator[Wikipedia]).
+Every secret a program makes starts there: a key, an IV, a session token, a
+password-reset link. A general-purpose generator such as `std::mt19937` or
+`rand` is built to look random, not to resist an attacker: a few outputs reveal
+its state and every output after them
+(link:https://cwe.mitre.org/data/definitions/338.html[CWE-338]). A token drawn
+from one can be computed by anyone who has seen a few others, and the account it
+protects is taken over.
+
+`random_device`, in `<webcpp/crypto/random_device.hpp>`, reads the operating
+system's or the browser's generator, and nothing else. Every call reads the
+source: there is no cache and no generator of webcpp's in between. There is one
+source per platform, each with its documented contract:
+
+* `getentropy` on Linux, macOS and WASI
+(link:https://pubs.opengroup.org/onlinepubs/9799919799/functions/getentropy.html[POSIX.1-2024]);
+on WASI it is the host's generator
+(link:https://github.com/WebAssembly/wasi-random[wasi:random]);
+* `crypto.getRandomValues` through Emscripten, in the browser and in node
+(link:https://www.w3.org/TR/WebCryptoAPI/#Crypto-method-getRandomValues[W3C]);
+* `BCryptGenRandom` with the system's preferred generator on Windows
+(link:https://learn.microsoft.com/en-us/windows/win32/api/bcrypt/nf-bcrypt-bcryptgenrandom[Microsoft]).
+
+There is no weaker fallback, ever: no clock, no `rand`, no address. When the
+source fails, `fill` returns `entropy_unavailable` and zeroes its output, so
+that nothing the caller could use by mistake is left in it; where there is no
+source at all (an Emscripten audio worklet, which has no `crypto`), it returns
+`errc::not_supported`. The function asks in pieces of at most 256 bytes, the
+limit of `getentropy`, and checks every call.
+
+`fill(bytes)` is the interface. With exceptions, `random_device` is also a
+standard random bit generator, shaped as `std::random_device`: its
+`operator()` throws `boost::system::system_error` when the source fails, so it
+plugs into `std::uniform_int_distribution` for an unbiased number in a range.
+Without exceptions `operator()` is not declared, since it would have no way to
+report a failure, and `fill` is the whole interface.
+
+include::generated/backends-random_device.adoc[]
+
+*Example.* A password-reset token of 32 bytes, sent as 64 hex digits in a
+link, and a six-digit one-time code:
+
+[source,cpp]
+----
+include::{examples}/reset_token.cpp[tag=token,indent=0]
+----
+
+[source,cpp]
+----
+include::{examples}/reset_token.cpp[tag=code,indent=0]
+----
+
+[listing]
+----
+include::{examples}/reset_token.expected[]
+----
+
+*Pitfalls.*
+
+* Never seed `std::mt19937` from `random_device` and use the `mt19937` for
+secrets: its state is recoverable from its output.
+* Never shorten a token for convenience: 128 bits is the floor, and 256 costs
+nothing.
+* Never take a number modulo a range by hand: `% 1000000` of a 32-bit value
+favours small codes. `std::uniform_int_distribution` does not.
+* Never ignore the result of `fill`: on `entropy_unavailable` there is no safe value
+to use, and the operation that needed one fails.
+
+[#crypto-entropy-bearssl]
+==== Seeding BearSSL's own generator
+
+A program that calls BearSSL's C API directly, for something crypto does not
+wrap, seeds BearSSL's generators from `random_device`: crypto builds BearSSL
+without a seeder of its own on Windows, and no backend ever chooses its own
+entropy source. 32 bytes from `fill` seed BearSSL's HMAC-DRBG:
+
+[source,cpp]
+----
+include::{examples}/bearssl_prng.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/bearssl_prng.expected[]
+----

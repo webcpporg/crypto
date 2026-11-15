@@ -5,63 +5,63 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 [#crypto-block]
-== The block cipher
+=== The block cipher
 
-`aes128`, `aes192` and `aes256`, in the namespace `webcpp::crypto::ciphers`
-(`<webcpp/crypto/ciphers/aes.hpp>`), are the AES block cipher with keys of 16, 24
-and 32 bytes. They work in place on whole blocks of 16 bytes, so `encrypt` and
-`decrypt` take a span whose size is a multiple of `block_size`, which is 16,
-and give `invalid_input_size` for a partial block. Each is made with
-`make(key)`, which gives `invalid_key_size` for a key of another size; an
-object moved from is wiped and empty, and returns `invalid_state`.
+A *block cipher* is a keyed permutation of fixed-size blocks: with the key, each
+16-byte block maps to one other block and back; without it, the output looks
+random (link:https://en.wikipedia.org/wiki/Advanced_Encryption_Standard[Wikipedia];
+link:https://csrc.nist.gov/pubs/fips/197/final[FIPS 197]). It is the building
+block of every AES mode, GCM's included, and not encryption by itself: applied
+to each block of a message alone, equal blocks give equal ciphertext, and the
+shape of the data shows through, the mode called ECB
+(link:https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation[Wikipedia]).
 
-A raw block cipher is a building block, not encryption by itself: it
-encrypts each block alone, and equal blocks give equal ciphertext. A program
-that encrypts messages uses `gcm` (`aes256_gcm`).
+`aes128`, `aes192` and `aes256`, in `<webcpp/crypto/ciphers/aes.hpp>`, are the
+AES block cipher with keys of 16, 24 and 32 bytes. They work in place on whole
+blocks: `encrypt` and `decrypt` take a span whose size is a multiple of
+`block_size`, 16, and give `invalid_input_size` for a partial block. Each is
+made with `make(key)`, which gives `invalid_key_size` for a key of another size;
+an object moved from is wiped and empty, and returns `invalid_state`.
 
-[#crypto-block-ctaes]
-=== The block cipher on ctaes
+include::generated/backends-aes_block.adoc[]
 
-The block cipher is available on the backends that export it: ctaes and
-OpenSSL. BearSSL exports AES only inside its modes, with no single-block class,
-so `aes256<backends::bearssl>` is a complete type, which `gcm` needs to name
-its cipher, but its `make` does not compile, and a `static_assert` says
-which backends to use. `aes256<>` is the cipher of `aes256_gcm`, so it
-follows the AEADs' default backend, which is BearSSL on WebAssembly: a program
-that wants the block cipher there names its backend and includes the header of
-that backend.
+BearSSL exports AES only inside its modes, with no single-block class, so
+`aes256<backends::bearssl>` is a complete type, which `gcm` needs to name its
+cipher, but its `make` does not compile, and a `static_assert` says which
+backends to use (<<crypto-jamfile-messages>>). `aes256<>` is the cipher of
+`aes256_gcm`, so it follows the default backend, BearSSL on WebAssembly: a
+program that wants the block cipher there names
+`aes256<backends::ctaes>` and includes `<webcpp/crypto/backends/ctaes.hpp>`.
+ctaes is a constant-time bitsliced AES, the one Bitcoin Core ships
+(link:https://github.com/bitcoin/bitcoin/tree/master/src/crypto/ctaes[ctaes]):
+the block cipher alone, which allocates nothing and wipes its key schedule. GCM
+is not built on it: webcpp writes no mode of its own on another library's AES.
 
-ctaes is Pieter Wuille's constant-time bitsliced AES, the one Bitcoin Core
-ships. It exports AES-128, AES-192 and AES-256 on whole blocks, encryption and
-decryption, and nothing else. It allocates nothing: the key schedule lives
-inside the object, and is wiped when the object is destroyed or moved from.
+*Example.* A shop's database hands out sequential order ids. In a URL they
+reveal how many orders the shop takes a day, and let anyone try the next
+customer's order. One AES block turns each id into an opaque reference and
+back, and a forged reference decrypts to a block whose padding is not zero:
 
 [source,cpp]
 ----
-include::{library-root}/test/aes_ctaes_test.cpp[tag=round_trip]
+include::{examples}/order_reference.cpp[tag=block,indent=0]
 ----
 
-The program's Jamfile names ctaes, since crypto builds it from its sources, as
-described in <<crypto-jamfile-block>>:
-
-[source,bash]
+[listing]
 ----
-exe block : block.cpp /webcpp/crypto//crypto /third_party//ctaes ;
+include::{examples}/order_reference.expected[]
 ----
 
-The program prints `ctaes aes256 ok` on every target: native, wasip2, wasip3 and
-Emscripten.
+The whole program:
 
-[#crypto-block-gcm]
-=== GCM is not available on ctaes
-
-ctaes has the block cipher alone, and webcpp builds no GCM of its own on another
-library's AES. So `ciphers::gcm<ciphers::aes256<backends::ctaes>>` does not compile, and its
-`static_assert` says:
-
-[source,bash]
+[source,cpp]
 ----
-webcpp::crypto: ciphers::gcm<ciphers::aes256<backends::ctaes>>: ctaes exports the AES block cipher alone, and webcpp builds no GCM on another library's AES. Use a backend that exports GCM: ciphers::gcm<ciphers::aes256<backends::bearssl>> or ciphers::gcm<ciphers::aes256<backends::openssl>>.
+include::{examples}/order_reference.cpp[tag=program]
 ----
 
-A program that wants AES-GCM links BearSSL or OpenSSL and uses `aes256_gcm`.
+*Pitfalls.*
+
+* Encrypting several blocks one by one is ECB, and leaks every repeated block:
+use AES-GCM for anything longer than one block.
+* An opaque reference hides the id; it does not authorise the request. Check
+that the order belongs to the user who asks for it.

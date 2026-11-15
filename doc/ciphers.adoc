@@ -1,0 +1,18 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-ciphers]
+== Ciphers: webcpp::crypto::ciphers
+
+A *cipher* turns readable data into bytes that reveal nothing without the key,
+and back. The namespace `webcpp::crypto::ciphers` holds AES, the cipher the
+whole industry standardised on
+(link:https://en.wikipedia.org/wiki/Advanced_Encryption_Standard[Wikipedia];
+link:https://csrc.nist.gov/pubs/fips/197/final[FIPS 197]), in two forms:
+AES-GCM, which encrypts messages and detects any change to them, and the raw
+block cipher, a building block. For data, the answer is AES-GCM.
+
+include::generated/namespace-ciphers.adoc[]

@@ -1,0 +1,71 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-everyday]
+== Everyday applications
+
+Most programs that need cryptography are not about cryptography: a login form,
+a shop, a file-sharing app, a program that updates itself. Each needs a few
+primitives used exactly right. This chapter gathers them; each section links
+to the chapter that teaches the primitive.
+
+[#crypto-everyday-login]
+=== A login: session tokens and reset links
+
+A session token or a password-reset link is a bearer secret: whoever has it is
+the user. It is drawn from `random_device`, 32 bytes, and compared with `equal`
+when it comes back. <<crypto-entropy>> shows the program, `reset_token`.
+A password itself is never encrypted: it is hashed with a password hash, a
+hashing library's job, not crypto's.
+
+[#crypto-everyday-webhook]
+=== A webhook: checking an HMAC
+
+A payment provider or a source-code host signs each call to a program's
+webhook with an HMAC under a shared secret. The program recomputes it with
+Boost.Hash2 and compares with `equal`, never `==`: <<crypto-equal>>.
+
+[#crypto-everyday-storage]
+=== A database field, a cookie, a file
+
+Data stored where someone else may read it, a database, a cookie, a cloud
+bucket, is sealed with AES-GCM, with what it belongs to (the user's id, the
+cookie's name, the file's path) as additional data, so that it cannot be moved
+to another place: <<crypto-gcm>>. A large file is sealed in records:
+<<crypto-gcm-incremental>>.
+
+[#crypto-everyday-update]
+=== A software update or a licence file
+
+*The problem.* A program downloads its updates, or reads a licence file. Anyone
+who can change the download, a compromised mirror, a network in the middle,
+could ship code that the program then runs.
+
+*The idea.* The publisher signs the SHA-256 of each update with ECDSA; the
+program ships with the publisher's public key and accepts an update only when
+its signature verifies. Only the publisher's secret key can produce a signature
+the program accepts.
+
+[source,cpp]
+----
+include::{examples}/signed_update.cpp[tag=verify,indent=0]
+----
+
+[listing]
+----
+include::{examples}/signed_update.expected[]
+----
+
+The whole program:
+
+[source,cpp]
+----
+include::{examples}/signed_update.cpp[tag=program]
+----
+
+*Mistakes to avoid.* Verify the bytes that will run, not a copy of them. Keep
+the publisher's secret key off the build machines that anyone can reach. Never
+fall back on an unsigned update when verification fails.

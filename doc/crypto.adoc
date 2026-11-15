@@ -6,36 +6,60 @@
 
 = crypto: authenticated encryption, randomness and secp256k1 for {cpp}
 :toc: left
-:toclevels: 1
+:toclevels: 2
 :idprefix:
 :sectanchors:
 :example-caption!:
 :attribute-missing: warn
 
-crypto gives a {cpp}20 program the cryptography that Boost does not provide, on
-every target webcpp has, one of the libraries of
-https://github.com/webcpporg/webcpp[webcpp]. The algorithms are those of C
-libraries, BearSSL, OpenSSL, ctaes and libsecp256k1, each a backend that the
-program names in its own Jamfile.
+crypto gives a {cpp}20 program the cryptographic primitives that Boost does not
+provide, on every target webcpp has: native (Linux, macOS, Windows with MSVC),
+wasip2, wasip3 and Emscripten. It is one of the libraries of
+https://github.com/webcpporg/webcpp[webcpp]. The algorithms are those of
+audited C libraries, BearSSL, OpenSSL, ctaes and libsecp256k1, each a backend
+that the program names in its own Jamfile.
 
-This page teaches crypto concept by concept. The <<reference,reference>> that
-closes it lists every name the headers declare.
+The page is written for two readers at once: a developer who knows little
+cryptography, and a language model that must pick the right tool for a
+person's application from this page alone. <<crypto-choose>> answers "what do
+I use for ..." in one table; each chapter opens with a table that compares
+what it holds; every program shown is an example of the library's `example`
+directory, built and run on every target with the output printed beside it.
+The same content, as a machine-readable index, is `llms.txt`, beside this page.
 
 include::overview.adoc[]
 
+include::choose.adoc[]
+
 include::jamfile.adoc[]
+
+include::root.adoc[]
+
+include::entropy.adoc[]
+
+include::equal.adoc[]
+
+include::errors.adoc[]
+
+include::ciphers.adoc[]
+
+include::aead.adoc[]
 
 include::block.adoc[]
 
-include::gcm.adoc[]
-
-include::entropy.adoc[]
+include::curves.adoc[]
 
 include::secp256k1.adoc[]
 
 include::backends.adoc[]
 
-include::errors.adoc[]
+include::wallets.adoc[]
+
+include::p2p.adoc[]
+
+include::everyday.adoc[]
+
+include::memory.adoc[]
 
 include::testing.adoc[]
 

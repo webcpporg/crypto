@@ -7,43 +7,69 @@
 [#crypto-backends]
 == The backends
 
-A backend is a C library that crypto wraps; the program links the ones it names in
-its Jamfile, and webcpp builds each from its sources, file by file. This page
-describes ctaes and libsecp256k1; the AEAD backends are in their own pages.
+A backend is a C library that crypto wraps; the program links the ones it
+names in its Jamfile, and webcpp builds each from its sources, file by file.
+Every table of this chapter is generated (`doc/tables/generate.py`) from
+committed data and from the tests themselves: an operation is supported on a
+backend and a target exactly where a test program that runs it is declared for
+that target, and refused where a message test stops it. The data and the
+tables are regenerated, and checked by the documentation's build, at every
+change of a test or a pin.
 
-[#crypto-backends-ctaes]
-=== ctaes
+[#crypto-backends-matrix]
+=== Operations, backends and targets
 
-[cols="1,3"]
-|===
-|Jamfile name |`/third_party//ctaes`
-|Targets |native, wasip2, wasip3, emscripten
-|Library |ctaes, as Bitcoin Core v31.1 ships it (`src/crypto/ctaes`)
-|Licence |MIT
-|Tables |none
-|Allocation |none: the key schedule lives inside the crypto object
-|Exports |`aes128`, `aes192` and `aes256` of `backends::ctaes`, in `<webcpp/crypto/backends/ctaes.hpp>`: the AES block cipher alone, constant time, with no mode; the C API of `<ctaes.h>`
-|===
+include::generated/matrix.adoc[]
 
-GCM is not available on ctaes: see <<crypto-block-gcm>>.
+[#crypto-backends-defaults]
+=== The default backend per target
 
-[#crypto-backends-secp256k1]
-=== libsecp256k1
+The rule is the smallest binary on the web and the fastest code on servers.
+It applies to `aes128_gcm`, `aes256_gcm` and `aes256<>`; libsecp256k1 and ctaes
+are the only backends of what they implement.
 
-[cols="1,3"]
-|===
-|Jamfile name |`/third_party//secp256k1`
-|Targets |native, wasip2, wasip3, emscripten
-|Library |libsecp256k1 v0.8.0, built from its sources with every module on, recovery included
-|Licence |MIT
-|Tables |the feature `webcpp-secp256k1-tables`: `auto` (the default: small on Emscripten, large elsewhere), `small` (window 2, comb 2x5) or `large` (window 15, comb 11x6)
-|Allocation |the signing context, in the user's resource; none elsewhere
-|Exports |the C API of `<secp256k1.h>` and its modules
-|===
+include::generated/defaults.adoc[]
 
-The small tables make a program about 1 MB smaller, and verification about a
-third slower. The configuration enters the canary, so a program cannot be linked
-with tables other than those it was compiled for. With MSVC the static library
-needs `SECP256K1_STATIC`, which the target's usage requirements define. A
-program has one copy of libsecp256k1: the library's tables are global symbols, so
-webcpp's build is never linked with another copy, an external one included.
+[#crypto-backends-facts]
+=== What each backend is
+
+include::generated/backend-facts.adoc[]
+
+OpenSSL is never the system's: the superproject builds it from
+`third_party/libs/openssl`, statically, natively and on wasip2 and wasip3, and
+`/webcpp/crypto//openssl`, crypto's name for it, stops the build on Emscripten.
+Natively with Clang and GCC it is built with its assembly; on MSVC, wasip2 and
+wasip3 it is built `no-asm`
+(link:https://github.com/openssl/openssl/blob/master/INSTALL.md[INSTALL.md]).
+A program has one copy of each library: libsecp256k1's tables and OpenSSL's
+state are global symbols, so webcpp's build is never linked with another copy.
+
+libsecp256k1's precomputed tables are a size knob, the feature
+`webcpp-secp256k1-tables`: `auto`, the default, small on Emscripten and large
+elsewhere; `small`; or `large`. The small tables make a program smaller and its
+verifications slower; the fixtures `sign` and `sign_small` of
+<<crypto-jamfile-cases>> build both. The tables enter the canary, so a program
+cannot be linked with tables other than those it was compiled for. With MSVC
+the static library needs `SECP256K1_STATIC`, which the target's usage
+requirements define.
+
+[#crypto-backends-constant-time]
+=== Constant time
+
+A cryptographic implementation is *constant time* when its running time and
+its memory accesses do not depend on secret data; otherwise a timing attack
+can recover the key (link:https://en.wikipedia.org/wiki/Timing_attack[Wikipedia];
+link:https://www.bearssl.org/constanttime.html[BearSSL's explanation]). Each
+backend's design is stated by its library; crypto's own measurement of the code
+as webcpp compiles it, per target, is Task 20's, not taken in this version.
+
+include::generated/constant-time.adoc[]
+
+[#crypto-backends-sizes]
+=== Size and speed
+
+What each operation adds to a program, per target, and how fast it runs, are
+measured by Task 22's lanes, which this version does not have. Until they run,
+the table says so rather than repeat numbers no lane of this version measured.
+
+include::generated/sizes.adoc[]

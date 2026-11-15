@@ -7,17 +7,25 @@
 [#crypto-overview]
 == Why crypto
 
-webcpp::crypto gives a {cpp} program the cryptography that Boost does not
-provide, on every target webcpp has: native (Linux, macOS, Windows with MSVC),
-wasip2, wasip3 and Emscripten.
+Cryptography is what keeps a program's secrets secret and its data honest when
+someone else can read or change the bytes: a database copied by an intruder, a
+message passed through a relay, a cookie handed to a browser, a key that
+controls money. A program that gets it wrong rarely fails a test; it fails
+when an attacker reads what was meant to be secret, or forges what was meant
+to be trusted. crypto exists so that a {cpp} program gets it right on every
+target, with the same code.
 
-* *Authenticated encryption.* AES-GCM first, with keys of 16, 24 and 32 bytes.
-ChaCha20-Poly1305 where a backend exports it.
+It offers:
+
+* *Authenticated encryption.* AES-GCM with keys of 16, 24 and 32 bytes, which
+keeps a message secret and detects any change to it.
 * *Randomness.* A `random_device` that reads the operating system's or the
 browser's generator, and nothing else.
-* *secp256k1.* BIP340 Schnorr signatures, ECDSA signatures, their verification
-and ECDH, through the libsecp256k1 backend.
+* *secp256k1.* BIP 340 Schnorr signatures, ECDSA signatures, their
+verification, ECDH, ECDSA's strict DER and low-S forms, and the x-only tweak,
+through libsecp256k1.
 * *A constant-time `equal`* for tags and MACs, Boost.Hash2's included.
+* *The AES block cipher,* a building block for the rare case that needs one.
 
 The algorithms are not webcpp's. Each runs on a backend, a C library that
 webcpp wraps behind an interface shaped as Boost.Hash2's. A backend is named
@@ -25,48 +33,49 @@ after its library: `backends::bearssl`, `backends::openssl`,
 `backends::ctaes` and `backends::secp256k1`. Every call is synchronous: with C
 code on every target, nothing waits.
 
+[#crypto-overview-rules]
+=== Three rules
+
+Three rules run through every chapter, each because its absence is how real
+programs were broken.
+
+* *Never write your own cryptographic primitive.* crypto writes none either:
+every cipher, mode and curve is a C library that has been audited and used for
+years. webcpp adds a uniform {cpp} interface on top, and the checks that the C
+interfaces leave to their caller.
+* *Every failure is a value.* Each operation returns
+`boost::system::result<T>`. Nothing fails silently: a wrong key size, a forged
+message or an empty entropy pool each has its own error (<<crypto-errors>>).
+* *Secrets do not outlive their use.* Keys and key schedules are wiped when an
+object is destroyed or moved from, a failed `open` zeroes the bytes it
+decrypted, and an object moved from refuses every operation instead of using a
+wiped key.
+
 [#crypto-overview-namespaces]
 === Namespaces and headers
 
 crypto holds primitives only; a protocol built on them (a Bitcoin, Ethereum or
-Nostr rule) belongs to a domain library. Its names are grouped by kind, and the
-headers mirror the namespaces as `<webcpp/crypto/<group>/<name>.hpp>`:
+Nostr rule) belongs to a domain library, which <<crypto-wallets>> shows how to
+build. Its names are grouped by kind, one chapter each, and the headers mirror
+the namespaces as `<webcpp/crypto/<group>/<name>.hpp>`:
 
-* `webcpp::crypto`: `error`, `random_device`, `equal` and the configuration;
-* `webcpp::crypto::backends`: the backends;
+* `webcpp::crypto`: `random_device`, `equal`, `error` and the configuration
+(<<crypto-root>>);
 * `webcpp::crypto::ciphers`: `aes128`, `aes192`, `aes256`, `gcm`, `aes128_gcm`
-and `aes256_gcm`;
-* `webcpp::crypto::curves::secp256k1`: key pairs, signatures, ECDH and the
-x-only tweak on secp256k1.
+and `aes256_gcm` (<<crypto-ciphers>>);
+* `webcpp::crypto::curves::secp256k1`: key pairs, signatures, ECDH, the
+encodings and the x-only tweak on secp256k1 (<<crypto-curves>>);
+* `webcpp::crypto::backends`: the backends (<<crypto-backends>>).
+
+`<webcpp/crypto.hpp>` includes every header whose backend the program links.
 
 [#crypto-overview-hash2]
 === What stays with Boost.Hash2
 
 Hashing and HMAC are Boost.Hash2's: SHA-1, SHA-2, SHA-3, RIPEMD, BLAKE2 and
-`boost::hash2::hmac<H>`. crypto offers no second interface for them. What
-crypto adds for Hash2's users is `equal`: the `operator==` of Hash2's digests
-is `memcmp`, which is not constant time, so a MAC is never checked with it.
-
-[#crypto-jamfile]
-== Using webcpp::crypto in your Jamfile
-
-crypto is header-only, and a program names it with the library of each backend
-it uses; webcpp builds each backend from its sources.
-The target `/webcpp/crypto//crypto` is an alias that adds crypto's `include`
-directory, Boost's headers and webcpp's configuration.
-
-A program's Jamfile names the target and the backends it links, as
-`exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ;`. On Windows
-the target links `bcrypt`, a system library, through which the random device
-reads Windows' generator.
-
-[#crypto-exceptions]
-== Exceptions
-
-Every operation reports its errors as values, whether or not the program has
-exceptions. `<webcpp/crypto/config.hpp>`, which every header of crypto
-includes first, defines `WEBCPP_CRYPTO_NO_EXCEPTIONS` when webcpp has no
-exceptions (the compiler has none, or the program defined
-`WEBCPP_NO_EXCEPTIONS` for every webcpp library), and a program may define it
-for crypto alone. Whatever throws is declared only when the macro is not
-defined, and raises through `boost::throw_exception`.
+`boost::hash2::hmac<H>`. crypto offers no second interface for them, and its
+examples use Hash2 wherever a hash is needed: a key derived with HKDF
+(link:https://www.rfc-editor.org/rfc/rfc5869[RFC 5869]) is written on Hash2's
+`hmac` in a few lines (<<crypto-p2p-session>>). What crypto adds for Hash2's
+users is `equal`: the `operator==` of Hash2's digests is `memcmp`, which is not
+constant time, so a MAC is never checked with it (<<crypto-equal>>).

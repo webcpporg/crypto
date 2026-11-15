@@ -1,0 +1,14 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-root]
+== The root utilities: webcpp::crypto
+
+The namespace `webcpp::crypto` holds what every other chapter relies on: where
+secrets come from (`random_device`), how a secret is checked (`equal`) and how
+a failure is told apart (`error`). None needs a backend.
+
+include::generated/namespace-root.adoc[]

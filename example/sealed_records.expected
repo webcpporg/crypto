@@ -1,0 +1,5 @@
+incremental seal opened whole: 3 chunks
+record 0 ok
+record 1 ok
+record 2 ok
+record 2 as record 1: authentication_failed

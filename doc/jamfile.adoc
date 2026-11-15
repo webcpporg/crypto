@@ -4,61 +4,88 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-[#crypto-jamfile-programs]
-== Jamfiles of programs that use crypto
+[#crypto-jamfile]
+== Using webcpp::crypto in your Jamfile
 
-<<crypto-jamfile>> gives the rule: a program names `/webcpp/crypto//crypto`
-and the library of each backend it uses. These are the programs of the
-`example` directory, with the Jamfile line and what each prints.
+The rule, in three lines:
 
-[#crypto-jamfile-sign]
-=== A program that signs with libsecp256k1
+. A program names `/webcpp/crypto//crypto` and the library of each backend it
+uses: `/third_party//bearssl`, `/webcpp/crypto//openssl`,
+`/third_party//ctaes` or `/third_party//secp256k1`. A program that only draws
+random bytes or compares tags names `/webcpp/crypto//crypto` alone.
+. BearSSL, ctaes and libsecp256k1 build for every target; OpenSSL builds
+natively, on wasip2 and on wasip3, and never for Emscripten, where the build
+stops and says to name BearSSL.
+. A backend named and never called adds no byte to the program.
 
-[source,bash]
+crypto is header-only, and webcpp builds every backend from its sources, file
+by file: OpenSSL statically, from the superproject's `third_party/libs/openssl`,
+never the system's. The target `/webcpp/crypto//crypto` adds crypto's
+`include` directory, Boost's headers and webcpp's configuration, and on Windows
+the system library `bcrypt`, through which `random_device` reads Windows'
+generator.
+
+In {cpp}, a program names a backend by including its header,
+`<webcpp/crypto/backends/<name>.hpp>`, and using its tag type,
+`backends::<name>`, as a template argument:
+`ciphers::gcm<ciphers::aes256<backends::bearssl>>`. The default backend needs no
+include of its own: `<webcpp/crypto/ciphers/aes256_gcm.hpp>` brings it.
+
+[#crypto-jamfile-default]
+=== The default backend, and choosing another
+
+`aes128_gcm`, `aes256_gcm` and `aes256<>` name the default backend: BearSSL on
+WebAssembly; natively OpenSSL when it is linked, else BearSSL. A program
+chooses with a define in its Jamfile's requirements,
+`<define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL` or
+`<define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL`, or names the backend at any
+use. <<crypto-backends-defaults>> gives every combination with the test that
+fixes it.
+
+The source-built OpenSSL is compiled without assembly (`no-asm`) on MSVC,
+wasip2 and wasip3: its AES is table-based and its GHASH 4-bit, neither constant
+time, and there is no AES-NI. A program for which timing attacks matter there
+defines `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`, or names
+`ciphers::gcm<ciphers::aes256<backends::bearssl>>`.
+
+[#crypto-jamfile-cases]
+=== Every Jamfile a user writes
+
+Each case below is a fixture of the superproject's
+`tools/test/crypto_jamfiles_test.py`: its Jamfile is built on a scratch copy of
+the superproject, as a user's would be, on each target named, and the program
+run; what it prints is checked. The table is generated from the fixtures.
+
+include::generated/jamfiles.adoc[]
+
+The examples of this page are built the same way: `example/Jamfile` names
+`/webcpp/crypto//crypto` in its project's requirements, and each example the
+libraries of its backends. The program of <<crypto-gcm>>, for instance, names
+BearSSL:
+
+[listing]
 ----
-exe sign : sign.cpp /webcpp/crypto//crypto /third_party//secp256k1 ;
+include::{library-root}/example/Jamfile[tag=aes256_gcm_bearssl]
 ----
 
-`sign.cpp` makes a key pair, signs a message with BIP340, verifies the
-signature and refuses a changed message. `b2` builds it and `./sign` prints
-`schnorr ok`, on native, wasip2, wasip3 and Emscripten.
+[#crypto-jamfile-messages]
+=== Every message, and its fix
 
-The precomputed tables of libsecp256k1 are the size knob. On Emscripten the
-small tables are the default; natively and on wasip2 and wasip3 the large ones. A
-program chooses with the feature `webcpp-secp256k1-tables`, `auto`, `small` or
-`large`. The small tables make the program about 1 MB smaller (on Emscripten at -Os, 141,922 bytes instead of
-1,211,251) for verifications about a third slower:
+A mistake in a Jamfile stops the build with a message that says what to add.
+At compile time, the first error is the one to read: the lines after it come
+from it and go away with it. At link time, a symbol whose name is the
+instruction reports a backend library that is missing, or of another commit or
+configuration than the headers; with b2 it cannot happen, and it guards
+builds made by other means. Every table below is generated from the tests that
+fix each text.
 
-[source,bash]
-----
-exe sign_small : sign.cpp /webcpp/crypto//crypto /third_party//secp256k1
-  : <webcpp-secp256k1-tables>small ;
-----
+include::generated/messages.adoc[]
 
-`sign_small` prints `schnorr ok` too.
+[#crypto-jamfile-windows]
+=== Windows
 
-[#crypto-jamfile-encrypt-and-sign]
-=== A program that encrypts and signs
-
-A program that uses two backends names both libraries:
-
-[source,bash]
-----
-exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl /third_party//secp256k1 ;
-----
-
-`encrypt_and_sign` seals a message with `aes256_gcm` and signs it, and prints
-`aes256_gcm ok backend=bearssl` and `schnorr ok`.
-
-[#crypto-jamfile-block]
-=== A block cipher with ctaes
-
-[source,bash]
-----
-exe block : block.cpp /webcpp/crypto//crypto /third_party//ctaes ;
-----
-
-`block.cpp` encrypts the FIPS-197 appendix C.3 block with AES-256 on
-ctaes, checks it, and decrypts it again; `./block` prints `ctaes aes256 ok`.
-The default backend is the AEADs' and has no block cipher on WebAssembly, so the
-program names ctaes and includes its header. See <<crypto-block>>.
+crypto's headers include `<windows.h>` under `NOMINMAX` and
+`WIN32_LEAN_AND_MEAN` when the program has not defined them, and write
+`(min)()` and `(max)()` so that the macros never matter. A program that wants
+the macros `min` and `max`, or what `WIN32_LEAN_AND_MEAN` leaves out, includes
+`<windows.h>` itself before any header of crypto.

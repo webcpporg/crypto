@@ -12,3 +12,16 @@ webcpp.doc crypto : crypto.adoc ;
 # whose header ciphers/aes256_gcm.hpp includes.
 webcpp.reference crypto : <library>/webcpp/crypto//openssl <library>/third_party//bearssl
   <library>/third_party//ctaes <library>/third_party//secp256k1 ;
+
+# The generated tables and llms.txt are what doc/tables/generate.py writes
+# from doc/tables/crypto.json and the tests: the build fails when they are
+# not, naming the file to regenerate. llms.txt is installed beside the page.
+import os ;
+path-constant HERE : . ;
+if [ os.name ] = NT { PYTHON = python ; } else { PYTHON = python3 ; }
+notfile tables-check : @tables-check ;
+actions tables-check
+{
+    "$(PYTHON)" "$(HERE)/tables/generate.py" --check
+}
+install llms : llms.txt : <location>html <dependency>tables-check ;

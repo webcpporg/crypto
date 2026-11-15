@@ -1,0 +1,169 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+// Two peers agree on a shared secret with ECDH, derive a session key from it with HKDF-SHA-256
+// and talk over AES-256-GCM. The raw ECDH output is not a key: HKDF turns it into one and ties
+// it to this application with a context string.
+// tag::program[]
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
+#include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/equal.hpp>
+#include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/random_device.hpp>
+
+#include <boost/hash2/sha2.hpp>
+#include <boost/system/result.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <span>
+#include <string_view>
+
+namespace crypto = webcpp::crypto;
+namespace secp256k1 = webcpp::crypto::curves::secp256k1;
+namespace hash2 = boost::hash2;
+
+namespace {
+
+std::span<std::uint8_t const> bytes_of(std::string_view text) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    return {reinterpret_cast<std::uint8_t const*>(text.data()), text.size()};
+}
+
+template <std::size_t N>
+std::array<std::uint8_t, N> from_hex(std::string_view text) {
+    std::array<std::uint8_t, N> out{};
+    auto const nibble = [](char c) { return c <= '9' ? c - '0' : c - 'a' + 10; };
+    for (std::size_t i = 0; i < N; ++i) {
+        out[i] = static_cast<std::uint8_t>((nibble(text[2 * i]) * 16) + nibble(text[(2 * i) + 1]));
+    }
+    return out;
+}
+
+// tag::hkdf[]
+// HKDF-SHA-256 (RFC 5869): extract concentrates the input's entropy into a pseudorandom key,
+// expand stretches it into as many bytes as asked, each block bound to the info string.
+template <std::size_t Length>
+std::array<std::uint8_t, Length> hkdf_sha256(std::span<std::uint8_t const> input,
+                                             std::span<std::uint8_t const> salt,
+                                             std::span<std::uint8_t const> info) {
+    static_assert(Length <= std::size_t{255} * 32);
+    // An empty salt stands for a block of zeros.
+    std::array<std::uint8_t, 32> const zeros{};
+    if (salt.empty()) {
+        salt = zeros;
+    }
+    hash2::hmac_sha2_256 extract(salt.data(), salt.size());
+    extract.update(input.data(), input.size());
+    auto const prk = extract.result();
+
+    std::array<std::uint8_t, Length> out{};
+    std::array<std::uint8_t, 32> previous{};
+    std::size_t previous_size = 0;
+    std::size_t offset = 0;
+    for (std::uint8_t counter = 1; offset < Length; ++counter) {
+        hash2::hmac_sha2_256 expand(prk.data(), prk.size());
+        expand.update(previous.data(), previous_size);
+        expand.update(info.data(), info.size());
+        expand.update(&counter, 1);
+        auto const block = expand.result();
+        std::copy_n(block.data(), block.size(), previous.begin());
+        previous_size = previous.size();
+        std::size_t const taken = std::min(previous.size(), Length - offset);
+        std::copy_n(previous.begin(), taken, out.begin() + static_cast<std::ptrdiff_t>(offset));
+        offset += taken;
+    }
+    return out;
+}
+
+// end::hkdf[]
+
+boost::system::result<secp256k1::keypair> generate_key() {
+    crypto::random_device device;
+    std::array<std::uint8_t, 32> secret{};
+    for (;;) {
+        auto const filled = device.fill(secret);
+        if (!filled) {
+            return filled.error();
+        }
+        auto key = secp256k1::keypair::make(secret);
+        if (key || key.error() != crypto::error::invalid_secret_key) {
+            return key;
+        }
+    }
+}
+
+// Both sides derive their session key the same way.
+boost::system::result<crypto::ciphers::aes256_gcm> session_cipher(
+    std::array<std::uint8_t, 32> const& shared) {
+    auto const key = hkdf_sha256<32>(shared, {}, bytes_of("example chat v1 session key"));
+    return crypto::ciphers::aes256_gcm::make(key);
+}
+
+// Checks the function against the RFC's first test vector before it is trusted.
+bool hkdf_is_correct() {
+    std::array<std::uint8_t, 22> input{};
+    input.fill(0x0b);
+    auto const salt = from_hex<13>("000102030405060708090a0b0c");
+    auto const info = from_hex<10>("f0f1f2f3f4f5f6f7f8f9");
+    auto const expected = from_hex<42>(
+        "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865");
+    return crypto::equal(hkdf_sha256<42>(input, salt, info), expected);
+}
+
+}  // namespace
+
+int main() {
+    if (!hkdf_is_correct()) {
+        return 1;
+    }
+    std::printf("hkdf matches rfc 5869\n");
+
+    // tag::agree[]
+    auto alice = generate_key();
+    auto bob = generate_key();
+    if (!alice || !bob) {
+        return 1;
+    }
+    // Each side sends its public key (33 bytes) and keeps its secret.
+    auto const alice_public = alice->public_key();
+    auto const bob_public = bob->public_key();
+    if (!alice_public || !bob_public) {
+        return 1;
+    }
+    auto const alice_shared = alice->ecdh(*bob_public);
+    auto const bob_shared = bob->ecdh(*alice_public);
+    if (!alice_shared || !bob_shared || !crypto::equal(*alice_shared, *bob_shared)) {
+        return 1;
+    }
+    std::printf("shared secrets match\n");
+    // end::agree[]
+
+    auto alice_cipher = session_cipher(*alice_shared);
+    auto bob_cipher = session_cipher(*bob_shared);
+    if (!alice_cipher || !bob_cipher) {
+        return 1;
+    }
+    std::array<std::uint8_t, 12> iv{};
+    if (!crypto::random_device().fill(iv)) {
+        return 1;
+    }
+    std::string_view const text = "hello bob";
+    std::array<std::uint8_t, 9> message{};
+    std::ranges::copy(text, message.begin());
+    auto const tag = alice_cipher->seal(iv, {}, message);
+    if (!tag || !bob_cipher->open(iv, {}, message, std::span<std::uint8_t const>(*tag))) {
+        return 1;
+    }
+    std::printf("bob read: %.*s\n", static_cast<int>(message.size()),
+                reinterpret_cast<char const*>(message.data()));
+    return 0;
+}
+
+// end::program[]

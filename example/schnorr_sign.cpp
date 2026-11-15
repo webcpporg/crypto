@@ -7,6 +7,7 @@
 // Signs BIP340's first test vector with secp256k1 and verifies it, then tweaks the key pair by
 // a 32-byte tweak, as a domain library derives one, and signs and verifies under the tweaked
 // key. Prints each key and signature in hex.
+// tag::program[]
 #include <webcpp/crypto/curves/secp256k1.hpp>
 
 #include <array>
@@ -57,3 +58,5 @@ int main() {
     std::printf("verified\n");
     return 0;
 }
+
+// end::program[]

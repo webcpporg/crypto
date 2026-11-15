@@ -1,0 +1,4 @@
+tampered: authentication_failed, data zeroed
+message: the authentication tag does not match
+empty iv: invalid_iv_size, data untouched
+short tag: invalid_tag_size

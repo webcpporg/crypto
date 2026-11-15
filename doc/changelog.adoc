@@ -25,5 +25,5 @@ of every version are on webcpp's index page.
 * Added backends::ctaes, the AES block cipher alone on every target; ciphers::gcm refuses it.
 * Added curves::secp256k1: key pairs, BIP340 and ECDSA signatures, ECDH, strict DER, low-S and the x-only tweak.
 * Added the link-time canaries of BearSSL, ctaes and libsecp256k1, and their own suites on webcpp's build.
-* Added the pages on the namespaces, the block cipher, AES-GCM, entropy, secp256k1, the backends and the Jamfiles.
+* Added the page: a chapter per namespace and use case, tables generated from the tests, every Jamfile and message, and llms.txt.
 // end::unreleased[]

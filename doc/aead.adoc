@@ -1,0 +1,179 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-gcm]
+=== AES-GCM
+
+*Authenticated encryption* keeps data secret and proves it unchanged with one
+key (link:https://en.wikipedia.org/wiki/Authenticated_encryption[Wikipedia]).
+Encryption alone does not: flipping a bit of a ciphertext flips the same bit of
+the plaintext, and the receiver cannot tell; a forged "amount" field in an
+encrypted cookie goes through. *AES-GCM* (Galois/Counter Mode) encrypts with AES
+in counter mode and computes a 16-byte *tag* over the ciphertext and over
+*additional data* that travels in clear
+(link:https://en.wikipedia.org/wiki/Galois/Counter_Mode[Wikipedia];
+link:https://csrc.nist.gov/pubs/sp/800/38/d/final[NIST SP 800-38D]). Opening
+recomputes the tag and decrypts only if it matches. It is the mandatory cipher
+of TLS 1.3 (link:https://www.rfc-editor.org/rfc/rfc8446#section-9.1[RFC 8446])
+and the AEAD of browsers' WebCrypto
+(link:https://www.w3.org/TR/WebCryptoAPI/[W3C]).
+
+`gcm<Cipher>`, in `<webcpp/crypto/ciphers/gcm.hpp>`, is AES-GCM with the key
+size of `Cipher`, on the backend of `Cipher`, which must export GCM over its own
+AES: BearSSL or OpenSSL. `aes128_gcm` and `aes256_gcm`, in
+`<webcpp/crypto/ciphers/aes256_gcm.hpp>`, name it on the default backend. It is
+made with `make(key)`, and works in place:
+
+* `seal(iv, additional_data, data)` encrypts `data` in place and returns its
+16-byte tag, a `boost::hash2::digest<16>`;
+* `open(iv, additional_data, data, tag)` checks the tag and decrypts `data` in
+place;
+* `begin_seal(iv, additional_data)`, `update(data)` and `result()` seal a
+message in pieces.
+
+include::generated/backends-gcm.adoc[]
+
+*Example.* A program stores users' API tokens in a database. Each token is
+sealed under a storage key with the user's id as additional data, so that the
+row opens only for that user: a row copied onto another user's record does not
+open.
+
+[source,cpp]
+----
+include::{examples}/store_token.cpp[tag=seal,indent=0]
+----
+
+[source,cpp]
+----
+include::{examples}/store_token.cpp[tag=open,indent=0]
+----
+
+[listing]
+----
+include::{examples}/store_token.expected[]
+----
+
+The same, with the backend named rather than the default: AES-256-GCM on
+BearSSL against the GCM specification's test case 14.
+
+[source,cpp]
+----
+include::{examples}/aes256_gcm_bearssl.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/aes256_gcm_bearssl.expected[]
+----
+
+[#crypto-gcm-rules]
+==== The rules of AES-GCM
+
+Each rule is how crypto behaves, and what it asks of the program.
+
+* *Never reuse an IV under one key.* Two messages under one key and one IV
+reveal the XOR of their plaintexts, and let an attacker recover the
+authentication key and forge tags for every later message
+(link:https://csrc.nist.gov/csrc/media/projects/block-cipher-techniques/documents/bcm/comments/800-38-series-drafts/gcm/joux_comments.pdf[Joux, 2006];
+link:https://eprint.iacr.org/2016/475[Boeck et al., 2016];
+link:https://cwe.mitre.org/data/definitions/323.html[CWE-323]). AES-GCM does
+not resist this misuse: the program must prevent it.
+* *The usage limit.* With random IVs, or IVs other than 12 bytes, at most 2^32^
+messages are sealed under one key (NIST SP 800-38D, section 8.3). A counter IV
+(message 0, 1, 2 ...) is safe until the counter repeats, which it must never
+do, a restart included. Rotate the key before either limit.
+* *IVs of 1 to 128 bytes; 12 recommended.* An IV of another size than 12
+bytes is hashed into the first counter block, as every backend does; the cap
+of 128 bytes is OpenSSL's, applied on every backend so that a call succeeds or
+fails the same way everywhere.
+* *Keys of 16, 24 or 32 bytes.* A key shared with a browser's WebCrypto is of
+16 or 32 bytes: Chromium refuses 192-bit AES keys
+(link:https://chromium.googlesource.com/chromium/src/+/refs/heads/main/components/webcrypto/status.cc[Chromium]).
+* *In place, the tag apart.* `data` is both input and output, so no buffer is
+copied; the tag is separate, so that a wire format that appends it or sends it
+apart is a matter of the caller's spans.
+* *A failed `open` zeroes `data`.* Every backend decrypts and checks the tag in
+one pass; when the tag does not match, crypto zeroes the whole of `data`, so
+that no unauthenticated plaintext is left. A caller who needs the ciphertext
+after a failure keeps a copy. A guard's refusal (`invalid_state`,
+`invalid_iv_size`, `invalid_tag_size`, `message_too_long`) comes before any
+work and leaves `data` untouched.
+* *Plaintext is in `data` while `open` runs.* The decrypted bytes sit in `data`
+before the tag is checked. When `data` is memory another party can read during
+the call (a shared segment, a `SharedArrayBuffer` that JavaScript sees), open
+into private memory and copy the result out.
+* *No incremental `open`.* Decrypting piece by piece would hand out plaintext
+before the tag is known, and code that acts on unverified plaintext is how many
+protocols were broken. A large message is split into records, each sealed and
+opened whole (<<crypto-gcm-incremental>>).
+* *One thread at a time, and not shareable.* A `gcm` holds the state of a
+message, so it is used by one thread at a time, as a Hash2 algorithm is. It
+holds a key, and OpenSSL's holds pointers into OpenSSL's heap: it is never
+placed in memory shared with another process, and a key never should be.
+* *An object moved from is empty.* Every function of it returns
+`invalid_state`, so that a moved-from object never seals under a wiped key.
+
+[#crypto-gcm-guards]
+==== The guards
+
+Each function checks every condition first, in this order, and returns before
+it reads a secret byte:
+
+[cols="3,1"]
+|===
+|Condition |Error
+
+|`make`: a key of another size than `key_size` |`invalid_key_size`
+|any other function: the object was moved from |`invalid_state`
+|`begin_seal` while a message is in progress; `update` or `result` with no message begun |`invalid_state`
+|an empty IV, or one longer than `max_iv_size`, 128 bytes |`invalid_iv_size`
+|`open`: a tag of another size than 16 |`invalid_tag_size`
+|a message longer than `max_message_size`, 2^36^ - 32 bytes, in one call or summed over `update`, or additional data longer than 2^61^ - 1 bytes (NIST SP 800-38D, section 5.2.1.1) |`message_too_long`
+|`open`: the tag does not match |`authentication_failed`
+|the backend fails where it should not |`backend_failure`
+|`make`: OpenSSL cannot allocate its context |`errc::not_enough_memory`
+|===
+
+[#crypto-gcm-arm]
+==== A warning for ARM servers
+
+Natively without OpenSSL, the default is BearSSL, which has AES-NI code for x86
+but none for ARM's AES instructions: on an ARM server it runs its portable
+constant-time code, many times slower than OpenSSL there. A server on ARM names
+`/webcpp/crypto//openssl` (<<crypto-backends-defaults>>).
+
+[#crypto-gcm-incremental]
+==== Encrypting what does not fit in memory
+
+A 2 GB video before an upload, or a log as it is written, cannot be held whole.
+`begin_seal` takes the IV and the additional data, `update` encrypts each piece
+in place as it arrives, and `result` returns the tag at the end. The object
+refuses another message while one is in progress, and any error abandons the
+message: its pieces have no tag and are not to be sent.
+
+[source,cpp]
+----
+include::{examples}/sealed_records.cpp[tag=incremental,indent=0]
+----
+
+What is sealed in pieces is opened whole. To open a large file piece by piece,
+split it into *records*, each sealed alone with its own IV and with its number
+in the additional data, so that records cannot be reordered, dropped or
+replayed in another place without failing:
+
+[source,cpp]
+----
+include::{examples}/sealed_records.cpp[tag=records,indent=0]
+----
+
+[listing]
+----
+include::{examples}/sealed_records.expected[]
+----
+
+*Pitfalls.* Put the record number and the last record's flag in the additional
+data: without them an attacker can cut a file short at a record boundary. Never
+send the pieces of an abandoned message.

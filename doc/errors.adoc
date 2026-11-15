@@ -5,11 +5,19 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 [#crypto-errors]
-== Errors
+=== Errors
 
-Every operation of crypto that can fail reports it with an `error` of the
-category `webcpp.crypto`, as a `boost::system::error_code`, never by throwing
-on its own. The values are fixed and never reused, so a program may store them.
+Every operation of crypto that can fail returns `boost::system::result<T>`, and
+reports the failure with an `error` of the category `webcpp.crypto`, as a
+`boost::system::error_code`, never by throwing on its own. The values are fixed
+and never reused, so a program may store them.
+
+A program tells failures apart because they call for different answers.
+`authentication_failed` means the data, its additional data or its tag changed
+since it was sealed, or the key is another: someone may be attacking, and the
+message is dropped. A size error means the caller or the wire format is wrong:
+a bug to fix, not an attack. `entropy_unavailable` means there is no safe
+random value to use: the operation that needed one fails.
 
 [cols="1,3,5"]
 |===
@@ -18,17 +26,64 @@ on its own. The values are fixed and never reused, so a program may store them.
 |1 |`invalid_key_size` |A key of another size than the algorithm's `key_size`, or a secret key not of 32 bytes.
 |2 |`invalid_iv_size` |A GCM IV that is empty or longer than 128 bytes.
 |3 |`invalid_tag_size` |A tag given to `open` that is not of 16 bytes.
-|4 |`invalid_input_size` |Data given to a block cipher that is not a whole number of blocks.
+|4 |`invalid_input_size` |Data given to a block cipher that is not a whole number of blocks, or a DER output shorter than `max_der_size`.
 |5 |`message_too_long` |A message or additional data longer than the algorithm allows.
 |6 |`authentication_failed` |The tag does not match: the message or its additional data changed, or the key differs.
 |7 |`invalid_state` |An object moved from, or the incremental seal called out of order.
 |8 |`entropy_unavailable` |The system's or the browser's generator failed.
-|9 |`invalid_secret_key` |A secret key that is zero or not below the group order.
+|9 |`invalid_secret_key` |A secret key or a tweak that is zero or not below the group order, or a tweak that gives no valid key.
 |10 |`invalid_public_key` |A public key of the wrong size, or not a point of the curve.
 |11 |`invalid_signature` |A signature that does not verify, or cannot be parsed.
 |12 |`backend_failure` |A backend failed where its contract says it does not.
 |===
 
 The values 13 and 14 are reserved for OpenSSL's memory option, which is not part
-of the first version, and are not declared. A value that `error` does not define
-has the message "unknown webcpp.crypto error".
+of this version, and are not declared. A value that `error` does not define
+has the message "unknown webcpp.crypto error". `random_device` also returns
+`errc::not_supported` where there is no generator at all, and OpenSSL's `make`
+`errc::not_enough_memory` when OpenSSL cannot allocate its context.
+
+include::generated/backends-error.adoc[]
+
+*Example.* A message is sealed, then opened three ways: with a flipped bit,
+with an empty IV and with a short tag. Only the first is an attack, and only
+the first decrypted anything, which `open` has zeroed:
+
+[source,cpp]
+----
+include::{examples}/failure_reasons.cpp[tag=branch,indent=0]
+----
+
+[listing]
+----
+include::{examples}/failure_reasons.expected[]
+----
+
+The whole program:
+
+[source,cpp]
+----
+include::{examples}/failure_reasons.cpp[tag=program]
+----
+
+*Pitfalls.*
+
+* Never use the bytes of a failed `open`: crypto zeroes them on purpose.
+* Never tell a remote party which check failed: "could not decrypt" is
+enough, and more detail helps an attacker.
+* Never treat `entropy_unavailable` as a reason to fall back on a weaker
+value: fail the operation.
+
+[#crypto-exceptions]
+=== Exceptions
+
+Every operation reports its errors as values, whether or not the program has
+exceptions. `<webcpp/crypto/config.hpp>`, which every header of crypto
+includes first, defines `WEBCPP_CRYPTO_NO_EXCEPTIONS` when webcpp has no
+exceptions (the compiler has none, or the program defined
+`WEBCPP_NO_EXCEPTIONS` for every webcpp library), and a program may define it
+for crypto alone. One function throws: `random_device::operator()`, through
+`boost::throw_exception`, because the standard's random bit generator has no
+other way to report a failure; it is declared only when the macro is not
+defined. `keypair::make` lets the program's memory resource report a failed
+allocation as the resource does.

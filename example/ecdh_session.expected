@@ -1,0 +1,3 @@
+hkdf matches rfc 5869
+shared secrets match
+bob read: hello bob

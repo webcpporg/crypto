@@ -1,0 +1,26 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-curves]
+== Curves: webcpp::crypto::curves
+
+An *elliptic curve* gives public-key cryptography with short keys: a secret key
+is a number, its public key a point of the curve computed from it, and going
+back from the point to the number is infeasible. On a curve a program can
+*sign*, so that anyone with the public key can check who wrote a message
+(link:https://en.wikipedia.org/wiki/Digital_signature[Wikipedia]), and *agree
+on a key*, so that two parties who only exchanged public keys share a secret
+(link:https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman[Wikipedia]).
+
+The namespace `webcpp::crypto::curves` holds one curve in this version,
+secp256k1 (link:https://www.secg.org/sec2-v2.pdf[SEC 2];
+link:https://en.bitcoin.it/wiki/Secp256k1[Bitcoin Wiki]), the curve of
+Bitcoin, Ethereum and Nostr. A program chooses a curve for compatibility: a
+signature on secp256k1 is checked only with secp256k1, and the curves of
+passkeys, SSH or TLS certificates are others, which this version does not
+offer.
+
+include::generated/namespace-curves.adoc[]

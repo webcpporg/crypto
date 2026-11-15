@@ -1,0 +1,99 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+// An author signs a message with a BIP340 Schnorr signature and a reader verifies it with the
+// author's public key alone. No server vouches for the message: any change to the text breaks
+// the signature, so peers can trust what they receive from untrusted relays.
+// tag::program[]
+#include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/random_device.hpp>
+
+#include <boost/hash2/sha2.hpp>
+#include <boost/system/result.hpp>
+
+#include <array>
+#include <cstdint>
+#include <cstdio>
+#include <span>
+#include <string_view>
+
+namespace crypto = webcpp::crypto;
+namespace secp256k1 = webcpp::crypto::curves::secp256k1;
+
+namespace {
+
+// The message is hashed to a fixed-size id, and the id is what gets signed.
+std::array<std::uint8_t, 32> id_of(std::string_view text) {
+    boost::hash2::sha2_256 hash;
+    hash.update(text.data(), text.size());
+    auto const digest = hash.result();
+    std::array<std::uint8_t, 32> id{};
+    std::copy_n(digest.data(), id.size(), id.begin());
+    return id;
+}
+
+// tag::keygen[]
+boost::system::result<secp256k1::keypair> generate_key() {
+    crypto::random_device device;
+    std::array<std::uint8_t, 32> secret{};
+    for (;;) {
+        auto const filled = device.fill(secret);
+        if (!filled) {
+            return filled.error();
+        }
+        auto key = secp256k1::keypair::make(secret);
+        // Not every 32 bytes are a key (zero, or too large), which is astronomically rare:
+        // draw again. Any other error is real.
+        if (key || key.error() != crypto::error::invalid_secret_key) {
+            return key;
+        }
+    }
+}
+
+// end::keygen[]
+
+}  // namespace
+
+int main() {
+    auto author = generate_key();
+    if (!author) {
+        return 1;
+    }
+    auto const public_key = author->xonly_public_key();
+    if (!public_key) {
+        return 1;
+    }
+
+    // tag::sign[]
+    auto const id = id_of("meet at noon");
+    // Fresh aux bytes make the signature unpredictable and guard against fault attacks.
+    std::array<std::uint8_t, 32> aux{};
+    if (!crypto::random_device().fill(aux)) {
+        return 1;
+    }
+    auto const signature = author->sign_schnorr(id, aux);
+    if (!signature) {
+        return 1;
+    }
+    // end::sign[]
+
+    // tag::verify[]
+    // The reader needs only the message, the signature and the public key.
+    if (!secp256k1::verify_schnorr(*signature, id_of("meet at noon"), *public_key)) {
+        return 1;
+    }
+    std::printf("verified\n");
+    auto const altered = secp256k1::verify_schnorr(*signature, id_of("meet at nine"), *public_key);
+    if (altered || altered.error() != crypto::error::invalid_signature) {
+        return 1;
+    }
+    std::printf("altered message refused: invalid_signature\n");
+    // end::verify[]
+    return 0;
+}
+
+// end::program[]

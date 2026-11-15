@@ -1,0 +1,4 @@
+key pair made
+x-only public key: 32 bytes
+compressed public key: 33 bytes, prefix ok
+secret sealed and restored: same public key

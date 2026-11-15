@@ -8,18 +8,18 @@
 == Testing
 
 crypto is tested by lightweight_test programs under `test/`, each declared in
-`test/Jamfile`, and each compiled alone, as the only include of its
-translation unit, for every public header. Every test program is built twice,
-with exceptions and with `exception-handling=off`, by the Jamfile's rule
-`crypto-run`.
+`test/Jamfile`, and each public header is compiled alone, as the only include
+of its translation unit, with the libraries it needs. Every test program is
+built twice, with exceptions and with `exception-handling=off`, by the
+Jamfile's rule `crypto-run`. Every example of this page is built and run, and
+its output compared with its `.expected`.
 
-crypto is built and run on native, wasip2, wasip3 and emscripten; each lane
-builds from scratch, as the continuous integration does, from the root of a
-webcpp checkout:
+Each lane builds from scratch, as the continuous integration does, from the
+root of a webcpp checkout:
 
 `b2 -a --build-dir=bin/lane-native libs/crypto/test libs/crypto/example`::
-The {n-tests-native} tests natively, and each of the {n-headers} public
-headers compiled alone.
+The {n-tests-native} tests and {n-examples-native} examples natively, and each
+of the {n-headers} public headers compiled alone.
 
 `b2 -a --build-dir=bin/lane-wasip2 toolset=clang-wasip2 testing.launcher=tools/boost/asio-wasip2/run.sh libs/crypto/test libs/crypto/example`::
 The same for wasm32-wasip2: {n-tests-wasip2} tests, each run by wasmtime.
@@ -27,7 +27,39 @@ The same for wasm32-wasip2: {n-tests-wasip2} tests, each run by wasmtime.
 wasm32-wasip3: {n-tests-wasip3} tests.
 
 `b2 -a --build-dir=bin/lane-emscripten toolset=emscripten libs/crypto/test libs/crypto/example`::
-The same on emscripten: {n-tests-emscripten} tests, each run by node.
+The same on Emscripten: {n-tests-emscripten} tests, each run by node.
+
+MSVC and Apple Clang run in the continuous integration only. The own lane
+`c-suites` runs the C libraries' own test suites (BearSSL's, ctaes's and
+libsecp256k1's) on webcpp's build of them, on every target, on every push:
+the target's lane command with `libs/crypto/test/c_suites//c-suites` in place
+of the two directories.
+
+What the tests check:
+
+* *The vectors.* AES-GCM against the GCM specification's cases and Project
+Wycheproof's vectors, on BearSSL and on OpenSSL; AES against FIPS 197 on ctaes
+and OpenSSL, and ctaes against OpenSSL on random keys; secp256k1 against BIP
+340's vectors and Wycheproof's ECDSA and DER vectors, and the x-only tweak
+against BIP 341's.
+* *Every guard and every error,* on a mock backend whose checks every real
+backend's test runs as well, and the limits natively.
+* *Allocation:* every `operator new` and the C library's allocator counted
+around each operation.
+* *The default backend,* for each combination of linked and selected backends
+on the targets where its answer holds (<<crypto-backends-defaults>>).
+* *Every message,* word for word, by a message test with clang on the targets
+it names; on MSVC, each case proven to stop the build
+(<<crypto-jamfile-messages>>).
+* *The user's Jamfiles,* by the superproject's
+`tools/test/crypto_jamfiles_test.py`, which builds each fixture on a scratch
+superproject (<<crypto-jamfile-cases>>).
+* *A backend named and not called adds no byte,* by programs built with and
+without its library and compared.
+
+The documentation's tables are checked by its build: `doc/tables/generate.py
+--check` fails when a generated table differs from what the data and the tests
+give.
 
 The test matrix of every lane is published with the documentation, at
 https://webcpporg.github.io/report/.

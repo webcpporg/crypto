@@ -1,0 +1,127 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-wallets]
+== Wallets
+
+A *cryptocurrency wallet* holds the keys that control funds on a blockchain:
+it makes them, keeps them secret, and signs the transactions that spend the
+funds (link:https://en.wikipedia.org/wiki/Cryptocurrency_wallet[Wikipedia]).
+Whoever holds a wallet's secret key holds its money, and a signature over the
+wrong bytes spends it in a way its owner did not intend. Nothing can be
+recalled: a leaked key or a wrong signature is a loss.
+
+crypto holds the primitives a wallet needs: the key pair, the signatures, their
+encodings and the tweak, each done by libsecp256k1. A blockchain's rules (BIPs,
+EIPs) belong to a domain library built on top: it serializes the protocol's
+messages, computes its hashes with Boost.Hash2, and calls these primitives. The
+Bitcoin steps below are what such a library builds; they are not crypto's API.
+
+[#crypto-wallets-key]
+=== Making and keeping a key
+
+*The problem.* A wallet's key must be unpredictable, must be a valid secret key
+of the curve, and must survive on disk without being readable there.
+
+*The idea.* 32 bytes from `random_device` are a valid secp256k1 secret key with
+overwhelming probability; when they are not (zero, or not below the group
+order), `make` says so and the wallet draws again. At rest, the secret is sealed
+with AES-GCM under a key the device keeps elsewhere (a platform keystore, or a
+key derived from the user's passphrase by a password hash, a hashing
+library's job rather than crypto's), with the wallet's format version as
+additional data.
+
+[source,cpp]
+----
+include::{examples}/wallet_key.cpp[tag=keygen,indent=0]
+----
+
+[source,cpp]
+----
+include::{examples}/wallet_key.cpp[tag=seal,indent=0]
+----
+
+[listing]
+----
+include::{examples}/wallet_key.expected[]
+----
+
+*Mistakes to avoid.* Never derive a key from a timestamp, a counter or a
+general-purpose generator. Never keep the secret in clear on disk, in a log or
+in a backup. Wipe every copy of the secret once the key pair is made.
+
+[#crypto-wallets-der]
+=== An ECDSA signature in DER
+
+*The problem.* Bitcoin's SegWit v0 inputs carry an ECDSA signature in strict
+DER (link:https://github.com/bitcoin/bips/blob/master/bip-0066.mediawiki[BIP 66])
+over a hash the protocol defines
+(link:https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki[BIP 143]),
+in low-S form (link:https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki[BIP 146]).
+
+*The idea.* The domain library computes the signature hash (SHA-256 twice over
+the preimage it serialized); crypto signs it, deterministically and in low-S
+form, and encodes the signature as strict DER. `from_der` decodes strict DER and
+refuses anything else; `normalize_ecdsa` gives the low-S form of a signature
+from a signer that does not enforce it.
+
+[source,cpp]
+----
+include::{examples}/ecdsa_der.cpp[tag=sign,indent=0]
+----
+
+[source,cpp]
+----
+include::{examples}/ecdsa_der.cpp[tag=normalize,indent=0]
+----
+
+[listing]
+----
+include::{examples}/ecdsa_der.expected[]
+----
+
+*Mistakes to avoid.* Compare the domain library's hashes with the protocol's
+published vectors: a wrong preimage signs a valid signature over the wrong
+thing. Never sign with a nonce of your own: RFC 6979's deterministic nonce is
+what keeps a weak generator from leaking the key.
+
+[#crypto-wallets-taproot]
+=== A tweaked key: Taproot
+
+*The problem.* A Taproot output key is the wallet's internal key tweaked by
+`t = tagged_hash("TapTweak", internal_key || merkle_root)`
+(link:https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki[BIP 341]);
+spending by key path signs with the tweaked key pair.
+
+*The idea.* The tweak is the protocol's; the addition on the curve is crypto's.
+The domain library computes `t` with Boost.Hash2's SHA-256 (a tagged hash is
+`SHA-256(SHA-256(tag) || SHA-256(tag) || data)`) and passes it to
+`tweak_xonly`, once on the public key for the address, once on the key pair to
+sign:
+
+[source,cpp]
+----
+include::{examples}/taproot_tweak.cpp[tag=tweak,indent=0]
+----
+
+[source,cpp]
+----
+include::{examples}/taproot_tweak.cpp[tag=spend,indent=0]
+----
+
+[listing]
+----
+include::{examples}/taproot_tweak.expected[]
+----
+
+The same two calls serve any protocol that tweaks a key: a pay-to-contract
+commitment, a derived key of a hierarchy, a blinded key. crypto checks the key
+and the tweak, and wipes the pair if the tweak gives no valid key; what the
+tweak means is the domain library's.
+
+*Mistakes to avoid.* A tweak is a secret's relative: anyone who knows the tweak
+and the tweaked secret key knows the original one, so both are kept as secrets.
+Check the domain library's tweak against BIP 341's published vectors.

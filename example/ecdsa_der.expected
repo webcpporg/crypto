@@ -1,0 +1,5 @@
+der 30440220149707552281c27e046808f5249507fbf54ca85db51fc2d06a7ab491ccd7aef802202790de468aad416701a4148b2527c8aeb3ed98c95828e21affd806486170617a
+strict der round trip ok
+verified
+high-S refused: invalid_signature
+normalized to low-S: verified

@@ -1,0 +1,21 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-choose]
+== Choose by use case
+
+Find the row that says what the program needs, and follow it: the namespace and
+the name to use, the backend that runs it, the Jamfile line that links it, and
+the example that does it, built and run on every target. The backend column
+gives the default; <<crypto-backends>> says which backend runs where, and
+<<crypto-jamfile>> how to name another.
+
+Read the rows as rules. A need that is not in the table is not met by this
+version of crypto, and the program must not improvise one from the primitives
+here: encryption without authentication, a hand-made random generator and a
+signature on another curve are each how a program loses its users' data.
+
+include::generated/use-cases.adoc[]

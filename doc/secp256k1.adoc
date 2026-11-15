@@ -5,34 +5,78 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 [#crypto-secp256k1]
-== secp256k1
+=== secp256k1
 
 `<webcpp/crypto/curves/secp256k1.hpp>` is secp256k1 on libsecp256k1
-(`/third_party//secp256k1`, <<crypto-backends-secp256k1>>), in the namespace
-`webcpp::crypto::curves::secp256k1`. A `keypair` is made from a 32-byte secret
-key with `make(secret)`, which allocates its signing context, the one
-allocation, in the resource it is given. A key pair gives its BIP340 x-only and
-its compressed public key, signs with BIP340 Schnorr (`sign_schnorr`) or ECDSA
-over a 32-byte hash (`sign_ecdsa`, RFC 6979's nonce, low-S, compact form),
-derives an ECDH secret (`ecdh`) and is tweaked in place by a 32-byte tweak
-(`tweak_xonly`). `verify_schnorr` and `verify_ecdsa` check signatures; `to_der`,
-`from_der` (strict DER) and `normalize_ecdsa` convert ECDSA's DER and low-S
-forms; and `tweak_xonly` tweaks an x-only public key, giving the tweaked key and
-the parity of its point.
+(`/third_party//secp256k1`), in the namespace
+`webcpp::crypto::curves::secp256k1`. It offers two signature schemes and one
+key agreement:
 
-A tweak is a primitive: crypto does not compute one. A protocol that defines a
-tweak (BIP341's Taproot output key, for one) belongs to a domain library, which
-computes the tweak from its own hash and passes it here.
+* *BIP 340 Schnorr signatures*, 64 bytes over a message of any length, with a
+32-byte x-only public key: Bitcoin's Taproot and Nostr's events
+(link:https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki[BIP 340];
+link:https://github.com/nostr-protocol/nips/blob/master/01.md[NIP-01];
+link:https://en.wikipedia.org/wiki/Schnorr_signature[Wikipedia]);
+* *ECDSA signatures*, 64 bytes over a 32-byte hash, with a 33-byte compressed
+public key: Bitcoin before Taproot and Ethereum
+(link:https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm[Wikipedia];
+link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow paper]).
+Each signature's nonce is RFC 6979's, derived from the key and the hash, so
+that no weak generator can leak the key
+(link:https://www.rfc-editor.org/rfc/rfc6979[RFC 6979]), and each is in low-S
+form;
+* *ECDH*, a 32-byte shared secret, the SHA-256 of the shared point.
 
-The example signs BIP340's first test vector and verifies it, then tweaks the
-key pair and signs and verifies again under the tweaked key.
+A `keypair` is made from a 32-byte secret key with `make(secret)`, which
+allocates its signing context, the one allocation of crypto, in the
+`std::pmr::memory_resource` it is given (<<crypto-memory>>), and randomises it
+from `random_device`. A key pair gives its x-only public key
+(`xonly_public_key`) and its compressed one (`public_key`), signs
+(`sign_schnorr`, `sign_ecdsa`), derives an ECDH secret (`ecdh`), and is tweaked
+in place (`tweak_xonly`). `verify_schnorr` and `verify_ecdsa` check signatures
+with a public key alone; `to_der`, `from_der` (strict DER) and
+`normalize_ecdsa` convert ECDSA's DER and low-S forms; and `tweak_xonly` tweaks
+an x-only public key. Every function reads libsecp256k1's canary, so that a
+program linked with another build of the library does not link.
+
+include::generated/backends-keypair.adoc[]
+
+include::generated/backends-verify.adoc[]
+
+include::generated/backends-encodings.adoc[]
+
+include::generated/backends-tweak.adoc[]
+
+*Example.* BIP 340's first test vector, signed and verified; then the key pair
+tweaked and used again, its signature verified under the tweaked key:
 
 [source,cpp]
 ----
-include::{examples}/schnorr_sign.cpp[lines=7..]
+include::{examples}/schnorr_sign.cpp[tag=program]
 ----
 
 [listing]
 ----
 include::{examples}/schnorr_sign.expected[]
 ----
+
+A tweak is a primitive: crypto does not compute one. A protocol that defines a
+tweak (Bitcoin's Taproot output key, for one) belongs to a domain library,
+which computes the tweak from its own hash and passes it here
+(<<crypto-wallets-taproot>>).
+
+*Pitfalls.*
+
+* A secret key drawn from `random_device` is below the group order with
+overwhelming probability, but not always: `make` returns
+`invalid_secret_key` then, and the program draws again
+(<<crypto-wallets-key>>).
+* Keep the secret key out of logs, crash reports and source control: the key
+pair wipes its copy, the program wipes its own.
+* BIP 340's auxiliary randomness is fresh for each signature; a fixed value is
+safe only because the nonce also depends on the key and the message, and the
+examples use zeros only to print fixed signatures.
+* `verify_ecdsa` refuses a high-S signature, as libsecp256k1 does:
+`normalize_ecdsa` gives the low-S form of a signature from a signer that does
+not enforce it, and makes it malleable on purpose
+(link:https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki[BIP 146]).

@@ -1,0 +1,91 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-p2p]
+== Peer-to-peer applications
+
+In a *peer-to-peer* application the participants talk to each other rather than
+through a server they trust (link:https://en.wikipedia.org/wiki/Peer-to-peer[Wikipedia]):
+a chat between browsers over WebRTC, notes posted to public relays, files
+shared directly. Whatever carries the bytes, a relay or a signalling server,
+sees all of them and may change them. Cryptography is what lets the peers trust
+each other instead: a signature proves who wrote a message, and a key agreed in
+public keeps the conversation private.
+
+[#crypto-p2p-signed]
+=== Proving who wrote a message
+
+*The problem.* Peers exchange messages through a public relay that anyone can
+post to. How does a reader know a message comes from its author and was not
+changed?
+
+*The idea.* The author signs the message's hash with a secret key; any reader
+verifies with the author's public key. A valid signature proves that the holder
+of the secret key signed exactly these bytes. Nostr's events, for one, are
+signed this way, with BIP 340 over the event's SHA-256
+(link:https://github.com/nostr-protocol/nips/blob/master/01.md[NIP-01]).
+
+[source,cpp]
+----
+include::{examples}/signed_message.cpp[tag=keygen]
+----
+
+[source,cpp]
+----
+include::{examples}/signed_message.cpp[tag=sign,indent=0]
+----
+
+[source,cpp]
+----
+include::{examples}/signed_message.cpp[tag=verify,indent=0]
+----
+
+[listing]
+----
+include::{examples}/signed_message.expected[]
+----
+
+*Mistakes to avoid.* Verify before parsing or acting on a message. A signature
+proves authorship, not secrecy: sign, then encrypt what is private. A public key
+received with the message proves nothing; the reader must already know the
+author's key.
+
+[#crypto-p2p-session]
+=== Agreeing on a key in public
+
+*The problem.* Two browsers want to talk privately through a relay that sees
+every byte. They have never met and share no secret.
+
+*The idea.* With elliptic-curve Diffie-Hellman each side combines its own secret
+key with the other's public key and arrives at the same 32-byte secret, which
+the relay cannot compute from the public keys alone
+(link:https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman[Wikipedia]).
+That secret is not a key yet: HKDF turns it into one, bound to the application
+by a label (link:https://www.rfc-editor.org/rfc/rfc5869[RFC 5869]). HKDF is a
+few lines on Boost.Hash2's HMAC, checked here against the RFC's first test case
+before it is used:
+
+[source,cpp]
+----
+include::{examples}/ecdh_session.cpp[tag=hkdf]
+----
+
+[source,cpp]
+----
+include::{examples}/ecdh_session.cpp[tag=agree,indent=0]
+----
+
+[listing]
+----
+include::{examples}/ecdh_session.expected[]
+----
+
+*Mistakes to avoid.* ECDH alone does not tell Alice that the public key really
+is Bob's: an attacker in the middle can swap both keys and read everything
+(link:https://en.wikipedia.org/wiki/Man-in-the-middle_attack[Wikipedia]). Sign
+the public keys (<<crypto-p2p-signed>>), or compare a fingerprint out of band.
+Never use the shared secret directly as a key, or as several keys: derive one
+key per purpose, each with its own label.

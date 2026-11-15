@@ -6,9 +6,10 @@
 
 import webcpp ;
 
-# The third layer of the canary (spec section 4.3) for libsecp256k1's key: the archive is the
-# large tables' (w15c11x6), and other.cpp names the small tables' and defines that canary
-# itself, so that only the #pragma detect_mismatch (LNK2038) can fail the link.
+# The third layer of the canary for libsecp256k1's key: the archive is the
+# large tables' (w15c11x6), and other.cpp names the small tables' and defines
+# that canary itself, so that only the #pragma detect_mismatch (LNK2038) can
+# fail the link.
 webcpp.link-fail canary_secp256k1_two_files : app.cpp other.cpp
   : <library>/webcpp/crypto//crypto <library>/third_party//secp256k1
     <webcpp-secp256k1-tables>large

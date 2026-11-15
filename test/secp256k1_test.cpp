@@ -9,18 +9,18 @@
 // parties, every error of make, a moved-from key pair, and public keys refused in every way
 // they can be wrong.
 
-#include <webcpp/crypto/random_device.hpp>
 #include <webcpp/crypto/secp256k1.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
 
 #include <boost/core/lightweight_test.hpp>
-#include <boost/hash2/sha2.hpp>
 #include <boost/system/errc.hpp>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <span>
 #include <utility>
 
 namespace crypto = webcpp::crypto;
@@ -43,7 +43,7 @@ void schnorr() {
     auto const public_key = key.xonly_public_key();
     BOOST_TEST(signature && public_key);
     BOOST_TEST(secp::verify_schnorr(*signature, message, *public_key).has_value());
-    message[0] ^= 1;
+    message[0] ^= 1U;
     BOOST_TEST(secp::verify_schnorr(*signature, message, *public_key).error() ==
                crypto::error::invalid_signature);
     // Any length, the empty message included (BIP340).
@@ -69,12 +69,12 @@ void ecdsa() {
     // n - s, big-endian, with n the group order.
     auto const order =
         webcpp::test::from_hex("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
-    int borrow = 0;
-    for (int i = 31; i >= 0; --i) {
-        int const d = order[static_cast<std::size_t>(i)] -
-                      (*signature)[static_cast<std::size_t>(32 + i)] - borrow;
-        high[static_cast<std::size_t>(32 + i)] = static_cast<std::uint8_t>(d & 0xff);
-        borrow = d < 0 ? 1 : 0;
+    // Each byte's difference in unsigned arithmetic: bit 8 is set when it borrowed.
+    unsigned borrow = 0;
+    for (std::size_t i = 32; i-- > 0;) {
+        unsigned const d = unsigned{order[i]} - unsigned{(*signature)[32 + i]} - borrow;
+        high[32 + i] = static_cast<std::uint8_t>(d & 0xffU);
+        borrow = (d >> 8U) & 1U;
     }
     BOOST_TEST(secp::verify_ecdsa(high, hash, *public_key).error() ==
                crypto::error::invalid_signature);
@@ -107,10 +107,11 @@ void make_errors() {
     BOOST_TEST(secp::keypair::make(short_secret).error() == crypto::error::invalid_key_size);
     std::array<std::uint8_t, 32> const zero{};
     BOOST_TEST(secp::keypair::make(zero).error() == crypto::error::invalid_secret_key);
-    std::array<std::uint8_t, 32> const order{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
-                                             0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe,
-                                             0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48, 0xa0, 0x3b,
-                                             0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41};
+    std::array<std::uint8_t, 32> const order{
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xfe, 0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48,
+        0xa0, 0x3b, 0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41,
+    };
     BOOST_TEST(secp::keypair::make(order).error() == crypto::error::invalid_secret_key);
     // No generator (an audio worklet) is entropy_unavailable to a key pair's caller (m15).
     namespace errc = boost::system::errc;
@@ -120,6 +121,8 @@ void make_errors() {
                crypto::error::entropy_unavailable);
 }
 
+// A moved-from key pair is what this case tests.
+// NOLINTBEGIN(bugprone-use-after-move)
 void moved_from() {
     auto key = from_byte(0x42);
     secp::keypair moved = std::move(key);
@@ -139,6 +142,8 @@ void moved_from() {
     key = std::move(again);
     BOOST_TEST(key.sign_schnorr(message, aux).has_value());
 }
+
+// NOLINTEND(bugprone-use-after-move)
 
 }  // namespace
 

@@ -55,7 +55,7 @@ private:
         BOOST_TEST_EQ(align, alignment);
     }
 
-    bool do_is_equal(std::pmr::memory_resource const& other) const noexcept override {
+    [[nodiscard]] bool do_is_equal(std::pmr::memory_resource const& other) const noexcept override {
         return this == &other;
     }
 
@@ -89,9 +89,10 @@ int main() {
         auto made = secp::keypair::make(secret, &resource);
         BOOST_TEST(made.has_value());
         BOOST_TEST_EQ(resource.allocated, 1U);
-        BOOST_TEST_EQ(resource.size, secp256k1_context_preallocated_size(SECP256K1_CONTEXT_NONE));
+        BOOST_TEST_EQ(resource.size,
+                      secp256k1_context_preallocated_size(secp::detail::context_flags));
         BOOST_TEST_EQ(resource.alignment, alignof(std::max_align_t));
-        secp::keypair key = std::move(*made);
+        secp::keypair const key = std::move(*made);
 
         auto const schnorr = key.sign_schnorr(message, aux);
         auto const ecdsa = key.sign_ecdsa(message);

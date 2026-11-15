@@ -35,7 +35,7 @@
 #include <webcpp/crypto/backends/ctaes.hpp>
 #endif
 
-#if defined(WEBCPP_CRYPTO_HAS_SECP256K1)
+#ifdef WEBCPP_CRYPTO_HAS_SECP256K1
 #include <webcpp/crypto/secp256k1.hpp>
 #endif
 

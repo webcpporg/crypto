@@ -34,10 +34,13 @@ namespace webcpp::crypto::secp256k1 {
 
 namespace detail {
 
-// A context that signs and verifies needs no flag. The macro shifts a signed constant, which
-// no check of webcpp's .clang-tidy reports (hicpp-signed-bitwise is not among them), so it
-// carries no NOLINT.
+// A context that signs and verifies needs no flag.
+// NOLINTNEXTLINE(bugprone-signed-bitwise): libsecp256k1's macro shifts a signed constant
 inline constexpr unsigned context_flags = SECP256K1_CONTEXT_NONE;
+
+// The SEC1 compressed form's flag.
+// NOLINTNEXTLINE(bugprone-signed-bitwise): libsecp256k1's macro shifts a signed constant
+inline constexpr unsigned compressed = SECP256K1_EC_COMPRESSED;
 
 /**
  * The error of a key pair whose context could not be randomised: every failure of the
@@ -50,21 +53,29 @@ inline boost::system::error_code seed_error(boost::system::error_code /*generato
     return error::entropy_unavailable;
 }
 
-/** The secret of a key pair, out of it, wiped when the scope ends on every path. */
+/**
+ * Secret bytes out of a key pair, its secret key or its context's seed, wiped when the scope
+ * ends on every path, a failure's or an exception's included.
+ */
 struct secret {
     std::array<unsigned char, 32> bytes{};
 
     ~secret() { webcpp::crypto::detail::wipe(bytes.data(), bytes.size()); }
 };
 
-/** A public key of 33 or 65 bytes, parsed; `invalid_public_key` in every way it can be wrong. */
-inline boost::system::result<secp256k1_pubkey> parse(std::span<std::uint8_t const> key) noexcept {
-    secp256k1_pubkey parsed{};
-    if ((key.size() != 33 && key.size() != 65) ||
-        secp256k1_ec_pubkey_parse(secp256k1_context_static, &parsed, key.data(), key.size()) == 0) {
-        return webcpp::crypto::error::invalid_public_key;
-    }
-    return parsed;
+/**
+ * Parses a public key of 33 or 65 bytes.
+ *
+ * @param key The key, SEC1.
+ * @param parsed Where the parsed key goes.
+ * @return Whether it is a key: false in every way it can be wrong, `invalid_public_key` to the
+ * caller.
+ */
+[[nodiscard]] inline bool parse(std::span<std::uint8_t const> key,
+                                secp256k1_pubkey& parsed) noexcept {
+    return (key.size() == 33 || key.size() == 65) &&
+           secp256k1_ec_pubkey_parse(secp256k1_context_static, &parsed, key.data(), key.size()) !=
+               0;
 }
 
 }  // namespace detail
@@ -89,7 +100,11 @@ public:
      * the key pair.
      * @return The key pair; `invalid_key_size`; `invalid_secret_key`;
      * `entropy_unavailable`, also where there is no generator at all (an audio worklet,
-     * `detail::seed_error`). A failed allocation is the resource's to report.
+     * `detail::seed_error`); `backend_failure`, should libsecp256k1 refuse the context's
+     * randomisation or the key pair after the secret's check, which v0.8.0 does not (its
+     * `secp256k1_context_randomize` fails only on the static context, and
+     * `secp256k1_keypair_create` only on a secret `secp256k1_ec_seckey_verify` refuses). A
+     * failed allocation is the resource's to report; the seed is wiped then too.
      */
     static boost::system::result<basic_keypair> make(
         std::span<std::uint8_t const> secret,
@@ -101,8 +116,8 @@ public:
         if (secp256k1_ec_seckey_verify(secp256k1_context_static, secret.data()) == 0) {
             return error::invalid_secret_key;
         }
-        std::array<std::uint8_t, 32> seed{};
-        auto const seeded = random_device().fill(seed);  // lint-world: the context's randomisation
+        detail::secret seed;
+        auto const seeded = random_device().fill(seed.bytes);  // lint-world: the context's seed
         if (!seeded) {
             return detail::seed_error(seeded.error());
         }
@@ -110,8 +125,7 @@ public:
         made.memory_ = memory;
         made.context_ = secp256k1_context_preallocated_create(
             memory->allocate(context_size(), alignof(std::max_align_t)), detail::context_flags);
-        int const randomised = secp256k1_context_randomize(made.context_, seed.data());
-        webcpp::crypto::detail::wipe(seed.data(), seed.size());
+        int const randomised = secp256k1_context_randomize(made.context_, seed.bytes.data());
         if (randomised == 0 ||
             secp256k1_keypair_create(made.context_, &made.keypair_, secret.data()) == 0) {
             return error::backend_failure;
@@ -155,7 +169,8 @@ public:
      *
      * @return 32 bytes; `invalid_state` moved from.
      */
-    boost::system::result<std::array<std::uint8_t, 32>> xonly_public_key() const noexcept {
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> xonly_public_key()
+        const noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -172,7 +187,7 @@ public:
      *
      * @return 33 bytes; `invalid_state` moved from.
      */
-    boost::system::result<std::array<std::uint8_t, 33>> public_key() const noexcept {
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 33>> public_key() const noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -181,7 +196,7 @@ public:
         std::array<std::uint8_t, 33> out{};
         std::size_t size = out.size();
         secp256k1_keypair_pub(context_, &key, &keypair_);
-        secp256k1_ec_pubkey_serialize(context_, out.data(), &size, &key, SECP256K1_EC_COMPRESSED);
+        secp256k1_ec_pubkey_serialize(context_, out.data(), &size, &key, detail::compressed);
         return out;
     }
 
@@ -192,7 +207,7 @@ public:
      * @param aux 32 bytes of fresh randomness, the caller's.
      * @return 64 bytes; `invalid_state` moved from; `backend_failure`.
      */
-    boost::system::result<std::array<std::uint8_t, 64>> sign_schnorr(
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign_schnorr(
         std::span<std::uint8_t const> message,
         std::span<std::uint8_t const, 32> aux) const noexcept {
         if (!keyed_) {
@@ -200,7 +215,7 @@ public:
         }
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         std::array<std::uint8_t, 32> randomness{};
-        std::copy(aux.begin(), aux.end(), randomness.begin());
+        std::ranges::copy(aux, randomness.begin());
         secp256k1_schnorrsig_extraparams extra = SECP256K1_SCHNORRSIG_EXTRAPARAMS_INIT;
         extra.ndata = randomness.data();
         std::array<std::uint8_t, 64> out{};
@@ -217,7 +232,7 @@ public:
      * @param hash The hash.
      * @return 64 bytes, r then s; `invalid_state` moved from; `backend_failure`.
      */
-    boost::system::result<std::array<std::uint8_t, 64>> sign_ecdsa(
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign_ecdsa(
         std::span<std::uint8_t const, 32> hash) const noexcept {
         if (!keyed_) {
             return error::invalid_state;
@@ -242,20 +257,20 @@ public:
      * @param public_key The peer's key, 33 or 65 bytes.
      * @return 32 bytes; `invalid_state`; `invalid_public_key`; `backend_failure`.
      */
-    boost::system::result<std::array<std::uint8_t, 32>> ecdh(
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> ecdh(
         std::span<std::uint8_t const> public_key) const noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
-        auto const parsed = detail::parse(public_key);
-        if (!parsed) {
-            return parsed.error();
+        secp256k1_pubkey parsed{};
+        if (!detail::parse(public_key, parsed)) {
+            return error::invalid_public_key;
         }
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         detail::secret secret;
         secp256k1_keypair_sec(context_, secret.bytes.data(), &keypair_);
         std::array<std::uint8_t, 32> out{};
-        if (secp256k1_ecdh(context_, out.data(), &*parsed, secret.bytes.data(), nullptr, nullptr) ==
+        if (secp256k1_ecdh(context_, out.data(), &parsed, secret.bytes.data(), nullptr, nullptr) ==
             0) {
             return error::backend_failure;
         }
@@ -330,14 +345,14 @@ boost::system::result<void> verify_ecdsa(std::span<std::uint8_t const, 64> signa
                                          std::span<std::uint8_t const> public_key) noexcept {
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
-    auto const key = detail::parse(public_key);
-    if (!key) {
-        return key.error();
+    secp256k1_pubkey key{};
+    if (!detail::parse(public_key, key)) {
+        return error::invalid_public_key;
     }
     secp256k1_ecdsa_signature parsed{};
     if (secp256k1_ecdsa_signature_parse_compact(secp256k1_context_static, &parsed,
                                                 signature.data()) == 0 ||
-        secp256k1_ecdsa_verify(secp256k1_context_static, &parsed, hash.data(), &*key) == 0) {
+        secp256k1_ecdsa_verify(secp256k1_context_static, &parsed, hash.data(), &key) == 0) {
         return error::invalid_signature;
     }
     return {};

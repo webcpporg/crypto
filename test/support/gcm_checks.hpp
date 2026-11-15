@@ -89,15 +89,15 @@ void check_spec_cases(gcm_cases cases = gcm_spec_cases) {
 /** Every guard of spec section 2.4, in its order, each leaving data untouched. */
 template <class Backend>
 void check_guards() {
-    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
+    using checked_aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     std::array<std::uint8_t, 31> const short_key{};
-    BOOST_TEST(aead::make(short_key).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(checked_aead::make(short_key).error() == crypto::error::invalid_key_size);
     std::array<std::uint8_t, 16> const key16{};
-    BOOST_TEST(aead::make(key16).error() == crypto::error::invalid_key_size);
-    BOOST_TEST(aead::make({}).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(checked_aead::make(key16).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(checked_aead::make({}).error() == crypto::error::invalid_key_size);
 
     std::array<std::uint8_t, 32> const key{};
-    auto made = aead::make(key);
+    auto made = checked_aead::make(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -146,7 +146,7 @@ void expect_tampered(Aead& made, std::span<std::uint8_t const> iv,
 /** Changing any byte of ciphertext, tag, IV or additional data fails, and zeroes data. */
 template <class Backend>
 void check_tampering(gcm_cases cases = gcm_spec_cases) {
-    using aead = crypto::ciphers::gcm<crypto::ciphers::aes128<Backend>>;
+    using checked_aead = crypto::ciphers::gcm<crypto::ciphers::aes128<Backend>>;
     if (!BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size())) {
         return;
     }
@@ -156,7 +156,7 @@ void check_tampering(gcm_cases cases = gcm_spec_cases) {
     auto const additional_data = from_hex(c.additional_data);
     auto const ciphertext = from_hex(c.ciphertext);
     auto const tag = from_hex(c.tag);
-    auto made = aead::make(key);
+    auto made = checked_aead::make(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -215,28 +215,28 @@ void expect_all_refused(Aead& empty, std::span<std::uint8_t const> iv, std::span
 /** A moved-from gcm answers invalid_state to everything but assignment and destruction. */
 template <class Backend>
 void check_moved_from(gcm_cases cases = gcm_spec_cases) {
-    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
+    using checked_aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     if (!BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size())) {
         return;
     }
     auto const& one_block = cases[13];  // case 14: AES-256, one zero block
     std::array<std::uint8_t, 32> const key{};
-    auto made = aead::make(key);
+    auto made = checked_aead::make(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    aead moved = std::move(*made);
+    checked_aead moved = std::move(*made);
     std::array<std::uint8_t, 12> const iv{};
     std::array<std::uint8_t, 16> data{};
     data.fill(0x6c);  // a guard's refusal leaves this pattern, not only zeroes, untouched
     auto const untouched = data;
     std::array<std::uint8_t, 16> const tag{};
-    auto const all_refused = [&](aead& empty) {
+    auto const all_refused = [&](checked_aead& empty) {
         expect_all_refused(empty, iv, data, tag, untouched);
     };
     all_refused(*made);
     // Moving an object that was moved from gives an empty object, and crashes nothing (I1).
-    aead again = std::move(*made);
+    checked_aead again = std::move(*made);
     all_refused(again);
     all_refused(*made);
     again = std::move(*made);
@@ -368,12 +368,12 @@ void check_edge_wire_open(Aead& made) {
 /** Empty inputs, and spans that touch or overlap (Review Focus 2 and 3). */
 template <class Backend>
 void check_edges(gcm_cases cases = gcm_spec_cases) {
-    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
+    using checked_aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     if (!BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size())) {
         return;
     }
     std::array<std::uint8_t, 32> const key{};
-    auto made = aead::make(key);
+    auto made = checked_aead::make(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -528,14 +528,14 @@ void check_machine_moves(Aead& made, std::span<std::uint8_t const> key,
 /** The incremental seal's machine (spec section 2.4): each wrong call, then a fresh message. */
 template <class Backend>
 void check_machine(gcm_cases cases = gcm_spec_cases) {
-    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
+    using checked_aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     if (!BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size())) {
         return;
     }
     auto const& one_block = cases[13];  // case 14: AES-256, one zero block
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = aead::make(key);
+    auto made = checked_aead::make(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -546,14 +546,14 @@ void check_machine(gcm_cases cases = gcm_spec_cases) {
 /** A one-shot seal or open during an incremental message is refused (Review Focus 1). */
 template <class Backend>
 void check_one_shot_during_message(gcm_cases cases = gcm_spec_cases) {
-    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
+    using checked_aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     if (!BOOST_TEST_EQ(cases.size(), gcm_spec_cases.size())) {
         return;
     }
     auto const& one_block = cases[13];  // case 14: AES-256, one zero block
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = aead::make(key);
+    auto made = checked_aead::make(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -586,12 +586,12 @@ void check_one_shot_during_message(gcm_cases cases = gcm_spec_cases) {
  */
 template <class Backend, bool Specified = true>
 void check_limits() {
-    using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
+    using checked_aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     static_assert(sizeof(std::size_t) == 8, "the limits are reachable only with 64-bit sizes");
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = aead::make(key);
-    auto const huge = reserved(static_cast<std::size_t>(aead::max_message_size) + 1);
+    auto made = checked_aead::make(key);
+    auto const huge = reserved(static_cast<std::size_t>(checked_aead::max_message_size) + 1);
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(!huge.empty())) {
         return;
     }
@@ -602,8 +602,8 @@ void check_limits() {
     BOOST_TEST(made->begin_seal(iv, {}).has_value());
     BOOST_TEST(made->update(first).has_value());
     BOOST_TEST(
-        made->update(huge.first(static_cast<std::size_t>(aead::max_message_size) - 15)).error() ==
-        crypto::error::message_too_long);
+        made->update(huge.first(static_cast<std::size_t>(checked_aead::max_message_size) - 15))
+            .error() == crypto::error::message_too_long);
     BOOST_TEST(made->result().error() == crypto::error::invalid_state);  // the error ended it
     // The error ends the message, not the object: a fresh message seals as the specification
     // says (case 14: AES-256, the zero key and IV, one zero block). The mock answers its own.

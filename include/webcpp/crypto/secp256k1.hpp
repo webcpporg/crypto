@@ -251,11 +251,7 @@ public:
             return error::invalid_state;
         }
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-        secp256k1_xonly_pubkey xonly{};
-        std::array<std::uint8_t, 32> out{};
-        secp256k1_keypair_xonly_pub(context_, &xonly, nullptr, &keypair_);
-        secp256k1_xonly_pubkey_serialize(context_, out.data(), &xonly);
-        return out;
+        return xonly();
     }
 
     /**
@@ -372,11 +368,8 @@ public:
         if (!keyed_) {
             return error::invalid_state;
         }
-        auto const internal = xonly_public_key();
-        if (!internal) {
-            return internal.error();
-        }
-        auto const tweak = detail::tap_tweak(*internal, merkle_root);
+        webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+        auto const tweak = detail::tap_tweak(xonly(), merkle_root);
         if (secp256k1_keypair_xonly_tweak_add(context_, &keypair_, tweak.data()) == 0) {
             release();
             return error::invalid_secret_key;
@@ -389,6 +382,16 @@ private:
 
     static std::size_t context_size() noexcept {
         return secp256k1_context_preallocated_size(detail::context_flags);
+    }
+
+    // The x-only public key of a keyed pair, the body xonly_public_key and tweak_taproot share,
+    // without a result to unwrap.
+    [[nodiscard]] std::array<std::uint8_t, 32> xonly() const noexcept {
+        secp256k1_xonly_pubkey xonly{};
+        std::array<std::uint8_t, 32> out{};
+        secp256k1_keypair_xonly_pub(context_, &xonly, nullptr, &keypair_);
+        secp256k1_xonly_pubkey_serialize(context_, out.data(), &xonly);
+        return out;
     }
 
     void release() noexcept {

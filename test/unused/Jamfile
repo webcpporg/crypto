@@ -17,3 +17,5 @@ webcpp.same-program unused_secp256k1 : app.cpp : /third_party//secp256k1
   : : <library>/webcpp/crypto//crypto ;
 webcpp.same-program unused_ctaes : app.cpp : /third_party//ctaes
   : : <library>/webcpp/crypto//crypto ;
+webcpp.same-program unused_openssl : app.cpp : /webcpp/crypto//openssl
+  : native wasip2 wasip3 : <library>/webcpp/crypto//crypto ;

@@ -5,11 +5,12 @@
 # https://www.boost.org/LICENSE_1_0.txt)
 
 # The C libraries' own test programs, built against webcpp's build of each, on
-# every target (CODING-GUIDELINES.md chapter 5, rule 11). BearSSL's 88 tests take
-# 116 to 126 s of CPU per target in a debug build, so they are the own lane c-suites,
-# outside the ordinary lanes. The program's main is bearssl_bound.cpp's, which runs
-# BearSSL's only when it is given the argument all, and fails otherwise: upstream's
-# main lists its tests and returns 0 for any other argument, which would read green.
+# every target (CODING-GUIDELINES.md chapter 5, rule 11). BearSSL's 88 tests
+# take 116 to 126 s of CPU per target in a debug build, so they are the own lane
+# c-suites, outside the ordinary lanes. The program's main is
+# bearssl_bound.cpp's, which runs BearSSL's only when it is given the argument
+# all, and fails otherwise: upstream's main lists its tests and returns 0 for
+# any other argument, which would read green.
 import webcpp ;
 
 webcpp.targets native wasip2 wasip3 emscripten ;
@@ -20,28 +21,24 @@ webcpp.run bearssl_test_crypto : $(BEARSSL)/test/test_crypto.c bearssl_bound.cpp
     <library>/third_party//bearssl-test-config <define>main=bearssl_test_main
     <warnings>off <warnings-as-errors>off ;
 
-# ctaes's own test program (spec section 8.1): asserts, so NDEBUG stays off. It is fast, so it
-# is declared twice: in the lane c-suites, and as ctaes_test_fast on the ordinary lanes.
+# ctaes's own test program (spec section 8.1): asserts, so NDEBUG stays off. It
+# is fast, so it is declared twice: in the lane c-suites, and as ctaes_test_fast
+# on the ordinary lanes.
 path-constant CTAES : ../../../../third_party/libs/bitcoin/src/crypto/ctaes ;
 webcpp.run ctaes_test : $(CTAES)/test.c : <library>/third_party//ctaes <warnings>off
   <warnings-as-errors>off <undef>NDEBUG ;
 webcpp.run ctaes_test_fast : $(CTAES)/test.c : <library>/third_party//ctaes <warnings>off
   <warnings-as-errors>off <undef>NDEBUG ;
 
-# libsecp256k1's tests, which include secp256k1.c and so recompile it with these
-# defines, third_party/Jamfile's for the library (a change of one is a change of
-# both), and VERIFY, as libsecp256k1's CMake builds them. The archive webcpp
-# links is tested by the vectors of the library's own tests.
+# libsecp256k1's tests, which include secp256k1.c and so compile the library
+# again, with third_party/Jamfile's configuration of it (secp256k1-test-config:
+# its modules and its tables) and VERIFY, as libsecp256k1's CMake builds them.
+# The archive webcpp links is tested by the vectors of the library's own tests.
 path-constant SECP256K1 : ../../../../third_party/libs/secp256k1 ;
-.secp256k1 = <include>$(SECP256K1)/include <include>$(SECP256K1)/src
-    <define>ENABLE_MODULE_ECDH=1 <define>ENABLE_MODULE_RECOVERY=1
-    <define>ENABLE_MODULE_EXTRAKEYS=1 <define>ENABLE_MODULE_SCHNORRSIG=1
-    <define>ENABLE_MODULE_MUSIG=1 <define>ENABLE_MODULE_ELLSWIFT=1
-    <define>ENABLE_MODULE_SILENTPAYMENTS=1 <warnings>off <warnings-as-errors>off ;
-# Optimised in every variant: VERIFY's checks at -O0 under wasmtime and node would
-# not end within the own-lanes job's 60 minutes. The framework runs 16 iterations
-# of each test; measured on 2026-11-14, on a machine at load 100 to 160: native
-# 106 s, Emscripten under node 477 s (above the support's 120 s, so
+# Optimised in every variant: VERIFY's checks at -O0 under wasmtime and node
+# would not end within the own-lanes job's 60 minutes. The framework runs 16
+# iterations of each test; measured on 2026-11-14, on a machine at load 100 to
+# 160: native 106 s, Emscripten under node 477 s (above the support's 120 s, so
 # secp256k1_tests_bound.cpp re-arms node's bound), wasip2 774 s, above the 600 s
 # bound of tools/boost/asio-wasip2/run.sh and asio-wasip3/run.sh, which stopped
 # both WASI runs. On WASI it runs 4 iterations, so that it ends within that
@@ -50,7 +47,8 @@ path-constant SECP256K1 : ../../../../third_party/libs/secp256k1 ;
 # libsecp256k1's CI runs it.
 webcpp.run secp256k1_tests : $(SECP256K1)/src/tests.c
     $(SECP256K1)/src/precomputed_ecmult.c $(SECP256K1)/src/precomputed_ecmult_gen.c
-  : $(.secp256k1) <define>VERIFY <optimization>speed
+  : <library>/third_party//secp256k1-test-config <warnings>off <warnings-as-errors>off
+    <define>VERIFY <optimization>speed
     <toolset>emscripten:<source>secp256k1_tests_bound.cpp
     <target-os>wasi:<testing.arg>--iterations=4 ;
 

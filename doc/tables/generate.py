@@ -242,8 +242,8 @@ TICKED = re.compile(r'`([^`]+)`')
 
 
 def kept(text: str) -> str:
-    """text as inline code the page keeps on one line at every width, a target or a file a
-    reader copies (the role keep, tools/doc/docinfo.html)."""
+    """text as inline code the page keeps on one line at every width, a file a reader copies
+    (the role keep, tools/doc/docinfo.html)."""
     return f'[.keep]{code(text)}'
 
 
@@ -437,8 +437,9 @@ def defaults_page(data: Data, declared: Dict[str, List[str]]) -> str:
         rows.append([entry['target'], marked(entry['linked']),
                      data['backends'][entry['default']]['title'], cite(data, entry['why']),
                      ', '.join(code(name) for name in entry['tests'])])
-    # wrap-names: a define of 37 characters in "Linked" breaks between its parts at every
-    # width, rather than take the width "Why" needs (tools/doc/docinfo.html).
+    # wrap-names: a header in "Linked" breaks after its / at every width; a define of 37
+    # characters breaks between its parts where the table does not fit otherwise, rather than
+    # take the width "Why" needs (tools/doc/docinfo.html).
     return table(['Target', 'Linked', 'Default', 'Why', 'Tested by'], rows,
                  '.wrap-names,cols="2,4,2,5,3",')
 
@@ -594,21 +595,22 @@ def use_cases_page(data: Data, library: Path) -> str:
             use = f'In {code(namespace[len(ROOT_NAMESPACE) + 2:])}: {marked(entry["api"])}'
         else:
             use = f'{namespace[:1].upper()}{namespace[1:]}: {marked(entry["api"])}'
-        # Each target whole, on a line of its own.
+        # Each target on a line of its own, a path that breaks after a / where the table does
+        # not fit otherwise.
         if '`' in entry['jamfile']:
-            jamfile = TICKED.sub(lambda match: kept(match.group(1)), entry['jamfile'])
+            jamfile = TICKED.sub(lambda match: code(match.group(1)), entry['jamfile'])
         elif entry['jamfile'] == 'none':
             jamfile = 'none'
         else:
-            jamfile = ' +\n'.join(kept(target) for target in entry['jamfile'].split())
+            jamfile = ' +\n'.join(code(target) for target in entry['jamfile'].split())
         rows.append([entry['need'], use, entry['backend'], jamfile, shown])
-    # wrap-names: the names break between their parts at every width, so that the column a
-    # reader starts from, "I need to", keeps its share of the width; key-column: that column
-    # keeps room for a few words a line, the names of "Use" breaking between their parts where
-    # the table does not fit otherwise; targets and examples' files stay whole, as a reader
-    # copies them (tools/doc/docinfo.html).
+    # key-column: the column a reader starts from, "I need to", keeps room for a few words a
+    # line; where the table does not fit with its names whole, the names of "Use" break after
+    # their :: and the targets after a /, and where it does not fit even so it stacks, its names
+    # never broken at a _; examples' files stay whole, as a reader copies them
+    # (tools/doc/docinfo.html).
     return table(['I need to', 'Use', 'Backend', 'Jamfile', 'Example'], rows,
-                 '.wrap-names.key-column,cols="3,3,2,3,2",')
+                 '.key-column,cols="3,3,2,3,2",')
 
 
 HEADER = re.compile(r'<(webcpp/crypto/[\w/]+\.hpp)>')

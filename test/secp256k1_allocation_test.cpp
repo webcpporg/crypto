@@ -8,7 +8,7 @@
 // the resource it is given, of libsecp256k1's preallocated size and aligned to max_align_t,
 // and never through operator new nor the C library's allocator where the target lets a
 // program count it; the signatures, ECDH, the public keys, both verifications, the DER and
-// low-S functions and the Taproot tweak allocate nothing, each counted alone; the destructor
+// low-S functions and the x-only tweak allocate nothing, each counted alone; the destructor
 // gives the block back; a refused make allocates nothing. A control proves the counter moves.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
@@ -105,7 +105,7 @@ int main() {
         BOOST_TEST(secp::verify_ecdsa(*ecdsa, message, *public_key).has_value());
         BOOST_TEST_EQ(webcpp::test::allocations(), before);
 
-        // Each of the DER and low-S functions and the Taproot tweak, alone: no allocation.
+        // Each of the DER and low-S functions and the x-only tweak, alone: no allocation.
         auto const none = [](char const* name, auto&& call) {
             std::size_t const at = webcpp::test::allocations();
             bool const succeeded = static_cast<bool>(call());
@@ -122,10 +122,9 @@ int main() {
         });
         auto const encoded = std::span<std::uint8_t const>(der).first(der_size);
         none("from_der", [&] { return secp::from_der(encoded); });
-        none("from_lax_der", [&] { return secp::from_lax_der(encoded); });
         none("normalize_ecdsa", [&] { return secp::normalize_ecdsa(*ecdsa); });
-        none("taproot_output_key", [&] { return secp::taproot_output_key(*xonly, {}); });
-        none("tweak_taproot", [&] { return key.tweak_taproot(message); });
+        none("tweak_xonly", [&] { return secp::tweak_xonly(*xonly, message); });
+        none("keypair::tweak_xonly", [&] { return key.tweak_xonly(message); });
         BOOST_TEST_EQ(resource.allocated, 1U);
         BOOST_TEST_EQ(resource.deallocated, 0U);
     }

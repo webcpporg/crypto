@@ -5,8 +5,8 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // secp256k1's ECDSA encodings: compact to strict DER and back for signatures of sign_ecdsa,
-// the strict and the lax decoder against Wycheproof's Bitcoin ECDSA vectors (DER, counted per
-// flag), every refusal of to_der, and low-S normalization of a high-S signature.
+// the strict decoder against Wycheproof's Bitcoin ECDSA vectors (DER, counted per flag), every
+// refusal of to_der, and low-S normalization of a high-S signature.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -115,8 +115,6 @@ void round_trips() {
         BOOST_TEST(strict(encoded));
         auto const decoded = secp::from_der(encoded);
         BOOST_TEST(decoded.has_value() && *decoded == *signature);
-        auto const lax = secp::from_lax_der(encoded);
-        BOOST_TEST(lax.has_value() && *lax == *signature);
     }
     std::cout << "round trips: " << signed_count << ", DER of " << shortest << " to " << longest
               << " bytes\n";
@@ -150,9 +148,8 @@ void to_der_refusals() {
     BOOST_TEST(secp::to_der(zero_s, out).error() == crypto::error::invalid_signature);
     BOOST_TEST(std::ranges::all_of(out, [](std::uint8_t b) { return b == 0xa5; }));
 
-    // The decoders refuse the empty input, which has no data to give libsecp256k1.
+    // The decoder refuses the empty input, which has no data to give libsecp256k1.
     BOOST_TEST(secp::from_der({}).error() == crypto::error::invalid_signature);
-    BOOST_TEST(secp::from_lax_der({}).error() == crypto::error::invalid_signature);
 }
 
 void normalization() {
@@ -177,11 +174,10 @@ void normalization() {
     BOOST_TEST(secp::normalize_ecdsa(overflowing).error() == crypto::error::invalid_signature);
 }
 
-// How many of a flag's cases each decoder accepts.
+// How many of a flag's cases the strict decoder accepts.
 struct tally {
     int cases = 0;
     int strict = 0;
-    int lax = 0;
 };
 
 using tallies = std::map<std::string, tally>;
@@ -190,22 +186,16 @@ std::string str(json::value const& v) {
     return std::string(std::string_view(v.as_string()));
 }
 
-// One case through both decoders, counted in all and under each of its flags.
+// One case through the strict decoder, counted in all and under each of its flags.
 void decode_case(json::value const& t, tallies& per_flag, tally& all) {
     auto const der = test::from_hex(str(t.at("sig")));
     auto const strict_result = secp::from_der(der);
-    auto const lax_result = secp::from_lax_der(der);
-    // What strict DER accepts, the lax parser accepts as the same signature.
-    if (strict_result) {
-        BOOST_TEST(lax_result.has_value() && *lax_result == *strict_result);
-    }
     if (str(t.at("result")) == "valid") {
         BOOST_TEST(strict_result.has_value());
     }
     auto const count = [&](tally& c) {
         ++c.cases;
         c.strict += strict_result ? 1 : 0;
-        c.lax += lax_result ? 1 : 0;
     };
     count(all);
     for (auto const& flag : t.at("flags").as_array()) {
@@ -214,27 +204,26 @@ void decode_case(json::value const& t, tallies& per_flag, tally& all) {
 }
 
 // Measured on libsecp256k1 v0.8.0 and Wycheproof at 12fd3aa. A number not below the group
-// order is refused by both decoders, which is why IntegerOverflow and RangeCheck accept almost
-// nothing; the lax parser also takes BER, padded and trailing forms.
+// order is refused, which is why IntegerOverflow and RangeCheck accept nothing.
 tallies const& expected_tallies() {
     static tallies const expected{
-        {"ArithmeticError", {.cases = 91, .strict = 87, .lax = 88}},
-        {"BerEncodedSignature", {.cases = 7, .strict = 0, .lax = 7}},
-        {"EdgeCasePublicKey", {.cases = 18, .strict = 18, .lax = 18}},
-        {"EdgeCaseShamirMultiplication", {.cases = 1, .strict = 1, .lax = 1}},
-        {"IntegerOverflow", {.cases = 5, .strict = 0, .lax = 0}},
-        {"InvalidEncoding", {.cases = 89, .strict = 0, .lax = 19}},
-        {"InvalidSignature", {.cases = 64, .strict = 4, .lax = 9}},
-        {"InvalidTypesInSignature", {.cases = 63, .strict = 0, .lax = 0}},
-        {"ModifiedInteger", {.cases = 5, .strict = 1, .lax = 2}},
-        {"ModifiedSignature", {.cases = 49, .strict = 5, .lax = 16}},
-        {"ModularInverse", {.cases = 15, .strict = 15, .lax = 15}},
-        {"PointDuplication", {.cases = 7, .strict = 7, .lax = 7}},
-        {"RangeCheck", {.cases = 6, .strict = 0, .lax = 1}},
-        {"SignatureMalleabilityBitcoin", {.cases = 1, .strict = 1, .lax = 1}},
-        {"SmallRandS", {.cases = 6, .strict = 6, .lax = 6}},
-        {"SpecialCaseHash", {.cases = 54, .strict = 54, .lax = 54}},
-        {"ValidSignature", {.cases = 5, .strict = 5, .lax = 5}},
+        {"ArithmeticError", {.cases = 91, .strict = 87}},
+        {"BerEncodedSignature", {.cases = 7, .strict = 0}},
+        {"EdgeCasePublicKey", {.cases = 18, .strict = 18}},
+        {"EdgeCaseShamirMultiplication", {.cases = 1, .strict = 1}},
+        {"IntegerOverflow", {.cases = 5, .strict = 0}},
+        {"InvalidEncoding", {.cases = 89, .strict = 0}},
+        {"InvalidSignature", {.cases = 64, .strict = 4}},
+        {"InvalidTypesInSignature", {.cases = 63, .strict = 0}},
+        {"ModifiedInteger", {.cases = 5, .strict = 1}},
+        {"ModifiedSignature", {.cases = 49, .strict = 5}},
+        {"ModularInverse", {.cases = 15, .strict = 15}},
+        {"PointDuplication", {.cases = 7, .strict = 7}},
+        {"RangeCheck", {.cases = 6, .strict = 0}},
+        {"SignatureMalleabilityBitcoin", {.cases = 1, .strict = 1}},
+        {"SmallRandS", {.cases = 6, .strict = 6}},
+        {"SpecialCaseHash", {.cases = 54, .strict = 54}},
+        {"ValidSignature", {.cases = 5, .strict = 5}},
     };
     return expected;
 }
@@ -254,21 +243,19 @@ void wycheproof() {
     }
     for (auto const& [flag, c] : per_flag) {
         std::cout << "wycheproof " << flag << ": cases=" << c.cases << " strict=" << c.strict
-                  << " lax=" << c.lax << '\n';
+                  << '\n';
     }
-    std::cout << "wycheproof all: cases=" << all.cases << " strict=" << all.strict
-              << " lax=" << all.lax << '\n';
+    std::cout << "wycheproof all: cases=" << all.cases << " strict=" << all.strict << '\n';
     auto const& expected = expected_tallies();
     BOOST_TEST_EQ(per_flag.size(), expected.size());
     for (auto const& [flag, want] : expected) {
         auto const& got = per_flag[flag];
-        if (got.cases != want.cases || got.strict != want.strict || got.lax != want.lax) {
+        if (got.cases != want.cases || got.strict != want.strict) {
             BOOST_ERROR(("counts of flag " + flag + " differ").c_str());
         }
     }
     BOOST_TEST_EQ(all.cases, 464);
     BOOST_TEST_EQ(all.strict, 182);
-    BOOST_TEST_EQ(all.lax, 227);
 }
 
 }  // namespace

@@ -9,27 +9,30 @@
 
 `<webcpp/crypto/curves/secp256k1.hpp>` is secp256k1 on libsecp256k1
 (`/third_party//secp256k1`, <<crypto-backends-secp256k1>>), in the namespace
-`webcpp::crypto::curves::secp256k1`. A `keypair` is made from a 32-byte secret key with
-`make(secret)`, which allocates its signing context, the one allocation, in the
-resource it is given. A key pair gives its BIP340 x-only and its compressed
-public key, signs with BIP340 Schnorr (`sign_schnorr`) or ECDSA over a 32-byte
-hash (`sign_ecdsa`, RFC 6979's nonce, low-S, compact form), derives an ECDH
-secret (`ecdh`) and takes BIP341's Taproot tweak (`tweak_taproot`).
-`verify_schnorr` and `verify_ecdsa` check signatures; `to_der`, `from_der`,
-`from_lax_der` and `normalize_ecdsa` convert ECDSA's DER and low-S forms; and
-`taproot_output_key` gives the BIP341 output key of an internal key.
+`webcpp::crypto::curves::secp256k1`. A `keypair` is made from a 32-byte secret
+key with `make(secret)`, which allocates its signing context, the one
+allocation, in the resource it is given. A key pair gives its BIP340 x-only and
+its compressed public key, signs with BIP340 Schnorr (`sign_schnorr`) or ECDSA
+over a 32-byte hash (`sign_ecdsa`, RFC 6979's nonce, low-S, compact form),
+derives an ECDH secret (`ecdh`) and is tweaked in place by a 32-byte tweak
+(`tweak_xonly`). `verify_schnorr` and `verify_ecdsa` check signatures; `to_der`,
+`from_der` (strict DER) and `normalize_ecdsa` convert ECDSA's DER and low-S
+forms; and `tweak_xonly` tweaks an x-only public key, giving the tweaked key and
+the parity of its point.
 
-The Bitcoin example signs a native P2WPKH input of BIP143's published
-transaction: it computes the BIP143 sighash with Boost.Hash2's SHA-256, signs it
-with ECDSA, encodes the signature as strict DER, checks both against BIP143's,
-and prints the input's witness.
+A tweak is a primitive: crypto does not compute one. A protocol that defines a
+tweak (BIP341's Taproot output key, for one) belongs to a domain library, which
+computes the tweak from its own hash and passes it here.
+
+The example signs BIP340's first test vector and verifies it, then tweaks the
+key pair and signs and verifies again under the tweaked key.
 
 [source,cpp]
 ----
-include::{examples}/bitcoin_sign.cpp[lines=7..]
+include::{examples}/schnorr_sign.cpp[lines=7..]
 ----
 
 [listing]
 ----
-include::{examples}/bitcoin_sign.expected[]
+include::{examples}/schnorr_sign.expected[]
 ----

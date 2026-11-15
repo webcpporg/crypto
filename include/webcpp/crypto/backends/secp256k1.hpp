@@ -6,9 +6,9 @@
 
 /**
  The backend libsecp256k1: its v0.8.0, built from its sources by `/third_party//secp256k1`,
- every module on, with its `contrib/lax_der_parsing.c`. It serves `curves::secp256k1::keypair`,
- `verify_schnorr`, `verify_ecdsa`, the DER and low-S functions and the Taproot tweak, and its
- whole C API stays reachable through `<secp256k1*.h>`.
+ every module on. It serves `curves::secp256k1::keypair`, `verify_schnorr`, `verify_ecdsa`,
+ the DER and low-S functions and the x-only tweak, and its whole C API stays reachable
+ through `<secp256k1*.h>`.
 
  @see "secp256k1", in the guide.
 */
@@ -19,7 +19,7 @@
 
 #ifndef WEBCPP_CRYPTO_HAS_SECP256K1
 #error \
-    "webcpp::crypto: <webcpp/crypto/curves/secp256k1.hpp> needs libsecp256k1, which is not linked. In the program's Jamfile, add /third_party//secp256k1 beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_SECP256K1=1 and link libsecp256k1 built with webcpp's src/canary_secp256k1.c and, for from_lax_der, libsecp256k1's contrib/lax_der_parsing.c)"
+    "webcpp::crypto: <webcpp/crypto/curves/secp256k1.hpp> needs libsecp256k1, which is not linked. In the program's Jamfile, add /third_party//secp256k1 beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_SECP256K1=1 and link libsecp256k1 built with webcpp's src/canary_secp256k1.c)"
 #else
 
 #include <webcpp/crypto/detail/canary.h>
@@ -56,16 +56,6 @@
 #endif
 
 extern "C" const char WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY;
-
-// libsecp256k1's contrib/lax_der_parsing.c, which /third_party//secp256k1 compiles unmodified;
-// its header stays out of the user's include path, so its prototype is declared here, exactly.
-// A program that compiles its own copy of the file, as the file suggests, defines the same
-// function: the static library's member is then not linked.
-// The name is libsecp256k1 contrib's own, in the global namespace: a program must not define
-// another function with it, which would take the place of the parser from_lax_der calls.
-extern "C" int ecdsa_signature_parse_der_lax(const secp256k1_context* ctx,
-                                             secp256k1_ecdsa_signature* sig,
-                                             const unsigned char* input, size_t inputlen);
 
 namespace webcpp::crypto::backends {
 

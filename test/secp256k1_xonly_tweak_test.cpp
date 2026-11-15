@@ -4,11 +4,13 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// secp256k1's BIP341 Taproot tweak against BIP341's wallet-test-vectors.json: every
-// scriptPubKey case's output key through taproot_output_key, and every key-path spending
-// input's tweaked key pair through tweak_taproot, compared through its public key with the
-// vector's tweaked secret key and through its BIP340 signature (all-zero aux) of the sighash
-// with the expected witness; then the tweak's refusals.
+// secp256k1's x-only tweak against BIP341's wallet-test-vectors.json, as a domain library
+// would use it: the test computes BIP341's tweak, tagged_hash("TapTweak", internal_key ||
+// merkle_root), with libsecp256k1's tagged hash, and passes it. Every scriptPubKey case's
+// output key through tweak_xonly, and every key-path spending input's key pair tweaked in
+// place through keypair::tweak_xonly, compared through its public key with the vector's
+// tweaked secret key and through its BIP340 signature (all-zero aux) of the sighash with the
+// expected witness; then the tweak's refusals.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -62,6 +64,18 @@ void fail(std::string const& message) {
     BOOST_ERROR(message.c_str());
 }
 
+// BIP341's tweak of an internal key and a merkle root (empty, or 32 bytes).
+std::array<std::uint8_t, 32> tap_tweak(std::span<std::uint8_t const, 32> internal_key,
+                                       std::span<std::uint8_t const> merkle_root) {
+    static constexpr std::array<unsigned char, 8> tag{'T', 'a', 'p', 'T', 'w', 'e', 'a', 'k'};
+    bytes message(internal_key.begin(), internal_key.end());
+    message.insert(message.end(), merkle_root.begin(), merkle_root.end());
+    std::array<std::uint8_t, 32> tweak{};
+    secp256k1_tagged_sha256(secp256k1_context_static, tweak.data(), tag.data(), tag.size(),
+                            message.data(), message.size());
+    return tweak;
+}
+
 int script_pub_keys(json::value const& doc) {
     int cases = 0;
     for (auto const& c : doc.at("scriptPubKey").as_array()) {
@@ -69,7 +83,7 @@ int script_pub_keys(json::value const& doc) {
         auto const internal = fixed<32>(c.at("given").at("internalPubkey"));
         auto const root = hex_or_empty(c.at("intermediary").at("merkleRoot"));
         auto const expected = test::from_hex(str(c.at("intermediary").at("tweakedPubkey")));
-        auto const output = secp::taproot_output_key(internal, root);
+        auto const output = secp::tweak_xonly(internal, tap_tweak(internal, root));
         BOOST_TEST(output.has_value());
         if (output && !std::ranges::equal(output->key, expected)) {
             fail("scriptPubKey " + std::to_string(cases) + ": output key differs");
@@ -88,16 +102,16 @@ void check_input(json::value const& input, int index) {
     auto const& given = input.at("given");
     auto const& intermediary = input.at("intermediary");
     auto key = *secp::keypair::make(fixed<32>(given.at("internalPrivkey")));
-    BOOST_TEST(*key.xonly_public_key() == fixed<32>(intermediary.at("internalPubkey")));
-    auto const root = hex_or_empty(given.at("merkleRoot"));
-    BOOST_TEST(key.tweak_taproot(root).has_value());
+    auto const internal = fixed<32>(intermediary.at("internalPubkey"));
+    BOOST_TEST(*key.xonly_public_key() == internal);
+    auto const tweak = tap_tweak(internal, hex_or_empty(given.at("merkleRoot")));
+    BOOST_TEST(key.tweak_xonly(tweak).has_value());
 
     // The tweaked pair is the vector's tweaked secret key: the same SEC1 public key, its parity
     // included.
     auto const reference = *secp::keypair::make(fixed<32>(intermediary.at("tweakedPrivkey")));
     BOOST_TEST(*key.public_key() == *reference.public_key());
-    auto const output =
-        secp::taproot_output_key(fixed<32>(intermediary.at("internalPubkey")), root);
+    auto const output = secp::tweak_xonly(internal, tweak);
     BOOST_TEST(output.has_value());
     if (!output) {
         return;
@@ -142,31 +156,33 @@ void refusals() {
     std::array<std::uint8_t, 32> secret{};
     secret.fill(0x11);
     auto key = *secp::keypair::make(secret);
-    auto const before = *key.public_key();
-    std::array<std::uint8_t, 31> const short_root{};
-    BOOST_TEST(key.tweak_taproot(short_root).error() == crypto::error::invalid_input_size);
-    std::array<std::uint8_t, 33> const long_root{};
-    BOOST_TEST(key.tweak_taproot(long_root).error() == crypto::error::invalid_input_size);
-    // Refused before anything changes.
-    BOOST_TEST(*key.public_key() == before);
     auto const internal = *key.xonly_public_key();
-    BOOST_TEST(secp::taproot_output_key(internal, short_root).error() ==
-               crypto::error::invalid_input_size);
-    BOOST_TEST(secp::taproot_output_key(internal, long_root).error() ==
-               crypto::error::invalid_input_size);
+    std::array<std::uint8_t, 32> const zero{};
+    // A tweak of zero leaves the key as it is.
+    auto const same = secp::tweak_xonly(internal, zero);
+    BOOST_TEST(same.has_value() && same->key == internal);
+    // A tweak not below the group order is refused, by both forms.
+    std::array<std::uint8_t, 32> over{};
+    over.fill(0xff);
+    BOOST_TEST(secp::tweak_xonly(internal, over).error() == crypto::error::invalid_secret_key);
     std::array<std::uint8_t, 32> const not_a_point{};  // x = 0 has no point
-    BOOST_TEST(secp::taproot_output_key(not_a_point, {}).error() ==
-               crypto::error::invalid_public_key);
+    BOOST_TEST(secp::tweak_xonly(not_a_point, zero).error() == crypto::error::invalid_public_key);
+    {
+        auto refused = *secp::keypair::make(secret);
+        BOOST_TEST(refused.tweak_xonly(over).error() == crypto::error::invalid_secret_key);
+        // Refused, the pair is wiped and empty, as moved from.
+        BOOST_TEST(refused.xonly_public_key().error() == crypto::error::invalid_state);
+    }
 
     // NOLINTBEGIN(bugprone-use-after-move): a moved-from pair is what this case tests
     auto moved = std::move(key);
-    BOOST_TEST(key.tweak_taproot({}).error() == crypto::error::invalid_state);
-    // The root's size is checked first, moved from or not.
-    BOOST_TEST(key.tweak_taproot(short_root).error() == crypto::error::invalid_input_size);
+    BOOST_TEST(key.tweak_xonly(zero).error() == crypto::error::invalid_state);
     // NOLINTEND(bugprone-use-after-move)
     // The tweaked pair moves as any pair does.
-    BOOST_TEST(moved.tweak_taproot({}).has_value());
-    auto const output = *secp::taproot_output_key(internal, {});
+    std::array<std::uint8_t, 32> tweak{};
+    tweak.fill(0x22);
+    BOOST_TEST(moved.tweak_xonly(tweak).has_value());
+    auto const output = *secp::tweak_xonly(internal, tweak);
     auto const again = std::move(moved);
     BOOST_TEST(*again.xonly_public_key() == output.key);
 }

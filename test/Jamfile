@@ -167,6 +167,8 @@ crypto-run gcm_limits_mock : gcm_limits_mock_test.cpp : : native ;
 # gcm on BearSSL: every check of support/gcm_checks.hpp against the GCM
 # specification's cases.
 crypto-run gcm_bearssl : gcm_bearssl_test.cpp : <library>/third_party//bearssl ;
+crypto-run gcm_limits_bearssl : gcm_limits_bearssl_test.cpp
+  : <library>/third_party//bearssl : native ;
 
 # read_canary's load survives optimisation: without the canary the program does
 # not link, on every compiler; with it, it links and runs.

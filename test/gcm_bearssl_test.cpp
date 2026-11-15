@@ -5,7 +5,8 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // gcm on BearSSL: the GCM specification's cases, the guards, tampering, moved-from
-// objects and aliasing spans (support/gcm_checks.hpp).
+// objects and aliasing spans, and the incremental seal: every case in pieces of every
+// size, its machine, and a one-shot call during a message (support/gcm_checks.hpp).
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -21,5 +22,8 @@ int main() {
     webcpp::test::check_tampering<bearssl>();
     webcpp::test::check_moved_from<bearssl>();
     webcpp::test::check_edges<bearssl>();
+    webcpp::test::check_incremental<bearssl>();
+    webcpp::test::check_machine<bearssl>();
+    webcpp::test::check_one_shot_during_message<bearssl>();
     return webcpp::test::exit_status(boost::report_errors());
 }

@@ -6,9 +6,8 @@
 
 // A stand-in for the real bearssl backend header, for default_selection_test.cpp alone: it
 // completes the type that config.hpp declares, with the name the test reads, and nothing
-// else. Only that test includes it, before any header of webcpp::crypto; its guard is the
-// real header's, so that the real one, which the include path finds first, adds nothing;
-// a backend whose real header does not exist yet is found here.
+// else. Only that test includes it, by its path, before any header of webcpp::crypto; its
+// guard is the real header's, so that the real one adds nothing.
 #ifndef WEBCPP_CRYPTO_BACKENDS_BEARSSL_HPP
 #define WEBCPP_CRYPTO_BACKENDS_BEARSSL_HPP
 

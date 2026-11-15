@@ -26,14 +26,18 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/aes.hpp
   crypto/detail/entropy.hpp crypto/detail/limits.hpp crypto/detail/windows.hpp
   crypto/detail/wipe.hpp ;
 
-# The backend OpenSSL's header and the default backend's, with OpenSSL linked
-# and selected; ctaes and libsecp256k1 are linked too, so that every public
-# header compiles with these options (the lint's aggregate translation unit,
-# tools/lint/compile_commands.py). aes256_gcm.hpp joins BearSSL's call, on
-# every target, with backends/bearssl.hpp.
-webcpp.headers-alone crypto : ../include : crypto/aes256_gcm.hpp crypto/backends/openssl.hpp
-  : <library>/webcpp/crypto//openssl <library>/third_party//ctaes
-    <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+# The backend BearSSL's header and the default backend's, with BearSSL linked,
+# on every target.
+webcpp.headers-alone crypto : ../include : crypto/aes256_gcm.hpp crypto/backends/bearssl.hpp
+  : <library>/third_party//bearssl ;
+# The backend OpenSSL's header, with OpenSSL linked and selected; BearSSL, ctaes
+# and libsecp256k1 are linked too, so that every public header compiles with
+# these options (the lint's aggregate translation unit,
+# tools/lint/compile_commands.py).
+webcpp.headers-alone crypto : ../include : crypto/backends/openssl.hpp
+  : <library>/webcpp/crypto//openssl <library>/third_party//bearssl
+    <library>/third_party//ctaes <library>/third_party//secp256k1
+    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
   : native wasip2 wasip3 ;
 # The backend ctaes's header alone, with ctaes linked, on every target.
 webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp
@@ -42,10 +46,6 @@ webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp
 # WEBCPP_CRYPTO_HAS_SECP256K1 (without it, each stops with its message).
 webcpp.headers-alone crypto : ../include : crypto/secp256k1.hpp crypto/backends/secp256k1.hpp
   : <library>/third_party//secp256k1 ;
-# A backend's header compiles alone with its library, which defines the macro
-# that lets it in.
-webcpp.headers-alone crypto : ../include : crypto/backends/bearssl.hpp
-  : <library>/third_party//bearssl ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
 # exceptions, keeps it when a developer defines it, defines it when
@@ -68,12 +68,11 @@ crypto-run counting : counting_test.cpp ;
 # A message on OpenSSL allocates nothing after make.
 crypto-run allocation_openssl : allocation_openssl_test.cpp
   : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
-# Declared with the BearSSL backend (backends/bearssl.hpp), whose tests are in
-# this directory:
-#crypto-run allocation_bearssl : allocation_bearssl_test.cpp
-#  : <library>/third_party//bearssl ;
-#crypto-run bearssl_seeder : bearssl_seeder_test.cpp
-#  : <library>/third_party//bearssl ;
+# A message on BearSSL allocates nothing after make.
+crypto-run allocation_bearssl : allocation_bearssl_test.cpp
+  : <library>/third_party//bearssl ;
+crypto-run bearssl_seeder : bearssl_seeder_test.cpp
+  : <library>/third_party//bearssl ;
 
 # asio's and crypto's OpenSSL in one program: one provider, each archive once
 # (CODING-GUIDELINES.md chapter 5 rule 10).
@@ -115,28 +114,24 @@ webcpp.compile default_backend_openssl_selected : default_backend_test.cpp
 
 # aes128_gcm, aes256_gcm and aes256<> name the default backend (spec section 5),
 # checked from the defines alone against stand-ins for the backends' headers
-# (support/fake_backends). b2 orders include paths, so the library's include/
-# comes first: the test includes the stand-ins first, under the real headers'
-# guards; the directory serves a backend whose real header is not in the tree.
+# (support/fake_backends), which the test includes first, under the real
+# headers' guards.
 webcpp.compile default_selection_openssl : default_selection_test.cpp
-  : <include>support/fake_backends <define>WEBCPP_CRYPTO_HAS_OPENSSL=1
-    <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native ;
-webcpp.compile default_selection_openssl_alone : default_selection_test.cpp
-  : <include>support/fake_backends <define>WEBCPP_CRYPTO_HAS_OPENSSL=1
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1
     <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native ;
+webcpp.compile default_selection_openssl_alone : default_selection_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native ;
 webcpp.compile default_selection_both_wasm : default_selection_test.cpp
-  : <include>support/fake_backends <define>WEBCPP_CRYPTO_HAS_OPENSSL=1
-    <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 : wasip2 wasip3 ;
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 : wasip2 wasip3 ;
 webcpp.compile default_selection_bearssl : default_selection_test.cpp
-  : <include>support/fake_backends <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 ;
+  : <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 ;
 webcpp.compile default_selection_bearssl_selected : default_selection_test.cpp
-  : <include>support/fake_backends <define>WEBCPP_CRYPTO_HAS_OPENSSL=1
-    <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL
-    : native wasip2 wasip3 ;
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1
+    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL : native wasip2 wasip3 ;
 webcpp.compile default_selection_openssl_selected : default_selection_test.cpp
-  : <include>support/fake_backends <define>WEBCPP_CRYPTO_HAS_OPENSSL=1
-    <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
-    <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native wasip2 wasip3 ;
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1
+    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL
+    : native wasip2 wasip3 ;
 
 # crypto.hpp's branch for libsecp256k1, which headers-alone, without the
 # library, leaves out.
@@ -200,11 +195,10 @@ crypto-run gcm_openssl : gcm_openssl_test.cpp : <library>/webcpp/crypto//openssl
 # The limits need 64-bit sizes: natively, as BearSSL's twin.
 crypto-run gcm_limits_openssl : gcm_limits_openssl_test.cpp
   : <library>/webcpp/crypto//openssl : native ;
-# Waits for Task 9's library half (support/wycheproof_gcm.hpp,
-# support/test_data.hpp):
-#crypto-run gcm_wycheproof_openssl : gcm_wycheproof_openssl_test.cpp
-#  : <library>/webcpp/crypto//openssl <library>/third_party//wycheproof
-#    <library>/webcpp//boost_json : native wasip2 wasip3 ;
+# The vectors of spec section 8.1, as BearSSL's twin.
+crypto-run gcm_wycheproof_openssl : gcm_wycheproof_openssl_test.cpp
+  : <library>/webcpp/crypto//openssl <library>/third_party//wycheproof
+    <library>/webcpp//boost_json : native wasip2 wasip3 ;
 crypto-run aes_openssl : aes_openssl_test.cpp : <library>/webcpp/crypto//openssl
   : native wasip2 wasip3 ;
 crypto-run openssl_error_queue : openssl_error_queue_test.cpp
@@ -213,22 +207,20 @@ crypto-run openssl_error_queue : openssl_error_queue_test.cpp
 crypto-run gcm_openssl_threads : gcm_openssl_threads_test.cpp
   : <library>/webcpp/crypto//openssl <threading>multi : native ;
 
-# The default backend with the real backends. OpenSSL's cases, where the default
-# header reaches backends/openssl.hpp alone:
+# The default backend with the real backends.
 crypto-run default_both : default_both_test.cpp
   : <library>/third_party//bearssl <library>/webcpp/crypto//openssl : native ;
 crypto-run default_openssl_wasm : default_openssl_wasm_test.cpp
   : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
     <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL : wasip2 wasip3 ;
-# BearSSL's cases wait for backends/bearssl.hpp:
-#crypto-run default_selected : default_selected_test.cpp
-#  : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
-#    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL : native wasip2 wasip3 ;
-#crypto-run default_bearssl : default_bearssl_test.cpp
-#  : <library>/third_party//bearssl ;
-#crypto-run default_both_wasm : default_both_wasm_test.cpp
-#  : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
-#    : wasip2 wasip3 ;
+crypto-run default_selected : default_selected_test.cpp
+  : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
+    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL : native wasip2 wasip3 ;
+crypto-run default_bearssl : default_bearssl_test.cpp
+  : <library>/third_party//bearssl ;
+crypto-run default_both_wasm : default_both_wasm_test.cpp
+  : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
+    : wasip2 wasip3 ;
 
 # The backend ctaes: the AES block cipher alone, on every target; FIPS-197 only
 # (ruling R5).

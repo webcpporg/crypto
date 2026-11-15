@@ -227,6 +227,7 @@ struct gcm_engine<backends::bearssl, KeySize> {
      * @param from A keyed state, wiped.
      */
     static void move(state& to, state& from) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         to.keys = from.keys;
         br_gcm_init(&to.context, &to.keys.vtable, bearssl_ghash());
         to.sealing = false;
@@ -239,6 +240,7 @@ struct gcm_engine<backends::bearssl, KeySize> {
      * @param s A keyed state.
      */
     static void abandon(state& s) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         wipe_object(s.context);
         br_gcm_init(&s.context, &s.keys.vtable, bearssl_ghash());
         s.sealing = false;

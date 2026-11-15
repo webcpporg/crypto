@@ -41,6 +41,10 @@ webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp
 # WEBCPP_CRYPTO_HAS_SECP256K1 (without it, each stops with its message).
 webcpp.headers-alone crypto : ../include : crypto/secp256k1.hpp crypto/backends/secp256k1.hpp
   : <library>/third_party//secp256k1 ;
+# A backend's header compiles alone with its library, which defines the macro
+# that lets it in.
+webcpp.headers-alone crypto : ../include : crypto/backends/bearssl.hpp
+  : <library>/third_party//bearssl ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
 # exceptions, keeps it when a developer defines it, defines it when

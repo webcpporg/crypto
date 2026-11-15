@@ -16,11 +16,11 @@ of every version are on webcpp's index page.
 === Unreleased
 
 // tag::unreleased[]
-* Added crypto: authenticated encryption, randomness and secp256k1 over C backends.
-* Added the errors of crypto, with fixed values, in the category webcpp.crypto.
+* Added crypto: authenticated encryption, randomness and secp256k1 over C backends, with errors of fixed values in webcpp.crypto.
 * Added equal, random_device, and aes128, aes192 and aes256, the AES block cipher.
 * Added gcm, AES-GCM in place with an incremental seal, whose failed open zeroes the data.
 * Added the default backend, aes128_gcm, aes256_gcm and the refusals of backends that conflict.
+* Added backends::bearssl, whose header names the line a program's Jamfile lacks when it uses BearSSL without linking it.
 * Added backends::openssl and /webcpp/crypto//openssl on native and WASI; a message on it allocates nothing after make.
 * Added backends::ctaes, the AES block cipher alone on every target; gcm refuses it.
 * Added secp256k1 on libsecp256k1: key pairs, BIP340 and ECDSA signatures, ECDH, DER, low-S and the Taproot tweak.

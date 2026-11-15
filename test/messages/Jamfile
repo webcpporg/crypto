@@ -15,3 +15,7 @@ build-project openssl_old ;
 build-project ctaes_not_linked ;
 build-project gcm_on_ctaes ;
 build-project secp256k1_not_linked ;
+build-project no_backend_wasm ;
+build-project no_backend_native ;
+build-project bearssl_not_linked ;
+build-project openssl_only_on_wasi ;

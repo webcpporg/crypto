@@ -63,6 +63,48 @@
 #undef WEBCPP_CRYPTO_HAS_OPENSSL
 #endif
 #undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_OPENSSL
+#ifdef WEBCPP_CRYPTO_HAS_CTAES
+/** Defined while config.hpp reads a reference's build that links ctaes (doc/Jamfile). */
+#define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_CTAES
+#endif
+/**
+ Defined by `/third_party//ctaes` when the program links ctaes; a program built without b2
+ defines it to 1 itself, and compiles webcpp's `src/canary_ctaes.c` with ctaes.
+*/
+#define WEBCPP_CRYPTO_HAS_CTAES 1
+#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_CTAES
+#undef WEBCPP_CRYPTO_HAS_CTAES
+#endif
+#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_CTAES
+#ifdef WEBCPP_CRYPTO_HAS_SECP256K1
+/** Defined while config.hpp reads a reference's build that links libsecp256k1 (doc/Jamfile). */
+#define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SECP256K1
+#endif
+/**
+ Defined by `/third_party//secp256k1` when the program links libsecp256k1; a program built
+ without b2 defines it to 1 itself, and builds libsecp256k1 with webcpp's
+ `src/canary_secp256k1.c`.
+*/
+#define WEBCPP_CRYPTO_HAS_SECP256K1 1
+#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SECP256K1
+#undef WEBCPP_CRYPTO_HAS_SECP256K1
+#endif
+#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SECP256K1
+#ifdef WEBCPP_CRYPTO_SECP256K1_SMALL_TABLES
+/** Defined while config.hpp reads a reference's build of libsecp256k1's small tables. */
+#define WEBCPP_CRYPTO_DETAIL_REFERENCE_SMALL_TABLES
+#endif
+/**
+ Defined by `/third_party//secp256k1` when libsecp256k1 is built with its small precomputed
+ tables (`<webcpp-secp256k1-tables>small`, and Emscripten's default); a program built without
+ b2 defines it to 1 itself when it builds libsecp256k1 with `ECMULT_WINDOW_SIZE=2` and
+ `COMB_BLOCKS=2`, `COMB_TEETH=5`. The canary refuses a program and a library that disagree.
+*/
+#define WEBCPP_CRYPTO_SECP256K1_SMALL_TABLES 1
+#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_SMALL_TABLES
+#undef WEBCPP_CRYPTO_SECP256K1_SMALL_TABLES
+#endif
+#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_SMALL_TABLES
 /**
  Defined by a program to make BearSSL the default backend, on every target, when OpenSSL
  is linked as well.
@@ -87,7 +129,7 @@
 #define WEBCPP_CRYPTO_WEBASSEMBLY 1
 #endif
 
-// The refusals of impossible combinations (spec section 4.3). Clang and gcc go on after an
+// The refusals of impossible combinations. Clang and gcc go on after an
 // #error, so the first error is the instruction; MSVC stops at it. OpenSSL is built for
 // native, wasip2 and wasip3 (/webcpp/crypto//openssl), never for Emscripten; with b2,
 // /webcpp/crypto//openssl stops an Emscripten build first, and these say it without b2.
@@ -103,7 +145,7 @@
 #endif
 // clang-format on
 
-// The default backend of the AEADs (spec section 5): the one the program selects; else
+// The default backend of the AEADs: the one the program selects; else
 // natively the first linked of OpenSSL, BearSSL; else BearSSL, whose header then says that
 // no backend is linked when neither is, and that BearSSL is not linked when OpenSSL alone is
 // (on WebAssembly, where the program selects OpenSSL with its define).
@@ -114,7 +156,7 @@
 /** Defined when BearSSL is the default backend: the program selects it. */
 #define WEBCPP_CRYPTO_DETAIL_DEFAULT_BEARSSL 1
 #elif !defined(WEBCPP_CRYPTO_WEBASSEMBLY) && defined(WEBCPP_CRYPTO_HAS_OPENSSL)
-/** Defined when OpenSSL is the default backend: natively, the first linked. */
+/** Defined when OpenSSL is the default backend: natively, when it is linked. */
 #define WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL 1
 #else
 /** Defined when BearSSL is the default backend: on WebAssembly, or natively without OpenSSL. */
@@ -141,12 +183,22 @@ struct secp256k1;
 namespace webcpp::crypto {
 
 #ifdef WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL
-/** The backend of `ciphers::aes256<>`, `ciphers::gcm<aes256<>>` and `ciphers::aes256_gcm`, as
- * section 5 chooses it. */
+/**
+ * The default backend, of `ciphers::aes256<>`, `ciphers::gcm<aes256<>>` and
+ * `ciphers::aes256_gcm`: the one the program selects; else natively OpenSSL when it is linked;
+ * else BearSSL.
+ *
+ * @see "The default backend, and choosing another", in the guide.
+ */
 using default_backend = backends::openssl;
 #else
-/** The backend of `ciphers::aes256<>`, `ciphers::gcm<aes256<>>` and `ciphers::aes256_gcm`, as
- * section 5 chooses it. */
+/**
+ * The default backend, of `ciphers::aes256<>`, `ciphers::gcm<aes256<>>` and
+ * `ciphers::aes256_gcm`: the one the program selects; else natively OpenSSL when it is linked;
+ * else BearSSL.
+ *
+ * @see "The default backend, and choosing another", in the guide.
+ */
 using default_backend = backends::bearssl;
 #endif
 

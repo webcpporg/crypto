@@ -32,7 +32,8 @@ namespace webcpp::crypto {
  * @param b The second.
  * @return Whether they have the same size and the same bytes.
  */
-inline bool equal(std::span<std::uint8_t const> a, std::span<std::uint8_t const> b) noexcept {
+[[nodiscard]] inline bool equal(std::span<std::uint8_t const> a,
+                                std::span<std::uint8_t const> b) noexcept {
     if (a.size() != b.size()) {
         return false;
     }
@@ -57,7 +58,8 @@ inline bool equal(std::span<std::uint8_t const> a, std::span<std::uint8_t const>
  * @return Whether every byte is equal.
  */
 template <std::size_t N>
-bool equal(boost::hash2::digest<N> const& a, boost::hash2::digest<N> const& b) noexcept {
+[[nodiscard]] bool equal(boost::hash2::digest<N> const& a,
+                         boost::hash2::digest<N> const& b) noexcept {
     return equal(std::span<std::uint8_t const>(a.data(), N),
                  std::span<std::uint8_t const>(b.data(), N));
 }

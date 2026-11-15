@@ -16,7 +16,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
-// The first of BearSSL's three layers (spec section 4.3): a program that uses BearSSL
+// The first of BearSSL's three layers: a program that uses BearSSL
 // without linking it stops here, with the line to write.
 #ifndef WEBCPP_CRYPTO_HAS_BEARSSL
 // clang-format off
@@ -57,7 +57,7 @@
 #define WEBCPP_CRYPTO_DETAIL_BEARSSL_CONFIGURATION getentropy  // lint-world: a canary's name
 #endif
 /**
- * The canary's name (spec section 4.3, the second layer): src/canary_bearssl.c defines it in
+ * The canary's name (the link's second layer): src/canary_bearssl.c defines it in
  * the library, and every function that calls BearSSL reads it; on MSVC the linker also compares
  * the same three facts, the third layer.
  */
@@ -78,7 +78,7 @@ extern "C" const char WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY;
 
 namespace webcpp::crypto::backends {
 
-/** The backend BearSSL (spec section 3.2). */
+/** The backend BearSSL. @see "The backends", in the guide. */
 struct bearssl {
     /** The backend's name, which the examples print. */
     static constexpr std::string_view name = "bearssl";
@@ -135,7 +135,7 @@ struct gcm_state<backends::bearssl, KeySize> {
     bool sealing;
 };
 
-/** GCM's work on BearSSL (spec section 3.2); BearSSL allocates nothing and never fails. */
+/** GCM's work on BearSSL; BearSSL allocates nothing and never fails. */
 template <std::size_t KeySize>
 struct gcm_engine<backends::bearssl, KeySize> {
     /** The state it works on. */
@@ -148,7 +148,8 @@ struct gcm_engine<backends::bearssl, KeySize> {
      * @param key `KeySize` bytes.
      * @return Nothing.
      */
-    static boost::system::result<void> init(state& s, std::span<std::uint8_t const> key) noexcept {
+    [[nodiscard]] static boost::system::result<void> init(
+        state& s, std::span<std::uint8_t const> key) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         bearssl_ctr()->init(&s.keys.vtable, key.data(), key.size());
         br_gcm_init(&s.context, &s.keys.vtable, bearssl_ghash());
@@ -164,7 +165,7 @@ struct gcm_engine<backends::bearssl, KeySize> {
      * @param additional_data Read whole before this returns.
      * @return Nothing.
      */
-    static boost::system::result<void> start(
+    [[nodiscard]] static boost::system::result<void> start(
         state& s, bool sealing, std::span<std::uint8_t const> iv,
         std::span<std::uint8_t const> additional_data) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
@@ -182,7 +183,8 @@ struct gcm_engine<backends::bearssl, KeySize> {
      * @param data The bytes.
      * @return Nothing.
      */
-    static boost::system::result<void> run(state& s, std::span<std::uint8_t> data) noexcept {
+    [[nodiscard]] static boost::system::result<void> run(state& s,
+                                                         std::span<std::uint8_t> data) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         br_gcm_run(&s.context, s.sealing ? 1 : 0, data.data(), data.size());
         return {};
@@ -195,7 +197,8 @@ struct gcm_engine<backends::bearssl, KeySize> {
      * @param out The tag.
      * @return Nothing.
      */
-    static boost::system::result<void> tag(state& s, boost::hash2::digest<16>& out) noexcept {
+    [[nodiscard]] static boost::system::result<void> tag(state& s,
+                                                         boost::hash2::digest<16>& out) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         br_gcm_get_tag(&s.context, out.data());
         return {};
@@ -208,12 +211,12 @@ struct gcm_engine<backends::bearssl, KeySize> {
      * @param tag The expected tag.
      * @return Nothing; `authentication_failed`.
      */
-    static boost::system::result<void> check(state& s,
-                                             std::array<std::uint8_t, 16> const& tag) noexcept {
+    [[nodiscard]] static boost::system::result<void> check(
+        state& s, std::array<std::uint8_t, 16> const& tag) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         // The verdict is public by design (a failed open is reported): declassified here,
-        // where webcpp's code first branches on it, for the constant-time checks (Task 20).
-        // Not const (n1): the branch below must read the variable again after the declassifying
+        // where webcpp's code first branches on it, for the constant-time checks.
+        // Not const: the branch below must read the variable again after the declassifying
         // client request, whose memory clobber reaches a mutable object only.
         // NOLINTNEXTLINE(misc-const-correctness): see above
         std::uint32_t matches = br_gcm_check_tag(&s.context, tag.data());
@@ -268,7 +271,7 @@ template <std::size_t KeySize>
 struct block_state<backends::bearssl, KeySize> {};
 
 /**
- * BearSSL's refusal of the block cipher (spec section 2.3). The assertions sit in member
+ * BearSSL's refusal of the block cipher. The assertions sit in member
  * templates, which only `make`, `encrypt` and `decrypt` instantiate: the class's moves and
  * destructor, which `ciphers::gcm<aes256<backends::bearssl>>` needs, never fire them.
  */
@@ -299,8 +302,8 @@ struct block_engine<backends::bearssl, KeySize> {
      * @return Never returns: the compile stops.
      */
     template <bool Never = false>
-    static boost::system::result<void> init(state& /*s*/,
-                                            std::span<std::uint8_t const> /*key*/) noexcept {
+    [[nodiscard]] static boost::system::result<void> init(
+        state& /*s*/, std::span<std::uint8_t const> /*key*/) noexcept {
         refuse<Never>();
         return error::backend_failure;
     }
@@ -312,8 +315,8 @@ struct block_engine<backends::bearssl, KeySize> {
      * @return Never returns: the compile stops.
      */
     template <bool Never = false>
-    static boost::system::result<void> encrypt(state& /*s*/,
-                                               std::span<std::uint8_t> /*blocks*/) noexcept {
+    [[nodiscard]] static boost::system::result<void> encrypt(
+        state& /*s*/, std::span<std::uint8_t> /*blocks*/) noexcept {
         refuse<Never>();
         return error::backend_failure;
     }
@@ -325,8 +328,8 @@ struct block_engine<backends::bearssl, KeySize> {
      * @return Never returns: the compile stops.
      */
     template <bool Never = false>
-    static boost::system::result<void> decrypt(state& /*s*/,
-                                               std::span<std::uint8_t> /*blocks*/) noexcept {
+    [[nodiscard]] static boost::system::result<void> decrypt(
+        state& /*s*/, std::span<std::uint8_t> /*blocks*/) noexcept {
         refuse<Never>();
         return error::backend_failure;
     }

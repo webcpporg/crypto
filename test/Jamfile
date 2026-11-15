@@ -152,6 +152,10 @@ webcpp.compile default_selection_openssl_selected : default_selection_test.cpp
 # crypto.hpp's branch for libsecp256k1, which headers-alone, without the
 # library, leaves out.
 webcpp.compile crypto_secp256k1 : crypto_secp256k1_test.cpp : <library>/third_party//secp256k1 ;
+# crypto.hpp with OpenSSL alone linked and BearSSL the default: no aes256_gcm.hpp.
+crypto-run crypto_openssl_alone : crypto_openssl_alone_test.cpp
+  : <library>/webcpp/crypto//openssl <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL
+  : native wasip2 wasip3 ;
 crypto-run secp256k1 : secp256k1_test.cpp : <library>/third_party//secp256k1 ;
 crypto-run secp256k1_allocation : secp256k1_allocation_test.cpp
   : <library>/third_party//secp256k1 ;

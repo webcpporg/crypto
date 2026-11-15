@@ -73,7 +73,8 @@ public:
      * @param key `key_size` bytes.
      * @return The object; `invalid_key_size`, `errc::not_enough_memory` or `backend_failure`.
      */
-    static boost::system::result<gcm> make(std::span<std::uint8_t const> key) noexcept {
+    [[nodiscard]] static boost::system::result<gcm> make(
+        std::span<std::uint8_t const> key) noexcept {
         if (key.size() != key_size) {
             return error::invalid_key_size;
         }
@@ -90,7 +91,7 @@ public:
      * Moves the key; a message in progress is abandoned, and the source is wiped and empty.
      *
      * Moving an empty object gives an empty one: BearSSL's move initialises the destination's
-     * context through the schedule's vtable, which a wiped state does not have (I1).
+     * context through the schedule's vtable, which a wiped state does not have.
      *
      * @param other The source, empty afterwards.
      */
@@ -143,24 +144,20 @@ public:
      * @return The tag; `invalid_state` moved from or during an incremental message, which
      * goes on; `invalid_iv_size`; `message_too_long`; `backend_failure`.
      */
-    boost::system::result<result_type> seal(std::span<std::uint8_t const> iv,
-                                            std::span<std::uint8_t const> additional_data,
-                                            std::span<std::uint8_t> data) noexcept {
+    [[nodiscard]] boost::system::result<result_type> seal(
+        std::span<std::uint8_t const> iv, std::span<std::uint8_t const> additional_data,
+        std::span<std::uint8_t> data) noexcept {
         auto const refused = guard_message(iv, additional_data, data.size(), tag_size);
         if (!refused) {
             return refused.error();
         }
         auto const started = engine::start(state_, true, iv, additional_data);
-        if (!started) {
-            return started.error();
-        }
-        auto const ran = engine::run(state_, data);
-        if (!ran) {
-            return ran.error();
-        }
+        auto const ran = started ? engine::run(state_, data) : started;
         result_type tag{};
-        auto const tagged = engine::tag(state_, tag);
+        auto const tagged = ran ? engine::tag(state_, tag) : ran;
         if (!tagged) {
+            // Nothing of the failed message stays in the context, as after an incremental one.
+            engine::abandon(state_);
             return tagged.error();
         }
         return tag;
@@ -181,10 +178,10 @@ public:
      * goes on; `invalid_iv_size`; `invalid_tag_size`; `message_too_long`;
      * `authentication_failed`; `backend_failure`.
      */
-    boost::system::result<void> open(std::span<std::uint8_t const> iv,
-                                     std::span<std::uint8_t const> additional_data,
-                                     std::span<std::uint8_t> data,
-                                     std::span<std::uint8_t const> tag) noexcept {
+    [[nodiscard]] boost::system::result<void> open(std::span<std::uint8_t const> iv,
+                                                   std::span<std::uint8_t const> additional_data,
+                                                   std::span<std::uint8_t> data,
+                                                   std::span<std::uint8_t const> tag) noexcept {
         auto const refused = guard_message(iv, additional_data, data.size(), tag.size());
         if (!refused) {
             return refused.error();
@@ -197,6 +194,7 @@ public:
         auto const checked = opened ? engine::check(state_, expected) : opened;
         if (!checked) {
             detail::wipe(data.data(), data.size());
+            engine::abandon(state_);
             return checked.error();
         }
         return {};
@@ -214,8 +212,8 @@ public:
      * @return Nothing; `invalid_state` moved from or with a message in progress, which ends
      * it; `invalid_iv_size`; `message_too_long`; `backend_failure`.
      */
-    boost::system::result<void> begin_seal(std::span<std::uint8_t const> iv,
-                                           std::span<std::uint8_t const> additional_data) noexcept {
+    [[nodiscard]] boost::system::result<void> begin_seal(
+        std::span<std::uint8_t const> iv, std::span<std::uint8_t const> additional_data) noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -244,7 +242,7 @@ public:
      * @return Nothing; `invalid_state` without a message; `message_too_long` when the pieces
      * pass `max_message_size`, which ends the message; `backend_failure`, which ends it.
      */
-    boost::system::result<void> update(std::span<std::uint8_t> data) noexcept {
+    [[nodiscard]] boost::system::result<void> update(std::span<std::uint8_t> data) noexcept {
         if (!keyed_ || !in_message_) {
             return error::invalid_state;
         }
@@ -267,7 +265,7 @@ public:
      * @return The tag; `invalid_state` without a message; `backend_failure`, which ends it
      * too.
      */
-    boost::system::result<result_type> result() noexcept {
+    [[nodiscard]] boost::system::result<result_type> result() noexcept {
         if (!keyed_ || !in_message_) {
             return error::invalid_state;
         }
@@ -299,7 +297,7 @@ private:
         }
     }
 
-    // Every guard of a message, in spec section 2.4's order: the state, the IV, the tag
+    // Every guard of a message, in the documented order: the state, the IV, the tag
     // (open's; seal passes tag_size), the lengths. None reads a byte of the spans.
     [[nodiscard]] boost::system::result<void> guard_message(
         std::span<std::uint8_t const> iv, std::span<std::uint8_t const> additional_data,

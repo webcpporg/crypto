@@ -90,8 +90,8 @@ int main() {
         auto made = secp::keypair::make(secret, &resource);
         BOOST_TEST(made.has_value());
         BOOST_TEST_EQ(resource.allocated, 1U);
-        BOOST_TEST_EQ(resource.size,
-                      secp256k1_context_preallocated_size(secp::detail::context_flags));
+        BOOST_TEST_EQ(resource.size, secp256k1_context_preallocated_size(
+                                         webcpp::crypto::detail::secp256k1_context_flags));
         BOOST_TEST_EQ(resource.alignment, alignof(std::max_align_t));
         secp::keypair key = std::move(*made);
 

@@ -6,9 +6,10 @@
 
 /**
  Every header of webcpp::crypto that needs no backend, and the header of each
- backend the build links. It includes the default backend's header too (through
- `ciphers/aes256_gcm.hpp`), so a WebAssembly program that links OpenSSL alone defines
- `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL`, or includes the headers it uses instead.
+ backend the build links. `ciphers/aes256_gcm.hpp`, `aes128_gcm` and `aes256_gcm`, is
+ included when the default backend is linked: a program that links OpenSSL alone where
+ BearSSL is the default (WebAssembly, or `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`) names
+ `ciphers::gcm<ciphers::aes256<backends::openssl>>`.
 */
 #ifndef WEBCPP_CRYPTO_HPP
 #define WEBCPP_CRYPTO_HPP
@@ -27,7 +28,8 @@
 #ifdef WEBCPP_CRYPTO_HAS_OPENSSL
 #include <webcpp/crypto/backends/openssl.hpp>
 #endif
-#if defined(WEBCPP_CRYPTO_HAS_BEARSSL) || defined(WEBCPP_CRYPTO_HAS_OPENSSL)
+#if (defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL) && defined(WEBCPP_CRYPTO_HAS_OPENSSL)) || \
+    (defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_BEARSSL) && defined(WEBCPP_CRYPTO_HAS_BEARSSL))
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #endif
 

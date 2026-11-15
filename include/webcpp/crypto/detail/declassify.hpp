@@ -14,10 +14,10 @@
  * branches on it by design: the verdict of a tag's check. Nothing in a program's build; a
  * constant-time test defines WEBCPP_CRYPTO_DETAIL_CT_VALGRIND or WEBCPP_CRYPTO_DETAIL_CT_MSAN, and
  * the mark is then Valgrind's or MemorySanitizer's, so that the checker reports every other branch
- * on a secret and not this one (Task 20, spec section 8.3).
+ * on a secret and not this one.
  *
  * Tip: the object marked is never const, so the branch that follows reads it again after the
- * mark instead of a register the compiler kept from before it (BoringSSL's practice, n1).
+ * mark instead of a register the compiler kept from before it (BoringSSL's practice).
  */
 #ifdef WEBCPP_CRYPTO_DETAIL_CT_VALGRIND
 #include <valgrind/memcheck.h>

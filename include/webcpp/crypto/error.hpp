@@ -39,7 +39,10 @@ enum class error : int {
     invalid_iv_size = 2,
     /** A tag given to `open` that is not of 16 bytes. */
     invalid_tag_size = 3,
-    /** Data given to a block cipher that is not a whole number of blocks. */
+    /**
+     * A buffer or data of a size the function does not accept: data for a block cipher that is
+     * not a whole number of blocks, or an output shorter than the function needs.
+     */
     invalid_input_size = 4,
     /** A message or additional data longer than the algorithm allows. */
     message_too_long = 5,
@@ -49,16 +52,22 @@ enum class error : int {
     invalid_state = 7,
     /** The system's or the browser's generator failed. */
     entropy_unavailable = 8,
-    /** A secret key that is zero or not below the group order. */
+    /** A secret scalar, a secret key or a tweak, that is zero or not below the group order. */
     invalid_secret_key = 9,
-    /** A public key of the wrong size, or not a point of the curve. */
+    /**
+     * A public key of the wrong size, with a prefix other than 02 or 03 (33 bytes) or 04 (65
+     * bytes), or not a point of the curve.
+     */
     invalid_public_key = 10,
-    /** A signature that does not verify, or cannot be parsed. */
+    /**
+     * A signature that does not verify, or is not a valid encoding: not strict DER, or an r or
+     * an s that is zero or not below the group order.
+     */
     invalid_signature = 11,
     /** A backend failed where its contract says it does not. */
     backend_failure = 12,
-    // 13 and 14 are reserved for OpenSSL's memory option (spec 2.9: memory_functions_refused
-    // and memory_functions_not_installed), which declares them; never reused.
+    // 13 and 14 are reserved for OpenSSL's memory option (memory_functions_refused and
+    // memory_functions_not_installed), which declares them; never reused.
 };
 
 namespace detail {
@@ -69,15 +78,16 @@ inline const char* message_of(int value) noexcept {
         case error::invalid_key_size: return "the key is not of the algorithm's size";
         case error::invalid_iv_size: return "the IV is not of a size the algorithm accepts";
         case error::invalid_tag_size: return "the tag is not of 16 bytes";
-        case error::invalid_input_size: return "the data is not a whole number of blocks";
+        case error::invalid_input_size: return "the buffer is not of a size the function accepts";
         case error::message_too_long: return "the message is longer than the algorithm allows";
         case error::authentication_failed: return "the authentication tag does not match";
         case error::invalid_state: return "the object was moved from, or the call is out of order";
         case error::entropy_unavailable: return "the system's generator of entropy failed";
         case error::invalid_secret_key:
-            return "the secret key is zero or not below the group order";
+            return "the secret key or tweak is zero or not below the group order";
         case error::invalid_public_key: return "the public key is not a point of the curve";
-        case error::invalid_signature: return "the signature does not verify";
+        case error::invalid_signature:
+            return "the signature does not verify or is not a valid encoding";
         case error::backend_failure: return "the backend failed where it should not";
     }
     return "unknown webcpp.crypto error";

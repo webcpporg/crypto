@@ -68,18 +68,32 @@ void check_one_shot_failures(webcpp::test::gcm_cases cases) {
     auto const tag = webcpp::test::from_hex(one_block.tag);
     boost::system::error_code const failed = crypto::error::backend_failure;
 
+    // An engine's failure ends the message through the engine, as the incremental seal's does.
     for (auto* knob : {&mock_control.start, &mock_control.run, &mock_control.tag}) {
         *knob = failed;
+        auto const abandons = mock_control.abandons;
         std::array<std::uint8_t, 16> data{};
         BOOST_TEST(made->seal(iv, {}, data).error() == failed);
         webcpp::test::mock_clear();
+        BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
     }
     for (auto* knob : {&mock_control.start, &mock_control.run, &mock_control.check}) {
         *knob = failed;
+        auto const abandons = mock_control.abandons;
         auto data = ciphertext;
         BOOST_TEST(made->open(iv, {}, data, tag).error() == failed);
         BOOST_TEST(webcpp::test::all_zero(data));
         webcpp::test::mock_clear();
+        BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
+    }
+    // So does a tag that does not match.
+    {
+        auto const abandons = mock_control.abandons;
+        auto data = ciphertext;
+        auto wrong = tag;
+        wrong[0] ^= 1U;
+        BOOST_TEST(made->open(iv, {}, data, wrong).error() == crypto::error::authentication_failed);
+        BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
     }
     // A guard refuses before the engine fails: the data is untouched.
     mock_control.start = failed;

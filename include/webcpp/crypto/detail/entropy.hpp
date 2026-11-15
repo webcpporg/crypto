@@ -23,7 +23,7 @@
 #include <span>
 
 #ifdef WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY
-// The test seam of spec section 8.4: a test defines the source, which returns 0, or -1 with
+// The test seam: a test defines the source, which returns 0, or -1 with
 // errno set, as getentropy does (lint-world: the call it stands in for, named, not made).
 extern "C" int webcpp_test_entropy(void* out, std::size_t size);
 #elif !defined(_WIN32)
@@ -50,14 +50,15 @@ inline constexpr std::size_t entropy_piece = 256;
  * @return Nothing, `errc::not_supported` where there is no generator, or
  * `error::entropy_unavailable`.
  */
-inline boost::system::result<void> read_entropy(std::uint8_t* out, std::size_t size) noexcept {
+[[nodiscard]] inline boost::system::result<void> read_entropy(std::uint8_t* out,
+                                                              std::size_t size) noexcept {
 #if defined(_WIN32) && !defined(WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY)
-    NTSTATUS const status =
-        ::BCryptGenRandom(nullptr, out, static_cast<ULONG>(size), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
+    NTSTATUS const status = ::BCryptGenRandom(  // lint-world: the entropy, on Windows
+        nullptr, out, static_cast<ULONG>(size), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
     int const failed = BCRYPT_SUCCESS(status) ? 0 : EIO;
 #else
 #ifdef WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY
-    int const called = webcpp_test_entropy(out, size);
+    int const called = webcpp_test_entropy(out, size);  // lint-world: a test's planted entropy
 #else
     int const called = ::getentropy(out, size);  // lint-world: the entropy
 #endif
@@ -83,7 +84,8 @@ inline boost::system::result<void> read_entropy(std::uint8_t* out, std::size_t s
  * @param out The bytes to fill.
  * @return Nothing, or the source's error.
  */
-inline boost::system::result<void> fill_from_system(std::span<std::uint8_t> out) noexcept {
+[[nodiscard]] inline boost::system::result<void> fill_from_system(
+    std::span<std::uint8_t> out) noexcept {
     for (std::size_t done = 0; done < out.size(); done += entropy_piece) {
         std::size_t const piece = (std::min)(out.size() - done, entropy_piece);
         auto const read = read_entropy(out.data() + done, piece);

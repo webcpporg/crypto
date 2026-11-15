@@ -54,14 +54,14 @@ public:
      *
      * @return 0.
      */
-    static constexpr result_type(min)() noexcept { return 0; }
+    [[nodiscard]] static constexpr result_type(min)() noexcept { return 0; }
 
     /**
      * The largest value `operator()` gives.
      *
      * @return The largest `unsigned int`.
      */
-    static constexpr result_type(max)() noexcept {
+    [[nodiscard]] static constexpr result_type(max)() noexcept {
         // The parentheses keep windows.h's max macro out.
         // NOLINTNEXTLINE(readability-redundant-parentheses)
         return (std::numeric_limits<result_type>::max)();
@@ -87,7 +87,7 @@ public:
      */
     // A member, so that a generator of another kind can stand in for this one.
     // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
-    boost::system::result<void> fill(std::span<std::uint8_t> out) noexcept {
+    [[nodiscard]] boost::system::result<void> fill(std::span<std::uint8_t> out) noexcept {
         return detail::fill_from_system(out);
     }
 
@@ -100,7 +100,7 @@ public:
      *
      * @return The value.
      */
-    result_type operator()() {
+    [[nodiscard]] result_type operator()() {
         std::array<std::uint8_t, sizeof(result_type)> bytes{};
         auto const filled = fill(bytes);
         if (!filled) {

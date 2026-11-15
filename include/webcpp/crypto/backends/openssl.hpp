@@ -64,7 +64,7 @@
 
 namespace webcpp::crypto::backends {
 
-// The backend OpenSSL, declared and documented in config.hpp (spec section 3.3).
+// The backend OpenSSL, declared and documented in config.hpp.
 struct openssl {
     /** The backend's name, which the examples print. */
     static constexpr std::string_view name = "openssl";
@@ -103,7 +103,7 @@ template <std::size_t KeySize>
 inline constexpr char const* openssl_ecb_name = openssl_aes_name(KeySize, false);
 
 /**
- * Keys a context for `cipher`, or gives the error of the call that failed (spec section 3.3):
+ * Keys a context for `cipher`, or gives the error of the call that failed:
  * `errc::not_enough_memory` when `EVP_CIPHER_CTX_new` returns null, `backend_failure` when
  * `EVP_CIPHER_fetch` returns null or the key's `EVP_CipherInit_ex` fails. The thread's
  * error queue is left as it was found, through a mark set before the first call that can
@@ -148,7 +148,7 @@ inline boost::system::error_code openssl_context(EVP_CIPHER_CTX*& made, char con
 /**
  * The error of a call of a message's that OpenSSL's contract says does not fail: the queue
  * is cleared, so that nothing of webcpp's is left for OpenSSL's other users, the caller's
- * earlier entries with it (spec section 3.3).
+ * earlier entries with it.
  */
 inline boost::system::error_code openssl_failed() noexcept {
     ERR_clear_error();
@@ -160,8 +160,8 @@ inline boost::system::error_code openssl_failed() noexcept {
  *
  * @return Nothing, or `backend_failure`.
  */
-inline boost::system::result<void> openssl_update(EVP_CIPHER_CTX* context,
-                                                  std::span<std::uint8_t> data) noexcept {
+[[nodiscard]] inline boost::system::result<void> openssl_update(
+    EVP_CIPHER_CTX* context, std::span<std::uint8_t> data) noexcept {
     for (std::size_t at = 0; at < data.size(); at += openssl_piece) {
         std::size_t const piece = (std::min)(openssl_piece, data.size() - at);
         int written = 0;
@@ -188,7 +188,8 @@ struct gcm_engine<backends::openssl, KeySize> {
     using state = gcm_state<backends::openssl, KeySize>;
 
     /** Keys a context for AES-GCM with the key. */
-    static boost::system::result<void> init(state& s, std::span<std::uint8_t const> key) noexcept {
+    [[nodiscard]] static boost::system::result<void> init(
+        state& s, std::span<std::uint8_t const> key) noexcept {
         EVP_CIPHER_CTX* made = nullptr;
         if (auto const failed = openssl_context(made, openssl_gcm_name<KeySize>, key, true, true)) {
             return failed;
@@ -198,9 +199,9 @@ struct gcm_engine<backends::openssl, KeySize> {
     }
 
     // Each message re-initialises the context with a null key, which keeps the expanded one,
-    // and switches its direction (CR-PROBES ossl_open.c: "good open: ok=1").
+    // and switches its direction.
     /** Starts a message: its direction, its IV and its additional data. */
-    static boost::system::result<void> start(
+    [[nodiscard]] static boost::system::result<void> start(
         state& s, bool sealing, std::span<std::uint8_t const> iv,
         std::span<std::uint8_t const> additional_data) noexcept {
         int const direction = sealing ? 1 : 0;
@@ -223,12 +224,14 @@ struct gcm_engine<backends::openssl, KeySize> {
     }
 
     /** Encrypts or decrypts a piece of the message in place. */
-    static boost::system::result<void> run(state& s, std::span<std::uint8_t> data) noexcept {
+    [[nodiscard]] static boost::system::result<void> run(state& s,
+                                                         std::span<std::uint8_t> data) noexcept {
         return openssl_update(s.context, data);
     }
 
     /** Ends a sealed message and gives its tag. */
-    static boost::system::result<void> tag(state& s, boost::hash2::digest<16>& out) noexcept {
+    [[nodiscard]] static boost::system::result<void> tag(state& s,
+                                                         boost::hash2::digest<16>& out) noexcept {
         std::array<std::uint8_t, 16> final_block{};
         int written = 0;
         if (EVP_EncryptFinal_ex(s.context, final_block.data(), &written) != 1 ||
@@ -239,8 +242,8 @@ struct gcm_engine<backends::openssl, KeySize> {
     }
 
     /** Ends an opened message and checks its tag. */
-    static boost::system::result<void> check(state& s,
-                                             std::array<std::uint8_t, 16> const& tag) noexcept {
+    [[nodiscard]] static boost::system::result<void> check(
+        state& s, std::array<std::uint8_t, 16> const& tag) noexcept {
         // OpenSSL takes the expected tag through a pointer to mutable bytes, and only reads it.
         std::array<std::uint8_t, 16> expected = tag;
         if (EVP_CIPHER_CTX_ctrl(s.context, EVP_CTRL_GCM_SET_TAG, 16, expected.data()) != 1) {
@@ -252,7 +255,7 @@ struct gcm_engine<backends::openssl, KeySize> {
         // (ossl_gcm_stream_final, gcm_cipher_internal) fails only where its comparison of
         // the tags fails: its other refusals, no key, no IV, an IV already finished or no
         // tag, cannot hold in this order of calls. So a failure is the tag's, which raises
-        // nothing in the queue (CR-PROBES ossl_open.out).
+        // nothing in the queue.
         if (EVP_DecryptFinal_ex(s.context, final_block.data(), &written) != 1) {
             return error::authentication_failed;
         }
@@ -265,21 +268,22 @@ struct gcm_engine<backends::openssl, KeySize> {
     // and derives the counter blocks (Yi, EK0) from it; the byte sealed then replaces the
     // last keystream block (EKi), the one other value of the abandoned message. What the
     // context holds after it is derived from the key and the zero IV alone, or is public:
-    // ciphertext and additional data that GHASH's buffer (Xn) may still hold. A failure,
-    // which OpenSSL does not have for a keyed context, leaves the message until the next
-    // start or the reset; what it raises is popped with the mark.
+    // ciphertext and additional data that GHASH's buffer (Xn) may still hold. The calls set
+    // no mark of the error queue, since a thread's first ERR_* call allocates its error state
+    // and a message allocates nothing. A failure, which OpenSSL does not have for a keyed
+    // context, leaves the message until the next start or the reset, and clears the queue as
+    // every failure of a message does (openssl_failed).
     /** Ends a message without its tag, leaving nothing of it in the context. */
     static void abandon(state& s) noexcept {
         std::array<std::uint8_t, 12> const zero_iv{};
         std::array<std::uint8_t, 1> byte{};
         int written = 0;
-        ERR_set_mark();
-        static_cast<void>(
-            EVP_CipherInit_ex(s.context, nullptr, nullptr, nullptr, nullptr, 1) == 1 &&
-            EVP_CIPHER_CTX_ctrl(s.context, EVP_CTRL_GCM_SET_IVLEN, 12, nullptr) == 1 &&
-            EVP_CipherInit_ex(s.context, nullptr, nullptr, nullptr, zero_iv.data(), 1) == 1 &&
-            EVP_CipherUpdate(s.context, byte.data(), &written, byte.data(), 1) == 1);
-        ERR_pop_to_mark();
+        if (EVP_CipherInit_ex(s.context, nullptr, nullptr, nullptr, nullptr, 1) != 1 ||
+            EVP_CIPHER_CTX_ctrl(s.context, EVP_CTRL_GCM_SET_IVLEN, 12, nullptr) != 1 ||
+            EVP_CipherInit_ex(s.context, nullptr, nullptr, nullptr, zero_iv.data(), 1) != 1 ||
+            EVP_CipherUpdate(s.context, byte.data(), &written, byte.data(), 1) != 1) {
+            static_cast<void>(openssl_failed());
+        }
         // The byte holds a keystream byte of the key's: wiped as key material is.
         wipe(byte.data(), byte.size());
     }
@@ -313,7 +317,8 @@ struct block_engine<backends::openssl, KeySize> {
     using state = block_state<backends::openssl, KeySize>;
 
     /** Keys a context per direction with the key. */
-    static boost::system::result<void> init(state& s, std::span<std::uint8_t const> key) noexcept {
+    [[nodiscard]] static boost::system::result<void> init(
+        state& s, std::span<std::uint8_t const> key) noexcept {
         EVP_CIPHER_CTX* encrypting = nullptr;
         if (auto const failed =
                 openssl_context(encrypting, openssl_ecb_name<KeySize>, key, true, false)) {
@@ -331,12 +336,14 @@ struct block_engine<backends::openssl, KeySize> {
     }
 
     /** Encrypts whole blocks in place. */
-    static boost::system::result<void> encrypt(state& s, std::span<std::uint8_t> blocks) noexcept {
+    [[nodiscard]] static boost::system::result<void> encrypt(
+        state& s, std::span<std::uint8_t> blocks) noexcept {
         return openssl_update(s.encrypting, blocks);
     }
 
     /** Decrypts whole blocks in place. */
-    static boost::system::result<void> decrypt(state& s, std::span<std::uint8_t> blocks) noexcept {
+    [[nodiscard]] static boost::system::result<void> decrypt(
+        state& s, std::span<std::uint8_t> blocks) noexcept {
         return openssl_update(s.decrypting, blocks);
     }
 

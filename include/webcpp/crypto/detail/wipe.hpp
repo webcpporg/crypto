@@ -19,7 +19,7 @@ namespace webcpp::crypto::detail {
  * Zeroes `size` bytes at `data` with stores the optimiser cannot drop.
  *
  * Tip: a `memset` before an object dies is a dead store a compiler may remove; stores through
- * a volatile pointer, then a signal fence, are kept (spec section 2.11).
+ * a volatile pointer, then a signal fence, are kept.
  *
  * @param data The first byte, or null when `size` is 0.
  * @param size How many bytes.

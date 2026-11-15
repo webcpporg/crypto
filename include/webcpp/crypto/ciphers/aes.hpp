@@ -49,7 +49,7 @@ public:
 
     /**
      * Moves the key schedule; the source is wiped and empty. Moving an empty object gives an
-     * empty one: the engine is not asked to move a state it wiped (I1).
+     * empty one: the engine is not asked to move a state it wiped.
      *
      * @param other The source, empty afterwards.
      */
@@ -91,7 +91,7 @@ public:
      * @return Nothing; `invalid_state` moved from; `invalid_input_size` for a partial block;
      * the backend's errors.
      */
-    boost::system::result<void> encrypt(std::span<std::uint8_t> blocks) noexcept {
+    [[nodiscard]] boost::system::result<void> encrypt(std::span<std::uint8_t> blocks) noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -108,7 +108,7 @@ public:
      * @return Nothing; `invalid_state` moved from; `invalid_input_size` for a partial block;
      * the backend's errors.
      */
-    boost::system::result<void> decrypt(std::span<std::uint8_t> blocks) noexcept {
+    [[nodiscard]] boost::system::result<void> decrypt(std::span<std::uint8_t> blocks) noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -130,7 +130,8 @@ protected:
      * @return The cipher; `invalid_key_size`; the backend's errors.
      */
     template <class Derived>
-    static boost::system::result<Derived> make_as(std::span<std::uint8_t const> key) noexcept {
+    [[nodiscard]] static boost::system::result<Derived> make_as(
+        std::span<std::uint8_t const> key) noexcept {
         if (key.size() != key_size) {
             return error::invalid_key_size;
         }
@@ -167,7 +168,8 @@ public:
      * @param key 16 bytes.
      * @return The cipher; `invalid_key_size`; the backend's errors.
      */
-    static boost::system::result<aes128> make(std::span<std::uint8_t const> key) noexcept {
+    [[nodiscard]] static boost::system::result<aes128> make(
+        std::span<std::uint8_t const> key) noexcept {
         return detail::basic_aes<16, Backend>::template make_as<aes128>(key);
     }
 
@@ -191,7 +193,8 @@ public:
      * @param key 24 bytes.
      * @return The cipher; `invalid_key_size`; the backend's errors.
      */
-    static boost::system::result<aes192> make(std::span<std::uint8_t const> key) noexcept {
+    [[nodiscard]] static boost::system::result<aes192> make(
+        std::span<std::uint8_t const> key) noexcept {
         return detail::basic_aes<24, Backend>::template make_as<aes192>(key);
     }
 
@@ -215,7 +218,8 @@ public:
      * @param key 32 bytes.
      * @return The cipher; `invalid_key_size`; the backend's errors.
      */
-    static boost::system::result<aes256> make(std::span<std::uint8_t const> key) noexcept {
+    [[nodiscard]] static boost::system::result<aes256> make(
+        std::span<std::uint8_t const> key) noexcept {
         return detail::basic_aes<32, Backend>::template make_as<aes256>(key);
     }
 

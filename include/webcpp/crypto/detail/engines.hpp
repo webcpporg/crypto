@@ -45,7 +45,7 @@ struct chacha_engine;
 /**
  * Reads a backend's canary with a volatile load, which no linker can drop: a program built
  * without the backend's library, or with one of another commit or configuration, then
- * fails to link, naming the canary (spec section 4.3).
+ * fails to link, naming the canary.
  *
  * @param canary The canary's symbol.
  */

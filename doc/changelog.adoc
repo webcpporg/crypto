@@ -16,7 +16,7 @@ of every version are on webcpp's index page.
 === Unreleased
 
 // tag::unreleased[]
-* Added crypto, primitives over C backends: ciphers, curves and randomness, with errors of fixed values in webcpp.crypto.
+* Added crypto, primitives over C backends: ciphers, curves and randomness, with errors of fixed values in webcpp.crypto, every result [[nodiscard]].
 * Added equal and random_device, and ciphers::aes128, aes192 and aes256, the AES block cipher.
 * Added ciphers::gcm, AES-GCM in place with an incremental seal, whose failed open zeroes the data.
 * Added the default backend, ciphers::aes128_gcm and aes256_gcm, and the refusals of backends that conflict.

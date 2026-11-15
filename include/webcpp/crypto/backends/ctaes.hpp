@@ -45,7 +45,7 @@ extern "C" {
 /** The configuration the canary names: ctaes has one, `default`. */
 #define WEBCPP_CRYPTO_DETAIL_CTAES_CONFIGURATION default
 #endif
-/** The canary's name, which every ctaes function of this header reads (spec section 4.3). */
+/** The canary's name, which every ctaes function of this header reads. */
 #define WEBCPP_CRYPTO_DETAIL_CTAES_CANARY                          \
     WEBCPP_CRYPTO_DETAIL_CANARY(ctaes, WEBCPP_CRYPTO_CTAES_COMMIT, \
                                 WEBCPP_CRYPTO_DETAIL_CTAES_CONFIGURATION)
@@ -61,7 +61,7 @@ extern "C" const char WEBCPP_CRYPTO_DETAIL_CTAES_CANARY;
 
 namespace webcpp::crypto::backends {
 
-/** The backend ctaes (spec section 3.4). */
+/** The backend ctaes. @see "The backends", in the guide. */
 struct ctaes {
     /** The backend's name, which the examples print. */
     static constexpr std::string_view name = "ctaes";
@@ -155,21 +155,24 @@ struct block_engine<backends::ctaes, KeySize> {
     using state = block_state<backends::ctaes, KeySize>;
 
     /** Expands the key into the state. */
-    static boost::system::result<void> init(state& s, std::span<std::uint8_t const> key) noexcept {
+    [[nodiscard]] static boost::system::result<void> init(
+        state& s, std::span<std::uint8_t const> key) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_CTAES_CANARY);
         ctaes_of<KeySize>::init(&s.schedule, key.data());
         return {};
     }
 
     /** Encrypts whole blocks in place. */
-    static boost::system::result<void> encrypt(state& s, std::span<std::uint8_t> blocks) noexcept {
+    [[nodiscard]] static boost::system::result<void> encrypt(
+        state& s, std::span<std::uint8_t> blocks) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_CTAES_CANARY);
         ctaes_of<KeySize>::encrypt(&s.schedule, blocks.size() / 16, blocks.data(), blocks.data());
         return {};
     }
 
     /** Decrypts whole blocks in place. */
-    static boost::system::result<void> decrypt(state& s, std::span<std::uint8_t> blocks) noexcept {
+    [[nodiscard]] static boost::system::result<void> decrypt(
+        state& s, std::span<std::uint8_t> blocks) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_CTAES_CANARY);
         ctaes_of<KeySize>::decrypt(&s.schedule, blocks.size() / 16, blocks.data(), blocks.data());
         return {};
@@ -185,7 +188,7 @@ struct block_engine<backends::ctaes, KeySize> {
     static void reset(state& s) noexcept { wipe_object(s); }
 };
 
-/** ctaes exports no GCM, and webcpp builds none on another library's AES (spec section 2.4). */
+/** ctaes exports no GCM, and webcpp builds none on another library's AES. */
 template <std::size_t KeySize>
 struct gcm_state<backends::ctaes, KeySize> {
     static_assert(

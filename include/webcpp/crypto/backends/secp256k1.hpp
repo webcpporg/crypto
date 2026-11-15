@@ -43,7 +43,7 @@
 /** The configuration the canary names: the large tables third_party/Jamfile built. */
 #define WEBCPP_CRYPTO_DETAIL_SECP256K1_CONFIGURATION w15c11x6
 #endif
-/** The canary's name, which every libsecp256k1 function of crypto reads (spec section 4.3). */
+/** The canary's name, which every libsecp256k1 function of crypto reads. */
 #define WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY                              \
     WEBCPP_CRYPTO_DETAIL_CANARY(secp256k1, WEBCPP_CRYPTO_SECP256K1_COMMIT, \
                                 WEBCPP_CRYPTO_DETAIL_SECP256K1_CONFIGURATION)
@@ -59,7 +59,7 @@ extern "C" const char WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY;
 
 namespace webcpp::crypto::backends {
 
-/** The backend libsecp256k1 (spec section 3.5). */
+/** The backend libsecp256k1. @see "The backends", in the guide. */
 struct secp256k1 {
     /** The backend's name, which the examples print. */
     static constexpr std::string_view name = "secp256k1";

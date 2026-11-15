@@ -7,11 +7,11 @@
 /**
  `aes128_gcm` and `aes256_gcm` on the default backend, whose header it includes: natively
  OpenSSL when it is linked, else BearSSL; on WebAssembly BearSSL, unless
- `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL` selects OpenSSL on wasip2 or wasip3 (spec section 5).
+ `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL` selects OpenSSL on wasip2 or wasip3.
 
  On MSVC, wasip2 and wasip3 the source-built OpenSSL is compiled without assembly: AES is
  table-driven, GHASH is 4-bit tables, there is no AES-NI, and none of it is constant time.
- On MSVC the default follows the spec all the same, so a program that links OpenSSL there
+ On MSVC the default is OpenSSL all the same, so a program that links OpenSSL there
  gets that build. A program that wants BearSSL on those targets defines
  `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`, or names `gcm<aes256<backends::bearssl>>`.
 
@@ -36,7 +36,7 @@
 #endif
 
 // Two files of one program that choose different defaults name two types aes256_gcm: on
-// MSVC the link then fails with LNK2038 on this key (Review Focus 4).
+// MSVC the link then fails with LNK2038 on this key.
 #if defined(_MSC_VER) && defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL)
 #pragma detect_mismatch("webcpp_crypto_default_backend", "openssl")
 #elif defined(_MSC_VER)

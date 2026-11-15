@@ -20,3 +20,4 @@ build-project no_backend_native ;
 build-project bearssl_not_linked ;
 build-project openssl_only_on_wasi ;
 build-project aes_on_bearssl ;
+build-project secp256k1_other_backend ;

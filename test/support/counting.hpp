@@ -240,6 +240,9 @@ void __libc_free(void*);
 #endif
 // The C library's allocation functions, replaced for this program alone; cert-dcl58-cpp takes
 // a replacement of what <cstdlib> declares for a change to namespace std.
+// misc-definitions-in-headers: a replacement is a definition, and each test program includes
+// this header in one translation unit.
+// NOLINTBEGIN(misc-definitions-in-headers)
 // NOLINTBEGIN(readability-inconsistent-declaration-parameter-name,cert-dcl58-cpp)
 extern "C" {
 void* malloc(std::size_t size) WEBCPP_TEST_C_NOEXCEPT {
@@ -273,6 +276,7 @@ void free(void* p) WEBCPP_TEST_C_NOEXCEPT {
 }
 }
 // NOLINTEND(readability-inconsistent-declaration-parameter-name,cert-dcl58-cpp)
+// NOLINTEND(misc-definitions-in-headers)
 #elif defined(__APPLE__)
 // libsystem_malloc's hook, called on every allocation and release of the process.
 using webcpp_test_malloc_logger = void(std::uint32_t, std::uintptr_t, std::uintptr_t,

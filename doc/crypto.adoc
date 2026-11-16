@@ -4,7 +4,7 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-= crypto: authenticated encryption, randomness and secp256k1 for {cpp}
+= crypto: cryptographic primitives for {cpp}
 :toc: left
 :toclevels: 2
 :idprefix:

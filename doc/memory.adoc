@@ -15,8 +15,8 @@ key pair. Every buffer is the caller's.
 
 * *Nothing allocates per message, on any backend:* `seal`, `open`,
 `begin_seal`, `update`, `result`, `encrypt`, `decrypt`, `fill`, the signatures,
-`ecdh`, `ecdh_x`, `ecdh_point` and the verifications. The counting tests of `test/` prove it, every
-`operator new` and the C library's allocator counted.
+`ecdh`, `ecdh_x`, `ecdh_point` and the verifications. The counting tests of
+`test/` prove it, every `operator new` and the C library's allocator counted.
 * *BearSSL and ctaes allocate nothing,* `make` included: the key schedule lives
 inside the object.
 * *OpenSSL's `make` allocates its cipher context through OpenSSL's own

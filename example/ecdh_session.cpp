@@ -23,9 +23,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 
 namespace crypto = webcpp::crypto;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
@@ -169,21 +171,28 @@ int main() {
     if (!alice_public || !bob_public) {
         return 1;
     }
-    auto const alice_shared = alice->ecdh(*bob_public);
-    auto const bob_shared = bob->ecdh(*alice_public);
-    if (!alice_shared || !bob_shared ||
-        !crypto::equal(alice_shared->bytes(), bob_shared->bytes())) {
-        return 1;
+    // The shared secrets live only in this block: each is a secret<32>, which wipes itself at
+    // the block's end, as soon as the session ciphers are made from it.
+    std::optional<crypto::ciphers::aes256_gcm> alice_cipher;
+    std::optional<crypto::ciphers::aes256_gcm> bob_cipher;
+    {
+        auto const alice_shared = alice->ecdh(*bob_public);
+        auto const bob_shared = bob->ecdh(*alice_public);
+        if (!alice_shared || !bob_shared ||
+            !crypto::equal(alice_shared->bytes(), bob_shared->bytes())) {
+            return 1;
+        }
+        std::printf("shared secrets match\n");
+        auto alice_made = session_cipher(*alice_shared);
+        auto bob_made = session_cipher(*bob_shared);
+        if (!alice_made || !bob_made) {
+            return 1;
+        }
+        alice_cipher.emplace(std::move(*alice_made));
+        bob_cipher.emplace(std::move(*bob_made));
     }
-    std::printf("shared secrets match\n");
     // end::agree[]
 
-    // The shared secrets are secret<32>, which wipe themselves when they go out of scope.
-    auto alice_cipher = session_cipher(*alice_shared);
-    auto bob_cipher = session_cipher(*bob_shared);
-    if (!alice_cipher || !bob_cipher) {
-        return 1;
-    }
     std::array<std::uint8_t, 12> iv{};
     if (!crypto::random_device().fill(iv)) {
         return 1;

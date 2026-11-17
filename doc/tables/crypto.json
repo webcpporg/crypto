@@ -104,7 +104,8 @@
         "xchacha-draft": ["draft-irtf-cfrg-xchacha, XChaCha20-Poly1305", "https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha"],
         "libsodium-secretstream": ["libsodium's documentation, encrypted streams (secretstream, on XChaCha20-Poly1305)", "https://doc.libsodium.org/secret-key_cryptography/secretstream"],
         "rfc7748-kdf": ["RFC 7748, section 6.1: a KDF over the shared secret and both public keys", "https://www.rfc-editor.org/rfc/rfc7748#section-6.1"],
-        "libsodium-doc-licence": ["libsodium's documentation, jedisct1/libsodium-doc at 6d1ea27, ISC", "https://github.com/jedisct1/libsodium-doc/tree/6d1ea27b79b853b2a04f09ae9e1a8231c90e3b56"]
+        "libsodium-doc-licence": ["libsodium's documentation, jedisct1/libsodium-doc at 6d1ea27, ISC", "https://github.com/jedisct1/libsodium-doc/tree/6d1ea27b79b853b2a04f09ae9e1a8231c90e3b56"],
+        "sec1": ["SEC 1 version 2, Elliptic Curve Cryptography, sections 2.3.3 and 2.3.4: a point's encodings", "https://www.secg.org/sec1-v2.pdf"]
     },
     "backends": {
         "bearssl": {

@@ -250,7 +250,12 @@ bool forms(std::string const& label, secp::keypair const& key, bytes const& poin
         BOOST_TEST(hashed.has_error() && hashed.error() == crypto::error::invalid_public_key);
         return false;
     }
-    BOOST_TEST(parses);
+    // A point webcpp took and libsecp256k1's parser refuses is reported here: the C call below
+    // would reach libsecp256k1's illegal callback with the unparsed point, and abort.
+    if (!BOOST_TEST(parses)) {
+        fail(label + ": a point libsecp256k1 refuses was taken");
+        return true;
+    }
     if (!BOOST_TEST(whole && hashed)) {
         return true;
     }

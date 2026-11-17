@@ -109,11 +109,12 @@ form of the chat session of <<crypto-p2p-session>>.
 * `ecdh_x`: the point's x coordinate, 32 bytes, unhashed. Nostr's encrypted
 messages (link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44])
 and Wycheproof's ECDH test vectors
-(link:https://github.com/C2SP/wycheproof[Wycheproof]) take this form; the
-protocol then hashes it its own way.
-* `ecdh_point`: the point itself, SEC1 uncompressed (0x04, x, y), 65 bytes, for
-a protocol that hashes both coordinates
-(link:https://www.secg.org/sec2-v2.pdf[SEC 2]).
+(link:https://github.com/C2SP/wycheproof[Project Wycheproof, test vectors for
+cryptographic libraries]) take this form; the protocol then hashes it its own
+way.
+* `ecdh_point`: the point itself, 65 bytes in SEC1's uncompressed encoding
+(0x04, x, y; link:https://www.secg.org/sec1-v2.pdf[SEC 1, sections 2.3.3 and
+2.3.4]): both coordinates, of which the other two forms keep x alone.
 
 Each is returned as a `secret<N>`, which wipes its bytes when it is destroyed
 or moved from: a program reads it with `bytes()` and makes no copy of its own
@@ -142,9 +143,13 @@ include::{examples}/ecdh_x_coordinate.expected[]
 
 * The raw x coordinate is not a key: a Diffie-Hellman value is not uniformly
 random (link:https://www.rfc-editor.org/rfc/rfc5869#section-3.3[RFC 5869,
-section 3.3]), and only about half of all 32-byte values are the x of a point.
-A protocol's key derivation function (HKDF in NIP-44) turns it into keys; used
-directly as an AES key it is weaker than it looks.
+section 3.3]). It is always below the field's prime and always the x of a
+point, which not every 32-byte value is
+(link:https://www.secg.org/sec1-v2.pdf[SEC 1, sections 2.3.3 and 2.3.4]), so
+its 256 bits hold less than 256 bits of entropy. A protocol's key derivation
+function (HKDF in NIP-44) turns it into keys. Used directly as an AES key, it
+is the same key in every protocol that uses the same two key pairs that way:
+a key that leaks from one leaks from all of them.
 * Two programs must agree on the form. One that takes `ecdh` and one that
 takes `ecdh_x` derive different keys from the same key pairs, and fail
 silently: every message is refused as forged, with nothing pointing at the

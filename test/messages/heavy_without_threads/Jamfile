@@ -1,0 +1,23 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+project : requirements <library>/webcpp/crypto//crypto ;
+
+import webcpp ;
+import webcpp-target ;
+
+# Natively Boost.Config always sees threads, so the build without them defines
+# WEBCPP_CRYPTO_NO_THREADS; WASI has none of its own.
+rule without-threads ( properties * )
+{
+    if [ webcpp-target.target-of $(properties) ] = native
+    {
+        return <define>WEBCPP_CRYPTO_NO_THREADS ;
+    }
+}
+
+webcpp.compile-diagnostic heavy_without_threads : heavy_without_threads.cpp
+  : <conditional>@without-threads : native wasip2 wasip3 ;

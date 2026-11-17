@@ -151,6 +151,22 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sign_small/sign_small.outcome[tag=output]
 ----
 
+`+threads_on_emscripten+`:: A program for Emscripten built with `+<threading>multi+`, which is `+-pthread+`: the build has threads.
++
+Its Jamfile, built and run on emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/threads_on_emscripten/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/threads_on_emscripten/threads_on_emscripten.outcome[tag=output]
+----
+
 `+web+`:: A web application: AES-256-GCM on BearSSL, the default on WebAssembly.
 +
 Its Jamfile, built and run on wasip2, wasip3, emscripten:

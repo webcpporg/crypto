@@ -6,9 +6,10 @@
 
 /**
  The configuration of webcpp::crypto, which each of its headers includes first:
- whether it is built without exceptions, whether the target is WebAssembly, the
- backends the build links, and the refusal of version 0.1's defines that chose the
- default backend, which the target alone now chooses (`detail/defaults.hpp`).
+ whether it is built without exceptions, whether the target is WebAssembly, whether
+ the build has threads, the backends the build links, and the refusal of version
+ 0.1's defines that chose the default backend, which the target alone now chooses
+ (`detail/defaults.hpp`).
 
  @see "Using webcpp::crypto in your Jamfile", in the guide.
 */
@@ -40,6 +41,26 @@
 /** Defined on the WebAssembly targets, wasip2, wasip3 and Emscripten. */
 #define WEBCPP_CRYPTO_WEBASSEMBLY 1
 #undef WEBCPP_CRYPTO_WEBASSEMBLY
+/**
+ Defined when the build has threads (design D23): natively when Boost.Config defines
+ `BOOST_HAS_THREADS`, on Emscripten when the program is built with `-pthread` (b2's
+ `threading=multi`), never on wasip2 or wasip3, and never when the program defines
+ `WEBCPP_CRYPTO_NO_THREADS`. Only then do the heavy operations' `async_` variants run on
+ another thread; without it, a program that calls one stops with the synchronous name to
+ call instead.
+
+ Natively Boost.Config defines `BOOST_HAS_THREADS` whatever b2's `threading` says on macOS,
+ on Windows and with libstdc++ or libc++ on Linux, so that a native build has threads
+ unless the program defines `WEBCPP_CRYPTO_NO_THREADS`.
+*/
+#define WEBCPP_CRYPTO_HAS_THREADS 1
+#undef WEBCPP_CRYPTO_HAS_THREADS
+/**
+ Defined by a program that wants no threads from webcpp::crypto: `WEBCPP_CRYPTO_HAS_THREADS`
+ stays undefined, and the heavy operations' `async_` variants refuse to compile.
+*/
+#define WEBCPP_CRYPTO_NO_THREADS
+#undef WEBCPP_CRYPTO_NO_THREADS
 #ifdef WEBCPP_CRYPTO_HAS_BEARSSL
 /** Defined while config.hpp reads a reference's build that links BearSSL (doc/Jamfile). */
 #define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_BEARSSL
@@ -143,6 +164,15 @@
 #else
 /** Defined on the native target, where no WebAssembly target is: the capability table's name. */
 #define WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE 1
+#endif
+
+// Threads (design D23): natively when Boost.Config sees threads (b2 threading=multi), on
+// Emscripten with -pthread, never on WASI.
+#if !defined(WEBCPP_CRYPTO_NO_THREADS) && !defined(WEBCPP_TARGET_WASIP2) &&     \
+    !defined(WEBCPP_TARGET_WASIP3) &&                                           \
+    ((defined(WEBCPP_TARGET_EMSCRIPTEN) && defined(__EMSCRIPTEN_PTHREADS__)) || \
+     (!defined(WEBCPP_TARGET_EMSCRIPTEN) && defined(BOOST_HAS_THREADS)))
+#define WEBCPP_CRYPTO_HAS_THREADS 1
 #endif
 
 // The refusals of impossible combinations. Clang and gcc go on after an

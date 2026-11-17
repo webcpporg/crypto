@@ -551,7 +551,9 @@
         "sodium_not_linked_on_emscripten": "A program for Emscripten that names libsodium and links none.",
         "ed25519_default_not_linked_on_emscripten": "A program for Emscripten that makes an Ed25519 key pair on its default, libsodium, and links none.",
         "ed25519_on_bearssl_on_emscripten": "A program for Emscripten that names BearSSL, which has no Ed25519, in an Ed25519 key pair's type.",
-        "ed25519ph_sha256_on_emscripten": "A program for Emscripten that names SHA-256 in Ed25519ph's type, which RFC 8032 defines over SHA-512."
+        "ed25519ph_sha256_on_emscripten": "A program for Emscripten that names SHA-256 in Ed25519ph's type, which RFC 8032 defines over SHA-512.",
+        "heavy_without_threads_on_emscripten": "A program for Emscripten without `-pthread` that calls a heavy operation's `async_` variant (a test's own).",
+        "threads_on_emscripten": "A program for Emscripten built with `<threading>multi`, which is `-pthread`: the build has threads."
     },
     "fixes": {
         "gcm_default_openssl_not_linked": "Natively the default is OpenSSL: add `/webcpp/crypto//openssl`, or name BearSSL in the type, as in `gcm<aes256<backends::bearssl>>`.",
@@ -596,6 +598,8 @@
         "ed25519ph_sha256": "Name `curves::ed25519::ph<webcpp::hash::sha2_512>`: RFC 8032 defines Ed25519ph over SHA-512.",
         "ed25519ph_sha256_on_emscripten": "As `ed25519ph_sha256`.",
         "ed25519_default_not_linked": "Add `/third_party//sodium`, or `/webcpp/crypto//ed25519-default`, which links it on every target.",
-        "ed25519_default_not_linked_on_emscripten": "As `ed25519_default_not_linked`."
+        "ed25519_default_not_linked_on_emscripten": "As `ed25519_default_not_linked`.",
+        "heavy_without_threads": "Call the synchronous operation the message names, or build with threads: natively without `WEBCPP_CRYPTO_NO_THREADS` (b2's `threading=multi`), on Emscripten with `-pthread`; WASI has none.",
+        "heavy_without_threads_on_emscripten": "As `heavy_without_threads`: on Emscripten, add `<threading>multi`."
     }
 }

@@ -73,6 +73,12 @@ The fix: Natively the default is OpenSSL: add `+/webcpp/crypto//openssl+`, or na
 
 The fix: Name `+gcm<aes256<backends::bearssl>>+` or `+gcm<aes256<backends::openssl>>+`, or use `+aes256_gcm+` with its default linked.
 
+|`+heavy_without_threads+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively b2 threading=multi; on Emscripten -pthread). Without threads, call slow.+`
+
+The fix: Call the synchronous operation the message names, or build with threads: natively without `+WEBCPP_CRYPTO_NO_THREADS+` (b2's `+threading=multi+`), on Emscripten with `+-pthread+`; WASI has none.
+
 |`+no_backend_wasm+`
 |wasip2, wasip3
 |`+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked. Add /third_party//bearssl to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::openssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
@@ -438,6 +444,20 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: OpenSSL is not built for Emscripten. In the program's Jamfile, replace /webcpp/crypto//openssl with /third_party//bearssl.+`
 
+`+heavy_without_threads_on_emscripten+`:: A program for Emscripten without `+-pthread+` that calls a heavy operation's `+async_+` variant (a test's own). The fix: As `+heavy_without_threads+`: on Emscripten, add `+<threading>multi+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/heavy_without_threads_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively b2 threading=multi; on Emscripten -pthread). Without threads, call slow.+`
+
 `+memory_missing_definition_install+`:: The memory option set in the program's project, the install called, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
 +
 Its Jamfile:
@@ -609,6 +629,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+gcm_on_ctaes+`
 |the compile
 |Name `+gcm<aes256<backends::bearssl>>+` or `+gcm<aes256<backends::openssl>>+`, or use `+aes256_gcm+` with its default linked.
+
+|`+heavy_without_threads+`
+|the compile
+|Call the synchronous operation the message names, or build with threads: natively without `+WEBCPP_CRYPTO_NO_THREADS+` (b2's `+threading=multi+`), on Emscripten with `+-pthread+`; WASI has none.
 
 |`+memory_missing_definition_install+`
 |the link

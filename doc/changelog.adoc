@@ -16,7 +16,7 @@ of every version are on webcpp's index page.
 === Unreleased
 
 // tag::unreleased[]
-* Added crypto, primitives over C backends: ciphers, curves and randomness, with errors of fixed values in webcpp.crypto, every result `+[[nodiscard]]+`.
+* Added crypto, primitives over C backends: ciphers, curves and randomness, with errors of fixed values in webcpp.crypto, every result `+[[nodiscard]]+`, and WEBCPP_CRYPTO_HAS_THREADS, defined natively and on Emscripten with -pthread unless WEBCPP_CRYPTO_NO_THREADS is.
 * Added equal, random_device, ciphers::aes128, aes192 and aes256, the AES block cipher, and ciphers::gcm, AES-GCM in place with an incremental seal whose failed open zeroes the data.
 * Added default_backend_t and /webcpp/crypto//<family>-default, one default backend per family and target whatever is linked, ciphers::aes128_gcm and aes256_gcm, and refusals naming the Jamfile line and another backend's type.
 * Added backends::bearssl (AES-GCM allocating nothing, no block cipher), backends::openssl through /webcpp/crypto//openssl on native and WASI (allocating at make only), and backends::ctaes (block cipher alone).

@@ -28,7 +28,8 @@ constexpr std::size_t key_size_of() {
 
 /**
  * Makes an algorithm, through the type a program names, from a key whose bytes are all 1, or,
- * for one keyed by no key of its own (Ed25519ph's signer), begins it: a cell the capability
+ * for one keyed by no key of its own (Ed25519ph's signer), begins it, or, for one of free
+ * functions alone (X25519), gives that key's public key: a cell the capability
  * table marks present whose engine is missing fails to compile here. The type names its family
  * and its algorithm as the table does, and `supports_v` says that the backend has it.
  *
@@ -36,19 +37,21 @@ constexpr std::size_t key_size_of() {
  * @tparam Family Its family's tag.
  * @tparam Name Its algorithm's tag.
  * @tparam Backend Its backend.
- * @return Whether `make` succeeded.
+ * @return Whether `make`, `begin` or `public_key` succeeded.
  */
 template <class Algorithm, class Family, class Name, class Backend>
 [[nodiscard]] bool made() {
     static_assert(std::is_same_v<typename Algorithm::family_type, Family>);
     static_assert(std::is_same_v<typename Algorithm::name_type, Name>);
     static_assert(webcpp::crypto::supports_v<Algorithm, Backend>);
+    std::array<std::uint8_t, key_size_of<Algorithm>()> key_bytes{};
+    key_bytes.fill(1);
     if constexpr (requires { Algorithm::begin(); }) {
         return Algorithm::begin().has_value();
-    } else {
-        std::array<std::uint8_t, key_size_of<Algorithm>()> key_bytes{};
-        key_bytes.fill(1);
+    } else if constexpr (requires { Algorithm::make(key_bytes); }) {
         return Algorithm::make(key_bytes).has_value();
+    } else {
+        return Algorithm::public_key(key_bytes).has_value();
     }
 }
 

@@ -74,3 +74,8 @@ webcpp.example openssl_memory.cpp
 # The guide's Ed25519 program: RFC 8032's second test signed and verified, then
 # Ed25519ph's test given in two pieces, on the family's default.
 webcpp.example ed25519_sign.cpp : <library>/webcpp/crypto//ed25519-default ;
+
+# The guide's X25519 program: RFC 7748's Alice and Bob, the agreement of two
+# Ed25519 key pairs through their X25519 forms, and a peer of low order
+# refused, on the family's default.
+webcpp.example x25519_agree.cpp : <library>/webcpp/crypto//x25519-default ;

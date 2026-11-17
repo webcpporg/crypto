@@ -6,7 +6,7 @@
 
 /**
  Every header of webcpp::crypto that needs no backend, the header of each backend the build
- links with the curves it holds (libsecp256k1's secp256k1, libsodium's Ed25519), and
+ links with the curves it holds (libsecp256k1's secp256k1, libsodium's Ed25519 and X25519), and
  `ciphers/aes256_gcm.hpp`, whose `aes128_gcm` and `aes256_gcm` name AES-GCM's default
  backend: a program that does not link the default names another in the type, as
  `ciphers::gcm<ciphers::aes256<backends::openssl>>` on WebAssembly.
@@ -39,6 +39,7 @@
 #ifdef WEBCPP_CRYPTO_HAS_SODIUM
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/curves/x25519.hpp>
 #endif
 
 #ifdef WEBCPP_CRYPTO_HAS_SECP256K1

@@ -17,6 +17,7 @@
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/supports.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -78,6 +79,12 @@ struct refuses_secp256k1 {
 template <class Backend>
 struct refuses_ed25519 {
     WEBCPP_CRYPTO_DETAIL_REFUSE_ED25519(Backend);
+};
+
+/** The refusals of X25519, parsed: nothing instantiates it. */
+template <class Backend>
+struct refuses_x25519 {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_X25519(Backend);
 };
 
 }  // namespace
@@ -208,6 +215,20 @@ static_assert(crypto::supports_v<algorithm<families::ed25519, tags::ed25519ph>, 
 #else
 static_assert(!crypto::supports_v<algorithm<families::ed25519, tags::ed25519ph>, backends::sodium>);
 #endif
+// X25519 on bearssl: none.
+static_assert(!crypto::supports_v<algorithm<families::x25519, families::x25519>, backends::bearssl>);
+// X25519 on openssl: none.
+static_assert(!crypto::supports_v<algorithm<families::x25519, families::x25519>, backends::openssl>);
+// X25519 on ctaes: none.
+static_assert(!crypto::supports_v<algorithm<families::x25519, families::x25519>, backends::ctaes>);
+// X25519 on secp256k1: none.
+static_assert(!crypto::supports_v<algorithm<families::x25519, families::x25519>, backends::secp256k1>);
+// X25519 on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::x25519, families::x25519>, backends::sodium>);
+#else
+static_assert(!crypto::supports_v<algorithm<families::x25519, families::x25519>, backends::sodium>);
+#endif
 // clang-format on
 
 int main() {
@@ -256,6 +277,9 @@ int main() {
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
     BOOST_TEST((webcpp::test::made<crypto::curves::ed25519::ph<boost::hash2::sha2_512, backends::sodium>, families::ed25519, tags::ed25519ph, backends::sodium>()));
+#endif
+#if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
+    BOOST_TEST((webcpp::test::made<crypto::curves::x25519::algorithm<backends::sodium>, families::x25519, families::x25519, backends::sodium>()));
 #endif
     // clang-format on
     return webcpp::test::exit_status(boost::report_errors());

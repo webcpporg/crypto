@@ -4,8 +4,8 @@
 # accompanying file LICENSE_1_0.txt or copy at
 # https://www.boost.org/LICENSE_1_0.txt)
 
-# crypto: authenticated encryption, randomness, secp256k1 and Ed25519 over C
-# backends.
+# crypto: authenticated encryption, randomness, secp256k1, Ed25519 and X25519
+# over C backends.
 # A program names /webcpp/crypto//crypto and the library of each backend it
 # uses, /third_party//<backend> (third_party/Jamfile), or, for OpenSSL,
 # /webcpp/crypto//openssl; or, for a family's default backend on every
@@ -89,4 +89,15 @@ rule ed25519-default-linked ( properties * )
     }
 }
 alias ed25519-default : : : : <conditional>@ed25519-default-linked ;
+rule x25519-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/third_party//sodium ;
+        case wasip2 : return <library>/third_party//sodium ;
+        case wasip3 : return <library>/third_party//sodium ;
+        case emscripten : return <library>/third_party//sodium ;
+    }
+}
+alias x25519-default : : : : <conditional>@x25519-default-linked ;
 # generate.py: end the defaults' aliases

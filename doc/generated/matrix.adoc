@@ -100,6 +100,21 @@
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+ed25519ph_sodium+`
+
+|`+curves::ed25519::to_x25519_public+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+x25519_sodium+`
+
+|`+curves::x25519::public_key+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+x25519_sodium+`
+
+|`+curves::x25519::agree+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+x25519_sodium+`, `+x25519_wycheproof_sodium+`
 |===
 
 The same, by target: the backends each operation runs on.
@@ -181,6 +196,24 @@ The same, by target: the backends each operation runs on.
 |libsodium
 
 |`+curves::ed25519::ph+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::ed25519::to_x25519_public+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::x25519::public_key+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::x25519::agree+`
 |libsodium
 |libsodium
 |libsodium

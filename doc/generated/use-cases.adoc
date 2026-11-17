@@ -133,8 +133,15 @@
 `+/webcpp/crypto//ed25519-default+`
 |<<crypto-ed25519,[.keep]`+ed25519_sign.cpp+`>>
 
-|Use P-256 (passkeys, JWT's ES256) or X25519
-|None in this version: secp256k1 and Ed25519 keys and signatures do not interoperate with these curves
+|Agree a shared secret with a peer's public key (X25519, RFC 7748), or with the X25519 form of an Ed25519 key
+|In `+curves::x25519+`: `+public_key+`, `+agree+`; `+curves::ed25519::to_x25519_public+`, `+keypair::x25519_secret+`
+|libsodium
+|`+/webcpp/crypto//crypto+` +
+`+/webcpp/crypto//x25519-default+`
+|<<crypto-x25519,[.keep]`+x25519_agree.cpp+`>>
+
+|Use P-256 (passkeys, JWT's ES256)
+|None in this version: secp256k1, Ed25519 and X25519 keys and signatures do not interoperate with this curve
 |none
 |none
 |<<crypto-curves>>

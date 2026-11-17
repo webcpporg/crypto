@@ -1,0 +1,69 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-x25519]
+=== X25519
+
+`<webcpp/crypto/curves/x25519.hpp>` is X25519, the Diffie-Hellman key agreement
+on Curve25519 of RFC 7748
+(link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748]), on libsodium
+(`/third_party//sodium`, or `/webcpp/crypto//x25519-default`, which links it on
+every target), in the namespace `webcpp::crypto::curves::x25519`. Two parties
+each keep a 32-byte secret key and send the other its 32-byte public key; each
+combines its own secret key with the other's public key and both get the same
+32-byte shared secret, which no one who saw only the public keys can compute.
+A chat app agrees a key this way with each contact, and TLS 1.3, SSH,
+WireGuard and Signal start their sessions with it
+(link:https://www.rfc-editor.org/rfc/rfc8446#section-4.2.7[RFC 8446];
+link:https://www.rfc-editor.org/rfc/rfc8731[RFC 8731];
+link:https://www.wireguard.com/protocol/[WireGuard];
+link:https://signal.org/docs/specifications/x3dh/[X3DH]).
+
+`public_key(secret_key)` gives the public key of any 32 bytes, which a program
+draws with `random_device`; `agree(secret_key, peer_public_key)` gives the
+shared secret, a `secret<32>` that wipes itself. A peer's public key of low
+order makes the shared secret all zero, whatever the secret key: `agree`
+refuses it with `weak_public_key`, so that an attacker who sends such a key
+cannot make both sides use a secret it knows (design D8). Every case of
+Wycheproof's X25519 file gives its shared secret, and its 31 all-zero cases
+give `weak_public_key` (`x25519_wycheproof_sodium`).
+
+include::generated/backends-x25519_public_key.adoc[]
+
+include::generated/backends-x25519_agree.adoc[]
+
+*From Ed25519.* A program that already holds an Ed25519 key pair (<<crypto-ed25519>>)
+agrees with the same seed: `keypair::x25519_secret()` is its X25519 secret key,
+and `curves::ed25519::to_x25519_public(public_key)` converts a peer's Ed25519
+public key to its X25519 public key, the birational map between the two forms
+of the curve. The conversion refuses with `invalid_public_key` a key of small
+order, off the curve or outside the main subgroup, as libsodium does
+(link:https://doc.libsodium.org/advanced/ed25519-curve25519[libsodium's documentation]).
+
+include::generated/backends-ed25519_to_x25519_public.adoc[]
+
+*Example.* RFC 7748's Alice and Bob, then two Ed25519 key pairs that agree
+through their X25519 forms, then a peer key of low order refused:
+
+[source,cpp]
+----
+include::{examples}/x25519_agree.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/x25519_agree.expected[]
+----
+
+*Pitfalls.*
+
+* The shared secret is not a key: a program derives its keys from it, with the
+two public keys, through a KDF such as HKDF, and never uses its bytes as a
+cipher's key directly
+(link:https://doc.libsodium.org/advanced/scalar_multiplication[libsodium's documentation, scalar multiplication]).
+* X25519 proves nothing about who sent a public key: an attacker in the middle
+agrees one secret with each side. A protocol signs the public keys, or checks
+them against keys it already trusts.

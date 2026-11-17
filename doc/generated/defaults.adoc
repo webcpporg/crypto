@@ -52,4 +52,10 @@
 |libsodium
 |the only backend in this version, on every target, and its verification is the policy `strict` (link:https://doc.libsodium.org/public-key_cryptography/public-key_signatures[libsodium's documentation, public-key signatures]; link:https://www.rfc-editor.org/rfc/rfc8032[RFC 8032, the Edwards-curve Digital Signature Algorithm (EdDSA)])
 |`+ed25519_sodium+`, `+default_backend_none_linked+`
+
+|X25519
+|native, wasip2, wasip3, emscripten
+|libsodium
+|the only backend in this version, on every target; it refuses an all-zero shared secret itself (link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748, Elliptic Curves for Security (X25519 and X448)])
+|`+x25519_sodium+`, `+default_backend_none_linked+`
 |===

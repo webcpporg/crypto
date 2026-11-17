@@ -12,6 +12,8 @@ MSVC), wasip2, wasip3 and Emscripten.
   ECDH, ECDSA's strict DER and low-S forms, and the x-only tweak.
 - `webcpp::crypto::curves::ed25519`: Ed25519 signatures (RFC 8032) with strict verification, the
   X25519 secret key of a key pair, and Ed25519ph over SHA-512 for a message given in pieces.
+- `webcpp::crypto::curves::x25519`: X25519 key agreement (RFC 7748), refusing an all-zero shared
+  secret, and `curves::ed25519::to_x25519_public` for a peer known by its Ed25519 key.
 
 The algorithms are those of widely used, reviewed C libraries, each a backend that a program
 names in its own Jamfile and that webcpp builds from its sources: BearSSL

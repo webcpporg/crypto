@@ -65,3 +65,11 @@ static_assert(crypto::detail::supported<families::ed25519, families::ed25519,
                                         crypto::default_backend_t<families::ed25519>>);
 static_assert(crypto::detail::supported<families::ed25519, crypto::tags::ed25519ph,
                                         crypto::default_backend_t<families::ed25519>>);
+
+// X25519: libsodium, the only backend, on every target.
+static_assert(std::is_same_v<crypto::default_backend_t<families::x25519>, backends::sodium>);
+#ifndef WEBCPP_CRYPTO_DETAIL_DEFAULT_X25519_SODIUM
+#error "curves/x25519.hpp is told to include another header than libsodium's"
+#endif
+static_assert(crypto::detail::supported<families::x25519, families::x25519,
+                                        crypto::default_backend_t<families::x25519>>);

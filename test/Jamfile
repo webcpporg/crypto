@@ -28,10 +28,10 @@ OPTIMISED = <optimization>speed <toolset>emscripten:<debug-symbols>off ;
 
 webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/equal.hpp crypto/error.hpp crypto/ciphers/aes.hpp crypto/ciphers/gcm.hpp
-  crypto/random_device.hpp crypto/detail/declassify.hpp crypto/detail/engines.hpp
-  crypto/detail/entropy.hpp crypto/detail/limits.hpp crypto/detail/windows.hpp
-  crypto/detail/wipe.hpp crypto/secret.hpp crypto/supports.hpp
-  crypto/detail/capabilities.hpp crypto/detail/defaults.hpp ;
+  crypto/random_device.hpp crypto/detail/bytes.hpp crypto/detail/declassify.hpp
+  crypto/detail/engines.hpp crypto/detail/entropy.hpp crypto/detail/limits.hpp
+  crypto/detail/windows.hpp crypto/detail/wipe.hpp crypto/secret.hpp
+  crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp ;
 
 # The backend BearSSL's header and the default backend's, with BearSSL linked,
 # on every target.
@@ -50,10 +50,10 @@ webcpp.headers-alone crypto : ../include : crypto/backends/openssl.hpp
 # The backend ctaes's header alone, with ctaes linked, on every target.
 webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp
   : <library>/third_party//ctaes ;
-# The backend libsodium's header alone, and Ed25519's with it, with libsodium
-# linked, on every target.
+# The backend libsodium's header alone, and Ed25519's and X25519's with it,
+# with libsodium linked, on every target.
 webcpp.headers-alone crypto : ../include
-  : crypto/backends/sodium.hpp crypto/curves/ed25519.hpp
+  : crypto/backends/sodium.hpp crypto/curves/ed25519.hpp crypto/curves/x25519.hpp
   : <library>/third_party//sodium ;
 # libsecp256k1's headers compile alone only with its library, which defines
 # WEBCPP_CRYPTO_HAS_SECP256K1 (without it, each stops with its message).
@@ -268,6 +268,14 @@ crypto-run ed25519_wycheproof_sodium : ed25519_wycheproof_sodium_test.cpp
   : <library>/third_party//sodium <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;
 crypto-run ed25519ph_sodium : ed25519ph_sodium_test.cpp : <library>/third_party//sodium ;
+
+# X25519 on libsodium: RFC 7748's scalar multiplications and Alice and Bob, a
+# peer of order 8 refused as weak, the guards and the conversion from Ed25519;
+# Wycheproof's X25519 file, every case.
+crypto-run x25519_sodium : x25519_sodium_test.cpp : <library>/third_party//sodium ;
+crypto-run x25519_wycheproof_sodium : x25519_wycheproof_sodium_test.cpp
+  : <library>/third_party//sodium <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
 
 # The capability table of doc/tables/crypto.json, which generate.py writes
 # this test from: supports_v of every cell on the target, and each present

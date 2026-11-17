@@ -178,6 +178,24 @@ struct ed25519_engine<families::ed25519, backends::sodium> {
         return {};
     }
 
+    /**
+     * The X25519 public key of an Ed25519 public key, `crypto_sign_ed25519_pk_to_curve25519`,
+     * which refuses a key of small order, not on the curve or outside the main subgroup.
+     *
+     * @return Nothing; `invalid_public_key`; `backend_failure`.
+     */
+    [[nodiscard]] static boost::system::result<void> to_x25519_public(
+        std::span<std::uint8_t const, 32> public_key, std::span<std::uint8_t, 32> out) noexcept {
+        auto const ready = sodium_ready();
+        if (!ready) {
+            return ready;
+        }
+        if (crypto_sign_ed25519_pk_to_curve25519(out.data(), public_key.data()) != 0) {
+            return error::invalid_public_key;
+        }
+        return {};
+    }
+
     /** Wipes the secret key. */
     static void reset(state& keyed) noexcept { wipe_object(keyed.secret_key); }
 };
@@ -256,3 +274,63 @@ struct ed25519ph_engine<tags::ed25519ph, backends::sodium> {
 }  // namespace webcpp::crypto::detail
 
 #endif  // Ed25519 on libsodium
+
+// X25519 on libsodium, for a program that includes curves/x25519.hpp, before this header or
+// after it, as Ed25519's above.
+#if defined(WEBCPP_CRYPTO_CURVES_X25519_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+    !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_X25519)
+/** Defined once libsodium's X25519 engine is. */
+#define WEBCPP_CRYPTO_BACKENDS_SODIUM_X25519
+
+#include <sodium/crypto_scalarmult_curve25519.h>
+
+#include <cstdint>
+#include <span>
+
+namespace webcpp::crypto::detail {
+
+/** X25519 on libsodium, `crypto_scalarmult_curve25519`. */
+template <>
+struct x25519_engine<families::x25519, backends::sodium> {
+    /**
+     * The public key of a secret key, `crypto_scalarmult_curve25519_base`.
+     *
+     * @return Nothing; `backend_failure`.
+     */
+    [[nodiscard]] static boost::system::result<void> base(
+        std::span<std::uint8_t const, 32> secret_key, std::span<std::uint8_t, 32> out) noexcept {
+        auto const ready = sodium_ready();
+        if (!ready) {
+            return ready;
+        }
+        if (crypto_scalarmult_curve25519_base(out.data(), secret_key.data()) != 0) {
+            return error::backend_failure;
+        }
+        return {};
+    }
+
+    /**
+     * The shared secret, `crypto_scalarmult_curve25519`, which returns -1 for an all-zero
+     * result.
+     *
+     * @return Nothing; `weak_public_key`; `backend_failure`.
+     */
+    [[nodiscard]] static boost::system::result<void> agree(
+        std::span<std::uint8_t const, 32> secret_key,
+        std::span<std::uint8_t const, 32> peer_public_key,
+        std::span<std::uint8_t, 32> out) noexcept {
+        auto const ready = sodium_ready();
+        if (!ready) {
+            return ready;
+        }
+        if (crypto_scalarmult_curve25519(out.data(), secret_key.data(), peer_public_key.data()) !=
+            0) {
+            return error::weak_public_key;
+        }
+        return {};
+    }
+};
+
+}  // namespace webcpp::crypto::detail
+
+#endif  // X25519 on libsodium

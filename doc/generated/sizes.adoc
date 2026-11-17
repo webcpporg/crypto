@@ -82,4 +82,28 @@
 |not measured yet
 |not measured yet
 |not measured yet
+
+|`+curves::ed25519::to_x25519_public+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|`+curves::x25519::public_key+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|`+curves::x25519::agree+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
 |===

@@ -6,8 +6,8 @@
 
 /**
  Ed25519 signatures (RFC 8032): a key pair made from a 32-byte seed, signatures of 64 bytes,
- and verification, strict on libsodium; and Ed25519ph, the same signature over SHA-512 of a
- message given in pieces.
+ verification, strict on libsodium, and the conversion of a public key to X25519's; and Ed25519ph,
+ the same signature over SHA-512 of a message given in pieces.
 
  The family's default backend, libsodium on every target, is included when the program links
  it; a program that uses the family without linking it stops where it calls it, with the
@@ -259,6 +259,31 @@ boost::system::result<void> verify(std::span<std::uint8_t const> public_key,
 }
 
 /**
+ * The X25519 public key of an Ed25519 public key (the birational map from edwards25519 to
+ * Curve25519), so that a peer known by its Ed25519 key can be agreed with by
+ * `curves::x25519::agree`; the key pair's own side is `basic_keypair::x25519_secret`.
+ *
+ * @tparam Backend The backend; by default the family's.
+ * @param ed25519_public_key 32 bytes.
+ * @return 32 bytes; `invalid_public_key` for a key of another size, not canonical, not on the
+ * curve or of small order.
+ */
+template <class Backend = default_backend_t<families::ed25519>>
+boost::system::result<std::array<std::uint8_t, 32>> to_x25519_public(
+    std::span<std::uint8_t const> ed25519_public_key) noexcept {
+    if (ed25519_public_key.size() != 32) {
+        return error::invalid_public_key;
+    }
+    std::array<std::uint8_t, 32> converted{};
+    auto const done = detail::ed25519_engine<families::ed25519, Backend>::to_x25519_public(
+        ed25519_public_key.first<32>(), converted);
+    if (!done) {
+        return done.error();
+    }
+    return converted;
+}
+
+/**
  * Ed25519ph (RFC 8032 section 5.1), the Ed25519 signature of a message's SHA-512, given in
  * pieces.
  *
@@ -455,6 +480,13 @@ struct ed25519_engine {
     /** Never called; fails closed. */
     template <class... Arguments>
     [[nodiscard]] static boost::system::result<void> x25519_secret(
+        Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> to_x25519_public(
         Arguments&&... /*arguments*/) noexcept {
         return error::backend_failure;
     }

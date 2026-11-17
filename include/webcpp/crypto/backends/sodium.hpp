@@ -157,9 +157,10 @@ struct aead_engine<Family, backends::sodium> {
         std::span<std::uint8_t> data, boost::hash2::digest<16>& tag) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
         unsigned long long tag_length = 0;
-        auto* const bytes = writable(data);
-        // libsodium encrypts in place when the output is the input (its documented contract).
-        if (calls::encrypt(bytes, tag.data(), &tag_length, bytes, data.size(),
+        // libsodium encrypts in place when the output is the input (its documented contract);
+        // an empty span's null data() is never read or written, since every stream of
+        // ChaCha20 returns at once on no byte.
+        if (calls::encrypt(data.data(), tag.data(), &tag_length, data.data(), data.size(),
                            additional_data.data(), additional_data.size(), nullptr, iv.data(),
                            s.key.data()) != 0) {
             return error::backend_failure;
@@ -176,9 +177,12 @@ struct aead_engine<Family, backends::sodium> {
         state& s, std::span<std::uint8_t const> iv, std::span<std::uint8_t const> additional_data,
         std::span<std::uint8_t> data, std::array<std::uint8_t, 16> const& tag) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        auto* const bytes = writable(data);
-        if (calls::decrypt(bytes, nullptr, bytes, data.size(), tag.data(), additional_data.data(),
-                           additional_data.size(), iv.data(), s.key.data()) != 0) {
+        // An empty span's null data() makes libsodium check the tag alone: its detached
+        // decryptions return the verdict when the output is null, before clearing or decrypting
+        // it.
+        if (calls::decrypt(data.data(), nullptr, data.data(), data.size(), tag.data(),
+                           additional_data.data(), additional_data.size(), iv.data(),
+                           s.key.data()) != 0) {
             return error::authentication_failed;
         }
         return {};
@@ -192,15 +196,6 @@ struct aead_engine<Family, backends::sodium> {
 
     /** Wipes the key. */
     static void reset(state& s) noexcept { wipe_object(s.key); }
-
-private:
-    // The data's first byte, or one of the engine's own for an empty span, whose data() may be
-    // null: libsodium clears the output of a failed open with memset, which takes no null
-    // pointer, even for no byte.
-    static std::uint8_t* writable(std::span<std::uint8_t> data) noexcept {
-        static std::uint8_t none = 0;
-        return data.empty() ? &none : data.data();
-    }
 };
 
 }  // namespace webcpp::crypto::detail

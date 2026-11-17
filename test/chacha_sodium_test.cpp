@@ -17,6 +17,8 @@
 
 #include <boost/core/lightweight_test.hpp>
 
+#include <cstddef>
+#include <cstdint>
 #include <type_traits>
 
 namespace crypto = webcpp::crypto;

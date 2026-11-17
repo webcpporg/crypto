@@ -660,6 +660,7 @@
         "ctaes_not_linked": "Add `/third_party//ctaes`.",
         "sodium_not_linked": "Add `/third_party//sodium`.",
         "chacha_default_not_linked": "The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add `/third_party//sodium`.",
+        "aead_not_a_family": "Name one of the three ChaCha20-Poly1305 families; AES-GCM is `ciphers::gcm`, as in `aes256_gcm`.",
         "sodium_not_linked_on_emscripten": "Add `/third_party//sodium` to the program's sources.",
         "canary_sodium_other_commit": "Build the library at the commit of webcpp's submodule, or link it through b2.",
         "secp256k1_not_linked": "Add `/third_party//secp256k1`.",

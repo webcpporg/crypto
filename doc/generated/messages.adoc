@@ -13,6 +13,12 @@ At compile time, checked word for word by the message tests of `test/messages` w
 |===
 |Case |Checked on |The message, and its fix
 
+|`+aead_not_a_family+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original or families::xchacha20_poly1305.+`
+
+The fix: Name one of the three ChaCha20-Poly1305 families; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`.
+
 |`+aes_on_bearssl+`
 |native, wasip2
 |`+webcpp::crypto: ciphers::aes256<backends::bearssl>: BearSSL exports AES only inside its modes, with no block cipher. Name a backend that exports it, as in ciphers::aes256<backends::ctaes> or ciphers::aes256<backends::openssl>, and add its library to the program's Jamfile.+`
@@ -560,6 +566,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |===
 |Case |Stops |Fix
 
+|`+aead_not_a_family+`
+|the compile
+|Name one of the three ChaCha20-Poly1305 families; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`.
+
 |`+aes_on_bearssl+`
 |the compile
 |Name `+ciphers::aes256<backends::ctaes>+`, include `+<webcpp/crypto/backends/ctaes.hpp>+` and add `+/third_party//ctaes+`.
@@ -603,6 +613,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+canary_two_files+`
 |the link
 |Compile every file of the program with the same backend settings.
+
+|`+chacha_default_not_linked+`
+|the compile
+|The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add `+/third_party//sodium+`.
 
 |`+ctaes_not_linked+`
 |the compile

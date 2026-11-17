@@ -89,17 +89,54 @@ namespace webcpp::crypto::detail {
 template <class Family, class Backend>
 struct aead_state {};
 
+/** Whether `Family` is one of the AEAD families `ciphers::aead` takes. */
+template <class Family>
+inline constexpr bool aead_family = false;
+
+/** ChaCha20-Poly1305 is an AEAD family. */
+template <>
+inline constexpr bool aead_family<families::chacha20_poly1305> = true;
+
+/** The original ChaCha20-Poly1305 is an AEAD family. */
+template <>
+inline constexpr bool aead_family<families::chacha20_poly1305_original> = true;
+
+/** XChaCha20-Poly1305 is an AEAD family. */
+template <>
+inline constexpr bool aead_family<families::xchacha20_poly1305> = true;
+
 /**
- * The refusal of an AEAD family on a backend whose header does not specialise its engine: the
- * primary refuses a type that is no AEAD family.
+ * The sizes and limits `ciphers::aead` reads from its family: the family's own.
+ *
+ * @tparam Family An AEAD family.
+ */
+template <class Family, bool = aead_family<Family>>
+struct aead_sizes : Family {};
+
+/**
+ * The sizes of a type that is no AEAD family, which `ciphers::aead` refuses first: placeholders,
+ * so that the compiler adds no error of its own after the refusal.
+ */
+template <class Family>
+struct aead_sizes<Family, false> {
+    /** A placeholder. */
+    static constexpr std::size_t key_size = 1;
+    /** A placeholder. */
+    static constexpr std::size_t iv_size = 1;
+    /** A placeholder. */
+    static constexpr std::size_t tag_size = 1;
+    /** A placeholder. */
+    static constexpr std::uint64_t max_message_size = 0;
+    /** A placeholder. */
+    static constexpr std::uint64_t max_additional_data_size = 0;
+};
+
+/**
+ * The refusal of an AEAD family on a backend whose header does not specialise its engine: each
+ * family's below. A type that is no AEAD family has none here: `ciphers::aead` refuses it first.
  */
 template <class Family, class Backend>
-struct aead_refusal {
-    static_assert(dependent_false<Family>,
-                  "webcpp::crypto: ciphers::aead takes an AEAD family: "
-                  "families::chacha20_poly1305, families::chacha20_poly1305_original or "
-                  "families::xchacha20_poly1305.");
-};
+struct aead_refusal {};
 
 /** ChaCha20-Poly1305's refusal, which names what the program needs (`detail/capabilities.hpp`). */
 template <class Backend>
@@ -175,6 +212,13 @@ namespace webcpp::crypto::ciphers {
  */
 template <class Family, class Backend>
 class aead {
+    // The first error a program that names another type sees, and its only one.
+    static_assert(detail::aead_family<Family>,
+                  "webcpp::crypto: ciphers::aead takes an AEAD family: "
+                  "families::chacha20_poly1305, families::chacha20_poly1305_original or "
+                  "families::xchacha20_poly1305.");
+
+    using sizes = detail::aead_sizes<Family>;
     using state_type = detail::aead_state<Family, Backend>;
     using engine = detail::aead_engine<Family, Backend>;
 
@@ -186,17 +230,17 @@ public:
     /** The algorithm of the capability table: the family's own tag, its one algorithm. */
     using name_type = Family;
     /** The tag, Boost.Hash2's digest of `tag_size` bytes. */
-    using result_type = boost::hash2::digest<Family::tag_size>;
+    using result_type = boost::hash2::digest<sizes::tag_size>;
     /** The key's size. */
-    static constexpr std::size_t key_size = Family::key_size;
+    static constexpr std::size_t key_size = sizes::key_size;
     /** The nonce's size, exactly. */
-    static constexpr std::size_t iv_size = Family::iv_size;
+    static constexpr std::size_t iv_size = sizes::iv_size;
     /** The tag's size. */
-    static constexpr std::size_t tag_size = Family::tag_size;
+    static constexpr std::size_t tag_size = sizes::tag_size;
     /** The longest message. */
-    static constexpr std::uint64_t max_message_size = Family::max_message_size;
+    static constexpr std::uint64_t max_message_size = sizes::max_message_size;
     /** The longest additional data. */
-    static constexpr std::uint64_t max_additional_data_size = Family::max_additional_data_size;
+    static constexpr std::uint64_t max_additional_data_size = sizes::max_additional_data_size;
 
     /**
      * Makes an object under a key.

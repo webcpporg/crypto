@@ -68,9 +68,10 @@ private:
 int main() {
     std::cout << "the C library's allocations counted: " << webcpp::test::c_allocations_counted
               << "\n";
-    // The control: one operator new moves the counter.
+    // The control: one operator new moves the counter. A call of the function, not a
+    // new-expression, whose allocation the optimizer may elide ([expr.new]), as -O3 does.
     std::size_t const control = webcpp::test::allocations();
-    delete new int(1);  // NOLINT(cppcoreguidelines-owning-memory): the control's allocation
+    ::operator delete(::operator new(sizeof(int)));
     BOOST_TEST(webcpp::test::allocations() > control);
 
     counting_resource resource;

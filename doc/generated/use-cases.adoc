@@ -106,6 +106,13 @@
 `+/third_party//secp256k1+`
 |<<crypto-secp256k1-ellswift,[.keep]`+ellswift_handshake.cpp+`>>
 
+|Publish one donation address that never shows two payments as related (BIP 352's addresses and transactions are a domain library's)
+|In `+curves::secp256k1::silent_payments+`: `+create_outputs+`, `+make_prevouts_summary+`, `+scan_outputs+`
+|libsecp256k1
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+`
+|<<crypto-secp256k1-silent-payments,[.keep]`+silent_payment.cpp+`>>
+
 |Require two devices to sign for a wallet, with one ordinary signature on the chain
 |In `+curves::secp256k1::musig+`: `+key_aggregate+`, `+nonce_gen+`, `+partial_sign+`, `+partial_signature_aggregate+`
 |libsecp256k1

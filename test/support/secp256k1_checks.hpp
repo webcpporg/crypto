@@ -14,6 +14,7 @@
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
 #include <webcpp/crypto/curves/secp256k1/formats.hpp>
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
+#include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -67,6 +68,47 @@ inline void expect_empty_musig_signer(webcpp::crypto::curves::secp256k1::keypair
 }
 
 /**
+ * Silent payments' three functions of a key pair answer `invalid_state` for an empty pair: an
+ * input of the sender's, on either side, a scan key's label, and a scan by it.
+ *
+ * @param key The empty pair.
+ * @param live A keyed pair, the recipient's scan and spend key and the other input.
+ */
+inline void expect_empty_silent_payments(webcpp::crypto::curves::secp256k1::keypair const& key,
+                                         webcpp::crypto::curves::secp256k1::keypair const& live) {
+    namespace secp = webcpp::crypto::curves::secp256k1;
+    namespace sp = secp::silent_payments;
+    auto const live_key = secp::parse_public_key(*live.public_key());
+    if (!BOOST_TEST(live_key.has_value())) {
+        return;
+    }
+    sp::recipient const address{.scan_key = *live_key, .spend_key = *live_key};
+    std::array<sp::recipient, 1> const recipients{address};
+    std::array<std::uint8_t, sp::outpoint_size> const outpoint{};
+    std::array<secp::keypair const*, 1> const empty_input{&key};
+    std::array<secp::keypair const*, 1> const live_input{&live};
+    std::array<std::array<std::uint8_t, 32>, 1> outputs{};
+    std::array<std::byte, sp::send_workspace_size(1, 1, 1)> send_space{};
+    BOOST_TEST(
+        sp::create_outputs(recipients, outpoint, empty_input, live_input, outputs, send_space)
+            .error() == webcpp::crypto::error::invalid_state);
+    BOOST_TEST(
+        sp::create_outputs(recipients, outpoint, live_input, empty_input, outputs, send_space)
+            .error() == webcpp::crypto::error::invalid_state);
+    BOOST_TEST(sp::create_label(key, 0).error() == webcpp::crypto::error::invalid_state);
+    std::array<secp::public_key, 1> const input_keys{*live_key};
+    std::array<std::byte, sp::summary_workspace_size(0, 1)> summary_space{};
+    auto const summary = sp::make_prevouts_summary(outpoint, {}, input_keys, summary_space);
+    if (!BOOST_TEST(summary.has_value())) {
+        return;
+    }
+    std::array<sp::found_output, 1> found{};
+    std::array<std::byte, sp::scan_workspace_size(1)> scan_space{};
+    BOOST_TEST(sp::scan_outputs(key, *live_key, *summary, outputs, found, scan_space).error() ==
+               webcpp::crypto::error::invalid_state);
+}
+
+/**
  * Every operation of a key pair that holds no key answers `invalid_state`: the pair is empty,
  * as the source of a move is and as a pair is that a tweak refused.
  *
@@ -103,6 +145,7 @@ inline void expect_empty_keypair(webcpp::crypto::curves::secp256k1::keypair& key
         BOOST_TEST(key.ecdh_x(peer).error() == webcpp::crypto::error::invalid_state);
         BOOST_TEST(key.ecdh_point(peer).error() == webcpp::crypto::error::invalid_state);
         expect_empty_musig_signer(key, *live, message);
+        expect_empty_silent_payments(key, *live);
     }
 }
 

@@ -46,15 +46,18 @@ check signatures with a public key alone, and `recover` finds the key from a
 recoverable signature; `parse_public_key` and `serialize_public_key` read and
 write a `public_key` (<<crypto-secp256k1-keys>>); `to_der`, `from_der` (strict
 DER) and `normalize_ecdsa` convert ECDSA's DER and low-S forms; and
-`tweak_xonly` tweaks an x-only public key. Four more headers hold the tweaks,
+`tweak_xonly` tweaks an x-only public key. Five more headers hold the tweaks,
 negation and combination of whole keys
 (`<webcpp/crypto/curves/secp256k1/tweak.hpp>`, <<crypto-secp256k1-tweaks>>),
 the keys' SPKI and PKCS#8 (`<webcpp/crypto/curves/secp256k1/formats.hpp>`,
 <<crypto-secp256k1-formats>>), ElligatorSwift, keys sent as random-looking
 bytes (`<webcpp/crypto/curves/secp256k1/ellswift.hpp>`,
-<<crypto-secp256k1-ellswift>>), and MuSig2, many signers' one signature
-(`<webcpp/crypto/curves/secp256k1/musig.hpp>`, <<crypto-secp256k1-musig>>).
-Every function reads libsecp256k1's canary, so
+<<crypto-secp256k1-ellswift>>), MuSig2, many signers' one signature
+(`<webcpp/crypto/curves/secp256k1/musig.hpp>`, <<crypto-secp256k1-musig>>),
+and silent payments, one reusable address whose payments look unrelated
+(`<webcpp/crypto/curves/secp256k1/silent_payments.hpp>`,
+<<crypto-secp256k1-silent-payments>>). Every function reads libsecp256k1's
+canary, so
 that a program linked with another build of the library does not link.
 
 include::generated/backends-keypair.adoc[]
@@ -565,3 +568,100 @@ tweaked by a tagged hash of it and a script tree's root
 (link:https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki[BIP 341]);
 that hash, and every other rule of the protocol, is a domain library's, which
 passes the tweak to `tweak_xonly_add`.
+
+[#crypto-secp256k1-silent-payments]
+==== Silent payments
+
+A donation page, an invoice that is paid more than once, a creator's tip jar:
+each wants one address to publish for good. With a plain address, every
+payment to it is on the chain for anyone to list and add up. A silent payment
+address is two public keys, scan and spend; every payment to it lands on a new
+output key that only the recipient can tell is theirs, so that an onlooker
+sees no two payments to one address, and the sender needs no exchange with the
+recipient first
+(link:https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki[BIP 352]).
+
+It works by ECDH. The sender sums the secret keys of the transaction's
+eligible inputs, hashes the transaction's smallest outpoint with the sum of
+their public keys, and multiplies the recipient's scan key by both: a secret
+only the sender and the holder of the scan key's secret share. A hash of that
+secret and of the output's number tweaks the spend key into the output key, a
+new one per transaction and per output. The recipient sums the inputs' public
+keys instead, multiplies the sum by the same hash and its scan secret, finds
+the same secret, and recognises its outputs
+(link:https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki[BIP 352]).
+`<webcpp/crypto/curves/secp256k1/silent_payments.hpp>`, namespace
+`curves::secp256k1::silent_payments`, offers libsecp256k1's functions:
+
+* `create_outputs` makes the sender's output keys, one per `recipient` (a scan
+and a spend `public_key`, which the sender decodes from the address), from the
+key pairs of the Taproot inputs and of the other eligible inputs, apart, and
+the smallest outpoint's 36 bytes;
+* `make_prevouts_summary` sums the eligible inputs' public keys for the
+recipient, into a `prevouts_summary`, and `scan_outputs` scans a transaction's
+x-only outputs with the scan key pair and the spend key: each `found_output`
+holds the output's key, its `spend_tweak` (a `secret<32>`, which
+`seckey_tweak_add` adds to the spend secret key to spend the output,
+<<crypto-secp256k1-tweaks>>) and the label it was sent to;
+* `create_label` makes the scan key's `m`-th label, 0 being BIP 352's change
+label, and `create_labeled_spend_key` the spend key of the address with that
+label; `scan_outputs` recognises a labelled payment through a lookup the
+caller gives, a `noexcept` callable that returns a label's tweak or
+`std::nullopt`.
+
+`create_outputs`, `make_prevouts_summary` and `scan_outputs` take a
+`workspace` for libsecp256k1's arrays (`send_workspace_size`,
+`summary_workspace_size` and `scan_workspace_size` say how many bytes), so
+that nothing is allocated, and wipe it, the inputs' secrets and the found
+tweaks in it, before they return. No recipient, no input, no output, outputs
+not one per recipient, `found` shorter than the outputs, a short workspace, or
+more than `group_limit` (2323) recipients on one scan key is
+`invalid_input_size`; a moved-from key pair or a null input `invalid_state`;
+inputs whose keys sum to zero `invalid_secret_key` for the sender and
+`invalid_public_key` for the recipient, as is an output key that does not
+parse; a label that is not a point `invalid_point`. The tests check BIP 352's
+own vectors, as libsecp256k1's tests read them from the same file: the input
+keys, the smallest outpoint and the recipients' keys, already taken out of
+the vectors' transactions and addresses, which are a domain library's.
+
+include::generated/backends-silent_payments.adoc[]
+
+*Example.* A donation page publishes one address. A donor's wallet pays it
+with one input; the recipient scans the transaction, finds the payment, and
+makes the key pair that spends it; a second donation lands on an unrelated key:
+
+[source,cpp]
+----
+include::{examples}/silent_payment.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/silent_payment.expected[]
+----
+
+*Pitfalls.*
+
+* The smallest outpoint must be the transaction's, the smallest of all its
+inputs, eligible or not. A sender who passes another computes another secret,
+and the recipient is unable to find the payment
+(link:https://github.com/bitcoin-core/secp256k1/blob/6e2c8bc4ecdc6e71dbe7a368f360d8d453ce435d/include/secp256k1_silentpayments.h[libsecp256k1's silent payments header]). Choosing the inputs and the outpoint is the wallet's, a domain
+library's.
+* Every output `create_outputs` makes must be in the transaction. The
+recipient looks for the outputs to one scan key in order and stops at the
+first it does not find, so that a dropped output may hide some or all of the
+others (link:https://github.com/bitcoin-core/secp256k1/blob/6e2c8bc4ecdc6e71dbe7a368f360d8d453ce435d/include/secp256k1_silentpayments.h[libsecp256k1's silent payments header]).
+* Scanning costs one ECDH per transaction with eligible inputs, whether it
+pays the recipient or not, since only the shared secret tells. A full node
+does it as blocks arrive; a light client, which must fetch each
+transaction's summary data, must plan for that cost
+(link:https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki[BIP 352]).
+* Many labels may slow scanning down badly in some wallets, light clients
+among them; libsecp256k1 recommends creating the change label alone and
+handing out no labelled address (link:https://github.com/bitcoin-core/secp256k1/blob/6e2c8bc4ecdc6e71dbe7a368f360d8d453ce435d/include/secp256k1_silentpayments.h[libsecp256k1's silent payments header]). The change label itself is never
+handed out, so that no one else can pay what looks like change
+(link:https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki[BIP 352]).
+* The workspaces grow with the counts: `send_workspace_size(r, t, p)` with
+the recipients and the inputs, `scan_workspace_size(n)` with the outputs. A
+workspace on the stack suits a few; a transaction of thousands of outputs
+needs one the program owns on the heap, since WebAssembly's stacks are small.

@@ -69,6 +69,11 @@ webcpp.example ellswift_handshake.cpp : <library>/third_party//secp256k1 ;
 # rounds of nonces and partial signatures, one BIP 340 signature on the chain.
 webcpp.example musig_wallet.cpp : <library>/third_party//secp256k1 ;
 
+# A donation page's one reusable address: a donor pays it, the recipient scans
+# the transaction, finds the payment and spends it; a second payment to the
+# address shares no output key with the first (BIP 352's silent payments).
+webcpp.example silent_payment.cpp : <library>/third_party//secp256k1 ;
+
 # A wallet's key pair, its secret sealed at rest and restored.
 webcpp.example wallet_key.cpp : <library>/third_party//secp256k1 <library>/webcpp/crypto//gcm-default ;
 

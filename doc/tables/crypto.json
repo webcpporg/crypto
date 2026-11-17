@@ -113,7 +113,9 @@
         "bip324": ["BIP 324, version 2 P2P encrypted transport protocol", "https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki"],
         "elligatorswift": ["Chavez-Saab, Rodríguez-Henríquez and Tibouchi, SwiftEC: Shallue-van de Woestijne Indifferentiable Function to Elliptic Curves, 2022", "https://eprint.iacr.org/2022/759"],
         "openssl-evp-pkey-ec": ["OpenSSL's EVP_PKEY-EC: an EC key's point form and its encodings", "https://docs.openssl.org/master/man7/EVP_PKEY-EC/"],
-        "musig2": ["Nick, Ruffing and Seurin, MuSig2: Simple Two-Round Schnorr Multi-Signatures, CRYPTO 2021", "https://eprint.iacr.org/2020/1261"]
+        "musig2": ["Nick, Ruffing and Seurin, MuSig2: Simple Two-Round Schnorr Multi-Signatures, CRYPTO 2021", "https://eprint.iacr.org/2020/1261"],
+        "bip352": ["BIP 352, Silent Payments", "https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki"],
+        "libsecp256k1-silentpayments": ["libsecp256k1's silent payments header at webcpp's pin: the smallest outpoint, the outputs to keep, the labels to create", "https://github.com/bitcoin-core/secp256k1/blob/6e2c8bc4ecdc6e71dbe7a368f360d8d453ce435d/include/secp256k1_silentpayments.h"]
     },
     "backends": {
         "bearssl": {
@@ -629,6 +631,18 @@
             "what": "BIP 327's MuSig2: many signers' keys aggregated into one, and their two rounds into one BIP 340 signature, each secret nonce consumed by its partial signature.",
             "section": "crypto-secp256k1-musig",
             "backends": {"secp256k1": {"tests": ["secp256k1_musig", "secp256k1_musig_entropy"]}}
+        },
+        {
+            "id": "silent_payments",
+            "family": "secp256k1",
+            "free": true,
+            "functions": ["send_workspace_size", "summary_workspace_size", "scan_workspace_size", "create_outputs", "create_label", "create_labeled_spend_key", "make_prevouts_summary", "scan_outputs"],
+            "namespace": "curves",
+            "api": "curves::secp256k1::silent_payments::create_outputs, create_label, create_labeled_spend_key, make_prevouts_summary, scan_outputs, send_workspace_size, summary_workspace_size, scan_workspace_size",
+            "header": "<webcpp/crypto/curves/secp256k1/silent_payments.hpp>",
+            "what": "BIP 352's silent payments: the sender's outputs to a reusable address of a scan and a spend key, the recipient's labels, and its scan of a transaction's outputs.",
+            "section": "crypto-secp256k1-silent-payments",
+            "backends": {"secp256k1": {"tests": ["secp256k1_silent_payments"]}}
         }
     ],
     "families": [
@@ -998,6 +1012,7 @@
         {"need": "Find who signed a message or a transaction without being sent their key (Ethereum's signatures)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign_recoverable`, `recover`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "recover_signer", "section": "crypto-secp256k1-recovery"},
         {"need": "Derive child keys for a watch-only wallet (BIP 32's derivation is a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`seckey_tweak_add`, `pubkey_tweak_add`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "key_tweak", "section": "crypto-secp256k1-tweaks"},
         {"need": "Make a peer-to-peer connection's key exchange look like random bytes (BIP 324's transport; its packets are a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`ellswift_create`, `ellswift_decode`, `ellswift_xdh`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ellswift_handshake", "section": "crypto-secp256k1-ellswift"},
+        {"need": "Publish one donation address that never shows two payments as related (BIP 352's addresses and transactions are a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1::silent_payments", "api": "`create_outputs`, `make_prevouts_summary`, `scan_outputs`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "silent_payment", "section": "crypto-secp256k1-silent-payments"},
         {"need": "Require two devices to sign for a wallet, with one ordinary signature on the chain", "namespace": "webcpp::crypto::curves::secp256k1::musig", "api": "`key_aggregate`, `nonce_gen`, `partial_sign`, `partial_signature_aggregate`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "musig_wallet", "section": "crypto-secp256k1-musig"},
         {"need": "Make and keep a wallet's key", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::make`, `xonly_public_key`, `public_key`; `aes256_gcm` at rest", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//gcm-default", "example": "wallet_key", "section": "crypto-wallets-key"},
         {"need": "Sign a Bitcoin SegWit v0 input (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`sign_ecdsa`, `to_der`, `normalize_ecdsa`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ecdsa_der", "section": "crypto-wallets-der"},

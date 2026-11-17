@@ -11,7 +11,8 @@
 // public keys in both forms, both verifications, the parsed public key, recovery, the DER and
 // low-S functions, the x-only tweak, the tweaks, negations and combination of tweak.hpp, the
 // SPKI and PKCS#8 encoders and decoders of formats.hpp, the ElligatorSwift functions of
-// ellswift.hpp and the MuSig2 functions of musig.hpp allocate nothing, each counted alone
+// ellswift.hpp, the MuSig2 functions of musig.hpp and the silent payments of
+// silent_payments.hpp allocate nothing, each counted alone
 // (decode_pkcs8's key pair takes its one block from the resource it is given); the destructor
 // gives the block back; a refused make allocates nothing. A control proves the counter moves.
 
@@ -19,6 +20,7 @@
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
 #include <webcpp/crypto/curves/secp256k1/formats.hpp>
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
+#include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -26,6 +28,7 @@
 
 #include <boost/core/lightweight_test.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -71,6 +74,69 @@ private:
 
     alignas(std::max_align_t) std::array<std::byte, 1024> buffer_{};
 };
+
+// silent_payments.hpp: the key pair pays itself, scan and spend, with one plain input, labels
+// its change, and finds the output; each workspace on the stack, each step counted alone by
+// `none`.
+void silent_payments_allocate_nothing(secp::keypair const& key, secp::public_key const& own_key,
+                                      auto const& none) {
+    namespace sp = secp::silent_payments;
+    sp::recipient const address{.scan_key = own_key, .spend_key = own_key};
+    std::array<sp::recipient, 1> const recipients{address};
+    std::array<std::uint8_t, sp::outpoint_size> const outpoint{7};
+    std::array<secp::keypair const*, 1> const plain_inputs{&key};
+    std::array<secp::public_key, 1> const input_keys{own_key};
+    std::array<std::array<std::uint8_t, 32>, 1> payment_outputs{};
+    alignas(std::max_align_t) std::array<std::byte, sp::send_workspace_size(1, 0, 1)> send_space{};
+    none("create_outputs", [&] {
+        return sp::create_outputs(recipients, outpoint, {}, plain_inputs, payment_outputs,
+                                  send_space);
+    });
+    std::optional<sp::label> change_label;
+    none("create_label", [&] {
+        auto r = sp::create_label(key, 0);
+        if (r) {
+            change_label.emplace(*r);
+        }
+        return r;
+    });
+    if (!BOOST_TEST(change_label.has_value())) {
+        return;
+    }
+    none("create_labeled_spend_key",
+         [&] { return sp::create_labeled_spend_key(own_key, *change_label); });
+    alignas(std::max_align_t) std::array<std::byte, sp::summary_workspace_size(0, 1)>
+        summary_space{};
+    std::optional<sp::prevouts_summary> summary;
+    none("make_prevouts_summary", [&] {
+        auto r = sp::make_prevouts_summary(outpoint, {}, input_keys, summary_space);
+        if (r) {
+            summary.emplace(*r);
+        }
+        return r;
+    });
+    if (!BOOST_TEST(summary.has_value())) {
+        return;
+    }
+    alignas(std::max_align_t) std::array<std::byte, sp::scan_workspace_size(1)> scan_space{};
+    std::array<sp::found_output, 1> found{};
+    none("scan_outputs", [&] {
+        auto r = sp::scan_outputs(key, own_key, *summary, payment_outputs, found, scan_space);
+        return r && *r == 1;
+    });
+    auto const change_lookup = [&](std::span<std::uint8_t const, 33> candidate) noexcept
+        -> std::optional<std::span<std::uint8_t const, 32>> {
+        if (std::ranges::equal(candidate, change_label->point)) {
+            return std::span<std::uint8_t const, 32>(change_label->tweak);
+        }
+        return std::nullopt;
+    };
+    none("scan_outputs with a label lookup", [&] {
+        auto r = sp::scan_outputs(key, own_key, *summary, payment_outputs, found, scan_space,
+                                  change_lookup);
+        return r && *r == 1;
+    });
+}
 
 }  // namespace
 
@@ -269,6 +335,8 @@ int main() {
         none("serialize_partial_signature, parse_partial_signature", [&] {
             return musig::parse_partial_signature(musig::serialize_partial_signature(*part));
         });
+
+        silent_payments_allocate_nothing(key, *signer_key, none);
         BOOST_TEST_EQ(resource.allocated, 1U);
         BOOST_TEST_EQ(resource.deallocated, 0U);
 

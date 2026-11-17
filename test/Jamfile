@@ -68,6 +68,7 @@ webcpp.headers-alone crypto : ../include
   : crypto/curves/secp256k1.hpp crypto/backends/secp256k1.hpp
     crypto/curves/secp256k1/tweak.hpp crypto/curves/secp256k1/formats.hpp
     crypto/curves/secp256k1/ellswift.hpp crypto/curves/secp256k1/musig.hpp
+    crypto/curves/secp256k1/silent_payments.hpp
   : <library>/third_party//secp256k1 ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
@@ -245,6 +246,18 @@ crypto-run secp256k1_musig : secp256k1_musig_test.cpp
 # the test seam is a whole-program define.
 crypto-run secp256k1_musig_entropy : secp256k1_musig_entropy_test.cpp
   : <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
+# BIP 352's vectors as libsecp256k1's test reads them, its vectors.h compiled in
+# C with warnings off, as libsecp256k1's own sources are (the C++ test keeps
+# every warning).
+obj bip352_vectors : support/bip352_vectors.c
+  : <library>/third_party//secp256k1-test-config <warnings>off
+    <warnings-as-errors>off ;
+explicit bip352_vectors ;
+# Silent payments against BIP 352's vectors, a labelled address, and every
+# refusal of a precondition libsecp256k1 would abort on.
+crypto-run secp256k1_silent_payments : secp256k1_silent_payments_test.cpp
+    bip352_vectors
+  : <library>/third_party//secp256k1 <library>/third_party//secp256k1-test-config ;
 crypto-run secp256k1_der : secp256k1_der_test.cpp
   : <library>/third_party//secp256k1 <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;

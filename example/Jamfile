@@ -70,3 +70,7 @@ webcpp.example openssl_memory.cpp
     <threading>multi
   : native ;
 # end::openssl_memory[]
+
+# The guide's Ed25519 program: RFC 8032's second test signed and verified, then
+# Ed25519ph's test given in two pieces, on the family's default.
+webcpp.example ed25519_sign.cpp : <library>/webcpp/crypto//ed25519-default ;

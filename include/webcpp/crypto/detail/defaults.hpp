@@ -58,6 +58,14 @@ struct default_backend_of<families::secp256k1> {
     /** `backends::secp256k1`. */
     using type = backends::secp256k1;
 };
+/** Defined where libsodium is the default of Ed25519. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_ED25519_SODIUM 1
+/** The default of Ed25519 on native, wasip2, wasip3, emscripten: libsodium. */
+template <>
+struct default_backend_of<families::ed25519> {
+    /** `backends::sodium`. */
+    using type = backends::sodium;
+};
 // clang-format on
 
 /**

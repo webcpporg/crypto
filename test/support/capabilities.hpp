@@ -27,10 +27,10 @@ constexpr std::size_t key_size_of() {
 }
 
 /**
- * Makes an algorithm, through the type a program names, from a key whose bytes are all 1: a
- * cell the capability table marks present whose engine is missing fails to compile here. The
- * type names its family and its algorithm as the table does, and `supports_v` says that the
- * backend has it.
+ * Makes an algorithm, through the type a program names, from a key whose bytes are all 1, or,
+ * for one keyed by no key of its own (Ed25519ph's signer), begins it: a cell the capability
+ * table marks present whose engine is missing fails to compile here. The type names its family
+ * and its algorithm as the table does, and `supports_v` says that the backend has it.
  *
  * @tparam Algorithm The type a program names, on `Backend`.
  * @tparam Family Its family's tag.
@@ -43,9 +43,13 @@ template <class Algorithm, class Family, class Name, class Backend>
     static_assert(std::is_same_v<typename Algorithm::family_type, Family>);
     static_assert(std::is_same_v<typename Algorithm::name_type, Name>);
     static_assert(webcpp::crypto::supports_v<Algorithm, Backend>);
-    std::array<std::uint8_t, key_size_of<Algorithm>()> key_bytes{};
-    key_bytes.fill(1);
-    return Algorithm::make(key_bytes).has_value();
+    if constexpr (requires { Algorithm::begin(); }) {
+        return Algorithm::begin().has_value();
+    } else {
+        std::array<std::uint8_t, key_size_of<Algorithm>()> key_bytes{};
+        key_bytes.fill(1);
+        return Algorithm::make(key_bytes).has_value();
+    }
 }
 
 }  // namespace webcpp::test

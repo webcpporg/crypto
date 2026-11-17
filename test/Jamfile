@@ -50,8 +50,10 @@ webcpp.headers-alone crypto : ../include : crypto/backends/openssl.hpp
 # The backend ctaes's header alone, with ctaes linked, on every target.
 webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp
   : <library>/third_party//ctaes ;
-# The backend libsodium's header alone, with libsodium linked, on every target.
-webcpp.headers-alone crypto : ../include : crypto/backends/sodium.hpp
+# The backend libsodium's header alone, and Ed25519's with it, with libsodium
+# linked, on every target.
+webcpp.headers-alone crypto : ../include
+  : crypto/backends/sodium.hpp crypto/curves/ed25519.hpp
   : <library>/third_party//sodium ;
 # libsecp256k1's headers compile alone only with its library, which defines
 # WEBCPP_CRYPTO_HAS_SECP256K1 (without it, each stops with its message).
@@ -256,6 +258,16 @@ crypto-run aes_ctaes : aes_ctaes_test.cpp : <library>/third_party//ctaes ;
 
 # The backend libsodium: its canary, its initialisation and its three layers.
 crypto-run sodium_backend : sodium_backend_test.cpp : <library>/third_party//sodium ;
+
+# Ed25519 on libsodium: RFC 8032's tests, the guards, generate() under the
+# planted entropy source and the conversion to X25519; Wycheproof's EdDSA
+# file, strict; Ed25519ph, RFC 8032's test in one piece and in two.
+crypto-run ed25519_sodium : ed25519_sodium_test.cpp
+  : <library>/third_party//sodium <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
+crypto-run ed25519_wycheproof_sodium : ed25519_wycheproof_sodium_test.cpp
+  : <library>/third_party//sodium <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
+crypto-run ed25519ph_sodium : ed25519ph_sodium_test.cpp : <library>/third_party//sodium ;
 
 # The capability table of doc/tables/crypto.json, which generate.py writes
 # this test from: supports_v of every cell on the target, and each present

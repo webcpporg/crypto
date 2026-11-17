@@ -61,7 +61,9 @@
         "secp256k1-configure": ["libsecp256k1's configure.ac, the precomputed tables' trade", "https://github.com/bitcoin-core/secp256k1/blob/master/configure.ac"],
         "nip44": ["Nostr NIP-44, encrypted payloads", "https://github.com/nostr-protocol/nips/blob/master/44.md"],
         "bip32": ["BIP 32, hierarchical deterministic wallets", "https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki"],
-        "openssl-mem": ["OpenSSL 3.5's OPENSSL_malloc(3), CRYPTO_set_mem_functions", "https://docs.openssl.org/3.5/man3/OPENSSL_malloc/"]
+        "openssl-mem": ["OpenSSL 3.5's OPENSSL_malloc(3), CRYPTO_set_mem_functions", "https://docs.openssl.org/3.5/man3/OPENSSL_malloc/"],
+        "rfc8032": ["RFC 8032, the Edwards-curve Digital Signature Algorithm (EdDSA)", "https://www.rfc-editor.org/rfc/rfc8032"],
+        "libsodium-signatures": ["libsodium's documentation, public-key signatures", "https://doc.libsodium.org/public-key_cryptography/public-key_signatures"]
     },
     "backends": {
         "bearssl": {
@@ -268,6 +270,43 @@
             "what": "With `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, natively, every allocation of OpenSSL's in the process goes to a `std::pmr::memory_resource` the program defines.",
             "section": "crypto-memory-openssl",
             "backends": {"openssl": {"tests": ["adapter", "everything", "late", "foreign", "fresh_install", "forgotten", "replaced", "second_install", "fail_second", "fail_init", "fail_init_threads", "neighbours", "handshake"], "elsewhere": "memory"}}
+        },
+        {
+            "id": "ed25519_keypair",
+            "family": "ed25519",
+            "functions": ["make", "generate", "public_key", "sign", "x25519_secret"],
+            "namespace": "curves",
+            "api": "curves::ed25519::keypair",
+            "header": "<webcpp/crypto/curves/ed25519.hpp>",
+            "what": "An Ed25519 key pair (RFC 8032): made from a 32-byte seed or drawn from `random_device`, its 32-byte public key, 64-byte signatures, and its X25519 secret key.",
+            "section": "crypto-ed25519",
+            "backends": {
+                "sodium": {"tests": ["ed25519_sodium"]},
+                "bearssl": {"refused": "ed25519_on_bearssl"}
+            }
+        },
+        {
+            "id": "ed25519_verify",
+            "family": "ed25519",
+            "free": true,
+            "functions": ["verify"],
+            "namespace": "curves",
+            "api": "curves::ed25519::verify",
+            "header": "<webcpp/crypto/curves/ed25519.hpp>",
+            "what": "Verifies an Ed25519 signature with a public key alone, under the policy `strict`: libsodium's rules, which refuse non-canonical encodings and keys of small order.",
+            "section": "crypto-ed25519",
+            "backends": {"sodium": {"tests": ["ed25519_sodium", "ed25519_wycheproof_sodium"]}}
+        },
+        {
+            "id": "ed25519ph",
+            "family": "ed25519",
+            "functions": ["begin", "update"],
+            "namespace": "curves",
+            "api": "curves::ed25519::ph",
+            "header": "<webcpp/crypto/curves/ed25519.hpp>",
+            "what": "Ed25519ph (RFC 8032): a message given in pieces, hashed with SHA-512, then signed with a key pair or verified with a public key.",
+            "section": "crypto-ed25519",
+            "backends": {"sodium": {"tests": ["ed25519ph_sodium"]}}
         }
     ],
     "families": [
@@ -327,6 +366,23 @@
             ],
             "backends": {
                 "secp256k1": {"targets": "all"}
+            }
+        },
+        {
+            "name": "ed25519",
+            "title": "Ed25519",
+            "group": "curves::ed25519",
+            "since": "0.2",
+            "header": "<webcpp/crypto/curves/ed25519.hpp>",
+            "names": [
+                {"name": "ed25519", "title": "Ed25519", "type": "curves::ed25519::basic_keypair<{backend}>"},
+                {"name": "ed25519ph", "title": "Ed25519ph", "type": "curves::ed25519::ph<boost::hash2::sha2_512, {backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["ed25519_sodium", "default_backend_none_linked"], "why": "the only backend in this version, on every target, and its verification is the policy `strict` ({libsodium-signatures}; {rfc8032})"}
+            ],
+            "backends": {
+                "sodium": {"targets": "all"}
             }
         }
     ],
@@ -400,7 +456,8 @@
         {"need": "Keep every allocation of OpenSSL's in the program's arena", "namespace": "webcpp::crypto", "api": "`openssl_memory_resource`, `backends::openssl::install_memory_functions`", "backend": "OpenSSL, natively", "jamfile": "`/webcpp/crypto//crypto` in the program; in the project requirements, `<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` and `<library>/webcpp/crypto//openssl`", "example": "openssl_memory", "section": "crypto-memory-openssl"},
         {"need": "Seed BearSSL's own generator for code that calls BearSSL directly", "namespace": "webcpp::crypto", "api": "`random_device::fill`", "backend": "BearSSL's C API", "jamfile": "/webcpp/crypto//crypto /third_party//bearssl", "example": "bearssl_prng", "section": "crypto-entropy-bearssl"},
         {"need": "Hash, or compute an HMAC", "namespace": "Boost.Hash2, not this library", "api": "`boost::hash2::sha2_256`, `hmac_sha2_256`", "backend": "none", "jamfile": "`/webcpp/crypto//crypto` brings Boost's headers", "example": "equal_hmac", "section": "crypto-overview-hash2"},
-        {"need": "Use P-256 (passkeys, JWT's ES256), Ed25519 or X25519", "namespace": "none in this version", "api": "secp256k1 keys and signatures do not interoperate with these curves", "backend": "none", "jamfile": "none", "example": "", "section": "crypto-curves"}
+        {"need": "Sign and verify with Ed25519 (RFC 8032), or sign a large message in pieces with Ed25519ph", "namespace": "webcpp::crypto::curves::ed25519", "api": "`keypair::make`, `keypair::generate`, `keypair::sign`, `verify`; `ph<webcpp::hash::sha2_512>`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default", "example": "ed25519_sign", "section": "crypto-ed25519"},
+        {"need": "Use P-256 (passkeys, JWT's ES256) or X25519", "namespace": "none in this version", "api": "secp256k1 and Ed25519 keys and signatures do not interoperate with these curves", "backend": "none", "jamfile": "none", "example": "", "section": "crypto-curves"}
     ],
     "fixtures": {
         "web": "A web application: AES-256-GCM on BearSSL, the default on WebAssembly.",
@@ -430,7 +487,10 @@
         "memory_option": "OpenSSL's allocations in the program's own resource: the define and OpenSSL in the requirements of the program's project, the resource defined once, the install first in `main`.",
         "no_backend_on_emscripten": "A program for Emscripten that uses the default backend and links none.",
         "canary_sodium_other_commit": "A libsodium of another commit than the headers'.",
-        "sodium_not_linked_on_emscripten": "A program for Emscripten that names libsodium and links none."
+        "sodium_not_linked_on_emscripten": "A program for Emscripten that names libsodium and links none.",
+        "ed25519_default_not_linked_on_emscripten": "A program for Emscripten that makes an Ed25519 key pair on its default, libsodium, and links none.",
+        "ed25519_on_bearssl_on_emscripten": "A program for Emscripten that names BearSSL, which has no Ed25519, in an Ed25519 key pair's type.",
+        "ed25519ph_sha256_on_emscripten": "A program for Emscripten that names SHA-256 in Ed25519ph's type, which RFC 8032 defines over SHA-512."
     },
     "fixes": {
         "gcm_default_openssl_not_linked": "Natively the default is OpenSSL: add `/webcpp/crypto//openssl`, or name BearSSL in the type, as in `gcm<aes256<backends::bearssl>>`.",
@@ -469,6 +529,12 @@
         "no_backend_on_emscripten": "Add `/third_party//bearssl` to the program's sources.",
         "canary_secp256k1_two_files": "Compile every file of the program with the same backend settings.",
         "canary_two_files": "Compile every file of the program with the same backend settings.",
-        "openssl_not_linked_msvc": "As `openssl_not_linked`."
+        "openssl_not_linked_msvc": "As `openssl_not_linked`.",
+        "ed25519_on_bearssl": "Leave the backend out, as in `curves::ed25519::keypair`, or name `backends::sodium`, and add `/third_party//sodium`.",
+        "ed25519_on_bearssl_on_emscripten": "As `ed25519_on_bearssl`.",
+        "ed25519ph_sha256": "Name `curves::ed25519::ph<webcpp::hash::sha2_512>`: RFC 8032 defines Ed25519ph over SHA-512.",
+        "ed25519ph_sha256_on_emscripten": "As `ed25519ph_sha256`.",
+        "ed25519_default_not_linked": "Add `/third_party//sodium`, or `/webcpp/crypto//ed25519-default`, which links it on every target.",
+        "ed25519_default_not_linked_on_emscripten": "As `ed25519_default_not_linked`."
     }
 }

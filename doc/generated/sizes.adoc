@@ -58,4 +58,28 @@
 |not measured yet
 |not measured yet
 |not measured yet
+
+|`+curves::ed25519::keypair+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|`+curves::ed25519::verify+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|`+curves::ed25519::ph+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
 |===

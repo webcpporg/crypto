@@ -4,7 +4,8 @@
 # accompanying file LICENSE_1_0.txt or copy at
 # https://www.boost.org/LICENSE_1_0.txt)
 
-# crypto: authenticated encryption, randomness and secp256k1 over C backends.
+# crypto: authenticated encryption, randomness, secp256k1 and Ed25519 over C
+# backends.
 # A program names /webcpp/crypto//crypto and the library of each backend it
 # uses, /third_party//<backend> (third_party/Jamfile), or, for OpenSSL,
 # /webcpp/crypto//openssl; or, for a family's default backend on every
@@ -16,11 +17,14 @@ import webcpp-target ;
 
 project /webcpp/crypto ;
 
-# Header-only, on webcpp's configuration. random_device reads Windows'
-# generator through bcrypt (BCryptGenRandom), a system library.
+# Header-only, on webcpp's configuration, with webcpp::hash's header-only
+# alias, whose algorithms name a signature's prehash (Ed25519ph's SHA-512;
+# design D1). random_device reads Windows' generator through bcrypt
+# (BCryptGenRandom), a system library.
 # tag::crypto[]
 alias crypto : : : : <include>include <library>/boost//headers
-  <library>/webcpp/config//config <target-os>windows:<find-shared-library>bcrypt ;
+  <library>/webcpp/config//config <library>/webcpp/hash//hash
+  <target-os>windows:<find-shared-library>bcrypt ;
 # end::crypto[]
 
 # tag::openssl[]
@@ -74,4 +78,15 @@ rule secp256k1-default-linked ( properties * )
     }
 }
 alias secp256k1-default : : : : <conditional>@secp256k1-default-linked ;
+rule ed25519-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/third_party//sodium ;
+        case wasip2 : return <library>/third_party//sodium ;
+        case wasip3 : return <library>/third_party//sodium ;
+        case emscripten : return <library>/third_party//sodium ;
+    }
+}
+alias ed25519-default : : : : <conditional>@ed25519-default-linked ;
 # generate.py: end the defaults' aliases

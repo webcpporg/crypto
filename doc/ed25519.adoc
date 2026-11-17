@@ -1,0 +1,72 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-ed25519]
+=== Ed25519
+
+`<webcpp/crypto/curves/ed25519.hpp>` is Ed25519, the Edwards-curve signature
+scheme of RFC 8032 (link:https://www.rfc-editor.org/rfc/rfc8032[RFC 8032]), on
+libsodium (`/third_party//sodium`, or `/webcpp/crypto//ed25519-default`, which
+links it on every target), in the namespace `webcpp::crypto::curves::ed25519`.
+A signature is 64 bytes over a message of any length, made with a 32-byte
+secret key, the seed, and checked with a 32-byte public key. The signature is
+deterministic: the same key and message always give the same signature, so no
+weak generator at signing time can leak the key.
+
+A `keypair` is made from a seed with `make(seed)`, or drawn from
+`random_device` with `generate()`; it gives its public key (`public_key`),
+signs (`sign`), and gives its X25519 secret key (`x25519_secret`, a
+`secret<32>`), so that one seed serves for signatures and for key agreement.
+The key pair wipes its secret key when it is moved from and destroyed.
+`verify(public_key, message, signature)` checks a signature with the public key
+alone.
+
+*Ed25519ph* signs the SHA-512 of a message instead of the message: a program
+that signs a large file reads it in pieces, gives each to `update`, and signs
+once at the end. Its type names the hash, `ph<webcpp::hash::sha2_512>` (the
+same type as Boost.Hash2's `sha2_512`), since RFC 8032 fixes it; another hash
+does not compile. An Ed25519ph signature is not an Ed25519 signature of the
+same message, and neither verifies as the other: a protocol says which of the
+two it uses.
+
+include::generated/backends-ed25519_keypair.adoc[]
+
+include::generated/backends-ed25519_verify.adoc[]
+
+include::generated/backends-ed25519ph.adoc[]
+
+*Example.* RFC 8032's second test signed and verified, then its Ed25519ph test,
+the message given in two pieces:
+
+[source,cpp]
+----
+include::{examples}/ed25519_sign.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/ed25519_sign.expected[]
+----
+
+*Strict verification.* Implementations of Ed25519 disagree on some signatures
+that no honest signer produces: a scalar `S` not reduced below the group order,
+a point encoded in a non-canonical form, a public key of small order. `verify`
+takes a verification policy, `strict` by default and the only one in this
+version: libsodium's rules, which refuse all three
+(link:https://doc.libsodium.org/public-key_cryptography/public-key_signatures[libsodium's documentation]).
+Every valid signature of Wycheproof's EdDSA file is accepted and every invalid
+one refused (`ed25519_wycheproof_sodium`). Honest signatures verify everywhere;
+a network that mixes verifiers must still agree on one rule for the others,
+since a more lenient verifier accepts signatures that `strict` refuses.
+
+*Pitfalls.*
+
+* Keep the seed out of logs, crash reports and source control: whoever holds it
+signs as the key's owner. The examples use RFC 8032's published seeds only to
+print fixed signatures.
+* A signature proves who signed the bytes, not when or for what: a protocol
+that must refuse a replayed message signs a counter, a time or a context with
+it.

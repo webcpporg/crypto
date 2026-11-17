@@ -43,6 +43,24 @@ The fix: Remove the define, and name `+gcm<aes256<backends::openssl>>+` where th
 
 The fix: Remove the define, and name `+gcm<aes256<backends::bearssl>>+` where the program wants BearSSL.
 
+|`+ed25519_default_not_linked+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: Ed25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /third_party//sodium to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+The fix: Add `+/third_party//sodium+`, or `+/webcpp/crypto//ed25519-default+`, which links it on every target.
+
+|`+ed25519_on_bearssl+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: bearssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten).+`
+
+The fix: Leave the backend out, as in `+curves::ed25519::keypair+`, or name `+backends::sodium+`, and add `+/third_party//sodium+`.
+
+|`+ed25519ph_sha256+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: Ed25519ph is defined over SHA-512 (RFC 8032 section 5.1); name curves::ed25519::ph<webcpp::hash::sha2_512>.+`
+
+The fix: Name `+curves::ed25519::ph<webcpp::hash::sha2_512>+`: RFC 8032 defines Ed25519ph over SHA-512.
+
 |`+gcm_default_openssl_not_linked+`
 |native
 |`+webcpp::crypto: AES-GCM's default backend on this target is OpenSSL, which is not linked. Add /webcpp/crypto//openssl to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//openssl ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::bearssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)+`
@@ -364,6 +382,48 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL no longer chooses a default. Write the backend in the type where the program wants it, as in ciphers::gcm<ciphers::aes256<backends::openssl>>.+`
 
+`+ed25519_default_not_linked_on_emscripten+`:: A program for Emscripten that makes an Ed25519 key pair on its default, libsodium, and links none. The fix: As `+ed25519_default_not_linked+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/ed25519_default_not_linked_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: Ed25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /third_party//sodium to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+ed25519_on_bearssl_on_emscripten+`:: A program for Emscripten that names BearSSL, which has no Ed25519, in an Ed25519 key pair's type. The fix: As `+ed25519_on_bearssl+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/ed25519_on_bearssl_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: bearssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten).+`
+
+`+ed25519ph_sha256_on_emscripten+`:: A program for Emscripten that names SHA-256 in Ed25519ph's type, which RFC 8032 defines over SHA-512. The fix: As `+ed25519ph_sha256+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/ed25519ph_sha256_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: Ed25519ph is defined over SHA-512 (RFC 8032 section 5.1); name curves::ed25519::ph<webcpp::hash::sha2_512>.+`
+
 `+has_openssl_on_emscripten+`:: OpenSSL declared linked, without b2, in a build for Emscripten. The fix: Replace `+/webcpp/crypto//openssl+` with `+/third_party//bearssl+`.
 +
 Its Jamfile:
@@ -529,6 +589,18 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+default_selected+`
 |the compile
 |Remove the define, and name `+gcm<aes256<backends::bearssl>>+` where the program wants BearSSL.
+
+|`+ed25519_default_not_linked+`
+|the compile
+|Add `+/third_party//sodium+`, or `+/webcpp/crypto//ed25519-default+`, which links it on every target.
+
+|`+ed25519_on_bearssl+`
+|the compile
+|Leave the backend out, as in `+curves::ed25519::keypair+`, or name `+backends::sodium+`, and add `+/third_party//sodium+`.
+
+|`+ed25519ph_sha256+`
+|the compile
+|Name `+curves::ed25519::ph<webcpp::hash::sha2_512>+`: RFC 8032 defines Ed25519ph over SHA-512.
 
 |`+gcm_default_openssl_not_linked+`
 |the compile

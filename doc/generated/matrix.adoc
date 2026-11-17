@@ -80,6 +80,26 @@
 |OpenSSL
 |native; not on wasip2, wasip3, emscripten: `+config.hpp+` refuses the option on every WebAssembly target
 |`+adapter+`, `+everything+`, `+late+`, `+foreign+`, `+fresh_install+`, `+forgotten+`, `+replaced+`, `+second_install+`, `+fail_second+`, `+fail_init+`, `+fail_init_threads+`, `+neighbours+`, `+handshake+`
+
+|`+curves::ed25519::keypair+`
+|BearSSL
+|refused at compile time
+|`+ed25519_on_bearssl+`
+
+|`+curves::ed25519::keypair+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+ed25519_sodium+`
+
+|`+curves::ed25519::verify+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+ed25519_sodium+`, `+ed25519_wycheproof_sodium+`
+
+|`+curves::ed25519::ph+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+ed25519ph_sodium+`
 |===
 
 The same, by target: the backends each operation runs on.
@@ -147,4 +167,22 @@ The same, by target: the backends each operation runs on.
 |none
 |none
 |none
+
+|`+curves::ed25519::keypair+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::ed25519::verify+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::ed25519::ph+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
 |===

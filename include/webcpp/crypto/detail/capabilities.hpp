@@ -33,6 +33,11 @@ struct aes_block;
 /** The family secp256k1, of `curves::secp256k1`, also the tag of its one algorithm. */
 struct secp256k1;
 
+/**
+ * The family Ed25519, of `curves::ed25519`; its algorithms: `families::ed25519`, `tags::ed25519ph`.
+ */
+struct ed25519;
+
 }  // namespace webcpp::crypto::families
 
 namespace webcpp::crypto::tags {
@@ -54,6 +59,9 @@ struct aes192;
 
 /** AES-256, of the family `families::aes_block`. */
 struct aes256;
+
+/** Ed25519ph, of the family `families::ed25519`. */
+struct ed25519ph;
 
 }  // namespace webcpp::crypto::tags
 
@@ -130,6 +138,15 @@ inline constexpr bool supported<families::aes_block, tags::aes256, backends::cta
 #if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
 template <>
 inline constexpr bool supported<families::secp256k1, families::secp256k1, backends::secp256k1> = true;
+#endif
+// Ed25519 on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+template <>
+inline constexpr bool supported<families::ed25519, families::ed25519, backends::sodium> = true;
+#endif
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+template <>
+inline constexpr bool supported<families::ed25519, tags::ed25519ph, backends::sodium> = true;
 #endif
 // clang-format on
 
@@ -288,6 +305,47 @@ inline constexpr bool linked<backends::sodium> = true;
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1's secp256k1 is in <webcpp/crypto/backends/secp256k1.hpp>, which the program does not include. Include it, and add /third_party//secp256k1 to the program's Jamfile."); \
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
     static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: secp256k1 has no backend of that name. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).")
+#endif
+#ifdef WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE
+/** The refusals of the family Ed25519's primary engine for `Backend`, on native. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_ED25519(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: Ed25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /third_party//sodium to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's Ed25519 is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: Ed25519 has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP2)
+/** The refusals of the family Ed25519's primary engine for `Backend`, on wasip2. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_ED25519(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: Ed25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /third_party//sodium to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's Ed25519 is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: Ed25519 has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP3)
+/** The refusals of the family Ed25519's primary engine for `Backend`, on wasip3. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_ED25519(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: Ed25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /third_party//sodium to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's Ed25519 is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: Ed25519 has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_EMSCRIPTEN)
+/** The refusals of the family Ed25519's primary engine for `Backend`, on emscripten. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_ED25519(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: Ed25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /third_party//sodium to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's Ed25519 is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: Ed25519 has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
 #endif
 // clang-format on
 

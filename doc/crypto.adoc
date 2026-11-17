@@ -52,6 +52,8 @@ include::curves.adoc[]
 
 include::secp256k1.adoc[]
 
+include::ed25519.adoc[]
+
 include::backends.adoc[]
 
 include::wallets.adoc[]

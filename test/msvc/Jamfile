@@ -44,3 +44,6 @@ build-project memory_missing_definition_make ;
 build-project memory_two_files ;
 build-project sodium_not_linked ;
 build-project canary_sodium_other_commit ;
+build-project ed25519_on_bearssl ;
+build-project ed25519ph_sha256 ;
+build-project ed25519_default_not_linked ;

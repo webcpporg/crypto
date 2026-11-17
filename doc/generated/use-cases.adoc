@@ -126,8 +126,15 @@
 |`+/webcpp/crypto//crypto+` brings Boost's headers
 |<<crypto-overview-hash2,[.keep]`+equal_hmac.cpp+`>>
 
-|Use P-256 (passkeys, JWT's ES256), Ed25519 or X25519
-|None in this version: secp256k1 keys and signatures do not interoperate with these curves
+|Sign and verify with Ed25519 (RFC 8032), or sign a large message in pieces with Ed25519ph
+|In `+curves::ed25519+`: `+keypair::make+`, `+keypair::generate+`, `+keypair::sign+`, `+verify+`; `+ph<webcpp::hash::sha2_512>+`
+|libsodium
+|`+/webcpp/crypto//crypto+` +
+`+/webcpp/crypto//ed25519-default+`
+|<<crypto-ed25519,[.keep]`+ed25519_sign.cpp+`>>
+
+|Use P-256 (passkeys, JWT's ES256) or X25519
+|None in this version: secp256k1 and Ed25519 keys and signatures do not interoperate with these curves
 |none
 |none
 |<<crypto-curves>>

@@ -32,7 +32,7 @@
 |AES-GCM
 |emscripten
 |BearSSL
-|the only AEAD backend there: webcpp does not build OpenSSL for Emscripten
+|the only AES-GCM backend there: webcpp does not build OpenSSL for Emscripten
 |`+default_bearssl+`, `+default_backend_all_linked_emscripten+`
 
 |AES block cipher
@@ -62,7 +62,7 @@
 |ChaCha20-Poly1305
 |native, wasip2, wasip3, emscripten
 |libsodium
-|the only backend that has it: libsodium's own C code, the same on every target (link:https://doc.libsodium.org/secret-key_cryptography/aead/chacha20-poly1305[libsodium's ChaCha20-Poly1305 constructions])
+|one library for the three ChaCha20-Poly1305 AEADs on every target, where BearSSL and OpenSSL have RFC 8439's alone (link:https://doc.libsodium.org/secret-key_cryptography/aead/chacha20-poly1305[libsodium's ChaCha20-Poly1305 constructions]); a program that links BearSSL or OpenSSL alone names it in the type, as in `chacha20_poly1305<backends::bearssl>`
 |`+chacha_sodium+`, `+default_backend_none_linked+`
 
 |original ChaCha20-Poly1305

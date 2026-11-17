@@ -6,8 +6,8 @@
 
 /**
  The backend BearSSL: BearSSL's own C code, built from its sources by
- `/third_party//bearssl`. It serves `ciphers::gcm<aes128/192/256<backends::bearssl>>`, and has no
- block cipher.
+ `/third_party//bearssl`. It serves `ciphers::gcm<aes128/192/256<backends::bearssl>>` and
+ `ciphers::chacha20_poly1305<backends::bearssl>`, and has no block cipher.
 
  @see "The backends", in the guide.
 */
@@ -25,15 +25,18 @@
 #else
 
 #include <webcpp/crypto/detail/canary.h>
+#include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
+#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <bearssl.h>
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -257,6 +260,146 @@ struct gcm_engine<backends::bearssl, KeySize> {
      * @param engine_state Any state.
      */
     static void reset(state& engine_state) noexcept { wipe_object(engine_state); }
+};
+
+/**
+ * ChaCha20's code: SSE2's where the CPU and the build have it, else the constant-time portable
+ * code. The test seam WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE keeps the portable code on every
+ * CPU. Both are constant time (inc/bearssl_block.h).
+ *
+ * @return The function `br_poly1305_run` is given.
+ */
+inline br_chacha20_run bearssl_chacha20() noexcept {
+#ifndef WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE
+    if (br_chacha20_run const sse2_impl = br_chacha20_sse2_get()) {
+        return sse2_impl;
+    }
+#endif
+    return &br_chacha20_ct_run;
+}
+
+/**
+ * Poly1305's code: the 64-bit multiplication's where the compiler has 128-bit integers, else the
+ * constant-time 32-bit multiplication's. The test seam WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE keeps
+ * the latter on every target. Both are constant time (inc/bearssl_block.h).
+ *
+ * @return The function that runs ChaCha20-Poly1305.
+ */
+inline br_poly1305_run bearssl_poly1305() noexcept {
+#ifndef WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE
+    if (br_poly1305_run const ctmulq_impl = br_poly1305_ctmulq_get()) {
+        return ctmulq_impl;
+    }
+#endif
+    return &br_poly1305_ctmul_run;
+}
+
+/** ChaCha20-Poly1305's state on BearSSL: the key, in the object, since BearSSL takes it per call.
+ */
+template <>
+struct aead_state<families::chacha20_poly1305, backends::bearssl> {
+    /** The key. */
+    std::array<std::uint8_t, 32> key{};
+};
+
+/**
+ * ChaCha20-Poly1305 on BearSSL: one function over the whole message, which encrypts or decrypts
+ * and computes the tag (inc/bearssl_block.h, `br_poly1305_run`). BearSSL leaves the tag's check
+ * to its caller: `equal` does it. BearSSL allocates nothing and never fails.
+ */
+template <>
+struct aead_engine<families::chacha20_poly1305, backends::bearssl> {
+    /** The state. */
+    using state = aead_state<families::chacha20_poly1305, backends::bearssl>;
+
+    /**
+     * Keeps the key.
+     *
+     * @param engine_state An empty state.
+     * @param key_bytes 32 bytes (`aead` has checked their size).
+     * @return Nothing.
+     */
+    [[nodiscard]] static boost::system::result<void> init(
+        state& engine_state, std::span<std::uint8_t const> key_bytes) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
+        std::ranges::copy(key_bytes, engine_state.key.begin());
+        return {};
+    }
+
+    /**
+     * Encrypts `data_bytes` in place and writes the tag. BearSSL reads the nonce and the
+     * additional data before it writes a byte of the data.
+     *
+     * @param engine_state A keyed state.
+     * @param iv_bytes 12 bytes.
+     * @param additional_data_bytes Authenticated, not encrypted.
+     * @param data_bytes The message.
+     * @param tag_bytes The tag.
+     * @return Nothing.
+     */
+    [[nodiscard]] static boost::system::result<void> seal(
+        state& engine_state, std::span<std::uint8_t const> iv_bytes,
+        std::span<std::uint8_t const> additional_data_bytes, std::span<std::uint8_t> data_bytes,
+        boost::hash2::digest<16>& tag_bytes) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
+        bearssl_poly1305()(engine_state.key.data(), iv_bytes.data(), data_bytes.data(),
+                           data_bytes.size(), additional_data_bytes.data(),
+                           additional_data_bytes.size(), tag_bytes.data(), bearssl_chacha20(), 1);
+        return {};
+    }
+
+    /**
+     * Decrypts `data_bytes` in place, then compares the tag it computed with `tag_bytes` in
+     * constant time; `aead` zeroes the data when they differ.
+     *
+     * @param engine_state A keyed state.
+     * @param iv_bytes 12 bytes.
+     * @param additional_data_bytes The additional data of the seal.
+     * @param data_bytes The ciphertext.
+     * @param tag_bytes The expected tag.
+     * @return Nothing; `authentication_failed`.
+     */
+    [[nodiscard]] static boost::system::result<void> open(
+        state& engine_state, std::span<std::uint8_t const> iv_bytes,
+        std::span<std::uint8_t const> additional_data_bytes, std::span<std::uint8_t> data_bytes,
+        std::array<std::uint8_t, 16> const& tag_bytes) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
+        std::array<std::uint8_t, 16> computed_tag{};
+        bearssl_poly1305()(engine_state.key.data(), iv_bytes.data(), data_bytes.data(),
+                           data_bytes.size(), additional_data_bytes.data(),
+                           additional_data_bytes.size(), computed_tag.data(), bearssl_chacha20(),
+                           0);
+        // The verdict is public by design (a failed open is reported): declassified here,
+        // where webcpp's code first branches on it, for the constant-time checks.
+        // Not const: the branch below must read the variable again after the declassifying
+        // client request, whose memory clobber reaches a mutable object only.
+        // NOLINTNEXTLINE(misc-const-correctness): see above
+        bool tag_matches = equal(computed_tag, tag_bytes);
+        WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&tag_matches, sizeof tag_matches);
+        wipe(computed_tag.data(), computed_tag.size());
+        if (!tag_matches) {
+            return error::authentication_failed;
+        }
+        return {};
+    }
+
+    /**
+     * Moves the key into an empty state, and wipes the source.
+     *
+     * @param target_state An empty state.
+     * @param source_state A keyed state, wiped.
+     */
+    static void move(state& target_state, state& source_state) noexcept {
+        target_state.key = source_state.key;
+        wipe_object(source_state.key);
+    }
+
+    /**
+     * Wipes the key; the state is empty.
+     *
+     * @param engine_state Any state.
+     */
+    static void reset(state& engine_state) noexcept { wipe_object(engine_state.key); }
 };
 
 /**

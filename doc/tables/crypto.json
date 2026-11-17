@@ -368,7 +368,16 @@
             "what": "RFC 8439's ChaCha20-Poly1305, authenticated encryption in place with a 12-byte nonce.",
             "section": "crypto-chacha",
             "default": "`chacha20_poly1305<>` names the default backend.",
-            "backends": {"sodium": {"tests": ["chacha_sodium", "chacha_wycheproof_sodium", "allocation_sodium"]}}
+            "backends": {
+                "sodium": {"tests": ["chacha_sodium", "chacha_wycheproof_sodium", "allocation_sodium",
+                                     "agreement_chacha", "agreement_chacha_emscripten"]},
+                "bearssl": {"tests": ["chacha_bearssl", "chacha_wycheproof_bearssl", "allocation_bearssl",
+                                      "agreement_chacha", "agreement_chacha_emscripten",
+                                      "agreement_chacha_portable", "agreement_chacha_portable_emscripten"]},
+                "openssl": {"tests": ["chacha_openssl", "chacha_wycheproof_openssl", "allocation_openssl",
+                                      "openssl_error_queue", "agreement_chacha", "agreement_chacha_portable"]},
+                "ctaes": {"refused": "chacha_on_ctaes"}
+            }
         },
         {
             "id": "chacha20_poly1305_original",
@@ -412,7 +421,7 @@
                 {"targets": ["native"], "compilers": ["clang", "gcc"], "backend": "openssl", "tests": ["default_both", "default_backend_all_linked"], "why": "OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 ({openssl-armv8}; {openssl-ghash-asm}); BearSSL has them on x86 only ({bearssl-aes}). OpenSSL whatever the program links: a program that links BearSSL alone names `gcm<aes256<backends::bearssl>>`"},
                 {"targets": ["native"], "compilers": ["msvc"], "backend": "openssl", "tests": ["default_both"], "why": "the same rule as with Clang and GCC, but here OpenSSL is built no-asm: table-based AES and 4-bit GHASH, no AES-NI, not constant time ({openssl-install}); where timing attacks matter, link BearSSL and name `gcm<aes256<backends::bearssl>>`"},
                 {"targets": ["wasip2", "wasip3"], "backend": "bearssl", "tests": ["default_bearssl", "default_both_wasm", "default_backend_all_linked"], "why": "constant time by design ({bearssl-ct}), where OpenSSL is built no-asm and its AES and GHASH are table-based ({openssl-install}). BearSSL whatever the program links: a program that links OpenSSL alone names `gcm<aes256<backends::openssl>>`"},
-                {"targets": ["emscripten"], "backend": "bearssl", "tests": ["default_bearssl", "default_backend_all_linked_emscripten"], "why": "the only AEAD backend there: webcpp does not build OpenSSL for Emscripten"}
+                {"targets": ["emscripten"], "backend": "bearssl", "tests": ["default_bearssl", "default_backend_all_linked_emscripten"], "why": "the only AES-GCM backend there: webcpp does not build OpenSSL for Emscripten"}
             ],
             "backends": {
                 "bearssl": {"targets": "all"},
@@ -498,10 +507,12 @@
                 {"name": "chacha20_poly1305", "title": "ChaCha20-Poly1305", "type": "ciphers::chacha20_poly1305<{backend}>"}
             ],
             "default": [
-                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["chacha_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, the same on every target ({libsodium-aead})"}
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["chacha_sodium", "default_backend_none_linked"], "why": "one library for the three ChaCha20-Poly1305 AEADs on every target, where BearSSL and OpenSSL have RFC 8439's alone ({libsodium-aead}); a program that links BearSSL or OpenSSL alone names it in the type, as in `chacha20_poly1305<backends::bearssl>`"}
             ],
             "backends": {
-                "sodium": {"targets": "all"}
+                "sodium": {"targets": "all"},
+                "bearssl": {"targets": "all"},
+                "openssl": {"targets": "all"}
             }
         },
         {
@@ -660,6 +671,7 @@
         "ctaes_not_linked": "Add `/third_party//ctaes`.",
         "sodium_not_linked": "Add `/third_party//sodium`.",
         "chacha_default_not_linked": "The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add `/third_party//sodium`.",
+        "chacha_on_ctaes": "Name a backend that has ChaCha20-Poly1305, as in `chacha20_poly1305<backends::bearssl>`, or its default, `chacha20_poly1305<>`, and link its library.",
         "aead_not_a_family": "Name one of the three ChaCha20-Poly1305 families; AES-GCM is `ciphers::gcm`, as in `aes256_gcm`.",
         "sodium_not_linked_on_emscripten": "Add `/third_party//sodium` to the program's sources.",
         "canary_sodium_other_commit": "Build the library at the commit of webcpp's submodule, or link it through b2.",

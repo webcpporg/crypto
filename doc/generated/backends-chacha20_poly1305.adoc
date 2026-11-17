@@ -13,10 +13,25 @@ The backends of `+ciphers::chacha20_poly1305+`, from the test programs that run 
 |===
 |Backend |Jamfile |Header |Targets
 
+|BearSSL
+|`+/third_party//bearssl+`
+|`+<webcpp/crypto/backends/bearssl.hpp>+`
+|native, wasip2, wasip3, emscripten (tested by `+chacha_bearssl+`, `+chacha_wycheproof_bearssl+`, `+allocation_bearssl+`, `+agreement_chacha+`, `+agreement_chacha_emscripten+`, `+agreement_chacha_portable+`, `+agreement_chacha_portable_emscripten+`)
+
+|OpenSSL
+|`+/webcpp/crypto//openssl+`
+|`+<webcpp/crypto/backends/openssl.hpp>+`
+|native, wasip2, wasip3 (tested by `+chacha_openssl+`, `+chacha_wycheproof_openssl+`, `+allocation_openssl+`, `+openssl_error_queue+`, `+agreement_chacha+`, `+agreement_chacha_portable+`); not on emscripten: `+/webcpp/crypto//openssl+` stops the build there
+
+|ctaes
+|`+/third_party//ctaes+`
+|`+<webcpp/crypto/backends/ctaes.hpp>+`
+|refused at compile time (`+chacha_on_ctaes+`)
+
 |libsodium
 |`+/third_party//sodium+`
 |`+<webcpp/crypto/backends/sodium.hpp>+`
-|native, wasip2, wasip3, emscripten (tested by `+chacha_sodium+`, `+chacha_wycheproof_sodium+`, `+allocation_sodium+`)
+|native, wasip2, wasip3, emscripten (tested by `+chacha_sodium+`, `+chacha_wycheproof_sodium+`, `+allocation_sodium+`, `+agreement_chacha+`, `+agreement_chacha_emscripten+`)
 |===
 
 `+chacha20_poly1305<>+` names the default backend. The default per target, whatever the program links, as <<crypto-backends-defaults>> gives it with its reasons and tests:

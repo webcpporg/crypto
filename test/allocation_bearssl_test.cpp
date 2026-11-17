@@ -5,10 +5,12 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // On BearSSL nothing allocates (spec section 3.2): make, seal, open, the incremental seal,
-// equal and random_device's fill make no call of operator new, nor of the C library's
+// equal and random_device's fill, and ChaCha20-Poly1305's make, seal, open (good and failed)
+// and move make no call of operator new, nor of the C library's
 // allocator where the target lets a program count it; a control proves the counter moves.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
+#include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: a test
 #include <webcpp/test/exit_status.hpp>
@@ -23,6 +25,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <utility>
 
 int main() {
     namespace crypto = webcpp::crypto;
@@ -54,6 +57,16 @@ int main() {
         BOOST_TEST(made->update(data).has_value());
         BOOST_TEST(made->result().has_value());
         BOOST_TEST(crypto::equal(*tag, *tag));
+        using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::bearssl>;
+        auto sealer = chacha::make(key);
+        BOOST_TEST(sealer.has_value());
+        auto const sealed = sealer->seal(iv, iv, data);
+        BOOST_TEST(sealed.has_value());
+        BOOST_TEST(sealer->open(iv, iv, data, *sealed).has_value());
+        std::array<std::uint8_t, 16> const forged{};
+        BOOST_TEST(sealer->open(iv, iv, data, forged).error() ==
+                   crypto::error::authentication_failed);
+        chacha const moved = std::move(*sealer);
     }
     BOOST_TEST_EQ(webcpp::test::allocations(), before);
     return webcpp::test::exit_status(boost::report_errors());

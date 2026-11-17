@@ -459,27 +459,31 @@ void check_aead_overlap(Aead& made, std::span<std::uint8_t const> iv) {
 }
 
 /**
- * An IV and additional data inside the sealed buffer itself give what copies of them give:
- * both are read before the first byte of the data is written.
+ * An IV inside the sealed buffer, and additional data just before it in the same buffer, give
+ * what copies of them give: the IV is read before the first byte of the data is written, and
+ * the additional data, which may touch the data but not overlap it, is left as it was.
  */
 template <class Aead>
 void check_aead_in_place(Aead& made) {
     constexpr std::size_t additional_size = 16;
-    std::array<std::uint8_t, Aead::iv_size + additional_size + 16> buffer{};
+    std::array<std::uint8_t, additional_size + Aead::iv_size + 16> buffer{};
     for (std::size_t i = 0; i < buffer.size(); ++i) {
         buffer[i] = static_cast<std::uint8_t>((i * 7) + 1);
     }
+    auto const original = buffer;
     std::array<std::uint8_t, Aead::iv_size> iv_copy{};
     std::array<std::uint8_t, additional_size> additional_copy{};
-    auto data_copy = buffer;
-    std::copy_n(buffer.begin(), Aead::iv_size, iv_copy.begin());
-    std::copy_n(buffer.begin() + Aead::iv_size, additional_size, additional_copy.begin());
+    std::copy_n(buffer.begin(), additional_size, additional_copy.begin());
+    std::copy_n(buffer.begin() + additional_size, Aead::iv_size, iv_copy.begin());
+    std::array<std::uint8_t, Aead::iv_size + 16> data_copy{};
+    std::copy_n(buffer.begin() + additional_size, data_copy.size(), data_copy.begin());
     auto const expected = made.seal(iv_copy, additional_copy, data_copy);
+    auto const data = std::span(buffer).subspan(additional_size);
     auto const in_place =
-        made.seal(std::span(buffer).first(Aead::iv_size),
-                  std::span(buffer).subspan(Aead::iv_size, additional_size), buffer);
+        made.seal(data.first(Aead::iv_size), std::span(buffer).first(additional_size), data);
     BOOST_TEST(expected && in_place && to_hex(*expected) == to_hex(*in_place));
-    BOOST_TEST(data_copy == buffer);
+    BOOST_TEST(std::equal(data_copy.begin(), data_copy.end(), data.begin()));
+    BOOST_TEST(std::equal(original.begin(), original.begin() + additional_size, buffer.begin()));
 }
 
 /**

@@ -329,6 +329,19 @@ crypto-run chacha_wycheproof_sodium : chacha_wycheproof_sodium_test.cpp
     <library>/webcpp//boost_json ;
 crypto-run allocation_sodium : allocation_sodium_test.cpp : <library>/third_party//sodium ;
 
+# ChaCha20-Poly1305 on BearSSL, on every target, and on OpenSSL, on native,
+# wasip2 and wasip3: every check of support/aead_checks.hpp against RFC 8439's
+# cases, natively the message's limit too, and Wycheproof's vectors.
+crypto-run chacha_bearssl : chacha_bearssl_test.cpp : <library>/third_party//bearssl ;
+crypto-run chacha_wycheproof_bearssl : chacha_wycheproof_bearssl_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
+crypto-run chacha_openssl : chacha_openssl_test.cpp : <library>/webcpp/crypto//openssl
+  : native wasip2 wasip3 ;
+crypto-run chacha_wycheproof_openssl : chacha_wycheproof_openssl_test.cpp
+  : <library>/webcpp/crypto//openssl <library>/third_party//wycheproof
+    <library>/webcpp//boost_json : native wasip2 wasip3 ;
+
 # The capability table of doc/tables/crypto.json, which generate.py writes
 # this test from: supports_v of every cell on the target, and each present
 # cell made, with every backend the target builds linked.
@@ -360,6 +373,28 @@ crypto-run agreement_gcm_portable : agreement_gcm_portable_test.cpp
   : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
     <define>WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE
   : native wasip2 wasip3 ;
+
+# libsodium, BearSSL and OpenSSL pairwise on ChaCha20-Poly1305 (spec section
+# 8.2), on native, wasip2 and wasip3; on Emscripten, which has no OpenSSL,
+# libsodium against BearSSL. The portable twins keep BearSSL on chacha20_ct
+# and poly1305_ctmul through the backend's test seam, as AES-GCM's does: on
+# x86-64 its other ChaCha20 is SSE2's, and wherever the compiler has 128-bit
+# integers, the WebAssembly targets included, its other Poly1305 is ctmulq.
+crypto-run agreement_chacha : agreement_chacha_test.cpp
+  : <library>/third_party//sodium <library>/third_party//bearssl
+    <library>/webcpp/crypto//openssl
+  : native wasip2 wasip3 ;
+crypto-run agreement_chacha_emscripten : agreement_chacha_test.cpp
+  : <library>/third_party//sodium <library>/third_party//bearssl
+  : emscripten ;
+crypto-run agreement_chacha_portable : agreement_chacha_portable_test.cpp
+  : <library>/third_party//sodium <library>/third_party//bearssl
+    <library>/webcpp/crypto//openssl <define>WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE
+  : native wasip2 wasip3 ;
+crypto-run agreement_chacha_portable_emscripten : agreement_chacha_portable_test.cpp
+  : <library>/third_party//sodium <library>/third_party//bearssl
+    <define>WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE
+  : emscripten ;
 
 # <windows.h> before and after every public header (spec sections 2.2 and 8.6),
 # with every backend linked: on MSVC (the CI's msvc lanes) the headers beside a

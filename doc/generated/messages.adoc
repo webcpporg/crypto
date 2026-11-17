@@ -37,6 +37,12 @@ The fix: Add `+/third_party//bearssl+`.
 
 The fix: The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add `+/third_party//sodium+`.
 
+|`+chacha_on_ctaes+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: ctaes has no ChaCha20-Poly1305. The backends that have it: sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).+`
+
+The fix: Name a backend that has ChaCha20-Poly1305, as in `+chacha20_poly1305<backends::bearssl>+`, or its default, `+chacha20_poly1305<>+`, and link its library.
+
 |`+ctaes_not_linked+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: the backend ctaes is used and not linked. In the program's Jamfile, add /third_party//ctaes beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_CTAES=1 and link ctaes.c with webcpp's src/canary_ctaes.c)+`
@@ -617,6 +623,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+chacha_default_not_linked+`
 |the compile
 |The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add `+/third_party//sodium+`.
+
+|`+chacha_on_ctaes+`
+|the compile
+|Name a backend that has ChaCha20-Poly1305, as in `+chacha20_poly1305<backends::bearssl>+`, or its default, `+chacha20_poly1305<>+`, and link its library.
 
 |`+ctaes_not_linked+`
 |the compile

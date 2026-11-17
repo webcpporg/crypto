@@ -10,7 +10,9 @@
  `ciphers/aes256_gcm.hpp`, whose `aes128_gcm` and `aes256_gcm` name AES-GCM's default
  backend, and `ciphers/chacha20_poly1305.hpp`, whose AEADs name libsodium: a program that does
  not link the default names another in the type, as
- `ciphers::gcm<ciphers::aes256<backends::openssl>>` on WebAssembly.
+ `ciphers::gcm<ciphers::aes256<backends::openssl>>` on WebAssembly or
+ `ciphers::chacha20_poly1305<backends::bearssl>`, or, for the original ChaCha20-Poly1305 and
+ XChaCha20-Poly1305, which libsodium alone has, links libsodium.
 */
 #ifndef WEBCPP_CRYPTO_HPP
 #define WEBCPP_CRYPTO_HPP

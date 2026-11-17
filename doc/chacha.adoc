@@ -39,6 +39,14 @@ calls do: `seal(iv_bytes, additional_data_bytes, data_bytes)` encrypts
 `data_bytes` and returns the 16-byte tag; `open(iv_bytes,
 additional_data_bytes, data_bytes, tag_bytes)` checks the tag and decrypts.
 A failed `open` zeroes `data_bytes`; a guard's refusal leaves it untouched.
+The nonce may lie in `data_bytes`, and the additional data may touch it, as a
+wire format that puts it just before the message does, but not overlap it.
+
+RFC 8439's form also runs on BearSSL, on every target, and on OpenSSL,
+natively and on WASI, with the same results byte for byte: name the backend in
+the type, as in `chacha20_poly1305<backends::bearssl>`, and link its library.
+On BearSSL nothing allocates; on OpenSSL `make` allocates and a message does
+not.
 
 include::generated/backends-chacha20_poly1305.adoc[]
 

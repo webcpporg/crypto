@@ -50,3 +50,4 @@ build-project ed25519_default_not_linked ;
 build-project heavy_without_threads ;
 build-project chacha_default_not_linked ;
 build-project aead_not_a_family ;
+build-project chacha_on_ctaes ;

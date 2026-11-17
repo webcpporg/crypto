@@ -19,6 +19,7 @@
 #ifdef WEBCPP_TEST_WIPE_BEARSSL
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #elif defined(WEBCPP_TEST_WIPE_CTAES)
 #include <webcpp/crypto/backends/ctaes.hpp>
@@ -28,6 +29,7 @@
 #elif defined(WEBCPP_TEST_WIPE_OPENSSL)
 #include <webcpp/crypto/backends/openssl.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #else
 #error "name a backend: WEBCPP_TEST_WIPE_BEARSSL, _CTAES, _SECP256K1 or _OPENSSL"
@@ -161,6 +163,12 @@ int main() {
     using type = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>;
     check_wiped<type>(
         {.offset = 0, .size = sizeof(crypto::detail::gcm_state<crypto::backends::bearssl, 32>)});
+    // ChaCha20-Poly1305's state is aead's first member: the key itself.
+    using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::bearssl>;
+    check_wiped<chacha>(
+        {.offset = 0,
+         .size = sizeof(crypto::detail::aead_state<crypto::families::chacha20_poly1305,
+                                                   crypto::backends::bearssl>)});
 #elif defined(WEBCPP_TEST_WIPE_CTAES)
     // The state is the block cipher's first member: the expanded schedule.
     using type = crypto::ciphers::aes256<crypto::backends::ctaes>;
@@ -180,6 +188,10 @@ int main() {
         {.offset = 0, .size = sizeof(crypto::detail::gcm_state<crypto::backends::openssl, 32>)});
     check_wiped<crypto::ciphers::aes256<crypto::backends::openssl>>(
         {.offset = 0, .size = sizeof(crypto::detail::block_state<crypto::backends::openssl, 32>)});
+    check_wiped<crypto::ciphers::chacha20_poly1305<crypto::backends::openssl>>(
+        {.offset = 0,
+         .size = sizeof(crypto::detail::aead_state<crypto::families::chacha20_poly1305,
+                                                   crypto::backends::openssl>)});
 #endif
     return webcpp::test::exit_status(boost::report_errors());
 }

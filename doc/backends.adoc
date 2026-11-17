@@ -36,7 +36,7 @@ Each family has one default backend per target, for the reason the table
 gives, whatever the program links; no define changes it, and every other
 backend is reached by naming it in the type. AES-GCM's is OpenSSL natively,
 whose assembly uses the CPU's AES instructions on x86-64 and ARMv8 with Clang
-and GCC, and BearSSL on WebAssembly, the only AEAD backend on Emscripten and
+and GCC, and BearSSL on WebAssembly, the only AES-GCM backend on Emscripten and
 constant time by design where OpenSSL is built without assembly. On MSVC
 OpenSSL is built without assembly too: the default is then table-based and not
 constant time, and a program that timing attacks threaten names
@@ -46,8 +46,11 @@ links it and the type that names another backend
 (<<crypto-jamfile-messages>>).
 AES-GCM's default applies to `aes128_gcm`, `aes256_gcm` and `aes256<>`; the
 AES block cipher has none of its own, and libsecp256k1 is the only backend of
-secp256k1. In {cpp}, `default_backend_t<Family>` names a family's default on
-the target being compiled, and `default_backend` AES-GCM's.
+secp256k1. The three ChaCha20-Poly1305 AEADs' default is libsodium on every
+target; RFC 8439's form also runs on BearSSL, on every target, and on OpenSSL,
+natively and on WASI, each named in the type. In {cpp},
+`default_backend_t<Family>` names a family's default on the target being
+compiled, and `default_backend` AES-GCM's.
 
 include::generated/defaults.adoc[]
 

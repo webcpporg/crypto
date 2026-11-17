@@ -248,10 +248,18 @@ static_assert(crypto::supports_v<algorithm<families::x25519, families::x25519>, 
 #else
 static_assert(!crypto::supports_v<algorithm<families::x25519, families::x25519>, backends::sodium>);
 #endif
-// ChaCha20-Poly1305 on bearssl: none.
+// ChaCha20-Poly1305 on bearssl: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::chacha20_poly1305, families::chacha20_poly1305>, backends::bearssl>);
+#else
 static_assert(!crypto::supports_v<algorithm<families::chacha20_poly1305, families::chacha20_poly1305>, backends::bearssl>);
-// ChaCha20-Poly1305 on openssl: none.
+#endif
+// ChaCha20-Poly1305 on openssl: native, wasip2, wasip3.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3)
+static_assert(crypto::supports_v<algorithm<families::chacha20_poly1305, families::chacha20_poly1305>, backends::openssl>);
+#else
 static_assert(!crypto::supports_v<algorithm<families::chacha20_poly1305, families::chacha20_poly1305>, backends::openssl>);
+#endif
 // ChaCha20-Poly1305 on ctaes: none.
 static_assert(!crypto::supports_v<algorithm<families::chacha20_poly1305, families::chacha20_poly1305>, backends::ctaes>);
 // ChaCha20-Poly1305 on secp256k1: none.
@@ -341,6 +349,12 @@ int main() {
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
     BOOST_TEST((webcpp::test::made<crypto::curves::x25519::algorithm<backends::sodium>, families::x25519, families::x25519, backends::sodium>()));
+#endif
+#if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_BEARSSL)
+    BOOST_TEST((webcpp::test::made<crypto::ciphers::chacha20_poly1305<backends::bearssl>, families::chacha20_poly1305, families::chacha20_poly1305, backends::bearssl>()));
+#endif
+#if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3)) && defined(WEBCPP_CRYPTO_HAS_OPENSSL)
+    BOOST_TEST((webcpp::test::made<crypto::ciphers::chacha20_poly1305<backends::openssl>, families::chacha20_poly1305, families::chacha20_poly1305, backends::openssl>()));
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
     BOOST_TEST((webcpp::test::made<crypto::ciphers::chacha20_poly1305<backends::sodium>, families::chacha20_poly1305, families::chacha20_poly1305, backends::sodium>()));

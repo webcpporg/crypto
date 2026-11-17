@@ -117,9 +117,24 @@
 |`+x25519_sodium+`, `+x25519_wycheproof_sodium+`
 
 |`+ciphers::chacha20_poly1305+`
+|BearSSL
+|native, wasip2, wasip3, emscripten
+|`+chacha_bearssl+`, `+chacha_wycheproof_bearssl+`, `+allocation_bearssl+`, `+agreement_chacha+`, `+agreement_chacha_emscripten+`, `+agreement_chacha_portable+`, `+agreement_chacha_portable_emscripten+`
+
+|`+ciphers::chacha20_poly1305+`
+|OpenSSL
+|native, wasip2, wasip3; not on emscripten: `+/webcpp/crypto//openssl+` stops the build there
+|`+chacha_openssl+`, `+chacha_wycheproof_openssl+`, `+allocation_openssl+`, `+openssl_error_queue+`, `+agreement_chacha+`, `+agreement_chacha_portable+`
+
+|`+ciphers::chacha20_poly1305+`
+|ctaes
+|refused at compile time
+|`+chacha_on_ctaes+`
+
+|`+ciphers::chacha20_poly1305+`
 |libsodium
 |native, wasip2, wasip3, emscripten
-|`+chacha_sodium+`, `+chacha_wycheproof_sodium+`, `+allocation_sodium+`
+|`+chacha_sodium+`, `+chacha_wycheproof_sodium+`, `+allocation_sodium+`, `+agreement_chacha+`, `+agreement_chacha_emscripten+`
 
 |`+ciphers::chacha20_poly1305_original+`
 |libsodium
@@ -235,10 +250,10 @@ The same, by target: the backends each operation runs on.
 |libsodium
 
 |`+ciphers::chacha20_poly1305+`
-|libsodium
-|libsodium
-|libsodium
-|libsodium
+|BearSSL, OpenSSL, libsodium
+|BearSSL, OpenSSL, libsodium
+|BearSSL, OpenSSL, libsodium
+|BearSSL, libsodium
 
 |`+ciphers::chacha20_poly1305_original+`
 |libsodium

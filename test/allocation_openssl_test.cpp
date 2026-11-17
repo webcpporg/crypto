@@ -6,13 +6,15 @@
 
 // On OpenSSL a message allocates nothing (spec section 8.5): after make, which allocates
 // through OpenSSL's functions (counted here and printed, not refused), seal, open (good and
-// failed), the incremental seal, encrypt and decrypt make no call of OpenSSL's allocator, of
+// failed), the incremental seal, encrypt and decrypt, and ChaCha20-Poly1305's seal and open
+// (good and failed) make no call of OpenSSL's allocator, of
 // operator new, nor of the C library's allocator where the target lets a program count it.
 // OpenSSL's allocations are outside the user's allocator (the accepted departure); its count
 // is measured per target on OpenSSL 3.5.9 (native with assembly; MSVC, wasip2 and wasip3
 // without it).
 
 #include <webcpp/crypto/backends/openssl.hpp>
+#include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/counting.hpp"
@@ -77,7 +79,12 @@ int main() {
     std::size_t const second_count = openssl_allocations.load() - second_first;
     BOOST_TEST(second.has_value());
     std::printf("second make: %zu\n", second_count);
-    if (!made.has_value() || !second.has_value()) {
+    std::size_t const chacha_first = openssl_allocations.load();
+    auto chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::openssl>::make(key);
+    std::size_t const chacha_count = openssl_allocations.load() - chacha_first;
+    BOOST_TEST(chacha.has_value());
+    std::printf("ChaCha20-Poly1305's make: %zu\n", chacha_count);
+    if (!made.has_value() || !second.has_value() || !chacha.has_value()) {
         return webcpp::test::exit_status(boost::report_errors());
     }
 
@@ -93,6 +100,10 @@ int main() {
     bool const resulted = made->result().has_value();
     bool const encrypted = second->encrypt(block).has_value();
     bool const decrypted = second->decrypt(block).has_value();
+    auto const chacha_tag = chacha->seal(iv, iv, data);
+    bool const chacha_sealed = chacha_tag.has_value();
+    bool const chacha_opened = chacha_sealed && chacha->open(iv, iv, data, *chacha_tag).has_value();
+    bool const chacha_refused = !chacha->open(iv, iv, data, wrong).has_value();
     std::size_t const after = webcpp::test::allocations();
     std::size_t const own_after = openssl_allocations.load();
     BOOST_TEST(sealed);
@@ -103,6 +114,9 @@ int main() {
     BOOST_TEST(resulted);
     BOOST_TEST(encrypted);
     BOOST_TEST(decrypted);
+    BOOST_TEST(chacha_sealed);
+    BOOST_TEST(chacha_opened);
+    BOOST_TEST(chacha_refused);
     BOOST_TEST_EQ(own_after, own_before);
     BOOST_TEST_EQ(after, before);
     return webcpp::test::exit_status(boost::report_errors());

@@ -7,11 +7,11 @@
 /**
  The backend OpenSSL: OpenSSL 3.5.9 built from `third_party/libs/openssl` by
  `/webcpp/crypto//openssl`, static, on native, wasip2 and wasip3; never on Emscripten. It
- serves `ciphers::aes128/192/256<backends::openssl>` and `ciphers::gcm<...<backends::openssl>>`. Its
- `make` allocates through OpenSSL's own functions, unless a native program sets
- `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, which sends every allocation of OpenSSL's to
- `openssl_memory_resource()`. On MSVC, wasip2 and wasip3 OpenSSL is compiled
- without assembly: table-driven AES and 4-bit GHASH, no AES-NI, not constant time.
+ serves `ciphers::aes128/192/256<backends::openssl>`, `ciphers::gcm<...<backends::openssl>>` and
+ `ciphers::chacha20_poly1305<backends::openssl>`. Its `make` allocates through OpenSSL's own
+ functions, unless a native program sets `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, which sends every
+ allocation of OpenSSL's to `openssl_memory_resource()`. On MSVC, wasip2 and wasip3 OpenSSL is
+ compiled without assembly: table-driven AES and 4-bit GHASH, no AES-NI, not constant time.
  OpenSSL's default initialisation reads the configuration file of the directory it was
  configured with (`/etc/ssl/openssl.cnf`, when the machine has one), as any program of
  OpenSSL does; what it raises meanwhile is popped with the backend's mark.
@@ -44,6 +44,7 @@
     "webcpp::crypto: the backend OpenSSL needs OpenSSL 3.0 or later, and the headers found are of an older OpenSSL. In the program's Jamfile, name /webcpp/crypto//openssl, which builds OpenSSL 3.5.9. (without b2: put OpenSSL 3's include/ first)"
 #else
 
+#include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -533,6 +534,110 @@ struct gcm_engine<backends::openssl, KeySize> {
     }
 
     // EVP_CIPHER_CTX_free cleanses the expanded key before it frees.
+    /** Frees the context. */
+    static void reset(state& engine_state) noexcept {
+        EVP_CIPHER_CTX_free(std::exchange(engine_state.context, nullptr));
+    }
+};
+
+/** ChaCha20-Poly1305's state on OpenSSL: one context, keyed once. */
+template <>
+struct aead_state<families::chacha20_poly1305, backends::openssl> {
+    /** The context, keyed for ChaCha20-Poly1305; null when the object holds no key. */
+    EVP_CIPHER_CTX* context = nullptr;
+};
+
+/**
+ * ChaCha20-Poly1305 on OpenSSL (`EVP_chacha20_poly1305`, fetched by name). A message runs GCM's
+ * sequence of calls on its own context, borrowed from GCM's engine: the controls GCM's engine
+ * sends are the AEAD ones, which OpenSSL 3 names twice (`EVP_CTRL_GCM_SET_IVLEN` is
+ * `EVP_CTRL_AEAD_SET_IVLEN`, and so are the tag's, include/openssl/evp.h). The error queue is
+ * left as GCM's engine leaves it.
+ */
+template <>
+struct aead_engine<families::chacha20_poly1305, backends::openssl> {
+    /** The state. */
+    using state = aead_state<families::chacha20_poly1305, backends::openssl>;
+    /** GCM's engine, whose message calls take a state that names the context alone. */
+    using sequence = gcm_engine<backends::openssl, 32>;
+
+    /**
+     * Keys a context for ChaCha20-Poly1305 with the key.
+     *
+     * @param engine_state An empty state.
+     * @param key_bytes 32 bytes.
+     * @return Nothing; `errc::not_enough_memory`; `backend_failure`.
+     */
+    [[nodiscard]] static boost::system::result<void> init(
+        state& engine_state, std::span<std::uint8_t const> key_bytes) noexcept {
+        EVP_CIPHER_CTX* made_context = nullptr;
+        if (auto const failure_code =
+                openssl_context(made_context, "ChaCha20-Poly1305", key_bytes, true, true)) {
+            return failure_code;
+        }
+        engine_state.context = made_context;
+        return {};
+    }
+
+    /**
+     * Encrypts `data_bytes` in place and gives the tag.
+     *
+     * @param engine_state A keyed state.
+     * @param iv_bytes 12 bytes.
+     * @param additional_data_bytes Authenticated, not encrypted.
+     * @param data_bytes The message.
+     * @param tag_bytes The tag.
+     * @return Nothing; `backend_failure`.
+     */
+    [[nodiscard]] static boost::system::result<void> seal(
+        state& engine_state, std::span<std::uint8_t const> iv_bytes,
+        std::span<std::uint8_t const> additional_data_bytes, std::span<std::uint8_t> data_bytes,
+        boost::hash2::digest<16>& tag_bytes) noexcept {
+        sequence::state view{engine_state.context};
+        auto const started = sequence::start(view, true, iv_bytes, additional_data_bytes);
+        if (!started) {
+            return started;
+        }
+        auto const ran = sequence::run(view, data_bytes);
+        if (!ran) {
+            return ran;
+        }
+        return sequence::tag(view, tag_bytes);
+    }
+
+    /**
+     * Decrypts `data_bytes` in place and checks the tag; `aead` zeroes the data when it does not
+     * match.
+     *
+     * @param engine_state A keyed state.
+     * @param iv_bytes 12 bytes.
+     * @param additional_data_bytes The additional data of the seal.
+     * @param data_bytes The ciphertext.
+     * @param tag_bytes The expected tag.
+     * @return Nothing; `authentication_failed`; `backend_failure`.
+     */
+    [[nodiscard]] static boost::system::result<void> open(
+        state& engine_state, std::span<std::uint8_t const> iv_bytes,
+        std::span<std::uint8_t const> additional_data_bytes, std::span<std::uint8_t> data_bytes,
+        std::array<std::uint8_t, 16> const& tag_bytes) noexcept {
+        sequence::state view{engine_state.context};
+        auto const started = sequence::start(view, false, iv_bytes, additional_data_bytes);
+        if (!started) {
+            return started;
+        }
+        auto const ran = sequence::run(view, data_bytes);
+        if (!ran) {
+            return ran;
+        }
+        return sequence::check(view, tag_bytes);
+    }
+
+    /** Moves the context, leaving the source empty. */
+    static void move(state& target_state, state& source_state) noexcept {
+        target_state.context = std::exchange(source_state.context, nullptr);
+    }
+
+    // EVP_CIPHER_CTX_free cleanses the key before it frees.
     /** Frees the context. */
     static void reset(state& engine_state) noexcept {
         EVP_CIPHER_CTX_free(std::exchange(engine_state.context, nullptr));

@@ -304,8 +304,11 @@ public:
      * Seals a message in place: `data_bytes` holds the plaintext before and the ciphertext
      * after.
      *
-     * The nonce and the additional data are read before the first byte of `data_bytes` is
-     * written, so they may lie in `data_bytes`.
+     * The nonce is read before the first byte of `data_bytes` is written, so it may lie in
+     * `data_bytes`. The additional data may touch `data_bytes`, as a wire format that puts it
+     * just before the message does, but not overlap it: BearSSL's ChaCha20-Poly1305 reads it
+     * after it encrypts, in one call over the whole message, and an overlap would give a tag
+     * that no open accepts.
      *
      * @param iv_bytes The nonce, `iv_size` bytes, never repeated under this key.
      * @param additional_data_bytes Authenticated, not encrypted.

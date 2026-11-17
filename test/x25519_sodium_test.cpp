@@ -8,8 +8,8 @@
 // Alice and Bob; a peer key of order 8 (Wycheproof's tcId 63) refused with weak_public_key; the
 // guards (keys of other sizes); detail::is_all_zero; and the conversion from Ed25519: the X25519
 // public key of a key pair's x25519_secret() equals curves::ed25519::to_x25519_public of its
-// Ed25519 public key, and an Ed25519 key of small order, not canonical or off the curve is
-// invalid_public_key.
+// Ed25519 public key, and an Ed25519 key of small order, of mixed order, not canonical or off the
+// curve is invalid_public_key.
 
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
@@ -176,12 +176,19 @@ void conversion_refuses() {
         "0100000000000000000000000000000000000000000000000000000000000000",
         // A point of order 8.
         "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a",
-        // A point of order 4, (0, -1).
+        // A point of order 2, (0, -1).
         "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
         // The neutral element written with y = p + 1, not canonical.
         "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
         // y = 2, whose x is not on the curve.
         "0200000000000000000000000000000000000000000000000000000000000000",
+        // A point of mixed order 8L: RFC 8032 section 7.1's first public key plus the point of
+        // order 8 above. Not of small order and on the curve: refused only as outside the
+        // prime-order subgroup.
+        "9158312a9a8d6e3b34c891d6d61444f8b8211c5117ebad15bdb0bd68b07e0245",
+        // y = p + 3, not canonical: on the curve, of order 8L, so refused only as outside the
+        // prime-order subgroup.
+        "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
     });
     for (auto const key : refused) {
         auto const converted = ed25519::to_x25519_public(test::from_hex(key));

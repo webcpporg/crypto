@@ -273,6 +273,9 @@ crypto-run ed25519ph_sodium : ed25519ph_sodium_test.cpp : <library>/third_party/
 # peer of order 8 refused as weak, the guards and the conversion from Ed25519;
 # Wycheproof's X25519 file, every case.
 crypto-run x25519_sodium : x25519_sodium_test.cpp : <library>/third_party//sodium ;
+# X25519's generic layer on a stand-in engine that does not refuse an all-zero
+# shared secret: agree refuses it itself (design D8).
+crypto-run x25519_mock : x25519_mock_test.cpp ;
 crypto-run x25519_wycheproof_sodium : x25519_wycheproof_sodium_test.cpp
   : <library>/third_party//sodium <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;

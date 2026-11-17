@@ -66,7 +66,7 @@ struct algorithm {
      * @param secret_key 32 bytes; any 32 bytes are a secret key (RFC 7748 clamps them).
      * @return 32 bytes; `invalid_key_size`; `backend_failure`.
      */
-    static boost::system::result<std::array<std::uint8_t, 32>> public_key(
+    [[nodiscard]] static boost::system::result<std::array<std::uint8_t, 32>> public_key(
         std::span<std::uint8_t const> secret_key) noexcept {
         if (secret_key.size() != key_size) {
             return error::invalid_key_size;
@@ -87,7 +87,7 @@ struct algorithm {
      * @return 32 secret bytes; `invalid_key_size`; `invalid_public_key`; `weak_public_key`
      * for a peer key of low order, whose shared secret is all zero; `backend_failure`.
      */
-    static boost::system::result<secret<32>> agree(
+    [[nodiscard]] static boost::system::result<secret<32>> agree(
         std::span<std::uint8_t const> secret_key,
         std::span<std::uint8_t const> peer_public_key) noexcept {
         if (secret_key.size() != key_size) {
@@ -122,7 +122,7 @@ private:
  * @return 32 bytes; `invalid_key_size`; `backend_failure`.
  */
 template <class Backend = default_backend_t<families::x25519>>
-boost::system::result<std::array<std::uint8_t, 32>> public_key(
+[[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> public_key(
     std::span<std::uint8_t const> secret_key) noexcept {
     return algorithm<Backend>::public_key(secret_key);
 }
@@ -137,8 +137,9 @@ boost::system::result<std::array<std::uint8_t, 32>> public_key(
  * `backend_failure`.
  */
 template <class Backend = default_backend_t<families::x25519>>
-boost::system::result<secret<32>> agree(std::span<std::uint8_t const> secret_key,
-                                        std::span<std::uint8_t const> peer_public_key) noexcept {
+[[nodiscard]] boost::system::result<secret<32>> agree(
+    std::span<std::uint8_t const> secret_key,
+    std::span<std::uint8_t const> peer_public_key) noexcept {
     return algorithm<Backend>::agree(secret_key, peer_public_key);
 }
 

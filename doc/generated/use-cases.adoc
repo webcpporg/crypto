@@ -134,7 +134,7 @@
 |<<crypto-ed25519,[.keep]`+ed25519_sign.cpp+`>>
 
 |Agree a shared secret with a peer's public key (X25519, RFC 7748), or with the X25519 form of an Ed25519 key
-|In `+curves::x25519+`: `+public_key+`, `+agree+`; `+curves::ed25519::to_x25519_public+`, `+keypair::x25519_secret+`
+|In `+curves::x25519+`: `+public_key+`, `+agree+`; `+curves::ed25519::to_x25519_public+`, `+curves::ed25519::keypair::x25519_secret+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//x25519-default+`

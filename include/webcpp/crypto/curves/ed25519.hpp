@@ -269,7 +269,7 @@ boost::system::result<void> verify(std::span<std::uint8_t const> public_key,
  * curve or of small order.
  */
 template <class Backend = default_backend_t<families::ed25519>>
-boost::system::result<std::array<std::uint8_t, 32>> to_x25519_public(
+[[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> to_x25519_public(
     std::span<std::uint8_t const> ed25519_public_key) noexcept {
     if (ed25519_public_key.size() != 32) {
         return error::invalid_public_key;

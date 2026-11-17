@@ -67,5 +67,5 @@ memory-run neighbours : neighbours_test.cpp
     <library>/third_party//libdatachannel <threading>multi ;
 
 # A TLS 1.3 handshake through libssl over a pair of memory BIOs, with the C
-# library's allocator counted around it.
+# library's allocator counted from the key to the last free.
 memory-run handshake : handshake_test.cpp : $(.counter) ;

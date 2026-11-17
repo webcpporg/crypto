@@ -13,6 +13,14 @@
 // openssl_init instance, which every program that makes a context has, is initialised before
 // main. Then one gcm is made and sealed, so that blocks exist, and after main OpenSSL's
 // cleanup gives every block back (support.hpp's exit).
+// rtcInitLogger alone brings in libdatachannel's static initialisers: its object, the C
+// API's, names the rest of the library, so the linker takes 37 objects of libdatachannel.a,
+// among them 21 of the 28 that have static initialisers, every one that names an OpenSSL
+// function (certificate, dtlstransport, dtlssrtptransport) included; the 7 left out
+// (the RTP depacketizers, the pacing handler, and the TLS and WebSocket transports, empty
+// without WebSocket) name none. libjuice and usrsctp have none. Measured with the linker's
+// map on macOS and on Linux (libdatachannel 0.24.6, 2026-11-17), so R15's fallback,
+// rtc::InitLogger's address, is not needed.
 
 #include "support.hpp"
 

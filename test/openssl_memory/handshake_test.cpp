@@ -57,7 +57,7 @@ using connection_ptr = std::unique_ptr<SSL, free_connection>;
 
 // A P-256 key, made at run time.
 key_ptr make_key() {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg): OpenSSL's keygen takes the curve so
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg): the curve's name is a variadic argument.
     return key_ptr(EVP_PKEY_Q_keygen(nullptr, nullptr, "EC", "P-256"));
 }
 

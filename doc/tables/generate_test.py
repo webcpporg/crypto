@@ -11,8 +11,9 @@ name declared twice), a backend's reason for the targets an operation misses (Op
 outcome reader (each directive and section), the Doc Comment reader (a line reference left out),
 and the writers whose output a reader of the page sees (inline code that holds a `+` or a backtick,
 a failing fixture's output per target, a comparison table's names of code, the decision table's
-Jamfile column). generate.py --check proves only that the committed tables are what generate.py writes now:
-a reader that regresses and is regenerated in the same change would pass it, and fails here.
+Jamfile column). generate.py --check proves only that the committed tables are what generate.py
+writes now: a reader that regresses and is regenerated in the same change would pass it, and fails
+here.
 
 Usage: generate_test.py [<case>...]. The doc build runs it before generate.py --check
 (doc/Jamfile). Exit 0, or 1 at the first failing case.

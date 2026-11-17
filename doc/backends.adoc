@@ -40,8 +40,9 @@ rule is the same, but OpenSSL is built without assembly there: the default is
 then table-based and not constant time, and a program that timing attacks
 threaten defines `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`. Sizes and speeds are
 not measured yet.
-It applies to `aes128_gcm`, `aes256_gcm` and `aes256<>`; libsecp256k1 and ctaes
-are the only backends of what they implement.
+The table gives the default of each family: AES-GCM's applies to `aes128_gcm`,
+`aes256_gcm` and `aes256<>`; the AES block cipher has none of its own, and
+libsecp256k1 is the only backend of secp256k1.
 
 include::generated/defaults.adoc[]
 

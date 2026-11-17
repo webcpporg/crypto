@@ -1,5 +1,5 @@
 {
-    "comment": "The data of crypto's generated tables and of llms.txt; doc/tables/generate.py reads it with the test Jamfiles, the message tests and the superproject's Jamfile fixtures, and writes doc/generated/, doc/llms.txt, include/webcpp/crypto/detail/capabilities.hpp and test/capabilities_test.cpp. The capability table is `families`: per family its algorithms, the targets on which each backend has it (each claimed only where a test of the family's operations on that backend runs), constant time where it is not by the backend's design, and the default per target with its reason; a backend with `targets`, where it is built, is a tag of `backends`. A name in a text is written between backticks, as Markdown writes code: the tables show it as code and llms.txt keeps the backticks. Edit this file, then run python3 libs/crypto/doc/tables/generate.py; the doc build runs it with --check.",
+    "comment": "The data of crypto's generated tables and of llms.txt; doc/tables/generate.py reads it with the test Jamfiles, the message tests and the superproject's Jamfile fixtures, and writes doc/generated/, doc/llms.txt, include/webcpp/crypto/detail/capabilities.hpp and test/capabilities_test.cpp. The capability table is `families`: per family its algorithms, the targets on which each backend has it (each claimed only where a test of the family's operations on that backend runs), constant time per target where it differs from the backend's own `constant_time` (none yet), and the default per target and what the program links, as the code has it now, with its reason and the tests that fix it; a backend with `targets`, where it is built, is a tag of `backends`. A name in a text is written between backticks, as Markdown writes code: the tables show it as code and llms.txt keeps the backticks. Edit this file, then run python3 libs/crypto/doc/tables/generate.py; the doc build runs it with --check.",
     "page": "https://webcpporg.github.io/libs/crypto/",
     "targets": ["native", "wasip2", "wasip3", "emscripten"],
     "sources": {
@@ -176,6 +176,7 @@
         {
             "id": "aes_block",
             "family": "aes_block",
+            "default_of": "gcm",
             "functions": ["make", "encrypt", "decrypt"],
             "namespace": "ciphers",
             "api": "ciphers::aes128, aes192, aes256",
@@ -276,17 +277,17 @@
                 {"name": "aes256_gcm", "title": "AES-256-GCM", "type": "ciphers::gcm<ciphers::aes256<{backend}>>"}
             ],
             "default": [
-                {"targets": ["native"], "backend": "openssl", "why": "OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 ({openssl-armv8}; {openssl-ghash-asm}); BearSSL has them on x86 only ({bearssl-aes})"},
-                {"targets": ["wasip2", "wasip3"], "backend": "bearssl", "why": "constant time by design ({bearssl-ct}), where OpenSSL is built no-asm and its AES and GHASH are table-based ({openssl-install})"},
-                {"targets": ["emscripten"], "backend": "bearssl", "why": "the only backend there: webcpp does not build OpenSSL for Emscripten; constant time by design ({bearssl-ct})"}
+                {"targets": ["emscripten"], "linked": "BearSSL", "backend": "bearssl", "tests": ["default_bearssl"], "why": "the only AEAD backend there: webcpp does not build OpenSSL for Emscripten; size and speed not measured yet"},
+                {"targets": ["wasip2", "wasip3"], "linked": "BearSSL, with or without OpenSSL", "backend": "bearssl", "tests": ["default_bearssl", "default_both_wasm"], "why": "constant time by design ({bearssl-ct}), where OpenSSL is built no-asm and its AES and GHASH are table-based ({openssl-install})"},
+                {"targets": ["wasip2", "wasip3"], "linked": "BearSSL and OpenSSL, with `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL`", "backend": "openssl", "tests": ["default_openssl_wasm"], "why": "the program's choice"},
+                {"targets": ["native"], "where": "Clang and GCC", "linked": "OpenSSL, with or without BearSSL", "backend": "openssl", "tests": ["default_both"], "why": "OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 ({openssl-armv8}; {openssl-ghash-asm}); BearSSL has them on x86 only ({bearssl-aes}); speed not measured yet"},
+                {"targets": ["native"], "where": "MSVC", "linked": "OpenSSL, with or without BearSSL", "backend": "openssl", "tests": ["default_both"], "why": "the same rule as with Clang and GCC, but here OpenSSL is built no-asm: table-based AES and 4-bit GHASH, no AES-NI, not constant time ({openssl-install}); where timing attacks matter, link BearSSL and define `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`"},
+                {"targets": ["native"], "linked": "BearSSL and OpenSSL, with `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`", "backend": "bearssl", "tests": ["default_selected"], "why": "the program's choice, constant time by design ({bearssl-ct}): on MSVC, where OpenSSL is built no-asm, the choice for code that timing attacks threaten"},
+                {"targets": ["native"], "linked": "BearSSL alone", "backend": "bearssl", "tests": ["default_bearssl"], "why": "the backend that is linked"}
             ],
             "backends": {
                 "bearssl": {"targets": "all"},
-                "openssl": {"targets": "all", "constant_time": {
-                    "native": "with assembly (Clang and GCC), AES-NI and carry-less multiplication where the CPU has them; built no-asm on MSVC, table-based AES and 4-bit GHASH, neither constant time ({openssl-install})",
-                    "wasip2": "not constant time: built no-asm, table-based AES and 4-bit GHASH ({openssl-install}; {openssl-aes-core})",
-                    "wasip3": "not constant time: built no-asm, table-based AES and 4-bit GHASH ({openssl-install}; {openssl-aes-core})"
-                }}
+                "openssl": {"targets": "all"}
             }
         },
         {
@@ -301,14 +302,10 @@
                 {"name": "aes256", "title": "AES-256", "type": "ciphers::aes256<{backend}>"}
             ],
             "default": [
-                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": null, "why": "none: a raw block cipher is a building block a program chooses deliberately, naming its backend; `aes256<>` takes AES-GCM's default as its argument, and its `make` does not compile where that is BearSSL"}
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "linked": "any backend", "backend": null, "tests": ["default_selection_bearssl"], "why": "a raw block cipher is a building block a program chooses deliberately, naming its backend; `aes256<>` takes AES-GCM's default as its argument, and its `make` does not compile where that is BearSSL"}
             ],
             "backends": {
-                "openssl": {"targets": "all", "constant_time": {
-                    "native": "with assembly (Clang and GCC), AES-NI where the CPU has it; built no-asm on MSVC, table-based AES, not constant time ({openssl-install})",
-                    "wasip2": "not constant time: built no-asm, table-based AES ({openssl-install}; {openssl-aes-core})",
-                    "wasip3": "not constant time: built no-asm, table-based AES ({openssl-install}; {openssl-aes-core})"
-                }},
+                "openssl": {"targets": "all"},
                 "ctaes": {"targets": "all"}
             }
         },
@@ -322,7 +319,7 @@
                 {"name": "secp256k1", "title": "secp256k1", "type": "curves::secp256k1::basic_keypair<{backend}>"}
             ],
             "default": [
-                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "why": "the only backend ({libsecp256k1})"}
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "linked": "libsecp256k1", "backend": "secp256k1", "tests": ["secp256k1"], "why": "the only backend ({libsecp256k1})"}
             ],
             "backends": {
                 "secp256k1": {"targets": "all"}
@@ -354,15 +351,6 @@
         "openssl": "`/webcpp/crypto//openssl` stops the build there",
         "refused": "refused at compile time"
     },
-    "defaults": [
-        {"target": "emscripten", "linked": "BearSSL", "default": "bearssl", "tests": ["default_bearssl"], "why": "the only AEAD backend there: webcpp does not build OpenSSL for Emscripten; size and speed not measured yet"},
-        {"target": "wasip2, wasip3", "linked": "BearSSL, with or without OpenSSL", "default": "bearssl", "tests": ["default_bearssl", "default_both_wasm"], "why": "constant time by design ({bearssl-ct}), where OpenSSL is built no-asm and its AES and GHASH are table-based ({openssl-install})"},
-        {"target": "wasip2, wasip3", "linked": "BearSSL and OpenSSL, with `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL`", "default": "openssl", "tests": ["default_openssl_wasm"], "why": "the program's choice"},
-        {"target": "native, Clang and GCC", "linked": "OpenSSL, with or without BearSSL", "default": "openssl", "tests": ["default_both"], "why": "OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 ({openssl-armv8}; {openssl-ghash-asm}); BearSSL has them on x86 only ({bearssl-aes}); speed not measured yet"},
-        {"target": "native, MSVC", "linked": "OpenSSL, with or without BearSSL", "default": "openssl", "tests": ["default_both"], "why": "the same rule as with Clang and GCC, but here OpenSSL is built no-asm: table-based AES and 4-bit GHASH, no AES-NI, not constant time ({openssl-install}); where timing attacks matter, link BearSSL and define `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`"},
-        {"target": "native", "linked": "BearSSL and OpenSSL, with `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`", "default": "bearssl", "tests": ["default_selected"], "why": "the program's choice, constant time by design ({bearssl-ct}): on MSVC, where OpenSSL is built no-asm, the choice for code that timing attacks threaten"},
-        {"target": "native", "linked": "BearSSL alone", "default": "bearssl", "tests": ["default_bearssl"], "why": "the backend that is linked"}
-    ],
     "namespaces": {
         "root": {
             "title": "webcpp::crypto",

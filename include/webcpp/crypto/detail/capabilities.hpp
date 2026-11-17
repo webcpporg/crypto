@@ -136,11 +136,13 @@ inline constexpr bool supported<families::secp256k1, families::secp256k1, backen
 }  // namespace webcpp::crypto::detail
 
 // The body of each family's primary engine, which a backend reaches where its
-// header does not specialise the engine: a backend without the family is refused,
-// naming those that have it; a backend that has it, whose header the program did
-// not include, is told to include it; any other type is no backend of the family.
+// header does not specialise the engine, per target: a backend without the family
+// there is refused, naming those that have it; a backend that has it there, whose
+// header the program did not include, is told to include it; any other type is no
+// backend of the family.
 // clang-format off
-/** The refusals of the family AES-GCM's primary engine for `Backend`. */
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE)
+/** The refusals of the family AES-GCM's primary engine for `Backend`, on native. */
 #define WEBCPP_CRYPTO_DETAIL_REFUSE_GCM(Backend) \
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl's AES-GCM is in <webcpp/crypto/backends/bearssl.hpp>, which the program does not include. Include it, and add /third_party//bearssl to the program's Jamfile."); \
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl's AES-GCM is in <webcpp/crypto/backends/openssl.hpp>, which the program does not include. Include it, and add /webcpp/crypto//openssl to the program's Jamfile."); \
@@ -148,7 +150,36 @@ inline constexpr bool supported<families::secp256k1, families::secp256k1, backen
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no AES-GCM. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3)."); \
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no AES-GCM. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3)."); \
     static_assert(::webcpp::crypto::detail::dependent_false<Backend>, "webcpp::crypto: AES-GCM has no backend of that name. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).")
-/** The refusals of the family AES block cipher's primary engine for `Backend`. */
+#elif defined(WEBCPP_TARGET_WASIP2)
+/** The refusals of the family AES-GCM's primary engine for `Backend`, on wasip2. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_GCM(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl's AES-GCM is in <webcpp/crypto/backends/bearssl.hpp>, which the program does not include. Include it, and add /third_party//bearssl to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl's AES-GCM is in <webcpp/crypto/backends/openssl.hpp>, which the program does not include. Include it, and add /webcpp/crypto//openssl to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no AES-GCM. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no AES-GCM. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no AES-GCM. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3)."); \
+    static_assert(::webcpp::crypto::detail::dependent_false<Backend>, "webcpp::crypto: AES-GCM has no backend of that name. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).")
+#elif defined(WEBCPP_TARGET_WASIP3)
+/** The refusals of the family AES-GCM's primary engine for `Backend`, on wasip3. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_GCM(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl's AES-GCM is in <webcpp/crypto/backends/bearssl.hpp>, which the program does not include. Include it, and add /third_party//bearssl to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl's AES-GCM is in <webcpp/crypto/backends/openssl.hpp>, which the program does not include. Include it, and add /webcpp/crypto//openssl to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no AES-GCM. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no AES-GCM. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no AES-GCM. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3)."); \
+    static_assert(::webcpp::crypto::detail::dependent_false<Backend>, "webcpp::crypto: AES-GCM has no backend of that name. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).")
+#elif defined(WEBCPP_TARGET_EMSCRIPTEN)
+/** The refusals of the family AES-GCM's primary engine for `Backend`, on emscripten. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_GCM(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl's AES-GCM is in <webcpp/crypto/backends/bearssl.hpp>, which the program does not include. Include it, and add /third_party//bearssl to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no AES-GCM on emscripten. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no AES-GCM. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no AES-GCM. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no AES-GCM. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3)."); \
+    static_assert(::webcpp::crypto::detail::dependent_false<Backend>, "webcpp::crypto: AES-GCM has no backend of that name. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).")
+#endif
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE)
+/** The refusals of the family AES block cipher's primary engine for `Backend`, on native. */
 #define WEBCPP_CRYPTO_DETAIL_REFUSE_AES_BLOCK(Backend) \
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no AES block cipher. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl's AES block cipher is in <webcpp/crypto/backends/openssl.hpp>, which the program does not include. Include it, and add /webcpp/crypto//openssl to the program's Jamfile."); \
@@ -156,7 +187,36 @@ inline constexpr bool supported<families::secp256k1, families::secp256k1, backen
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no AES block cipher. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no AES block cipher. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
     static_assert(::webcpp::crypto::detail::dependent_false<Backend>, "webcpp::crypto: AES block cipher has no backend of that name. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten).")
-/** The refusals of the family secp256k1's primary engine for `Backend`. */
+#elif defined(WEBCPP_TARGET_WASIP2)
+/** The refusals of the family AES block cipher's primary engine for `Backend`, on wasip2. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_AES_BLOCK(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no AES block cipher. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl's AES block cipher is in <webcpp/crypto/backends/openssl.hpp>, which the program does not include. Include it, and add /webcpp/crypto//openssl to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes's AES block cipher is in <webcpp/crypto/backends/ctaes.hpp>, which the program does not include. Include it, and add /third_party//ctaes to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no AES block cipher. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no AES block cipher. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
+    static_assert(::webcpp::crypto::detail::dependent_false<Backend>, "webcpp::crypto: AES block cipher has no backend of that name. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP3)
+/** The refusals of the family AES block cipher's primary engine for `Backend`, on wasip3. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_AES_BLOCK(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no AES block cipher. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl's AES block cipher is in <webcpp/crypto/backends/openssl.hpp>, which the program does not include. Include it, and add /webcpp/crypto//openssl to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes's AES block cipher is in <webcpp/crypto/backends/ctaes.hpp>, which the program does not include. Include it, and add /third_party//ctaes to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no AES block cipher. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no AES block cipher. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
+    static_assert(::webcpp::crypto::detail::dependent_false<Backend>, "webcpp::crypto: AES block cipher has no backend of that name. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_EMSCRIPTEN)
+/** The refusals of the family AES block cipher's primary engine for `Backend`, on emscripten. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_AES_BLOCK(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no AES block cipher. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no AES block cipher on emscripten. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes's AES block cipher is in <webcpp/crypto/backends/ctaes.hpp>, which the program does not include. Include it, and add /third_party//ctaes to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no AES block cipher. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no AES block cipher. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten)."); \
+    static_assert(::webcpp::crypto::detail::dependent_false<Backend>, "webcpp::crypto: AES block cipher has no backend of that name. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten).")
+#endif
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE)
+/** The refusals of the family secp256k1's primary engine for `Backend`, on native. */
 #define WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1(Backend) \
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
@@ -164,6 +224,34 @@ inline constexpr bool supported<families::secp256k1, families::secp256k1, backen
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1's secp256k1 is in <webcpp/crypto/backends/secp256k1.hpp>, which the program does not include. Include it, and add /third_party//secp256k1 to the program's Jamfile."); \
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
     static_assert(::webcpp::crypto::detail::dependent_false<Backend>, "webcpp::crypto: secp256k1 has no backend of that name. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP2)
+/** The refusals of the family secp256k1's primary engine for `Backend`, on wasip2. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1's secp256k1 is in <webcpp/crypto/backends/secp256k1.hpp>, which the program does not include. Include it, and add /third_party//secp256k1 to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
+    static_assert(::webcpp::crypto::detail::dependent_false<Backend>, "webcpp::crypto: secp256k1 has no backend of that name. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP3)
+/** The refusals of the family secp256k1's primary engine for `Backend`, on wasip3. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1's secp256k1 is in <webcpp/crypto/backends/secp256k1.hpp>, which the program does not include. Include it, and add /third_party//secp256k1 to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
+    static_assert(::webcpp::crypto::detail::dependent_false<Backend>, "webcpp::crypto: secp256k1 has no backend of that name. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_EMSCRIPTEN)
+/** The refusals of the family secp256k1's primary engine for `Backend`, on emscripten. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1's secp256k1 is in <webcpp/crypto/backends/secp256k1.hpp>, which the program does not include. Include it, and add /third_party//secp256k1 to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
+    static_assert(::webcpp::crypto::detail::dependent_false<Backend>, "webcpp::crypto: secp256k1 has no backend of that name. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).")
+#endif
 // clang-format on
 
 #endif  // WEBCPP_CRYPTO_DETAIL_CAPABILITIES_HPP

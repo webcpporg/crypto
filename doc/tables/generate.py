@@ -437,19 +437,28 @@ def check_families(data: Data, declared: Dict[str, List[str]]) -> None:
                     raise Fault(f'crypto.json: the family {name} states constant time for '
                                 f'{backend} on {target}, where it does not claim it')
                 cite(data, why)
-        defaults: Dict[str, Optional[str]] = {}
+        # A default per target and what the program links (and, natively, the compiler), each
+        # claimed only where a test that fixes it runs.
+        defaults: List[Tuple[str, str, str]] = []
         for entry in family['default']:
             cite(data, entry['why'])
             for target in entry['targets']:
-                if target in defaults:
-                    raise Fault(f'crypto.json: the family {name} has two defaults on {target}')
-                defaults[target] = entry['backend']
+                key = (target, entry.get('where', ''), entry['linked'])
+                if key in defaults:
+                    raise Fault(f'crypto.json: the family {name} has two defaults on {target}, '
+                                f'linked {entry["linked"]}')
+                defaults.append(key)
                 backend = entry['backend']
                 if backend is not None and (backend not in family['backends'] or
                                             target not in cell_targets(data, family, backend)):
                     raise Fault(f'crypto.json: the family {name} defaults to {backend} on '
                                 f'{target}, which does not have it there')
-        missing = [target for target in data['targets'] if target not in defaults]
+                for test in entry['tests']:
+                    if target not in declared.get(test, []):
+                        raise Fault(f'crypto.json: the family {name}\'s default on {target} '
+                                    f'names the test {test}, which does not run there')
+        covered = {target for target, _, _ in defaults}
+        missing = [target for target in data['targets'] if target not in covered]
         if missing:
             raise Fault(f'crypto.json: the family {name} has no default on {", ".join(missing)}')
 
@@ -483,8 +492,14 @@ def doc_comment(text: str) -> List[str]:
     return ['/**'] + [f' * {line}' for line in textwrap.wrap(text, 97)] + [' */']
 
 
-# A qualified name of crypto.json's types, which are written from webcpp::crypto.
-QUALIFIED = re.compile(r'(?<![\w:])([a-z_][a-z0-9_]*::)')
+def program_type(data: Data, written: str, backend: str) -> str:
+    """A type of crypto.json, written from webcpp::crypto, as the generated test names it: each
+    of crypto's namespaces that starts a name is reached through `crypto::`, and `{backend}` is
+    the backend's tag. Any other namespace, std:: among them, is left as it is."""
+    namespaces = ({name for name in data.get('namespaces', {}) if name != 'root'}
+                  | {family['group'].split('::')[0] for family in data['families']})
+    qualified = re.compile(rf'(?<![\w:])((?:{"|".join(sorted(namespaces))})::)')
+    return qualified.sub(r'crypto::\1', written).replace('{backend}', f'backends::{backend}')
 
 
 def condition(targets: List[str]) -> str:
@@ -547,31 +562,38 @@ def capabilities_header(data: Data) -> str:
                         '#endif']
     out += ['// clang-format on', '', '}  // namespace webcpp::crypto::detail', '',
             '// The body of each family\'s primary engine, which a backend reaches where its',
-            '// header does not specialise the engine: a backend without the family is refused,',
-            '// naming those that have it; a backend that has it, whose header the program did',
-            '// not include, is told to include it; any other type is no backend of the family.',
+            '// header does not specialise the engine, per target: a backend without the family',
+            '// there is refused, naming those that have it; a backend that has it there, whose',
+            '// header the program did not include, is told to include it; any other type is no',
+            '// backend of the family.',
             '// clang-format off']
     tags = tags_of(data)
     for family in data['families']:
         have = have_list(data, family)
-        lines: List[str] = []
-        for backend in tags:
-            if backend in family['backends']:
-                facts = data['backends'][backend]
-                text = (f'webcpp::crypto: {backend}\'s {family["title"]} is in '
-                        f'{facts["header"]}, which the program does not include. Include it, and '
-                        f'add {facts["jamfile"]} to the program\'s Jamfile.')
-            else:
-                text = refusal(data, family, backend)
-            lines.append(f'static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::'
-                         f'{backend}>, "{text}")')
-        lines.append(f'static_assert(::webcpp::crypto::detail::dependent_false<Backend>, '
-                     f'"webcpp::crypto: {family["title"]} has no backend of that name. The '
-                     f'backends that have it: {have}.")')
-        out += doc_comment(f'The refusals of the family {family["title"]}\'s primary engine for '
-                           '`Backend`.') + [
-                f'#define WEBCPP_CRYPTO_DETAIL_REFUSE_{family["name"].upper()}(Backend) \\']
-        out += [f'    {line}; \\' for line in lines[:-1]] + [f'    {lines[-1]}']
+        for index, target in enumerate(data['targets']):
+            lines: List[str] = []
+            for backend in tags:
+                if backend not in family['backends']:
+                    text = refusal(data, family, backend)
+                elif target in cell_targets(data, family, backend):
+                    facts = data['backends'][backend]
+                    text = (f'webcpp::crypto: {backend}\'s {family["title"]} is in '
+                            f'{facts["header"]}, which the program does not include. Include '
+                            f'it, and add {facts["jamfile"]} to the program\'s Jamfile.')
+                else:
+                    text = (f'webcpp::crypto: {backend} has no {family["title"]} on {target}. '
+                            f'The backends that have it: {have}.')
+                lines.append(f'static_assert(!std::is_same_v<Backend, ::webcpp::crypto::'
+                             f'backends::{backend}>, "{text}")')
+            lines.append(f'static_assert(::webcpp::crypto::detail::dependent_false<Backend>, '
+                         f'"webcpp::crypto: {family["title"]} has no backend of that name. The '
+                         f'backends that have it: {have}.")')
+            out.append(f'#{"if" if index == 0 else "elif"} defined({TARGET_MACROS[target]})')
+            out += doc_comment(f'The refusals of the family {family["title"]}\'s primary engine '
+                               f'for `Backend`, on {target}.') + [
+                    f'#define WEBCPP_CRYPTO_DETAIL_REFUSE_{family["name"].upper()}(Backend) \\']
+            out += [f'    {line}; \\' for line in lines[:-1]] + [f'    {lines[-1]}']
+        out.append('#endif')
     out += ['// clang-format on', '', '#endif  // WEBCPP_CRYPTO_DETAIL_CAPABILITIES_HPP', '']
     return '\n'.join(out)
 
@@ -625,8 +647,7 @@ def capabilities_test(data: Data) -> str:
                     continue
                 out += [f'#if {condition(targets)}', f'static_assert({trait});', '#else',
                         f'static_assert(!{trait});', '#endif']
-                algorithm = QUALIFIED.sub(r'crypto::\1', entry['type']).format(
-                    backend=f'backends::{backend}')
+                algorithm = program_type(data, entry['type'], backend)
                 made += [f'#if ({condition(targets)}) && defined(WEBCPP_CRYPTO_HAS_'
                          f'{backend.upper()})',
                          f'    BOOST_TEST((webcpp::test::made<{algorithm}, '
@@ -682,8 +703,10 @@ def api_backends(data: Data, matrix: Matrix, operation: Data) -> str:
     text = (f'The backends of {names(operation["api"])}, from the test programs that run it:\n\n'
             + table(['Backend', 'Jamfile', 'Header', 'Targets'], rows, 'cols="1,2,2,4",'))
     if 'default' in operation:
-        defaults = [[entry['target'], marked(entry['linked']),
-                     data['backends'][entry['default']]['title']] for entry in data['defaults']]
+        # The block cipher's default argument is AES-GCM's default: its table is AES-GCM's.
+        family = family_of(data, operation.get('default_of', operation['family']))
+        defaults = [[target_label(entry), marked(entry['linked']), default_title(data, entry)]
+                    for entry in family['default']]
         text += (f'\n{marked(operation["default"])} The default per target and what the program '
                  'links, as <<crypto-backends-defaults>> gives it with its reasons and tests:\n\n'
                  + table(['Target', 'Linked', 'Default'], defaults, '.wrap-names,cols="2,4,2",'))
@@ -730,22 +753,39 @@ def facts_page(data: Data, matrix: Matrix) -> str:
                     rows, 'cols="1,2,1,2,3",'))
 
 
-def defaults_page(data: Data, declared: Dict[str, List[str]]) -> str:
-    """The default backend per target and what is linked, each with the tests that fix it."""
+def family_of(data: Data, name: str) -> Data:
+    """The family of crypto.json named name."""
+    for family in data['families']:
+        if family['name'] == name:
+            return family
+    raise Fault(f'crypto.json names the family {name}, which it does not list')
+
+
+def target_label(entry: Data) -> str:
+    """The targets of a default, and the compiler where it is one compiler's."""
+    where = f', {entry["where"]}' if entry.get('where') else ''
+    return ', '.join(entry['targets']) + where
+
+
+def default_title(data: Data, entry: Data) -> str:
+    """The default backend's title, or none."""
+    return data['backends'][entry['backend']]['title'] if entry['backend'] else 'none'
+
+
+def defaults_page(data: Data) -> str:
+    """The default backend of each family per target and what is linked, each with the tests
+    that fix it (check_families has checked that they run there)."""
     rows: List[List[str]] = []
-    for entry in data['defaults']:
-        for name in entry['tests']:
-            if name not in declared:
-                raise Fault(f'crypto.json: the default on {entry["target"]} names the test '
-                            f'{name}, which no test Jamfile declares')
-        rows.append([entry['target'], marked(entry['linked']),
-                     data['backends'][entry['default']]['title'], cite(data, entry['why']),
-                     ', '.join(code(name) for name in entry['tests'])])
+    for family in data['families']:
+        for entry in family['default']:
+            rows.append([family['title'], target_label(entry), marked(entry['linked']),
+                         default_title(data, entry), cite(data, entry['why']),
+                         ', '.join(code(name) for name in entry['tests'])])
     # wrap-names: a header in "Linked" breaks after its / at every width; a define of 37
     # characters breaks between its parts where the table does not fit otherwise, rather than
     # take the width "Why" needs (tools/doc/docinfo.html).
-    return table(['Target', 'Linked', 'Default', 'Why', 'Tested by'], rows,
-                 '.wrap-names,cols="2,4,2,5,3",')
+    return table(['Family', 'Target', 'Linked', 'Default', 'Why', 'Tested by'], rows,
+                 '.wrap-names,cols="2,2,4,2,5,3",')
 
 
 def constant_time_page(data: Data) -> str:
@@ -1000,11 +1040,11 @@ def llms(data: Data, matrix: Matrix, library: Path) -> str:
                 out.append(f'  - {function}: '
                            f'{declared_brief(library, operation, function)}')
         out.append('')
-    out += ['## Default backend of aes128_gcm, aes256_gcm and aes256<>', '']
-    for entry in data['defaults']:
-        out.append(f'- {entry["target"]}, linked {entry["linked"]}: '
-                   f'{data["backends"][entry["default"]]["title"]}; '
-                   f'{cite_markdown(data, entry["why"])}.')
+    out += ['## Default backend per family', '']
+    for family in data['families']:
+        for entry in family['default']:
+            out.append(f'- {family["title"]}, {target_label(entry)}, linked {entry["linked"]}: '
+                       f'{default_title(data, entry)}; {cite_markdown(data, entry["why"])}.')
     out += ['', '## Rules of use', '']
     for rule in data['rules']:
         out.append(f'- [{rule["title"]}]({page}#{rule["section"]}): '
@@ -1048,7 +1088,7 @@ def generate(root: Path, library: Path) -> Dict[Path, str]:
                                                                              operation)
     files[generated / 'matrix.adoc'] = matrix_page(data, matrix)
     files[generated / 'backend-facts.adoc'] = facts_page(data, matrix)
-    files[generated / 'defaults.adoc'] = defaults_page(data, declared)
+    files[generated / 'defaults.adoc'] = defaults_page(data)
     files[generated / 'constant-time.adoc'] = constant_time_page(data)
     files[generated / 'sizes.adoc'] = sizes_page(data)
     files[generated / 'jamfiles.adoc'] = jamfiles_page(data, cases)
@@ -1063,6 +1103,20 @@ def generate(root: Path, library: Path) -> Dict[Path, str]:
     return files
 
 
+def checked(files: Dict[Path, str], library: Path, generated: Path) -> int:
+    """--check: prints each file that differs from what generate.py writes, and each page of
+    generated that it does not write, by its path in library. 1 when there is one, else 0."""
+    differing = stale(files)
+    extra = sorted(path for path in generated.glob('*.adoc') if path not in files)
+    for path in differing:
+        print(f'generate.py: {path.relative_to(library)} is not what crypto.json and the tree '
+              'give: run python3 libs/crypto/doc/tables/generate.py', file=sys.stderr)
+    for path in extra:
+        print(f'generate.py: {path.relative_to(library)} is generated by nothing: remove it',
+              file=sys.stderr)
+    return 1 if differing or extra else 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or '').split('\n', 1)[0])
     parser.add_argument('--check', action='store_true')
@@ -1073,16 +1127,10 @@ def main() -> int:
     except Fault as fault:
         print(f'generate.py: {fault}', file=sys.stderr)
         return 1
+    if arguments.check:
+        return checked(files, LIBRARY, DOC / 'generated')
     differing = stale(files)
     extra = sorted(path for path in (DOC / 'generated').glob('*.adoc') if path not in files)
-    if arguments.check:
-        for path in differing:
-            print(f'generate.py: {path.relative_to(LIBRARY)} is not what crypto.json and the '
-                  'tree give: run python3 libs/crypto/doc/tables/generate.py', file=sys.stderr)
-        for path in extra:
-            print(f'generate.py: {path.relative_to(LIBRARY)} is generated by nothing: remove it',
-                  file=sys.stderr)
-        return 1 if differing or extra else 0
     for path in differing:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(files[path], encoding='utf-8')

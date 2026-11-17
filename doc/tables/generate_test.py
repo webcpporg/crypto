@@ -23,10 +23,13 @@ Usage: generate_test.py [<case>...]. The doc build runs it before generate.py --
 
 from __future__ import annotations
 
+import io
 import sys
 import tempfile
+from contextlib import redirect_stderr
 from collections.abc import Callable
 from pathlib import Path
+from typing import Optional
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -252,8 +255,8 @@ def small_table() -> generate.Data:
             'header': '<webcpp/crypto/curves/ed25519.hpp>',
             'names': [{'name': 'ed25519', 'title': 'Ed25519',
                        'type': 'curves::ed25519::basic_keypair<{backend}>'}],
-            'default': [{'targets': EVERY_TARGET, 'backend': 'sodium',
-                         'why': 'the only backend ({rfc8032})'}],
+            'default': [{'targets': EVERY_TARGET, 'linked': 'libsodium', 'backend': 'sodium',
+                         'tests': ['ed25519'], 'why': 'the only backend ({rfc8032})'}],
             'backends': {'sodium': {'targets': 'all'}}}]}
 
 
@@ -348,22 +351,79 @@ def test_a_cell_claimed_where_no_test_runs_is_a_fault(_: Path) -> None:
             'the family ed25519 claims sodium on wasip2, where sodium is not built')
 
 
-def test_a_default_is_one_backend_of_the_family_per_target(_: Path) -> None:
+def test_a_default_is_a_backend_of_the_family_its_tests_run_on(_: Path) -> None:
+    def default(targets: list[str], backend: Optional[str], linked: str = 'libsodium',
+                tests: Optional[list[str]] = None) -> generate.Data:
+        return {'targets': targets, 'linked': linked, 'backend': backend,
+                'tests': ['ed25519'] if tests is None else tests, 'why': 'w'}
     data = small_table()
-    data['families'][0]['default'] = [{'targets': ['native'], 'backend': 'sodium', 'why': 'w'}]
-    a_fault(data, {'ed25519': EVERY_TARGET},
-            'the family ed25519 has no default on wasip2, wasip3, emscripten')
-    data['families'][0]['default'] = [{'targets': EVERY_TARGET, 'backend': 'bearssl',
-                                       'why': 'w'}]
-    a_fault(data, {'ed25519': EVERY_TARGET},
+    every = {'ed25519': EVERY_TARGET, 'ed25519_native': ['native']}
+    data['families'][0]['default'] = [default(['native'], 'sodium')]
+    a_fault(data, every, 'the family ed25519 has no default on wasip2, wasip3, emscripten')
+    data['families'][0]['default'] = [default(EVERY_TARGET, 'bearssl')]
+    a_fault(data, every,
             'the family ed25519 defaults to bearssl on native, which does not have it there')
-    data['families'][0]['default'] = [{'targets': EVERY_TARGET, 'backend': 'sodium', 'why': 'w'},
-                                      {'targets': ['native'], 'backend': None, 'why': 'w'}]
-    a_fault(data, {'ed25519': EVERY_TARGET}, 'the family ed25519 has two defaults on native')
+    data['families'][0]['default'] = [default(EVERY_TARGET, 'sodium'),
+                                      default(['native'], None)]
+    a_fault(data, every, 'the family ed25519 has two defaults on native, linked libsodium')
+    # What the program links tells two defaults of one target apart.
+    data['families'][0]['default'] = [default(EVERY_TARGET, 'sodium'),
+                                      default(['native'], None, 'nothing')]
+    generate.check_families(data, every)
+    # A default is claimed only where a test that fixes it runs.
+    data['families'][0]['default'] = [default(EVERY_TARGET, 'sodium', tests=['ed25519_native'])]
+    a_fault(data, every, 'the family ed25519\'s default on wasip2 names the test ed25519_native, '
+            'which does not run there')
+    data['families'][0]['default'] = [default(EVERY_TARGET, 'sodium', tests=['absent'])]
+    a_fault(data, every, 'the family ed25519\'s default on native names the test absent, which '
+            'does not run there')
     data = small_table()
     data['operations'][0]['family'] = 'ed448'
     a_fault(data, {'ed25519': EVERY_TARGET},
             'the operation sign names the family ed448, which crypto.json does not list')
+
+
+def test_a_refusal_holds_on_its_target(_: Path) -> None:
+    data = small_table()
+    data['families'][0]['backends']['sodium']['targets'] = ['native']
+    header = generate.capabilities_header(data)
+    native, rest = header.split('#elif defined(WEBCPP_TARGET_WASIP2)\n', 1)
+    wasip2 = rest.split('#elif', 1)[0]
+    # Natively sodium has Ed25519: a primary engine reached means its header is not included.
+    assert 'sodium\'s Ed25519 is in <webcpp/crypto/backends/sodium.hpp>' in native, native
+    # On wasip2 it has none, and is never told to include a header that would not give it.
+    assert ('"webcpp::crypto: sodium has no Ed25519 on wasip2. The backends that have it: sodium '
+            '(native).")') in wasip2, wasip2
+    assert 'is in <webcpp/crypto/backends/sodium.hpp>' not in wasip2, wasip2
+    assert '#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE)\n' in native, native
+    assert header.count('#define WEBCPP_CRYPTO_DETAIL_REFUSE_ED25519(Backend)') == 4, header
+
+
+def test_a_type_names_only_crypto_s_namespaces_from_the_root(_: Path) -> None:
+    data = small_table()
+    data['families'][0]['names'][0]['type'] = 'curves::ed25519::basic<std::size_t{32}, {backend}>'
+    test = generate.capabilities_test(data)
+    assert 'crypto::curves::ed25519::basic<std::size_t{32}, backends::sodium>' in test, test
+
+
+def test_the_check_prints_each_file_that_differs(scratch: Path) -> None:
+    files = {scratch / 'include/a.hpp': 'one\n', scratch / 'test/b.cpp': 'two\n'}
+    generated = scratch / 'doc/generated'
+    for path, text in files.items():
+        written(path.parent, path.name, text)
+    printed = io.StringIO()
+    with redirect_stderr(printed):
+        assert generate.checked(files, scratch, generated) == 0
+    assert printed.getvalue() == '', printed.getvalue()
+    written(scratch / 'test', 'b.cpp', 'twO\n')
+    written(generated, 'old.adoc', '')
+    with redirect_stderr(printed):
+        assert generate.checked(files, scratch, generated) == 1
+    assert printed.getvalue() == (
+        'generate.py: test/b.cpp is not what crypto.json and the tree give: run python3 '
+        'libs/crypto/doc/tables/generate.py\n'
+        'generate.py: doc/generated/old.adoc is generated by nothing: remove it\n'), (
+        printed.getvalue())
 
 
 def test_the_check_names_a_file_that_differs(scratch: Path) -> None:
@@ -397,7 +457,10 @@ CASES: list[Callable[[Path], None]] = [
     test_the_generated_test_asserts_every_cell,
     test_a_family_that_names_an_unknown_backend_is_a_fault,
     test_a_cell_claimed_where_no_test_runs_is_a_fault,
-    test_a_default_is_one_backend_of_the_family_per_target,
+    test_a_default_is_a_backend_of_the_family_its_tests_run_on,
+    test_a_refusal_holds_on_its_target,
+    test_a_type_names_only_crypto_s_namespaces_from_the_root,
+    test_the_check_prints_each_file_that_differs,
     test_the_check_names_a_file_that_differs,
 ]
 

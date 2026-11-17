@@ -1,0 +1,67 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-chacha]
+=== ChaCha20-Poly1305
+
+*ChaCha20-Poly1305* is authenticated encryption built from two of Daniel J.
+Bernstein's designs: the stream cipher ChaCha20 encrypts, and the one-time
+authenticator Poly1305 computes a 16-byte tag over the ciphertext and the
+additional data
+(link:https://en.wikipedia.org/wiki/ChaCha20-Poly1305[Wikipedia];
+link:https://www.rfc-editor.org/rfc/rfc8439[RFC 8439]). It needs no AES
+instructions to be fast and has no table indexed by a secret, so it is
+constant time in plain portable code: on a phone or a WebAssembly page
+without AES hardware it is the safe choice. It is a cipher suite of TLS 1.3
+(link:https://www.rfc-editor.org/rfc/rfc8446#section-9.1[RFC 8446]) and the
+AEAD of WireGuard (link:https://www.wireguard.com/protocol/[WireGuard]).
+
+`ciphers::aead<Family, Backend>`, in `<webcpp/crypto/ciphers/aead.hpp>`, is
+one-shot authenticated encryption in place over a family; three aliases, in
+`<webcpp/crypto/ciphers/chacha20_poly1305.hpp>`, name its three
+ChaCha20-Poly1305 families on their default backend, libsodium on every
+target:
+
+* `chacha20_poly1305<>`, RFC 8439's form: a 32-byte key, a 12-byte nonce, and
+messages of at most 2^38^ - 64 bytes;
+* `chacha20_poly1305_original<>`, the original form libsodium keeps: an 8-byte
+nonce, too short to draw at random, which a counter numbers
+(link:https://doc.libsodium.org/secret-key_cryptography/aead/chacha20-poly1305[libsodium]);
+* `xchacha20_poly1305<>`: a 24-byte nonce, safe to draw at random for every
+message (link:https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha[the
+XChaCha draft]). When in doubt, this one.
+
+Each is made with `make(key_bytes)` and works in place, as AES-GCM's one-shot
+calls do: `seal(iv_bytes, additional_data_bytes, data_bytes)` encrypts
+`data_bytes` and returns the 16-byte tag; `open(iv_bytes,
+additional_data_bytes, data_bytes, tag_bytes)` checks the tag and decrypts.
+A failed `open` zeroes `data_bytes`; a guard's refusal leaves it untouched.
+
+include::generated/backends-chacha20_poly1305.adoc[]
+
+include::generated/backends-chacha20_poly1305_original.adoc[]
+
+include::generated/backends-xchacha20_poly1305.adoc[]
+
+[#crypto-chacha-guards]
+==== The guards
+
+Each function checks its guards first, in the order of the table, and returns
+before it reads a byte of the data; the last two rows are the failures of the
+work itself:
+
+[cols="3,1"]
+|===
+|Condition |Error
+
+|`make`: a key of another size than 32 bytes |`invalid_key_size`
+|any other function: the object was moved from |`invalid_state`
+|a nonce of another size than the family's, 12, 8 or 24 bytes |`invalid_iv_size`
+|`open`: a tag of another size than 16 |`invalid_tag_size`
+|a message longer than `max_message_size` |`message_too_long`
+|`open`: the tag does not match |`authentication_failed`
+|the backend fails where it should not |`backend_failure`
+|===

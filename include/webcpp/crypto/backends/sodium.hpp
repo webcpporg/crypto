@@ -22,12 +22,21 @@
 #else
 
 #include <webcpp/crypto/detail/canary.h>
+#include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
+#include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <sodium/core.h>  // through /third_party//sodium, as webcpp::hash's header does
+#include <sodium/crypto_aead_chacha20poly1305.h>
+#include <sodium/crypto_aead_xchacha20poly1305.h>
+#include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <span>
 #include <string_view>
 
 /** The canary's name, which every libsodium function of webcpp::crypto reads. */
@@ -67,6 +76,132 @@ namespace webcpp::crypto::detail {
     }
     return {};
 }
+
+/** libsodium's detached functions of an AEAD family, which differ only by name. */
+template <class Family>
+struct sodium_aead_calls;
+
+/** RFC 8439's ChaCha20-Poly1305: libsodium's `_ietf` functions. */
+template <>
+struct sodium_aead_calls<families::chacha20_poly1305> {
+    /** Encrypts and computes the tag apart. */
+    static constexpr auto encrypt = &crypto_aead_chacha20poly1305_ietf_encrypt_detached;
+    /** Checks the tag apart, then decrypts. */
+    static constexpr auto decrypt = &crypto_aead_chacha20poly1305_ietf_decrypt_detached;
+};
+
+/** The original ChaCha20-Poly1305: libsodium's functions without a suffix. */
+template <>
+struct sodium_aead_calls<families::chacha20_poly1305_original> {
+    /** Encrypts and computes the tag apart. */
+    static constexpr auto encrypt = &crypto_aead_chacha20poly1305_encrypt_detached;
+    /** Checks the tag apart, then decrypts. */
+    static constexpr auto decrypt = &crypto_aead_chacha20poly1305_decrypt_detached;
+};
+
+/** XChaCha20-Poly1305: libsodium's `xchacha20poly1305_ietf` functions. */
+template <>
+struct sodium_aead_calls<families::xchacha20_poly1305> {
+    /** Encrypts and computes the tag apart. */
+    static constexpr auto encrypt = &crypto_aead_xchacha20poly1305_ietf_encrypt_detached;
+    /** Checks the tag apart, then decrypts. */
+    static constexpr auto decrypt = &crypto_aead_xchacha20poly1305_ietf_decrypt_detached;
+};
+
+/** An AEAD's state on libsodium: the key, in the object, since libsodium takes it per call. */
+template <class Family>
+    requires requires { sodium_aead_calls<Family>::encrypt; }
+struct aead_state<Family, backends::sodium> {
+    /** The key. */
+    std::array<unsigned char, 32> key{};
+};
+
+/**
+ * An AEAD on libsodium, one template for the three ChaCha20-Poly1305 families. libsodium's
+ * detached decryption checks the tag before it writes a byte, and zeroes the data when it
+ * does not match; `aead` zeroes it too.
+ */
+template <class Family>
+    requires requires { sodium_aead_calls<Family>::encrypt; }
+struct aead_engine<Family, backends::sodium> {
+    /** The state. */
+    using state = aead_state<Family, backends::sodium>;
+    /** libsodium's functions of the family. */
+    using calls = sodium_aead_calls<Family>;
+
+    /**
+     * Initialises libsodium and keeps the key.
+     *
+     * @param s The state.
+     * @param key The key, 32 bytes (`aead` has checked its size).
+     * @return Nothing; `backend_failure` when libsodium cannot start.
+     */
+    [[nodiscard]] static boost::system::result<void> init(
+        state& s, std::span<std::uint8_t const> key) noexcept {
+        auto const ready = sodium_ready();
+        if (!ready) {
+            return ready;
+        }
+        std::ranges::copy(key, s.key.begin());
+        return {};
+    }
+
+    /**
+     * Encrypts `data` in place and writes the tag; libsodium reads the nonce and the
+     * additional data before it writes a byte of the ciphertext.
+     *
+     * @return Nothing; `backend_failure` when libsodium fails.
+     */
+    [[nodiscard]] static boost::system::result<void> seal(
+        state& s, std::span<std::uint8_t const> iv, std::span<std::uint8_t const> additional_data,
+        std::span<std::uint8_t> data, boost::hash2::digest<16>& tag) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        unsigned long long tag_length = 0;
+        auto* const bytes = writable(data);
+        // libsodium encrypts in place when the output is the input (its documented contract).
+        if (calls::encrypt(bytes, tag.data(), &tag_length, bytes, data.size(),
+                           additional_data.data(), additional_data.size(), nullptr, iv.data(),
+                           s.key.data()) != 0) {
+            return error::backend_failure;
+        }
+        return {};
+    }
+
+    /**
+     * Checks the tag, then decrypts `data` in place.
+     *
+     * @return Nothing; `authentication_failed` when the tag does not match.
+     */
+    [[nodiscard]] static boost::system::result<void> open(
+        state& s, std::span<std::uint8_t const> iv, std::span<std::uint8_t const> additional_data,
+        std::span<std::uint8_t> data, std::array<std::uint8_t, 16> const& tag) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        auto* const bytes = writable(data);
+        if (calls::decrypt(bytes, nullptr, bytes, data.size(), tag.data(), additional_data.data(),
+                           additional_data.size(), iv.data(), s.key.data()) != 0) {
+            return error::authentication_failed;
+        }
+        return {};
+    }
+
+    /** Moves the key; the source is wiped. */
+    static void move(state& to, state& from) noexcept {
+        to.key = from.key;
+        wipe_object(from.key);
+    }
+
+    /** Wipes the key. */
+    static void reset(state& s) noexcept { wipe_object(s.key); }
+
+private:
+    // The data's first byte, or one of the engine's own for an empty span, whose data() may be
+    // null: libsodium clears the output of a failed open with memset, which takes no null
+    // pointer, even for no byte.
+    static std::uint8_t* writable(std::span<std::uint8_t> data) noexcept {
+        static std::uint8_t none = 0;
+        return data.empty() ? &none : data.data();
+    }
+};
 
 }  // namespace webcpp::crypto::detail
 

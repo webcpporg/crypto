@@ -25,6 +25,12 @@ The fix: Name `+ciphers::aes256<backends::ctaes>+`, include `+<webcpp/crypto/bac
 
 The fix: Add `+/third_party//bearssl+`.
 
+|`+chacha_default_not_linked+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: XChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /third_party//sodium to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+The fix: The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add `+/third_party//sodium+`.
+
 |`+ctaes_not_linked+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: the backend ctaes is used and not linked. In the program's Jamfile, add /third_party//ctaes beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_CTAES=1 and link ctaes.c with webcpp's src/canary_ctaes.c)+`

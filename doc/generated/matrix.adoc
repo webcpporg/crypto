@@ -115,6 +115,21 @@
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+x25519_sodium+`, `+x25519_wycheproof_sodium+`
+
+|`+ciphers::chacha20_poly1305+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+chacha_sodium+`, `+chacha_wycheproof_sodium+`, `+allocation_sodium+`
+
+|`+ciphers::chacha20_poly1305_original+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+chacha_original_sodium+`, `+allocation_sodium+`
+
+|`+ciphers::xchacha20_poly1305+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+xchacha_sodium+`, `+chacha_wycheproof_sodium+`, `+allocation_sodium+`
 |===
 
 The same, by target: the backends each operation runs on.
@@ -214,6 +229,24 @@ The same, by target: the backends each operation runs on.
 |libsodium
 
 |`+curves::x25519::agree+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+ciphers::chacha20_poly1305+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+ciphers::chacha20_poly1305_original+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+ciphers::xchacha20_poly1305+`
 |libsodium
 |libsodium
 |libsodium

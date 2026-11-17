@@ -73,3 +73,23 @@ static_assert(std::is_same_v<crypto::default_backend_t<families::x25519>, backen
 #endif
 static_assert(crypto::detail::supported<families::x25519, families::x25519,
                                         crypto::default_backend_t<families::x25519>>);
+
+// The three ChaCha20-Poly1305 AEADs: libsodium, the only backend, on every target (the owner's
+// answer Q4).
+static_assert(
+    std::is_same_v<crypto::default_backend_t<families::chacha20_poly1305>, backends::sodium>);
+static_assert(std::is_same_v<crypto::default_backend_t<families::chacha20_poly1305_original>,
+                             backends::sodium>);
+static_assert(
+    std::is_same_v<crypto::default_backend_t<families::xchacha20_poly1305>, backends::sodium>);
+static_assert(crypto::detail::supported<families::chacha20_poly1305, families::chacha20_poly1305,
+                                        backends::sodium>);
+static_assert(crypto::detail::supported<families::chacha20_poly1305_original,
+                                        families::chacha20_poly1305_original, backends::sodium>);
+static_assert(crypto::detail::supported<families::xchacha20_poly1305, families::xchacha20_poly1305,
+                                        backends::sodium>);
+#if !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_CHACHA20_POLY1305_SODIUM) ||          \
+    !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_CHACHA20_POLY1305_ORIGINAL_SODIUM) || \
+    !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_XCHACHA20_POLY1305_SODIUM)
+#error "chacha20_poly1305.hpp is not told to include libsodium's header"
+#endif

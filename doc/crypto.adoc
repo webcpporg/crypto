@@ -46,6 +46,8 @@ include::ciphers.adoc[]
 
 include::aead.adoc[]
 
+include::chacha.adoc[]
+
 include::block.adoc[]
 
 include::curves.adoc[]

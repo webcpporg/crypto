@@ -75,7 +75,9 @@
         "rfc8709": ["RFC 8709, Ed25519 and Ed448 public keys for SSH", "https://www.rfc-editor.org/rfc/rfc8709"],
         "signal-xeddsa": ["Signal, the XEdDSA and VXEdDSA signature schemes", "https://signal.org/docs/specifications/xeddsa/"],
         "tor-cert-spec": ["Tor's specifications, Ed25519 certificates", "https://spec.torproject.org/cert-spec.html"],
-        "solana-accounts": ["Solana's documentation, accounts and their Ed25519 keys", "https://solana.com/docs/core/accounts"]
+        "solana-accounts": ["Solana's documentation, accounts and their Ed25519 keys", "https://solana.com/docs/core/accounts"],
+        "rfc8439": ["RFC 8439, ChaCha20 and Poly1305 for IETF Protocols", "https://www.rfc-editor.org/rfc/rfc8439"],
+        "libsodium-aead": ["libsodium's ChaCha20-Poly1305 constructions", "https://doc.libsodium.org/secret-key_cryptography/aead/chacha20-poly1305"]
     },
     "backends": {
         "bearssl": {
@@ -355,6 +357,42 @@
             "what": "The 32-byte shared secret of a secret key and a peer's public key, a `secret<32>`, refused with `weak_public_key` when it is all zero (a peer key of low order).",
             "section": "crypto-x25519",
             "backends": {"sodium": {"tests": ["x25519_sodium", "x25519_wycheproof_sodium"]}}
+        },
+        {
+            "id": "chacha20_poly1305",
+            "family": "chacha20_poly1305",
+            "functions": ["make", "seal", "open"],
+            "namespace": "ciphers",
+            "api": "ciphers::chacha20_poly1305",
+            "header": "<webcpp/crypto/ciphers/chacha20_poly1305.hpp>, <webcpp/crypto/ciphers/aead.hpp>",
+            "what": "RFC 8439's ChaCha20-Poly1305, authenticated encryption in place with a 12-byte nonce.",
+            "section": "crypto-chacha",
+            "default": "`chacha20_poly1305<>` names the default backend.",
+            "backends": {"sodium": {"tests": ["chacha_sodium", "chacha_wycheproof_sodium", "allocation_sodium"]}}
+        },
+        {
+            "id": "chacha20_poly1305_original",
+            "family": "chacha20_poly1305_original",
+            "functions": ["make", "seal", "open"],
+            "namespace": "ciphers",
+            "api": "ciphers::chacha20_poly1305_original",
+            "header": "<webcpp/crypto/ciphers/chacha20_poly1305.hpp>, <webcpp/crypto/ciphers/aead.hpp>",
+            "what": "The original ChaCha20-Poly1305, authenticated encryption in place with an 8-byte nonce a counter numbers.",
+            "section": "crypto-chacha",
+            "default": "`chacha20_poly1305_original<>` names the default backend.",
+            "backends": {"sodium": {"tests": ["chacha_original_sodium", "allocation_sodium"]}}
+        },
+        {
+            "id": "xchacha20_poly1305",
+            "family": "xchacha20_poly1305",
+            "functions": ["make", "seal", "open"],
+            "namespace": "ciphers",
+            "api": "ciphers::xchacha20_poly1305",
+            "header": "<webcpp/crypto/ciphers/chacha20_poly1305.hpp>, <webcpp/crypto/ciphers/aead.hpp>",
+            "what": "XChaCha20-Poly1305, authenticated encryption in place with a 24-byte nonce safe to draw at random.",
+            "section": "crypto-chacha",
+            "default": "`xchacha20_poly1305<>` names the default backend.",
+            "backends": {"sodium": {"tests": ["xchacha_sodium", "chacha_wycheproof_sodium", "allocation_sodium"]}}
         }
     ],
     "families": [
@@ -444,6 +482,57 @@
             ],
             "default": [
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["x25519_sodium", "default_backend_none_linked"], "why": "the only backend in this version, on every target; it refuses an all-zero shared secret itself ({rfc7748})"}
+            ],
+            "backends": {
+                "sodium": {"targets": "all"}
+            }
+        },
+        {
+            "name": "chacha20_poly1305",
+            "title": "ChaCha20-Poly1305",
+            "group": "ciphers",
+            "since": "0.2",
+            "header": "<webcpp/crypto/ciphers/chacha20_poly1305.hpp>",
+            "shown": "chacha20_poly1305",
+            "names": [
+                {"name": "chacha20_poly1305", "title": "ChaCha20-Poly1305", "type": "ciphers::chacha20_poly1305<{backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["chacha_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, the same on every target ({libsodium-aead})"}
+            ],
+            "backends": {
+                "sodium": {"targets": "all"}
+            }
+        },
+        {
+            "name": "chacha20_poly1305_original",
+            "title": "original ChaCha20-Poly1305",
+            "group": "ciphers",
+            "since": "0.2",
+            "header": "<webcpp/crypto/ciphers/chacha20_poly1305.hpp>",
+            "shown": "chacha20_poly1305_original",
+            "names": [
+                {"name": "chacha20_poly1305_original", "title": "original ChaCha20-Poly1305", "type": "ciphers::chacha20_poly1305_original<{backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["chacha_original_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, the same on every target ({libsodium-aead})"}
+            ],
+            "backends": {
+                "sodium": {"targets": "all"}
+            }
+        },
+        {
+            "name": "xchacha20_poly1305",
+            "title": "XChaCha20-Poly1305",
+            "group": "ciphers",
+            "since": "0.2",
+            "header": "<webcpp/crypto/ciphers/chacha20_poly1305.hpp>",
+            "shown": "xchacha20_poly1305",
+            "names": [
+                {"name": "xchacha20_poly1305", "title": "XChaCha20-Poly1305", "type": "ciphers::xchacha20_poly1305<{backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["xchacha_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, the same on every target ({libsodium-aead})"}
             ],
             "backends": {
                 "sodium": {"targets": "all"}
@@ -570,6 +659,7 @@
         "openssl_old": "Name `/webcpp/crypto//openssl`, which builds OpenSSL 3.5.9; without b2, put OpenSSL 3's `include/` first.",
         "ctaes_not_linked": "Add `/third_party//ctaes`.",
         "sodium_not_linked": "Add `/third_party//sodium`.",
+        "chacha_default_not_linked": "The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add `/third_party//sodium`.",
         "sodium_not_linked_on_emscripten": "Add `/third_party//sodium` to the program's sources.",
         "canary_sodium_other_commit": "Build the library at the commit of webcpp's submodule, or link it through b2.",
         "secp256k1_not_linked": "Add `/third_party//secp256k1`.",

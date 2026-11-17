@@ -41,12 +41,17 @@ struct gcm_state;
 /** The work of GCM on a backend (see @ref block_state). */
 template <class Backend, std::size_t KeySize>
 struct gcm_engine;
-/** What a `chacha20_poly1305` stores (see @ref block_state). */
-template <class Backend>
-struct chacha_state;
-/** The work of ChaCha20-Poly1305 on a backend (see @ref block_state). */
-template <class Backend>
-struct chacha_engine;
+/** What a `ciphers::aead` of the family `Family` stores (see @ref block_state). */
+template <class Family, class Backend>
+struct aead_state;
+/**
+ * The work of a `ciphers::aead` of the family `Family` on a backend, whose specialisation
+ * provides `init(state&, key)`, `seal(state&, iv, additional_data, data, tag&)`,
+ * `open(state&, iv, additional_data, data, tag const&)`, `move(to, from)` and `reset(state&)`
+ * (see @ref block_state).
+ */
+template <class Family, class Backend>
+struct aead_engine;
 
 /**
  * Reads a backend's canary with a volatile load, which no linker can drop: a program built

@@ -33,7 +33,7 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/detail/engines.hpp crypto/detail/entropy.hpp crypto/detail/limits.hpp
   crypto/detail/windows.hpp crypto/detail/wipe.hpp crypto/secret.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
-  crypto/detail/heavy.hpp ;
+  crypto/detail/heavy.hpp crypto/ciphers/aead.hpp crypto/ciphers/chacha20_poly1305.hpp ;
 
 # The backend BearSSL's header and the default backend's, with BearSSL linked,
 # on every target.
@@ -316,6 +316,19 @@ crypto-run x25519_wycheproof_sodium : x25519_wycheproof_sodium_test.cpp
   : <library>/third_party//sodium <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;
 
+# The ChaCha20-Poly1305 AEADs on libsodium, their default on every target: each
+# family's known answers and every check of support/aead_checks.hpp, natively
+# the message's limit too; Wycheproof's vectors of ChaCha20-Poly1305 and
+# XChaCha20-Poly1305; and nothing allocated.
+crypto-run chacha_sodium : chacha_sodium_test.cpp : <library>/third_party//sodium ;
+crypto-run chacha_original_sodium : chacha_original_sodium_test.cpp
+  : <library>/third_party//sodium ;
+crypto-run xchacha_sodium : xchacha_sodium_test.cpp : <library>/third_party//sodium ;
+crypto-run chacha_wycheproof_sodium : chacha_wycheproof_sodium_test.cpp
+  : <library>/third_party//sodium <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
+crypto-run allocation_sodium : allocation_sodium_test.cpp : <library>/third_party//sodium ;
+
 # The capability table of doc/tables/crypto.json, which generate.py writes
 # this test from: supports_v of every cell on the target, and each present
 # cell made, with every backend the target builds linked.
@@ -354,10 +367,12 @@ crypto-run agreement_gcm_portable : agreement_gcm_portable_test.cpp
 crypto-run windows_h_before : windows_h_before_test.cpp
   : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
     <library>/third_party//ctaes <library>/third_party//secp256k1
+    <library>/third_party//sodium
   : native ;
 crypto-run windows_h_after : windows_h_after_test.cpp
   : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
     <library>/third_party//ctaes <library>/third_party//secp256k1
+    <library>/third_party//sodium
   : native ;
 
 # The programs of the user's Jamfiles that the page shows, fixtures of

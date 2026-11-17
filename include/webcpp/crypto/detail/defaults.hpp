@@ -74,6 +74,30 @@ struct default_backend_of<families::x25519> {
     /** `backends::sodium`. */
     using type = backends::sodium;
 };
+/** Defined where libsodium is the default of ChaCha20-Poly1305. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_CHACHA20_POLY1305_SODIUM 1
+/** The default of ChaCha20-Poly1305 on native, wasip2, wasip3, emscripten: libsodium. */
+template <>
+struct default_backend_of<families::chacha20_poly1305> {
+    /** `backends::sodium`. */
+    using type = backends::sodium;
+};
+/** Defined where libsodium is the default of original ChaCha20-Poly1305. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_CHACHA20_POLY1305_ORIGINAL_SODIUM 1
+/** The default of original ChaCha20-Poly1305 on native, wasip2, wasip3, emscripten: libsodium. */
+template <>
+struct default_backend_of<families::chacha20_poly1305_original> {
+    /** `backends::sodium`. */
+    using type = backends::sodium;
+};
+/** Defined where libsodium is the default of XChaCha20-Poly1305. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_XCHACHA20_POLY1305_SODIUM 1
+/** The default of XChaCha20-Poly1305 on native, wasip2, wasip3, emscripten: libsodium. */
+template <>
+struct default_backend_of<families::xchacha20_poly1305> {
+    /** `backends::sodium`. */
+    using type = backends::sodium;
+};
 // clang-format on
 
 /**

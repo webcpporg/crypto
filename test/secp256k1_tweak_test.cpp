@@ -360,16 +360,20 @@ void refusals() {
     refused("pubkey_combine(P, -P)", secp::pubkey_combine(opposite, space),
             crypto::error::invalid_public_key);
     BOOST_TEST(all_zero(space));
-    // No keys, and a workspace one byte short; the workspace is not written.
+    // No keys, and a workspace one byte short: refused, and the workspace, lent full of
+    // non-zero bytes, is zero afterwards all the same.
+    std::ranges::fill(space, std::byte{0xa5});
     refused("pubkey_combine({})", secp::pubkey_combine({}, space),
             crypto::error::invalid_input_size);
+    BOOST_TEST(all_zero(space));
+    std::ranges::fill(space, std::byte{0xa5});
     std::array<secp::public_key, 2> const pair{p_d, public_of(small(7))};
     refused("pubkey_combine(short)",
             secp::pubkey_combine(pair, std::span(space).first(space.size() - 1)),
             crypto::error::invalid_input_size);
+    BOOST_TEST(all_zero(std::span(space).first(space.size() - 1)));
     refused("pubkey_combine(no workspace)", secp::pubkey_combine(pair, {}),
             crypto::error::invalid_input_size);
-    BOOST_TEST(all_zero(space));
 }
 
 }  // namespace

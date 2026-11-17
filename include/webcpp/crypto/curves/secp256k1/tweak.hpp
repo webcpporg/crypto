@@ -234,7 +234,7 @@ template <class Backend = backends::secp256k1>
  * @tparam Backend The backend, `backends::secp256k1`.
  * @param parsed_keys The keys, at least one.
  * @param pointer_space At least `combine_workspace_size(parsed_keys.size())` bytes; zero when
- * the function returns.
+ * the function returns, whatever it returns.
  * @return The sum; `invalid_input_size` for no keys or a short workspace; `invalid_public_key`
  * for a sum at infinity.
  */
@@ -244,13 +244,14 @@ template <class Backend = backends::secp256k1>
     static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
                   WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+    // The carver first: it wipes the workspace on every return, a refusal's included.
+    webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
     // libsecp256k1 checks the count with ARG_CHECK, whose callback aborts: refused first here.
     if (parsed_keys.empty() || pointer_space.size() < combine_workspace_size(parsed_keys.size())) {
         return error::invalid_input_size;
     }
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
-    webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
     auto* const key_pointers = carver.take<secp256k1_pubkey const*>(parsed_keys.size());
     if (key_pointers == nullptr) {
         return error::invalid_input_size;

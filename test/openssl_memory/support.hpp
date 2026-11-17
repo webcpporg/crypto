@@ -216,8 +216,11 @@ private:
 
     // 16 MiB. On OpenSSL 3.5.9 (measured on macOS, 2026-11-17) everything_test's first make
     // takes 5,027 blocks, 4,441 still live after it; the whole test asks for 5,042 blocks and
-    // 388,040 bytes, at most 349,350 of them live at once. A buffer that runs out throws
-    // std::bad_alloc from null_memory_resource(), loudly.
+    // 388,040 bytes, at most 349,350 of them live at once. A buffer that runs out makes
+    // null_memory_resource() throw std::bad_alloc. With exceptions, the adapter catches it
+    // and gives OpenSSL null, so the OpenSSL call fails and so does the test's check of it.
+    // Without exceptions (the program is built so, the C++ library is not) nothing catches
+    // it, and std::terminate ends the process with SIGABRT.
     alignas(std::max_align_t) std::array<std::byte, std::size_t{16} << 20U> buffer_{};
     std::pmr::monotonic_buffer_resource monotonic_{buffer_.data(), buffer_.size(),
                                                    std::pmr::null_memory_resource()};

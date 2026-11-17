@@ -24,6 +24,16 @@ rule memory-run ( name : sources + : requirements * )
 
 memory-run adapter : adapter_test.cpp ;
 
+# The C library's allocator, counted while a test says so: through
+# malloc_logger on macOS, by the program's own malloc on Linux, not at all on
+# Windows (spec section 8.5).
+.counter = <target-os>darwin:<source>interpose_darwin.cpp
+    <target-os>linux:<source>interpose_linux.cpp
+    <target-os>windows:<source>interpose_windows.cpp ;
+
+# A second thread uses OpenSSL: the provider is built with threads.
+memory-run everything : everything_test.cpp : $(.counter) <threading>multi ;
+
 # The header alone, with the option: its branch compiles with nothing before it.
 webcpp.compile header_alone : header_alone_test.cpp
   : <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;

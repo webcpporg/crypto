@@ -331,6 +331,7 @@
         "default_openssl_on_emscripten": "OpenSSL selected as the default in a build for Emscripten.",
         "has_openssl_on_emscripten": "OpenSSL declared linked, without b2, in a build for Emscripten.",
         "openssl_on_emscripten": "`/webcpp/crypto//openssl` named in a build for Emscripten.",
+        "openssl_memory_on_emscripten": "The memory option of the OpenSSL backend set in a build for Emscripten.",
         "no_backend_on_emscripten": "A program for Emscripten that uses the default backend and links none."
     },
     "fixes": {
@@ -349,6 +350,9 @@
         "default_openssl_on_emscripten": "Remove the define, or make it `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`.",
         "has_openssl_on_emscripten": "Replace `/webcpp/crypto//openssl` with `/third_party//bearssl`.",
         "openssl_on_emscripten": "Name `/third_party//bearssl` in its place for the Emscripten build.",
+        "openssl_memory_on_emscripten": "Remove `<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` from the WebAssembly build: give that build a project of its own, without the define and OpenSSL, naming `/third_party//bearssl`. On WebAssembly the backend is BearSSL, which allocates nothing.",
+        "openssl_memory_on_webassembly": "Remove `<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` from the WebAssembly build: give that build a project of its own, without the define and OpenSSL, naming `/third_party//bearssl`. On WebAssembly the backend is BearSSL, which allocates nothing.",
+        "openssl_memory_not_linked": "A target has the define and not OpenSSL: put `<library>/webcpp/crypto//openssl` in the same project requirements as the define, or remove the define.",
         "canary_missing": "Link the library through b2, `/third_party//bearssl`; built by other means, it must be the pinned commit, with webcpp's `src/canary_bearssl.c`.",
         "canary_other_commit": "Build the library at the commit of webcpp's submodule, or link it through b2.",
         "canary_other_configuration": "Build BearSSL in webcpp's configuration (`getentropy`), or link it through b2.",

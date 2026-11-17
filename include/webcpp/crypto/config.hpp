@@ -118,6 +118,13 @@
 */
 #define WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
 #undef WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+/**
+ Defined by a native program to route OpenSSL's allocations to the program's own
+ `openssl_memory_resource()`. Refused on every WebAssembly target, and natively without OpenSSL
+ linked.
+*/
+#define WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+#undef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
 #endif
 
 #if !defined(WEBCPP_HAS_EXCEPTIONS) && !defined(WEBCPP_CRYPTO_NO_EXCEPTIONS)
@@ -142,6 +149,13 @@
 #endif
 #if defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL) && defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL)
 #error "webcpp::crypto: both WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL and WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL are defined. Keep one."
+#endif
+#if defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE) && defined(WEBCPP_CRYPTO_WEBASSEMBLY)
+#error "webcpp::crypto: WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE is an option of native programs, and this program is built for WebAssembly. Remove that define from the program's Jamfile."
+#endif
+#if defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE) && !defined(WEBCPP_CRYPTO_WEBASSEMBLY) && \
+    !defined(WEBCPP_CRYPTO_HAS_OPENSSL)
+#error "webcpp::crypto: WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE routes OpenSSL's allocations, and OpenSSL is not linked. In the program's Jamfile, add /webcpp/crypto//openssl beside /webcpp/crypto//crypto, or remove that define. (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)"
 #endif
 // clang-format on
 

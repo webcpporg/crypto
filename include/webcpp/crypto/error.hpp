@@ -66,8 +66,17 @@ enum class error : int {
     invalid_signature = 11,
     /** A backend failed where its contract says it does not. */
     backend_failure = 12,
-    // 13 and 14 are reserved for OpenSSL's memory option (memory_functions_refused and
-    // memory_functions_not_installed), which declares them; never reused.
+    /**
+     OpenSSL's memory functions could not be installed: OpenSSL has already allocated, or another
+     party installed its own. Returned by `backends::openssl::install_memory_functions`, with
+     `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
+    */
+    memory_functions_refused = 13,
+    /**
+     OpenSSL's memory functions are not webcpp::crypto's, so a `make` of the OpenSSL backend
+     refuses to run, with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
+    */
+    memory_functions_not_installed = 14,
 };
 
 namespace detail {
@@ -89,6 +98,15 @@ inline const char* message_of(int error_value) noexcept {
         case error::invalid_signature:
             return "the signature does not verify or is not a valid encoding";
         case error::backend_failure: return "the backend failed where it should not";
+        case error::memory_functions_refused:
+            return "OpenSSL's memory functions cannot be installed: OpenSSL has already "
+                   "allocated, or another party installed its own. Call "
+                   "backends::openssl::install_memory_functions() as the first statement of "
+                   "main, before anything uses OpenSSL.";
+        case error::memory_functions_not_installed:
+            return "OpenSSL's memory functions are not webcpp::crypto's. Call "
+                   "backends::openssl::install_memory_functions() as the first statement of "
+                   "main, and let nothing else call CRYPTO_set_mem_functions.";
     }
     return "unknown webcpp.crypto error";
 }

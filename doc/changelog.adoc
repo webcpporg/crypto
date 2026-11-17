@@ -26,4 +26,5 @@ of every version are on webcpp's index page.
 * Added curves::secp256k1: key pairs, BIP340 and ECDSA signatures, ECDH, strict DER, low-S and the x-only tweak.
 * Added the link-time canaries of BearSSL, ctaes and libsecp256k1, and their own suites on webcpp's build.
 * Added the page: a chapter per namespace and use case, tables generated from the tests, every Jamfile and message, and llms.txt.
+* Added the errors memory_functions_refused and memory_functions_not_installed (13 and 14) of the OpenSSL memory option, and config.hpp's refusals of WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE on WebAssembly and without OpenSSL.
 // end::unreleased[]

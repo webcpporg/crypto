@@ -49,6 +49,18 @@ The fix: Add `+/webcpp/crypto//openssl+` or `+/third_party//bearssl+` to the pro
 
 The fix: Add `+/third_party//bearssl+` to the program's sources.
 
+|`+openssl_memory_not_linked+`
+|native
+|`+webcpp::crypto: WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE routes OpenSSL's allocations, and OpenSSL is not linked. In the program's Jamfile, add /webcpp/crypto//openssl beside /webcpp/crypto//crypto, or remove that define. (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)+`
+
+The fix: A target has the define and not OpenSSL: put `+<library>/webcpp/crypto//openssl+` in the same project requirements as the define, or remove the define.
+
+|`+openssl_memory_on_webassembly+`
+|wasip2, wasip3
+|`+webcpp::crypto: WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE is an option of native programs, and this program is built for WebAssembly. Remove that define from the program's Jamfile.+`
+
+The fix: Remove `+<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE+` from the WebAssembly build: give that build a project of its own, without the define and OpenSSL, naming `+/third_party//bearssl+`. On WebAssembly the backend is BearSSL, which allocates nothing.
+
 |`+openssl_not_linked+`
 |native, wasip2
 |`+webcpp::crypto: the backend OpenSSL is used and not linked. In the program's Jamfile, add /webcpp/crypto//openssl beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)+`
@@ -326,6 +338,20 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: no backend is linked. On WebAssembly the backend is BearSSL: in the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
 
+`+openssl_memory_on_emscripten+`:: The memory option of the OpenSSL backend set in a build for Emscripten. The fix: Remove `+<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE+` from the WebAssembly build: give that build a project of its own, without the define and OpenSSL, naming `+/third_party//bearssl+`. On WebAssembly the backend is BearSSL, which allocates nothing.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_memory_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE is an option of native programs, and this program is built for WebAssembly. Remove that define from the program's Jamfile.+`
+
 `+openssl_on_emscripten+`:: `+/webcpp/crypto//openssl+` named in a build for Emscripten. The fix: Name `+/third_party//bearssl+` in its place for the Emscripten build.
 +
 Its Jamfile:
@@ -401,6 +427,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+no_backend+`
 |the compile
 |As `+no_backend_native+`.
+
+|`+openssl_memory_not_linked+`
+|the compile
+|A target has the define and not OpenSSL: put `+<library>/webcpp/crypto//openssl+` in the same project requirements as the define, or remove the define.
 
 |`+openssl_not_linked+`
 |the compile

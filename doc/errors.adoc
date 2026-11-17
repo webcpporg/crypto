@@ -41,10 +41,14 @@ bytes) or 04 (65 bytes), or not a point of the curve.
 |11 |`invalid_signature` |A signature that does not verify, or is not a valid encoding: not strict
 DER, or an r or an s that is zero or not below the group order.
 |12 |`backend_failure` |A backend failed where its contract says it does not.
+|13 |`memory_functions_refused` |OpenSSL's memory functions could not be installed: OpenSSL has
+already allocated, or another party installed its own. From `backends::openssl::install_memory_functions`,
+with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
+|14 |`memory_functions_not_installed` |OpenSSL's memory functions are not webcpp::crypto's. From
+every `make` of the OpenSSL backend, with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
 |===
 
-The values 13 and 14 are reserved for OpenSSL's memory option, which is not part
-of this version, and are not declared. A value that `error` does not define
+A value that `error` does not define
 has the message "unknown webcpp.crypto error". `random_device` also returns
 `errc::not_supported` where there is no generator at all, and OpenSSL's `make`
 `errc::not_enough_memory` when OpenSSL cannot allocate its context.

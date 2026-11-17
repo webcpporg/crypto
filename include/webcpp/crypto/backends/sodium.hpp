@@ -60,7 +60,7 @@ namespace webcpp::crypto::detail {
 
  @return Nothing; `backend_failure` when `sodium_init` returns -1.
 */
-inline boost::system::result<void> sodium_ready() noexcept {
+[[nodiscard]] inline boost::system::result<void> sodium_ready() noexcept {
     read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
     if (sodium_init() < 0) {
         return error::backend_failure;

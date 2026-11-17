@@ -125,7 +125,8 @@ record each way and every free.
 * *Nothing else may call `CRYPTO_set_mem_functions`.* If another library has
 called it before, `install_memory_functions()` returns
 `memory_functions_refused`; if it calls it after the install, the next `make`
-returns `memory_functions_not_installed`.
+returns `memory_functions_not_installed`, and only when that call has finished
+before the `make`.
 * *`memory_functions_refused` although the install is the first statement of
 `main`* means that something used OpenSSL before `main`: a static object of
 another library. OpenSSL then keeps its own `malloc` for the rest of the

@@ -309,6 +309,12 @@ class Matrix:
                                            if target in targets]
                     self.proofs[key] = list(entry['tests'])
                     if 'elsewhere' in entry:
+                        # Only OpenSSL's cells name what stops an operation elsewhere
+                        # (targets()); another backend's reason would never be shown.
+                        if backend != 'openssl':
+                            raise Fault(f'crypto.json: {operation["id"]} on {backend} names '
+                                        f'the reason {entry["elsewhere"]}, which only '
+                                        'OpenSSL\'s entries may give')
                         if entry['elsewhere'] not in data['elsewhere']:
                             raise Fault(f'crypto.json: {operation["id"]} on {backend} names '
                                         f'the reason {entry["elsewhere"]}, which elsewhere '

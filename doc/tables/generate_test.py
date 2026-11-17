@@ -7,11 +7,11 @@
 
 """Checks generate.py's readers and writers on small fixtures of their own: the Jamfile reader (a
 program inside an `if`, a rule's body, the targets a program inherits, the memory option's tests, a
-name declared twice), a backend's reason for the targets an operation misses, the outcome reader
-(each directive and section), the Doc Comment reader (a line reference left out), and the writers
-whose output a reader of the page sees (inline code that holds a `+` or a backtick, a failing
-fixture's output per target, a comparison table's names of code, the decision table's Jamfile
-column). generate.py --check proves only that the committed tables are what generate.py writes now:
+name declared twice), a backend's reason for the targets an operation misses (OpenSSL's alone), the
+outcome reader (each directive and section), the Doc Comment reader (a line reference left out),
+and the writers whose output a reader of the page sees (inline code that holds a `+` or a backtick,
+a failing fixture's output per target, a comparison table's names of code, the decision table's
+Jamfile column). generate.py --check proves only that the committed tables are what generate.py writes now:
 a reader that regresses and is regenerated in the same change would pass it, and fails here.
 
 Usage: generate_test.py [<case>...]. The doc build runs it before generate.py --check
@@ -96,6 +96,21 @@ def test_a_backend_says_why_it_is_missing_elsewhere(_: Path) -> None:
     assert matrix.targets('memory', 'openssl') == (
         'native; not on wasip2, emscripten: config.hpp refuses it'), matrix.targets('memory',
                                                                                    'openssl')
+
+
+def test_a_reason_elsewhere_is_openssl_s_alone(_: Path) -> None:
+    # Only OpenSSL's cells say why an operation is missing on a target; a reason on another
+    # backend's entry would be read and never shown, so it is a fault.
+    data = {'targets': ['native', 'wasip2'],
+            'elsewhere': {'openssl': 'the build stops', 'memory': 'config.hpp refuses it'},
+            'operations': [{'id': 'gcm', 'backends': {'bearssl': {'tests': ['g'],
+                                                                  'elsewhere': 'memory'}}}]}
+    try:
+        generate.Matrix(data, {'g': ['native']}, {})
+    except generate.Fault as fault:
+        assert 'gcm on bearssl' in str(fault) and 'memory' in str(fault), fault
+    else:
+        raise AssertionError('a reason elsewhere on bearssl was read and never shown')
 
 
 def test_an_outcome_reads_each_directive(scratch: Path) -> None:
@@ -218,6 +233,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_program_inside_an_if_is_a_fault,
     test_the_memory_option_s_tests_are_declared,
     test_a_backend_says_why_it_is_missing_elsewhere,
+    test_a_reason_elsewhere_is_openssl_s_alone,
     test_an_outcome_reads_each_directive,
     test_a_brief_leaves_out_a_line_reference,
     test_code_that_holds_a_plus_is_one_span,

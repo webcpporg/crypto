@@ -31,7 +31,6 @@ std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept {
 }
 
 // end::resource[]
-
 int main() {
     // tag::install[]
     // The first statement of main: before any thread starts and before anything uses OpenSSL.

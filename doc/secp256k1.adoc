@@ -516,12 +516,13 @@ read what the other signers send, and the `serialize_` functions write it.
 The functions over many keys, nonces or parts take a `workspace` of
 `workspace_size(n)` bytes for libsecp256k1's array of pointers, so that nothing
 is allocated, and wipe it before they return; no items or a short workspace is
-`invalid_input_size`. A nonce or a partial signature that does not parse is
-`invalid_point` or `invalid_signature`, a tweak out of range
-`invalid_secret_key`, and a moved-from key pair or a used nonce
-`invalid_state`. The tests check BIP 327's own vectors, those that need no
-secret nonce of the vector's: a `secret_nonce` exists only from `nonce_gen`,
-and libsecp256k1's own tests, run in the `c-suites` lane, check the rest.
+`invalid_input_size`. A nonce or a partial signature of the wrong length is
+`invalid_input_size` too, and one that does not parse is `invalid_point` or
+`invalid_signature`, a tweak out of range `invalid_secret_key`, and a
+moved-from key pair or a used nonce `invalid_state`. The tests check BIP 327's
+own vectors, those that need no secret nonce of the vector's: a `secret_nonce`
+exists only from `nonce_gen`, and libsecp256k1's own tests, run in the
+`c-suites` lane, check the rest.
 
 include::generated/backends-musig.adoc[]
 

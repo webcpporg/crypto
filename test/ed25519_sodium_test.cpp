@@ -42,13 +42,15 @@ namespace {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the planted source's script
 bool entropy_fails = false;
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the planted source's script
+int entropy_errno = EIO;
 
 }  // namespace
 
-// The planted source: 0x42 in every byte, or -1 with EIO, as getentropy fails.
+// The planted source: 0x42 in every byte, or -1 with errno set, as getentropy fails.
 extern "C" int webcpp_test_entropy(void* output_bytes, std::size_t byte_count) {
     if (entropy_fails) {
-        errno = EIO;
+        errno = entropy_errno;
         return -1;
     }
     std::memset(output_bytes, 0x42, byte_count);
@@ -199,6 +201,13 @@ void generated() {
     entropy_fails = true;
     auto const refused = ed25519::keypair::generate();
     BOOST_TEST(refused.has_error() && refused.error() == crypto::error::entropy_unavailable);
+    // No generator at all (ENOTSUP, an Emscripten audio worklet, which random_device reports as
+    // not_supported) is the same failure for a key pair.
+    entropy_errno = ENOTSUP;
+    auto const unsupported = ed25519::keypair::generate();
+    BOOST_TEST(unsupported.has_error() &&
+               unsupported.error() == crypto::error::entropy_unavailable);
+    entropy_errno = EIO;
 
     // The source answers: the key pair of the seed it gave, 32 bytes of 0x42.
     entropy_fails = false;

@@ -11,7 +11,7 @@
 // tag::program[]
 #include <webcpp/crypto/curves/ed25519.hpp>
 
-#include <boost/hash2/sha2.hpp>
+#include <webcpp/hash/algorithms.hpp>
 
 #include <array>
 #include <cstddef>
@@ -61,8 +61,8 @@ bool sign_whole() {
     return ed25519::verify(*public_key, message, *signature).has_value();
 }
 
-// Ed25519ph: the message given in pieces, as a large file is read, signed once at the end.
-// webcpp::hash::sha2_512 names Boost.Hash2's sha2_512, the hash RFC 8032 fixes.
+// Ed25519ph: the message given in pieces, as a large file is read, signed once at the end,
+// over SHA-512, the hash RFC 8032 fixes.
 bool sign_in_pieces() {
     std::array<std::uint8_t, 32> const seed{
         0x83, 0x3f, 0xe6, 0x24, 0x09, 0x23, 0x7b, 0x9d, 0x62, 0xec, 0x77,
@@ -71,7 +71,7 @@ bool sign_in_pieces() {
     };
     std::array<std::uint8_t, 1> const first{'a'};
     std::array<std::uint8_t, 2> const second{'b', 'c'};
-    using signer = ed25519::ph<boost::hash2::sha2_512>;
+    using signer = ed25519::ph<webcpp::hash::sha2_512>;
     auto const key = ed25519::keypair::make(seed);
     auto signing = signer::begin();
     if (!key || !signing || !signing->update(first) || !signing->update(second)) {

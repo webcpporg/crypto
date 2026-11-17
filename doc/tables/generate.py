@@ -1183,23 +1183,41 @@ LINE_REFERENCE = re.compile(r'\s*\(`[\w./-]+:\d+(?:-\d+)?`\)')
 DOC_COMMENT = re.compile(r'/\*\*(.*?)\*/', re.S)
 
 
+def class_body(text: str, name: str) -> str:
+    """The body of the class or struct name that text defines, between its braces, or nothing
+    when text defines none of that name."""
+    found = re.search(rf'\b(?:class|struct)\s+{re.escape(name)}\b[^;{{]*\{{', text)
+    if not found:
+        return ''
+    depth = 0
+    for index in range(found.end() - 1, len(text)):
+        depth += {'{': 1, '}': -1}.get(text[index], 0)
+        if depth == 0:
+            return text[found.end():index]
+    return text[found.end():]
+
+
 def declared_brief(library: Path, operation: Data, function: str) -> str:
     """The first sentence of the Doc Comment of a function an operation names, read from the
-    operation's headers: the description llms.txt gives it. A function no header declares is a
-    fault."""
-    if function == 'operator()':
+    operation's headers: the description llms.txt gives it. A function written `class::name` is
+    read in that class's body alone, for a name that another class of the header declares first.
+    A function no header declares is a fault."""
+    scope, _, name = function.rpartition('::')
+    if name == 'operator()':
         pattern = re.compile(r'\boperator\(\)\(')
     else:
-        pattern = re.compile(rf'(?:\b{re.escape(function)}|\({re.escape(function)}\))\s*\(')
+        pattern = re.compile(rf'(?:\b{re.escape(name)}|\({re.escape(name)}\))\s*\(')
     for header in HEADER.findall(operation['header']):
         text = (library / 'include' / header).read_text(encoding='utf-8')
+        if scope:
+            text = class_body(text, scope)
         for comment in DOC_COMMENT.finditer(text):
             rest = text[comment.end():]
             declaration = rest[:rest.find('{') if '{' in rest else len(rest)]
             declaration = declaration.split(';', 1)[0]
             declaration = '\n'.join(line.split('//', 1)[0] for line in declaration.splitlines())
             free = not declaration.lstrip('\n').startswith(' ')
-            if operation.get('free') and not free:
+            if operation.get('free') and not free and not scope:
                 continue
             found = pattern.search(declaration)
             # The declared name: the first parenthesis of the declaration is its own.

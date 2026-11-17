@@ -285,6 +285,10 @@ crypto-run ed25519_wycheproof_sodium : ed25519_wycheproof_sodium_test.cpp
   : <library>/third_party//sodium <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;
 crypto-run ed25519ph_sodium : ed25519ph_sodium_test.cpp : <library>/third_party//sodium ;
+# The key pair's secret key and the signer's state are zero once moved from,
+# moved over, ended and destroyed: optimised, every call inlined, as secret's.
+crypto-run ed25519_wipe_sodium : ed25519_wipe_sodium_test.cpp
+  : <library>/third_party//sodium $(OPTIMISED) <inlining>full ;
 
 # X25519 on libsodium: RFC 7748's scalar multiplications and Alice and Bob, a
 # peer of order 8 refused as weak, the guards and the conversion from Ed25519;

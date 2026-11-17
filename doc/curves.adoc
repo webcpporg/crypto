@@ -15,8 +15,8 @@ back from the point to the number is infeasible. On a curve a program can
 on a key*, so that two parties who only exchanged public keys share a secret
 (link:https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman[Wikipedia]).
 
-The namespace `webcpp::crypto::curves` holds three curves in this version.
-The first is secp256k1 (link:https://www.secg.org/sec2-v2.pdf[SEC 2];
+The namespace `webcpp::crypto::curves` holds three curves in this version, the
+three columns of the table below. The first is secp256k1 (link:https://www.secg.org/sec2-v2.pdf[SEC 2];
 link:https://en.bitcoin.it/wiki/Secp256k1[Bitcoin Wiki]), the curve of
 Bitcoin, Ethereum and Nostr. This version covers Bitcoin's keys and signatures,
 Nostr's event signatures (NIP-01) and the verification of Ethereum's ECDSA

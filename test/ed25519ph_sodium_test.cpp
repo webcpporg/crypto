@@ -11,12 +11,12 @@
 
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/hash/algorithms.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
 
 #include <boost/core/lightweight_test.hpp>
-#include <boost/hash2/sha2.hpp>
 
 #include <algorithm>
 #include <array>
@@ -32,9 +32,7 @@ namespace test = webcpp::test;
 
 namespace {
 
-// webcpp::hash::sha2_512, which a program names, is Boost.Hash2's sha2_512
-// (webcpp/hash/algorithms.hpp); hash's header is left out of crypto's tests.
-using signer = ed25519::ph<boost::hash2::sha2_512>;
+using signer = ed25519::ph<webcpp::hash::sha2_512>;
 
 // RFC 8032 section 7.3, TEST abc.
 constexpr char const* secret_key =
@@ -139,7 +137,7 @@ void spent_and_moved() {
 
 int main() {
     static_assert(
-        std::is_same_v<signer, ed25519::ph<boost::hash2::sha2_512, crypto::backends::sodium>>);
+        std::is_same_v<signer, ed25519::ph<webcpp::hash::sha2_512, crypto::backends::sodium>>);
     static_assert(std::is_same_v<signer::family_type, crypto::families::ed25519>);
     static_assert(std::is_same_v<signer::name_type, crypto::tags::ed25519ph>);
     static_assert(!std::is_copy_constructible_v<signer> && !std::is_copy_assignable_v<signer>);

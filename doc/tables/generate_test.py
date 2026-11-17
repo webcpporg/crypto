@@ -154,6 +154,25 @@ def test_a_brief_leaves_out_a_line_reference(scratch: Path) -> None:
         raise AssertionError('a function no header declares was given a brief')
 
 
+def test_a_qualified_function_is_read_in_its_class(scratch: Path) -> None:
+    written(scratch, 'include/webcpp/crypto/two.hpp', (
+        'namespace webcpp::crypto {\n'
+        'class key {\npublic:\n    /** Signs a message. */\n    int sign(int message);\n};\n'
+        'class signer {\n    struct inner {\n        /** Not this one. */\n'
+        '        int other(int x);\n    };\n\npublic:\n'
+        '    /** Signs the message given in pieces. */\n    int sign(int key);\n};\n}\n'))
+    operation = {'id': 'two', 'header': '<webcpp/crypto/two.hpp>'}
+    assert generate.declared_brief(scratch, operation, 'sign') == 'Signs a message.'
+    brief = generate.declared_brief(scratch, operation, 'signer::sign')
+    assert brief == 'Signs the message given in pieces.', brief
+    try:
+        generate.declared_brief(scratch, operation, 'nothing::sign')
+    except generate.Fault:
+        pass
+    else:
+        raise AssertionError('a function of a class no header defines was given a brief')
+
+
 def test_code_that_holds_a_plus_is_one_span(_: Path) -> None:
     # `+em++: error:+` would be read as `+em+` and a stray rest: the text is a passthrough.
     assert generate.code('em++: error:') == '`pass:[em++: error:]`', generate.code('em++')
@@ -629,6 +648,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_reason_elsewhere_is_openssl_s_alone,
     test_an_outcome_reads_each_directive,
     test_a_brief_leaves_out_a_line_reference,
+    test_a_qualified_function_is_read_in_its_class,
     test_code_that_holds_a_plus_is_one_span,
     test_a_failing_fixture_lists_its_texts_per_target,
     test_a_fixture_that_builds_and_runs_nothing_is_a_record,

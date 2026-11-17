@@ -26,10 +26,8 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: random_device draws generate()'s seed
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/hash/algorithms.hpp>  // webcpp::hash::sha2_512, Ed25519ph's hash (design D1)
 
-// webcpp::hash::sha2_512, Ed25519ph's hash, is this type (webcpp/hash/algorithms.hpp); its header
-// is not included, so that crypto's headers declare nothing of hash's beside crypto's own.
-#include <boost/hash2/sha2.hpp>
 #include <boost/system/result.hpp>
 
 #include <array>
@@ -101,7 +99,8 @@ public:
      * @param seed 32 bytes.
      * @return The key pair; `invalid_key_size`; `backend_failure`.
      */
-    static boost::system::result<basic_keypair> make(std::span<std::uint8_t const> seed) noexcept {
+    [[nodiscard]] static boost::system::result<basic_keypair> make(
+        std::span<std::uint8_t const> seed) noexcept {
         if (seed.size() != seed_size) {
             return error::invalid_key_size;
         }
@@ -120,7 +119,7 @@ public:
      * @return The key pair; `entropy_unavailable` when the system's generator fails or there is
      * none; `backend_failure`.
      */
-    static boost::system::result<basic_keypair> generate() noexcept {
+    [[nodiscard]] static boost::system::result<basic_keypair> generate() noexcept {
         secret<seed_size> seed;
         auto const drawn = random_device().fill(seed.writable());  // lint-world: the seed
         if (!drawn) {
@@ -243,9 +242,9 @@ struct strict {};
  * @return Nothing; `invalid_public_key` for a key of another size; `invalid_signature`.
  */
 template <class Policy = strict, class Backend = default_backend_t<families::ed25519>>
-boost::system::result<void> verify(std::span<std::uint8_t const> public_key,
-                                   std::span<std::uint8_t const> message,
-                                   std::span<std::uint8_t const> signature) noexcept {
+[[nodiscard]] boost::system::result<void> verify(std::span<std::uint8_t const> public_key,
+                                                 std::span<std::uint8_t const> message,
+                                                 std::span<std::uint8_t const> signature) noexcept {
     static_assert(std::is_same_v<Policy, strict>,
                   "webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.");
     if (public_key.size() != 32) {
@@ -294,14 +293,13 @@ template <class Backend = default_backend_t<families::ed25519>>
  * Its signature is not Ed25519's of the same message: a verifier is told which of the two a
  * protocol uses.
  *
- * @tparam Hash `webcpp::hash::sha2_512`, which RFC 8032 fixes (Boost.Hash2's `sha2_512`, the
- * same type); any other is refused.
+ * @tparam Hash `webcpp::hash::sha2_512`, which RFC 8032 fixes; any other is refused.
  * @tparam Backend The backend; by default the family's (`default_backend_t<families::ed25519>`).
  */
 template <class Hash, class Backend = default_backend_t<families::ed25519>>
 class ph {
     // clang-format off
-    static_assert(std::is_same_v<Hash, ::boost::hash2::sha2_512>, "webcpp::crypto: Ed25519ph is defined over SHA-512 (RFC 8032 section 5.1); name curves::ed25519::ph<webcpp::hash::sha2_512>.");
+    static_assert(std::is_same_v<Hash, ::webcpp::hash::sha2_512>, "webcpp::crypto: Ed25519ph is defined over SHA-512 (RFC 8032 section 5.1); name curves::ed25519::ph<webcpp::hash::sha2_512>.");
     // clang-format on
 
     using state_type = detail::ed25519ph_state<tags::ed25519ph, Backend>;
@@ -324,7 +322,7 @@ public:
      *
      * @return The signer, ready for the message's pieces; `backend_failure`.
      */
-    static boost::system::result<ph> begin() noexcept {
+    [[nodiscard]] static boost::system::result<ph> begin() noexcept {
         ph begun;
         auto const started = engine::begin(begun.state_);
         if (!started) {
@@ -374,7 +372,7 @@ public:
      * @param piece Any bytes, empty included.
      * @return Nothing; `invalid_state` once the message is signed or verified, or moved from.
      */
-    boost::system::result<void> update(std::span<std::uint8_t const> piece) noexcept {
+    [[nodiscard]] boost::system::result<void> update(std::span<std::uint8_t const> piece) noexcept {
         if (!begun_) {
             return error::invalid_state;
         }

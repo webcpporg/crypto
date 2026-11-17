@@ -65,6 +65,10 @@ webcpp.example key_tweak.cpp : <library>/third_party//secp256k1 ;
 # random, and agree on BIP 324's shared secret.
 webcpp.example ellswift_handshake.cpp : <library>/third_party//secp256k1 ;
 
+# A wallet split across two devices: their keys aggregated with MuSig2, two
+# rounds of nonces and partial signatures, one BIP 340 signature on the chain.
+webcpp.example musig_wallet.cpp : <library>/third_party//secp256k1 ;
+
 # A wallet's key pair, its secret sealed at rest and restored.
 webcpp.example wallet_key.cpp : <library>/third_party//secp256k1 <library>/webcpp/crypto//gcm-default ;
 

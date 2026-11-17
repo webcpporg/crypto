@@ -13,14 +13,58 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
 #include <webcpp/crypto/curves/secp256k1/formats.hpp>
+#include <webcpp/crypto/curves/secp256k1/musig.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <boost/core/lightweight_test.hpp>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <utility>
 
 namespace webcpp::test {
+
+/**
+ * MuSig2's two functions of a signer's key pair answer `invalid_state` for an empty pair: a
+ * nonce for it, and a partial signature by it with a nonce of a live pair's.
+ *
+ * @param key The empty pair.
+ * @param live A keyed pair, the one signer of the aggregate key.
+ * @param message The 32-byte message of the session.
+ */
+inline void expect_empty_musig_signer(webcpp::crypto::curves::secp256k1::keypair const& key,
+                                      webcpp::crypto::curves::secp256k1::keypair const& live,
+                                      std::array<std::uint8_t, 32> const& message) {
+    namespace secp = webcpp::crypto::curves::secp256k1;
+    auto const live_key = secp::parse_public_key(*live.public_key());
+    if (!BOOST_TEST(live_key.has_value())) {
+        return;
+    }
+    std::array<secp::public_key, 1> const keys{*live_key};
+    std::array<std::byte, secp::musig::workspace_size(1)> space{};
+    auto const signers_key = secp::musig::key_aggregate(keys, space);
+    if (!BOOST_TEST(signers_key.has_value())) {
+        return;
+    }
+    BOOST_TEST(secp::musig::nonce_gen(key, *signers_key).error() ==
+               webcpp::crypto::error::invalid_state);
+    auto made = secp::musig::nonce_gen(live, *signers_key);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    std::array<secp::musig::public_nonce, 1> const nonces{made->public_part};
+    auto const nonce_sum = secp::musig::nonce_aggregate(nonces, space);
+    if (!BOOST_TEST(nonce_sum.has_value())) {
+        return;
+    }
+    auto const signing_session = secp::musig::nonce_process(*nonce_sum, message, *signers_key);
+    if (BOOST_TEST(signing_session.has_value())) {
+        BOOST_TEST(secp::musig::partial_sign(key, std::move(made->secret_part), *signers_key,
+                                             *signing_session)
+                       .error() == webcpp::crypto::error::invalid_state);
+    }
+}
 
 /**
  * Every operation of a key pair that holds no key answers `invalid_state`: the pair is empty,
@@ -58,6 +102,7 @@ inline void expect_empty_keypair(webcpp::crypto::curves::secp256k1::keypair& key
         BOOST_TEST(key.ecdh(peer).error() == webcpp::crypto::error::invalid_state);
         BOOST_TEST(key.ecdh_x(peer).error() == webcpp::crypto::error::invalid_state);
         BOOST_TEST(key.ecdh_point(peer).error() == webcpp::crypto::error::invalid_state);
+        expect_empty_musig_signer(key, *live, message);
     }
 }
 

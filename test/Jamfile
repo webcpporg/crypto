@@ -67,7 +67,7 @@ webcpp.headers-alone crypto : ../include
 webcpp.headers-alone crypto : ../include
   : crypto/curves/secp256k1.hpp crypto/backends/secp256k1.hpp
     crypto/curves/secp256k1/tweak.hpp crypto/curves/secp256k1/formats.hpp
-    crypto/curves/secp256k1/ellswift.hpp
+    crypto/curves/secp256k1/ellswift.hpp crypto/curves/secp256k1/musig.hpp
   : <library>/third_party//secp256k1 ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
@@ -236,6 +236,15 @@ crypto-run secp256k1_formats_openssl : secp256k1_formats_test.cpp
 # over seeded key pairs, and the key exchange from both sides.
 crypto-run secp256k1_ellswift : secp256k1_ellswift_test.cpp
   : <library>/third_party//secp256k1 <library>/third_party//bips ;
+# MuSig2 against BIP 327's vectors, 2-of-2 and 3-of-3 round trips, and a
+# secret nonce that signs once.
+crypto-run secp256k1_musig : secp256k1_musig_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//bips
+    <library>/webcpp//boost_json ;
+# MuSig2's nonce with the system's source failing: a program of its own, since
+# the test seam is a whole-program define.
+crypto-run secp256k1_musig_entropy : secp256k1_musig_entropy_test.cpp
+  : <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
 crypto-run secp256k1_der : secp256k1_der_test.cpp
   : <library>/third_party//secp256k1 <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;

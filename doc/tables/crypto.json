@@ -106,13 +106,14 @@
         "rfc7748-kdf": ["RFC 7748, section 6.1: a KDF over the shared secret and both public keys", "https://www.rfc-editor.org/rfc/rfc7748#section-6.1"],
         "libsodium-doc-licence": ["libsodium's documentation, jedisct1/libsodium-doc at 6d1ea27, ISC", "https://github.com/jedisct1/libsodium-doc/tree/6d1ea27b79b853b2a04f09ae9e1a8231c90e3b56"],
         "sec1": ["SEC 1 version 2, Elliptic Curve Cryptography, sections 2.3.3 and 2.3.4: a point's encodings", "https://www.secg.org/sec1-v2.pdf"],
-        "bip327": ["BIP 327, MuSig2, its key sorting", "https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki"],
+        "bip327": ["BIP 327, MuSig2 for BIP340-compatible multi-signatures", "https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki"],
         "rfc5480": ["RFC 5480, Elliptic Curve Cryptography Subject Public Key Information", "https://www.rfc-editor.org/rfc/rfc5480"],
         "rfc5915": ["RFC 5915, Elliptic Curve Private Key Structure", "https://www.rfc-editor.org/rfc/rfc5915"],
         "rfc5208": ["RFC 5208, PKCS #8: Private-Key Information Syntax", "https://www.rfc-editor.org/rfc/rfc5208"],
         "bip324": ["BIP 324, version 2 P2P encrypted transport protocol", "https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki"],
         "elligatorswift": ["Chavez-Saab, Rodríguez-Henríquez and Tibouchi, SwiftEC: Shallue-van de Woestijne Indifferentiable Function to Elliptic Curves, 2022", "https://eprint.iacr.org/2022/759"],
-        "openssl-evp-pkey-ec": ["OpenSSL's EVP_PKEY-EC: an EC key's point form and its encodings", "https://docs.openssl.org/master/man7/EVP_PKEY-EC/"]
+        "openssl-evp-pkey-ec": ["OpenSSL's EVP_PKEY-EC: an EC key's point form and its encodings", "https://docs.openssl.org/master/man7/EVP_PKEY-EC/"],
+        "musig2": ["Nick, Ruffing and Seurin, MuSig2: Simple Two-Round Schnorr Multi-Signatures, CRYPTO 2021", "https://eprint.iacr.org/2020/1261"]
     },
     "backends": {
         "bearssl": {
@@ -617,6 +618,17 @@
             "what": "A public key written as 64 bytes that look random, and BIP 324's key exchange of two such encodings.",
             "section": "crypto-secp256k1-ellswift",
             "backends": {"secp256k1": {"tests": ["secp256k1_ellswift"]}}
+        },
+        {
+            "id": "musig",
+            "family": "secp256k1",
+            "functions": ["xonly_public_key", "full_public_key", "tweak_add", "tweak_xonly_add", "workspace_size", "key_aggregate", "nonce_gen", "nonce_aggregate", "nonce_process", "partial_sign", "partial_signature_verify", "partial_signature_aggregate", "parse_public_nonce", "serialize_public_nonce", "parse_aggregate_nonce", "serialize_aggregate_nonce", "parse_partial_signature", "serialize_partial_signature"],
+            "namespace": "curves",
+            "api": "curves::secp256k1::musig::aggregate_key, key_aggregate, nonce_gen, nonce_aggregate, nonce_process, partial_sign, partial_signature_verify, partial_signature_aggregate, parse_public_nonce, serialize_public_nonce, parse_aggregate_nonce, serialize_aggregate_nonce, parse_partial_signature, serialize_partial_signature",
+            "header": "<webcpp/crypto/curves/secp256k1/musig.hpp>",
+            "what": "BIP 327's MuSig2: many signers' keys aggregated into one, and their two rounds into one BIP 340 signature, each secret nonce consumed by its partial signature.",
+            "section": "crypto-secp256k1-musig",
+            "backends": {"secp256k1": {"tests": ["secp256k1_musig", "secp256k1_musig_entropy"]}}
         }
     ],
     "families": [
@@ -986,6 +998,7 @@
         {"need": "Find who signed a message or a transaction without being sent their key (Ethereum's signatures)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign_recoverable`, `recover`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "recover_signer", "section": "crypto-secp256k1-recovery"},
         {"need": "Derive child keys for a watch-only wallet (BIP 32's derivation is a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`seckey_tweak_add`, `pubkey_tweak_add`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "key_tweak", "section": "crypto-secp256k1-tweaks"},
         {"need": "Make a peer-to-peer connection's key exchange look like random bytes (BIP 324's transport; its packets are a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`ellswift_create`, `ellswift_decode`, `ellswift_xdh`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ellswift_handshake", "section": "crypto-secp256k1-ellswift"},
+        {"need": "Require two devices to sign for a wallet, with one ordinary signature on the chain", "namespace": "webcpp::crypto::curves::secp256k1::musig", "api": "`key_aggregate`, `nonce_gen`, `partial_sign`, `partial_signature_aggregate`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "musig_wallet", "section": "crypto-secp256k1-musig"},
         {"need": "Make and keep a wallet's key", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::make`, `xonly_public_key`, `public_key`; `aes256_gcm` at rest", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//gcm-default", "example": "wallet_key", "section": "crypto-wallets-key"},
         {"need": "Sign a Bitcoin SegWit v0 input (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`sign_ecdsa`, `to_der`, `normalize_ecdsa`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ecdsa_der", "section": "crypto-wallets-der"},
         {"need": "Derive a Bitcoin Taproot output key and spend by key path (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`tweak_xonly`, `keypair::tweak_xonly`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "taproot_tweak", "section": "crypto-wallets-taproot"},
@@ -1085,6 +1098,7 @@
         "secp256k1_not_linked": "Add `/third_party//secp256k1`.",
         "gcm_on_ctaes": "Name `gcm<aes256<backends::bearssl>>` or `gcm<aes256<backends::openssl>>`, or use `aes256_gcm` with its default linked.",
         "secp256k1_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::keypair`.",
+        "musig_nonce_copied": "Pass the nonce with std::move, once: a secret nonce signs one message.",
         "aes_on_bearssl": "Name `ciphers::aes256<backends::ctaes>`, include `<webcpp/crypto/backends/ctaes.hpp>` and add `/third_party//ctaes`.",
         "default_selected": "Remove the define, and name `gcm<aes256<backends::bearssl>>` where the program wants BearSSL.",
         "default_openssl_wasm": "Remove the define, and name `gcm<aes256<backends::openssl>>` where the program wants OpenSSL.",

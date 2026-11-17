@@ -139,6 +139,12 @@ The fix: As `+heavy_without_threads+`.
 
 The fix: Add `+/webcpp/crypto//kx-default+`, which links `+/third_party//sodium+` on every target.
 
+|`+musig_nonce_copied+`
+|native, wasip2
+|`+call to deleted constructor of+`
+
+The fix: Pass the nonce with std::move, once: a secret nonce signs one message.
+
 |`+no_backend_wasm+`
 |wasip2, wasip3
 |`+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked. Add /webcpp/crypto//gcm-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//gcm-default ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::openssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
@@ -947,6 +953,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+memory_two_files+`
 |the link
 |Give the define in the requirements of the program's project, with OpenSSL beside it, `+project app : requirements <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE <library>/webcpp/crypto//openssl ;+`, so that every target of the program gets both.
+
+|`+musig_nonce_copied+`
+|the compile
+|Pass the nonce with std::move, once: a secret nonce signs one message.
 
 |`+openssl_memory_not_linked+`
 |the compile

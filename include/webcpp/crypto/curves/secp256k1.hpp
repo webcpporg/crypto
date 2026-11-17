@@ -115,6 +115,32 @@ struct secp256k1_access {
      * @return The unwritten key.
      */
     [[nodiscard]] static curves::secp256k1::public_key make_public_key() noexcept;
+
+    /**
+     * An object of a module header's opaque type (MuSig2's aggregate key, nonces, session and
+     * partial signature), not yet written: the function that returns it writes its
+     * libsecp256k1 struct first, and returns an error instead where libsecp256k1 writes none.
+     *
+     * @tparam Opaque The type, whose default constructor is private.
+     * @return The unwritten object.
+     */
+    template <class Opaque>
+    [[nodiscard]] static Opaque make_opaque() noexcept {
+        return Opaque();
+    }
+
+    /**
+     * What a module header's opaque type wraps, its private member `native_value_`: the
+     * libsecp256k1 struct, or for a secret nonce the struct and what crypto keeps beside it.
+     *
+     * @tparam Opaque The type, `const` for a read.
+     * @param object The object.
+     * @return Its member, `const` when the object is.
+     */
+    template <class Opaque>
+    [[nodiscard]] static auto& native(Opaque& object) noexcept {
+        return object.native_value_;
+    }
 };
 
 // NOLINTBEGIN(bugprone-signed-bitwise): libsecp256k1's macros shift a signed constant

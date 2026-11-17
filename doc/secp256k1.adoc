@@ -46,13 +46,15 @@ check signatures with a public key alone, and `recover` finds the key from a
 recoverable signature; `parse_public_key` and `serialize_public_key` read and
 write a `public_key` (<<crypto-secp256k1-keys>>); `to_der`, `from_der` (strict
 DER) and `normalize_ecdsa` convert ECDSA's DER and low-S forms; and
-`tweak_xonly` tweaks an x-only public key. Three more headers hold the tweaks,
+`tweak_xonly` tweaks an x-only public key. Four more headers hold the tweaks,
 negation and combination of whole keys
 (`<webcpp/crypto/curves/secp256k1/tweak.hpp>`, <<crypto-secp256k1-tweaks>>),
 the keys' SPKI and PKCS#8 (`<webcpp/crypto/curves/secp256k1/formats.hpp>`,
-<<crypto-secp256k1-formats>>) and ElligatorSwift, keys sent as random-looking
+<<crypto-secp256k1-formats>>), ElligatorSwift, keys sent as random-looking
 bytes (`<webcpp/crypto/curves/secp256k1/ellswift.hpp>`,
-<<crypto-secp256k1-ellswift>>). Every function reads libsecp256k1's canary, so
+<<crypto-secp256k1-ellswift>>), and MuSig2, many signers' one signature
+(`<webcpp/crypto/curves/secp256k1/musig.hpp>`, <<crypto-secp256k1-musig>>).
+Every function reads libsecp256k1's canary, so
 that a program linked with another build of the library does not link.
 
 include::generated/backends-keypair.adoc[]
@@ -474,3 +476,91 @@ by itself: BIP 324 derives its session's keys from it with HKDF
 (link:https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki[BIP 324]),
 and that schedule, its packets and its garbage terminators are a domain
 library's.
+
+[#crypto-secp256k1-musig]
+==== MuSig2: many signers, one signature
+
+Some coins should move only when several parties agree: a company's treasury
+that two officers approve, a Lightning channel whose two peers both sign each
+update, a wallet split across a phone and a laptop so that a thief who takes
+one device takes nothing. MuSig2 lets those signers aggregate their public
+keys into one key and their signatures into one BIP 340 signature under it.
+On the chain the key and the signature look like any single signer's: they
+cost no more and tell no one that several parties hold the coins
+(link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327]).
+
+It works in two rounds
+(link:https://eprint.iacr.org/2020/1261[Nick, Ruffing and Seurin, MuSig2,
+CRYPTO 2021]). First every signer makes a nonce and sends its public half to
+the others, before the message need be known; then, with every public nonce
+in, each signs its part of the message, and the parts add up to the
+signature. `<webcpp/crypto/curves/secp256k1/musig.hpp>`, namespace
+`curves::secp256k1::musig`, offers libsecp256k1's functions:
+
+* `key_aggregate` aggregates the signers' keys, in the order given, into an
+`aggregate_key`; sort them first with `std::ranges::sort`, since the order of
+`public_key` is BIP 327's KeySort. Its `xonly_public_key` is the key the
+signature verifies under; `tweak_add` and `tweak_xonly_add` tweak it as a
+protocol asks;
+* `nonce_gen` makes one signer's nonce for one signature from its key pair, its
+randomness drawn inside: a `secret_nonce` to keep and a `public_nonce` to send;
+* `nonce_aggregate` sums the public nonces, and `nonce_process` makes the
+`session` of the 32-byte message;
+* `partial_sign` signs this signer's part, consuming its secret nonce;
+`partial_signature_verify` checks one signer's part, and
+`partial_signature_aggregate` adds the parts into 64 bytes that
+`verify_schnorr` checks;
+* `parse_public_nonce`, `parse_aggregate_nonce` and `parse_partial_signature`
+read what the other signers send, and the `serialize_` functions write it.
+
+The functions over many keys, nonces or parts take a `workspace` of
+`workspace_size(n)` bytes for libsecp256k1's array of pointers, so that nothing
+is allocated, and wipe it before they return; no items or a short workspace is
+`invalid_input_size`. A nonce or a partial signature that does not parse is
+`invalid_point` or `invalid_signature`, a tweak out of range
+`invalid_secret_key`, and a moved-from key pair or a used nonce
+`invalid_state`. The tests check BIP 327's own vectors, those that need no
+secret nonce of the vector's: a `secret_nonce` exists only from `nonce_gen`,
+and libsecp256k1's own tests, run in the `c-suites` lane, check the rest.
+
+include::generated/backends-musig.adoc[]
+
+*Example.* A phone and a laptop hold the two halves of a wallet. They
+aggregate their keys, exchange public nonces, each signs its part, and the
+signature verifies as one BIP 340 signature under the wallet's one key:
+
+[source,cpp]
+----
+include::{examples}/musig_wallet.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/musig_wallet.expected[]
+----
+
+*Pitfalls.*
+
+* A nonce used for two signatures gives away the secret key: from two partial
+signatures with the same nonce, anyone solves for it
+(link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327]).
+This is why `partial_sign` takes the `secret_nonce` by value, so that passing
+it needs a `std::move`, why its copy is deleted (the build stops), and why a
+second move of the same object is refused with `invalid_state`. Never store a
+secret nonce to sign later, after a restart: a nonce restored from a backup
+signs a second time.
+* Never sign before every public nonce is in. A signer who signs while others
+can still choose their nonces lets them steer the final nonce, which the
+two-round design exists to prevent
+(link:https://eprint.iacr.org/2020/1261[MuSig2]).
+* A key aggregated with an attacker's key that the attacker chose after seeing
+yours is safe here: MuSig2 weighs each key with a coefficient hashed from all
+of them, so that no signer can cancel another's. The plain sum of keys,
+`pubkey_combine` (<<crypto-secp256k1-tweaks>>), has no such weight, and is
+not a multisignature
+(link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327]).
+* The tweaks belong to a protocol. Taproot's output key is the aggregate key
+tweaked by a tagged hash of it and a script tree's root
+(link:https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki[BIP 341]);
+that hash, and every other rule of the protocol, is a domain library's, which
+passes the tweak to `tweak_xonly_add`.

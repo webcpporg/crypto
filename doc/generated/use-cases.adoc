@@ -106,6 +106,13 @@
 `+/third_party//secp256k1+`
 |<<crypto-secp256k1-ellswift,[.keep]`+ellswift_handshake.cpp+`>>
 
+|Require two devices to sign for a wallet, with one ordinary signature on the chain
+|In `+curves::secp256k1::musig+`: `+key_aggregate+`, `+nonce_gen+`, `+partial_sign+`, `+partial_signature_aggregate+`
+|libsecp256k1
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+`
+|<<crypto-secp256k1-musig,[.keep]`+musig_wallet.cpp+`>>
+
 |Make and keep a wallet's key
 |In `+curves::secp256k1+`: `+keypair::make+`, `+xonly_public_key+`, `+public_key+`; `+aes256_gcm+` at rest
 |libsecp256k1, and AES-GCM's default

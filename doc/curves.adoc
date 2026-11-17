@@ -30,7 +30,9 @@ watch-only wallets (<<crypto-secp256k1-tweaks>>);
 * keys written and read in the SPKI and PKCS#8 files that OpenSSL exchanges
 (<<crypto-secp256k1-formats>>);
 * keys sent as random-looking bytes, BIP 324's ElligatorSwift
-(<<crypto-secp256k1-ellswift>>).
+(<<crypto-secp256k1-ellswift>>);
+* many signers' keys and signatures aggregated into one, BIP 327's MuSig2
+(<<crypto-secp256k1-musig>>).
 
 Ethereum's `v` encoding of the recovery id, the hash it signs, its
 transactions and its addresses are a domain library's. The second is Ed25519,

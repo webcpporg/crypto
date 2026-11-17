@@ -1,0 +1,3 @@
+aggregate key made from 2 signers
+both partial signatures verify
+the aggregate signature verifies as one BIP 340 signature

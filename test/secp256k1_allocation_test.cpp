@@ -10,14 +10,15 @@
 // program count it; the signatures (hedged and recoverable too), the three forms of ECDH, the
 // public keys in both forms, both verifications, the parsed public key, recovery, the DER and
 // low-S functions, the x-only tweak, the tweaks, negations and combination of tweak.hpp, the
-// SPKI and PKCS#8 encoders and decoders of formats.hpp and the ElligatorSwift functions of
-// ellswift.hpp allocate nothing, each counted alone
+// SPKI and PKCS#8 encoders and decoders of formats.hpp, the ElligatorSwift functions of
+// ellswift.hpp and the MuSig2 functions of musig.hpp allocate nothing, each counted alone
 // (decode_pkcs8's key pair takes its one block from the resource it is given); the destructor
 // gives the block back; a refused make allocates nothing. A control proves the counter moves.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
 #include <webcpp/crypto/curves/secp256k1/formats.hpp>
+#include <webcpp/crypto/curves/secp256k1/musig.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -30,6 +31,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory_resource>
+#include <optional>
 #include <span>
 #include <utility>
 
@@ -182,6 +184,90 @@ int main() {
         none("ellswift_create", [&] { return secp::ellswift_create(key, aux); });
         none("ellswift_xdh", [&] {
             return secp::ellswift_xdh(key, noise, noise, secp::ellswift_party::initiator);
+        });
+
+        // musig.hpp: one signer's two rounds, its workspace on the stack, each step alone.
+        namespace musig = secp::musig;
+        // The key pair was tweaked above: its key now, not the one parsed before.
+        auto const signer_key = secp::parse_public_key(*key.public_key());
+        if (!BOOST_TEST(signer_key.has_value())) {
+            return webcpp::test::exit_status(boost::report_errors());
+        }
+        std::array<secp::public_key, 1> const signer_keys{*signer_key};
+        alignas(std::max_align_t) std::array<std::byte, musig::workspace_size(1)> musig_space{};
+        std::optional<musig::aggregate_key> signers_key;
+        none("key_aggregate", [&] {
+            auto r = musig::key_aggregate(signer_keys, musig_space);
+            if (r) {
+                signers_key.emplace(*r);
+            }
+            return r;
+        });
+        if (!BOOST_TEST(signers_key.has_value())) {
+            return webcpp::test::exit_status(boost::report_errors());
+        }
+        none("aggregate_key::xonly_public_key",
+             [&] { return signers_key->xonly_public_key() != std::array<std::uint8_t, 32>{}; });
+        none("aggregate_key::full_public_key",
+             [&] { return signers_key->full_public_key() == signers_key->full_public_key(); });
+        none("aggregate_key::tweak_add", [&] { return signers_key->tweak_add(message); });
+        none("aggregate_key::tweak_xonly_add",
+             [&] { return signers_key->tweak_xonly_add(message); });
+        // The tweaks stay in the aggregate key, whose cache the session reads; the signer's key
+        // pair signs as it is.
+        std::optional<musig::nonce_pair> nonces;
+        none("nonce_gen", [&] {
+            auto r = musig::nonce_gen(key, *signers_key, message);
+            if (r) {
+                nonces.emplace(std::move(*r));
+            }
+            return r.has_value();
+        });
+        if (!BOOST_TEST(nonces.has_value())) {
+            return webcpp::test::exit_status(boost::report_errors());
+        }
+        std::array<musig::public_nonce, 1> const public_nonces{nonces->public_part};
+        std::optional<musig::aggregate_nonce> nonce_sum;
+        none("nonce_aggregate", [&] {
+            auto r = musig::nonce_aggregate(public_nonces, musig_space);
+            if (r) {
+                nonce_sum.emplace(*r);
+            }
+            return r;
+        });
+        std::optional<musig::session> signing_session;
+        none("nonce_process", [&] {
+            auto r = musig::nonce_process(*nonce_sum, message, *signers_key);
+            if (r) {
+                signing_session.emplace(*r);
+            }
+            return r;
+        });
+        std::optional<musig::partial_signature> part;
+        none("partial_sign", [&] {
+            auto r = musig::partial_sign(key, std::move(nonces->secret_part), *signers_key,
+                                         *signing_session);
+            if (r) {
+                part.emplace(*r);
+            }
+            return r;
+        });
+        none("partial_signature_verify", [&] {
+            return musig::partial_signature_verify(*part, public_nonces[0], *signer_key,
+                                                   *signers_key, *signing_session);
+        });
+        std::array<musig::partial_signature, 1> const parts{*part};
+        none("partial_signature_aggregate", [&] {
+            return musig::partial_signature_aggregate(*signing_session, parts, musig_space);
+        });
+        none("serialize_public_nonce, parse_public_nonce", [&] {
+            return musig::parse_public_nonce(musig::serialize_public_nonce(public_nonces[0]));
+        });
+        none("serialize_aggregate_nonce, parse_aggregate_nonce", [&] {
+            return musig::parse_aggregate_nonce(musig::serialize_aggregate_nonce(*nonce_sum));
+        });
+        none("serialize_partial_signature, parse_partial_signature", [&] {
+            return musig::parse_partial_signature(musig::serialize_partial_signature(*part));
         });
         BOOST_TEST_EQ(resource.allocated, 1U);
         BOOST_TEST_EQ(resource.deallocated, 0U);

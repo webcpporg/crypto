@@ -95,7 +95,7 @@ public:
 
      @return Nothing.
     */
-    std::span<std::uint8_t const, N> bytes() const&& = delete;
+    [[nodiscard]] std::span<std::uint8_t const, N> bytes() const&& = delete;
 
     /**
      The bytes, for the library's engines to write.

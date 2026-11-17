@@ -102,7 +102,6 @@ int main() {
     wiped_bytes tweak;
     payment_tweak(chain_code.bytes, *wallet_public, 7, tweak);
 
-    // tag::tweak[]
     // The server: the wallet's public key plus the tweak, with no secret anywhere.
     auto const parsed = secp256k1::parse_public_key(*wallet_public);
     if (!parsed) {
@@ -124,9 +123,7 @@ int main() {
         return 1;
     }
     std::printf("tweaked keys match\n");
-    // end::tweak[]
 
-    // tag::sign[]
     // The device signs a spend with the payment's key pair; the server verifies under the
     // x-only form of the key it derived alone (the compressed key without its prefix byte).
     std::array<std::uint8_t, 32> const message{};
@@ -142,7 +139,6 @@ int main() {
         return 1;
     }
     std::printf("signature verifies under the tweaked public key\n");
-    // end::sign[]
     return 0;
 }
 

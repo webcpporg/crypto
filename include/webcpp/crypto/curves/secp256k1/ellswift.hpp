@@ -50,7 +50,7 @@ enum class ellswift_party {
  *
  * @tparam Backend The backend, `backends::secp256k1`.
  * @param parsed_key The key.
- * @param randomness 32 fresh bytes from `random_device`: the encoding is one of many.
+ * @param randomness 32 fresh bytes from crypto's random device: the encoding is one of many.
  * @return The 64 bytes.
  */
 template <class Backend = backends::secp256k1>
@@ -96,8 +96,8 @@ template <class Backend = backends::secp256k1>
  *
  * @tparam Backend The key pair's backend, `backends::secp256k1`.
  * @param key_pair The key pair.
- * @param randomness 32 fresh bytes from `random_device`, mixed with the secret into the choice
- * of the encoding.
+ * @param randomness 32 fresh bytes from crypto's random device, mixed with the secret into the
+ * choice of the encoding.
  * @return 64 bytes; `invalid_state` moved from; `backend_failure`.
  */
 template <class Backend>

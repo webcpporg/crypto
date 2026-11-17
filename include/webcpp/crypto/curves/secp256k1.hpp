@@ -608,7 +608,7 @@ public:
      * signing does not repeat on the next.
      *
      * @param message_hash The 32-byte hash signed.
-     * @param extra_entropy 32 bytes from `random_device`, new for each signature.
+     * @param extra_entropy 32 bytes from crypto's random device, new for each signature.
      * @return 64 bytes, r then s, low-S; `invalid_state`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign_ecdsa(

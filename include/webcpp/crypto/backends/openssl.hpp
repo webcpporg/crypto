@@ -209,17 +209,6 @@ inline bool openssl_defaults_installed() noexcept {
     return m == &CRYPTO_malloc && r == &CRYPTO_realloc && f == &CRYPTO_free;
 }
 
-/**
- * Whether the adapter is installed, else `memory_functions_not_installed`: the check every
- * OpenSSL `make` runs first, before any call into OpenSSL that allocates.
- */
-inline boost::system::result<void> openssl_memory_guard() noexcept {
-    if (!openssl_adapter_installed()) {
-        return error::memory_functions_not_installed;
-    }
-    return {};
-}
-
 }  // namespace webcpp::crypto::detail
 
 #if defined(_MSC_VER)
@@ -229,6 +218,26 @@ inline boost::system::result<void> openssl_memory_guard() noexcept {
 #elif defined(_MSC_VER)
 #pragma detect_mismatch("webcpp_crypto_openssl_memory", "openssl")
 #endif  // WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+
+namespace webcpp::crypto::detail {
+
+/**
+ * The check every OpenSSL `make` runs first, before any call into OpenSSL that allocates:
+ * with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, `memory_functions_not_installed` unless the
+ * adapter is installed; without it, nothing.
+ *
+ * @return Nothing, or `memory_functions_not_installed`.
+ */
+inline boost::system::result<void> openssl_memory_guard() noexcept {
+#if defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE)
+    if (!openssl_adapter_installed()) {
+        return error::memory_functions_not_installed;
+    }
+#endif
+    return {};
+}
+
+}  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::backends {
 
@@ -315,11 +324,9 @@ inline boost::system::error_code openssl_context(EVP_CIPHER_CTX*& made_context,
                                                  char const* cipher_name,
                                                  std::span<std::uint8_t const> key_bytes,
                                                  bool is_encrypting, bool use_padding) noexcept {
-#if defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE)
     if (auto const guard = openssl_memory_guard(); !guard) {
         return guard.error();
     }
-#endif
     ERR_set_mark();
     EVP_CIPHER* const fetched_cipher = EVP_CIPHER_fetch(nullptr, cipher_name, nullptr);
     if (fetched_cipher == nullptr) {

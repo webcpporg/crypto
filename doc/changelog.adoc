@@ -27,5 +27,5 @@ of every version are on webcpp's index page.
 * Added the link-time canaries of BearSSL, ctaes and libsecp256k1, and their own suites on webcpp's build.
 * Added the page: a chapter per namespace and use case, tables generated from the tests, every Jamfile and message, and llms.txt.
 * Added the errors memory_functions_refused and memory_functions_not_installed (13 and 14) of the OpenSSL memory option, and config.hpp's refusals of WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE on WebAssembly and without OpenSSL.
-* Added the OpenSSL memory option's adapter and `backends::openssl::install_memory_functions`: with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, OpenSSL's allocations go to `openssl_memory_resource()`, and a `make` refuses to run until the adapter is installed.
+* Added the OpenSSL memory option's adapter and backends::openssl::install_memory_functions: with WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE, OpenSSL's allocations go to openssl_memory_resource(), and a make refuses to run until the adapter is installed.
 // end::unreleased[]

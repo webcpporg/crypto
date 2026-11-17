@@ -25,10 +25,15 @@ namespace webcpp::crypto {
  They are wiped by volatile stores when the object is destroyed or moved from; a copy is made
  only by `clone`.
 
+ The wipe covers the object's own storage only: a move or a `clone` may leave copies of the bytes in
+ registers or temporaries, which the library does not reach.
+
  @tparam N The number of bytes.
 */
 template <std::size_t N>
 class secret {
+    static_assert(N > 0, "a secret of no bytes holds nothing");
+
 public:
     /** The number of bytes. */
     static constexpr std::size_t size_bytes = N;
@@ -44,13 +49,15 @@ public:
     secret(secret&& other) noexcept : bytes_(other.bytes_) { detail::wipe_object(other.bytes_); }
 
     /**
-     Takes the bytes of `other` over these, which are wiped first; `other` is wiped.
+     Wipes these bytes, then takes the bytes of `other`, which is wiped; a move to itself changes
+     nothing.
 
      @param other The secret to take the bytes of.
      @return This secret.
     */
     secret& operator=(secret&& other) noexcept {
         if (this != &other) {
+            detail::wipe_object(bytes_);
             bytes_ = other.bytes_;
             detail::wipe_object(other.bytes_);
         }
@@ -81,21 +88,42 @@ public:
 
      @return A view of the bytes.
     */
-    [[nodiscard]] std::span<std::uint8_t const, N> bytes() const noexcept { return bytes_; }
+    [[nodiscard]] std::span<std::uint8_t const, N> bytes() const& noexcept { return bytes_; }
+
+    /**
+     Not available on a secret that is about to be destroyed: the view would dangle.
+
+     @return Nothing.
+    */
+    std::span<std::uint8_t const, N> bytes() const&& = delete;
 
     /**
      The bytes, for the library's engines to write.
 
      @return A writable view of the bytes.
     */
-    [[nodiscard]] std::span<std::uint8_t, N> writable() noexcept { return bytes_; }
+    [[nodiscard]] std::span<std::uint8_t, N> writable() & noexcept { return bytes_; }
+
+    /**
+     Not available on a secret that is about to be destroyed: the view would dangle.
+
+     @return Nothing.
+    */
+    std::span<std::uint8_t, N> writable() && = delete;
 
     /**
      The bytes, as a span of fixed size.
 
      @return A view of the bytes.
     */
-    operator std::span<std::uint8_t const, N>() const noexcept { return bytes_; }
+    operator std::span<std::uint8_t const, N>() const& noexcept { return bytes_; }
+
+    /**
+     Not available on a secret that is about to be destroyed: the view would dangle.
+
+     @return Nothing.
+    */
+    operator std::span<std::uint8_t const, N>() const&& = delete;
 
     /**
      The number of bytes.

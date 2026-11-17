@@ -68,7 +68,7 @@ crypto-run equal : equal_test.cpp ;
 crypto-run convenience_header : convenience_header_test.cpp ;
 crypto-run wipe : wipe_test.cpp ;
 # secret<N> is not copyable, moves wipe the source, and the destructor wipes the storage, at -O2.
-crypto-run secret : secret_test.cpp : <optimization>speed ;
+crypto-run secret : secret_test.cpp : <optimization>speed <inlining>full ;
 
 # A destroyed or moved-from key schedule is zero in its storage, read at -O2
 # where a dropped store would show: one program per keyed type, one source.

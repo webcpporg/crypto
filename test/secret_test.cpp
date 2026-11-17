@@ -13,6 +13,7 @@
 
 #include <boost/core/lightweight_test.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -36,6 +37,27 @@ static_assert(std::is_convertible_v<key const&, std::span<std::uint8_t const, 32
 static_assert(key::size() == 32 && key::size_bytes == 32);
 static_assert(sizeof(key) == 32);
 
+// A view of a secret that is about to die does not compile: it would dangle.
+template <class T>
+concept views_lvalue = requires(T& k) { k.bytes(); } && requires(T& k) { k.writable(); };
+template <class T>
+concept views_const_lvalue = requires(T const& k) { k.bytes(); };
+template <class T>
+concept writes_const_lvalue = requires(T const& k) { k.writable(); };
+template <class T>
+concept views_rvalue_bytes = requires { T{}.bytes(); };
+template <class T>
+concept views_rvalue_writable = requires { T{}.writable(); };
+template <class T>
+concept spans_rvalue = std::is_convertible_v<T, std::span<std::uint8_t const, 32>>;
+
+static_assert(views_lvalue<key>);
+static_assert(views_const_lvalue<key>);
+static_assert(!writes_const_lvalue<key>);
+static_assert(!views_rvalue_bytes<key>);
+static_assert(!views_rvalue_writable<key>);
+static_assert(!spans_rvalue<key>);
+
 void fill(key& target, std::uint8_t first) {
     auto const bytes = target.writable();
     for (std::size_t i = 0; i < bytes.size(); ++i) {
@@ -43,13 +65,49 @@ void fill(key& target, std::uint8_t first) {
     }
 }
 
-bool is_zero(key const& source) {
-    for (std::uint8_t const byte : source.bytes()) {
-        if (byte != 0) {
+// A function the optimiser cannot see into, so that what it is handed is read from memory.
+#if defined(_MSC_VER) && !defined(__clang__)
+#define WEBCPP_TEST_NOINLINE __declspec(noinline)
+#else
+#define WEBCPP_TEST_NOINLINE __attribute__((noinline))
+#endif
+
+// Whether every byte at `where` is zero, read through a volatile pointer in a function that is
+// never inlined: a store that was dropped before the call is found here. It may be handed the
+// address of an object that is gone (the point of the destructor's check), so it is exempt from
+// the sanitizers that would stop that read.
+#if defined(__clang__) || defined(__GNUC__)
+__attribute__((no_sanitize("address")))
+#endif
+WEBCPP_TEST_NOINLINE bool memory_is_zero(std::uint8_t const* where, std::size_t count) {
+    auto const volatile* const bytes = where;
+    for (std::size_t i = 0; i < count; ++i) {
+        if (bytes[i] != 0) {
             return false;
         }
     }
     return true;
+}
+
+// The same, for a secret that is alive.
+bool is_zero(key const& source) {
+    return memory_is_zero(source.bytes().data(), source.bytes().size());
+}
+
+// A secret in a scope of its own, which a call the optimiser cannot see into is handed, is
+// destroyed; its storage, in this frame, is read after the scope. A wipe that is a dead store
+// (a plain write to an object about to die) is dropped by the optimiser and the bytes remain.
+WEBCPP_TEST_NOINLINE bool destruction_leaves_zero() {
+    std::uint8_t const* where = nullptr;
+    {
+        key local;
+        fill(local, 1);
+        where = local.bytes().data();
+        if (memory_is_zero(where, key::size())) {
+            return false;
+        }
+    }
+    return memory_is_zero(where, key::size());
 }
 
 // Whether any byte of the storage is not zero, read through a volatile pointer.
@@ -69,6 +127,9 @@ int main() {
     // A new secret is zero.
     key const zero;
     BOOST_TEST(is_zero(zero));
+
+    // A secret that is destroyed in an ordinary scope leaves zero behind, at -O2.
+    BOOST_TEST(destruction_leaves_zero());
 
     // clone copies, and the two are then independent.
     key original;
@@ -96,6 +157,23 @@ int main() {
     BOOST_TEST(is_zero(source));
     BOOST_TEST(
         std::equal(assigned.bytes().begin(), assigned.bytes().end(), expected.bytes().begin()));
+
+    // A move assignment to itself keeps the bytes; clone of a moved-from secret is zero.
+    {
+        key self;
+        fill(self, 9);
+        key& alias = self;
+        self = std::move(alias);
+        BOOST_TEST(!is_zero(self));
+        BOOST_TEST_EQ(self.bytes()[0], 9);
+
+        key gone;
+        fill(gone, 5);
+        key taker(std::move(gone));
+        key const empty = gone.clone();
+        BOOST_TEST(is_zero(empty));
+        BOOST_TEST(!is_zero(taker));
+    }
 
     // The conversion to a span of fixed size views the same bytes.
     std::span<std::uint8_t const, 32> const view = expected;

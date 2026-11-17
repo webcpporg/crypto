@@ -17,7 +17,8 @@
 #include <cstdint>
 
 #if defined(WEBCPP_CRYPTO_HAS_BEARSSL) || defined(WEBCPP_CRYPTO_HAS_OPENSSL) || \
-    defined(WEBCPP_CRYPTO_HAS_CTAES) || defined(WEBCPP_CRYPTO_HAS_SECP256K1)
+    defined(WEBCPP_CRYPTO_HAS_CTAES) || defined(WEBCPP_CRYPTO_HAS_SECP256K1) || \
+    defined(WEBCPP_CRYPTO_HAS_SODIUM)
 #error "this program links no backend: its project must not name one"
 #endif
 

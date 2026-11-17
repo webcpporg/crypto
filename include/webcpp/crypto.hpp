@@ -37,6 +37,10 @@
 #include <webcpp/crypto/backends/ctaes.hpp>
 #endif
 
+#ifdef WEBCPP_CRYPTO_HAS_SODIUM
+#include <webcpp/crypto/backends/sodium.hpp>
+#endif
+
 #ifdef WEBCPP_CRYPTO_HAS_SECP256K1
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #endif

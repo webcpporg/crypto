@@ -91,6 +91,12 @@ The fix: Add `+/third_party//secp256k1+`.
 
 The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::keypair+`.
 
+|`+sodium_not_linked+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: the backend libsodium is used and not linked. In the program's Jamfile, add /third_party//sodium beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+The fix: Add `+/third_party//sodium+`.
+
 |`+two_defaults+`
 |native
 |`+webcpp::crypto: both WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL and WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL are defined. Keep one.+`
@@ -268,6 +274,34 @@ On each target, the build's output contains:
 ** `+undefined symbol: webcpp_crypto_secp256k1_6e2c8bc_w2c2x5__add_third_party_secp256k1_to_your_link+`
 ** `pass:[em++: error:]`
 
+`+canary_sodium_other_commit+`:: A libsodium of another commit than the headers'. The fix: Build the library at the commit of webcpp's submodule, or link it through b2.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/canary_sodium_other_commit/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* native, macOS:
+** `+Undefined symbols for architecture+`
+** `+_webcpp_crypto_sodium_0000000_portable__add_third_party_sodium_to_your_link+`
+* native, Linux:
+** `+webcpp_crypto_sodium_0000000_portable__add_third_party_sodium_to_your_link+`
+** `pass:[undefined reference to &#96;webcpp_crypto_sodium_0000000_portable__add_third_party_sodium_to_your_link']`
+* wasip2:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_sodium_0000000_portable__add_third_party_sodium_to_your_link+`
+* wasip3:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_sodium_0000000_portable__add_third_party_sodium_to_your_link+`
+* emscripten:
+** `+wasm-ld: error:+`
+** `+undefined symbol: webcpp_crypto_sodium_0000000_portable__add_third_party_sodium_to_your_link+`
+** `pass:[em++: error:]`
+
 `+canary_without+`:: A BearSSL built from its sources without webcpp's `+src/canary_bearssl.c+`. The fix: Compile webcpp's `+src/canary_bearssl.c+` with the library, or link it through b2.
 +
 Its Jamfile:
@@ -400,6 +434,20 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: /webcpp/crypto//openssl is named in a build for Emscripten, where webcpp does not build OpenSSL.+`
 
+`+sodium_not_linked_on_emscripten+`:: A program for Emscripten that names libsodium and links none. The fix: Add `+/third_party//sodium+` to the program's sources.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sodium_not_linked_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: the backend libsodium is used and not linked. In the program's Jamfile, add /third_party//sodium beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
 On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at link time; its text is MSVC's own, the same instruction in MSVC's words, and two files compiled with different settings stop the link with LNK2038.
 
 [cols="1,1,4",options="header"]
@@ -441,6 +489,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+canary_secp256k1_two_files+`
 |the link
 |Compile every file of the program with the same backend settings.
+
+|`+canary_sodium_other_commit+`
+|the link
+|Build the library at the commit of webcpp's submodule, or link it through b2.
 
 |`+canary_two_files+`
 |the link
@@ -493,6 +545,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+secp256k1_other_backend+`
 |the compile
 |Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::keypair+`.
+
+|`+sodium_not_linked+`
+|the compile
+|Add `+/third_party//sodium+`.
 
 |`+two_defaults+`
 |the compile

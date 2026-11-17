@@ -350,7 +350,9 @@
         "memory_missing_definition_make": "The memory option set in the program's project, a `make` on OpenSSL, and `openssl_memory_resource()` not defined.",
         "memory_two_files": "Two files of one program, one compiled with the memory option and one without.",
         "memory_option": "OpenSSL's allocations in the program's own resource: the define and OpenSSL in the requirements of the program's project, the resource defined once, the install first in `main`.",
-        "no_backend_on_emscripten": "A program for Emscripten that uses the default backend and links none."
+        "no_backend_on_emscripten": "A program for Emscripten that uses the default backend and links none.",
+        "canary_sodium_other_commit": "A libsodium of another commit than the headers'.",
+        "sodium_not_linked_on_emscripten": "A program for Emscripten that names libsodium and links none."
     },
     "fixes": {
         "no_backend_native": "Add `/webcpp/crypto//openssl` or `/third_party//bearssl` to the program's sources.",
@@ -360,6 +362,9 @@
         "openssl_not_linked": "Add `/webcpp/crypto//openssl`.",
         "openssl_old": "Name `/webcpp/crypto//openssl`, which builds OpenSSL 3.5.9; without b2, put OpenSSL 3's `include/` first.",
         "ctaes_not_linked": "Add `/third_party//ctaes`.",
+        "sodium_not_linked": "Add `/third_party//sodium`.",
+        "sodium_not_linked_on_emscripten": "Add `/third_party//sodium` to the program's sources.",
+        "canary_sodium_other_commit": "Build the library at the commit of webcpp's submodule, or link it through b2.",
         "secp256k1_not_linked": "Add `/third_party//secp256k1`.",
         "gcm_on_ctaes": "Use `aes256_gcm` with BearSSL or OpenSSL linked.",
         "secp256k1_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::keypair`.",

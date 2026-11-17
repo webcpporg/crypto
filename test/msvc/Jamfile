@@ -42,3 +42,5 @@ build-project openssl_memory_not_linked ;
 build-project memory_missing_definition_install ;
 build-project memory_missing_definition_make ;
 build-project memory_two_files ;
+build-project sodium_not_linked ;
+build-project canary_sodium_other_commit ;

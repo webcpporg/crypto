@@ -78,6 +78,19 @@
 #undef WEBCPP_CRYPTO_HAS_CTAES
 #endif
 #undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_CTAES
+#ifdef WEBCPP_CRYPTO_HAS_SODIUM
+/** Defined while config.hpp reads a reference's build that links libsodium (doc/Jamfile). */
+#define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SODIUM
+#endif
+/**
+ Defined by `/third_party//sodium` when the program links libsodium; a program built without
+ b2 defines it to 1 itself, and links libsodium built with webcpp's `src/canary_sodium.c`.
+*/
+#define WEBCPP_CRYPTO_HAS_SODIUM 1
+#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SODIUM
+#undef WEBCPP_CRYPTO_HAS_SODIUM
+#endif
+#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SODIUM
 #ifdef WEBCPP_CRYPTO_HAS_SECP256K1
 /** Defined while config.hpp reads a reference's build that links libsecp256k1 (doc/Jamfile). */
 #define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SECP256K1
@@ -196,6 +209,8 @@ struct openssl;
 struct ctaes;
 /** libsecp256k1, built from its sources by `/third_party//secp256k1`. */
 struct secp256k1;
+/** libsodium 1.0.22, built from its sources by `/third_party//sodium`. */
+struct sodium;
 
 }  // namespace webcpp::crypto::backends
 

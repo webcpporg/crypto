@@ -23,3 +23,4 @@ build-project aes_on_bearssl ;
 build-project secp256k1_other_backend ;
 build-project openssl_memory_on_webassembly ;
 build-project openssl_memory_not_linked ;
+build-project sodium_not_linked ;

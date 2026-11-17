@@ -12,7 +12,9 @@
 // main, the resource writes its line and ends the process with 0. Its destructor, which
 // must never run, writes a line and ends it with 4 (C7); a table with no free slot left
 // writes a line and ends it with 6. The C library's counter is the interposer's
-// (interpose_*.cpp, picked by the Jamfile per target-os).
+// (interpose_*.cpp, picked by the Jamfile per target-os). Beside them: OpenSSL's error
+// queue drained and an entry of the test's raised in it, and another party's memory
+// functions, which a test installs as a library other than webcpp would.
 // Each program includes this header once: it defines openssl_memory_resource().
 
 #ifndef WEBCPP_TEST_CRYPTO_OPENSSL_MEMORY_SUPPORT_HPP
@@ -22,6 +24,7 @@
 
 #include <boost/throw_exception.hpp>
 
+#include <openssl/crypto.h>
 #include <openssl/err.h>
 
 #include <array>
@@ -255,6 +258,66 @@ inline std::size_t drain(unsigned long& first) {
         ++count;
     }
     return count;
+}
+
+/**
+ * Another party's memory functions for OpenSSL: the C library's, each call counted. A test
+ * installs them with `CRYPTO_set_mem_functions`, as a library other than webcpp would.
+ */
+struct other_party {
+    /** The calls of the three functions so far. */
+    static std::size_t& calls() noexcept {
+        static std::size_t count = 0;
+        return count;
+    }
+
+    /** `malloc`, counted. */
+    static void* allocate(std::size_t size, char const* /*file*/, int /*line*/) noexcept {
+        ++calls();
+        return std::malloc(size);
+    }
+
+    /** `realloc`, counted. */
+    static void* reallocate(void* address, std::size_t size, char const* /*file*/,
+                            int /*line*/) noexcept {
+        ++calls();
+        return std::realloc(address, size);
+    }
+
+    /** `free`, counted. */
+    static void release(void* address, char const* /*file*/, int /*line*/) noexcept {
+        ++calls();
+        std::free(address);
+    }
+
+    /**
+     * Installs the three as OpenSSL's memory functions.
+     *
+     * @return `CRYPTO_set_mem_functions`'s answer: 1 when OpenSSL took them.
+     */
+    static int install() noexcept {
+        return CRYPTO_set_mem_functions(&allocate, &reallocate, &release);
+    }
+
+    /** Whether OpenSSL's memory functions are the three. */
+    static bool installed() noexcept {
+        CRYPTO_malloc_fn m = nullptr;
+        CRYPTO_realloc_fn r = nullptr;
+        CRYPTO_free_fn f = nullptr;
+        CRYPTO_get_mem_functions(&m, &r, &f);
+        return m == &allocate && r == &reallocate && f == &release;
+    }
+};
+
+/**
+ * Raises an entry of the test's own in the thread's OpenSSL error queue.
+ *
+ * @return The entry's code, or 0 when OpenSSL could not raise it.
+ */
+inline unsigned long raise_entry() {
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): OpenSSL's reason macro ORs signed flags
+    ERR_raise(ERR_LIB_USER, ERR_R_PASSED_INVALID_ARGUMENT);
+    return ERR_peek_last_error();
 }
 
 }  // namespace webcpp::test

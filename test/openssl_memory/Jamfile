@@ -34,6 +34,17 @@ memory-run adapter : adapter_test.cpp ;
 # A second thread uses OpenSSL: the provider is built with threads.
 memory-run everything : everything_test.cpp : $(.counter) <threading>multi ;
 
+# The late, foreign, fresh, forgotten, replaced and second installs, and a
+# failing resource (spec section 8.5).
+memory-run late : late_test.cpp : $(.counter) ;
+memory-run foreign : foreign_test.cpp : $(.counter) ;
+memory-run fresh_install : fresh_install_test.cpp : $(.counter) ;
+memory-run forgotten : forgotten_test.cpp : $(.counter) ;
+memory-run replaced : replaced_test.cpp : $(.counter) ;
+memory-run second_install : second_install_test.cpp : $(.counter) ;
+memory-run fail_second : fail_second_test.cpp : $(.counter) ;
+memory-run fail_init : fail_init_test.cpp : $(.counter) ;
+
 # The header alone, with the option: its branch compiles with nothing before it.
 webcpp.compile header_alone : header_alone_test.cpp
   : <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;

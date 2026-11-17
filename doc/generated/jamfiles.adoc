@@ -55,6 +55,22 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/encrypt_and_sign/encrypt_and_sign.outcome[tag=output]
 ----
 
+`+memory_option+`:: OpenSSL's allocations in the program's own resource: the define and OpenSSL in the requirements of the program's project, the resource defined once, the install first in `+main+`.
++
+Its Jamfile, built and run on native:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_option/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_option/memory_option.outcome[tag=output]
+----
+
 `+openssl_linked+`:: OpenSSL, built from source, named in the type: natively and on WASI.
 +
 Its Jamfile, built and run on native, wasip2, wasip3:

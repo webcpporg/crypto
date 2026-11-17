@@ -107,6 +107,14 @@
 `+/third_party//secp256k1+`
 |<<crypto-memory,[.keep]`+arena_signer.cpp+`>>
 
+|Keep every allocation of OpenSSL in the program's arena
+|`+openssl_memory_resource+`, `+backends::openssl::install_memory_functions+`
+|OpenSSL, natively
+|`+/webcpp/crypto//crypto+` +
+`+/webcpp/crypto//openssl+` +
+`+<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE+`
+|<<crypto-memory-openssl,[.keep]`+openssl_memory.cpp+`>>
+
 |Seed BearSSL's own generator for code that calls BearSSL directly
 |`+random_device::fill+`
 |BearSSL's C API

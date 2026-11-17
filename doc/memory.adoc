@@ -24,7 +24,8 @@ allocator,* outside the program's resource; the first `make` of a process also
 initialises OpenSSL. The test `allocation_openssl` counts and prints these
 allocations on each target at every run, and fails if a message allocates; the
 count depends on the target and on OpenSSL's build, so the page does not copy
-it. A program that needs every allocation in its arena uses BearSSL.
+it. A program that needs every allocation in its arena uses BearSSL, or
+OpenSSL with the memory option of <<crypto-memory-openssl>>, natively.
 * *Keys are wiped.* The key schedules that live inside crypto's objects
 (BearSSL's, ctaes's, libsecp256k1's key pair) are overwritten on destruction
 and on move by stores the optimiser cannot drop; OpenSSL wipes its own
@@ -50,3 +51,111 @@ include::{examples}/arena_signer.cpp[tag=arena,indent=0]
 ----
 include::{examples}/arena_signer.expected[]
 ----
+
+[#crypto-memory-openssl]
+=== OpenSSL's allocations in your own memory resource
+
+By default OpenSSL allocates with the C library's `malloc`, outside every
+allocator of the program's. A native program that keeps its memory in its own
+arena, such as an audio engine whose real-time thread may not touch the
+system's heap, or an embedded server that gives each part a fixed budget,
+finds OpenSSL bypassing that arena: its first `make` initialises OpenSSL, which
+takes many blocks from the system's heap, and Beast's TLS and
+libdatachannel's DTLS, which link the same OpenSSL, allocate there for every
+connection. The arena's accounting is then wrong, a budget is exceeded with no
+warning, and a real-time thread can wait on the system allocator's lock. The
+memory option sends every allocation OpenSSL makes in the process to a
+`std::pmr::memory_resource` the program defines. It is for native programs
+only: on WebAssembly the backend is BearSSL, which allocates nothing.
+
+*How.* Three things, each needed:
+
+. *The define and OpenSSL, in the requirements of the program's project,*
+so that every target of the program gets both, its own libraries and a tool
+that only calls `random_device` included. `config.hpp` stops a target that has
+the define without OpenSSL, and any build for WebAssembly, with an `#error`
+(<<crypto-jamfile-memory>>):
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_option/Jamfile[tag=jamfile]
+----
+. *`webcpp::crypto::openssl_memory_resource()`, defined once in the program.*
+Without it the program does not link. It returns a resource that is
+thread-safe and is never destroyed: create it with `new` and never delete it.
+OpenSSL frees through it after `main` returns, so a static resource object, or
+a local variable of `main`, would be used after its destruction:
++
+[source,cpp]
+----
+include::{examples}/openssl_memory.cpp[tag=resource]
+----
+. *`backends::openssl::install_memory_functions()`, the first statement of
+`main`,* before any thread starts and before anything uses OpenSSL; the
+program stops when it returns an error:
++
+[source,cpp]
+----
+include::{examples}/openssl_memory.cpp[tag=install,indent=0]
+----
+
+*Example.* The whole program seals and opens one block on OpenSSL, every
+allocation of OpenSSL's in the program's pool:
+
+[source,cpp]
+----
+include::{examples}/openssl_memory.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/openssl_memory.expected[]
+----
+
+*What to know.*
+
+* *The whole process.* The resource receives every allocation of the OpenSSL
+the program links, not only crypto's: Beast's TLS and libdatachannel's DTLS
+too. The test `neighbours` links Asio's TLS and libdatachannel beside the
+option, with the objects of libdatachannel whose static initialisers name
+OpenSSL, and the install still succeeds; the test `handshake` runs a TLS 1.3
+handshake through libssl, and counts no call of the C library's allocator over
+the whole exchange: the key, the certificate, both contexts, the handshake, a
+record each way and every free.
+* *Nothing else may call `CRYPTO_set_mem_functions`.* If another library has
+called it before, `install_memory_functions()` returns
+`memory_functions_refused`; if it calls it after the install, the next `make`
+returns `memory_functions_not_installed`.
+* *`memory_functions_refused` although the install is the first statement of
+`main`* means that something used OpenSSL before `main`: a static object of
+another library. OpenSSL then keeps its own `malloc` for the rest of the
+process. A libcrypto DLL, which webcpp never builds (a program built without
+b2), is refused the same way.
+* *`memory_functions_not_installed` from a `make`* means that the install was
+not called, or that something replaced OpenSSL's functions after it.
+* *One module.* The program's code that uses crypto's OpenSSL backend lives in
+one module: a DLL or a shared library of the program's that includes the
+backend's header has its own copy of crypto's functions, and its `make` returns
+`memory_functions_not_installed`.
+* *When the resource cannot allocate.* During the first `make` of the process,
+OpenSSL's own initialisation fails, and OpenSSL stays unusable for the rest of
+the process: `make` gives `backend_failure` from then on. When the failing
+allocation is OpenSSL's base initialisation (with OpenSSL 3.5.9, its first
+lock), OpenSSL never registers its cleanup, and `OPENSSL_cleanup` frees
+nothing: the blocks it took meanwhile stay in the resource until the process
+ends, and the thread's error queue takes no entry from then on. The test
+`fail_init` pins this and prints how many blocks stay. Later, `make` gives
+`not_enough_memory` or `backend_failure`. `seal` and `open` allocate nothing. A
+resource of a fixed size needs room for the first `make`, whose allocations the
+test `allocation_openssl` prints on each run. Without exceptions, a resource
+that throws ends the process; one that returns null reports the failure.
+* *Two allocations stay outside the resource,* because no hook of OpenSSL's
+reaches them: the C library's `FILE` and its buffer while OpenSSL reads its
+configuration file at initialisation (one or two blocks, by C library, freed
+when the file closes), and OpenSSL's secure heap, if the program turns it on
+with `CRYPTO_secure_malloc_init`.
+* *Native only.* A WebAssembly build of the same program is a project of its
+own, in a directory of its own, with neither the define nor OpenSSL, and names
+`/third_party//bearssl`.
+
+include::generated/backends-memory_option.adoc[]

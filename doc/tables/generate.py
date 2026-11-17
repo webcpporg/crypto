@@ -48,8 +48,9 @@ FIXTURES = 'tools/test/fixtures/crypto_jamfiles'
 BACKEND_ORDER = ('bearssl', 'openssl', 'ctaes', 'secp256k1', 'system', 'none')
 NAMESPACE_TITLES = {'root': 'webcpp::crypto', 'ciphers': 'webcpp::crypto::ciphers',
                     'curves': 'webcpp::crypto::curves'}
-RUN_RULES = ('crypto-run', 'webcpp.run', 'webcpp.compile', 'webcpp.compile-diagnostic',
-             'webcpp.compile-fail', 'webcpp.link-fail', 'webcpp.example')
+RUN_RULES = ('crypto-run', 'memory-run', 'webcpp.run', 'webcpp.compile',
+             'webcpp.compile-diagnostic', 'webcpp.compile-fail', 'webcpp.link-fail',
+             'webcpp.example')
 EXPECTED_ERROR = re.compile(r'expected-error@\S+ \{\{(.*)\}\}')
 SOURCE = re.compile(r'\{([a-z0-9-]+)\}')
 NOT_MEASURED = 'not measured yet'
@@ -112,10 +113,19 @@ def programs(jamfile: Path, inherited: Optional[List[str]] = None) -> Dict[str, 
 
 
 def tests(library: Path) -> Dict[str, List[str]]:
-    """Every program of the test Jamfile and of each message test, with its targets."""
-    found = programs(library / 'test' / 'Jamfile')
-    for jamfile in sorted((library / 'test' / 'messages').glob('*/Jamfile')):
-        found.update(programs(jamfile))
+    """Every program of the test Jamfile, of each message test and of the OpenSSL memory
+    option's tests (test/openssl_memory), with its targets. A name two Jamfiles declare is a
+    fault: a table that cites it would name one of two programs."""
+    found: Dict[str, List[str]] = {}
+    test = library / 'test'
+    jamfiles = [test / 'Jamfile', *sorted((test / 'messages').glob('*/Jamfile'))]
+    if (test / 'openssl_memory' / 'Jamfile').is_file():
+        jamfiles.append(test / 'openssl_memory' / 'Jamfile')
+    for jamfile in jamfiles:
+        for name, targets in programs(jamfile).items():
+            if name in found:
+                raise Fault(f'{jamfile}: the test {name} is declared twice')
+            found[name] = targets
     return found
 
 
@@ -282,6 +292,9 @@ class Matrix:
         self.supported: Dict[Tuple[str, str], List[str]] = {}
         self.proofs: Dict[Tuple[str, str], List[str]] = {}
         self.refused: Dict[Tuple[str, str], str] = {}
+        # Why an operation is missing on the targets its tests leave out, when it is not the
+        # backend's own reason: a key of crypto.json's elsewhere.
+        self.elsewhere: Dict[Tuple[str, str], str] = {}
         for operation in data['operations']:
             for backend, entry in operation['backends'].items():
                 key = (operation['id'], backend)
@@ -295,6 +308,12 @@ class Matrix:
                     self.supported[key] = [target for target in data['targets']
                                            if target in targets]
                     self.proofs[key] = list(entry['tests'])
+                    if 'elsewhere' in entry:
+                        if entry['elsewhere'] not in data['elsewhere']:
+                            raise Fault(f'crypto.json: {operation["id"]} on {backend} names '
+                                        f'the reason {entry["elsewhere"]}, which elsewhere '
+                                        'does not hold')
+                        self.elsewhere[key] = entry['elsewhere']
                 else:
                     if entry['refused'] not in refusals:
                         raise Fault(f'crypto.json: {operation["id"]} on {backend} is refused by '
@@ -321,7 +340,8 @@ class Matrix:
         missing = [target for target in self.data['targets']
                    if target not in self.supported[key]]
         if missing and backend == 'openssl':
-            text += f'; not on {", ".join(missing)}: {marked(self.data["elsewhere"]["openssl"])}'
+            reason = self.elsewhere.get(key, 'openssl')
+            text += f'; not on {", ".join(missing)}: {marked(self.data["elsewhere"][reason])}'
         return text
 
     def tests(self, operation: str, backend: str) -> str:

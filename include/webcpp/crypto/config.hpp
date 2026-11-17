@@ -19,7 +19,9 @@
 // MrDocs parses crypto natively, as a build with exceptions does, where neither
 // macro is defined: these definitions, each undone at once, are the ones the
 // reference lists. WEBCPP_CRYPTO_HAS_OPENSSL stays when the reference's build
-// defines it, linking OpenSSL to read the backend headers (doc/Jamfile).
+// defines it, linking OpenSSL to read the backend headers (doc/Jamfile), and
+// WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE stays, so that the reference lists the
+// declarations of the memory option too.
 #ifdef __MRDOCS__
 /**
  Defined when webcpp::crypto is built without exceptions: when webcpp has none (the
@@ -119,12 +121,15 @@
 #define WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
 #undef WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
 /**
- Defined by a native program to route OpenSSL's allocations to the program's own
- `openssl_memory_resource()`. Refused on every WebAssembly target, and natively without OpenSSL
- linked.
+ Defined by a native program, in its project's requirements beside `/webcpp/crypto//openssl`, to
+ send every allocation of OpenSSL's in the process to a resource of the program's: the program
+ then defines `openssl_memory_resource()` once and calls
+ `backends::openssl::install_memory_functions()` as the first statement of `main`. Refused on
+ every WebAssembly target, and natively without OpenSSL linked.
+
+ @see "OpenSSL's allocations in your own memory resource", in the guide.
 */
 #define WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
-#undef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
 #endif
 
 #if !defined(WEBCPP_HAS_EXCEPTIONS) && !defined(WEBCPP_CRYPTO_NO_EXCEPTIONS)

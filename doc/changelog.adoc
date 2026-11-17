@@ -21,9 +21,9 @@ of every version are on webcpp's index page.
 * Added ciphers::gcm, AES-GCM in place with an incremental seal, whose failed open zeroes the data.
 * Added the default backend, ciphers::aes128_gcm and aes256_gcm, and the refusals of backends that conflict.
 * Added backends::bearssl: AES-GCM on every target allocating nothing, the block cipher refused, and the Jamfile line a program lacks without it.
-* Added backends::openssl and /webcpp/crypto//openssl on native and WASI, a message allocating nothing after make, and WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE, native only, routing OpenSSL's allocations to the program's resource beside Asio's TLS and libdatachannel.
+* Added backends::openssl and /webcpp/crypto//openssl on native and WASI, a message allocating nothing after make, and WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE, native only and refused without OpenSSL: openssl_memory_resource(), install_memory_functions, memory_functions_refused and memory_functions_not_installed.
 * Added backends::ctaes, the AES block cipher alone on every target; ciphers::gcm refuses it.
 * Added curves::secp256k1: key pairs, BIP340 and ECDSA signatures, ECDH, strict DER, low-S and the x-only tweak.
 * Added the link-time canaries of BearSSL, ctaes and libsecp256k1, and their own suites on webcpp's build.
-* Added the page: a chapter per namespace and use case, tables generated from the tests, every Jamfile and message, and llms.txt.
+* Added the page: a chapter per namespace and use case, the memory option's guide and example, tables generated from the tests, every Jamfile and message, and llms.txt.
 // end::unreleased[]

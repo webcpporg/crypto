@@ -60,3 +60,12 @@ webcpp.example taproot_tweak.cpp : <library>/third_party//secp256k1 ;
 
 # The key pair's one allocation counted in the program's own arena.
 webcpp.example arena_signer.cpp : <library>/third_party//secp256k1 ;
+
+# OpenSSL's allocations sent to the program's own resource, natively only: the
+# define and OpenSSL given together, as a program's project requirements give
+# them (doc/jamfile.adoc).
+# tag::openssl_memory[]
+webcpp.example openssl_memory.cpp
+  : <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE <library>/webcpp/crypto//openssl
+  : native ;
+# end::openssl_memory[]

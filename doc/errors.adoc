@@ -52,6 +52,9 @@ A value that `error` does not define
 has the message "unknown webcpp.crypto error". `random_device` also returns
 `errc::not_supported` where there is no generator at all, and OpenSSL's `make`
 `errc::not_enough_memory` when OpenSSL cannot allocate its context.
+`memory_functions_refused` and `memory_functions_not_installed` come only with
+OpenSSL's memory option, natively: <<crypto-memory-openssl>> says what each
+means and what to do.
 
 include::generated/backends-error.adoc[]
 

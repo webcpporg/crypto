@@ -48,6 +48,32 @@ time, and there is no AES-NI. A program for which timing attacks matter there
 defines `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`, or names
 `ciphers::gcm<ciphers::aes256<backends::bearssl>>`.
 
+[#crypto-jamfile-memory]
+=== OpenSSL's memory option
+
+A native program that sends OpenSSL's allocations to its own resource
+(<<crypto-memory-openssl>>) gives the define
+`WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` and `/webcpp/crypto//openssl`
+together, in the requirements of its project, not of one target. Every target
+of the program then gets both: its own libraries, and a tool that only calls
+`random_device` or `equal`, which would otherwise have the define without
+OpenSSL. The fixture `memory_option` builds and runs this Jamfile natively:
+
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_option/Jamfile[tag=jamfile]
+----
+
+Each mistake stops the build, with the messages of
+<<crypto-jamfile-messages>>: the define on a target without OpenSSL, or in a
+build for WebAssembly, is refused by `config.hpp`; `openssl_memory_resource()`
+not defined is a link error; and on MSVC, files of one program compiled some
+with the define and some without are refused by the linker (`LNK2038`). These
+requirements cannot be built for WebAssembly, since the option is refused
+there and `/webcpp/crypto//openssl` stops an Emscripten build: a WebAssembly
+build of the same program is a project of its own, in a directory of its own,
+with neither the define nor OpenSSL, and names `/third_party//bearssl`.
+
 [#crypto-jamfile-cases]
 === Every Jamfile a user writes
 

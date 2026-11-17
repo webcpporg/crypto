@@ -90,9 +90,8 @@ int main() {
     webcpp_test_count_c_allocations(0);
     BOOST_TEST_EQ(webcpp_test_c_allocations(), 0U);
     BOOST_TEST(!webcpp::test::the_counting_resource().foreign_free());
-    int const errors = boost::report_errors();
-    if (errors != 0) {
-        return errors;
+    if (int const errors = boost::report_errors(); errors != 0) {
+        return webcpp::test::exit_status(errors);
     }
     webcpp::test::the_counting_resource().main_returned();
     return 3;  // the resource ends the process with 0 once OpenSSL has freed everything

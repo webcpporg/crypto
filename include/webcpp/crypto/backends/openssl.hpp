@@ -149,7 +149,7 @@ inline void webcpp_crypto_openssl_free(void* address, char const* /*file*/, int 
 #endif
         webcpp::crypto::openssl_memory_resource().deallocate(block, header + size, header);
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
-        // NOLINTNEXTLINE(bugprone-empty-catch): a deallocate throws nothing; none may cross OpenSSL
+        // NOLINTNEXTLINE(bugprone-empty-catch): no exception may cross OpenSSL
     } catch (...) {
     }
 #endif

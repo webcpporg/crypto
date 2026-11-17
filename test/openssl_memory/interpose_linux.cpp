@@ -13,8 +13,9 @@
 #include <cerrno>
 #include <cstddef>
 
-// glibc's own entry points, which the replacements forward to.
-// NOLINTBEGIN(readability-inconsistent-declaration-parameter-name,cert-dcl58-cpp)
+// glibc's own entry points, which the replacements forward to: their names are glibc's.
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+// NOLINTBEGIN(readability-identifier-naming)
 extern "C" {
 void* __libc_malloc(std::size_t);
 void* __libc_calloc(std::size_t, std::size_t);
@@ -22,6 +23,8 @@ void* __libc_realloc(void*, std::size_t);
 void* __libc_memalign(std::size_t, std::size_t);
 void __libc_free(void*);
 }
+// NOLINTEND(readability-identifier-naming)
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 
 namespace {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the interposer's count
@@ -36,6 +39,9 @@ void count() noexcept {
 }
 }  // namespace
 
+// The replacements: glibc's declarations name their parameters otherwise, and cert-dcl58-cpp
+// takes a replacement of what <cstdlib> declares for a change to namespace std.
+// NOLINTBEGIN(readability-inconsistent-declaration-parameter-name,cert-dcl58-cpp)
 extern "C" {
 std::size_t webcpp_test_c_allocations(void) {
     return counted.load();

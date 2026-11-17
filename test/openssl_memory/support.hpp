@@ -26,6 +26,7 @@
 
 #include <array>
 #include <atomic>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -66,8 +67,15 @@ inline void say_whether_c_is_counted() noexcept {
 #endif
 }
 
+/**
+ * The memory option's resource for the tests: counts the blocks it gives and keeps a table of
+ * them, so that a free of a block it did not give is found; fails on demand (`arm`); and, once
+ * `main_returned()` was called, ends the process with 0 when the last block comes back. It never
+ * calls the C library: its blocks come from a fixed buffer in the object itself.
+ */
 class counting_resource final : public std::pmr::memory_resource {
 public:
+    /** An empty resource over its own buffer; made once, by `the_counting_resource()`. */
     counting_resource() : pool_(&monotonic_) {}
 
     counting_resource(counting_resource const&) = delete;
@@ -75,6 +83,10 @@ public:
     counting_resource(counting_resource&&) = delete;
     counting_resource& operator=(counting_resource&&) = delete;
 
+    /**
+     * Never runs: the resource lives in static storage and is never destroyed. If it ran, it
+     * writes its line and ends the process with 4, which fails the test.
+     */
     ~counting_resource() override {
         write_out("the resource was destroyed\n");
         end(4);
@@ -95,20 +107,32 @@ public:
     /** Whether a block the resource did not give was given back to it. */
     bool foreign_free() const { return foreign_.load(); }
 
-    /** The allocation after `after` more fails, as Task 15's resource fails. */
+    /**
+     * Makes an allocation fail, as Task 15's resource fails: by throwing `std::bad_alloc`, or by
+     * returning null without exceptions.
+     *
+     * @param after The allocations that still succeed before the one that fails.
+     */
     void arm(std::size_t after) { fail_after_.store(after + 1); }
 
-    /** From now on, the last block given back ends the process with 0 (the exit check). */
-    void main_returned() { main_returned_.store(true); }
+    /**
+     * Says that main is returning: from now on, the last block given back ends the process with
+     * 0 (the exit check), or with 5 after a foreign free.
+     */
+    void main_returned() noexcept { main_returned_.store(true); }
 
 private:
     // An open-addressing table of the blocks given (linear probing): one slot always stays
-    // free, so that a search for a block not in it ends.
+    // free, so that a search for a block not in it ends. 65,536 slots: the most blocks live at
+    // once in everything_test on OpenSSL 3.5.9 is 4,452 (measured on macOS, 2026-11-17).
     static constexpr std::size_t slots = std::size_t{1} << 16U;
+    static_assert(std::has_single_bit(slots), "the table's index is the hash's top bits");
+    // The hash's top bits that index the table.
+    static constexpr unsigned shift = 64U - static_cast<unsigned>(std::bit_width(slots - 1));
 
     static std::size_t home(void const* block) noexcept {
         auto const bits = static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(block));
-        return static_cast<std::size_t>(((bits >> 4U) * 0x9E3779B97F4A7C15ULL) >> 48U);
+        return static_cast<std::size_t>(((bits >> 4U) * 0x9E3779B97F4A7C15ULL) >> shift);
     }
 
     static std::size_t next(std::size_t slot) noexcept { return (slot + 1) & (slots - 1); }
@@ -190,9 +214,11 @@ private:
         return this == &other;
     }
 
-    // 64 MiB: OpenSSL's first make takes 6,061 blocks, 4,621 still live after it (PROBE-R3,
-    // on 3.6.4).
-    alignas(std::max_align_t) std::array<std::byte, std::size_t{64} << 20U> buffer_{};
+    // 16 MiB. On OpenSSL 3.5.9 (measured on macOS, 2026-11-17) everything_test's first make
+    // takes 5,027 blocks, 4,441 still live after it; the whole test asks for 5,042 blocks and
+    // 388,040 bytes, at most 349,350 of them live at once. A buffer that runs out throws
+    // std::bad_alloc from null_memory_resource(), loudly.
+    alignas(std::max_align_t) std::array<std::byte, std::size_t{16} << 20U> buffer_{};
     std::pmr::monotonic_buffer_resource monotonic_{buffer_.data(), buffer_.size(),
                                                    std::pmr::null_memory_resource()};
     std::pmr::synchronized_pool_resource pool_;
@@ -213,7 +239,12 @@ inline counting_resource& the_counting_resource() noexcept {
     return *resource;
 }
 
-/** The queue's entries, oldest first, emptied. */
+/**
+ * Empties the calling thread's OpenSSL error queue.
+ *
+ * @param first Set to the oldest entry's code, or 0 when the queue was empty.
+ * @return The number of entries the queue held.
+ */
 inline std::size_t drain(unsigned long& first) {
     std::size_t count = 0;
     first = ERR_peek_error();

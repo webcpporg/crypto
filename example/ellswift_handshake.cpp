@@ -40,7 +40,6 @@ int main() {
         return 1;
     }
 
-    // tag::exchange[]
     // Each peer sends the 64 bytes ellswift_create makes from its key pair.
     auto const initiator_message = secp256k1::ellswift_create(*initiator, repeated(0x33));
     auto const responder_message = secp256k1::ellswift_create(*responder, repeated(0x44));
@@ -71,7 +70,6 @@ int main() {
         return 1;
     }
     std::printf("initiator and responder agree\n");
-    // end::exchange[]
     return 0;
 }
 

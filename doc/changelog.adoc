@@ -17,15 +17,12 @@ of every version are on webcpp's index page.
 
 // tag::unreleased[]
 * Added crypto, primitives over C backends: ciphers, curves and randomness, with errors of fixed values in webcpp.crypto, every result `+[[nodiscard]]+`.
-* Added equal and random_device, and ciphers::aes128, aes192 and aes256, the AES block cipher.
-* Added ciphers::gcm, AES-GCM in place with an incremental seal, whose failed open zeroes the data.
+* Added equal, random_device, ciphers::aes128, aes192 and aes256, the AES block cipher, and ciphers::gcm, AES-GCM in place with an incremental seal whose failed open zeroes the data.
 * Added the default backend, ciphers::aes128_gcm and aes256_gcm, and the refusals of backends that conflict.
-* Added backends::bearssl: AES-GCM on every target allocating nothing, the block cipher refused, and the Jamfile line a program lacks without it.
-* Added backends::openssl, /webcpp/crypto//openssl on native and WASI, allocating nothing after make; WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE: OpenSSL's allocations in the program's resource, refused on WebAssembly (WASI included) and without OpenSSL: openssl_memory_resource, install_memory_functions, memory_functions_refused, memory_functions_not_installed.
-* Added backends::ctaes, the AES block cipher alone on every target; ciphers::gcm refuses it.
+* Added backends::bearssl on every target, backends::openssl with /webcpp/crypto//openssl on native and WASI, and backends::ctaes: AES-GCM allocating nothing per message, the block cipher on OpenSSL and ctaes.
+* Added WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE: OpenSSL's allocations in the program's resource, refused on WebAssembly (WASI included) and without OpenSSL: openssl_memory_resource, install_memory_functions, memory_functions_refused, memory_functions_not_installed.
 * Added curves::secp256k1: key pairs, BIP340 and ECDSA signatures, ECDH, strict DER, low-S and the x-only tweak.
-* Added the link-time canaries of BearSSL, ctaes and libsecp256k1, and their own suites on webcpp's build.
-* Added backends::sodium and its link-time canary on /third_party//sodium, which webcpp::hash shares, and libsodium's initialisation every engine calls first.
+* Added backends::sodium on /third_party//sodium, which webcpp::hash shares, and every backend's link-time canary, with the C libraries' own suites on webcpp's build.
 * Added the page: a chapter per namespace and use case, the memory option's guide and example, tables generated from the tests, every Jamfile and message, and llms.txt.
 * Added secret<N>, a self-wiping array that is copied only by clone, and the errors 15 to 20: weak_public_key, invalid_point, invalid_scalar, invalid_padding, invalid_encoding and invalid_ciphertext_size.
 // end::unreleased[]

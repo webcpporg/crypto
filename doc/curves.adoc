@@ -24,17 +24,17 @@ encrypted messages (NIP-44, <<crypto-secp256k1-ecdh>>), and Ethereum's ECDSA:
 recoverable signatures, the recovery of a signer's public key from a
 signature, and the uncompressed key (<<crypto-secp256k1-recovery>>).
 Ethereum's `v` encoding of the recovery id, the hash it signs, its
-transactions and its addresses are a domain library's. The second is Ed25519, RFC 8032's signatures on
-edwards25519, with Ed25519ph for a message given in pieces
-(link:https://www.rfc-editor.org/rfc/rfc8032[RFC 8032]; <<crypto-ed25519>>). The
-third is X25519, RFC 7748's key agreement on Curve25519, the same curve in
-another form, with the conversion of an Ed25519 key to it
-(link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748]; <<crypto-x25519>>), and
-libsodium's key exchange on it, `crypto_kx` (<<crypto-kx>>). A
-program chooses a curve for compatibility: a signature on one curve is checked
-only with that curve, and the curve of passkeys and TLS certificates, P-256, is
-another, which this version does not offer. Ed25519's and X25519's keys leave a
-program, and enter it, in the standard forms OpenSSL and WebCrypto use, SPKI
-and PKCS#8, as DER or PEM text (<<crypto-key-formats>>).
+transactions and its addresses are a domain library's. The second is Ed25519,
+RFC 8032's signatures on edwards25519, with Ed25519ph for a message given in
+pieces (link:https://www.rfc-editor.org/rfc/rfc8032[RFC 8032];
+<<crypto-ed25519>>). The third is X25519, RFC 7748's key agreement on
+Curve25519, the same curve in another form, with the conversion of an Ed25519
+key to it (link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748];
+<<crypto-x25519>>), and libsodium's key exchange on it, `crypto_kx`
+(<<crypto-kx>>). A program chooses a curve for compatibility: a signature on one
+curve is checked only with that curve, and the curve of passkeys and TLS
+certificates, P-256, is another, which this version does not offer. Ed25519's
+and X25519's keys leave a program, and enter it, in the standard forms OpenSSL
+and WebCrypto use, SPKI and PKCS#8, as DER or PEM text (<<crypto-key-formats>>).
 
 include::generated/namespace-curves.adoc[]

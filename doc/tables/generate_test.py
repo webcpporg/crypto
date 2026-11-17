@@ -245,6 +245,7 @@ def small_table() -> generate.Data:
                 'header': f'<webcpp/crypto/backends/{name}.hpp>', 'targets': EVERY_TARGET}
     return {
         'targets': EVERY_TARGET, 'sources': {'rfc8032': ['RFC 8032', 'https://example.org']},
+        'compilers': {'clang': 'Clang', 'gcc': 'GCC', 'msvc': 'MSVC'},
         'backends': {'bearssl': backend('BearSSL', 'bearssl', '/third_party//bearssl'),
                      'sodium': backend('libsodium', 'sodium', '/third_party//sodium'),
                      'system': {'title': 'The system'}},
@@ -352,13 +353,14 @@ def test_a_cell_claimed_where_no_test_runs_is_a_fault(_: Path) -> None:
             'the family ed25519 claims sodium on wasip2, where sodium is not built')
 
 
-def a_default(targets: list[str], backend: Optional[str], where: str = '',
+def a_default(targets: list[str], backend: Optional[str],
+              compilers: Optional[list[str]] = None,
               tests: Optional[list[str]] = None) -> generate.Data:
-    """A row of a family's defaults, on targets, for one compiler where where names it."""
+    """A row of a family's defaults, on targets, for the compilers named, else for every one."""
     row: generate.Data = {'targets': targets, 'backend': backend,
                           'tests': ['ed25519'] if tests is None else tests, 'why': 'w'}
-    if where:
-        row['where'] = where
+    if compilers is not None:
+        row['compilers'] = compilers
     return row
 
 
@@ -375,13 +377,34 @@ def test_a_default_is_a_backend_of_the_family_its_tests_run_on(_: Path) -> None:
     a_fault(data, every, 'the family ed25519 has two defaults on native')
     # A compiler's row restates its target's default with a reason of its own; it never changes
     # the backend, which the target alone chooses.
-    data['families'][0]['default'] = [a_default(EVERY_TARGET, 'sodium'),
-                                      a_default(['native'], 'sodium', 'MSVC')]
+    wasm = ['wasip2', 'wasip3', 'emscripten']
+    data['families'][0]['default'] = [a_default(wasm, 'sodium'),
+                                      a_default(['native'], 'sodium', ['clang', 'gcc']),
+                                      a_default(['native'], 'sodium', ['msvc'])]
     generate.check_families(data, every)
-    data['families'][0]['default'] = [a_default(EVERY_TARGET, 'sodium'),
-                                      a_default(['native'], None, 'MSVC')]
+    data['families'][0]['default'] = [a_default(wasm, 'sodium'),
+                                      a_default(['native'], 'sodium', ['clang', 'gcc']),
+                                      a_default(['native'], None, ['msvc'])]
     a_fault(data, every, 'the family ed25519 has two default backends on native, sodium and '
             'none: the target alone chooses it')
+    # The compilers are names of crypto.json's compilers, so that two rows cannot name one
+    # compiler in two spellings: each compiler of a target has one row.
+    data['families'][0]['default'] = [a_default(wasm, 'sodium'),
+                                      a_default(['native'], 'sodium', ['Clang and GCC']),
+                                      a_default(['native'], 'sodium', ['msvc'])]
+    a_fault(data, every, 'the family ed25519\'s default on native names the compiler Clang and '
+            'GCC, which crypto.json\'s compilers does not list')
+    data['families'][0]['default'] = [a_default(wasm, 'sodium'),
+                                      a_default(['native'], 'sodium', ['clang', 'gcc']),
+                                      a_default(['native'], 'sodium', ['gcc', 'msvc'])]
+    a_fault(data, every, 'the family ed25519 has two defaults on native with gcc')
+    data['families'][0]['default'] = [a_default(EVERY_TARGET, 'sodium'),
+                                      a_default(['native'], 'sodium', ['msvc'])]
+    a_fault(data, every, 'the family ed25519 has two defaults on native with msvc')
+    data['families'][0]['default'] = [a_default(wasm, 'sodium'),
+                                      a_default(['native'], 'sodium', ['clang']),
+                                      a_default(['native'], 'sodium', ['msvc'])]
+    a_fault(data, every, 'the family ed25519 has no default on native with gcc')
     # A default is claimed only where a test that fixes it runs.
     data['families'][0]['default'] = [a_default(EVERY_TARGET, 'sodium',
                                                 tests=['ed25519_native'])]
@@ -430,6 +453,16 @@ def test_the_defaults_header_chooses_by_the_target_alone(_: Path) -> None:
     assert ('#define WEBCPP_CRYPTO_DETAIL_DEFAULT_ED25519_SODIUM 1\n/** The default of Ed25519 '
             'on native, wasip2, wasip3, emscripten: libsodium. */\n') in one, one
     assert '#if' not in one.split('struct default_backend_of {};', 1)[1], one
+
+
+def test_a_row_of_some_compilers_is_labelled_with_their_names(_: Path) -> None:
+    data = small_table()
+    assert generate.target_label(data, a_default(['native'], 'sodium', ['clang', 'gcc'])) == (
+        'native, Clang and GCC')
+    assert generate.target_label(data, a_default(['native'], 'sodium', ['msvc'])) == (
+        'native, MSVC')
+    assert generate.target_label(data, a_default(['wasip2', 'wasip3'], 'sodium')) == (
+        'wasip2, wasip3')
 
 
 def test_a_family_without_a_default_has_no_type(_: Path) -> None:
@@ -552,6 +585,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_cell_claimed_where_no_test_runs_is_a_fault,
     test_a_default_is_a_backend_of_the_family_its_tests_run_on,
     test_the_defaults_header_chooses_by_the_target_alone,
+    test_a_row_of_some_compilers_is_labelled_with_their_names,
     test_a_family_without_a_default_has_no_type,
     test_the_default_s_refusal_says_what_the_program_needs,
     test_a_refusal_holds_on_its_target,

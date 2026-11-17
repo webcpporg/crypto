@@ -438,19 +438,24 @@ def check_families(data: Data, declared: Dict[str, List[str]]) -> None:
                     raise Fault(f'crypto.json: the family {name} states constant time for '
                                 f'{backend} on {target}, where it does not claim it')
                 cite(data, why)
-        # One default per target, chosen by the target alone (design D32): a row of one compiler
-        # restates it with a reason of its own. Each is claimed only where a test that fixes it
+        # One default per target, chosen by the target alone (design D32): a row of some
+        # compilers, named from crypto.json's compilers, restates it with a reason of its own, and
+        # each compiler of a target has one row. Each is claimed only where a test that fixes it
         # runs.
         rows: List[Tuple[str, str]] = []
         for entry in family['default']:
             cite(data, entry['why'])
             backend = entry['backend']
             for target in entry['targets']:
-                where = entry.get('where', '')
-                if (target, where) in rows:
-                    raise Fault(f'crypto.json: the family {name} has two defaults on {target}'
-                                + (f', {where}' if where else ''))
-                rows.append((target, where))
+                for compiler in entry.get('compilers', data['compilers']):
+                    if compiler not in data['compilers']:
+                        raise Fault(f'crypto.json: the family {name}\'s default on {target} '
+                                    f'names the compiler {compiler}, which crypto.json\'s '
+                                    'compilers does not list')
+                    if (target, compiler) in rows:
+                        raise Fault(f'crypto.json: the family {name} has two defaults on '
+                                    f'{target} with {compiler}')
+                    rows.append((target, compiler))
                 chosen = default_on(family, target)
                 if chosen != backend:
                     raise Fault(f'crypto.json: the family {name} has two default backends on '
@@ -468,6 +473,11 @@ def check_families(data: Data, declared: Dict[str, List[str]]) -> None:
         missing = [target for target in data['targets'] if target not in covered]
         if missing:
             raise Fault(f'crypto.json: the family {name} has no default on {", ".join(missing)}')
+        for target in data['targets']:
+            for compiler in data['compilers']:
+                if (target, compiler) not in rows:
+                    raise Fault(f'crypto.json: the family {name} has no default on {target} '
+                                f'with {compiler}')
 
 
 def default_on(family: Data, target: str) -> Optional[str]:
@@ -847,7 +857,7 @@ def api_backends(data: Data, matrix: Matrix, operation: Data) -> str:
     if 'default' in operation:
         # The block cipher's default argument is AES-GCM's default: its table is AES-GCM's.
         family = family_of(data, operation.get('default_of', operation['family']))
-        defaults = [[target_label(entry), default_title(data, entry)]
+        defaults = [[target_label(data, entry), default_title(data, entry)]
                     for entry in family['default']]
         text += (f'\n{marked(operation["default"])} The default per target, whatever the program '
                  'links, as <<crypto-backends-defaults>> gives it with its reasons and tests:\n\n'
@@ -903,10 +913,10 @@ def family_of(data: Data, name: str) -> Data:
     raise Fault(f'crypto.json names the family {name}, which it does not list')
 
 
-def target_label(entry: Data) -> str:
-    """The targets of a default, and the compiler where it is one compiler's."""
-    where = f', {entry["where"]}' if entry.get('where') else ''
-    return ', '.join(entry['targets']) + where
+def target_label(data: Data, entry: Data) -> str:
+    """The targets of a default, and its compilers where it is some compilers' alone."""
+    compilers = ' and '.join(data['compilers'][name] for name in entry.get('compilers', []))
+    return ', '.join(entry['targets']) + (f', {compilers}' if compilers else '')
 
 
 def default_title(data: Data, entry: Data) -> str:
@@ -920,7 +930,7 @@ def defaults_page(data: Data) -> str:
     rows: List[List[str]] = []
     for family in data['families']:
         for entry in family['default']:
-            rows.append([family['title'], target_label(entry), default_title(data, entry),
+            rows.append([family['title'], target_label(data, entry), default_title(data, entry),
                          cite(data, entry['why']),
                          ', '.join(code(name) for name in entry['tests'])])
     return table(['Family', 'Target', 'Default', 'Why', 'Tested by'], rows,
@@ -1182,7 +1192,7 @@ def llms(data: Data, matrix: Matrix, library: Path) -> str:
     out += ['## Default backend per family', '']
     for family in data['families']:
         for entry in family['default']:
-            out.append(f'- {family["title"]}, {target_label(entry)}: '
+            out.append(f'- {family["title"]}, {target_label(data, entry)}: '
                        f'{default_title(data, entry)}; {cite_markdown(data, entry["why"])}.')
     out += ['', '## Rules of use', '']
     for rule in data['rules']:

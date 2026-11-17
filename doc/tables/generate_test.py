@@ -11,9 +11,9 @@ name declared twice), a backend's reason for the targets an operation misses (Op
 outcome reader (each directive and section), the Doc Comment reader (a line reference left out), the
 writers whose output a reader of the page sees (inline code that holds a `+` or a backtick, a
 failing fixture's output per target, a comparison table's names of code, the decision table's
-Jamfile column), and the capability table's: its checks of crypto.json's families, the refusals and
-cells of include/webcpp/crypto/detail/capabilities.hpp, the cells test/capabilities_test.cpp
-asserts, and the comparison --check makes.
+Jamfile column, the table of Ed25519's edge cases), and the capability table's: its checks of
+crypto.json's families, the refusals and cells of include/webcpp/crypto/detail/capabilities.hpp, the
+cells test/capabilities_test.cpp asserts, and the comparison --check makes.
 generate.py --check proves only that the committed tables are what generate.py writes now: a reader
 that regresses and is regenerated in the same change would pass it, and fails here.
 
@@ -186,6 +186,27 @@ def test_an_index_entry_names_a_qualified_function_bare(scratch: Path) -> None:
     assert entry == '  - sign: Signs the message given in pieces.', entry
     entry = generate.llms_entry(scratch, operation, 'sign')
     assert entry == '  - sign: Signs a message.', entry
+
+def test_the_edge_cases_table_has_a_row_per_case_and_a_column_per_verdict(_: Path) -> None:
+    data = {'backends': {'sodium': {'title': 'libsodium'}}}
+    cases = {'source': {'repository': 'novifinancial/ed25519-speccheck', 'commit': '65519336',
+                        'file': 'cases.json'},
+             'backends': {'sodium': {'raw': ['reject', 'accept'], 'strict': ['reject', 'accept']}},
+             'outside': {'webcrypto-node': ['accept', 'accept']},
+             'cases': ['`S` = 0', '`A` non-canonical']}
+    page = generate.ed25519_cases_page(data, cases)
+    header = '|Case |What it tests |libsodium, raw |libsodium, strict |WebCrypto in node'
+    assert header in page, page
+    assert '\n|0\n|`+S+` = 0\n|reject\n|reject\n|accept\n' in page, page
+    assert '\n|1\n|`+A+` non-canonical\n|accept\n|accept\n|accept\n' in page, page
+    for broken in ({'raw': ['reject'], 'strict': ['reject', 'accept']},
+                   {'raw': ['reject', 'maybe'], 'strict': ['reject', 'accept']}):
+        try:
+            generate.ed25519_cases_page(data, {**cases, 'backends': {'sodium': broken}})
+        except generate.Fault:
+            pass
+        else:
+            raise AssertionError(f'a row {broken} was written')
 
 def test_code_that_holds_a_plus_is_one_span(_: Path) -> None:
     # `+em++: error:+` would be read as `+em+` and a stray rest: the text is a passthrough.
@@ -664,6 +685,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_brief_leaves_out_a_line_reference,
     test_a_qualified_function_is_read_in_its_class,
     test_an_index_entry_names_a_qualified_function_bare,
+    test_the_edge_cases_table_has_a_row_per_case_and_a_column_per_verdict,
     test_code_that_holds_a_plus_is_one_span,
     test_a_failing_fixture_lists_its_texts_per_target,
     test_a_fixture_that_builds_and_runs_nothing_is_a_record,

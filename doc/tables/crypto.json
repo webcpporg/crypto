@@ -307,7 +307,7 @@
             "header": "<webcpp/crypto/curves/ed25519.hpp>",
             "what": "Verifies an Ed25519 signature with a public key alone, under the policy `strict`: libsodium's rules, which refuse non-canonical encodings and keys of small order.",
             "section": "crypto-ed25519",
-            "backends": {"sodium": {"tests": ["ed25519_sodium", "ed25519_wycheproof_sodium"]}}
+            "backends": {"sodium": {"tests": ["ed25519_sodium", "ed25519_wycheproof_sodium", "ed25519_speccheck"]}}
         },
         {
             "id": "ed25519ph",

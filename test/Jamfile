@@ -6,6 +6,7 @@
 
 project : requirements <library>/webcpp/crypto//crypto ;
 
+import regex ;
 import webcpp ;
 
 webcpp.targets native wasip2 wasip3 emscripten ;
@@ -289,6 +290,20 @@ crypto-run ed25519ph_sodium : ed25519ph_sodium_test.cpp : <library>/third_party/
 # moved over, ended and destroyed: optimised, every call inlined, as secret's.
 crypto-run ed25519_wipe_sodium : ed25519_wipe_sodium_test.cpp
   : <library>/third_party//sodium $(OPTIMISED) <inlining>full ;
+# The twelve Ed25519 edge cases of "Taming the many EdDSAs" (design D31):
+# each backend's raw verdict and strict's against meta/ed25519_cases.json, read
+# at run time from the directory WEBCPP_TEST_CRYPTO_META gives, quoted as
+# wycheproof's is, with forward slashes, and preopened on WASI; on Emscripten
+# node's WebCrypto too, the outside view (the JSPI link, for EM_ASYNC_JS).
+path-constant CRYPTO_TEST_META : ../meta ;
+.crypto-meta = [ regex.replace $(CRYPTO_TEST_META) "\\\\" "/" ] ;
+crypto-run ed25519_speccheck : ed25519_speccheck_test.cpp
+  : <library>/third_party//sodium <library>/third_party//ed25519-speccheck
+    <library>/webcpp//boost_json
+    <define>"\"WEBCPP_TEST_CRYPTO_META=\\\"$(.crypto-meta)\\\"\""
+    [ webcpp.data $(CRYPTO_TEST_META) ]
+    <dependency>../meta/ed25519_cases.json
+    <toolset>emscripten:<linkflags>-sJSPI ;
 
 # X25519 on libsodium: RFC 7748's scalar multiplications and Alice and Bob, a
 # peer of order 8 refused as weak, the guards and the conversion from Ed25519;

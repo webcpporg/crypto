@@ -94,7 +94,7 @@
 |`+curves::ed25519::verify+`
 |libsodium
 |native, wasip2, wasip3, emscripten
-|`+ed25519_sodium+`, `+ed25519_wycheproof_sodium+`
+|`+ed25519_sodium+`, `+ed25519_wycheproof_sodium+`, `+ed25519_speccheck+`
 
 |`+curves::ed25519::ph+`
 |libsodium

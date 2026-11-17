@@ -64,9 +64,31 @@ takes a verification policy, `strict` by default and the only one in this
 version: libsodium's rules, which refuse all three
 (link:https://doc.libsodium.org/public-key_cryptography/public-key_signatures[libsodium's documentation]).
 Every valid signature of Wycheproof's EdDSA file is accepted and every invalid
-one refused (`ed25519_wycheproof_sodium`). Honest signatures verify everywhere;
-a network that mixes verifiers must still agree on one rule for the others,
-since a more lenient verifier accepts signatures that `strict` refuses.
+one refused (`ed25519_wycheproof_sodium`).
+
+*The twelve edge cases.* Chalkias, Garillot and Nikolaenko, "Taming the many
+EdDSAs" (link:https://eprint.iacr.org/2020/1244[IACR ePrint 2020/1244]), give
+twelve signatures on which implementations disagree, in their suite
+(link:https://github.com/novifinancial/ed25519-speccheck[novifinancial/ed25519-speccheck]).
+They run against every Ed25519 backend: its own verdict (raw), and its verdict
+under `strict`, which is libsodium's on every backend. The test
+`ed25519_speccheck` asserts the table below, so that a new version of a backend
+that changes a verdict fails until the table is regenerated; WebCrypto in node
+is an outside view, recorded and never held to `strict`.
+
+include::generated/ed25519-cases.adoc[]
+
+Honest signatures verify everywhere: the cases differ only on signatures no
+honest signer makes, and a network that mixes verifiers must agree on one rule
+for them. Rust peers that use ed25519-dalek's default `verify` accept cases 0
+to 2 and 11, which `strict` refuses
+(link:https://github.com/novifinancial/ed25519-speccheck#results[the suite's
+results]). ZIP-215 verifiers (link:https://zips.z.cash/zip-0215[ZIP 215]), the
+rule of Zcash, accept every case but 6 to 8 by design: they verify with the
+cofactor and accept non-canonical encodings of `A` and `R`, so that every
+ZIP-215 verifier agrees on every signature. `strict` refuses the cases they
+accept beyond it; `zip215` is not a policy of this version, and waits for a
+mature C or {cpp} implementation of ZIP-215.
 
 *Pitfalls.*
 

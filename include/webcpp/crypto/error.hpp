@@ -68,7 +68,9 @@ enum class error : int {
     backend_failure = 12,
     /**
      * OpenSSL's memory functions could not be installed: OpenSSL has already allocated, or another
-     * party installed its own. Returned by `backends::openssl::install_memory_functions`, with
+     * party installed its own.
+     *
+     * Returned by `backends::openssl::install_memory_functions`, with
      * `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
      */
     memory_functions_refused = 13,

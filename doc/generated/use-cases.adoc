@@ -71,12 +71,19 @@
 |<<crypto-everyday-update,[.keep]`+signed_update.cpp+`>>
 
 |Agree on a key with a peer through a relay that sees everything
-|In `+curves::secp256k1+`: `+keypair::ecdh+` (SHA-256 of the shared point: not NIP-44's raw x coordinate), then HKDF on Boost.Hash2 and `+aes256_gcm+`
+|In `+curves::secp256k1+`: `+keypair::ecdh+` (SHA-256 of the shared point), then HKDF on Boost.Hash2 and `+aes256_gcm+`
 |libsecp256k1, and AES-GCM's default
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+` +
 `+/webcpp/crypto//gcm-default+`
 |<<crypto-p2p-session,[.keep]`+ecdh_session.cpp+`>>
+
+|Derive a Nostr direct message's conversation key (NIP-44; the format is a domain library's)
+|In `+curves::secp256k1+`: `+keypair::ecdh_x+`, then HKDF on Boost.Hash2
+|libsecp256k1
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+`
+|<<crypto-secp256k1-ecdh,[.keep]`+ecdh_x_coordinate.cpp+`>>
 
 |Make and keep a wallet's key
 |In `+curves::secp256k1+`: `+keypair::make+`, `+xonly_public_key+`, `+public_key+`; `+aes256_gcm+` at rest

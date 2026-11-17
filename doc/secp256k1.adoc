@@ -25,20 +25,20 @@ Each signature's nonce is RFC 6979's, derived from the key and the hash, so
 that no weak generator can leak the key
 (link:https://www.rfc-editor.org/rfc/rfc6979[RFC 6979]), and each is in low-S
 form;
-* *ECDH*, a 32-byte shared secret: libsecp256k1's hashed form, the SHA-256 of
-the shared point in its 33-byte compressed encoding. It interoperates only with
-peers that hash the same way, such as another program on libsecp256k1's
-default. It does not interoperate with Nostr's encrypted messages
-(link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44]) or
-other protocols that take the shared point's raw x coordinate, which this
-version does not give.
+* *ECDH*, a shared secret: `ecdh` gives libsecp256k1's hashed form, the
+SHA-256 of the shared point in its 33-byte compressed encoding, one of three
+forms (<<crypto-secp256k1-ecdh>>). It interoperates only with peers that hash
+the same way, such as another program on libsecp256k1's default; `ecdh_x`
+gives the raw x coordinate that Nostr's encrypted messages
+(link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44]) take.
 
 A `keypair` is made from a 32-byte secret key with `make(secret)`, which
 allocates its signing context in the `std::pmr::memory_resource` it is given,
 and randomises it from `random_device`; crypto's own code allocates nothing
 else (<<crypto-memory>>). A key pair gives its x-only public key
 (`xonly_public_key`) and its compressed one (`public_key`), signs
-(`sign_schnorr`, `sign_ecdsa`), derives an ECDH secret (`ecdh`), and is tweaked
+(`sign_schnorr`, `sign_ecdsa`), derives an ECDH secret (`ecdh`, `ecdh_x`,
+`ecdh_point`), and is tweaked
 in place (`tweak_xonly`). `verify_schnorr` and `verify_ecdsa` check signatures
 with a public key alone; `to_der`, `from_der` (strict DER) and
 `normalize_ecdsa` convert ECDSA's DER and low-S forms; and `tweak_xonly` tweaks
@@ -87,3 +87,68 @@ examples use zeros only to print fixed signatures.
 not enforce it. A verifier that normalizes before verifying accepts both forms
 of a signature, so it must not rely on the signature's bytes being unique
 (link:https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki[BIP 146]).
+
+[#crypto-secp256k1-ecdh]
+==== Three forms of ECDH
+
+Two users of a chat app who have never met want to talk without the server
+reading along. Each publishes a public key; with elliptic-curve Diffie-Hellman
+(ECDH) each combines its own secret key with the other's public key and both
+arrive at the same shared secret, which nobody who sees only the public keys
+can compute
+(link:https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman[Wikipedia]).
+The shared secret is a point on the curve, the secret key of one side times the
+public key of the other; what a program takes of that point is a choice of the
+protocol, and a key pair gives the three that protocols use:
+
+* `ecdh`: the SHA-256 of the point's compressed encoding, 32 bytes,
+libsecp256k1's default
+(link:https://github.com/bitcoin-core/secp256k1#readme[libsecp256k1]). Two
+programs on webcpp, or one on libsecp256k1's default, agree on it; it is the
+form of the chat session of <<crypto-p2p-session>>.
+* `ecdh_x`: the point's x coordinate, 32 bytes, unhashed. Nostr's encrypted
+messages (link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44])
+and Wycheproof's ECDH test vectors
+(link:https://github.com/C2SP/wycheproof[Wycheproof]) take this form; the
+protocol then hashes it its own way.
+* `ecdh_point`: the point itself, SEC1 uncompressed (0x04, x, y), 65 bytes, for
+a protocol that hashes both coordinates
+(link:https://www.secg.org/sec2-v2.pdf[SEC 2]).
+
+Each is returned as a `secret<N>`, which wipes its bytes when it is destroyed
+or moved from: a program reads it with `bytes()` and makes no copy of its own
+to forget. Each refuses a moved-from key pair with `invalid_state`, and a peer
+key that is not a point of the curve, or not 33 bytes compressed or 65 bytes
+uncompressed with the prefix 04, with `invalid_public_key`. They are members
+of the key pair, whose backends are listed above.
+
+*Example.* Two key pairs agree on the x coordinate, and a Nostr library's
+first step follows: NIP-44's conversation key, HKDF-extract
+(link:https://www.rfc-editor.org/rfc/rfc5869[RFC 5869]) of the x coordinate
+with the salt `nip44-v2`. The rest of NIP-44 (message keys, padding, the
+payload) is a domain library's, not crypto's:
+
+[source,cpp]
+----
+include::{examples}/ecdh_x_coordinate.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/ecdh_x_coordinate.expected[]
+----
+
+*Pitfalls.*
+
+* The raw x coordinate is not a key: a Diffie-Hellman value is not uniformly
+random (link:https://www.rfc-editor.org/rfc/rfc5869#section-3.3[RFC 5869,
+section 3.3]), and only about half of all 32-byte values are the x of a point.
+A protocol's key derivation function (HKDF in NIP-44) turns it into keys; used
+directly as an AES key it is weaker than it looks.
+* Two programs must agree on the form. One that takes `ecdh` and one that
+takes `ecdh_x` derive different keys from the same key pairs, and fail
+silently: every message is refused as forged, with nothing pointing at the
+cause. Read the protocol's specification for the form it names.
+* Never use one shared secret as two keys, one per direction or one for
+encryption and one for authentication: derive one key per purpose with the
+KDF, each with its own label (<<crypto-p2p-session>>).

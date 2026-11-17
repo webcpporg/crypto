@@ -49,6 +49,9 @@ webcpp.example signed_update.cpp : <library>/third_party//secp256k1 ;
 # ECDH, HKDF-SHA-256 and AES-256-GCM between two peers.
 webcpp.example ecdh_session.cpp : <library>/third_party//secp256k1 <library>/webcpp/crypto//gcm-default ;
 
+# ECDH's raw x coordinate, and the NIP-44 conversation key a domain library derives from it.
+webcpp.example ecdh_x_coordinate.cpp : <library>/third_party//secp256k1 ;
+
 # A wallet's key pair, its secret sealed at rest and restored.
 webcpp.example wallet_key.cpp : <library>/third_party//secp256k1 <library>/webcpp/crypto//gcm-default ;
 

@@ -6,7 +6,8 @@
 
 /**
  secp256k1 on libsecp256k1: BIP340 Schnorr and ECDSA signatures, their verification, and
- ECDH; ECDSA's DER and low-S forms, and the tweak of an x-only key.
+ ECDH in three forms, each a secret; ECDSA's DER and low-S forms, and the tweak of an x-only
+ key.
 
  @see "secp256k1", in the guide.
 */
@@ -21,6 +22,7 @@
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the context's randomisation, its purpose
+#include <webcpp/crypto/secret.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -28,6 +30,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <memory_resource>
 #include <span>
 #include <type_traits>
@@ -134,6 +137,41 @@ struct secp256k1_secret {
     return secp256k1_nonzero(std::span<std::uint8_t const, 64>(output_bytes).first<32>()) &&
            secp256k1_nonzero(std::span<std::uint8_t const, 64>(output_bytes).last<32>());
 }
+
+extern "C" {
+
+/**
+ * libsecp256k1's ECDH hash function that hashes nothing: the shared point's x coordinate,
+ * 32 bytes, as Wycheproof's and NIP-44's ECDH give it. C linkage, as libsecp256k1's function
+ * pointer type has.
+ *
+ * @return 1, always.
+ */
+inline int webcpp_crypto_detail_secp256k1_copy_x(unsigned char* output_bytes,
+                                                 unsigned char const* x_coordinate,
+                                                 unsigned char const* /*y_coordinate*/,
+                                                 void* /*user_data*/) noexcept {
+    std::memcpy(output_bytes, x_coordinate, 32);
+    return 1;
+}
+
+/**
+ * libsecp256k1's ECDH hash function that writes the shared point, SEC1 uncompressed:
+ * 0x04, x, y, 65 bytes.
+ *
+ * @return 1, always.
+ */
+inline int webcpp_crypto_detail_secp256k1_copy_point(unsigned char* output_bytes,
+                                                     unsigned char const* x_coordinate,
+                                                     unsigned char const* y_coordinate,
+                                                     void* /*user_data*/) noexcept {
+    output_bytes[0] = 0x04;
+    std::memcpy(output_bytes + 1, x_coordinate, 32);
+    std::memcpy(output_bytes + 33, y_coordinate, 32);
+    return 1;
+}
+
+}  // extern "C"
 
 /**
  * Whether `Backend` is libsecp256k1, the one backend of `curves::secp256k1`.
@@ -357,26 +395,39 @@ public:
      * default.
      *
      * @param public_key_bytes The peer's key, SEC1: 33 bytes, prefix 02 or 03, or 65, prefix 04.
-     * @return 32 bytes; `invalid_state`; `invalid_public_key`; `backend_failure`.
+     * @return 32 secret bytes; `invalid_state`; `invalid_public_key`; `backend_failure`.
      */
-    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> ecdh(
+    [[nodiscard]] boost::system::result<secret<32>> ecdh(
         std::span<std::uint8_t const> public_key_bytes) const noexcept {
-        if (!keyed_) {
-            return error::invalid_state;
-        }
-        secp256k1_pubkey parsed_value{};
-        if (!webcpp::crypto::detail::secp256k1_parse_public_key(public_key_bytes, parsed_value)) {
-            return error::invalid_public_key;
-        }
-        webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-        webcpp::crypto::detail::secp256k1_secret secret_bytes;
-        secp256k1_keypair_sec(context_, secret_bytes.bytes.data(), &keypair_);
-        std::array<std::uint8_t, 32> output_bytes{};
-        if (secp256k1_ecdh(context_, output_bytes.data(), &parsed_value, secret_bytes.bytes.data(),
-                           nullptr, nullptr) == 0) {
-            return error::backend_failure;
-        }
-        return output_bytes;
+        return agree<32>(public_key_bytes, nullptr);
+    }
+
+    /**
+     * The shared point's x coordinate, unhashed: what Wycheproof's ECDH vectors, Nostr's NIP-44
+     * and other protocols that hash it themselves take.
+     *
+     * Tip: the x coordinate is not a key; a protocol derives its keys from it (NIP-44 with
+     * HKDF), and that derivation is the protocol's.
+     *
+     * @param public_key_bytes The peer's key, SEC1, as `ecdh` takes it.
+     * @return 32 secret bytes; `invalid_state`; `invalid_public_key`; `backend_failure`.
+     */
+    [[nodiscard]] boost::system::result<secret<32>> ecdh_x(
+        std::span<std::uint8_t const> public_key_bytes) const noexcept {
+        return agree<32>(public_key_bytes,
+                         webcpp::crypto::detail::webcpp_crypto_detail_secp256k1_copy_x);
+    }
+
+    /**
+     * The shared point itself, SEC1 uncompressed (0x04, x, y).
+     *
+     * @param public_key_bytes The peer's key, SEC1, as `ecdh` takes it.
+     * @return 65 secret bytes; `invalid_state`; `invalid_public_key`; `backend_failure`.
+     */
+    [[nodiscard]] boost::system::result<secret<65>> ecdh_point(
+        std::span<std::uint8_t const> public_key_bytes) const noexcept {
+        return agree<65>(public_key_bytes,
+                         webcpp::crypto::detail::webcpp_crypto_detail_secp256k1_copy_point);
     }
 
     /**
@@ -408,6 +459,37 @@ public:
 
 private:
     basic_keypair() noexcept = default;
+
+    /**
+     * ECDH with a peer's public key, its output written by `hash_function` into the secret:
+     * libsecp256k1's SHA-256 when it is null.
+     *
+     * @tparam N The output's size, which `hash_function` writes.
+     * @param public_key_bytes The peer's key, SEC1, as `ecdh` takes it.
+     * @param hash_function libsecp256k1's hash function, or null for its default.
+     * @return `N` secret bytes; `invalid_state`; `invalid_public_key`; `backend_failure`.
+     */
+    template <std::size_t N>
+    [[nodiscard]] boost::system::result<secret<N>> agree(
+        std::span<std::uint8_t const> public_key_bytes,
+        secp256k1_ecdh_hash_function hash_function) const noexcept {
+        if (!keyed_) {
+            return error::invalid_state;
+        }
+        secp256k1_pubkey parsed_value{};
+        if (!webcpp::crypto::detail::secp256k1_parse_public_key(public_key_bytes, parsed_value)) {
+            return error::invalid_public_key;
+        }
+        webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+        webcpp::crypto::detail::secp256k1_secret secret_bytes;
+        secp256k1_keypair_sec(context_, secret_bytes.bytes.data(), &keypair_);
+        secret<N> shared_secret;
+        if (secp256k1_ecdh(context_, shared_secret.writable().data(), &parsed_value,
+                           secret_bytes.bytes.data(), hash_function, nullptr) == 0) {
+            return error::backend_failure;
+        }
+        return shared_secret;
+    }
 
     static std::size_t context_size() noexcept {
         return secp256k1_context_preallocated_size(webcpp::crypto::detail::secp256k1_context_flags);

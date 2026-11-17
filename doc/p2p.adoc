@@ -151,6 +151,6 @@ a secret key computes every past session's secret from the recorded public
 keys, while fresh pairs wiped after the session give *forward secrecy*
 (link:https://en.wikipedia.org/wiki/Forward_secrecy[Wikipedia]); a long-lived
 key signs the fresh public keys instead. `ecdh` returns libsecp256k1's hashed
-form, the SHA-256 of the compressed shared point: both sides must use it, and
-it does not interoperate with protocols that take the raw x coordinate, such
-as Nostr's NIP-44 (<<crypto-secp256k1>>).
+form, the SHA-256 of the compressed shared point, as a `secret<32>` that wipes
+itself: both sides must use the same form, and a protocol that takes the raw x
+coordinate, such as Nostr's NIP-44, needs `ecdh_x` (<<crypto-secp256k1-ecdh>>).

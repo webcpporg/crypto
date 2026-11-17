@@ -206,6 +206,10 @@ crypto-run secp256k1_bip340 : secp256k1_bip340_test.cpp
 crypto-run secp256k1_wycheproof : secp256k1_wycheproof_test.cpp
   : <library>/third_party//secp256k1 <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;
+# The three forms of ECDH, each a secret<N>, and Wycheproof's ECDH vectors.
+crypto-run secp256k1_ecdh : secp256k1_ecdh_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
 # libsecp256k1's recovery and ElligatorSwift modules, which webcpp does not
 # wrap, called through the C API and linked.
 crypto-run secp256k1_c_api : secp256k1_c_api_test.cpp : <library>/third_party//secp256k1 ;

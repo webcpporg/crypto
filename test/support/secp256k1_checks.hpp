@@ -40,7 +40,10 @@ inline void expect_empty_keypair(webcpp::crypto::curves::secp256k1::keypair& key
     BOOST_TEST(key.sign_ecdsa(message).error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.tweak_xonly(tweak).error() == webcpp::crypto::error::invalid_state);
     if (BOOST_TEST(live.has_value())) {
-        BOOST_TEST(key.ecdh(*live->public_key()).error() == webcpp::crypto::error::invalid_state);
+        auto const peer = *live->public_key();
+        BOOST_TEST(key.ecdh(peer).error() == webcpp::crypto::error::invalid_state);
+        BOOST_TEST(key.ecdh_x(peer).error() == webcpp::crypto::error::invalid_state);
+        BOOST_TEST(key.ecdh_point(peer).error() == webcpp::crypto::error::invalid_state);
     }
 }
 

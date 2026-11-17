@@ -66,7 +66,7 @@
 #include <string_view>
 #include <utility>
 
-#if defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE)
+#ifdef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
 
 namespace webcpp::crypto {
 
@@ -110,6 +110,7 @@ extern "C" {
 inline void* webcpp_crypto_openssl_malloc(std::size_t size, char const* /*file*/,
                                           int /*line*/) noexcept {
     constexpr std::size_t header = webcpp::crypto::detail::openssl_block_alignment;
+    // NOLINTNEXTLINE(readability-redundant-parentheses)
     if (size == 0 || size > (std::numeric_limits<std::size_t>::max)() - header) {
         return nullptr;
     }
@@ -148,7 +149,8 @@ inline void webcpp_crypto_openssl_free(void* address, char const* /*file*/, int 
 #endif
         webcpp::crypto::openssl_memory_resource().deallocate(block, header + size, header);
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
-    } catch (...) {  // a resource's deallocate throws nothing; none may cross OpenSSL
+        // NOLINTNEXTLINE(bugprone-empty-catch): a deallocate throws nothing; none may cross OpenSSL
+    } catch (...) {
     }
 #endif
 }
@@ -211,7 +213,7 @@ inline bool openssl_defaults_installed() noexcept {
 
 }  // namespace webcpp::crypto::detail
 
-#if defined(_MSC_VER)
+#ifdef _MSC_VER
 #pragma detect_mismatch("webcpp_crypto_openssl_memory", "resource")
 #endif
 
@@ -229,7 +231,7 @@ namespace webcpp::crypto::detail {
  * @return Nothing, or `memory_functions_not_installed`.
  */
 inline boost::system::result<void> openssl_memory_guard() noexcept {
-#if defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE)
+#ifdef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
     if (!openssl_adapter_installed()) {
         return error::memory_functions_not_installed;
     }
@@ -246,7 +248,7 @@ struct openssl {
     /** The backend's name, which the examples print. */
     static constexpr std::string_view name = "openssl";
 
-#if defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE)
+#ifdef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
     /**
      * Installs webcpp's adapter as OpenSSL's memory functions, so that every allocation of
      * OpenSSL's in the process goes to `openssl_memory_resource()`. Called as the first

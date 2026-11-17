@@ -60,7 +60,7 @@ private:
         last_size = size;
         last_alignment = alignment;
         void* const pointer = std::pmr::new_delete_resource()->allocate(size, alignment);
-        records_.push_back({pointer, size, alignment});
+        records_.push_back({.pointer = pointer, .size = size, .alignment = alignment});
         return pointer;
     }
 
@@ -80,7 +80,7 @@ private:
         std::pmr::new_delete_resource()->deallocate(p, size, alignment);
     }
 
-    bool do_is_equal(memory_resource const& other) const noexcept override {
+    [[nodiscard]] bool do_is_equal(memory_resource const& other) const noexcept override {
         return this == &other;
     }
 };

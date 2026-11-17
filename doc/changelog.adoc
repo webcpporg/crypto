@@ -21,11 +21,9 @@ of every version are on webcpp's index page.
 * Added ciphers::gcm, AES-GCM in place with an incremental seal, whose failed open zeroes the data.
 * Added the default backend, ciphers::aes128_gcm and aes256_gcm, and the refusals of backends that conflict.
 * Added backends::bearssl: AES-GCM on every target allocating nothing, the block cipher refused, and the Jamfile line a program lacks without it.
-* Added backends::openssl and /webcpp/crypto//openssl on native and WASI; a message on it allocates nothing after make.
+* Added backends::openssl and /webcpp/crypto//openssl on native and WASI, a message allocating nothing after make, and WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE, which routes OpenSSL's allocations to the program's resource.
 * Added backends::ctaes, the AES block cipher alone on every target; ciphers::gcm refuses it.
 * Added curves::secp256k1: key pairs, BIP340 and ECDSA signatures, ECDH, strict DER, low-S and the x-only tweak.
 * Added the link-time canaries of BearSSL, ctaes and libsecp256k1, and their own suites on webcpp's build.
 * Added the page: a chapter per namespace and use case, tables generated from the tests, every Jamfile and message, and llms.txt.
-* Added the errors memory_functions_refused and memory_functions_not_installed (13 and 14) of the OpenSSL memory option, and config.hpp's refusals of WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE on WebAssembly and without OpenSSL.
-* Added the OpenSSL memory option's adapter and backends::openssl::install_memory_functions: with WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE, OpenSSL's allocations go to openssl_memory_resource(), and a make refuses to run until the adapter is installed.
 // end::unreleased[]

@@ -1,0 +1,2 @@
+each 64-byte message decodes to its sender's key
+initiator and responder agree

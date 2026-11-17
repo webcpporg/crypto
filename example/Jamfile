@@ -61,6 +61,10 @@ webcpp.example recover_signer.cpp : <library>/third_party//secp256k1 ;
 # and a signature of the tweaked key pair verified under the tweaked public key.
 webcpp.example key_tweak.cpp : <library>/third_party//secp256k1 ;
 
+# Two peers send their keys as ElligatorSwift encodings, 64 bytes that look
+# random, and agree on BIP 324's shared secret.
+webcpp.example ellswift_handshake.cpp : <library>/third_party//secp256k1 ;
+
 # A wallet's key pair, its secret sealed at rest and restored.
 webcpp.example wallet_key.cpp : <library>/third_party//secp256k1 <library>/webcpp/crypto//gcm-default ;
 

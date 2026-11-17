@@ -67,6 +67,7 @@ webcpp.headers-alone crypto : ../include
 webcpp.headers-alone crypto : ../include
   : crypto/curves/secp256k1.hpp crypto/backends/secp256k1.hpp
     crypto/curves/secp256k1/tweak.hpp crypto/curves/secp256k1/formats.hpp
+    crypto/curves/secp256k1/ellswift.hpp
   : <library>/third_party//secp256k1 ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
@@ -231,6 +232,10 @@ crypto-run secp256k1_formats_openssl : secp256k1_formats_test.cpp
   : <library>/third_party//secp256k1 <library>/webcpp/crypto//openssl
     <define>WEBCPP_TEST_OPENSSL_ORACLE
   : native wasip2 wasip3 ;
+# ElligatorSwift against BIP 324's decoding and packet vectors, round trips
+# over seeded key pairs, and the key exchange from both sides.
+crypto-run secp256k1_ellswift : secp256k1_ellswift_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//bips ;
 crypto-run secp256k1_der : secp256k1_der_test.cpp
   : <library>/third_party//secp256k1 <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;

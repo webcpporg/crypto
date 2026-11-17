@@ -6,7 +6,8 @@
 
 // <webcpp/crypto.hpp> in a program that links libsecp256k1 brings secp256k1's header: its
 // branch for WEBCPP_CRYPTO_HAS_SECP256K1 compiles, and the key pair, both verifications, the
-// tweaks of tweak.hpp and the formats of formats.hpp are declared through it alone.
+// tweaks of tweak.hpp, the formats of formats.hpp and the ElligatorSwift of ellswift.hpp are
+// declared through it alone.
 
 #include <webcpp/crypto.hpp>
 
@@ -25,6 +26,8 @@ static_assert(std::is_function_v<decltype(secp::seckey_tweak_add<>)>);
 static_assert(std::is_function_v<decltype(secp::pubkey_combine<>)>);
 static_assert(std::is_function_v<decltype(secp::decode_spki<>)>);
 static_assert(std::is_function_v<decltype(secp::decode_pkcs8<>)>);
+static_assert(std::is_function_v<decltype(secp::ellswift_decode<>)>);
+static_assert(std::is_function_v<decltype(secp::ellswift_xdh<secp::keypair::backend_type>)>);
 
 int main() {
     return 0;

@@ -210,6 +210,11 @@
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_formats+`, `+secp256k1_formats_openssl+`
+
+|`+curves::secp256k1::ellswift_encode+`, `+ellswift_decode+`, `+ellswift_create+`, `+ellswift_xdh+`
+|libsecp256k1
+|native, wasip2, wasip3, emscripten
+|`+secp256k1_ellswift+`
 |===
 
 The same, by target: the backends each operation runs on.
@@ -405,6 +410,12 @@ The same, by target: the backends each operation runs on.
 |libsecp256k1
 
 |`+curves::secp256k1::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+
+|`+curves::secp256k1::ellswift_encode+`, `+ellswift_decode+`, `+ellswift_create+`, `+ellswift_xdh+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1

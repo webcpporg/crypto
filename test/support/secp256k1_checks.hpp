@@ -11,6 +11,7 @@
 #define WEBCPP_TEST_CRYPTO_SUPPORT_SECP256K1_CHECKS_HPP
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
 #include <webcpp/crypto/curves/secp256k1/formats.hpp>
 #include <webcpp/crypto/error.hpp>
 
@@ -43,6 +44,12 @@ inline void expect_empty_keypair(webcpp::crypto::curves::secp256k1::keypair& key
     BOOST_TEST(key.sign_ecdsa(message, aux).error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.sign_recoverable(message).error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.tweak_xonly(tweak).error() == webcpp::crypto::error::invalid_state);
+    BOOST_TEST(webcpp::crypto::curves::secp256k1::ellswift_create(key, aux).error() ==
+               webcpp::crypto::error::invalid_state);
+    std::array<std::uint8_t, webcpp::crypto::curves::secp256k1::ellswift_size> const noise{};
+    BOOST_TEST(webcpp::crypto::curves::secp256k1::ellswift_xdh(
+                   key, noise, noise, webcpp::crypto::curves::secp256k1::ellswift_party::initiator)
+                   .error() == webcpp::crypto::error::invalid_state);
     std::array<std::uint8_t, webcpp::crypto::curves::secp256k1::max_pkcs8_size> encoding{};
     BOOST_TEST(webcpp::crypto::curves::secp256k1::encode_pkcs8(key, encoding).error() ==
                webcpp::crypto::error::invalid_state);

@@ -9,12 +9,14 @@
 // and never through operator new nor the C library's allocator where the target lets a
 // program count it; the signatures (hedged and recoverable too), the three forms of ECDH, the
 // public keys in both forms, both verifications, the parsed public key, recovery, the DER and
-// low-S functions, the x-only tweak, the tweaks, negations and combination of tweak.hpp and the
-// SPKI and PKCS#8 encoders and decoders of formats.hpp allocate nothing, each counted alone
+// low-S functions, the x-only tweak, the tweaks, negations and combination of tweak.hpp, the
+// SPKI and PKCS#8 encoders and decoders of formats.hpp and the ElligatorSwift functions of
+// ellswift.hpp allocate nothing, each counted alone
 // (decode_pkcs8's key pair takes its one block from the resource it is given); the destructor
 // gives the block back; a refused make allocates nothing. A control proves the counter moves.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
 #include <webcpp/crypto/curves/secp256k1/formats.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -169,6 +171,18 @@ int main() {
             return secp::decode_spki(std::span<std::uint8_t const>(encoding).first(spki_size));
         });
         none("encode_pkcs8", [&] { return secp::encode_pkcs8(key, encoding); });
+
+        // ellswift.hpp: the encoding of a key and of a key pair, its decoding, and the exchange.
+        std::array<std::uint8_t, secp::ellswift_size> noise{};
+        none("ellswift_encode", [&] {
+            noise = secp::ellswift_encode(*parsed, aux);
+            return true;
+        });
+        none("ellswift_decode", [&] { return secp::ellswift_decode(noise) == *parsed; });
+        none("ellswift_create", [&] { return secp::ellswift_create(key, aux); });
+        none("ellswift_xdh", [&] {
+            return secp::ellswift_xdh(key, noise, noise, secp::ellswift_party::initiator);
+        });
         BOOST_TEST_EQ(resource.allocated, 1U);
         BOOST_TEST_EQ(resource.deallocated, 0U);
 

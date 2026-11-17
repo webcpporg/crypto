@@ -46,11 +46,13 @@ check signatures with a public key alone, and `recover` finds the key from a
 recoverable signature; `parse_public_key` and `serialize_public_key` read and
 write a `public_key` (<<crypto-secp256k1-keys>>); `to_der`, `from_der` (strict
 DER) and `normalize_ecdsa` convert ECDSA's DER and low-S forms; and
-`tweak_xonly` tweaks an x-only public key. Two more headers hold the tweaks,
+`tweak_xonly` tweaks an x-only public key. Three more headers hold the tweaks,
 negation and combination of whole keys
-(`<webcpp/crypto/curves/secp256k1/tweak.hpp>`, <<crypto-secp256k1-tweaks>>)
-and the keys' SPKI and PKCS#8 (`<webcpp/crypto/curves/secp256k1/formats.hpp>`,
-<<crypto-secp256k1-formats>>). Every function reads libsecp256k1's canary, so
+(`<webcpp/crypto/curves/secp256k1/tweak.hpp>`, <<crypto-secp256k1-tweaks>>),
+the keys' SPKI and PKCS#8 (`<webcpp/crypto/curves/secp256k1/formats.hpp>`,
+<<crypto-secp256k1-formats>>) and ElligatorSwift, keys sent as random-looking
+bytes (`<webcpp/crypto/curves/secp256k1/ellswift.hpp>`,
+<<crypto-secp256k1-ellswift>>). Every function reads libsecp256k1's canary, so
 that a program linked with another build of the library does not link.
 
 include::generated/backends-keypair.adoc[]
@@ -401,3 +403,74 @@ it.
 * The PKCS#8 these functions write holds the secret key in clear. Keep it
 where only the program reads it, out of source control, or seal it at rest
 (<<crypto-wallets-key>>).
+
+[#crypto-secp256k1-ellswift]
+==== ElligatorSwift: keys that look like noise
+
+A peer-to-peer program, a Bitcoin node or a messenger, opens connections that
+a censor or a middlebox on the path may want to block or throttle. Such a box
+recognises a protocol by its first bytes, and a handshake that starts with a
+public key is easy to spot: a compressed key starts with 02 or 03, and the 32
+bytes after it are always the x coordinate of a point of the curve, which only
+about half of all random strings are. BIP 324 sends each peer's key
+instead as 64 bytes that cannot be told from random ones, so that the first
+bytes of the connection look like noise
+(link:https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki[BIP 324]).
+
+ElligatorSwift is the encoding that makes this work. It maps every string of
+64 bytes to a point of the curve, and each point has many such strings; an
+encoding drawn at random among those of a key is uniform among all 64-byte
+strings, so a key sent this way looks like any other random bytes
+(link:https://eprint.iacr.org/2022/759[Chavez-Saab, Rodríguez-Henríquez and
+Tibouchi, SwiftEC, 2022]).
+`<webcpp/crypto/curves/secp256k1/ellswift.hpp>` offers libsecp256k1's
+functions:
+
+* `ellswift_create` makes the encoding of a key pair's own public key from its
+secret and 32 bytes of fresh randomness, so that the key is never computed
+apart; `ellswift_encode` encodes any `public_key`;
+* `ellswift_decode` returns the `public_key` of any 64 bytes: it never fails;
+* `ellswift_xdh` is the key exchange: the x coordinate of the shared point,
+hashed with both encodings as BIP 324 hashes it, a tagged SHA-256, into a
+`secret<32>`. It takes the initiator's encoding, then the responder's, and
+which of the two the key pair is (`ellswift_party`).
+
+A moved-from key pair is refused with `invalid_state`. The tests check BIP
+324's own vectors: every encoding of its decoding list, and the shared secret
+of each of its packet vectors.
+
+include::generated/backends-ellswift.adoc[]
+
+*Example.* Two peers each send the 64 bytes `ellswift_create` makes; each
+message decodes to its sender's key, and the two shared secrets agree:
+
+[source,cpp]
+----
+include::{examples}/ellswift_handshake.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/ellswift_handshake.expected[]
+----
+
+The messages carry no recognisable prefix, unlike a compressed key's 02 or 03
+(link:https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki[BIP 324]).
+That hides that a key exchange happens, not who takes part: the addresses of
+both peers stay visible to whoever watches the connection.
+
+*Pitfalls.*
+
+* Draw fresh randomness for every encoding. The same key with the same
+randomness gives the same 64 bytes, so two connections of one node, or one
+key reused, are linked by anyone who sees both; with fresh randomness each
+encoding is new.
+* The hash binds both encodings in a fixed order, the initiator's first. A
+side that passes them in its own order, ours then theirs, or names the wrong
+party, computes a different secret, and the connection fails with nothing
+pointing at the cause.
+* The shared secret is the input of the protocol's key schedule, never a key
+by itself: BIP 324 derives its session's keys from it with HKDF
+(link:https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki[BIP 324]),
+and that schedule, its packets and its garbage terminators are a domain
+library's.

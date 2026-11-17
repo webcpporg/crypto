@@ -99,6 +99,13 @@
 `+/third_party//secp256k1+`
 |<<crypto-secp256k1-tweaks,[.keep]`+key_tweak.cpp+`>>
 
+|Make a peer-to-peer connection's key exchange look like random bytes (BIP 324's transport; its packets are a domain library's)
+|In `+curves::secp256k1+`: `+ellswift_create+`, `+ellswift_decode+`, `+ellswift_xdh+`
+|libsecp256k1
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+`
+|<<crypto-secp256k1-ellswift,[.keep]`+ellswift_handshake.cpp+`>>
+
 |Make and keep a wallet's key
 |In `+curves::secp256k1+`: `+keypair::make+`, `+xonly_public_key+`, `+public_key+`; `+aes256_gcm+` at rest
 |libsecp256k1, and AES-GCM's default

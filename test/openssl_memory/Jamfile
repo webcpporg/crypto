@@ -1,0 +1,29 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+# OpenSSL's memory functions under WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE (spec
+# sections 3.7 and 8.5): each test is a program of its own, since OpenSSL's
+# functions are the process's and cannot be put back once allocated through;
+# each runs with exceptions on and off, on native programs only.
+project : requirements <library>/webcpp/crypto//openssl ;
+
+import webcpp ;
+
+webcpp.targets native ;
+
+rule memory-run ( name : sources + : requirements * )
+{
+    webcpp.run $(name) : $(sources)
+      : $(requirements) <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;
+    webcpp.run $(name)_no_exceptions : $(sources)
+      : $(requirements) <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE <exception-handling>off ;
+}
+
+memory-run adapter : adapter_test.cpp ;
+
+# The header alone, with the option: its branch compiles with nothing before it.
+webcpp.compile header_alone : header_alone_test.cpp
+  : <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;

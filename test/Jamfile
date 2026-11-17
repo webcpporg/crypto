@@ -103,6 +103,7 @@ webcpp.compile-fail openssl_named_c_on_emscripten : openssl_named_c_test.c
   : <library>/webcpp/crypto//openssl : emscripten ;
 
 build-project msvc ;
+build-project openssl_memory ;
 
 # The default backend (spec section 5), one combination of linked and selected
 # backends per program, each on the targets where its answer holds.

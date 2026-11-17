@@ -14,6 +14,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/limits.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
@@ -27,6 +28,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <type_traits>
 #include <utility>
 
 namespace webcpp::crypto::ciphers {
@@ -52,6 +54,15 @@ public:
     using cipher_type = Cipher;
     /** The backend. */
     using backend_type = backend;
+    /** The family of the capability table, `families::gcm`, which `supports_v` reads. */
+    using family_type = families::gcm;
+    /**
+     * The algorithm of the capability table: `tags::aes128_gcm`, `tags::aes192_gcm` or
+     * `tags::aes256_gcm`, by the key's size.
+     */
+    using name_type = std::conditional_t<
+        Cipher::key_size == 16, tags::aes128_gcm,
+        std::conditional_t<Cipher::key_size == 24, tags::aes192_gcm, tags::aes256_gcm>>;
     /** The tag, Boost.Hash2's digest of 16 bytes. */
     using result_type = boost::hash2::digest<16>;
     /** The key's size in bytes. */

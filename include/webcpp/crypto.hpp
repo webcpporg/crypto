@@ -22,6 +22,7 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the system's entropy, a purpose of crypto
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/supports.hpp>
 
 #ifdef WEBCPP_CRYPTO_HAS_BEARSSL
 #include <webcpp/crypto/backends/bearssl.hpp>

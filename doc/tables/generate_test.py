@@ -8,12 +8,14 @@
 """Checks generate.py's readers and writers on small fixtures of their own: the Jamfile reader (a
 program inside an `if`, a rule's body, the targets a program inherits, the memory option's tests, a
 name declared twice), a backend's reason for the targets an operation misses (OpenSSL's alone), the
-outcome reader (each directive and section), the Doc Comment reader (a line reference left out),
-and the writers whose output a reader of the page sees (inline code that holds a `+` or a backtick,
-a failing fixture's output per target, a comparison table's names of code, the decision table's
-Jamfile column). generate.py --check proves only that the committed tables are what generate.py
-writes now: a reader that regresses and is regenerated in the same change would pass it, and fails
-here.
+outcome reader (each directive and section), the Doc Comment reader (a line reference left out), the
+writers whose output a reader of the page sees (inline code that holds a `+` or a backtick, a
+failing fixture's output per target, a comparison table's names of code, the decision table's
+Jamfile column), and the capability table's: its checks of crypto.json's families, the refusals and
+cells of include/webcpp/crypto/detail/capabilities.hpp, the cells test/capabilities_test.cpp
+asserts, and the comparison --check makes.
+generate.py --check proves only that the committed tables are what generate.py writes now: a reader
+that regresses and is regenerated in the same change would pass it, and fails here.
 
 Usage: generate_test.py [<case>...]. The doc build runs it before generate.py --check
 (doc/Jamfile). Exit 0, or 1 at the first failing case.
@@ -229,6 +231,153 @@ def test_the_decision_table_writes_no_jamfile_as_prose(scratch: Path) -> None:
     assert '\n|<<s,[.keep]`+app.cpp+`>>\n' in page, page
 
 
+EVERY_TARGET = ['native', 'wasip2', 'wasip3', 'emscripten']
+
+
+def small_table() -> generate.Data:
+    """A capability table of one family, Ed25519, on libsodium alone, beside BearSSL and a
+    backend that is no tag of `backends` (the operating system's generator)."""
+    def backend(title: str, name: str, jamfile: str) -> generate.Data:
+        return {'title': title, 'jamfile': jamfile,
+                'header': f'<webcpp/crypto/backends/{name}.hpp>', 'targets': EVERY_TARGET}
+    return {
+        'targets': EVERY_TARGET, 'sources': {'rfc8032': ['RFC 8032', 'https://example.org']},
+        'backends': {'bearssl': backend('BearSSL', 'bearssl', '/third_party//bearssl'),
+                     'sodium': backend('libsodium', 'sodium', '/third_party//sodium'),
+                     'system': {'title': 'The system'}},
+        'operations': [{'id': 'sign', 'family': 'ed25519',
+                        'backends': {'sodium': {'tests': ['ed25519']}}}],
+        'families': [{
+            'name': 'ed25519', 'title': 'Ed25519', 'group': 'curves::ed25519', 'since': '0.2',
+            'header': '<webcpp/crypto/curves/ed25519.hpp>',
+            'names': [{'name': 'ed25519', 'title': 'Ed25519',
+                       'type': 'curves::ed25519::basic_keypair<{backend}>'}],
+            'default': [{'targets': EVERY_TARGET, 'backend': 'sodium',
+                         'why': 'the only backend ({rfc8032})'}],
+            'backends': {'sodium': {'targets': 'all'}}}]}
+
+
+def a_fault(data: generate.Data, declared: dict[str, list[str]], wanted: str) -> None:
+    """Checks that the families of data are refused with a fault that says wanted."""
+    try:
+        generate.check_families(data, declared)
+    except generate.Fault as fault:
+        assert wanted in str(fault), fault
+    else:
+        raise AssertionError(f'no fault saying {wanted}')
+
+
+def test_a_backend_without_a_family_is_refused_naming_those_that_have_it(_: Path) -> None:
+    header = generate.capabilities_header(small_table())
+    assert ('static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, '
+            '"webcpp::crypto: bearssl has no Ed25519. The backends that have it: sodium '
+            '(native, wasip2, wasip3, emscripten).")') in header, header
+    # A backend that has the family, whose header the program did not include, is told so; a
+    # backend that is no tag of backends:: is never named; any other type is the last refusal.
+    assert ('static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, '
+            '"webcpp::crypto: sodium\'s Ed25519 is in <webcpp/crypto/backends/sodium.hpp>, '
+            'which the program does not include. Include it, and add /third_party//sodium to the '
+            'program\'s Jamfile.")') in header, header
+    assert 'system' not in header, header
+    assert ('static_assert(::webcpp::crypto::detail::dependent_false<Backend>, '
+            '"webcpp::crypto: Ed25519 has no backend of that name. The backends that have it: '
+            'sodium (native, wasip2, wasip3, emscripten).")\n') in header, header
+    assert '#define WEBCPP_CRYPTO_DETAIL_REFUSE_ED25519(Backend)' in header, header
+
+
+def test_a_cell_decided_at_run_time_says_so(_: Path) -> None:
+    data = small_table()
+    data['families'][0]['backends']['sodium'] = {'targets': ['native'], 'runtime': True}
+    assert generate.refusal(data, data['families'][0], 'bearssl') == (
+        'webcpp::crypto: bearssl has no Ed25519. The backends that have it: sodium (native, at '
+        'run time).')
+
+
+def test_each_cell_is_true_on_its_targets_alone(_: Path) -> None:
+    data = small_table()
+    data['families'][0]['backends']['sodium']['targets'] = ['native', 'wasip3']
+    header = generate.capabilities_header(data)
+    assert ('#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP3)\n'
+            'template <>\n'
+            'inline constexpr bool supported<families::ed25519, families::ed25519, '
+            'backends::sodium> = true;\n#endif\n') in header, header
+    # A family of one name is its own name: no tag of tags:: is declared for it.
+    assert 'struct ed25519;' in header and 'namespace webcpp::crypto::tags' not in header, header
+    assert header.startswith('#ifndef WEBCPP_CRYPTO_DETAIL_CAPABILITIES_HPP\n'), header
+
+
+def test_the_generated_test_asserts_every_cell(_: Path) -> None:
+    test = generate.capabilities_test(small_table())
+    present = ('crypto::supports_v<algorithm<families::ed25519, families::ed25519>, '
+               'backends::sodium>')
+    assert (f'#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) '
+            f'|| defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)\n'
+            f'static_assert({present});\n#else\nstatic_assert(!{present});\n#endif\n') in test, test
+    assert ('static_assert(!crypto::supports_v<algorithm<families::ed25519, families::ed25519>, '
+            'backends::bearssl>);\n') in test, test
+    # Each present cell is made, where its backend is linked, through the family's own type.
+    assert ('defined(WEBCPP_CRYPTO_HAS_SODIUM)\n    BOOST_TEST((webcpp::test::made<'
+            'crypto::curves::ed25519::basic_keypair<backends::sodium>, families::ed25519, '
+            'families::ed25519, backends::sodium>()));\n') in test, test
+    assert '#include <webcpp/crypto/curves/ed25519.hpp>\n' in test, test
+    assert '#ifdef WEBCPP_CRYPTO_HAS_SODIUM\n#include <webcpp/crypto/backends/sodium.hpp>\n' in (
+        test), test
+    # The refusal macro is parsed, in a template no one instantiates.
+    assert 'WEBCPP_CRYPTO_DETAIL_REFUSE_ED25519(Backend);' in test, test
+
+
+def test_a_family_that_names_an_unknown_backend_is_a_fault(_: Path) -> None:
+    data = small_table()
+    data['families'][0]['backends']['botan'] = {'targets': 'all'}
+    a_fault(data, {'ed25519': EVERY_TARGET},
+            'the family ed25519 names the backend botan, which is no tag of backends')
+    data = small_table()
+    data['families'][0]['backends']['system'] = {'targets': 'all'}
+    a_fault(data, {'ed25519': EVERY_TARGET},
+            'the family ed25519 names the backend system, which is no tag of backends')
+
+
+def test_a_cell_claimed_where_no_test_runs_is_a_fault(_: Path) -> None:
+    a_fault(small_table(), {'ed25519': ['native', 'wasip2', 'wasip3']},
+            'the family ed25519 claims sodium on emscripten, where no test of its operations '
+            'on sodium runs')
+    data = small_table()
+    data['backends']['sodium']['targets'] = ['native']
+    data['families'][0]['backends']['sodium']['targets'] = ['native', 'wasip2']
+    a_fault(data, {'ed25519': EVERY_TARGET},
+            'the family ed25519 claims sodium on wasip2, where sodium is not built')
+
+
+def test_a_default_is_one_backend_of_the_family_per_target(_: Path) -> None:
+    data = small_table()
+    data['families'][0]['default'] = [{'targets': ['native'], 'backend': 'sodium', 'why': 'w'}]
+    a_fault(data, {'ed25519': EVERY_TARGET},
+            'the family ed25519 has no default on wasip2, wasip3, emscripten')
+    data['families'][0]['default'] = [{'targets': EVERY_TARGET, 'backend': 'bearssl',
+                                       'why': 'w'}]
+    a_fault(data, {'ed25519': EVERY_TARGET},
+            'the family ed25519 defaults to bearssl on native, which does not have it there')
+    data['families'][0]['default'] = [{'targets': EVERY_TARGET, 'backend': 'sodium', 'why': 'w'},
+                                      {'targets': ['native'], 'backend': None, 'why': 'w'}]
+    a_fault(data, {'ed25519': EVERY_TARGET}, 'the family ed25519 has two defaults on native')
+    data = small_table()
+    data['operations'][0]['family'] = 'ed448'
+    a_fault(data, {'ed25519': EVERY_TARGET},
+            'the operation sign names the family ed448, which crypto.json does not list')
+
+
+def test_the_check_names_a_file_that_differs(scratch: Path) -> None:
+    files = {scratch / 'include/a.hpp': 'one\n', scratch / 'test/b.cpp': 'two\n'}
+    for path, text in files.items():
+        written(path.parent, path.name, text)
+    assert generate.stale(files) == [], generate.stale(files)
+    written(scratch / 'test', 'b.cpp', 'twO\n')
+    assert generate.stale(files) == [scratch / 'test/b.cpp'], generate.stale(files)
+    (scratch / 'include/a.hpp').unlink()
+    assert generate.stale(files) == [scratch / 'include/a.hpp', scratch / 'test/b.cpp'], (
+        generate.stale(files))
+
+
 CASES: list[Callable[[Path], None]] = [
     test_a_rule_body_declares_nothing,
     test_a_program_inside_an_if_is_a_fault,
@@ -242,6 +391,14 @@ CASES: list[Callable[[Path], None]] = [
     test_a_fixture_that_builds_and_runs_nothing_is_a_record,
     test_a_comparison_column_is_headed_by_its_plain_name,
     test_the_decision_table_writes_no_jamfile_as_prose,
+    test_a_backend_without_a_family_is_refused_naming_those_that_have_it,
+    test_a_cell_decided_at_run_time_says_so,
+    test_each_cell_is_true_on_its_targets_alone,
+    test_the_generated_test_asserts_every_cell,
+    test_a_family_that_names_an_unknown_backend_is_a_fault,
+    test_a_cell_claimed_where_no_test_runs_is_a_fault,
+    test_a_default_is_one_backend_of_the_family_per_target,
+    test_the_check_names_a_file_that_differs,
 ]
 
 

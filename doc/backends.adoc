@@ -16,6 +16,14 @@ that target, and refused where a message test stops it. The data and the
 tables are regenerated, and checked by the documentation's build, at every
 change of a test or a pin.
 
+A program asks the same table in {cpp}: `supports_v<Algorithm, Backend>`, in
+`<webcpp/crypto/supports.hpp>`, is `true` exactly where the table says that
+the backend has the algorithm on the target being compiled, and needs neither
+the backend's header nor its library, so that generic code can choose a
+backend at compile time. Each algorithm's type names its family and its
+algorithm for it (`family_type` and `name_type`, tags of `families` and
+`tags`); the test that asserts every cell is generated from the same data.
+
 [#crypto-backends-matrix]
 === Operations, backends and targets
 

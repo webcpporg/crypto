@@ -15,6 +15,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/error.hpp>
 
@@ -23,6 +24,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <type_traits>
 #include <utility>
 
 namespace webcpp::crypto::detail {
@@ -42,6 +44,12 @@ class basic_aes {
 public:
     /** The backend. */
     using backend_type = Backend;
+    /** The family of the capability table, `families::aes_block`, which `supports_v` reads. */
+    using family_type = families::aes_block;
+    /** The algorithm of the capability table: `tags::aes128`, `tags::aes192` or `tags::aes256`. */
+    using name_type =
+        std::conditional_t<KeySize == 16, tags::aes128,
+                           std::conditional_t<KeySize == 24, tags::aes192, tags::aes256>>;
     /** The key's size in bytes. */
     static constexpr std::size_t key_size = KeySize;
     /** AES's block, 16 bytes. */

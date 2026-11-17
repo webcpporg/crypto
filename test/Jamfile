@@ -24,7 +24,8 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/equal.hpp crypto/error.hpp crypto/ciphers/aes.hpp crypto/ciphers/gcm.hpp
   crypto/random_device.hpp crypto/detail/declassify.hpp crypto/detail/engines.hpp
   crypto/detail/entropy.hpp crypto/detail/limits.hpp crypto/detail/windows.hpp
-  crypto/detail/wipe.hpp crypto/secret.hpp ;
+  crypto/detail/wipe.hpp crypto/secret.hpp crypto/supports.hpp
+  crypto/detail/capabilities.hpp ;
 
 # The backend BearSSL's header and the default backend's, with BearSSL linked,
 # on every target.
@@ -67,7 +68,9 @@ crypto-run equal : equal_test.cpp ;
 # <webcpp/crypto.hpp> alone, with no backend linked, compiles, links and runs.
 crypto-run convenience_header : convenience_header_test.cpp ;
 crypto-run wipe : wipe_test.cpp ;
-# secret<N> is not copyable, moves wipe the source, and the destructor wipes the storage, at -O2.
+# secret<N> is not copyable, moves wipe the source, and the destructor wipes
+# the storage: at -O2 with every call inlined (<inlining>full), where a wipe
+# the compiler could drop as a dead store would be dropped.
 crypto-run secret : secret_test.cpp : <optimization>speed <inlining>full ;
 
 # A destroyed or moved-from key schedule is zero in its storage, read at -O2
@@ -258,6 +261,19 @@ crypto-run aes_ctaes : aes_ctaes_test.cpp : <library>/third_party//ctaes ;
 
 # The backend libsodium: its canary, its initialisation and its three layers.
 crypto-run sodium_backend : sodium_backend_test.cpp : <library>/third_party//sodium ;
+
+# The capability table of doc/tables/crypto.json, which generate.py writes
+# this test from: supports_v of every cell on the target, and each present
+# cell made, with every backend the target builds linked.
+crypto-run capabilities : capabilities_test.cpp
+  : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
+    <library>/third_party//ctaes <library>/third_party//secp256k1
+    <library>/third_party//sodium
+  : native wasip2 wasip3 ;
+crypto-run capabilities_emscripten : capabilities_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//ctaes
+    <library>/third_party//secp256k1 <library>/third_party//sodium
+  : emscripten ;
 
 # ctaes against OpenSSL on 10,000 random keys of each size (spec section 8.2),
 # on native, wasip2 and wasip3 (on WASI OpenSSL runs its portable C code).

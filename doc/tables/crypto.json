@@ -1,5 +1,5 @@
 {
-    "comment": "The data of crypto's generated tables and of llms.txt; doc/tables/generate.py reads it with the test Jamfiles, the message tests and the superproject's Jamfile fixtures, and writes doc/generated/ and doc/llms.txt. A name in a text is written between backticks, as Markdown writes code: the tables show it as code and llms.txt keeps the backticks. Edit this file, then run python3 libs/crypto/doc/tables/generate.py; the doc build runs it with --check.",
+    "comment": "The data of crypto's generated tables and of llms.txt; doc/tables/generate.py reads it with the test Jamfiles, the message tests and the superproject's Jamfile fixtures, and writes doc/generated/, doc/llms.txt, include/webcpp/crypto/detail/capabilities.hpp and test/capabilities_test.cpp. The capability table is `families`: per family its algorithms, the targets on which each backend has it (each claimed only where a test of the family's operations on that backend runs), constant time where it is not by the backend's design, and the default per target with its reason; a backend with `targets`, where it is built, is a tag of `backends`. A name in a text is written between backticks, as Markdown writes code: the tables show it as code and llms.txt keeps the backticks. Edit this file, then run python3 libs/crypto/doc/tables/generate.py; the doc build runs it with --check.",
     "page": "https://webcpporg.github.io/libs/crypto/",
     "targets": ["native", "wasip2", "wasip3", "emscripten"],
     "sources": {
@@ -66,6 +66,7 @@
         "bearssl": {
             "title": "BearSSL",
             "jamfile": "/third_party//bearssl",
+            "targets": ["native", "wasip2", "wasip3", "emscripten"],
             "header": "<webcpp/crypto/backends/bearssl.hpp>",
             "library": "BearSSL, commit 7bea48e5 of the mirror webcpporg/bearssl, built from source",
             "licence": "MIT",
@@ -77,6 +78,7 @@
         "openssl": {
             "title": "OpenSSL",
             "jamfile": "/webcpp/crypto//openssl",
+            "targets": ["native", "wasip2", "wasip3"],
             "header": "<webcpp/crypto/backends/openssl.hpp>",
             "library": "OpenSSL 3.5.9's libcrypto, built from source and static",
             "licence": "Apache-2.0",
@@ -88,6 +90,7 @@
         "ctaes": {
             "title": "ctaes",
             "jamfile": "/third_party//ctaes",
+            "targets": ["native", "wasip2", "wasip3", "emscripten"],
             "header": "<webcpp/crypto/backends/ctaes.hpp>",
             "library": "ctaes as Bitcoin Core v31.1 ships it (`src/crypto/ctaes`), built from source",
             "licence": "MIT",
@@ -99,6 +102,7 @@
         "secp256k1": {
             "title": "libsecp256k1",
             "jamfile": "/third_party//secp256k1",
+            "targets": ["native", "wasip2", "wasip3", "emscripten"],
             "header": "<webcpp/crypto/backends/secp256k1.hpp>",
             "library": "libsecp256k1 v0.8.0, built from source with every module on",
             "licence": "MIT",
@@ -106,6 +110,14 @@
             "allocation": "`keypair::make` allocates the signing context, once, in the `std::pmr::memory_resource` it is given; nothing else allocates",
             "constant_time": "by design: signing and key generation are constant time and constant memory access",
             "constant_time_sources": ["libsecp256k1"]
+        },
+        "sodium": {
+            "title": "libsodium",
+            "jamfile": "/third_party//sodium",
+            "targets": ["native", "wasip2", "wasip3", "emscripten"],
+            "header": "<webcpp/crypto/backends/sodium.hpp>",
+            "library": "libsodium 1.0.22, built from source",
+            "licence": "ISC"
         },
         "system": {
             "title": "the system's generator",
@@ -163,6 +175,7 @@
         },
         {
             "id": "aes_block",
+            "family": "aes_block",
             "functions": ["make", "encrypt", "decrypt"],
             "namespace": "ciphers",
             "api": "ciphers::aes128, aes192, aes256",
@@ -178,6 +191,7 @@
         },
         {
             "id": "gcm",
+            "family": "gcm",
             "functions": ["make", "seal", "open", "begin_seal", "update", "result"],
             "namespace": "ciphers",
             "api": "ciphers::gcm, aes128_gcm, aes256_gcm",
@@ -195,6 +209,7 @@
         },
         {
             "id": "keypair",
+            "family": "secp256k1",
             "functions": ["make", "xonly_public_key", "public_key", "sign_schnorr", "sign_ecdsa", "ecdh", "tweak_xonly"],
             "namespace": "curves",
             "api": "curves::secp256k1::keypair",
@@ -205,6 +220,7 @@
         },
         {
             "id": "verify",
+            "family": "secp256k1",
             "functions": ["verify_schnorr", "verify_ecdsa"],
             "namespace": "curves",
             "api": "curves::secp256k1::verify_schnorr, verify_ecdsa",
@@ -215,6 +231,7 @@
         },
         {
             "id": "encodings",
+            "family": "secp256k1",
             "functions": ["to_der", "from_der", "normalize_ecdsa"],
             "namespace": "curves",
             "api": "curves::secp256k1::to_der, from_der, normalize_ecdsa",
@@ -225,6 +242,7 @@
         },
         {
             "id": "tweak",
+            "family": "secp256k1",
             "free": true,
             "functions": ["tweak_xonly"],
             "namespace": "curves",
@@ -243,6 +261,72 @@
             "what": "With `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, natively, every allocation of OpenSSL's in the process goes to a `std::pmr::memory_resource` the program defines.",
             "section": "crypto-memory-openssl",
             "backends": {"openssl": {"tests": ["adapter", "everything", "late", "foreign", "fresh_install", "forgotten", "replaced", "second_install", "fail_second", "fail_init", "fail_init_threads", "neighbours", "handshake"], "elsewhere": "memory"}}
+        }
+    ],
+    "families": [
+        {
+            "name": "gcm",
+            "title": "AES-GCM",
+            "group": "ciphers",
+            "since": "0.1",
+            "header": "<webcpp/crypto/ciphers/gcm.hpp>",
+            "names": [
+                {"name": "aes128_gcm", "title": "AES-128-GCM", "type": "ciphers::gcm<ciphers::aes128<{backend}>>"},
+                {"name": "aes192_gcm", "title": "AES-192-GCM", "type": "ciphers::gcm<ciphers::aes192<{backend}>>"},
+                {"name": "aes256_gcm", "title": "AES-256-GCM", "type": "ciphers::gcm<ciphers::aes256<{backend}>>"}
+            ],
+            "default": [
+                {"targets": ["native"], "backend": "openssl", "why": "OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 ({openssl-armv8}; {openssl-ghash-asm}); BearSSL has them on x86 only ({bearssl-aes})"},
+                {"targets": ["wasip2", "wasip3"], "backend": "bearssl", "why": "constant time by design ({bearssl-ct}), where OpenSSL is built no-asm and its AES and GHASH are table-based ({openssl-install})"},
+                {"targets": ["emscripten"], "backend": "bearssl", "why": "the only backend there: webcpp does not build OpenSSL for Emscripten; constant time by design ({bearssl-ct})"}
+            ],
+            "backends": {
+                "bearssl": {"targets": "all"},
+                "openssl": {"targets": "all", "constant_time": {
+                    "native": "with assembly (Clang and GCC), AES-NI and carry-less multiplication where the CPU has them; built no-asm on MSVC, table-based AES and 4-bit GHASH, neither constant time ({openssl-install})",
+                    "wasip2": "not constant time: built no-asm, table-based AES and 4-bit GHASH ({openssl-install}; {openssl-aes-core})",
+                    "wasip3": "not constant time: built no-asm, table-based AES and 4-bit GHASH ({openssl-install}; {openssl-aes-core})"
+                }}
+            }
+        },
+        {
+            "name": "aes_block",
+            "title": "AES block cipher",
+            "group": "ciphers",
+            "since": "0.1",
+            "header": "<webcpp/crypto/ciphers/aes.hpp>",
+            "names": [
+                {"name": "aes128", "title": "AES-128", "type": "ciphers::aes128<{backend}>"},
+                {"name": "aes192", "title": "AES-192", "type": "ciphers::aes192<{backend}>"},
+                {"name": "aes256", "title": "AES-256", "type": "ciphers::aes256<{backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": null, "why": "none: a raw block cipher is a building block a program chooses deliberately, naming its backend; `aes256<>` takes AES-GCM's default as its argument, and its `make` does not compile where that is BearSSL"}
+            ],
+            "backends": {
+                "openssl": {"targets": "all", "constant_time": {
+                    "native": "with assembly (Clang and GCC), AES-NI where the CPU has it; built no-asm on MSVC, table-based AES, not constant time ({openssl-install})",
+                    "wasip2": "not constant time: built no-asm, table-based AES ({openssl-install}; {openssl-aes-core})",
+                    "wasip3": "not constant time: built no-asm, table-based AES ({openssl-install}; {openssl-aes-core})"
+                }},
+                "ctaes": {"targets": "all"}
+            }
+        },
+        {
+            "name": "secp256k1",
+            "title": "secp256k1",
+            "group": "curves::secp256k1",
+            "since": "0.1",
+            "header": "<webcpp/crypto/curves/secp256k1.hpp>",
+            "names": [
+                {"name": "secp256k1", "title": "secp256k1", "type": "curves::secp256k1::basic_keypair<{backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "why": "the only backend ({libsecp256k1})"}
+            ],
+            "backends": {
+                "secp256k1": {"targets": "all"}
+            }
         }
     ],
     "rules": [

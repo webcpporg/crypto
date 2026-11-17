@@ -152,6 +152,9 @@
 #if defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || \
     defined(WEBCPP_TARGET_EMSCRIPTEN)
 #define WEBCPP_CRYPTO_WEBASSEMBLY 1
+#else
+/** Defined on the native target, where no WebAssembly target is: the capability table's name. */
+#define WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE 1
 #endif
 
 // The refusals of impossible combinations. Clang and gcc go on after an

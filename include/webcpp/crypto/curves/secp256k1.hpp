@@ -16,6 +16,7 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/backends/secp256k1.hpp>
+#include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the context's randomisation, its purpose
@@ -170,6 +171,10 @@ class basic_keypair {
 public:
     /** The backend. */
     using backend_type = Backend;
+    /** The family of the capability table, `families::secp256k1`, which `supports_v` reads. */
+    using family_type = families::secp256k1;
+    /** The algorithm of the capability table: the family's own tag, its one algorithm. */
+    using name_type = families::secp256k1;
 
     /**
      * Makes a key pair from a secret key.

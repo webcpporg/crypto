@@ -13,6 +13,10 @@
 
 namespace webcpp::crypto::detail {
 
+/** False for every `T`: a `static_assert` on it fires only where its template is instantiated. */
+template <class T>
+inline constexpr bool dependent_false = false;
+
 /**
  * What a backend's header specialises, per algorithm: a state, which an object stores and
  * which never refuses, and an engine, used only inside the algorithm's member functions,

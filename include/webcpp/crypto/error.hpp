@@ -79,6 +79,21 @@ enum class error : int {
      * refuses to run, with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
      */
     memory_functions_not_installed = 14,
+    /** A public key of small order, or one that gives an all-zero shared secret. */
+    weak_public_key = 15,
+    /** An encoding that is not a canonical element of the group. */
+    invalid_point = 16,
+    /** A scalar that is not reduced, or zero where zero is refused. */
+    invalid_scalar = 17,
+    /** Padding that cannot be removed, whatever the cause. */
+    invalid_padding = 18,
+    /**
+     * Hexadecimal, base64, PEM, or a key's DER form that does not decode, or is not the one
+     * encoding the format allows.
+     */
+    invalid_encoding = 19,
+    /** A KEM or RSA ciphertext of another size than the key's. */
+    invalid_ciphertext_size = 20,
 };
 
 namespace detail {
@@ -109,6 +124,13 @@ inline const char* message_of(int error_value) noexcept {
             return "OpenSSL's memory functions are not webcpp::crypto's. Call "
                    "backends::openssl::install_memory_functions() as the first statement of "
                    "main, and let nothing else call CRYPTO_set_mem_functions.";
+        case error::weak_public_key:
+            return "the public key is weak: of small order, or the shared secret is zero";
+        case error::invalid_point: return "the encoding is not a canonical element of the group";
+        case error::invalid_scalar: return "the scalar is not reduced, or is zero";
+        case error::invalid_padding: return "the padding is not valid";
+        case error::invalid_encoding: return "the encoding does not decode";
+        case error::invalid_ciphertext_size: return "the ciphertext is not of the key's size";
     }
     return "unknown webcpp.crypto error";
 }

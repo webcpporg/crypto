@@ -27,4 +27,5 @@ of every version are on webcpp's index page.
 * Added the link-time canaries of BearSSL, ctaes and libsecp256k1, and their own suites on webcpp's build.
 * Added backends::sodium and its link-time canary on /third_party//sodium, which webcpp::hash shares, and libsodium's initialisation every engine calls first.
 * Added the page: a chapter per namespace and use case, the memory option's guide and example, tables generated from the tests, every Jamfile and message, and llms.txt.
+* Added secret<N>, a self-wiping array that is copied only by clone, and the errors 15 to 20: weak_public_key, invalid_point, invalid_scalar, invalid_padding, invalid_encoding and invalid_ciphertext_size.
 // end::unreleased[]

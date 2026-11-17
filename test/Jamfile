@@ -24,7 +24,7 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/equal.hpp crypto/error.hpp crypto/ciphers/aes.hpp crypto/ciphers/gcm.hpp
   crypto/random_device.hpp crypto/detail/declassify.hpp crypto/detail/engines.hpp
   crypto/detail/entropy.hpp crypto/detail/limits.hpp crypto/detail/windows.hpp
-  crypto/detail/wipe.hpp ;
+  crypto/detail/wipe.hpp crypto/secret.hpp ;
 
 # The backend BearSSL's header and the default backend's, with BearSSL linked,
 # on every target.
@@ -67,6 +67,8 @@ crypto-run equal : equal_test.cpp ;
 # <webcpp/crypto.hpp> alone, with no backend linked, compiles, links and runs.
 crypto-run convenience_header : convenience_header_test.cpp ;
 crypto-run wipe : wipe_test.cpp ;
+# secret<N> is not copyable, moves wipe the source, and the destructor wipes the storage, at -O2.
+crypto-run secret : secret_test.cpp : <optimization>speed ;
 
 # A destroyed or moved-from key schedule is zero in its storage, read at -O2
 # where a dropped store would show: one program per keyed type, one source.

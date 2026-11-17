@@ -37,6 +37,12 @@ int main() {
     BOOST_TEST_EQ(static_cast<int>(error::backend_failure), 12);
     BOOST_TEST_EQ(static_cast<int>(error::memory_functions_refused), 13);
     BOOST_TEST_EQ(static_cast<int>(error::memory_functions_not_installed), 14);
+    BOOST_TEST_EQ(static_cast<int>(error::weak_public_key), 15);
+    BOOST_TEST_EQ(static_cast<int>(error::invalid_point), 16);
+    BOOST_TEST_EQ(static_cast<int>(error::invalid_scalar), 17);
+    BOOST_TEST_EQ(static_cast<int>(error::invalid_padding), 18);
+    BOOST_TEST_EQ(static_cast<int>(error::invalid_encoding), 19);
+    BOOST_TEST_EQ(static_cast<int>(error::invalid_ciphertext_size), 20);
 
     boost::system::error_code const code = error::authentication_failed;
     BOOST_TEST_EQ(std::string_view(code.category().name()), "webcpp.crypto");
@@ -69,15 +75,28 @@ int main() {
         "the authentication tag does not match");
     BOOST_TEST_EQ(std::string_view(buffer.data()), "the aut");
 
+    BOOST_TEST_EQ(crypto::make_error_code(error::weak_public_key).message(),
+                  "the public key is weak: of small order, or the shared secret is zero");
+    BOOST_TEST_EQ(crypto::make_error_code(error::invalid_point).message(),
+                  "the encoding is not a canonical element of the group");
+    BOOST_TEST_EQ(crypto::make_error_code(error::invalid_scalar).message(),
+                  "the scalar is not reduced, or is zero");
+    BOOST_TEST_EQ(crypto::make_error_code(error::invalid_padding).message(),
+                  "the padding is not valid");
+    BOOST_TEST_EQ(crypto::make_error_code(error::invalid_encoding).message(),
+                  "the encoding does not decode");
+    BOOST_TEST_EQ(crypto::make_error_code(error::invalid_ciphertext_size).message(),
+                  "the ciphertext is not of the key's size");
+
     // Every defined value has its own message, never the unknown one.
     std::set<std::string> messages;
-    for (int value = 1; value <= 14; ++value) {
+    for (int value = 1; value <= 20; ++value) {
         std::string const text = crypto::error_category().message(value);
         BOOST_TEST(!text.empty());
         BOOST_TEST_NE(text, "unknown webcpp.crypto error");
         messages.insert(text);
     }
-    BOOST_TEST_EQ(messages.size(), 14u);
+    BOOST_TEST_EQ(messages.size(), 20u);
 
     // The guards of the buffer form: a null buffer or a size of 0 writes nothing, a size of 1
     // writes the terminating zero alone, and a message longer than the buffer is cut with one.

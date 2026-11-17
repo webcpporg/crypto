@@ -4,7 +4,8 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// With BearSSL alone, BearSSL is the default, on every target.
+// On WebAssembly, with BearSSL alone, BearSSL is AES-GCM's default (design D32); natively
+// OpenSSL is, and test/messages/gcm_default_openssl_not_linked stops the same program.
 
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/test/exit_status.hpp>

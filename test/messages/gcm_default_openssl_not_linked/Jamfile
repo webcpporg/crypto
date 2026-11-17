@@ -4,8 +4,9 @@
 # accompanying file LICENSE_1_0.txt or copy at
 # https://www.boost.org/LICENSE_1_0.txt)
 
+project : requirements <library>/webcpp/crypto//crypto ;
+
 import webcpp ;
 
-webcpp.compile-fail two_defaults : app.cpp
-  : <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL <library>/webcpp/crypto//crypto
-  : native ;
+webcpp.compile-diagnostic gcm_default_openssl_not_linked : gcm_default_openssl_not_linked.cpp
+  : <library>/third_party//bearssl : native ;

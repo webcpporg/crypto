@@ -255,8 +255,8 @@ def small_table() -> generate.Data:
             'header': '<webcpp/crypto/curves/ed25519.hpp>',
             'names': [{'name': 'ed25519', 'title': 'Ed25519',
                        'type': 'curves::ed25519::basic_keypair<{backend}>'}],
-            'default': [{'targets': EVERY_TARGET, 'linked': 'libsodium', 'backend': 'sodium',
-                         'tests': ['ed25519'], 'why': 'the only backend ({rfc8032})'}],
+            'default': [{'targets': EVERY_TARGET, 'backend': 'sodium', 'tests': ['ed25519'],
+                         'why': 'the only backend ({rfc8032})'}],
             'backends': {'sodium': {'targets': 'all'}}}]}
 
 
@@ -277,12 +277,13 @@ def test_a_backend_without_a_family_is_refused_naming_those_that_have_it(_: Path
             '(native, wasip2, wasip3, emscripten).")') in header, header
     # A backend that has the family, whose header the program did not include, is told so; a
     # backend that is no tag of backends:: is never named; any other type is the last refusal.
-    assert ('static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, '
+    assert ('!::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, '
             '"webcpp::crypto: sodium\'s Ed25519 is in <webcpp/crypto/backends/sodium.hpp>, '
             'which the program does not include. Include it, and add /third_party//sodium to the '
             'program\'s Jamfile.")') in header, header
     assert 'system' not in header, header
-    assert ('static_assert(::webcpp::crypto::detail::dependent_false<Backend>, '
+    assert ('static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || '
+            'std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, '
             '"webcpp::crypto: Ed25519 has no backend of that name. The backends that have it: '
             'sodium (native, wasip2, wasip3, emscripten).")\n') in header, header
     assert '#define WEBCPP_CRYPTO_DETAIL_REFUSE_ED25519(Backend)' in header, header
@@ -351,36 +352,128 @@ def test_a_cell_claimed_where_no_test_runs_is_a_fault(_: Path) -> None:
             'the family ed25519 claims sodium on wasip2, where sodium is not built')
 
 
+def a_default(targets: list[str], backend: Optional[str], where: str = '',
+              tests: Optional[list[str]] = None) -> generate.Data:
+    """A row of a family's defaults, on targets, for one compiler where where names it."""
+    row: generate.Data = {'targets': targets, 'backend': backend,
+                          'tests': ['ed25519'] if tests is None else tests, 'why': 'w'}
+    if where:
+        row['where'] = where
+    return row
+
+
 def test_a_default_is_a_backend_of_the_family_its_tests_run_on(_: Path) -> None:
-    def default(targets: list[str], backend: Optional[str], linked: str = 'libsodium',
-                tests: Optional[list[str]] = None) -> generate.Data:
-        return {'targets': targets, 'linked': linked, 'backend': backend,
-                'tests': ['ed25519'] if tests is None else tests, 'why': 'w'}
     data = small_table()
     every = {'ed25519': EVERY_TARGET, 'ed25519_native': ['native']}
-    data['families'][0]['default'] = [default(['native'], 'sodium')]
+    data['families'][0]['default'] = [a_default(['native'], 'sodium')]
     a_fault(data, every, 'the family ed25519 has no default on wasip2, wasip3, emscripten')
-    data['families'][0]['default'] = [default(EVERY_TARGET, 'bearssl')]
+    data['families'][0]['default'] = [a_default(EVERY_TARGET, 'bearssl')]
     a_fault(data, every,
             'the family ed25519 defaults to bearssl on native, which does not have it there')
-    data['families'][0]['default'] = [default(EVERY_TARGET, 'sodium'),
-                                      default(['native'], None)]
-    a_fault(data, every, 'the family ed25519 has two defaults on native, linked libsodium')
-    # What the program links tells two defaults of one target apart.
-    data['families'][0]['default'] = [default(EVERY_TARGET, 'sodium'),
-                                      default(['native'], None, 'nothing')]
+    data['families'][0]['default'] = [a_default(EVERY_TARGET, 'sodium'),
+                                      a_default(['native'], 'sodium')]
+    a_fault(data, every, 'the family ed25519 has two defaults on native')
+    # A compiler's row restates its target's default with a reason of its own; it never changes
+    # the backend, which the target alone chooses.
+    data['families'][0]['default'] = [a_default(EVERY_TARGET, 'sodium'),
+                                      a_default(['native'], 'sodium', 'MSVC')]
     generate.check_families(data, every)
+    data['families'][0]['default'] = [a_default(EVERY_TARGET, 'sodium'),
+                                      a_default(['native'], None, 'MSVC')]
+    a_fault(data, every, 'the family ed25519 has two default backends on native, sodium and '
+            'none: the target alone chooses it')
     # A default is claimed only where a test that fixes it runs.
-    data['families'][0]['default'] = [default(EVERY_TARGET, 'sodium', tests=['ed25519_native'])]
+    data['families'][0]['default'] = [a_default(EVERY_TARGET, 'sodium',
+                                                tests=['ed25519_native'])]
     a_fault(data, every, 'the family ed25519\'s default on wasip2 names the test ed25519_native, '
             'which does not run there')
-    data['families'][0]['default'] = [default(EVERY_TARGET, 'sodium', tests=['absent'])]
+    data['families'][0]['default'] = [a_default(EVERY_TARGET, 'sodium', tests=['absent'])]
     a_fault(data, every, 'the family ed25519\'s default on native names the test absent, which '
             'does not run there')
     data = small_table()
     data['operations'][0]['family'] = 'ed448'
     a_fault(data, {'ed25519': EVERY_TARGET},
             'the operation sign names the family ed448, which crypto.json does not list')
+
+
+def two_backends() -> generate.Data:
+    """small_table with BearSSL's Ed25519 on every target, and libsodium the default natively
+    alone, BearSSL elsewhere."""
+    data = small_table()
+    family = data['families'][0]
+    family['backends']['bearssl'] = {'targets': 'all'}
+    family['default'] = [a_default(['native'], 'sodium'),
+                         a_default(['wasip2', 'wasip3', 'emscripten'], 'bearssl')]
+    return data
+
+
+def test_the_defaults_header_chooses_by_the_target_alone(_: Path) -> None:
+    header = generate.defaults_header(two_backends())
+    assert header.startswith('#ifndef WEBCPP_CRYPTO_DETAIL_DEFAULTS_HPP\n'), header
+    assert '#include <webcpp/crypto/detail/capabilities.hpp>\n' in header, header
+    assert ('template <class Family>\nstruct default_backend_of {};\n') in header, header
+    assert ('#ifdef WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE\n'
+            '/** Defined where libsodium is the default of Ed25519. */\n'
+            '#define WEBCPP_CRYPTO_DETAIL_DEFAULT_ED25519_SODIUM 1\n'
+            '/** The default of Ed25519 on native: libsodium. */\n'
+            'template <>\nstruct default_backend_of<families::ed25519> {\n'
+            '    /** `backends::sodium`. */\n    using type = backends::sodium;\n};\n'
+            '#elif defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || '
+            'defined(WEBCPP_TARGET_EMSCRIPTEN)\n') in header, header
+    assert 'using type = backends::bearssl;\n};\n#endif\n' in header, header
+    assert ('template <class Family>\n'
+            'using default_backend_t = default_backend_of<Family>::type;\n') in header, header
+    # AES-GCM's default keeps version 0.1's name, default_backend; a table without it has none.
+    assert 'using default_backend =' not in header, header
+    # A family whose default is the same on every target needs no condition.
+    one = generate.defaults_header(small_table())
+    assert ('#define WEBCPP_CRYPTO_DETAIL_DEFAULT_ED25519_SODIUM 1\n/** The default of Ed25519 '
+            'on native, wasip2, wasip3, emscripten: libsodium. */\n') in one, one
+    assert '#if' not in one.split('struct default_backend_of {};', 1)[1], one
+
+
+def test_a_family_without_a_default_has_no_type(_: Path) -> None:
+    data = small_table()
+    data['families'][0]['default'] = [a_default(EVERY_TARGET, None)]
+    header = generate.defaults_header(data)
+    assert 'default_backend_of<families::ed25519>' not in header, header
+    assert 'WEBCPP_CRYPTO_DETAIL_DEFAULT_ED25519' not in header, header
+
+
+def test_the_default_s_refusal_says_what_the_program_needs(_: Path) -> None:
+    header = generate.capabilities_header(two_backends())
+    native, rest = header.split('#elif defined(WEBCPP_TARGET_WASIP2)\n', 1)
+    emscripten = rest.split('#elif defined(WEBCPP_TARGET_EMSCRIPTEN)\n', 1)[1].split('#endif')[0]
+    sodium = '::webcpp::crypto::backends::sodium'
+    # The default, not linked: what to add, and the type that names another backend.
+    assert (f'static_assert(!std::is_same_v<Backend, {sodium}> || '
+            f'::webcpp::crypto::detail::linked<{sodium}>, "webcpp::crypto: Ed25519\'s default '
+            'backend on this target is libsodium, which is not linked. Add /third_party//sodium to '
+            'the program\'s Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto '
+            '/third_party//sodium ; or name another backend in the type, as in '
+            'curves::ed25519::basic_keypair<backends::bearssl>. The backends that have it: '
+            'sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, '
+            'emscripten).")') in native, native
+    # The default, linked, whose header the program did not include.
+    assert (f'static_assert(!std::is_same_v<Backend, {sodium}> || '
+            f'!::webcpp::crypto::detail::linked<{sodium}>, "webcpp::crypto: sodium\'s Ed25519 '
+            'is in <webcpp/crypto/backends/sodium.hpp>') in native, native
+    # Where no other backend has the family, there is no other type to name.
+    data = small_table()
+    alone = generate.capabilities_header(data).split('#elif defined(WEBCPP_TARGET_EMSCRIPTEN)\n',
+                                                     1)[1]
+    assert ('"webcpp::crypto: Ed25519\'s default backend on this target is libsodium, which is '
+            'not linked, and the one backend that has it there. Add /third_party//sodium to the '
+            'program\'s Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto '
+            '/third_party//sodium ;")') in alone, alone
+    assert 'default backend on this target is BearSSL' in emscripten, emscripten
+    # Any other type is refused as no backend of the family, and nothing else is.
+    assert ('static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || '
+            f'std::is_same_v<Backend, {sodium}>, "webcpp::crypto: Ed25519 has no backend of that '
+            'name.') in native, native
+    assert ('template <class Backend>\ninline constexpr bool linked = false;\n'
+            '#ifdef WEBCPP_CRYPTO_HAS_BEARSSL\ntemplate <>\n'
+            'inline constexpr bool linked<backends::bearssl> = true;\n#endif\n') in header, header
 
 
 def test_a_refusal_holds_on_its_target(_: Path) -> None:
@@ -395,7 +488,7 @@ def test_a_refusal_holds_on_its_target(_: Path) -> None:
     assert ('"webcpp::crypto: sodium has no Ed25519 on wasip2. The backends that have it: sodium '
             '(native).")') in wasip2, wasip2
     assert 'is in <webcpp/crypto/backends/sodium.hpp>' not in wasip2, wasip2
-    assert '#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE)\n' in native, native
+    assert '#ifdef WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE\n' in native, native
     assert header.count('#define WEBCPP_CRYPTO_DETAIL_REFUSE_ED25519(Backend)') == 4, header
 
 
@@ -458,6 +551,9 @@ CASES: list[Callable[[Path], None]] = [
     test_a_family_that_names_an_unknown_backend_is_a_fault,
     test_a_cell_claimed_where_no_test_runs_is_a_fault,
     test_a_default_is_a_backend_of_the_family_its_tests_run_on,
+    test_the_defaults_header_chooses_by_the_target_alone,
+    test_a_family_without_a_default_has_no_type,
+    test_the_default_s_refusal_says_what_the_program_needs,
     test_a_refusal_holds_on_its_target,
     test_a_type_names_only_crypto_s_namespaces_from_the_root,
     test_the_check_prints_each_file_that_differs,

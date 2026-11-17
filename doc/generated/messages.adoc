@@ -21,9 +21,9 @@ The fix: Name `+ciphers::aes256<backends::ctaes>+`, include `+<webcpp/crypto/bac
 
 |`+bearssl_not_linked+`
 |native, wasip2
-|`+webcpp::crypto: the backend BearSSL is used and not linked. In the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, or, with /webcpp/crypto//openssl linked, select OpenSSL with <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL. (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
+|`+webcpp::crypto: the backend BearSSL is used and not linked. In the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
 
-The fix: Add `+/third_party//bearssl+`, or, with OpenSSL linked, define `+WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL+`.
+The fix: Add `+/third_party//bearssl+`.
 
 |`+ctaes_not_linked+`
 |native, wasip2, wasip3
@@ -31,21 +31,33 @@ The fix: Add `+/third_party//bearssl+`, or, with OpenSSL linked, define `+WEBCPP
 
 The fix: Add `+/third_party//ctaes+`.
 
+|`+default_openssl_wasm+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL no longer chooses a default. Write the backend in the type where the program wants it, as in ciphers::gcm<ciphers::aes256<backends::openssl>>.+`
+
+The fix: Remove the define, and name `+gcm<aes256<backends::openssl>>+` where the program wants OpenSSL.
+
+|`+default_selected+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL no longer chooses a default. Write the backend in the type where the program wants it, as in ciphers::gcm<ciphers::aes256<backends::bearssl>>.+`
+
+The fix: Remove the define, and name `+gcm<aes256<backends::bearssl>>+` where the program wants BearSSL.
+
+|`+gcm_default_openssl_not_linked+`
+|native
+|`+webcpp::crypto: AES-GCM's default backend on this target is OpenSSL, which is not linked. Add /webcpp/crypto//openssl to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//openssl ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::bearssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).+`
+
+The fix: Natively the default is OpenSSL: add `+/webcpp/crypto//openssl+`, or name BearSSL in the type, as in `+gcm<aes256<backends::bearssl>>+`.
+
 |`+gcm_on_ctaes+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: ciphers::gcm<ciphers::aes256<backends::ctaes>>: ctaes exports the AES block cipher alone, and webcpp builds no GCM on another library's AES. Use a backend that exports GCM: ciphers::gcm<ciphers::aes256<backends::bearssl>> or ciphers::gcm<ciphers::aes256<backends::openssl>>.+`
 
-The fix: Use `+aes256_gcm+` with BearSSL or OpenSSL linked.
-
-|`+no_backend_native+`
-|native
-|`+webcpp::crypto: no backend is linked. In the program's Jamfile, add /webcpp/crypto//openssl (OpenSSL built from source) or /third_party//bearssl (built from source) beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//openssl ; (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto, or define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
-
-The fix: Add `+/webcpp/crypto//openssl+` or `+/third_party//bearssl+` to the program's sources.
+The fix: Name `+gcm<aes256<backends::bearssl>>+` or `+gcm<aes256<backends::openssl>>+`, or use `+aes256_gcm+` with its default linked.
 
 |`+no_backend_wasm+`
 |wasip2, wasip3
-|`+webcpp::crypto: no backend is linked. On WebAssembly the backend is BearSSL: in the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
+|`+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked. Add /third_party//bearssl to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::openssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).+`
 
 The fix: Add `+/third_party//bearssl+` to the program's sources.
 
@@ -75,9 +87,9 @@ The fix: Name `+/webcpp/crypto//openssl+`, which builds OpenSSL 3.5.9; without b
 
 |`+openssl_only_on_wasi+`
 |wasip2, wasip3
-|`+webcpp::crypto: the backend BearSSL is used and not linked. In the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, or, with /webcpp/crypto//openssl linked, select OpenSSL with <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL. (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
+|`+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked. Add /third_party//bearssl to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::openssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).+`
 
-The fix: On WASI the default is BearSSL: add `+/third_party//bearssl+`, or define `+WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL+`.
+The fix: On WASI the default is BearSSL: add `+/third_party//bearssl+`, or name OpenSSL in the type, as in `+gcm<aes256<backends::openssl>>+`.
 
 |`+secp256k1_not_linked+`
 |native, wasip2
@@ -96,12 +108,6 @@ The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp2
 |`+webcpp::crypto: the backend libsodium is used and not linked. In the program's Jamfile, add /third_party//sodium beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
 The fix: Add `+/third_party//sodium+`.
-
-|`+two_defaults+`
-|native
-|`+webcpp::crypto: both WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL and WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL are defined. Keep one.+`
-
-The fix: Keep one of the two defines.
 |===
 
 At build and link time, from the fixtures of the user's Jamfiles, each built on a scratch superproject: the texts the build's output contains, per target and linker, as each fixture checks them.
@@ -330,7 +336,21 @@ On each target, the build's output contains:
 ** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
 ** `pass:[em++: error:]`
 
-`+default_openssl_on_emscripten+`:: OpenSSL selected as the default in a build for Emscripten. The fix: Remove the define, or make it `+WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL+`.
+`+default_bearssl_on_emscripten+`:: Version 0.1's define that chose BearSSL as the default, in a build for Emscripten. The fix: Remove the define: on Emscripten the default is BearSSL.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/default_bearssl_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL no longer chooses a default. Write the backend in the type where the program wants it, as in ciphers::gcm<ciphers::aes256<backends::bearssl>>.+`
+
+`+default_openssl_on_emscripten+`:: Version 0.1's define that chose OpenSSL as the default, in a build for Emscripten. The fix: Remove the define: on Emscripten the default is BearSSL, and OpenSSL is not built.
 +
 Its Jamfile:
 +
@@ -342,7 +362,7 @@ include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/default_openssl_on_em
 On each target, the build's output contains:
 +
 * emscripten:
-** `+webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL selects OpenSSL, which is not built for Emscripten. Remove that define, or make it WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL.+`
+** `+webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL no longer chooses a default. Write the backend in the type where the program wants it, as in ciphers::gcm<ciphers::aes256<backends::openssl>>.+`
 
 `+has_openssl_on_emscripten+`:: OpenSSL declared linked, without b2, in a build for Emscripten. The fix: Replace `+/webcpp/crypto//openssl+` with `+/third_party//bearssl+`.
 +
@@ -404,7 +424,7 @@ include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/no_backend_on_emscrip
 On each target, the build's output contains:
 +
 * emscripten:
-** `+webcpp::crypto: no backend is linked. On WebAssembly the backend is BearSSL: in the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
+** `+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked, and the one backend that has it there. Add /third_party//bearssl to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ;+`
 
 `+openssl_memory_on_emscripten+`:: The memory option of the OpenSSL backend set in a build for Emscripten. The fix: Remove `+<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE+` from the WebAssembly build: give that build a project of its own, without the define and OpenSSL, naming `+/third_party//bearssl+`. On WebAssembly the backend is BearSSL, which allocates nothing.
 +
@@ -460,7 +480,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+bearssl_not_linked+`
 |the compile
-|Add `+/third_party//bearssl+`, or, with OpenSSL linked, define `+WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL+`.
+|Add `+/third_party//bearssl+`.
 
 |`+canary_ctaes_missing+`
 |the link
@@ -502,13 +522,21 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Add `+/third_party//ctaes+`.
 
-|`+default_two_files+`
-|the link
-|Give `+WEBCPP_CRYPTO_DEFAULT_BACKEND_*+` in the requirements of the program's project, so that every file gets it.
+|`+default_openssl_wasm+`
+|the compile
+|Remove the define, and name `+gcm<aes256<backends::openssl>>+` where the program wants OpenSSL.
+
+|`+default_selected+`
+|the compile
+|Remove the define, and name `+gcm<aes256<backends::bearssl>>+` where the program wants BearSSL.
+
+|`+gcm_default_openssl_not_linked+`
+|the compile
+|Natively the default is OpenSSL: add `+/webcpp/crypto//openssl+`, or name BearSSL in the type, as in `+gcm<aes256<backends::bearssl>>+`.
 
 |`+gcm_on_ctaes+`
 |the compile
-|Use `+aes256_gcm+` with BearSSL or OpenSSL linked.
+|Name `+gcm<aes256<backends::bearssl>>+` or `+gcm<aes256<backends::openssl>>+`, or use `+aes256_gcm+` with its default linked.
 
 |`+memory_missing_definition_install+`
 |the link
@@ -521,10 +549,6 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+memory_two_files+`
 |the link
 |Give the define in the requirements of the program's project, with OpenSSL beside it, `+project app : requirements <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE <library>/webcpp/crypto//openssl ;+`, so that every target of the program gets both.
-
-|`+no_backend+`
-|the compile
-|As `+no_backend_native+`.
 
 |`+openssl_memory_not_linked+`
 |the compile
@@ -549,10 +573,6 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+sodium_not_linked+`
 |the compile
 |Add `+/third_party//sodium+`.
-
-|`+two_defaults+`
-|the compile
-|Keep one of the two defines.
 |===
 
 Elsewhere than MSVC these mistakes build, and nothing stops them; the fixtures record it:

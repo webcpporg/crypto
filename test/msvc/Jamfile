@@ -20,12 +20,13 @@ rule msvc-only ( properties * )
 project : requirements <conditional>@msvc-only ;
 
 build-project openssl_not_linked ;
-build-project two_defaults ;
+build-project default_selected ;
+build-project default_openssl_wasm ;
 build-project canary_secp256k1_missing ;
 build-project canary_secp256k1_small ;
 build-project canary_ctaes_missing ;
 build-project gcm_on_ctaes ;
-build-project no_backend ;
+build-project gcm_default_openssl_not_linked ;
 build-project bearssl_not_linked ;
 build-project aes_on_bearssl ;
 build-project canary_missing ;
@@ -33,7 +34,6 @@ build-project canary_other_commit ;
 build-project canary_other_configuration ;
 build-project canary_two_files ;
 build-project canary_secp256k1_two_files ;
-build-project default_two_files ;
 build-project ctaes_not_linked ;
 build-project secp256k1_not_linked ;
 build-project openssl_old ;

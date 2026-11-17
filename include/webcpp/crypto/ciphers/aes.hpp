@@ -16,6 +16,7 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/error.hpp>
 
@@ -28,6 +29,52 @@
 #include <utility>
 
 namespace webcpp::crypto::detail {
+
+/**
+ * What the AES block cipher stores on a backend whose header does not specialise it: nothing,
+ * since its engine refuses the backend where the cipher is called.
+ */
+template <class Backend, std::size_t KeySize>
+struct block_state {};
+
+/**
+ * The block cipher's engine on a backend whose header does not specialise it: the family's
+ * refusal (`detail/capabilities.hpp`). Its functions are never called: the refusal stops the
+ * build where the class is instantiated, and they keep the compiler from adding errors of their
+ * own after it.
+ */
+template <class Backend, std::size_t KeySize>
+struct block_engine {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_AES_BLOCK(Backend);
+
+    /** Never called. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> init(Arguments&&... /*arguments*/) noexcept {
+        return {};
+    }
+
+    /** Never called. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> encrypt(
+        Arguments&&... /*arguments*/) noexcept {
+        return {};
+    }
+
+    /** Never called. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> decrypt(
+        Arguments&&... /*arguments*/) noexcept {
+        return {};
+    }
+
+    /** Never called. */
+    template <class... Arguments>
+    static void move(Arguments&&... /*arguments*/) noexcept {}
+
+    /** Never called. */
+    template <class... Arguments>
+    static void reset(Arguments&&... /*arguments*/) noexcept {}
+};
 
 /**
  * The AES block cipher with keys of `KeySize` bytes on `Backend`, of which `aes128`, `aes192`

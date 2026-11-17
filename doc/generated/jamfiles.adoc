@@ -23,23 +23,23 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/block/block.outcome[tag=output]
 ----
 
-`+both_bearssl_default+`:: Both backends linked, BearSSL chosen as the default with a define; the same program.
+`+both_bearssl_named+`:: Both backends linked, and BearSSL named in the type where the default is OpenSSL.
 +
 Its Jamfile, built and run on native, wasip2, wasip3:
 +
 [listing]
 ----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_default/Jamfile[tag=jamfile]
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_named/Jamfile[tag=jamfile]
 ----
 +
 It prints:
 +
 [listing]
 ----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_default/both_bearssl_default.outcome[tag=output]
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_named/both_bearssl_named.outcome[tag=output]
 ----
 
-`+encrypt_and_sign+`:: Two backends in one program: AES-256-GCM on the default backend and a BIP 340 signature.
+`+encrypt_and_sign+`:: Two backends in one program: AES-256-GCM on BearSSL, named in the type so that one Jamfile serves every target, and a BIP 340 signature.
 +
 Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
 +
@@ -87,7 +87,7 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_linked/openssl_linked.outcome[tag=output]
 ----
 
-`+server+`:: A server, natively: the same program with OpenSSL, the default natively when linked.
+`+server+`:: A server, natively: the same program with OpenSSL, the default natively.
 +
 Its Jamfile, built and run on native:
 +
@@ -135,9 +135,9 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sign_small/sign_small.outcome[tag=output]
 ----
 
-`+web+`:: A web application: AES-256-GCM on BearSSL, the default on every target.
+`+web+`:: A web application: AES-256-GCM on BearSSL, the default on WebAssembly.
 +
-Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
+Its Jamfile, built and run on wasip2, wasip3, emscripten:
 +
 [listing]
 ----

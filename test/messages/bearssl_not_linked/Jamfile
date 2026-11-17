@@ -8,5 +8,4 @@ project : requirements <library>/webcpp/crypto//crypto ;
 
 import webcpp ;
 
-webcpp.compile-diagnostic bearssl_not_linked : bearssl_not_linked.cpp
-  : <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL : native wasip2 ;
+webcpp.compile-diagnostic bearssl_not_linked : bearssl_not_linked.cpp : : native wasip2 ;

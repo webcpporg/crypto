@@ -4,10 +4,8 @@
 # accompanying file LICENSE_1_0.txt or copy at
 # https://www.boost.org/LICENSE_1_0.txt)
 
-project : requirements <library>/webcpp/crypto//crypto ;
-
 import webcpp ;
 
-webcpp.compile-diagnostic two_defaults : two_defaults.cpp
-  : <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL
+webcpp.compile-fail default_openssl_wasm : app.cpp
+  : <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL <library>/webcpp/crypto//crypto
   : native ;

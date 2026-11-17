@@ -6,6 +6,6 @@
 
 import webcpp ;
 
-webcpp.link-fail default_two_files : main.cpp with.cpp
-  : <library>/webcpp/crypto//crypto <library>/third_party//bearssl <library>/webcpp/crypto//openssl
+webcpp.compile-fail default_selected : app.cpp
+  : <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL <library>/webcpp/crypto//crypto
   : native ;

@@ -5,11 +5,10 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 /**
- Every header of webcpp::crypto that needs no backend, and the header of each
- backend the build links. `ciphers/aes256_gcm.hpp`, `aes128_gcm` and `aes256_gcm`, is
- included when the default backend is linked: a program that links OpenSSL alone where
- BearSSL is the default (WebAssembly, or `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`) names
- `ciphers::gcm<ciphers::aes256<backends::openssl>>`.
+ Every header of webcpp::crypto that needs no backend, the header of each backend the build
+ links, and `ciphers/aes256_gcm.hpp`, whose `aes128_gcm` and `aes256_gcm` name AES-GCM's default
+ backend: a program that does not link the default names another in the type, as
+ `ciphers::gcm<ciphers::aes256<backends::openssl>>` on WebAssembly.
 */
 #ifndef WEBCPP_CRYPTO_HPP
 #define WEBCPP_CRYPTO_HPP
@@ -17,6 +16,7 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -29,10 +29,6 @@
 #endif
 #ifdef WEBCPP_CRYPTO_HAS_OPENSSL
 #include <webcpp/crypto/backends/openssl.hpp>
-#endif
-#if (defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL) && defined(WEBCPP_CRYPTO_HAS_OPENSSL)) || \
-    (defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_BEARSSL) && defined(WEBCPP_CRYPTO_HAS_BEARSSL))
-#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #endif
 
 #ifdef WEBCPP_CRYPTO_HAS_CTAES

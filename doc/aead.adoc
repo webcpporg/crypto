@@ -25,7 +25,8 @@ and the AEAD of browsers' WebCrypto
 `gcm<Cipher>`, in `<webcpp/crypto/ciphers/gcm.hpp>`, is AES-GCM with the key
 size of `Cipher`, on the backend of `Cipher`, which must export GCM over its own
 AES: BearSSL or OpenSSL. `aes128_gcm` and `aes256_gcm`, in
-`<webcpp/crypto/ciphers/aes256_gcm.hpp>`, name it on the default backend. It is
+`<webcpp/crypto/ciphers/aes256_gcm.hpp>`, name it on the default backend,
+OpenSSL natively and BearSSL on WebAssembly. It is
 made with `make(key_bytes)`, and works in place:
 
 * `seal(iv_bytes, additional_data_bytes, data_bytes)` encrypts `data_bytes`
@@ -57,8 +58,9 @@ include::{examples}/store_token.cpp[tag=open,indent=0]
 include::{examples}/store_token.expected[]
 ----
 
-The same, with the backend named rather than the default: AES-256-GCM on
-BearSSL against the GCM specification's test case 14.
+The examples name BearSSL in the type, `aead_type`, so that one Jamfile line
+serves every target. The whole of one: AES-256-GCM on BearSSL against the GCM
+specification's test case 14.
 
 [source,cpp]
 ----
@@ -145,15 +147,15 @@ summed over `update`, or additional data longer than 2^61^ - 1 bytes (NIST SP
 [#crypto-gcm-arm]
 ==== A warning for ARM servers
 
-Natively without OpenSSL, the default is BearSSL, which has AES-NI code for x86
-but none for ARM's AES instructions
+Natively the default is OpenSSL. A program that names BearSSL there gets
+AES-NI code for x86 but none for ARM's AES instructions
 (link:https://www.bearssl.org/support.html[BearSSL]): on an ARM server it runs
 its portable constant-time code, while OpenSSL's assembly uses ARMv8's AES and
 polynomial multiplication instructions
 (link:https://github.com/openssl/openssl/tree/master/crypto/aes/asm[OpenSSL's AES];
 link:https://github.com/openssl/openssl/tree/master/crypto/modes/asm[OpenSSL's GHASH]).
-How much slower is not measured yet. A server on ARM names
-`/webcpp/crypto//openssl` (<<crypto-backends-defaults>>).
+How much slower is not measured yet. A server on ARM keeps the default and
+links `/webcpp/crypto//openssl` (<<crypto-backends-defaults>>).
 
 [#crypto-gcm-incremental]
 ==== Encrypting what does not fit in memory

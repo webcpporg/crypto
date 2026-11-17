@@ -30,15 +30,15 @@
 |<<crypto-equal,[.keep]`+equal_hmac.cpp+`>>
 
 |Encrypt a database field, a cookie or a token at rest
-|In `+ciphers+`: `+aes256_gcm+`
-|default: BearSSL on WebAssembly, OpenSSL natively when linked
+|In `+ciphers+`: `+gcm<aes256<backends::bearssl>>+`, or `+aes256_gcm+` on the default
+|BearSSL, named: one Jamfile line on every target; the default is OpenSSL natively, BearSSL on WebAssembly
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//bearssl+`
 |<<crypto-gcm,[.keep]`+store_token.cpp+`>>
 
 |Encrypt a large file or a stream
-|In `+ciphers+`: `+aes256_gcm+`: records, or `+begin_seal+`, `+update+` and `+result+`
-|default
+|In `+ciphers+`: `+gcm<aes256<backends::bearssl>>+`: records, or `+begin_seal+`, `+update+` and `+result+`
+|BearSSL, named
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//bearssl+`
 |<<crypto-gcm-incremental,[.keep]`+sealed_records.cpp+`>>

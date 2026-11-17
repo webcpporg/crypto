@@ -19,10 +19,12 @@ inline constexpr bool dependent_false = false;
 
 /**
  * What a backend's header specialises, per algorithm: a state, which an object stores and
- * which never refuses, and an engine, used only inside the algorithm's member functions,
- * whose specialisation for a backend without the algorithm holds the `static_assert` that
- * names the backends that have it. A backend whose header is not included leaves both
- * undefined, and the compiler names the specialisation it lacks.
+ * which never refuses, and an engine, used only inside the algorithm's member functions. The
+ * family's header defines both primaries: an empty state, and an engine whose body is the
+ * family's generated refusal (`detail/capabilities.hpp`), which a backend reaches where its
+ * header does not specialise the engine: one without the algorithm is refused, naming the
+ * backends that have it; the default, not linked, says the Jamfile line that links it and the
+ * type that names another backend; one whose header is not included is told to include it.
  *
  * Tip: `ciphers::gcm<aes256<backends::bearssl>>` reads
  * `ciphers::aes256<backends::bearssl>::key_size`, which instantiates the class and its members'

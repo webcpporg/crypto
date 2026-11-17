@@ -8,7 +8,8 @@
 # directory's Jamfile gives its case the requirements that raise the message,
 # and nothing else.
 
-build-project two_defaults ;
+build-project default_selected ;
+build-project default_openssl_wasm ;
 build-project openssl_on_wasi ;
 build-project openssl_not_linked ;
 build-project openssl_old ;
@@ -16,7 +17,7 @@ build-project ctaes_not_linked ;
 build-project gcm_on_ctaes ;
 build-project secp256k1_not_linked ;
 build-project no_backend_wasm ;
-build-project no_backend_native ;
+build-project gcm_default_openssl_not_linked ;
 build-project bearssl_not_linked ;
 build-project openssl_only_on_wasi ;
 build-project aes_on_bearssl ;

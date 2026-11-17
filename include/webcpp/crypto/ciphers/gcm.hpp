@@ -31,6 +31,70 @@
 #include <type_traits>
 #include <utility>
 
+namespace webcpp::crypto::detail {
+
+/**
+ * What a `ciphers::gcm` stores on a backend whose header does not specialise it: nothing, since
+ * its engine refuses the backend where the family is called.
+ */
+template <class Backend, std::size_t KeySize>
+struct gcm_state {};
+
+/**
+ * GCM's engine on a backend whose header does not specialise it: the family's refusal, which
+ * names what the program needs (`detail/capabilities.hpp`). Its functions are never called: the
+ * refusal stops the build where the class is instantiated, and they keep the compiler from
+ * adding errors of their own after it.
+ */
+template <class Backend, std::size_t KeySize>
+struct gcm_engine {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_GCM(Backend);
+
+    /** Never called. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> init(Arguments&&... /*arguments*/) noexcept {
+        return {};
+    }
+
+    /** Never called. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> start(Arguments&&... /*arguments*/) noexcept {
+        return {};
+    }
+
+    /** Never called. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> run(Arguments&&... /*arguments*/) noexcept {
+        return {};
+    }
+
+    /** Never called. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> tag(Arguments&&... /*arguments*/) noexcept {
+        return {};
+    }
+
+    /** Never called. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> check(Arguments&&... /*arguments*/) noexcept {
+        return {};
+    }
+
+    /** Never called. */
+    template <class... Arguments>
+    static void move(Arguments&&... /*arguments*/) noexcept {}
+
+    /** Never called. */
+    template <class... Arguments>
+    static void abandon(Arguments&&... /*arguments*/) noexcept {}
+
+    /** Never called. */
+    template <class... Arguments>
+    static void reset(Arguments&&... /*arguments*/) noexcept {}
+};
+
+}  // namespace webcpp::crypto::detail
+
 namespace webcpp::crypto::ciphers {
 
 /**

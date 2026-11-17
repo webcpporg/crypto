@@ -7,5 +7,5 @@
 import webcpp ;
 
 webcpp.compile-fail openssl_not_linked : app.cpp
-  : <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL <library>/webcpp/crypto//crypto
+  : <library>/webcpp/crypto//crypto
   : native ;

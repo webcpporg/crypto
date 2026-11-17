@@ -17,6 +17,7 @@
 
 #include <webcpp/crypto/backends/secp256k1.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the context's randomisation, its purpose
@@ -163,7 +164,7 @@ struct tweaked_xonly_key {
  *
  * @tparam Backend `backends::secp256k1`, its only backend.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 class basic_keypair {
     static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
                   WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
@@ -441,7 +442,7 @@ using keypair = basic_keypair<>;
  * @param xonly_key_bytes 32 bytes.
  * @return Nothing; `invalid_public_key`; `invalid_signature`.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<void> verify_schnorr(
     std::span<std::uint8_t const, 64> signature_bytes, std::span<std::uint8_t const> message_bytes,
     std::span<std::uint8_t const, 32> xonly_key_bytes) noexcept {
@@ -471,7 +472,7 @@ template <class Backend = backends::secp256k1>
  * @param public_key_bytes SEC1: 33 bytes, prefix 02 or 03, or 65, prefix 04.
  * @return Nothing; `invalid_public_key`; `invalid_signature`.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<void> verify_ecdsa(
     std::span<std::uint8_t const, 64> signature_bytes,
     std::span<std::uint8_t const, 32> message_hash,
@@ -505,7 +506,7 @@ template <class Backend = backends::secp256k1>
  * `output_bytes` is shorter than `max_der_size`; `invalid_signature` when r or s is zero or not
  * below the group order.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::size_t> to_der(
     std::span<std::uint8_t const, 64> compact_signature,
     std::span<std::uint8_t> output_bytes) noexcept {
@@ -538,7 +539,7 @@ template <class Backend = backends::secp256k1>
  * @return 64 bytes, r then s; `invalid_signature` for anything that is not strict DER, and for
  * an r or an s that is zero or not below the group order.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> from_der(
     std::span<std::uint8_t const> der_signature) noexcept {
     static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
@@ -570,7 +571,7 @@ template <class Backend = backends::secp256k1>
  * @return 64 bytes, r then n - s when s was above half the group order;
  * `invalid_signature` when r or s is zero or not below the group order.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> normalize_ecdsa(
     std::span<std::uint8_t const, 64> compact_signature) noexcept {
     static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
@@ -601,7 +602,7 @@ template <class Backend = backends::secp256k1>
  * point's x; `invalid_secret_key` for a tweak not below the group order, or one that gives
  * no valid key (negligible, but checked).
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<tweaked_xonly_key> tweak_xonly(
     std::span<std::uint8_t const, 32> xonly_key_bytes,
     std::span<std::uint8_t const, 32> tweak_bytes) noexcept {

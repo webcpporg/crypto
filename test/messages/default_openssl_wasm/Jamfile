@@ -8,4 +8,5 @@ project : requirements <library>/webcpp/crypto//crypto ;
 
 import webcpp ;
 
-webcpp.compile-diagnostic no_backend_native : no_backend_native.cpp : : native ;
+webcpp.compile-diagnostic default_openssl_wasm : default_openssl_wasm.cpp
+  : <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL : native wasip2 wasip3 ;

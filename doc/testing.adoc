@@ -55,8 +55,9 @@ continuous integration's MSVC lanes.
 backend's test runs as well, and the limits natively.
 * *Allocation:* every `operator new` and the C library's allocator counted
 around each operation.
-* *The default backend,* for each combination of linked and selected backends
-on the targets where its answer holds (<<crypto-backends-defaults>>).
+* *The default backend* of every family on every target, the same with every
+backend linked, with none, with each alone and with the defines that no longer
+choose one (<<crypto-backends-defaults>>).
 * *Every message,* word for word, by a message test with clang on the targets
 it names; on MSVC, each case proven to stop the build
 (<<crypto-jamfile-messages>>).

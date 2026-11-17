@@ -70,6 +70,7 @@ TARGET_MACROS = {'native': 'WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE', 'wasip2': 'WEBC
                  'wasip3': 'WEBCPP_TARGET_WASIP3', 'emscripten': 'WEBCPP_TARGET_EMSCRIPTEN'}
 CAPABILITIES = Path('include/webcpp/crypto/detail/capabilities.hpp')
 CAPABILITIES_TEST = Path('test/capabilities_test.cpp')
+DEFAULTS = Path('include/webcpp/crypto/detail/defaults.hpp')
 
 Data = Dict[str, Any]
 
@@ -437,18 +438,24 @@ def check_families(data: Data, declared: Dict[str, List[str]]) -> None:
                     raise Fault(f'crypto.json: the family {name} states constant time for '
                                 f'{backend} on {target}, where it does not claim it')
                 cite(data, why)
-        # A default per target and what the program links (and, natively, the compiler), each
-        # claimed only where a test that fixes it runs.
-        defaults: List[Tuple[str, str, str]] = []
+        # One default per target, chosen by the target alone (design D32): a row of one compiler
+        # restates it with a reason of its own. Each is claimed only where a test that fixes it
+        # runs.
+        rows: List[Tuple[str, str]] = []
         for entry in family['default']:
             cite(data, entry['why'])
+            backend = entry['backend']
             for target in entry['targets']:
-                key = (target, entry.get('where', ''), entry['linked'])
-                if key in defaults:
-                    raise Fault(f'crypto.json: the family {name} has two defaults on {target}, '
-                                f'linked {entry["linked"]}')
-                defaults.append(key)
-                backend = entry['backend']
+                where = entry.get('where', '')
+                if (target, where) in rows:
+                    raise Fault(f'crypto.json: the family {name} has two defaults on {target}'
+                                + (f', {where}' if where else ''))
+                rows.append((target, where))
+                chosen = default_on(family, target)
+                if chosen != backend:
+                    raise Fault(f'crypto.json: the family {name} has two default backends on '
+                                f'{target}, {chosen or "none"} and {backend or "none"}: the '
+                                'target alone chooses it')
                 if backend is not None and (backend not in family['backends'] or
                                             target not in cell_targets(data, family, backend)):
                     raise Fault(f'crypto.json: the family {name} defaults to {backend} on '
@@ -457,10 +464,19 @@ def check_families(data: Data, declared: Dict[str, List[str]]) -> None:
                     if target not in declared.get(test, []):
                         raise Fault(f'crypto.json: the family {name}\'s default on {target} '
                                     f'names the test {test}, which does not run there')
-        covered = {target for target, _, _ in defaults}
+        covered = {target for target, _ in rows}
         missing = [target for target in data['targets'] if target not in covered]
         if missing:
             raise Fault(f'crypto.json: the family {name} has no default on {", ".join(missing)}')
+
+
+def default_on(family: Data, target: str) -> Optional[str]:
+    """A family's default backend on a target, or None: its first row there (check_families
+    faults a row that names another)."""
+    for entry in family['default']:
+        if target in entry['targets']:
+            return entry['backend']
+    return None
 
 
 def have_list(data: Data, family: Data) -> str:
@@ -505,6 +521,17 @@ def program_type(data: Data, written: str, backend: str) -> str:
 def condition(targets: List[str]) -> str:
     """The preprocessor's condition that holds on the targets."""
     return ' || '.join(f'defined({TARGET_MACROS[target]})' for target in targets)
+
+
+def opening(targets: List[str], first: bool = True) -> str:
+    """The directive that opens, or with first false continues, a block that holds on the
+    targets: #ifdef for one target where it opens one, as clang-tidy's
+    readability-use-concise-preprocessor-directives asks."""
+    if not first:
+        return f'#elif {condition(targets)}'
+    if len(targets) == 1:
+        return f'#ifdef {TARGET_MACROS[targets[0]]}'
+    return f'#if {condition(targets)}'
 
 
 def capabilities_header(data: Data) -> str:
@@ -556,45 +583,160 @@ def capabilities_header(data: Data) -> str:
             targets = cell_targets(data, family, backend)
             out.append(f'// {family["title"]} on {backend}: {", ".join(targets)}.')
             for entry in family['names']:
-                out += [f'#if {condition(targets)}', 'template <>',
+                out += [opening(targets), 'template <>',
                         f'inline constexpr bool supported<families::{family["name"]}, '
                         f'{tag_of(family, entry["name"])}, backends::{backend}> = true;',
                         '#endif']
-    out += ['// clang-format on', '', '}  // namespace webcpp::crypto::detail', '',
+    out += ['// clang-format on', '',
+            '/**',
+            ' * Whether `Backend`\'s library is linked: its `WEBCPP_CRYPTO_HAS_<NAME>` is defined.',
+            ' *',
+            ' * @tparam Backend A backend tag of `backends`.',
+            ' */',
+            'template <class Backend>', 'inline constexpr bool linked = false;']
+    for backend in tags_of(data):
+        out += [f'#ifdef WEBCPP_CRYPTO_HAS_{backend.upper()}', 'template <>',
+                f'inline constexpr bool linked<backends::{backend}> = true;', '#endif']
+    out += ['', '}  // namespace webcpp::crypto::detail', '',
             '// The body of each family\'s primary engine, which a backend reaches where its',
             '// header does not specialise the engine, per target: a backend without the family',
-            '// there is refused, naming those that have it; a backend that has it there, whose',
-            '// header the program did not include, is told to include it; any other type is no',
-            '// backend of the family.',
+            '// there is refused, naming those that have it; the default there, not linked, says',
+            '// the Jamfile line that links it and the type that names another backend; a backend',
+            '// that has it there, whose header the program did not include, is told to include',
+            '// it; any other type is no backend of the family.',
             '// clang-format off']
     tags = tags_of(data)
     for family in data['families']:
         have = have_list(data, family)
+        known = ' || '.join(f'std::is_same_v<Backend, ::webcpp::crypto::backends::{backend}>'
+                            for backend in tags)
         for index, target in enumerate(data['targets']):
             lines: List[str] = []
             for backend in tags:
+                tag = f'::webcpp::crypto::backends::{backend}'
                 if backend not in family['backends']:
-                    text = refusal(data, family, backend)
-                elif target in cell_targets(data, family, backend):
-                    facts = data['backends'][backend]
-                    text = (f'webcpp::crypto: {backend}\'s {family["title"]} is in '
-                            f'{facts["header"]}, which the program does not include. Include '
-                            f'it, and add {facts["jamfile"]} to the program\'s Jamfile.')
-                else:
-                    text = (f'webcpp::crypto: {backend} has no {family["title"]} on {target}. '
-                            f'The backends that have it: {have}.')
-                lines.append(f'static_assert(!std::is_same_v<Backend, ::webcpp::crypto::'
-                             f'backends::{backend}>, "{text}")')
-            lines.append(f'static_assert(::webcpp::crypto::detail::dependent_false<Backend>, '
-                         f'"webcpp::crypto: {family["title"]} has no backend of that name. The '
-                         f'backends that have it: {have}.")')
-            out.append(f'#{"if" if index == 0 else "elif"} defined({TARGET_MACROS[target]})')
+                    lines.append(f'static_assert(!std::is_same_v<Backend, {tag}>, '
+                                 f'"{refusal(data, family, backend)}")')
+                    continue
+                if target not in cell_targets(data, family, backend):
+                    lines.append(f'static_assert(!std::is_same_v<Backend, {tag}>, '
+                                 f'"webcpp::crypto: {backend} has no {family["title"]} on '
+                                 f'{target}. The backends that have it: {have}.")')
+                    continue
+                facts = data['backends'][backend]
+                include = (f'webcpp::crypto: {backend}\'s {family["title"]} is in '
+                           f'{facts["header"]}, which the program does not include. Include '
+                           f'it, and add {facts["jamfile"]} to the program\'s Jamfile.')
+                if backend != default_on(family, target):
+                    lines.append(f'static_assert(!std::is_same_v<Backend, {tag}>, "{include}")')
+                    continue
+                # The default: not linked, what the program needs; linked, its header.
+                linked = f'::webcpp::crypto::detail::linked<{tag}>'
+                lines += [f'static_assert(!std::is_same_v<Backend, {tag}> || {linked}, '
+                          f'"{needs(data, family, target, backend)}")',
+                          f'static_assert(!std::is_same_v<Backend, {tag}> || !{linked}, '
+                          f'"{include}")']
+            lines.append(f'static_assert({known}, "webcpp::crypto: {family["title"]} has no '
+                         f'backend of that name. The backends that have it: {have}.")')
+            out.append(opening([target], index == 0))
             out += doc_comment(f'The refusals of the family {family["title"]}\'s primary engine '
                                f'for `Backend`, on {target}.') + [
                     f'#define WEBCPP_CRYPTO_DETAIL_REFUSE_{family["name"].upper()}(Backend) \\']
             out += [f'    {line}; \\' for line in lines[:-1]] + [f'    {lines[-1]}']
         out.append('#endif')
     out += ['// clang-format on', '', '#endif  // WEBCPP_CRYPTO_DETAIL_CAPABILITIES_HPP', '']
+    return '\n'.join(out)
+
+
+def needs(data: Data, family: Data, target: str, backend: str) -> str:
+    """What a program that uses a family's default without linking it needs (design D32): the
+    Jamfile line that links it and, where another backend has the family on the target, the type
+    that names it. The text holds on every target where the default is that backend, so that
+    one message test checks it on each."""
+    facts = data['backends'][backend]
+    head = (f'webcpp::crypto: {family["title"]}\'s default backend on this target is '
+            f'{facts["title"]}, which is not linked')
+    add = (f'Add {facts["jamfile"]} to the program\'s Jamfile, as in: exe app : app.cpp '
+           f'/webcpp/crypto//crypto {facts["jamfile"]} ;')
+    others = [other for other in family['backends']
+              if other != backend and target in cell_targets(data, family, other)]
+    if not others:
+        return f'{head}, and the one backend that has it there. {add}'
+    named = family['names'][-1]['type'].replace('{backend}', f'backends::{others[0]}')
+    return (f'{head}. {add} or name another backend in the type, as in {named}. The backends '
+            f'that have it: {have_list(data, family)}.')
+
+
+def defaults_header(data: Data) -> str:
+    """include/webcpp/crypto/detail/defaults.hpp: each family's default backend per target,
+    chosen by the target alone (design D32), and the macro that tells the family's header which
+    backend's header to include."""
+    out = ['#ifndef WEBCPP_CRYPTO_DETAIL_DEFAULTS_HPP', '#define WEBCPP_CRYPTO_DETAIL_DEFAULTS_HPP',
+           '', '#include <webcpp/crypto/config.hpp>', '',
+           '#include <webcpp/crypto/detail/capabilities.hpp>', '',
+           'namespace webcpp::crypto {', '',
+           '/**',
+           ' * The default backend of `Family` on the target being compiled, as its `type`.',
+           ' *',
+           ' * One per family and target, chosen by the target alone whatever the program links,',
+           ' * for the reason doc/tables/crypto.json gives (the guide\'s "The default backend per',
+           ' * target"). A family without a default has no `type`; a program names any other',
+           ' * backend in the type.',
+           ' *',
+           ' * @tparam Family A family tag of `families`.',
+           ' */',
+           'template <class Family>', 'struct default_backend_of {};', '',
+           '// Each family\'s default, on the targets where it is that backend.',
+           '// clang-format off']
+    for family in data['families']:
+        groups: List[Tuple[str, List[str]]] = []
+        for target in data['targets']:
+            backend = default_on(family, target)
+            if backend is None:
+                continue
+            for chosen, targets in groups:
+                if chosen == backend:
+                    targets.append(target)
+                    break
+            else:
+                groups.append((backend, [target]))
+        if not groups:
+            continue
+        conditional = len(groups) > 1 or len(groups[0][1]) < len(data['targets'])
+        for index, (backend, targets) in enumerate(groups):
+            title = data['backends'][backend]['title']
+            if conditional:
+                out.append(opening(targets, index == 0))
+            out += doc_comment(f'Defined where {title} is the default of {family["title"]}.')
+            out.append(f'#define WEBCPP_CRYPTO_DETAIL_DEFAULT_{family["name"].upper()}_'
+                       f'{backend.upper()} 1')
+            out += doc_comment(f'The default of {family["title"]} on {", ".join(targets)}: '
+                               f'{title}.')
+            out += ['template <>', f'struct default_backend_of<families::{family["name"]}> {{',
+                    f'    /** `backends::{backend}`. */', f'    using type = backends::{backend};',
+                    '};']
+        if conditional:
+            out.append('#endif')
+    out += ['// clang-format on', '',
+            '/**',
+            ' * The default backend of `Family` on the target being compiled (see',
+            ' * @ref default_backend_of).',
+            ' *',
+            ' * @tparam Family A family tag of `families` that has a default.',
+            ' */',
+            'template <class Family>',
+            'using default_backend_t = default_backend_of<Family>::type;', '']
+    if any(family['name'] == 'gcm' for family in data['families']):
+        out += ['/**',
+                ' * The default backend of AES-GCM, version 0.1\'s name, which `aes128_gcm`,',
+                ' * `aes256_gcm` and the AES block cipher\'s `aes256<>` take: natively OpenSSL, on',
+                ' * WebAssembly BearSSL.',
+                ' *',
+                ' * @see "The default backend per target", in the guide.',
+                ' */',
+                'using default_backend = default_backend_t<families::gcm>;', '']
+    out += ['}  // namespace webcpp::crypto', '',
+            '#endif  // WEBCPP_CRYPTO_DETAIL_DEFAULTS_HPP', '']
     return '\n'.join(out)
 
 
@@ -645,7 +787,7 @@ def capabilities_test(data: Data) -> str:
                 if not present:
                     out.append(f'static_assert(!{trait});')
                     continue
-                out += [f'#if {condition(targets)}', f'static_assert({trait});', '#else',
+                out += [opening(targets), f'static_assert({trait});', '#else',
                         f'static_assert(!{trait});', '#endif']
                 algorithm = program_type(data, entry['type'], backend)
                 made += [f'#if ({condition(targets)}) && defined(WEBCPP_CRYPTO_HAS_'
@@ -705,11 +847,11 @@ def api_backends(data: Data, matrix: Matrix, operation: Data) -> str:
     if 'default' in operation:
         # The block cipher's default argument is AES-GCM's default: its table is AES-GCM's.
         family = family_of(data, operation.get('default_of', operation['family']))
-        defaults = [[target_label(entry), marked(entry['linked']), default_title(data, entry)]
+        defaults = [[target_label(entry), default_title(data, entry)]
                     for entry in family['default']]
-        text += (f'\n{marked(operation["default"])} The default per target and what the program '
+        text += (f'\n{marked(operation["default"])} The default per target, whatever the program '
                  'links, as <<crypto-backends-defaults>> gives it with its reasons and tests:\n\n'
-                 + table(['Target', 'Linked', 'Default'], defaults, '.wrap-names,cols="2,4,2",'))
+                 + table(['Target', 'Default'], defaults, 'cols="1,1",'))
     return text
 
 
@@ -773,19 +915,16 @@ def default_title(data: Data, entry: Data) -> str:
 
 
 def defaults_page(data: Data) -> str:
-    """The default backend of each family per target and what is linked, each with the tests
-    that fix it (check_families has checked that they run there)."""
+    """The default backend of each family per target, whatever the program links, each with its
+    reason and the tests that fix it (check_families has checked that they run there)."""
     rows: List[List[str]] = []
     for family in data['families']:
         for entry in family['default']:
-            rows.append([family['title'], target_label(entry), marked(entry['linked']),
-                         default_title(data, entry), cite(data, entry['why']),
+            rows.append([family['title'], target_label(entry), default_title(data, entry),
+                         cite(data, entry['why']),
                          ', '.join(code(name) for name in entry['tests'])])
-    # wrap-names: a header in "Linked" breaks after its / at every width; a define of 37
-    # characters breaks between its parts where the table does not fit otherwise, rather than
-    # take the width "Why" needs (tools/doc/docinfo.html).
-    return table(['Family', 'Target', 'Linked', 'Default', 'Why', 'Tested by'], rows,
-                 '.wrap-names,cols="2,2,4,2,5,3",')
+    return table(['Family', 'Target', 'Default', 'Why', 'Tested by'], rows,
+                 'cols="2,2,2,6,3",')
 
 
 def constant_time_page(data: Data) -> str:
@@ -1043,7 +1182,7 @@ def llms(data: Data, matrix: Matrix, library: Path) -> str:
     out += ['## Default backend per family', '']
     for family in data['families']:
         for entry in family['default']:
-            out.append(f'- {family["title"]}, {target_label(entry)}, linked {entry["linked"]}: '
+            out.append(f'- {family["title"]}, {target_label(entry)}: '
                        f'{default_title(data, entry)}; {cite_markdown(data, entry["why"])}.')
     out += ['', '## Rules of use', '']
     for rule in data['rules']:
@@ -1097,6 +1236,7 @@ def generate(root: Path, library: Path) -> Dict[Path, str]:
     files[generated / 'use-cases.adoc'] = use_cases_page(data, library)
     files[library / CAPABILITIES] = capabilities_header(data)
     files[library / CAPABILITIES_TEST] = capabilities_test(data)
+    files[library / DEFAULTS] = defaults_header(data)
     for path in list(files):
         files[path] = NOTICE + files[path]
     files[DOC / 'llms.txt'] = llms(data, matrix, library)

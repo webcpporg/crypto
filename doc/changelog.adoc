@@ -18,7 +18,7 @@ of every version are on webcpp's index page.
 // tag::unreleased[]
 * Added crypto, primitives over C backends: ciphers, curves and randomness, with errors of fixed values in webcpp.crypto, every result `+[[nodiscard]]+`.
 * Added equal, random_device, ciphers::aes128, aes192 and aes256, the AES block cipher, and ciphers::gcm, AES-GCM in place with an incremental seal whose failed open zeroes the data.
-* Added the default backend, ciphers::aes128_gcm and aes256_gcm, and refusals of conflicting or missing backends that name the Jamfile line to add.
+* Added default_backend_t, one default backend per family and target whatever is linked, ciphers::aes128_gcm and aes256_gcm, and refusals of missing backends naming the Jamfile line and another backend's type.
 * Added backends::bearssl (AES-GCM allocating nothing, no block cipher), backends::openssl through /webcpp/crypto//openssl on native and WASI (allocating at make only), and backends::ctaes (block cipher alone).
 * Added WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE: OpenSSL's allocations in the program's resource, refused on WebAssembly (WASI included) and without OpenSSL: openssl_memory_resource, install_memory_functions, memory_functions_refused, memory_functions_not_installed.
 * Added curves::secp256k1: key pairs, BIP340 and ECDSA signatures, ECDH, strict DER, low-S and the x-only tweak.

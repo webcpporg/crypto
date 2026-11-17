@@ -6,6 +6,6 @@
 
 import webcpp ;
 
-webcpp.compile-fail no_backend : app.cpp
-  : <library>/webcpp/crypto//crypto
+webcpp.compile-fail gcm_default_openssl_not_linked : app.cpp
+  : <library>/webcpp/crypto//crypto <library>/third_party//bearssl
   : native ;

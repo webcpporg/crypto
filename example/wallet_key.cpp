@@ -8,7 +8,9 @@
 // and restores it. A secret that sits unencrypted on disk, or lingers in memory after use, is
 // the first thing an attacker looks for, so the copies are wiped as soon as they are not needed.
 // tag::program[]
-#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
+#include <webcpp/crypto/backends/bearssl.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -24,6 +26,9 @@
 #include <string_view>
 
 namespace crypto = webcpp::crypto;
+// AES-256-GCM on BearSSL, named in the type: one Jamfile line serves every target, where
+// aes256_gcm's default is OpenSSL natively.
+using aead_type = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
@@ -86,7 +91,7 @@ int main() {
     if (!device.fill(device_key) || !device.fill(iv)) {
         return 1;
     }
-    auto aead = crypto::ciphers::aes256_gcm::make(device_key);
+    auto aead = aead_type::make(device_key);
     wipe(std::as_writable_bytes(std::span(device_key)));
     if (!aead) {
         return 1;

@@ -1,5 +1,5 @@
 {
-    "comment": "The data of crypto's generated tables and of llms.txt; doc/tables/generate.py reads it with the test Jamfiles, the message tests and the superproject's Jamfile fixtures, and writes doc/generated/, doc/llms.txt, include/webcpp/crypto/detail/capabilities.hpp and test/capabilities_test.cpp. The capability table is `families`: per family its algorithms, the targets on which each backend has it (each claimed only where a test of the family's operations on that backend runs), constant time per target where it differs from the backend's own `constant_time` (none yet), and the default per target and what the program links, as the code has it now, with its reason and the tests that fix it; a backend with `targets`, where it is built, is a tag of `backends`. A name in a text is written between backticks, as Markdown writes code: the tables show it as code and llms.txt keeps the backticks. Edit this file, then run python3 libs/crypto/doc/tables/generate.py; the doc build runs it with --check.",
+    "comment": "The data of crypto's generated tables and of llms.txt; doc/tables/generate.py reads it with the test Jamfiles, the message tests and the superproject's Jamfile fixtures, and writes doc/generated/, doc/llms.txt, include/webcpp/crypto/detail/capabilities.hpp, include/webcpp/crypto/detail/defaults.hpp and test/capabilities_test.cpp. The capability table is `families`: per family its algorithms, the targets on which each backend has it (each claimed only where a test of the family's operations on that backend runs), constant time per target where it differs from the backend's own `constant_time` (none yet), and the default per target, one whatever the program links (design D32), with its reason and the tests that fix it, from which come include/webcpp/crypto/detail/defaults.hpp and the refusal that says what a program whose default is not linked needs; a backend with `targets`, where it is built, is a tag of `backends`. A name in a text is written between backticks, as Markdown writes code: the tables show it as code and llms.txt keeps the backticks. Edit this file, then run python3 libs/crypto/doc/tables/generate.py; the doc build runs it with --check.",
     "page": "https://webcpporg.github.io/libs/crypto/",
     "targets": ["native", "wasip2", "wasip3", "emscripten"],
     "sources": {
@@ -277,13 +277,10 @@
                 {"name": "aes256_gcm", "title": "AES-256-GCM", "type": "ciphers::gcm<ciphers::aes256<{backend}>>"}
             ],
             "default": [
-                {"targets": ["emscripten"], "linked": "BearSSL", "backend": "bearssl", "tests": ["default_bearssl"], "why": "the only AEAD backend there: webcpp does not build OpenSSL for Emscripten; size and speed not measured yet"},
-                {"targets": ["wasip2", "wasip3"], "linked": "BearSSL, with or without OpenSSL", "backend": "bearssl", "tests": ["default_bearssl", "default_both_wasm"], "why": "constant time by design ({bearssl-ct}), where OpenSSL is built no-asm and its AES and GHASH are table-based ({openssl-install})"},
-                {"targets": ["wasip2", "wasip3"], "linked": "BearSSL and OpenSSL, with `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL`", "backend": "openssl", "tests": ["default_openssl_wasm"], "why": "the program's choice"},
-                {"targets": ["native"], "where": "Clang and GCC", "linked": "OpenSSL, with or without BearSSL", "backend": "openssl", "tests": ["default_both"], "why": "OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 ({openssl-armv8}; {openssl-ghash-asm}); BearSSL has them on x86 only ({bearssl-aes}); speed not measured yet"},
-                {"targets": ["native"], "where": "MSVC", "linked": "OpenSSL, with or without BearSSL", "backend": "openssl", "tests": ["default_both"], "why": "the same rule as with Clang and GCC, but here OpenSSL is built no-asm: table-based AES and 4-bit GHASH, no AES-NI, not constant time ({openssl-install}); where timing attacks matter, link BearSSL and define `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`"},
-                {"targets": ["native"], "linked": "BearSSL and OpenSSL, with `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`", "backend": "bearssl", "tests": ["default_selected"], "why": "the program's choice, constant time by design ({bearssl-ct}): on MSVC, where OpenSSL is built no-asm, the choice for code that timing attacks threaten"},
-                {"targets": ["native"], "linked": "BearSSL alone", "backend": "bearssl", "tests": ["default_bearssl"], "why": "the backend that is linked"}
+                {"targets": ["native"], "where": "Clang and GCC", "backend": "openssl", "tests": ["default_both", "default_backend_all_linked"], "why": "OpenSSL's assembly uses the CPU's AES and carry-less multiplication instructions on x86-64 and ARMv8 ({openssl-armv8}; {openssl-ghash-asm}); BearSSL has them on x86 only ({bearssl-aes}). OpenSSL whatever the program links: a program that links BearSSL alone names `gcm<aes256<backends::bearssl>>`"},
+                {"targets": ["native"], "where": "MSVC", "backend": "openssl", "tests": ["default_both"], "why": "the same rule as with Clang and GCC, but here OpenSSL is built no-asm: table-based AES and 4-bit GHASH, no AES-NI, not constant time ({openssl-install}); where timing attacks matter, link BearSSL and name `gcm<aes256<backends::bearssl>>`"},
+                {"targets": ["wasip2", "wasip3"], "backend": "bearssl", "tests": ["default_bearssl", "default_both_wasm", "default_backend_all_linked"], "why": "constant time by design ({bearssl-ct}), where OpenSSL is built no-asm and its AES and GHASH are table-based ({openssl-install}). BearSSL whatever the program links: a program that links OpenSSL alone names `gcm<aes256<backends::openssl>>`"},
+                {"targets": ["emscripten"], "backend": "bearssl", "tests": ["default_bearssl", "default_backend_all_linked_emscripten"], "why": "the only AEAD backend there: webcpp does not build OpenSSL for Emscripten"}
             ],
             "backends": {
                 "bearssl": {"targets": "all"},
@@ -302,7 +299,7 @@
                 {"name": "aes256", "title": "AES-256", "type": "ciphers::aes256<{backend}>"}
             ],
             "default": [
-                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "linked": "any backend", "backend": null, "tests": ["default_selection_bearssl"], "why": "a raw block cipher is a building block a program chooses deliberately, naming its backend; `aes256<>` takes AES-GCM's default as its argument, and its `make` does not compile where that is BearSSL"}
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": null, "tests": ["default_backend_none_linked", "default_selection_bearssl"], "why": "a raw block cipher is a building block a program chooses deliberately, naming its backend; `aes256<>` takes AES-GCM's default as its argument, and its `make` does not compile where that is BearSSL"}
             ],
             "backends": {
                 "openssl": {"targets": "all"},
@@ -319,7 +316,7 @@
                 {"name": "secp256k1", "title": "secp256k1", "type": "curves::secp256k1::basic_keypair<{backend}>"}
             ],
             "default": [
-                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "linked": "libsecp256k1", "backend": "secp256k1", "tests": ["secp256k1"], "why": "the only backend ({libsecp256k1})"}
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
             ],
             "backends": {
                 "secp256k1": {"targets": "all"}
@@ -336,7 +333,7 @@
         {"title": "Ethereum", "section": "crypto-curves", "text": "this version verifies Ethereum's ECDSA signatures with a known key but has no recoverable signature (no recovery id `v`, no public key recovery) and no uncompressed public key output, so it cannot sign Ethereum transactions or derive addresses."},
         {"title": "Compare secrets in constant time", "section": "crypto-equal", "text": "compare a tag, a MAC or a token with `equal`, never `==` or `memcmp` ({cwe208})."},
         {"title": "Secrets come from random_device", "section": "crypto-entropy", "text": "keys, IVs and tokens are drawn from `random_device`, never `std::mt19937` or `rand` ({cwe338})."},
-        {"title": "The default on MSVC is not constant time", "section": "crypto-backends-defaults", "text": "natively with OpenSSL linked the default is OpenSSL, which MSVC builds no-asm, table-based ({openssl-install}); where timing attacks matter, link BearSSL and define `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`."}
+        {"title": "The default on MSVC is not constant time", "section": "crypto-backends-defaults", "text": "natively the default is OpenSSL, which MSVC builds no-asm, table-based ({openssl-install}); where timing attacks matter, link BearSSL and name `gcm<aes256<backends::bearssl>>`."}
     ],
     "outcome_sections": {
         "all": "every target",
@@ -382,8 +379,8 @@
         {"need": "Generate a session token, a password-reset link or an API key", "namespace": "webcpp::crypto", "api": "`random_device::fill`", "backend": "the system's generator", "jamfile": "/webcpp/crypto//crypto", "example": "reset_token", "section": "crypto-entropy"},
         {"need": "Draw an unbiased number in a range, such as a six-digit code", "namespace": "webcpp::crypto", "api": "`random_device` with `std::uniform_int_distribution`", "backend": "the system's generator", "jamfile": "/webcpp/crypto//crypto", "example": "reset_token", "section": "crypto-entropy"},
         {"need": "Check a webhook's or an API's HMAC signature", "namespace": "webcpp::crypto", "api": "`equal`, with Boost.Hash2's `hmac`", "backend": "none", "jamfile": "/webcpp/crypto//crypto", "example": "equal_hmac", "section": "crypto-equal"},
-        {"need": "Encrypt a database field, a cookie or a token at rest", "namespace": "webcpp::crypto::ciphers", "api": "`aes256_gcm`", "backend": "default: BearSSL on WebAssembly, OpenSSL natively when linked", "jamfile": "/webcpp/crypto//crypto /third_party//bearssl", "example": "store_token", "section": "crypto-gcm"},
-        {"need": "Encrypt a large file or a stream", "namespace": "webcpp::crypto::ciphers", "api": "`aes256_gcm`: records, or `begin_seal`, `update` and `result`", "backend": "default", "jamfile": "/webcpp/crypto//crypto /third_party//bearssl", "example": "sealed_records", "section": "crypto-gcm-incremental"},
+        {"need": "Encrypt a database field, a cookie or a token at rest", "namespace": "webcpp::crypto::ciphers", "api": "`gcm<aes256<backends::bearssl>>`, or `aes256_gcm` on the default", "backend": "BearSSL, named: one Jamfile line on every target; the default is OpenSSL natively, BearSSL on WebAssembly", "jamfile": "/webcpp/crypto//crypto /third_party//bearssl", "example": "store_token", "section": "crypto-gcm"},
+        {"need": "Encrypt a large file or a stream", "namespace": "webcpp::crypto::ciphers", "api": "`gcm<aes256<backends::bearssl>>`: records, or `begin_seal`, `update` and `result`", "backend": "BearSSL, named", "jamfile": "/webcpp/crypto//crypto /third_party//bearssl", "example": "sealed_records", "section": "crypto-gcm-incremental"},
         {"need": "Tell a forged message from a malformed one", "namespace": "webcpp::crypto", "api": "`error`", "backend": "any", "jamfile": "/webcpp/crypto//crypto", "example": "failure_reasons", "section": "crypto-errors"},
         {"need": "Turn a sequential id into an opaque reference", "namespace": "webcpp::crypto::ciphers", "api": "`aes256<backends::ctaes>`", "backend": "ctaes, or OpenSSL natively and on WASI", "jamfile": "/webcpp/crypto//crypto /third_party//ctaes", "example": "order_reference", "section": "crypto-block"},
         {"need": "Prove who wrote a message posted to a relay", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign_schnorr`, `verify_schnorr`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "signed_message", "section": "crypto-p2p-signed"},
@@ -399,11 +396,11 @@
         {"need": "Use P-256 (passkeys, JWT's ES256), Ed25519 or X25519", "namespace": "none in this version", "api": "secp256k1 keys and signatures do not interoperate with these curves", "backend": "none", "jamfile": "none", "example": "", "section": "crypto-curves"}
     ],
     "fixtures": {
-        "web": "A web application: AES-256-GCM on BearSSL, the default on every target.",
-        "server": "A server, natively: the same program with OpenSSL, the default natively when linked.",
-        "both_bearssl_default": "Both backends linked, BearSSL chosen as the default with a define; the same program.",
+        "web": "A web application: AES-256-GCM on BearSSL, the default on WebAssembly.",
+        "server": "A server, natively: the same program with OpenSSL, the default natively.",
+        "both_bearssl_named": "Both backends linked, and BearSSL named in the type where the default is OpenSSL.",
         "block": "The AES block cipher on ctaes: the FIPS 197 block encrypted and decrypted again.",
-        "encrypt_and_sign": "Two backends in one program: AES-256-GCM on the default backend and a BIP 340 signature.",
+        "encrypt_and_sign": "Two backends in one program: AES-256-GCM on BearSSL, named in the type so that one Jamfile serves every target, and a BIP 340 signature.",
         "openssl_linked": "OpenSSL, built from source, named in the type: natively and on WASI.",
         "sign": "A BIP 340 signature with libsecp256k1's default tables.",
         "sign_small": "The same program with libsecp256k1's small tables, which libsecp256k1 documents as smaller and slower to verify ({secp256k1-configure}); not measured here yet.",
@@ -414,7 +411,8 @@
         "canary_ctaes_missing": "ctaes's headers used without its library.",
         "canary_secp256k1_missing": "libsecp256k1's headers used without its library.",
         "canary_secp256k1_small": "A program compiled for other tables than its libsecp256k1 was built with.",
-        "default_openssl_on_emscripten": "OpenSSL selected as the default in a build for Emscripten.",
+        "default_openssl_on_emscripten": "Version 0.1's define that chose OpenSSL as the default, in a build for Emscripten.",
+        "default_bearssl_on_emscripten": "Version 0.1's define that chose BearSSL as the default, in a build for Emscripten.",
         "has_openssl_on_emscripten": "OpenSSL declared linked, without b2, in a build for Emscripten.",
         "openssl_on_emscripten": "`/webcpp/crypto//openssl` named in a build for Emscripten.",
         "openssl_memory_on_emscripten": "The memory option of the OpenSSL backend set in a build for Emscripten.",
@@ -427,10 +425,10 @@
         "sodium_not_linked_on_emscripten": "A program for Emscripten that names libsodium and links none."
     },
     "fixes": {
-        "no_backend_native": "Add `/webcpp/crypto//openssl` or `/third_party//bearssl` to the program's sources.",
+        "gcm_default_openssl_not_linked": "Natively the default is OpenSSL: add `/webcpp/crypto//openssl`, or name BearSSL in the type, as in `gcm<aes256<backends::bearssl>>`.",
         "no_backend_wasm": "Add `/third_party//bearssl` to the program's sources.",
-        "bearssl_not_linked": "Add `/third_party//bearssl`, or, with OpenSSL linked, define `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL`.",
-        "openssl_only_on_wasi": "On WASI the default is BearSSL: add `/third_party//bearssl`, or define `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL`.",
+        "bearssl_not_linked": "Add `/third_party//bearssl`.",
+        "openssl_only_on_wasi": "On WASI the default is BearSSL: add `/third_party//bearssl`, or name OpenSSL in the type, as in `gcm<aes256<backends::openssl>>`.",
         "openssl_not_linked": "Add `/webcpp/crypto//openssl`.",
         "openssl_old": "Name `/webcpp/crypto//openssl`, which builds OpenSSL 3.5.9; without b2, put OpenSSL 3's `include/` first.",
         "ctaes_not_linked": "Add `/third_party//ctaes`.",
@@ -438,11 +436,13 @@
         "sodium_not_linked_on_emscripten": "Add `/third_party//sodium` to the program's sources.",
         "canary_sodium_other_commit": "Build the library at the commit of webcpp's submodule, or link it through b2.",
         "secp256k1_not_linked": "Add `/third_party//secp256k1`.",
-        "gcm_on_ctaes": "Use `aes256_gcm` with BearSSL or OpenSSL linked.",
+        "gcm_on_ctaes": "Name `gcm<aes256<backends::bearssl>>` or `gcm<aes256<backends::openssl>>`, or use `aes256_gcm` with its default linked.",
         "secp256k1_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::keypair`.",
         "aes_on_bearssl": "Name `ciphers::aes256<backends::ctaes>`, include `<webcpp/crypto/backends/ctaes.hpp>` and add `/third_party//ctaes`.",
-        "two_defaults": "Keep one of the two defines.",
-        "default_openssl_on_emscripten": "Remove the define, or make it `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`.",
+        "default_selected": "Remove the define, and name `gcm<aes256<backends::bearssl>>` where the program wants BearSSL.",
+        "default_openssl_wasm": "Remove the define, and name `gcm<aes256<backends::openssl>>` where the program wants OpenSSL.",
+        "default_openssl_on_emscripten": "Remove the define: on Emscripten the default is BearSSL, and OpenSSL is not built.",
+        "default_bearssl_on_emscripten": "Remove the define: on Emscripten the default is BearSSL.",
         "has_openssl_on_emscripten": "Replace `/webcpp/crypto//openssl` with `/third_party//bearssl`.",
         "openssl_on_emscripten": "Name `/third_party//bearssl` in its place for the Emscripten build.",
         "openssl_memory_on_emscripten": "Remove `<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` from the WebAssembly build: give that build a project of its own, without the define and OpenSSL, naming `/third_party//bearssl`. On WebAssembly the backend is BearSSL, which allocates nothing.",
@@ -461,8 +461,6 @@
         "no_backend_on_emscripten": "Add `/third_party//bearssl` to the program's sources.",
         "canary_secp256k1_two_files": "Compile every file of the program with the same backend settings.",
         "canary_two_files": "Compile every file of the program with the same backend settings.",
-        "default_two_files": "Give `WEBCPP_CRYPTO_DEFAULT_BACKEND_*` in the requirements of the program's project, so that every file gets it.",
-        "no_backend": "As `no_backend_native`.",
         "openssl_not_linked_msvc": "As `openssl_not_linked`."
     }
 }

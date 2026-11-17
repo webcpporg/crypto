@@ -69,6 +69,12 @@ EM_ASYNC_JS(int, subtle_ed25519_verify, (const std::uint8_t* key, const std::uin
         return -1;
     }
 });
+
+// The versions of the node running this program, and of its OpenSSL, on one line.
+EM_JS(void, print_node_versions, (), {
+    console.log("webcrypto-node run with node " + process.versions.node + ", OpenSSL " +
+                process.versions.openssl);
+});
 // clang-format on
 #endif
 
@@ -152,14 +158,15 @@ void sodium_rows(std::vector<edge_case> const& cases, verdicts& raw, verdicts& s
 
 int main() {
     BOOST_TEST(sodium_init() >= 0);
-    boost::system::error_code parse_error;
+    boost::system::error_code cases_error;
     auto const cases_document =
-        json::parse(test::read_file(WEBCPP_TEST_ED25519_SPECCHECK "/cases.json"), parse_error);
-    BOOST_TEST(!parse_error);
-    auto const committed =
-        json::parse(test::read_file(WEBCPP_TEST_CRYPTO_META "/ed25519_cases.json"), parse_error);
-    BOOST_TEST(!parse_error);
-    if (parse_error) {
+        json::parse(test::read_file(WEBCPP_TEST_ED25519_SPECCHECK "/cases.json"), cases_error);
+    BOOST_TEST(!cases_error);
+    boost::system::error_code committed_error;
+    auto const committed = json::parse(
+        test::read_file(WEBCPP_TEST_CRYPTO_META "/ed25519_cases.json"), committed_error);
+    BOOST_TEST(!committed_error);
+    if (cases_error || committed_error) {
         return test::exit_status(boost::report_errors());
     }
 
@@ -208,15 +215,30 @@ int main() {
     compare("sodium raw", raw, sodium_raw);
     compare("sodium strict", strict, sodium_strict);
 
-    // The outside view: node's WebCrypto, committed as one row.
+    // The outside view: node's WebCrypto, committed as one row with the node and OpenSSL that
+    // gave it.
     auto const* outside = committed.as_object().if_contains("outside");
     BOOST_TEST(outside != nullptr && outside->as_object().size() == 1U &&
                outside->as_object().contains("webcrypto-node"));
     if (outside == nullptr || !outside->as_object().contains("webcrypto-node")) {
         return test::exit_status(boost::report_errors());
     }
-    auto const webcrypto = committed_row(outside->at("webcrypto-node"), "webcrypto-node");
+    auto const& view = outside->at("webcrypto-node").as_object();
+    BOOST_TEST(view.contains("node") && view.at("node").is_string());
+    BOOST_TEST(view.contains("openssl") && view.at("openssl").is_string());
+    BOOST_TEST(view.contains("verdicts"));
+    if (!view.contains("verdicts")) {
+        return test::exit_status(boost::report_errors());
+    }
+    auto const webcrypto = committed_row(view.at("verdicts"), "webcrypto-node");
 #if defined(__EMSCRIPTEN__)
+    // The versions this run's node has, beside those committed: a node whose row differs says
+    // which it is.
+    if (view.contains("node") && view.contains("openssl")) {
+        std::cout << "webcrypto-node committed with node " << text_of(view.at("node"))
+                  << ", OpenSSL " << text_of(view.at("openssl")) << '\n';
+    }
+    print_node_versions();
     verdicts subtle;
     for (auto const& tested : cases) {
         auto const answer = subtle_ed25519_verify(tested.public_key.data(), tested.message.data(),

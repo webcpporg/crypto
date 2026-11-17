@@ -63,8 +63,8 @@ CASES_NOTICE = LICENCE + (
 FIXTURES = 'tools/test/fixtures/crypto_jamfiles'
 ED25519_CASES = Path('meta/ed25519_cases.json')
 # The outside views of the edge cases, by their key in meta/ed25519_cases.json: verdicts recorded
-# beside the backends', which strict is never compared with.
-OUTSIDE_TITLES = {'webcrypto-node': 'WebCrypto in node, outside view'}
+# beside the backends', which strict is never compared with, headed by the versions that gave them.
+OUTSIDE_TITLES = {'webcrypto-node': 'WebCrypto in node {node} (OpenSSL {openssl}), outside view'}
 VERDICTS = ('accept', 'reject')
 BACKEND_ORDER = ('bearssl', 'openssl', 'ctaes', 'secp256k1', 'sodium', 'system', 'none')
 NAMESPACE_TITLES = {'root': 'webcpp::crypto', 'ciphers': 'webcpp::crypto::ciphers',
@@ -1033,10 +1033,16 @@ def sizes_page(data: Data) -> str:
 
 def ed25519_cases_page(data: Data, cases: Data) -> str:
     """The twelve Ed25519 edge cases of meta/ed25519_cases.json: a row per case, what it tests,
-    then each backend's raw verdict and its verdict under `strict`, then each outside view's. A
-    row whose length is not the cases' or a verdict other than accept or reject is a fault."""
+    then each backend's raw verdict and its verdict under `strict`, then each outside view's,
+    headed by the node and OpenSSL that gave it. A backend or an outside view the generator does
+    not know, an outside view without its node and OpenSSL, a row whose length is not the cases'
+    and a verdict other than accept or reject are faults."""
     columns = ['Case', 'What it tests']
     verdicts: List[List[str]] = []
+    for backend in cases['backends']:
+        if backend not in BACKEND_ORDER or backend not in data['backends']:
+            raise Fault(f'{ED25519_CASES} names the backend {backend}, which crypto.json does '
+                        'not list')
     for backend in BACKEND_ORDER:
         rows = cases['backends'].get(backend)
         if rows is None:
@@ -1044,9 +1050,16 @@ def ed25519_cases_page(data: Data, cases: Data) -> str:
         title = data['backends'][backend]['title']
         columns += [f'{title}, raw', f'{title}, strict']
         verdicts += [rows['raw'], rows['strict']]
-    for name, row in cases['outside'].items():
-        columns.append(OUTSIDE_TITLES[name])
-        verdicts.append(row)
+    for name, view in cases['outside'].items():
+        if name not in OUTSIDE_TITLES:
+            raise Fault(f'{ED25519_CASES} names the outside view {name}, which generate.py does '
+                        f'not know: {", ".join(OUTSIDE_TITLES)}')
+        if not isinstance(view, dict) or not all(isinstance(view.get(key), str)
+                                                 for key in ('node', 'openssl')):
+            raise Fault(f'{ED25519_CASES}: the outside view {name} records no node and OpenSSL '
+                        'versions')
+        columns.append(OUTSIDE_TITLES[name].format(**view))
+        verdicts.append(view.get('verdicts', []))
     for column, row in zip(columns[2:], verdicts):
         if len(row) != len(cases['cases']) or any(entry not in VERDICTS for entry in row):
             raise Fault(f'{ED25519_CASES}: the row {column} is not one verdict, accept or '

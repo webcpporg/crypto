@@ -9,7 +9,7 @@
 
 [cols="1,5,2,2,2",options="header"]
 |===
-|Case |What it tests |libsodium, raw |libsodium, strict |WebCrypto in node, outside view
+|Case |What it tests |libsodium, raw |libsodium, strict |WebCrypto in node 26.13.0 (OpenSSL 4.1.0), outside view
 
 |0
 |`+S+` = 0, `+A+` and `+R+` of small order
@@ -54,7 +54,7 @@
 |reject
 
 |7
-|`+S+` far above `+L+`, its top bit set
+|`+S+` above twice `+L+`
 |reject
 |reject
 |reject

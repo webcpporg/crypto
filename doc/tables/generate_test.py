@@ -187,15 +187,18 @@ def test_an_index_entry_names_a_qualified_function_bare(scratch: Path) -> None:
     entry = generate.llms_entry(scratch, operation, 'sign')
     assert entry == '  - sign: Signs a message.', entry
 
+
 def test_the_edge_cases_table_has_a_row_per_case_and_a_column_per_verdict(_: Path) -> None:
     data = {'backends': {'sodium': {'title': 'libsodium'}}}
     cases = {'source': {'repository': 'novifinancial/ed25519-speccheck', 'commit': '65519336',
                         'file': 'cases.json'},
              'backends': {'sodium': {'raw': ['reject', 'accept'], 'strict': ['reject', 'accept']}},
-             'outside': {'webcrypto-node': ['accept', 'accept']},
+             'outside': {'webcrypto-node': {'node': '26.13.0', 'openssl': '4.1.0',
+                                            'verdicts': ['accept', 'accept']}},
              'cases': ['`S` = 0', '`A` non-canonical']}
     page = generate.ed25519_cases_page(data, cases)
-    header = '|Case |What it tests |libsodium, raw |libsodium, strict |WebCrypto in node'
+    header = ('|Case |What it tests |libsodium, raw |libsodium, strict '
+              '|WebCrypto in node 26.13.0 (OpenSSL 4.1.0), outside view')
     assert header in page, page
     assert '\n|0\n|`+S+` = 0\n|reject\n|reject\n|accept\n' in page, page
     assert '\n|1\n|`+A+` non-canonical\n|accept\n|accept\n|accept\n' in page, page
@@ -207,6 +210,25 @@ def test_the_edge_cases_table_has_a_row_per_case_and_a_column_per_verdict(_: Pat
             pass
         else:
             raise AssertionError(f'a row {broken} was written')
+
+
+def test_an_edge_cases_key_the_generator_does_not_know_is_a_fault(_: Path) -> None:
+    # A backend misnamed, an outside view without a title, or one whose node or OpenSSL is not
+    # recorded would leave the page silently short of a row or of its provenance.
+    data = {'backends': {'sodium': {'title': 'libsodium'}}}
+    row = {'raw': ['reject'], 'strict': ['reject']}
+    view = {'node': '26.13.0', 'openssl': '4.1.0', 'verdicts': ['reject']}
+    for backends, outside in (({'libsodium': row}, {'webcrypto-node': view}),
+                              ({'sodium': row}, {'webcrypto-deno': view}),
+                              ({'sodium': row}, {'webcrypto-node': {'verdicts': ['reject']}})):
+        cases = {'backends': backends, 'outside': outside, 'cases': ['`S` = 0']}
+        try:
+            generate.ed25519_cases_page(data, cases)
+        except generate.Fault:
+            pass
+        else:
+            raise AssertionError(f'the keys {backends}, {outside} were written')
+
 
 def test_code_that_holds_a_plus_is_one_span(_: Path) -> None:
     # `+em++: error:+` would be read as `+em+` and a stray rest: the text is a passthrough.
@@ -686,6 +708,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_qualified_function_is_read_in_its_class,
     test_an_index_entry_names_a_qualified_function_bare,
     test_the_edge_cases_table_has_a_row_per_case_and_a_column_per_verdict,
+    test_an_edge_cases_key_the_generator_does_not_know_is_a_fault,
     test_code_that_holds_a_plus_is_one_span,
     test_a_failing_fixture_lists_its_texts_per_target,
     test_a_fixture_that_builds_and_runs_nothing_is_a_record,

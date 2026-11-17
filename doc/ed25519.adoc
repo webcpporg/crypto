@@ -73,21 +73,26 @@ twelve signatures on which implementations disagree, in their suite
 They run against every Ed25519 backend: its own verdict (raw), and its verdict
 under `strict`, which is libsodium's on every backend. The test
 `ed25519_speccheck` asserts the table below, so that a new version of a backend
-that changes a verdict fails until the table is regenerated; WebCrypto in node
-is an outside view, recorded and never held to `strict`.
+that changes a verdict fails until the table is regenerated. WebCrypto in node
+is an outside view, recorded with the node and the OpenSSL that gave it (node's
+Ed25519 is OpenSSL's) and never held to `strict`. The suite's results of 2021
+show OpenSSL 3.0 accepting cases 0 to 2 and 11; the newer OpenSSL of the
+column's node refuses them, as libsodium does.
 
 include::generated/ed25519-cases.adoc[]
 
 Honest signatures verify everywhere: the cases differ only on signatures no
 honest signer makes, and a network that mixes verifiers must agree on one rule
-for them. Rust peers that use ed25519-dalek's default `verify` accept cases 0
-to 2 and 11, which `strict` refuses
+for them. In the suite's results of 2021
 (link:https://github.com/novifinancial/ed25519-speccheck#results[the suite's
-results]). ZIP-215 verifiers (link:https://zips.z.cash/zip-0215[ZIP 215]), the
-rule of Zcash, accept every case but 6 to 8 by design: they verify with the
-cofactor and accept non-canonical encodings of `A` and `R`, so that every
-ZIP-215 verifier agrees on every signature. `strict` refuses the cases they
-accept beyond it; `zip215` is not a policy of this version, and waits for a
+results], whose `Cargo.toml` pins them), Rust peers that used the default
+`verify` of ed25519-dalek 1.0.0-pre.4 accepted cases 0 to 2 and 11, which
+`strict` refuses, and ed25519-zebra 2.1.1, a ZIP-215 verifier
+(link:https://zips.z.cash/zip-0215[ZIP 215], the rule of Zcash), accepted every
+case but 6 to 8. ZIP-215 does so by design: it verifies with the
+cofactor and accepts non-canonical encodings of `A` and `R`, so that every
+ZIP-215 verifier agrees on every signature. `strict` refuses the cases ZIP-215
+accepts beyond it; `zip215` is not a policy of this version, and waits for a
 mature C or {cpp} implementation of ZIP-215.
 
 *Pitfalls.*

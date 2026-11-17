@@ -53,6 +53,10 @@ webcpp.example ecdh_session.cpp : <library>/third_party//secp256k1 <library>/web
 # derives from it.
 webcpp.example ecdh_x_coordinate.cpp : <library>/third_party//secp256k1 ;
 
+# A recoverable signature: a reader finds the signer's key from the signature
+# and the hash.
+webcpp.example recover_signer.cpp : <library>/third_party//secp256k1 ;
+
 # A wallet's key pair, its secret sealed at rest and restored.
 webcpp.example wallet_key.cpp : <library>/third_party//secp256k1 <library>/webcpp/crypto//gcm-default ;
 

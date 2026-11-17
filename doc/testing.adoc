@@ -52,12 +52,13 @@ What the tests check:
 
 * *The vectors.* AES-GCM against the GCM specification's cases and Project
 Wycheproof's vectors, on BearSSL and on OpenSSL; AES against FIPS 197 on ctaes
-and OpenSSL; secp256k1 against BIP 340's vectors and Wycheproof's ECDSA and DER
-vectors, and the x-only tweak against BIP 341's. Ed25519 against RFC 8032's
-tests, Wycheproof's EdDSA vectors and the twelve edge cases of "Taming the
-many EdDSAs"; X25519 against RFC 7748's and Wycheproof's; ChaCha20-Poly1305
-and XChaCha20-Poly1305 against RFC 8439's and the XChaCha20 draft's examples
-and Wycheproof's vectors, on every backend that has them.
+and OpenSSL; secp256k1 against BIP 340's vectors, Wycheproof's ECDSA, ECDH and
+DER vectors and libsecp256k1's own recovery edge cases, and the x-only tweak
+against BIP 341's. Ed25519 against RFC 8032's tests, Wycheproof's EdDSA vectors
+and the twelve edge cases of "Taming the many EdDSAs"; X25519 against RFC 7748's
+and Wycheproof's; ChaCha20-Poly1305 and XChaCha20-Poly1305 against RFC 8439's
+and the XChaCha20 draft's examples and Wycheproof's vectors, on every backend
+that has them.
 * *node's WebCrypto as an outside oracle,* on Emscripten: 200 Ed25519 key
 pairs, messages and signatures from a fixed seed, each verified and signed
 again by `crypto.subtle`, which must give the same public key and signature,

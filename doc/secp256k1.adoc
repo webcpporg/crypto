@@ -24,7 +24,9 @@ link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow paper]).
 Each signature's nonce is RFC 6979's, derived from the key and the hash, so
 that no weak generator can leak the key
 (link:https://www.rfc-editor.org/rfc/rfc6979[RFC 6979]), and each is in low-S
-form;
+form. A signature is also made hedged, with the caller's fresh randomness
+mixed into the nonce, or recoverable, with the id from which a reader finds
+the signer's key (<<crypto-secp256k1-recovery>>);
 * *ECDH*, a shared secret: `ecdh` gives libsecp256k1's hashed form, the
 SHA-256 of the shared point in its 33-byte compressed encoding, one of three
 forms (<<crypto-secp256k1-ecdh>>). It interoperates only with peers that hash
@@ -36,14 +38,17 @@ A `keypair` is made from a 32-byte secret key with `make(secret)`, which
 allocates its signing context in the `std::pmr::memory_resource` it is given,
 and randomises it from `random_device`; crypto's own code allocates nothing
 else (<<crypto-memory>>). A key pair gives its x-only public key
-(`xonly_public_key`) and its compressed one (`public_key`), signs
-(`sign_schnorr`, `sign_ecdsa`), derives an ECDH secret (`ecdh`, `ecdh_x`,
-`ecdh_point`), and is tweaked
-in place (`tweak_xonly`). `verify_schnorr` and `verify_ecdsa` check signatures
-with a public key alone; `to_der`, `from_der` (strict DER) and
-`normalize_ecdsa` convert ECDSA's DER and low-S forms; and `tweak_xonly` tweaks
-an x-only public key. Every function reads libsecp256k1's canary, so that a
-program linked with another build of the library does not link.
+(`xonly_public_key`), its compressed and uncompressed ones (`public_key`,
+`public_key_uncompressed`), signs (`sign_schnorr`, `sign_ecdsa`,
+`sign_recoverable`), derives an ECDH secret (`ecdh`, `ecdh_x`, `ecdh_point`),
+and is tweaked in place (`tweak_xonly`). `verify_schnorr` and `verify_ecdsa`
+check signatures with a public key alone, and `recover` finds the key from a
+recoverable signature; `parse_public_key` and `serialize_public_key` read and
+write a `public_key` (<<crypto-secp256k1-keys>>); `to_der`, `from_der` (strict
+DER) and `normalize_ecdsa` convert ECDSA's DER and low-S forms; and
+`tweak_xonly` tweaks an x-only public key. Every function reads libsecp256k1's
+canary, so that a program linked with another build of the library does not
+link.
 
 include::generated/backends-keypair.adoc[]
 
@@ -157,3 +162,107 @@ cause. Read the protocol's specification for the form it names.
 * Never use one shared secret as two keys, one per direction or one for
 encryption and one for authentication: derive one key per purpose with the
 KDF, each with its own label (<<crypto-p2p-session>>).
+
+[#crypto-secp256k1-keys]
+==== Public keys and their two forms
+
+A public key arrives as bytes: from a peer, from a file, from a transaction. A
+program that checks many signatures with one key, or compares keys, parses it
+once into a `public_key`, a point of the curve that the type guarantees, and
+uses that from then on. The check matters: a peer's key that is not on the
+curve is how invalid-curve attacks begin, in which a key off the curve,
+combined with a secret key, leaks that secret bit by bit, which is why the
+holder of a long-lived secret key validates the other side's public key
+(link:https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman[Wikipedia]).
+`parse_public_key` makes the only `public_key` there is, so a program that
+holds one holds a valid point.
+
+A point is written in one of two forms
+(link:https://www.secg.org/sec1-v2.pdf[SEC 1, sections 2.3.3 and 2.3.4]):
+
+* *compressed*, 33 bytes: 02 or 03 by the parity of y, then x. Bitcoin writes
+keys this way, and its SegWit outputs take no other form by default
+(link:https://github.com/bitcoin/bips/blob/master/bip-0143.mediawiki[BIP 143]);
+* *uncompressed*, 65 bytes: 04, x, y. Ethereum's keys are x and y, 64 bytes,
+the uncompressed form without its prefix
+(link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow paper]).
+
+`serialize_public_key` writes either (`point_form::compressed`, the default,
+or `point_form::uncompressed`); a key pair gives its own key in both forms,
+`public_key` and `public_key_uncompressed`. Two `public_key` values compare
+with `==`, and order with `+<=>+` as their compressed encodings do, the order
+MuSig2's key sorting uses
+(link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327]). A `public_key` holds nothing secret and is copied
+freely.
+
+include::generated/backends-public_key.adoc[]
+
+*Pitfalls.*
+
+* X9.62's hybrid form, prefix 06 or 07 then x and y, is refused with
+`invalid_public_key`, though libsecp256k1 reads it: SEC 1 defines only the two
+forms above and refuses every other prefix
+(link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 2.3.4]), so a key webcpp
+takes is one every SEC 1 parser takes, and one key has one encoding of each
+form.
+* A key compared as bytes, rather than parsed, differs between its two forms:
+the same key compressed and uncompressed are different bytes. Parse both and
+compare the `public_key` values.
+* Ethereum's 64-byte key is the uncompressed form without its 04: add the
+prefix before `parse_public_key`, and drop it after `serialize_public_key`.
+
+[#crypto-secp256k1-recovery]
+==== Recoverable signatures
+
+Ethereum names an account by the hash of its public key, and a transaction
+carries no key: only the signature, from which a node recovers the key that
+made it
+(link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow
+paper, appendix F]). An ECDSA signature fits up to four keys, and the
+recovery id, 0 to 3, names the one that made it
+(link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 4.1.6]). `sign_recoverable`
+writes 65 bytes, r, s and the id, with the same r and s as `sign_ecdsa`, and
+`recover` returns the `public_key` from those 65 bytes and the hash. It
+refuses with `invalid_signature` an id above 3, an r or an s not below the
+group order, and a signature from which no key is recovered.
+
+include::generated/backends-recovery.adoc[]
+
+*Example.* A wallet signs a message's hash; a reader that holds no key of the
+wallet's recovers the signer's key and compares it with the key the wallet
+published; a changed message recovers a different key:
+
+[source,cpp]
+----
+include::{examples}/recover_signer.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/recover_signer.expected[]
+----
+
+`sign_ecdsa` also has a hedged form, which takes 32 more bytes, drawn from
+`random_device` and new for each signature, and mixes them into RFC 6979's
+nonce, as the RFC's variant with additional data allows
+(link:https://www.rfc-editor.org/rfc/rfc6979#section-3.6[RFC 6979, section
+3.6]) and libsecp256k1's `ndata` takes
+(link:https://github.com/bitcoin-core/secp256k1#readme[libsecp256k1]). The
+signature verifies as any other.
+
+*Pitfalls.*
+
+* Recovery always yields some key for almost every signature and hash, a
+forged one included: a program that trusts the recovered key alone accepts
+anything. Compare it with the key expected, as the example does, or with the
+account the key's hash must name.
+* Ethereum's `v` is the recovery id plus 27, or plus an offset of the chain's
+(link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow
+paper, appendix F]): passing `v` as the id makes `recover` refuse it. That
+encoding, and the message hash Ethereum signs, are a domain library's.
+* The hedged form gives a different signature each time, so a test that
+compares signatures with fixed bytes uses the unhedged form. Use the hedged
+form where the signer runs on hardware an attacker can fault or observe: the
+nonce then no longer depends on the key and the hash alone, so two signings of
+one hash do not repeat the same computation. Never reuse the 32 bytes: fixed
+extra data leaves the signature deterministic, as plain RFC 6979.

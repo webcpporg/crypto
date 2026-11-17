@@ -37,7 +37,10 @@ inline void expect_empty_keypair(webcpp::crypto::curves::secp256k1::keypair& key
     BOOST_TEST(key.xonly_public_key().error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.public_key().error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.sign_schnorr(message, aux).error() == webcpp::crypto::error::invalid_state);
+    BOOST_TEST(key.public_key_uncompressed().error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.sign_ecdsa(message).error() == webcpp::crypto::error::invalid_state);
+    BOOST_TEST(key.sign_ecdsa(message, aux).error() == webcpp::crypto::error::invalid_state);
+    BOOST_TEST(key.sign_recoverable(message).error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.tweak_xonly(tweak).error() == webcpp::crypto::error::invalid_state);
     if (BOOST_TEST(live.has_value())) {
         auto const peer = *live->public_key();

@@ -7,10 +7,10 @@
 // secp256k1's one allocation (spec section 8.5): make allocates the signing context once, in
 // the resource it is given, of libsecp256k1's preallocated size and aligned to max_align_t,
 // and never through operator new nor the C library's allocator where the target lets a
-// program count it; the signatures, the three forms of ECDH, the public keys, both
-// verifications, the DER and low-S functions and the x-only tweak allocate nothing, each
-// counted alone; the destructor gives the block back; a refused make allocates nothing. A
-// control proves the counter moves.
+// program count it; the signatures (hedged and recoverable too), the three forms of ECDH, the
+// public keys in both forms, both verifications, the parsed public key, recovery, the DER and
+// low-S functions and the x-only tweak allocate nothing, each counted alone; the destructor gives
+// the block back; a refused make allocates nothing. A control proves the counter moves.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -104,7 +104,11 @@ int main() {
         auto const shared = key.ecdh(*public_key);
         auto const shared_x = key.ecdh_x(*public_key);
         auto const shared_point = key.ecdh_point(*public_key);
+        auto const hedged = key.sign_ecdsa(message, aux);
+        auto const recoverable = key.sign_recoverable(message);
+        auto const uncompressed = key.public_key_uncompressed();
         BOOST_TEST(schnorr && ecdsa && xonly && public_key && shared && shared_x && shared_point);
+        BOOST_TEST(hedged && recoverable && uncompressed);
         BOOST_TEST(secp::verify_schnorr(*schnorr, message, *xonly).has_value());
         BOOST_TEST(secp::verify_ecdsa(*ecdsa, message, *public_key).has_value());
         BOOST_TEST_EQ(webcpp::test::allocations(), before);
@@ -128,6 +132,14 @@ int main() {
         none("from_der", [&] { return secp::from_der(encoded); });
         none("normalize_ecdsa", [&] { return secp::normalize_ecdsa(*ecdsa); });
         none("tweak_xonly", [&] { return secp::tweak_xonly(*xonly, message); });
+        auto const parsed = secp::parse_public_key(*uncompressed);
+        none("parse_public_key", [&] { return secp::parse_public_key(*public_key); });
+        none("serialize_public_key", [&] {
+            return secp::serialize_public_key<secp::point_form::uncompressed>(*parsed) ==
+                   *uncompressed;
+        });
+        none("recover", [&] { return secp::recover(*recoverable, message); });
+        none("public_key <=>", [&] { return (*parsed <=> *parsed) == 0; });
         none("keypair::tweak_xonly", [&] { return key.tweak_xonly(message); });
         BOOST_TEST_EQ(resource.allocated, 1U);
         BOOST_TEST_EQ(resource.deallocated, 0U);

@@ -4,11 +4,12 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// A C module webcpp does not wrap, called and linked (spec section 2.8, "A C module not
-// wrapped"): the recovery module's `secp256k1_ecdsa_sign_recoverable` and
-// `secp256k1_ecdsa_recover`, and the ElligatorSwift module's `secp256k1_ellswift_create` and
-// `secp256k1_ellswift_decode`, against `/third_party//secp256k1` and nothing else of webcpp's
-// but the key pair, which names the public key they must agree with.
+// libsecp256k1's C API stays reachable beside crypto's wrappers: the recovery module's
+// `secp256k1_ecdsa_sign_recoverable` and `secp256k1_ecdsa_recover`, and the ElligatorSwift
+// module's `secp256k1_ellswift_create` and `secp256k1_ellswift_decode`, called and linked
+// against `/third_party//secp256k1`. What the C calls give is compared with the wrappers: the
+// key the C API recovers with `recover`'s, and the key ElligatorSwift decodes with
+// `parse_public_key`'s; both with the key pair's.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -19,6 +20,7 @@
 #include <secp256k1_ellswift.h>
 #include <secp256k1_recovery.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -69,6 +71,17 @@ void recovery(secp256k1_context const* context, secret_key const& secret,
     BOOST_TEST_EQ(secp256k1_ecdsa_recover(context, &again, &parsed, hash.data()), 1);
     BOOST_TEST(serialised(context, again) == expected);
 
+    // The wrapper recovers the same key from the same 65 bytes, r, s and the id.
+    std::array<std::uint8_t, secp::recoverable_signature_size> with_id{};
+    std::ranges::copy(compact, with_id.begin());
+    with_id[64] = static_cast<std::uint8_t>(id);
+    auto const wrapped = secp::recover(with_id, hash);
+    auto const expected_key = secp::parse_public_key(expected);
+    if (BOOST_TEST(wrapped && expected_key)) {
+        BOOST_TEST(*wrapped == *expected_key);
+        BOOST_TEST(secp::serialize_public_key(*wrapped) == serialised(context, again));
+    }
+
     hash.fill(0xa5);
     secp256k1_pubkey other;
     if (BOOST_TEST_EQ(secp256k1_ecdsa_recover(context, &other, &parsed, hash.data()), 1)) {
@@ -87,6 +100,13 @@ void ellswift(secp256k1_context const* context, secret_key const& secret,
     secp256k1_pubkey decoded;
     BOOST_TEST_EQ(secp256k1_ellswift_decode(context, &decoded, encoded.data()), 1);
     BOOST_TEST(serialised(context, decoded) == expected);
+
+    // The decoded point, serialised by the C API, parses with the wrapper to the key pair's key.
+    auto const wrapped = secp::parse_public_key(serialised(context, decoded));
+    auto const expected_key = secp::parse_public_key(expected);
+    if (BOOST_TEST(wrapped && expected_key)) {
+        BOOST_TEST(*wrapped == *expected_key);
+    }
 }
 
 }  // namespace

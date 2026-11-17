@@ -14,8 +14,9 @@ from the `std::pmr::memory_resource` the program passes, which must outlive the
 key pair. Every buffer is the caller's.
 
 * *Nothing allocates per message, on any backend:* `seal`, `open`,
-`begin_seal`, `update`, `result`, `encrypt`, `decrypt`, `fill`, the signatures,
-`ecdh`, `ecdh_x`, `ecdh_point` and the verifications. The counting tests of
+`begin_seal`, `update`, `result`, `encrypt`, `decrypt`, `fill`, the signatures
+(hedged and recoverable too), `ecdh`, `ecdh_x`, `ecdh_point`, the verifications,
+`recover`, `parse_public_key` and `serialize_public_key`. The counting tests of
 `test/` prove it, every `operator new` and the C library's allocator counted.
 * *BearSSL and ctaes allocate nothing,* `make` included: the key schedule lives
 inside the object.

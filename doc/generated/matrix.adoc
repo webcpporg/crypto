@@ -59,7 +59,7 @@
 |`+curves::secp256k1::keypair+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
-|`+secp256k1+`, `+secp256k1_bip340+`, `+secp256k1_xonly_tweak+`, `+secp256k1_ecdh+`
+|`+secp256k1+`, `+secp256k1_bip340+`, `+secp256k1_xonly_tweak+`, `+secp256k1_ecdh+`, `+secp256k1_recovery+`
 
 |`+curves::secp256k1::verify_schnorr+`, `+verify_ecdsa+`
 |libsecp256k1
@@ -190,6 +190,16 @@
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+box_sodium+`, `+allocation_sodium+`
+
+|`+curves::secp256k1::recover+`
+|libsecp256k1
+|native, wasip2, wasip3, emscripten
+|`+secp256k1_recovery+`
+
+|`+curves::secp256k1::public_key+`, `+parse_public_key+`, `+serialize_public_key+`
+|libsecp256k1
+|native, wasip2, wasip3, emscripten
+|`+secp256k1_keys+`
 |===
 
 The same, by target: the backends each operation runs on.
@@ -365,4 +375,16 @@ The same, by target: the backends each operation runs on.
 |libsodium
 |libsodium
 |libsodium
+
+|`+curves::secp256k1::recover+`
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+
+|`+curves::secp256k1::public_key+`, `+parse_public_key+`, `+serialize_public_key+`
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
 |===

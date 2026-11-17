@@ -85,6 +85,13 @@
 `+/third_party//secp256k1+`
 |<<crypto-secp256k1-ecdh,[.keep]`+ecdh_x_coordinate.cpp+`>>
 
+|Find who signed a message or a transaction without being sent their key (Ethereum's signatures)
+|In `+curves::secp256k1+`: `+keypair::sign_recoverable+`, `+recover+`
+|libsecp256k1
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+`
+|<<crypto-secp256k1-recovery,[.keep]`+recover_signer.cpp+`>>
+
 |Make and keep a wallet's key
 |In `+curves::secp256k1+`: `+keypair::make+`, `+xonly_public_key+`, `+public_key+`; `+aes256_gcm+` at rest
 |libsecp256k1, and AES-GCM's default

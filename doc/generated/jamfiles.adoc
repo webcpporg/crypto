@@ -39,9 +39,9 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_named/both_bearssl_named.outcome[tag=output]
 ----
 
-`+encrypt_and_sign+`:: Two backends in one program on WebAssembly: AES-256-GCM on its default, BearSSL, and a BIP 340 signature.
+`+encrypt_and_sign+`:: Two backends in one program on every target: AES-256-GCM on its default, through `+/webcpp/crypto//gcm-default+`, and a BIP 340 signature.
 +
-Its Jamfile, built and run on wasip2, wasip3, emscripten:
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
 +
 [listing]
 ----
@@ -53,6 +53,22 @@ It prints:
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/encrypt_and_sign/encrypt_and_sign.outcome[tag=output]
+----
+
+`+gcm_default+`:: AES-256-GCM on its default on every target, with the one line `+/webcpp/crypto//gcm-default+`, which links OpenSSL natively and BearSSL on WebAssembly; the same program as `+web+`.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/gcm_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/gcm_default/gcm_default.outcome[tag=output]
 ----
 
 `+memory_option+`:: OpenSSL's allocations in the program's own resource: the define and OpenSSL in the requirements of the program's project, the resource defined once, the install first in `+main+`.

@@ -492,6 +492,34 @@ def test_a_row_of_some_compilers_is_labelled_with_their_names(_: Path) -> None:
         'wasip2, wasip3')
 
 
+def test_each_family_s_default_has_an_alias_that_links_it_per_target(_: Path) -> None:
+    block = generate.default_aliases(two_backends())
+    assert block.startswith(generate.ALIASES_BEGIN + '\n'), block
+    assert block.endswith(generate.ALIASES_END + '\n'), block
+    assert ('rule ed25519-default-linked ( properties * )\n{\n'
+            '    switch [ webcpp-target.target-of $(properties) ]\n    {\n'
+            '        case native : return <library>/third_party//sodium ;\n'
+            '        case wasip2 : return <library>/third_party//bearssl ;\n'
+            '        case wasip3 : return <library>/third_party//bearssl ;\n'
+            '        case emscripten : return <library>/third_party//bearssl ;\n'
+            '    }\n}\n'
+            'alias ed25519-default : : : : <conditional>@ed25519-default-linked ;\n') in block, (
+        block)
+    # A family without a default has no alias.
+    data = small_table()
+    data['families'][0]['default'] = [a_default(EVERY_TARGET, None)]
+    assert 'rule' not in generate.default_aliases(data), generate.default_aliases(data)
+    # The block replaces the one of build.jam, whose other lines stay as they are.
+    old = f'head\n{generate.ALIASES_BEGIN}\nold\n{generate.ALIASES_END}\ntail\n'
+    assert generate.with_aliases(old, block) == f'head\n{block}tail\n'
+    try:
+        generate.with_aliases('no block\n', block)
+    except generate.Fault as fault:
+        assert 'build.jam has no block' in str(fault), fault
+    else:
+        raise AssertionError('a build.jam without the block was accepted')
+
+
 def test_a_family_without_a_default_has_no_type(_: Path) -> None:
     data = small_table()
     data['families'][0]['default'] = [a_default(EVERY_TARGET, None)]
@@ -617,6 +645,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_row_of_some_compilers_is_labelled_with_their_names,
     test_the_other_backend_a_refusal_names_is_chosen_as_stated,
     test_a_family_without_a_default_has_no_type,
+    test_each_family_s_default_has_an_alias_that_links_it_per_target,
     test_the_default_s_refusal_says_what_the_program_needs,
     test_a_refusal_holds_on_its_target,
     test_a_type_names_only_crypto_s_namespaces_from_the_root,

@@ -317,8 +317,10 @@ webcpp.compile doc_block : ../../../tools/test/fixtures/crypto_jamfiles/block/bl
   : <library>/third_party//ctaes ;
 webcpp.compile doc_encrypt_and_sign
   : ../../../tools/test/fixtures/crypto_jamfiles/encrypt_and_sign/app.cpp
-  : <library>/third_party//bearssl <library>/third_party//secp256k1
-  : wasip2 wasip3 emscripten ;
+  : <library>/webcpp/crypto//gcm-default <library>/third_party//secp256k1 ;
+webcpp.compile doc_gcm_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/gcm_default/app.cpp
+  : <library>/webcpp/crypto//gcm-default ;
 webcpp.compile doc_openssl_linked
   : ../../../tools/test/fixtures/crypto_jamfiles/openssl_linked/app.cpp
   : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;

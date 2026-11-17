@@ -46,14 +46,20 @@ and the type that names BearSSL. Version 0.1's
 `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL` stop the build with the type to write
 (<<crypto-jamfile-messages>>).
 
-A program built for every target links its default's library on each, as
-the examples of this page do: a rule of its Jamfile gives the library by
-target, and the program names `aes256_gcm`:
+A program built for every target links its default with one line,
+`/webcpp/crypto//gcm-default`, which links OpenSSL natively and BearSSL on
+WebAssembly, the library of the backend `aes256_gcm` names on each target; the
+examples of this page link it so. The whole Jamfile of the fixture
+`gcm_default`, built and run on native, wasip2, wasip3 and Emscripten
+(<<crypto-jamfile-cases>>):
 
 [listing]
 ----
-include::{library-root}/example/Jamfile[tag=default_aead]
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/gcm_default/Jamfile[tag=jamfile]
 ----
+
+Each family with a default has such a line, `/webcpp/crypto//<family>-default`
+(`secp256k1-default` too), generated with the defaults from the same table.
 
 The source-built OpenSSL is compiled without assembly (`no-asm`) on MSVC,
 wasip2 and wasip3: its AES is table-based and its GHASH 4-bit, neither constant
@@ -99,10 +105,11 @@ include::generated/jamfiles.adoc[]
 A user builds a case from its directory with `b2` natively,
 `b2 toolset=emscripten` for the browser, and `b2 toolset=clang-wasip2` or
 `b2 toolset=clang-wasip3` for WASI, and runs the program as each target runs one:
-`./app`, `node app.js`, or a WASI runtime such as wasmtime. The cases `web` and
-`server` are one program, byte for byte (the test checks the copy), whose
-output names the backend that ran: BearSSL, the default on WebAssembly, and
-OpenSSL, the default natively. `both_bearssl_named` links both and names
+`./app`, `node app.js`, or a WASI runtime such as wasmtime. The cases `web`,
+`server` and `gcm_default` are one program, byte for byte (the test checks the
+copies), whose output names the backend that ran: BearSSL, the default on
+WebAssembly, and OpenSSL, the default natively; `gcm_default` links whichever
+the target needs. `both_bearssl_named` links both and names
 BearSSL in the type where OpenSSL is the default. On WASI the default is
 BearSSL even when OpenSSL is linked (<<crypto-backends-defaults>>), so `server`
 is a native case; a WASI program that wants OpenSSL names the backend in the

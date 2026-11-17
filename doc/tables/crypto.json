@@ -109,7 +109,8 @@
         "bip327": ["BIP 327, MuSig2, its key sorting", "https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki"],
         "rfc5480": ["RFC 5480, Elliptic Curve Cryptography Subject Public Key Information", "https://www.rfc-editor.org/rfc/rfc5480"],
         "rfc5915": ["RFC 5915, Elliptic Curve Private Key Structure", "https://www.rfc-editor.org/rfc/rfc5915"],
-        "rfc5208": ["RFC 5208, PKCS #8: Private-Key Information Syntax", "https://www.rfc-editor.org/rfc/rfc5208"]
+        "rfc5208": ["RFC 5208, PKCS #8: Private-Key Information Syntax", "https://www.rfc-editor.org/rfc/rfc5208"],
+        "openssl-evp-pkey-ec": ["OpenSSL's EVP_PKEY-EC: an EC key's point form and its encodings", "https://docs.openssl.org/master/man7/EVP_PKEY-EC/"]
     },
     "backends": {
         "bearssl": {

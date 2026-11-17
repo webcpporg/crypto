@@ -95,10 +95,10 @@ template <class Backend = backends::secp256k1>
     point_form encoded_form = point_form::compressed) noexcept {
     static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
                   WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     if (output_bytes.size() < max_spki_size) {
         return error::invalid_input_size;
     }
-    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     bool const is_compressed = encoded_form == point_form::compressed;
     std::array<std::uint8_t, 65> point_bytes{};
@@ -168,6 +168,7 @@ template <class Backend = backends::secp256k1>
     basic_keypair<Backend> const& key_pair, std::span<std::uint8_t> output_bytes) noexcept {
     static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
                   WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     using access = webcpp::crypto::detail::secp256k1_access;
     if (!access::keyed(key_pair)) {
         return error::invalid_state;
@@ -175,7 +176,6 @@ template <class Backend = backends::secp256k1>
     if (output_bytes.size() < max_pkcs8_size) {
         return error::invalid_input_size;
     }
-    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     webcpp::crypto::detail::secp256k1_secret secret_bytes;
     secp256k1_keypair_sec(secp256k1_context_static, secret_bytes.bytes.data(),

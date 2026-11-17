@@ -243,11 +243,11 @@ template <class Backend = backends::secp256k1>
     std::span<public_key const> parsed_keys, workspace pointer_space) noexcept {
     static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
                   WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // libsecp256k1 checks the count with ARG_CHECK, whose callback aborts: refused first here.
     if (parsed_keys.empty() || pointer_space.size() < combine_workspace_size(parsed_keys.size())) {
         return error::invalid_input_size;
     }
-    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
     webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);

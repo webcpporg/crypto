@@ -365,8 +365,11 @@ buffer of at least `max_spki_size` bytes; `decode_spki` reads either back;
 * `encode_pkcs8` writes a key pair's PKCS#8, 135 bytes, into a buffer of at
 least `max_pkcs8_size`: version 0, and an ECPrivateKey of version 1 with the
 uncompressed public key and no curve inside it, which is the form OpenSSL
-writes for a key in its default uncompressed form; `decode_pkcs8` reads it into
-a key pair, made as `keypair::make` makes one.
+writes for a key in its default uncompressed form: OpenSSL's point form is
+uncompressed unless a program sets it, and it includes the public key when it
+encodes a private key unless told not to
+(link:https://docs.openssl.org/master/man7/EVP_PKEY-EC/[OpenSSL's EVP_PKEY-EC]);
+`decode_pkcs8` reads it into a key pair, made as `keypair::make` makes one.
 
 The decoders are strict: they accept exactly the bytes the encoders write, and
 refuse anything else with `invalid_encoding`. The point must be on the curve,
@@ -389,9 +392,11 @@ checks that key, rather than the one the secret gives, trusts the wrong key.
 `decode_pkcs8` refuses such a file.
 * X9.62's hybrid point form, prefix 06 or 07, is refused: RFC 5480 forbids it
 in an SPKI (link:https://www.rfc-editor.org/rfc/rfc5480[RFC 5480]).
-* OpenSSL writes a key set to the compressed form with its compressed point
-inside the PKCS#8 too, 102 bytes, which `decode_pkcs8` refuses: export the key
-in OpenSSL's default uncompressed form, and choose the SPKI's form when writing
+* OpenSSL keeps a key's point form through its DER and PEM encodings
+(link:https://docs.openssl.org/master/man7/EVP_PKEY-EC/[OpenSSL's EVP_PKEY-EC]),
+so a key set to the compressed form carries its compressed point inside the
+PKCS#8 too, 102 bytes, which `decode_pkcs8` refuses: export the key in
+OpenSSL's default uncompressed form, and choose the SPKI's form when writing
 it.
 * The PKCS#8 these functions write holds the secret key in clear. Keep it
 where only the program reads it, out of source control, or seal it at rest

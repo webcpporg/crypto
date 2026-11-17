@@ -10,7 +10,7 @@
 // result equals libsecp256k1's C API called directly. The known answer 1 + 1, whose public key
 // is 2G. The refusals: a tweak equal to the group order, a sum or a product that is zero, a
 // zero or order-sized secret, a sum of keys at infinity, no keys and a short workspace. The
-// workspace is zero after every call.
+// workspace is zero after every call, one that starts off the alignment included.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
@@ -257,6 +257,44 @@ void combinations() {
     BOOST_TEST(all_zero(one));
 }
 
+// A workspace that starts off the alignment, at every offset below alignof(std::max_align_t):
+// the keys' pointers start at the next aligned byte, which combine_workspace_size's padding
+// pays for. The workspace is filled with a guard byte before each call and is zero after it,
+// the padding before the pointers and the bytes after them included; the bytes around it are
+// not touched.
+void off_alignment() {
+    std::mt19937_64 generator(0xa1196eULL);
+    std::array<scalar, 3> secrets{};
+    for (auto& secret_bytes : secrets) {
+        secret_bytes = draw(generator);
+    }
+    std::array<secp::public_key, 3> const keys{
+        public_of(secrets[0]),
+        public_of(secrets[1]),
+        public_of(secrets[2]),
+    };
+    scalar total = secrets[0];
+    for (std::size_t i = 1; i < secrets.size(); ++i) {
+        BOOST_TEST(secp256k1_ec_seckey_tweak_add(secp256k1_context_static, total.data(),
+                                                 secrets.at(i).data()) == 1);
+    }
+    auto const expected = public_of(total);
+    constexpr std::size_t space_size = secp::combine_workspace_size(3);
+    constexpr std::byte guard{0x5a};
+    for (std::size_t offset = 1; offset < alignof(std::max_align_t); ++offset) {
+        alignas(std::max_align_t) std::array<std::byte, space_size + alignof(std::max_align_t)>
+            buffer{};
+        buffer.fill(guard);
+        auto const space = std::span(buffer).subspan(offset, space_size);
+        auto const combined = secp::pubkey_combine(keys, space);
+        BOOST_TEST(combined && *combined == expected);
+        BOOST_TEST(all_zero(space));
+        auto const is_guard = [](std::byte b) { return b == guard; };
+        BOOST_TEST(std::ranges::all_of(std::span(buffer).first(offset), is_guard));
+        BOOST_TEST(std::ranges::all_of(std::span(buffer).subspan(offset + space_size), is_guard));
+    }
+}
+
 // 1 + 1 is 2, whose public key is 2G.
 void known_answer() {
     auto const two = secp::seckey_tweak_add(small(1), small(1));
@@ -339,6 +377,7 @@ void refusals() {
 int main() {
     identities();
     combinations();
+    off_alignment();
     known_answer();
     refusals();
     return webcpp::test::exit_status(boost::report_errors());

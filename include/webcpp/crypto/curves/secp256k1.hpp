@@ -154,7 +154,7 @@ struct secp256k1_secret {
 
 /**
  * The carver of a caller's workspace into the arrays of pointers libsecp256k1 takes, which
- * wipes every byte it handed out when it is destroyed.
+ * wipes the whole workspace when it is destroyed.
  *
  * Each array is aligned to `alignof(std::max_align_t)`, in the order the function's size
  * function lists them; an array of no elements takes no bytes and is `nullptr`.
@@ -174,8 +174,12 @@ public:
     /** Not copyable: one carver wipes what it handed out. */
     secp256k1_workspace& operator=(secp256k1_workspace const&) = delete;
 
-    /** Wipes every byte handed out, and the padding between them. */
-    ~secp256k1_workspace() { wipe(lent_bytes_.data(), used_size_); }
+    /**
+     * Wipes the whole workspace: the arrays handed out, the padding before each, and the bytes
+     * after the last, so that the workspace is zero when the function returns, wherever it
+     * starts.
+     */
+    ~secp256k1_workspace() { wipe(lent_bytes_.data(), lent_bytes_.size()); }
 
     /**
      * The next array of `element_count` elements of `T`, aligned to `alignof(std::max_align_t)`.

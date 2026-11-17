@@ -116,6 +116,9 @@ public:
 
      @return A view of the bytes.
     */
+    // Implicit, as the spec asks, so that a secret is passed where a function takes the span of
+    // its bytes: misc-explicit-constructor is silenced for it.
+    // NOLINTNEXTLINE(misc-explicit-constructor)
     operator std::span<std::uint8_t const, N>() const& noexcept { return bytes_; }
 
     /**

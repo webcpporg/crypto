@@ -8,9 +8,7 @@
 // and talk over AES-256-GCM. The raw ECDH output is not a key: HKDF turns it into one and ties
 // it to this application with a context string.
 // tag::program[]
-#include <webcpp/crypto/backends/bearssl.hpp>
-#include <webcpp/crypto/ciphers/aes.hpp>
-#include <webcpp/crypto/ciphers/gcm.hpp>
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -29,9 +27,6 @@
 #include <type_traits>
 
 namespace crypto = webcpp::crypto;
-// AES-256-GCM on BearSSL, named in the type: one Jamfile line serves every target, where
-// aes256_gcm's default is OpenSSL natively.
-using aead_type = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 namespace hash2 = boost::hash2;
 
@@ -132,9 +127,10 @@ boost::system::result<secp256k1::keypair> generate_key() {
 }
 
 // Both sides derive their session key the same way.
-boost::system::result<aead_type> session_cipher(std::array<std::uint8_t, 32> const& shared) {
+boost::system::result<crypto::ciphers::aes256_gcm> session_cipher(
+    std::array<std::uint8_t, 32> const& shared) {
     auto key = hkdf_sha256<32>(shared, {}, bytes_of("example chat v1 session key"));
-    auto cipher = aead_type::make(key);
+    auto cipher = crypto::ciphers::aes256_gcm::make(key);
     // The cipher keeps its own copy of the key, which it wipes; this one goes now.
     wipe(std::as_writable_bytes(std::span(key)));
     return cipher;

@@ -9,7 +9,7 @@
 // with the line that links OpenSSL and the type that names BearSSL.
 
 // clang-format off
-// expected-error@webcpp/crypto/ciphers/gcm.hpp:* {{webcpp::crypto: AES-GCM's default backend on this target is OpenSSL, which is not linked. Add /webcpp/crypto//openssl to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//openssl ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::bearssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).}}
+// expected-error@webcpp/crypto/ciphers/gcm.hpp:* {{webcpp::crypto: AES-GCM's default backend on this target is OpenSSL, which is not linked. Add /webcpp/crypto//openssl to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//openssl ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::bearssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)}}
 // clang-format on
 
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>

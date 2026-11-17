@@ -30,17 +30,15 @@
 |<<crypto-equal,[.keep]`+equal_hmac.cpp+`>>
 
 |Encrypt a database field, a cookie or a token at rest
-|In `+ciphers+`: `+gcm<aes256<backends::bearssl>>+`, or `+aes256_gcm+` on the default
-|BearSSL, named: one Jamfile line on every target; the default is OpenSSL natively, BearSSL on WebAssembly
-|`+/webcpp/crypto//crypto+` +
-`+/third_party//bearssl+`
+|In `+ciphers+`: `+aes256_gcm+`
+|the default: OpenSSL natively, BearSSL on WebAssembly
+|`+/webcpp/crypto//crypto+`; natively `+/webcpp/crypto//openssl+`, on WebAssembly `+/third_party//bearssl+`
 |<<crypto-gcm,[.keep]`+store_token.cpp+`>>
 
 |Encrypt a large file or a stream
-|In `+ciphers+`: `+gcm<aes256<backends::bearssl>>+`: records, or `+begin_seal+`, `+update+` and `+result+`
-|BearSSL, named
-|`+/webcpp/crypto//crypto+` +
-`+/third_party//bearssl+`
+|In `+ciphers+`: `+aes256_gcm+`: records, or `+begin_seal+`, `+update+` and `+result+`
+|the default
+|`+/webcpp/crypto//crypto+`; natively `+/webcpp/crypto//openssl+`, on WebAssembly `+/third_party//bearssl+`
 |<<crypto-gcm-incremental,[.keep]`+sealed_records.cpp+`>>
 
 |Tell a forged message from a malformed one
@@ -72,18 +70,14 @@
 
 |Agree on a key with a peer through a relay that sees everything
 |In `+curves::secp256k1+`: `+keypair::ecdh+` (SHA-256 of the shared point: not NIP-44's raw x coordinate), then HKDF on Boost.Hash2 and `+aes256_gcm+`
-|libsecp256k1 and BearSSL
-|`+/webcpp/crypto//crypto+` +
-`+/third_party//secp256k1+` +
-`+/third_party//bearssl+`
+|libsecp256k1, and AES-GCM's default
+|`+/webcpp/crypto//crypto+` `+/third_party//secp256k1+`; natively `+/webcpp/crypto//openssl+`, on WebAssembly `+/third_party//bearssl+`
 |<<crypto-p2p-session,[.keep]`+ecdh_session.cpp+`>>
 
 |Make and keep a wallet's key
 |In `+curves::secp256k1+`: `+keypair::make+`, `+xonly_public_key+`, `+public_key+`; `+aes256_gcm+` at rest
-|libsecp256k1 and BearSSL
-|`+/webcpp/crypto//crypto+` +
-`+/third_party//secp256k1+` +
-`+/third_party//bearssl+`
+|libsecp256k1, and AES-GCM's default
+|`+/webcpp/crypto//crypto+` `+/third_party//secp256k1+`; natively `+/webcpp/crypto//openssl+`, on WebAssembly `+/third_party//bearssl+`
 |<<crypto-wallets-key,[.keep]`+wallet_key.cpp+`>>
 
 |Sign a Bitcoin SegWit v0 input (a domain library's job)

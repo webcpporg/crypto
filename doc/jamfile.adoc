@@ -46,6 +46,15 @@ and the type that names BearSSL. Version 0.1's
 `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL` stop the build with the type to write
 (<<crypto-jamfile-messages>>).
 
+A program built for every target links its default's library on each, as
+the examples of this page do: a rule of its Jamfile gives the library by
+target, and the program names `aes256_gcm`:
+
+[listing]
+----
+include::{library-root}/example/Jamfile[tag=default_aead]
+----
+
 The source-built OpenSSL is compiled without assembly (`no-asm`) on MSVC,
 wasip2 and wasip3: its AES is table-based and its GHASH 4-bit, neither constant
 time, and there is no AES-NI. A program for which timing attacks matter on

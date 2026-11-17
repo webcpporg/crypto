@@ -8,9 +8,7 @@
 // additional data: authenticated but not encrypted, so a row copied to another user's record
 // no longer opens. Without that binding a database writer could swap the rows of two users.
 // tag::program[]
-#include <webcpp/crypto/backends/bearssl.hpp>
-#include <webcpp/crypto/ciphers/aes.hpp>
-#include <webcpp/crypto/ciphers/gcm.hpp>
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/random_device.hpp>
 
 #include <algorithm>
@@ -24,9 +22,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
-// AES-256-GCM on BearSSL, named in the type: one Jamfile line serves every target, where
-// aes256_gcm's default is OpenSSL natively.
-using aead_type = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>;
+using aead_type = crypto::ciphers::aes256_gcm;
 
 namespace {
 

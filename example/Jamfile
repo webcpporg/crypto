@@ -7,8 +7,23 @@
 project : requirements <library>/webcpp/crypto//crypto ;
 
 import webcpp ;
+import webcpp-target ;
 
 webcpp.targets native wasip2 wasip3 emscripten ;
+
+# The library of AES-GCM's default backend, which aes128_gcm and aes256_gcm
+# name: OpenSSL natively, BearSSL on WebAssembly (the guide's "The default
+# backend per target").
+# tag::default_aead[]
+rule default-aead ( properties * )
+{
+    if [ webcpp-target.target-of $(properties) ] = native
+    {
+        return <library>/webcpp/crypto//openssl ;
+    }
+    return <library>/third_party//bearssl ;
+}
+# end::default_aead[]
 
 # The guide's secp256k1 program: BIP340's first vector signed and verified, then
 # the key pair tweaked and used again.
@@ -26,16 +41,16 @@ webcpp.example equal_hmac.cpp ;
 webcpp.example bearssl_prng.cpp : <library>/third_party//bearssl ;
 
 # The three ways AES-GCM refuses a message, on the default backend.
-webcpp.example failure_reasons.cpp : <library>/third_party//bearssl ;
+webcpp.example failure_reasons.cpp : <conditional>@default-aead ;
 
 # A reset token and a one-time code from random_device; no backend.
 webcpp.example reset_token.cpp ;
 
 # An API token stored in a row, bound to the user id as additional data.
-webcpp.example store_token.cpp : <library>/third_party//bearssl ;
+webcpp.example store_token.cpp : <conditional>@default-aead ;
 
 # The incremental seal, and records bound to their numbers.
-webcpp.example sealed_records.cpp : <library>/third_party//bearssl ;
+webcpp.example sealed_records.cpp : <conditional>@default-aead ;
 
 # An order id turned into an opaque reference with the raw AES block cipher.
 webcpp.example order_reference.cpp : <library>/third_party//ctaes ;
@@ -47,10 +62,10 @@ webcpp.example signed_message.cpp : <library>/third_party//secp256k1 ;
 webcpp.example signed_update.cpp : <library>/third_party//secp256k1 ;
 
 # ECDH, HKDF-SHA-256 and AES-256-GCM between two peers.
-webcpp.example ecdh_session.cpp : <library>/third_party//secp256k1 <library>/third_party//bearssl ;
+webcpp.example ecdh_session.cpp : <library>/third_party//secp256k1 <conditional>@default-aead ;
 
 # A wallet's key pair, its secret sealed at rest and restored.
-webcpp.example wallet_key.cpp : <library>/third_party//secp256k1 <library>/third_party//bearssl ;
+webcpp.example wallet_key.cpp : <library>/third_party//secp256k1 <conditional>@default-aead ;
 
 # ECDSA with DER encoding and the low-S rule, as a domain library uses them.
 webcpp.example ecdsa_der.cpp : <library>/third_party//secp256k1 ;

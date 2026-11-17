@@ -241,7 +241,7 @@ def small_table() -> generate.Data:
     """A capability table of one family, Ed25519, on libsodium alone, beside BearSSL and a
     backend that is no tag of `backends` (the operating system's generator)."""
     def backend(title: str, name: str, jamfile: str) -> generate.Data:
-        return {'title': title, 'jamfile': jamfile,
+        return {'title': title, 'jamfile': jamfile, 'without_b2': f'link {title}',
                 'header': f'<webcpp/crypto/backends/{name}.hpp>', 'targets': EVERY_TARGET}
     return {
         'targets': EVERY_TARGET, 'sources': {'rfc8032': ['RFC 8032', 'https://example.org']},
@@ -425,6 +425,7 @@ def two_backends() -> generate.Data:
     data = small_table()
     family = data['families'][0]
     family['backends']['bearssl'] = {'targets': 'all'}
+    family['shown'] = 'ed25519'
     family['default'] = [a_default(['native'], 'sodium'),
                          a_default(['wasip2', 'wasip3', 'emscripten'], 'bearssl')]
     return data
@@ -453,6 +454,32 @@ def test_the_defaults_header_chooses_by_the_target_alone(_: Path) -> None:
     assert ('#define WEBCPP_CRYPTO_DETAIL_DEFAULT_ED25519_SODIUM 1\n/** The default of Ed25519 '
             'on native, wasip2, wasip3, emscripten: libsodium. */\n') in one, one
     assert '#if' not in one.split('struct default_backend_of {};', 1)[1], one
+
+
+def test_the_other_backend_a_refusal_names_is_chosen_as_stated(_: Path) -> None:
+    # The other backend is the first of crypto.json's backends, not of the family's, that has
+    # the family on the target when the program is built; the type is the family's shown name.
+    data = two_backends()
+    family = data['families'][0]
+    family['backends'] = {'sodium': {'targets': 'all'}, 'bearssl': {'targets': 'all'}}
+    family['names'].append({'name': 'ed25519ph', 'title': 'Ed25519ph',
+                            'type': 'curves::ed25519ph::keypair<{backend}>'})
+    text = generate.needs(data, family, 'native', 'sodium')
+    assert 'as in curves::ed25519::basic_keypair<backends::bearssl>.' in text, text
+    # A backend that has the family only at run time is never offered in its place.
+    family['backends']['bearssl'] = {'targets': 'all', 'runtime': True}
+    text = generate.needs(data, family, 'native', 'sodium')
+    assert 'and the one backend that has it there' in text, text
+    assert 'name another backend' not in text, text
+    # A family whose default has another backend must say which name its refusal shows.
+    family['backends']['bearssl'] = {'targets': 'all'}
+    data['operations'][0]['backends']['bearssl'] = {'tests': ['ed25519']}
+    del family['shown']
+    a_fault(data, {'ed25519': EVERY_TARGET}, 'the family ed25519 has no shown name, which its '
+            'default\'s refusal names with another backend')
+    family['shown'] = 'ed448'
+    a_fault(data, {'ed25519': EVERY_TARGET}, 'the family ed25519 shows ed448, which is none of '
+            'its names')
 
 
 def test_a_row_of_some_compilers_is_labelled_with_their_names(_: Path) -> None:
@@ -486,7 +513,8 @@ def test_the_default_s_refusal_says_what_the_program_needs(_: Path) -> None:
             '/third_party//sodium ; or name another backend in the type, as in '
             'curves::ed25519::basic_keypair<backends::bearssl>. The backends that have it: '
             'sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, '
-            'emscripten).")') in native, native
+            'emscripten). (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link '
+            'libsodium)")') in native, native
     # The default, linked, whose header the program did not include.
     assert (f'static_assert(!std::is_same_v<Backend, {sodium}> || '
             f'!::webcpp::crypto::detail::linked<{sodium}>, "webcpp::crypto: sodium\'s Ed25519 '
@@ -498,7 +526,8 @@ def test_the_default_s_refusal_says_what_the_program_needs(_: Path) -> None:
     assert ('"webcpp::crypto: Ed25519\'s default backend on this target is libsodium, which is '
             'not linked, and the one backend that has it there. Add /third_party//sodium to the '
             'program\'s Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto '
-            '/third_party//sodium ;")') in alone, alone
+            '/third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link '
+            'libsodium)")') in alone, alone
     assert 'default backend on this target is BearSSL' in emscripten, emscripten
     # Any other type is refused as no backend of the family, and nothing else is.
     assert ('static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || '
@@ -586,6 +615,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_default_is_a_backend_of_the_family_its_tests_run_on,
     test_the_defaults_header_chooses_by_the_target_alone,
     test_a_row_of_some_compilers_is_labelled_with_their_names,
+    test_the_other_backend_a_refusal_names_is_chosen_as_stated,
     test_a_family_without_a_default_has_no_type,
     test_the_default_s_refusal_says_what_the_program_needs,
     test_a_refusal_holds_on_its_target,

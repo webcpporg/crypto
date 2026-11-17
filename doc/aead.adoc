@@ -58,9 +58,11 @@ include::{examples}/store_token.cpp[tag=open,indent=0]
 include::{examples}/store_token.expected[]
 ----
 
-The examples name BearSSL in the type, `aead_type`, so that one Jamfile line
-serves every target. The whole of one: AES-256-GCM on BearSSL against the GCM
-specification's test case 14.
+The same, with the backend named rather than the default: AES-256-GCM on
+BearSSL against the GCM specification's test case 14. Naming BearSSL lets one
+Jamfile line serve every target, at a cost natively: on an ARM server BearSSL
+runs its portable AES, where the default, OpenSSL, uses the CPU's
+(<<crypto-gcm-arm>>).
 
 [source,cpp]
 ----

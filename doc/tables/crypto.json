@@ -65,6 +65,7 @@
     },
     "backends": {
         "bearssl": {
+            "without_b2": "link BearSSL built with webcpp's src/canary_bearssl.c",
             "title": "BearSSL",
             "jamfile": "/third_party//bearssl",
             "targets": ["native", "wasip2", "wasip3", "emscripten"],
@@ -77,6 +78,7 @@
             "constant_time_sources": ["bearssl-ct", "bearssl-ctmul"]
         },
         "openssl": {
+            "without_b2": "link libcrypto",
             "title": "OpenSSL",
             "jamfile": "/webcpp/crypto//openssl",
             "targets": ["native", "wasip2", "wasip3"],
@@ -89,6 +91,7 @@
             "constant_time_sources": ["openssl-install", "openssl-aes-core"]
         },
         "ctaes": {
+            "without_b2": "link ctaes.c with webcpp's src/canary_ctaes.c",
             "title": "ctaes",
             "jamfile": "/third_party//ctaes",
             "targets": ["native", "wasip2", "wasip3", "emscripten"],
@@ -101,6 +104,7 @@
             "constant_time_sources": ["ctaes"]
         },
         "secp256k1": {
+            "without_b2": "link libsecp256k1 built with webcpp's src/canary_secp256k1.c",
             "title": "libsecp256k1",
             "jamfile": "/third_party//secp256k1",
             "targets": ["native", "wasip2", "wasip3", "emscripten"],
@@ -113,6 +117,7 @@
             "constant_time_sources": ["libsecp256k1"]
         },
         "sodium": {
+            "without_b2": "link libsodium built with webcpp's src/canary_sodium.c",
             "title": "libsodium",
             "jamfile": "/third_party//sodium",
             "targets": ["native", "wasip2", "wasip3", "emscripten"],
@@ -272,6 +277,7 @@
             "group": "ciphers",
             "since": "0.1",
             "header": "<webcpp/crypto/ciphers/gcm.hpp>",
+            "shown": "aes256_gcm",
             "names": [
                 {"name": "aes128_gcm", "title": "AES-128-GCM", "type": "ciphers::gcm<ciphers::aes128<{backend}>>"},
                 {"name": "aes192_gcm", "title": "AES-192-GCM", "type": "ciphers::gcm<ciphers::aes192<{backend}>>"},
@@ -380,14 +386,14 @@
         {"need": "Generate a session token, a password-reset link or an API key", "namespace": "webcpp::crypto", "api": "`random_device::fill`", "backend": "the system's generator", "jamfile": "/webcpp/crypto//crypto", "example": "reset_token", "section": "crypto-entropy"},
         {"need": "Draw an unbiased number in a range, such as a six-digit code", "namespace": "webcpp::crypto", "api": "`random_device` with `std::uniform_int_distribution`", "backend": "the system's generator", "jamfile": "/webcpp/crypto//crypto", "example": "reset_token", "section": "crypto-entropy"},
         {"need": "Check a webhook's or an API's HMAC signature", "namespace": "webcpp::crypto", "api": "`equal`, with Boost.Hash2's `hmac`", "backend": "none", "jamfile": "/webcpp/crypto//crypto", "example": "equal_hmac", "section": "crypto-equal"},
-        {"need": "Encrypt a database field, a cookie or a token at rest", "namespace": "webcpp::crypto::ciphers", "api": "`gcm<aes256<backends::bearssl>>`, or `aes256_gcm` on the default", "backend": "BearSSL, named: one Jamfile line on every target; the default is OpenSSL natively, BearSSL on WebAssembly", "jamfile": "/webcpp/crypto//crypto /third_party//bearssl", "example": "store_token", "section": "crypto-gcm"},
-        {"need": "Encrypt a large file or a stream", "namespace": "webcpp::crypto::ciphers", "api": "`gcm<aes256<backends::bearssl>>`: records, or `begin_seal`, `update` and `result`", "backend": "BearSSL, named", "jamfile": "/webcpp/crypto//crypto /third_party//bearssl", "example": "sealed_records", "section": "crypto-gcm-incremental"},
+        {"need": "Encrypt a database field, a cookie or a token at rest", "namespace": "webcpp::crypto::ciphers", "api": "`aes256_gcm`", "backend": "the default: OpenSSL natively, BearSSL on WebAssembly", "jamfile": "`/webcpp/crypto//crypto`; natively `/webcpp/crypto//openssl`, on WebAssembly `/third_party//bearssl`", "example": "store_token", "section": "crypto-gcm"},
+        {"need": "Encrypt a large file or a stream", "namespace": "webcpp::crypto::ciphers", "api": "`aes256_gcm`: records, or `begin_seal`, `update` and `result`", "backend": "the default", "jamfile": "`/webcpp/crypto//crypto`; natively `/webcpp/crypto//openssl`, on WebAssembly `/third_party//bearssl`", "example": "sealed_records", "section": "crypto-gcm-incremental"},
         {"need": "Tell a forged message from a malformed one", "namespace": "webcpp::crypto", "api": "`error`", "backend": "any", "jamfile": "/webcpp/crypto//crypto", "example": "failure_reasons", "section": "crypto-errors"},
         {"need": "Turn a sequential id into an opaque reference", "namespace": "webcpp::crypto::ciphers", "api": "`aes256<backends::ctaes>`", "backend": "ctaes, or OpenSSL natively and on WASI", "jamfile": "/webcpp/crypto//crypto /third_party//ctaes", "example": "order_reference", "section": "crypto-block"},
         {"need": "Prove who wrote a message posted to a relay", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign_schnorr`, `verify_schnorr`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "signed_message", "section": "crypto-p2p-signed"},
         {"need": "Check a software update or a licence file", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign_ecdsa`, `verify_ecdsa`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "signed_update", "section": "crypto-everyday-update"},
-        {"need": "Agree on a key with a peer through a relay that sees everything", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::ecdh` (SHA-256 of the shared point: not NIP-44's raw x coordinate), then HKDF on Boost.Hash2 and `aes256_gcm`", "backend": "libsecp256k1 and BearSSL", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /third_party//bearssl", "example": "ecdh_session", "section": "crypto-p2p-session"},
-        {"need": "Make and keep a wallet's key", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::make`, `xonly_public_key`, `public_key`; `aes256_gcm` at rest", "backend": "libsecp256k1 and BearSSL", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /third_party//bearssl", "example": "wallet_key", "section": "crypto-wallets-key"},
+        {"need": "Agree on a key with a peer through a relay that sees everything", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::ecdh` (SHA-256 of the shared point: not NIP-44's raw x coordinate), then HKDF on Boost.Hash2 and `aes256_gcm`", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "`/webcpp/crypto//crypto` `/third_party//secp256k1`; natively `/webcpp/crypto//openssl`, on WebAssembly `/third_party//bearssl`", "example": "ecdh_session", "section": "crypto-p2p-session"},
+        {"need": "Make and keep a wallet's key", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::make`, `xonly_public_key`, `public_key`; `aes256_gcm` at rest", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "`/webcpp/crypto//crypto` `/third_party//secp256k1`; natively `/webcpp/crypto//openssl`, on WebAssembly `/third_party//bearssl`", "example": "wallet_key", "section": "crypto-wallets-key"},
         {"need": "Sign a Bitcoin SegWit v0 input (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`sign_ecdsa`, `to_der`, `normalize_ecdsa`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ecdsa_der", "section": "crypto-wallets-der"},
         {"need": "Derive a Bitcoin Taproot output key and spend by key path (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`tweak_xonly`, `keypair::tweak_xonly`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "taproot_tweak", "section": "crypto-wallets-taproot"},
         {"need": "Sign where allocation is restricted to the program's arena", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::make(secret, resource)`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "arena_signer", "section": "crypto-memory"},
@@ -401,7 +407,7 @@
         "server": "A server, natively: the same program with OpenSSL, the default natively.",
         "both_bearssl_named": "Both backends linked, and BearSSL named in the type where the default is OpenSSL.",
         "block": "The AES block cipher on ctaes: the FIPS 197 block encrypted and decrypted again.",
-        "encrypt_and_sign": "Two backends in one program: AES-256-GCM on BearSSL, named in the type so that one Jamfile serves every target, and a BIP 340 signature.",
+        "encrypt_and_sign": "Two backends in one program on WebAssembly: AES-256-GCM on its default, BearSSL, and a BIP 340 signature.",
         "openssl_linked": "OpenSSL, built from source, named in the type: natively and on WASI.",
         "sign": "A BIP 340 signature with libsecp256k1's default tables.",
         "sign_small": "The same program with libsecp256k1's small tables, which libsecp256k1 documents as smaller and slower to verify ({secp256k1-configure}); not measured here yet.",
@@ -427,9 +433,9 @@
     },
     "fixes": {
         "gcm_default_openssl_not_linked": "Natively the default is OpenSSL: add `/webcpp/crypto//openssl`, or name BearSSL in the type, as in `gcm<aes256<backends::bearssl>>`.",
-        "no_backend_wasm": "Add `/third_party//bearssl` to the program's sources.",
+        "no_backend_wasm": "On WASI the default is BearSSL: add `/third_party//bearssl`, or, with OpenSSL linked, name it in the type, as in `gcm<aes256<backends::openssl>>`.",
         "bearssl_not_linked": "Add `/third_party//bearssl`.",
-        "openssl_only_on_wasi": "On WASI the default is BearSSL: add `/third_party//bearssl`, or name OpenSSL in the type, as in `gcm<aes256<backends::openssl>>`.",
+        "openssl_only_on_wasi": "On WASI the default is BearSSL: add `/third_party//bearssl`, or, with OpenSSL linked, name it in the type, as in `gcm<aes256<backends::openssl>>`.",
         "openssl_not_linked": "Add `/webcpp/crypto//openssl`.",
         "openssl_old": "Name `/webcpp/crypto//openssl`, which builds OpenSSL 3.5.9; without b2, put OpenSSL 3's `include/` first.",
         "ctaes_not_linked": "Add `/third_party//ctaes`.",

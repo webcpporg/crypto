@@ -44,40 +44,41 @@ struct gcm_state {};
  * GCM's engine on a backend whose header does not specialise it: the family's refusal, which
  * names what the program needs (`detail/capabilities.hpp`). Its functions are never called: the
  * refusal stops the build where the class is instantiated, and they keep the compiler from
- * adding errors of their own after it.
+ * adding errors of their own after it; those that return report `backend_failure`, so that a
+ * path the refusal missed fails closed.
  */
 template <class Backend, std::size_t KeySize>
 struct gcm_engine {
     WEBCPP_CRYPTO_DETAIL_REFUSE_GCM(Backend);
 
-    /** Never called. */
+    /** Never called; fails closed. */
     template <class... Arguments>
     [[nodiscard]] static boost::system::result<void> init(Arguments&&... /*arguments*/) noexcept {
-        return {};
+        return error::backend_failure;
     }
 
-    /** Never called. */
+    /** Never called; fails closed. */
     template <class... Arguments>
     [[nodiscard]] static boost::system::result<void> start(Arguments&&... /*arguments*/) noexcept {
-        return {};
+        return error::backend_failure;
     }
 
-    /** Never called. */
+    /** Never called; fails closed. */
     template <class... Arguments>
     [[nodiscard]] static boost::system::result<void> run(Arguments&&... /*arguments*/) noexcept {
-        return {};
+        return error::backend_failure;
     }
 
-    /** Never called. */
+    /** Never called; fails closed. */
     template <class... Arguments>
     [[nodiscard]] static boost::system::result<void> tag(Arguments&&... /*arguments*/) noexcept {
-        return {};
+        return error::backend_failure;
     }
 
-    /** Never called. */
+    /** Never called; fails closed. */
     template <class... Arguments>
     [[nodiscard]] static boost::system::result<void> check(Arguments&&... /*arguments*/) noexcept {
-        return {};
+        return error::backend_failure;
     }
 
     /** Never called. */

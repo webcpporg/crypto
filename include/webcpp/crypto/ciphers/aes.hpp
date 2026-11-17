@@ -41,30 +41,31 @@ struct block_state {};
  * The block cipher's engine on a backend whose header does not specialise it: the family's
  * refusal (`detail/capabilities.hpp`). Its functions are never called: the refusal stops the
  * build where the class is instantiated, and they keep the compiler from adding errors of their
- * own after it.
+ * own after it; those that return report `backend_failure`, so that a path the refusal missed
+ * fails closed.
  */
 template <class Backend, std::size_t KeySize>
 struct block_engine {
     WEBCPP_CRYPTO_DETAIL_REFUSE_AES_BLOCK(Backend);
 
-    /** Never called. */
+    /** Never called; fails closed. */
     template <class... Arguments>
     [[nodiscard]] static boost::system::result<void> init(Arguments&&... /*arguments*/) noexcept {
-        return {};
+        return error::backend_failure;
     }
 
-    /** Never called. */
+    /** Never called; fails closed. */
     template <class... Arguments>
     [[nodiscard]] static boost::system::result<void> encrypt(
         Arguments&&... /*arguments*/) noexcept {
-        return {};
+        return error::backend_failure;
     }
 
-    /** Never called. */
+    /** Never called; fails closed. */
     template <class... Arguments>
     [[nodiscard]] static boost::system::result<void> decrypt(
         Arguments&&... /*arguments*/) noexcept {
-        return {};
+        return error::backend_failure;
     }
 
     /** Never called. */

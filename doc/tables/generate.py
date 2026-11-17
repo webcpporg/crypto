@@ -469,6 +469,15 @@ def check_families(data: Data, declared: Dict[str, List[str]]) -> None:
                     if target not in declared.get(test, []):
                         raise Fault(f'crypto.json: the family {name}\'s default on {target} '
                                     f'names the test {test}, which does not run there')
+        if any(default_on(family, target) and
+               others_of(data, family, target, default_on(family, target) or '')
+               for target in data['targets']):
+            if 'shown' not in family:
+                raise Fault(f'crypto.json: the family {name} has no shown name, which its '
+                            'default\'s refusal names with another backend')
+            if family['shown'] not in [entry['name'] for entry in family['names']]:
+                raise Fault(f'crypto.json: the family {name} shows {family["shown"]}, which is '
+                            'none of its names')
         covered = {target for target, _ in rows}
         missing = [target for target in data['targets'] if target not in covered]
         if missing:
@@ -658,23 +667,36 @@ def capabilities_header(data: Data) -> str:
     return '\n'.join(out)
 
 
+def others_of(data: Data, family: Data, target: str, backend: str) -> List[str]:
+    """The backends other than backend that have a family on a target when the program is built,
+    in crypto.json's order of backends: a cell decided at run time is not one a program can be
+    sure to get."""
+    return [other for other in tags_of(data)
+            if other != backend and other in family['backends']
+            and not family['backends'][other].get('runtime')
+            and target in cell_targets(data, family, other)]
+
+
 def needs(data: Data, family: Data, target: str, backend: str) -> str:
     """What a program that uses a family's default without linking it needs (design D32): the
-    Jamfile line that links it and, where another backend has the family on the target, the type
-    that names it. The text holds on every target where the default is that backend, so that
-    one message test checks it on each."""
+    Jamfile line that links it, and, where another backend has the family on the target, the type
+    that names the first of them (others_of) in the family's shown name; then, as every message
+    of a backend not linked, what a build without b2 defines and links. The text holds on every
+    target where the default is that backend, so that one message test checks it on each."""
     facts = data['backends'][backend]
     head = (f'webcpp::crypto: {family["title"]}\'s default backend on this target is '
             f'{facts["title"]}, which is not linked')
     add = (f'Add {facts["jamfile"]} to the program\'s Jamfile, as in: exe app : app.cpp '
            f'/webcpp/crypto//crypto {facts["jamfile"]} ;')
-    others = [other for other in family['backends']
-              if other != backend and target in cell_targets(data, family, other)]
+    without = (f'(without b2: define WEBCPP_CRYPTO_HAS_{backend.upper()}=1 and '
+               f'{facts["without_b2"]})')
+    others = others_of(data, family, target, backend)
     if not others:
-        return f'{head}, and the one backend that has it there. {add}'
-    named = family['names'][-1]['type'].replace('{backend}', f'backends::{others[0]}')
+        return f'{head}, and the one backend that has it there. {add} {without}'
+    shown = next(entry for entry in family['names'] if entry['name'] == family['shown'])
+    named = shown['type'].replace('{backend}', f'backends::{others[0]}')
     return (f'{head}. {add} or name another backend in the type, as in {named}. The backends '
-            f'that have it: {have_list(data, family)}.')
+            f'that have it: {have_list(data, family)}. {without}')
 
 
 def defaults_header(data: Data) -> str:

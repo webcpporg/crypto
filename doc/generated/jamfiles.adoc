@@ -39,9 +39,9 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_named/both_bearssl_named.outcome[tag=output]
 ----
 
-`+encrypt_and_sign+`:: Two backends in one program: AES-256-GCM on BearSSL, named in the type so that one Jamfile serves every target, and a BIP 340 signature.
+`+encrypt_and_sign+`:: Two backends in one program on WebAssembly: AES-256-GCM on its default, BearSSL, and a BIP 340 signature.
 +
-Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
+Its Jamfile, built and run on wasip2, wasip3, emscripten:
 +
 [listing]
 ----

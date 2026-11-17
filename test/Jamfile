@@ -31,14 +31,14 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
 webcpp.headers-alone crypto : ../include
   : crypto/ciphers/aes256_gcm.hpp crypto/backends/bearssl.hpp
   : <library>/third_party//bearssl ;
-# The backend OpenSSL's header, with OpenSSL linked and selected; BearSSL, ctaes
-# and libsecp256k1 are linked too, so that every public header compiles with
-# these options (the lint's aggregate translation unit,
+# The backend OpenSSL's header, with OpenSSL linked and selected; BearSSL,
+# ctaes, libsecp256k1 and libsodium are linked too, so that every public
+# header compiles with these options (the lint's aggregate translation unit,
 # tools/lint/compile_commands.py).
 webcpp.headers-alone crypto : ../include : crypto/backends/openssl.hpp
   : <library>/webcpp/crypto//openssl <library>/third_party//bearssl
     <library>/third_party//ctaes <library>/third_party//secp256k1
-    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+    <library>/third_party//sodium <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
   : native wasip2 wasip3 ;
 # The backend ctaes's header alone, with ctaes linked, on every target.
 webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp

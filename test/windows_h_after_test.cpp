@@ -25,6 +25,8 @@
 #include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/config.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1/formats.hpp>
+#include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/hybrid/box.hpp>

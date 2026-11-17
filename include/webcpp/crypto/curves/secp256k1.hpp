@@ -7,8 +7,8 @@
 /**
  secp256k1 on libsecp256k1: BIP340 Schnorr and ECDSA signatures, hedged and recoverable, their
  verification and the recovery of a signer's key, and ECDH in three forms, each a secret; the
- parsed public key in its two SEC1 forms; ECDSA's DER and low-S forms, and the tweak of an
- x-only key.
+ parsed public key in its two SEC1 forms; ECDSA's DER and low-S forms, the tweak of an x-only
+ key, and the workspace a function over many keys borrows.
 
  @see "secp256k1", in the guide.
 */
@@ -33,6 +33,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <memory_resource>
 #include <span>
 #include <type_traits>
@@ -152,6 +153,65 @@ struct secp256k1_secret {
 };
 
 /**
+ * The carver of a caller's workspace into the arrays of pointers libsecp256k1 takes, which
+ * wipes every byte it handed out when it is destroyed.
+ *
+ * Each array is aligned to `alignof(std::max_align_t)`, in the order the function's size
+ * function lists them; an array of no elements takes no bytes and is `nullptr`.
+ */
+class secp256k1_workspace {
+public:
+    /**
+     * Carves `lent_bytes`, from its first byte on.
+     *
+     * @param lent_bytes The caller's workspace.
+     */
+    explicit secp256k1_workspace(std::span<std::byte> lent_bytes) noexcept
+        : lent_bytes_(lent_bytes) {}
+
+    /** Not copyable: one carver wipes what it handed out. */
+    secp256k1_workspace(secp256k1_workspace const&) = delete;
+    /** Not copyable: one carver wipes what it handed out. */
+    secp256k1_workspace& operator=(secp256k1_workspace const&) = delete;
+
+    /** Wipes every byte handed out, and the padding between them. */
+    ~secp256k1_workspace() { wipe(lent_bytes_.data(), used_size_); }
+
+    /**
+     * The next array of `element_count` elements of `T`, aligned to `alignof(std::max_align_t)`.
+     *
+     * @tparam T The element, a type with no constructor to run (a pointer).
+     * @param element_count The number of elements.
+     * @return The array; `nullptr` for no elements, or when the rest of the workspace is short.
+     */
+    template <class T>
+    [[nodiscard]] T* take(std::size_t element_count) noexcept {
+        static_assert(
+            std::is_trivially_default_constructible_v<T> && std::is_trivially_destructible_v<T>,
+            "the workspace holds arrays of pointers");
+        if (element_count == 0) {
+            return nullptr;
+        }
+        std::size_t const array_size = element_count * sizeof(T);
+        void* array_start = lent_bytes_.data() + used_size_;
+        std::size_t free_size = lent_bytes_.size() - used_size_;
+        if (std::align(alignof(std::max_align_t), array_size, array_start, free_size) == nullptr) {
+            return nullptr;
+        }
+        used_size_ =
+            static_cast<std::size_t>(static_cast<std::byte*>(array_start) - lent_bytes_.data()) +
+            array_size;
+        // Bytes the caller lent give their storage to an array of pointers, an implicit-lifetime
+        // type ([intro.object]): the array exists once it is written.
+        return static_cast<T*>(array_start);
+    }
+
+private:
+    std::span<std::byte> lent_bytes_;
+    std::size_t used_size_ = 0;
+};
+
+/**
  * Parses a public key of 33 bytes, compressed, or 65, uncompressed. libsecp256k1 also
  * accepts X9.62's hybrid forms, prefix 06 or 07, of 65 bytes; they are refused here, as every
  * prefix other than 02, 03 and 04 is.
@@ -263,6 +323,18 @@ namespace webcpp::crypto::curves::secp256k1 {
 
 /** The longest strict DER encoding of a secp256k1 ECDSA signature, in bytes. */
 inline constexpr std::size_t max_der_size = 72;
+
+/**
+ * Memory a caller lends to a function over many keys, nonces or outputs, for libsecp256k1's
+ * arrays of pointers, which crypto builds there and allocates nowhere.
+ *
+ * Each such function has a `*_workspace_size` that says how many bytes it needs, and wipes the
+ * bytes before it returns; a short workspace is `invalid_input_size`, never an allocation.
+ *
+ * Tip: `alignas(std::max_align_t) std::array<std::byte, N>` on the stack, or a vector the
+ * program owns.
+ */
+using workspace = std::span<std::byte>;
 
 /** The two SEC1 encodings of a point. */
 enum class point_form {

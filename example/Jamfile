@@ -57,6 +57,10 @@ webcpp.example ecdh_x_coordinate.cpp : <library>/third_party//secp256k1 ;
 # and the hash.
 webcpp.example recover_signer.cpp : <library>/third_party//secp256k1 ;
 
+# A watch-only wallet: the same tweak on the public key and on the secret key,
+# and a signature of the tweaked key pair verified under the tweaked public key.
+webcpp.example key_tweak.cpp : <library>/third_party//secp256k1 ;
+
 # A wallet's key pair, its secret sealed at rest and restored.
 webcpp.example wallet_key.cpp : <library>/third_party//secp256k1 <library>/webcpp/crypto//gcm-default ;
 

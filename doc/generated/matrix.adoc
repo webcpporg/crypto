@@ -200,6 +200,16 @@
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_keys+`
+
+|`+curves::secp256k1::seckey_tweak_add+`, `+seckey_tweak_mul+`, `+seckey_negate+`, `+pubkey_tweak_add+`, `+pubkey_tweak_mul+`, `+pubkey_negate+`, `+pubkey_combine+`
+|libsecp256k1
+|native, wasip2, wasip3, emscripten
+|`+secp256k1_tweak+`
+
+|`+curves::secp256k1::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsecp256k1
+|native, wasip2, wasip3, emscripten
+|`+secp256k1_formats+`, `+secp256k1_formats_openssl+`
 |===
 
 The same, by target: the backends each operation runs on.
@@ -383,6 +393,18 @@ The same, by target: the backends each operation runs on.
 |libsecp256k1
 
 |`+curves::secp256k1::public_key+`, `+parse_public_key+`, `+serialize_public_key+`
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+
+|`+curves::secp256k1::seckey_tweak_add+`, `+seckey_tweak_mul+`, `+seckey_negate+`, `+pubkey_tweak_add+`, `+pubkey_tweak_mul+`, `+pubkey_negate+`, `+pubkey_combine+`
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+
+|`+curves::secp256k1::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1

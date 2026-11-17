@@ -7,8 +7,9 @@
 /**
  The backend libsecp256k1: its v0.8.0, built from its sources by `/third_party//secp256k1`,
  every module on. It serves `curves::secp256k1::keypair`, `verify_schnorr`, `verify_ecdsa`,
- `recover`, the parsed `public_key`, the DER and low-S functions and the x-only tweak, and its
- whole C API stays reachable through `<secp256k1*.h>`.
+ `recover`, the parsed `public_key`, the DER and low-S functions, the x-only tweak, the tweaks
+ and combination of `curves/secp256k1/tweak.hpp` and the SPKI and PKCS#8 of
+ `curves/secp256k1/formats.hpp`, and its whole C API stays reachable through `<secp256k1*.h>`.
 
  @see "secp256k1", in the guide.
 */

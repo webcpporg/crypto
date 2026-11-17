@@ -9,10 +9,14 @@
 // and never through operator new nor the C library's allocator where the target lets a
 // program count it; the signatures (hedged and recoverable too), the three forms of ECDH, the
 // public keys in both forms, both verifications, the parsed public key, recovery, the DER and
-// low-S functions and the x-only tweak allocate nothing, each counted alone; the destructor gives
-// the block back; a refused make allocates nothing. A control proves the counter moves.
+// low-S functions, the x-only tweak, the tweaks, negations and combination of tweak.hpp and the
+// SPKI and PKCS#8 encoders and decoders of formats.hpp allocate nothing, each counted alone
+// (decode_pkcs8's key pair takes its one block from the resource it is given); the destructor
+// gives the block back; a refused make allocates nothing. A control proves the counter moves.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1/formats.hpp>
+#include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/counting.hpp"
@@ -141,8 +145,39 @@ int main() {
         none("recover", [&] { return secp::recover(*recoverable, message); });
         none("public_key <=>", [&] { return (*parsed <=> *parsed) == 0; });
         none("keypair::tweak_xonly", [&] { return key.tweak_xonly(message); });
+
+        // tweak.hpp: the tweaks, the negations and the combination, its workspace on the stack.
+        none("seckey_tweak_add", [&] { return secp::seckey_tweak_add(secret, message); });
+        none("seckey_tweak_mul", [&] { return secp::seckey_tweak_mul(secret, message); });
+        none("seckey_negate", [&] { return secp::seckey_negate(secret); });
+        none("pubkey_tweak_add", [&] { return secp::pubkey_tweak_add(*parsed, message); });
+        none("pubkey_tweak_mul", [&] { return secp::pubkey_tweak_mul(*parsed, message); });
+        none("pubkey_negate", [&] { return secp::pubkey_negate(*parsed) != *parsed; });
+        alignas(std::max_align_t) std::array<std::byte, secp::combine_workspace_size(2)> space{};
+        std::array<secp::public_key, 2> const pair{*parsed, *parsed};
+        none("pubkey_combine", [&] { return secp::pubkey_combine(pair, space); });
+
+        // formats.hpp: both SPKIs and the PKCS#8, written and read.
+        std::array<std::uint8_t, secp::max_pkcs8_size> encoding{};
+        std::size_t spki_size = 0;
+        none("encode_spki", [&] {
+            auto const r = secp::encode_spki(*parsed, encoding, secp::point_form::uncompressed);
+            spki_size = r ? *r : 0;
+            return r;
+        });
+        none("decode_spki", [&] {
+            return secp::decode_spki(std::span<std::uint8_t const>(encoding).first(spki_size));
+        });
+        none("encode_pkcs8", [&] { return secp::encode_pkcs8(key, encoding); });
         BOOST_TEST_EQ(resource.allocated, 1U);
         BOOST_TEST_EQ(resource.deallocated, 0U);
+
+        // decode_pkcs8 makes a key pair: its one block from the resource it is given, nothing
+        // else.
+        counting_resource decoded_resource;
+        none("decode_pkcs8", [&] { return secp::decode_pkcs8(encoding, &decoded_resource); });
+        BOOST_TEST_EQ(decoded_resource.allocated, 1U);
+        BOOST_TEST_EQ(decoded_resource.deallocated, 1U);
     }
     // The destructor gave the block back, once.
     BOOST_TEST_EQ(resource.deallocated, 1U);

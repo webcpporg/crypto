@@ -46,9 +46,12 @@ check signatures with a public key alone, and `recover` finds the key from a
 recoverable signature; `parse_public_key` and `serialize_public_key` read and
 write a `public_key` (<<crypto-secp256k1-keys>>); `to_der`, `from_der` (strict
 DER) and `normalize_ecdsa` convert ECDSA's DER and low-S forms; and
-`tweak_xonly` tweaks an x-only public key. Every function reads libsecp256k1's
-canary, so that a program linked with another build of the library does not
-link.
+`tweak_xonly` tweaks an x-only public key. Two more headers hold the tweaks,
+negation and combination of whole keys
+(`<webcpp/crypto/curves/secp256k1/tweak.hpp>`, <<crypto-secp256k1-tweaks>>)
+and the keys' SPKI and PKCS#8 (`<webcpp/crypto/curves/secp256k1/formats.hpp>`,
+<<crypto-secp256k1-formats>>). Every function reads libsecp256k1's canary, so
+that a program linked with another build of the library does not link.
 
 include::generated/backends-keypair.adoc[]
 
@@ -192,8 +195,8 @@ or `point_form::uncompressed`); a key pair gives its own key in both forms,
 `public_key` and `public_key_uncompressed`. Two `public_key` values compare
 with `==`, and order with `+<=>+` as their compressed encodings do, the order
 MuSig2's key sorting uses
-(link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327]). A `public_key` holds nothing secret and is copied
-freely.
+(link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327]).
+A `public_key` holds nothing secret and is copied freely.
 
 include::generated/backends-public_key.adoc[]
 
@@ -220,11 +223,11 @@ made it
 (link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow
 paper, appendix F]). An ECDSA signature fits up to four keys, and the
 recovery id, 0 to 3, names the one that made it
-(link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 4.1.6]). `sign_recoverable`
-writes 65 bytes, r, s and the id, with the same r and s as `sign_ecdsa`, and
-`recover` returns the `public_key` from those 65 bytes and the hash. It
-refuses with `invalid_signature` an id above 3, an r or an s not below the
-group order, and a signature from which no key is recovered.
+(link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 4.1.6]).
+`sign_recoverable` writes 65 bytes, r, s and the id, with the same r and s as
+`sign_ecdsa`, and `recover` returns the `public_key` from those 65 bytes and
+the hash. It refuses with `invalid_signature` an id above 3, an r or an s not
+below the group order, and a signature from which no key is recovered.
 
 include::generated/backends-recovery.adoc[]
 
@@ -266,3 +269,130 @@ form where the signer runs on hardware an attacker can fault or observe: the
 nonce then no longer depends on the key and the hash alone, so two signings of
 one hash do not repeat the same computation. Never reuse the 32 bytes: fixed
 extra data leaves the signature deterministic, as plain RFC 6979.
+
+[#crypto-secp256k1-tweaks]
+==== Tweaks, negation and combination
+
+A wallet app gives every payment a new address, so that strangers cannot
+link the payments to one person, yet keeps a single backup. A shop's web
+server that hands out those addresses holds no secret key at all: if it is
+broken into, the thief sees payments but cannot spend them
+(link:https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki[BIP 32]).
+Both rest on one property of the curve: adding a number t, the tweak, to a
+secret key d adds t times the generator G to its public key, so that the public
+key of d + t is P + tG. The server computes P + tG from the public key P alone;
+the signing device computes d + t from the secret; and both arrive at the same
+key pair without the server ever holding a secret.
+
+`<webcpp/crypto/curves/secp256k1/tweak.hpp>` offers that arithmetic on whole
+keys, each function a call of libsecp256k1:
+
+* `seckey_tweak_add` and `seckey_tweak_mul`: a secret key plus or times a
+32-byte tweak, modulo the group order, returned as a `secret<32>`;
+`pubkey_tweak_add` and `pubkey_tweak_mul`: P + tG and tP, the public keys of
+those two secrets;
+* `seckey_negate` and `pubkey_negate`: the negation of either, n - d and -P;
+* `pubkey_combine`: the sum of public keys, the public key of the sum of their
+secrets. libsecp256k1 takes an array of pointers to the keys, which crypto
+builds in a `workspace` the caller lends, of `combine_workspace_size(n)` bytes,
+so that nothing is allocated; the workspace is wiped before the call returns.
+
+A secret key that is zero or not below the group order is refused with
+`invalid_secret_key` before the tweak runs; so are a tweak not below the
+order, a zero multiplier, and a result that is no key (a zero secret, the
+point at infinity). `pubkey_combine` refuses no keys and a short workspace
+with `invalid_input_size`, and a sum at infinity with `invalid_public_key`.
+
+include::generated/backends-key_tweaks.adoc[]
+
+*Example.* A watch-only wallet: the server adds a payment's tweak to the
+wallet's public key, the device adds the same tweak to the secret key, and a
+signature of the device's tweaked key pair verifies under the server's key. The
+tweak is an HMAC of the public key and the payment's number under a chain code
+both sides share, as BIP 32 extends each key with a chain code so that child
+keys do not depend on the key alone; BIP 32's own derivation, with HMAC-SHA-512,
+is a domain library's
+(link:https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki[BIP 32]):
+
+[source,cpp]
+----
+include::{examples}/key_tweak.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/key_tweak.expected[]
+----
+
+*Pitfalls.*
+
+* A tweak computed from public data alone (the public key and a counter)
+links every derived key to the wallet: anyone who sees the public key computes
+the same tweaks and recognises each payment. Mix in a value only the two sides
+hold, as BIP 32's chain code is
+(link:https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki[BIP 32]).
+* A tweaked secret is a secret, which is why it is returned as a `secret<32>`:
+whoever knows the tweak and the tweaked secret key computes the original. With
+BIP 32's public derivation, one leaked child secret key and the parent's
+extended public key give away the parent's secret key, and with it every key
+of the wallet
+(link:https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki[BIP 32]).
+* The sum of keys others choose is not a multisignature. A participant who
+picks its key after seeing yours can choose its own key minus yours, and the
+sum is then its key alone, which it signs for without you. MuSig2 weighs each
+key with a coefficient hashed from all the keys, so that no participant can
+cancel another's
+(link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327]).
+
+[#crypto-secp256k1-formats]
+==== Keys in files: SPKI and PKCS#8
+
+A server's key lives in a configuration file, a peer's public key arrives in a
+certificate or a handshake, and other tools, OpenSSL among them, must read
+both. Two DER structures carry them. SPKI, SubjectPublicKeyInfo, is a public
+key with the name of its algorithm and curve
+(link:https://www.rfc-editor.org/rfc/rfc5480[RFC 5480]); PKCS#8 is a private
+key with the same name
+(link:https://www.rfc-editor.org/rfc/rfc5208[RFC 5208]), which for an elliptic
+curve holds RFC 5915's ECPrivateKey: the secret, and optionally the curve and
+the public key (link:https://www.rfc-editor.org/rfc/rfc5915[RFC 5915]).
+
+`<webcpp/crypto/curves/secp256k1/formats.hpp>` writes and reads them:
+
+* `encode_spki` writes the SPKI of a `public_key` with the secp256k1 OID, its
+point compressed, 56 bytes (the default), or uncompressed, 88 bytes, into a
+buffer of at least `max_spki_size` bytes; `decode_spki` reads either back;
+* `encode_pkcs8` writes a key pair's PKCS#8, 135 bytes, into a buffer of at
+least `max_pkcs8_size`: version 0, and an ECPrivateKey of version 1 with the
+uncompressed public key and no curve inside it, which is the form OpenSSL
+writes for a key in its default uncompressed form; `decode_pkcs8` reads it into
+a key pair, made as `keypair::make` makes one.
+
+The decoders are strict: they accept exactly the bytes the encoders write, and
+refuse anything else with `invalid_encoding`. The point must be on the curve,
+the secret below the group order, and the public key inside a PKCS#8 the
+secret's own: `decode_pkcs8` makes the key pair, encodes it again and compares
+the whole input. The encoders refuse a short buffer with `invalid_input_size`
+and a moved-from key pair with `invalid_state`, and write nothing then. The
+tests read OpenSSL's keys and give OpenSSL webcpp's, natively and on WASI, and
+under Emscripten round-trip every encoding through node's `crypto` module.
+
+include::generated/backends-key_formats.adoc[]
+
+*Pitfalls.*
+
+* A lenient parser gives one key many encodings, and lets a file say two
+things at once. RFC 5915 makes the curve and the public key optional inside
+ECPrivateKey (link:https://www.rfc-editor.org/rfc/rfc5915[RFC 5915]), so a
+PKCS#8 can carry a public key that is not its secret's; a program that shows or
+checks that key, rather than the one the secret gives, trusts the wrong key.
+`decode_pkcs8` refuses such a file.
+* X9.62's hybrid point form, prefix 06 or 07, is refused: RFC 5480 forbids it
+in an SPKI (link:https://www.rfc-editor.org/rfc/rfc5480[RFC 5480]).
+* OpenSSL writes a key set to the compressed form with its compressed point
+inside the PKCS#8 too, 102 bytes, which `decode_pkcs8` refuses: export the key
+in OpenSSL's default uncompressed form, and choose the SPKI's form when writing
+it.
+* The PKCS#8 these functions write holds the secret key in clear. Keep it
+where only the program reads it, out of source control, or seal it at rest
+(<<crypto-wallets-key>>).

@@ -5,8 +5,8 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // <webcpp/crypto.hpp> in a program that links libsecp256k1 brings secp256k1's header: its
-// branch for WEBCPP_CRYPTO_HAS_SECP256K1 compiles, and the key pair and both verifications
-// are declared through it alone.
+// branch for WEBCPP_CRYPTO_HAS_SECP256K1 compiles, and the key pair, both verifications, the
+// tweaks of tweak.hpp and the formats of formats.hpp are declared through it alone.
 
 #include <webcpp/crypto.hpp>
 
@@ -21,6 +21,10 @@ namespace secp = webcpp::crypto::curves::secp256k1;
 static_assert(std::is_same_v<secp::keypair::backend_type, webcpp::crypto::backends::secp256k1>);
 static_assert(std::is_function_v<decltype(secp::verify_schnorr<>)>);
 static_assert(std::is_function_v<decltype(secp::verify_ecdsa<>)>);
+static_assert(std::is_function_v<decltype(secp::seckey_tweak_add<>)>);
+static_assert(std::is_function_v<decltype(secp::pubkey_combine<>)>);
+static_assert(std::is_function_v<decltype(secp::decode_spki<>)>);
+static_assert(std::is_function_v<decltype(secp::decode_pkcs8<>)>);
 
 int main() {
     return 0;

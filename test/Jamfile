@@ -66,6 +66,7 @@ webcpp.headers-alone crypto : ../include
 # WEBCPP_CRYPTO_HAS_SECP256K1 (without it, each stops with its message).
 webcpp.headers-alone crypto : ../include
   : crypto/curves/secp256k1.hpp crypto/backends/secp256k1.hpp
+    crypto/curves/secp256k1/tweak.hpp crypto/curves/secp256k1/formats.hpp
   : <library>/third_party//secp256k1 ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
@@ -217,6 +218,19 @@ crypto-run secp256k1_recovery : secp256k1_recovery_test.cpp : <library>/third_pa
 # libsecp256k1's recovery and ElligatorSwift modules called through its C API,
 # which stays reachable beside the wrappers, and compared with them.
 crypto-run secp256k1_c_api : secp256k1_c_api_test.cpp : <library>/third_party//secp256k1 ;
+# Tweaks, negation and combination of secret and public keys, against the
+# C API, and their refusals.
+crypto-run secp256k1_tweak : secp256k1_tweak_test.cpp : <library>/third_party//secp256k1 ;
+# SPKI and PKCS#8: round trips, Wycheproof's SPKIs, malformed inputs and, on
+# Emscripten, node's crypto module as the outside oracle.
+crypto-run secp256k1_formats : secp256k1_formats_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
+# The same source with OpenSSL as the outside oracle: its keys and encodings.
+crypto-run secp256k1_formats_openssl : secp256k1_formats_test.cpp
+  : <library>/third_party//secp256k1 <library>/webcpp/crypto//openssl
+    <define>WEBCPP_TEST_OPENSSL_ORACLE
+  : native wasip2 wasip3 ;
 crypto-run secp256k1_der : secp256k1_der_test.cpp
   : <library>/third_party//secp256k1 <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;

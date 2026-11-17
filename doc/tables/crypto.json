@@ -106,7 +106,10 @@
         "rfc7748-kdf": ["RFC 7748, section 6.1: a KDF over the shared secret and both public keys", "https://www.rfc-editor.org/rfc/rfc7748#section-6.1"],
         "libsodium-doc-licence": ["libsodium's documentation, jedisct1/libsodium-doc at 6d1ea27, ISC", "https://github.com/jedisct1/libsodium-doc/tree/6d1ea27b79b853b2a04f09ae9e1a8231c90e3b56"],
         "sec1": ["SEC 1 version 2, Elliptic Curve Cryptography, sections 2.3.3 and 2.3.4: a point's encodings", "https://www.secg.org/sec1-v2.pdf"],
-        "bip327": ["BIP 327, MuSig2, its key sorting", "https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki"]
+        "bip327": ["BIP 327, MuSig2, its key sorting", "https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki"],
+        "rfc5480": ["RFC 5480, Elliptic Curve Cryptography Subject Public Key Information", "https://www.rfc-editor.org/rfc/rfc5480"],
+        "rfc5915": ["RFC 5915, Elliptic Curve Private Key Structure", "https://www.rfc-editor.org/rfc/rfc5915"],
+        "rfc5208": ["RFC 5208, PKCS #8: Private-Key Information Syntax", "https://www.rfc-editor.org/rfc/rfc5208"]
     },
     "backends": {
         "bearssl": {
@@ -575,6 +578,30 @@
             "what": "A parsed public key, read from and written to its compressed or uncompressed form.",
             "section": "crypto-secp256k1-keys",
             "backends": {"secp256k1": {"tests": ["secp256k1_keys"]}}
+        },
+        {
+            "id": "key_tweaks",
+            "family": "secp256k1",
+            "free": true,
+            "functions": ["seckey_tweak_add", "seckey_tweak_mul", "seckey_negate", "pubkey_tweak_add", "pubkey_tweak_mul", "pubkey_negate", "pubkey_combine"],
+            "namespace": "curves",
+            "api": "curves::secp256k1::seckey_tweak_add, seckey_tweak_mul, seckey_negate, pubkey_tweak_add, pubkey_tweak_mul, pubkey_negate, pubkey_combine",
+            "header": "<webcpp/crypto/curves/secp256k1/tweak.hpp>",
+            "what": "A secret or public key plus or times a tweak, its negation, and the sum of public keys.",
+            "section": "crypto-secp256k1-tweaks",
+            "backends": {"secp256k1": {"tests": ["secp256k1_tweak"]}}
+        },
+        {
+            "id": "key_formats",
+            "family": "secp256k1",
+            "free": true,
+            "functions": ["encode_spki", "decode_spki", "encode_pkcs8", "decode_pkcs8"],
+            "namespace": "curves",
+            "api": "curves::secp256k1::encode_spki, decode_spki, encode_pkcs8, decode_pkcs8",
+            "header": "<webcpp/crypto/curves/secp256k1/formats.hpp>",
+            "what": "A public key's SPKI and a key pair's PKCS#8, in OpenSSL's forms, decoded strictly.",
+            "section": "crypto-secp256k1-formats",
+            "backends": {"secp256k1": {"tests": ["secp256k1_formats", "secp256k1_formats_openssl"]}}
         }
     ],
     "families": [
@@ -856,7 +883,7 @@
         {"title": "A failed open zeroes data", "section": "crypto-gcm-rules", "text": "when the tag does not match, `open` returns `authentication_failed` and zeroes the whole of `data`; keep a copy of the ciphertext if it is needed after a failure. There is no incremental open: a large message is split into records."},
         {"title": "Records: each stream its own key", "section": "crypto-gcm-incremental", "text": "records numbered from 0 with the number as IV are safe only under a key used for that one stream: derive a key per stream (HKDF of the storage key with a random salt) or draw one; never number two streams' records under one key."},
         {"title": "ECDH's form", "section": "crypto-secp256k1-ecdh", "text": "`keypair::ecdh` returns libsecp256k1's hashed form, the SHA-256 of the compressed shared point; protocols that take the raw x coordinate, such as Nostr's NIP-44 ({nip44}), need `ecdh_x`. Both sides must use the same form, or they derive different keys. Derive keys with a KDF, never use a shared secret directly."},
-        {"title": "The x-only tweak is not BIP 32", "section": "crypto-wallets-taproot", "text": "`tweak_xonly` is BIP 341's even-y arithmetic ({bip341}); BIP 32's child derivation needs a tweak of the full key, which this version does not offer ({bip32})."},
+        {"title": "The x-only tweak is not BIP 32", "section": "crypto-wallets-taproot", "text": "`tweak_xonly` is BIP 341's even-y arithmetic ({bip341}); BIP 32's child derivation tweaks the full key, with `seckey_tweak_add` and `pubkey_tweak_add`, and computes the tweak with HMAC-SHA-512, a domain library's ({bip32})."},
         {"title": "Ethereum", "section": "crypto-curves", "text": "this version signs and verifies Ethereum's ECDSA, recoverable signatures included (`keypair::sign_recoverable`), recovers a signer's public key from a signature and a hash (`recover`), and writes the uncompressed key ({ethereum}); the recovery id's `v` encoding, the hash Ethereum signs, transactions and addresses are a domain library's."},
         {"title": "Compare secrets in constant time", "section": "crypto-equal", "text": "compare a tag, a MAC or a token with `equal`, never `==` or `memcmp` ({cwe208})."},
         {"title": "Secrets come from random_device", "section": "crypto-entropy", "text": "keys, IVs and tokens are drawn from `random_device`, never `std::mt19937` or `rand` ({cwe338})."},
@@ -913,7 +940,7 @@
             "columns": ["Curve", "What it does", "Security level", "Key sizes", "Signature sizes", "Speed", "Constant time, measured", "Standards", "Ecosystems that require it", "Browsers' WebCrypto", "Choose it for compatibility with"],
             "cited": ["Standards", "Ecosystems that require it", "Browsers' WebCrypto"],
             "rows": [
-                ["`secp256k1`", "BIP 340 Schnorr and ECDSA signatures, hedged and recoverable ECDSA, the recovery of a signer's key, ECDH in three forms, public keys in both forms, the x-only tweak", "about 128 bits ({sec2})", "secret 32 bytes; public 33 bytes compressed, 65 bytes uncompressed ({sec1}), 32 bytes x-only", "64 bytes; 65 bytes recoverable; ECDSA in DER up to 72", "{speed:secp256k1}", "{constant_time:secp256k1}", "{sec2}, {bip340}, {rfc6979}", "Bitcoin ({bip340}), Ethereum ({ethereum}), Nostr ({nip01})", "no: WebCrypto offers P-256, P-384, P-521, Ed25519 and X25519, not secp256k1 ({webcrypto})", "Bitcoin's keys and signatures; Nostr's event signatures ({nip01}); Ethereum's ECDSA verification with a known key; ECDH in the raw x-coordinate form of Nostr's encrypted messages ({nip44}); Ethereum's recoverable signatures and uncompressed keys ({ethereum}), the address hashing being a domain library's. Not in this version: BIP 32's derivation ({bip32})"],
+                ["`secp256k1`", "BIP 340 Schnorr and ECDSA signatures, hedged and recoverable ECDSA, the recovery of a signer's key, ECDH in three forms, public keys in both forms, the x-only tweak, the tweaks, negation and combination of keys, SPKI and PKCS#8", "about 128 bits ({sec2})", "secret 32 bytes; public 33 bytes compressed, 65 bytes uncompressed ({sec1}), 32 bytes x-only; SPKI 56 or 88 bytes ({rfc5480}), PKCS#8 135 bytes ({rfc5208}, {rfc5915})", "64 bytes; 65 bytes recoverable; ECDSA in DER up to 72", "{speed:secp256k1}", "{constant_time:secp256k1}", "{sec2}, {bip340}, {rfc6979}", "Bitcoin ({bip340}), Ethereum ({ethereum}), Nostr ({nip01})", "no: WebCrypto offers P-256, P-384, P-521, Ed25519 and X25519, not secp256k1 ({webcrypto})", "Bitcoin's keys and signatures; Nostr's event signatures ({nip01}); Ethereum's ECDSA verification with a known key; ECDH in the raw x-coordinate form of Nostr's encrypted messages ({nip44}); Ethereum's recoverable signatures and uncompressed keys ({ethereum}), the address hashing being a domain library's; BIP 32's tweaks of the full key, its derivation of the tweak being a domain library's ({bip32}); keys exchanged with OpenSSL as SPKI or PKCS#8 ({rfc5480}, {rfc5915})"],
                 ["`ed25519`", "Ed25519 signatures, and Ed25519ph over SHA-512 for a message given in pieces; the X25519 secret key of a key pair", "about 128 bits ({rfc8032})", "secret 32 bytes (the seed); public 32 bytes", "64 bytes", "{speed:ed25519}", "{constant_time:ed25519}", "{rfc8032}, {fips186-5}", "SSH keys ({rfc8709}), Signal's signatures on its Curve25519 keys ({signal-xeddsa}), Tor's identity keys ({tor-cert-spec}), Solana's accounts ({solana-accounts})", "yes: Ed25519 ({webcrypto})", "SSH, Tor and Solana keys and signatures, and any protocol that names RFC 8032's Ed25519 or Ed25519ph; verification is strict (libsodium's rules), which some lenient verifiers are not. Not Bitcoin, Ethereum or Nostr, whose keys are secp256k1's"],
                 ["`x25519`", "Key agreement (Diffie-Hellman on Curve25519): two parties who exchanged public keys share a 32-byte secret; `kx_keypair`, libsodium's `crypto_kx`, gives a client and a server a session key for each direction", "about 128 bits ({rfc7748})", "secret 32 bytes; public 32 bytes", "none: no signatures", "{speed:x25519}", "{constant_time:x25519}", "{rfc7748}", "TLS 1.3 ({rfc8446-groups}), SSH ({rfc8731}), WireGuard ({wireguard}), Signal ({x3dh})", "yes: X25519 ({webcrypto})", "TLS 1.3's and SSH's key exchange, WireGuard, Signal; libsodium's `crypto_box` keys, and the session keys of `crypto_kx` with `kx_keypair` ({libsodium-kx}). The Ed25519 public key of a peer converts with `curves::ed25519::to_x25519_public`. A shared secret goes through a KDF before it keys a cipher. Every case of Wycheproof's X25519 file is tested ({wycheproof})"]
             ]
@@ -942,6 +969,7 @@
         {"need": "Agree on a key with a peer through a relay that sees everything", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::ecdh` (SHA-256 of the shared point), then HKDF on Boost.Hash2 and `aes256_gcm`", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//gcm-default", "example": "ecdh_session", "section": "crypto-p2p-session"},
         {"need": "Derive a Nostr direct message's conversation key (NIP-44; the format is a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::ecdh_x`, then HKDF on Boost.Hash2", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ecdh_x_coordinate", "section": "crypto-secp256k1-ecdh"},
         {"need": "Find who signed a message or a transaction without being sent their key (Ethereum's signatures)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign_recoverable`, `recover`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "recover_signer", "section": "crypto-secp256k1-recovery"},
+        {"need": "Derive child keys for a watch-only wallet (BIP 32's derivation is a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`seckey_tweak_add`, `pubkey_tweak_add`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "key_tweak", "section": "crypto-secp256k1-tweaks"},
         {"need": "Make and keep a wallet's key", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::make`, `xonly_public_key`, `public_key`; `aes256_gcm` at rest", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//gcm-default", "example": "wallet_key", "section": "crypto-wallets-key"},
         {"need": "Sign a Bitcoin SegWit v0 input (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`sign_ecdsa`, `to_der`, `normalize_ecdsa`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ecdsa_der", "section": "crypto-wallets-der"},
         {"need": "Derive a Bitcoin Taproot output key and spend by key path (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`tweak_xonly`, `keypair::tweak_xonly`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "taproot_tweak", "section": "crypto-wallets-taproot"},

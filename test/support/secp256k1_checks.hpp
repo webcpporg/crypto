@@ -11,6 +11,7 @@
 #define WEBCPP_TEST_CRYPTO_SUPPORT_SECP256K1_CHECKS_HPP
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1/formats.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -42,6 +43,9 @@ inline void expect_empty_keypair(webcpp::crypto::curves::secp256k1::keypair& key
     BOOST_TEST(key.sign_ecdsa(message, aux).error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.sign_recoverable(message).error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.tweak_xonly(tweak).error() == webcpp::crypto::error::invalid_state);
+    std::array<std::uint8_t, webcpp::crypto::curves::secp256k1::max_pkcs8_size> encoding{};
+    BOOST_TEST(webcpp::crypto::curves::secp256k1::encode_pkcs8(key, encoding).error() ==
+               webcpp::crypto::error::invalid_state);
     if (BOOST_TEST(live.has_value())) {
         auto const peer = *live->public_key();
         BOOST_TEST(key.ecdh(peer).error() == webcpp::crypto::error::invalid_state);

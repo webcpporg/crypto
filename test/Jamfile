@@ -20,6 +20,12 @@ rule crypto-run ( name : sources + : requirements * : targets * )
       : $(requirements) <exception-handling>off : $(targets) ;
 }
 
+# The requirements of a test that reads what an optimiser leaves: -O2, and on
+# Emscripten no debug information, whose DWARF would hold back em++'s
+# post-link optimisation, the wasm-opt a release build runs
+# (-Wlimited-postlink-optimizations).
+OPTIMISED = <optimization>speed <toolset>emscripten:<debug-symbols>off ;
+
 webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/equal.hpp crypto/error.hpp crypto/ciphers/aes.hpp crypto/ciphers/gcm.hpp
   crypto/random_device.hpp crypto/detail/declassify.hpp crypto/detail/engines.hpp
@@ -69,20 +75,20 @@ crypto-run equal : equal_test.cpp ;
 crypto-run convenience_header : convenience_header_test.cpp ;
 crypto-run wipe : wipe_test.cpp ;
 # secret<N> is not copyable, moves wipe the source, and the destructor wipes
-# the storage: at -O2 with every call inlined (<inlining>full), where a wipe
-# the compiler could drop as a dead store would be dropped.
-crypto-run secret : secret_test.cpp : <optimization>speed <inlining>full ;
+# the storage: optimised, with every call inlined (<inlining>full), where a
+# wipe the compiler could drop as a dead store would be dropped.
+crypto-run secret : secret_test.cpp : $(OPTIMISED) <inlining>full ;
 
 # A destroyed or moved-from key schedule is zero in its storage, read at -O2
 # where a dropped store would show: one program per keyed type, one source.
 crypto-run wipe_objects_bearssl : wipe_objects_test.cpp
-  : <library>/third_party//bearssl <define>WEBCPP_TEST_WIPE_BEARSSL <optimization>speed ;
+  : <library>/third_party//bearssl <define>WEBCPP_TEST_WIPE_BEARSSL $(OPTIMISED) ;
 crypto-run wipe_objects_ctaes : wipe_objects_test.cpp
-  : <library>/third_party//ctaes <define>WEBCPP_TEST_WIPE_CTAES <optimization>speed ;
+  : <library>/third_party//ctaes <define>WEBCPP_TEST_WIPE_CTAES $(OPTIMISED) ;
 crypto-run wipe_objects_secp256k1 : wipe_objects_test.cpp
-  : <library>/third_party//secp256k1 <define>WEBCPP_TEST_WIPE_SECP256K1 <optimization>speed ;
+  : <library>/third_party//secp256k1 <define>WEBCPP_TEST_WIPE_SECP256K1 $(OPTIMISED) ;
 crypto-run wipe_objects_openssl : wipe_objects_test.cpp
-  : <library>/webcpp/crypto//openssl <define>WEBCPP_TEST_WIPE_OPENSSL <optimization>speed
+  : <library>/webcpp/crypto//openssl <define>WEBCPP_TEST_WIPE_OPENSSL $(OPTIMISED)
   : native wasip2 wasip3 ;
 
 # The counter itself: counts each allocation as it documents, on the first
@@ -198,9 +204,9 @@ crypto-run gcm_wycheproof_bearssl : gcm_wycheproof_bearssl_test.cpp
 
 # read_canary's load survives optimisation: without the canary the program does
 # not link, on every compiler; with it, it links and runs.
-webcpp.link-fail canary_read_absent : canary_read_test.cpp : <optimization>speed ;
+webcpp.link-fail canary_read_absent : canary_read_test.cpp : $(OPTIMISED) ;
 crypto-run canary_read : canary_read_test.cpp
-  : <optimization>speed <define>WEBCPP_TEST_CRYPTO_DEFINE_CANARY ;
+  : $(OPTIMISED) <define>WEBCPP_TEST_CRYPTO_DEFINE_CANARY ;
 
 # random_device: the system's generator, and a planted failing source.
 crypto-run random_device : random_device_test.cpp ;

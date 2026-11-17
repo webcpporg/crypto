@@ -1230,6 +1230,13 @@ def declared_brief(library: Path, operation: Data, function: str) -> str:
                 f'{operation["header"]} declares')
 
 
+def llms_entry(library: Path, operation: Data, function: str) -> str:
+    """The line of llms.txt that lists a function of an operation, under the operation's entry:
+    its bare name, a function written `class::name` included, and its brief."""
+    name = function.rpartition('::')[2]
+    return f'  - {name}: {declared_brief(library, operation, function)}'
+
+
 def first_comment(source: Path) -> str:
     """The comment that opens an example after its licence: what the program does."""
     lines = source.read_text(encoding='utf-8').splitlines()[6:]
@@ -1266,9 +1273,8 @@ def llms(data: Data, matrix: Matrix, library: Path) -> str:
                 if (operation['id'], backend) in matrix.supported)
             out.append(f'- [{operation["api"]}]({page}#{operation["section"]}): '
                        f'{operation["what"]} Header {operation["header"]}. Backends: {backends}.')
-            for function in operation['functions']:
-                out.append(f'  - {function}: '
-                           f'{declared_brief(library, operation, function)}')
+            out += [llms_entry(library, operation, function)
+                    for function in operation['functions']]
         out.append('')
     out += ['## Default backend per family', '']
     for family in data['families']:

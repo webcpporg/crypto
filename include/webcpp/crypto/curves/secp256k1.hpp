@@ -854,12 +854,12 @@ template <class Backend = backends::secp256k1>
     std::span<std::uint8_t const, 32> message_hash) noexcept {
     static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
                   WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // libsecp256k1 checks the id with ARG_CHECK, whose callback aborts: refused first here.
     int const recovery_id = recoverable_signature[64];
     if (recovery_id > 3) {
         return error::invalid_signature;
     }
-    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
     secp256k1_ecdsa_recoverable_signature parsed_value{};

@@ -127,6 +127,25 @@ def test_a_failing_fixture_lists_its_texts_per_target(scratch: Path) -> None:
         raise AssertionError('a section with no label was printed')
 
 
+def test_a_fixture_that_builds_and_runs_nothing_is_a_record(scratch: Path) -> None:
+    # A misuse that only MSVC's linker stops builds elsewhere: its fixture says build: succeeds
+    # with no run:. It is no program of the Jamfiles page; the messages page lists it after
+    # MSVC's cases, its Jamfile included, and needs no output region.
+    data = {'outcome_sections': {'all': 'every target'}, 'sources': {}, 'fixes': {},
+            'fixtures': {'program': 'A program.', 'record': 'Two files, one with an option.'}}
+    program = generate.Outcome(written(scratch, 'program.outcome', (
+        'targets: native\nbuild: succeeds\nrun: app\nhello\n')))
+    record = generate.Outcome(written(scratch, 'record.outcome', (
+        'targets: native\nbuild: succeeds\n')))
+    assert program.runs and not record.runs, (program.runs, record.runs)
+    cases = {'program': ([], program), 'record': ([], record)}
+    programs = generate.jamfiles_page(data, cases)
+    assert '`+program+`' in programs and 'record' not in programs, programs
+    messages = generate.messages_page(data, {}, cases, {})
+    assert '`+record+`:: Two files, one with an option.' in messages, messages
+    assert 'record/Jamfile[tag=jamfile]' in messages and 'program' not in messages, messages
+
+
 def test_a_comparison_column_is_headed_by_its_plain_name(_: Path) -> None:
     data = {'sources': {}, 'namespaces': {'ciphers': {
         'columns': ['Algorithm', 'AEAD'],
@@ -163,6 +182,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_brief_leaves_out_a_line_reference,
     test_code_that_holds_a_plus_is_one_span,
     test_a_failing_fixture_lists_its_texts_per_target,
+    test_a_fixture_that_builds_and_runs_nothing_is_a_record,
     test_a_comparison_column_is_headed_by_its_plain_name,
     test_the_decision_table_writes_no_jamfile_as_prose,
 ]

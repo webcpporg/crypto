@@ -146,11 +146,14 @@ def msvc_cases(library: Path) -> Dict[str, str]:
 
 
 class Outcome:
-    """A fixture's .outcome: its targets, whether it builds, what it prints or contains."""
+    """A fixture's .outcome: its targets, whether it builds, whether its program runs, what it
+    prints or contains. A fixture that builds and runs nothing is a record: a misuse that only
+    MSVC's linker stops, which links elsewhere."""
 
     def __init__(self, path: Path) -> None:
         self.targets: List[str] = []
         self.succeeds = False
+        self.runs = False
         self.output: List[str] = []
         self.contains: List[Tuple[str, str]] = []
         self.absent: List[Tuple[str, str]] = []
@@ -167,7 +170,7 @@ class Outcome:
             elif line.startswith('build:'):
                 self.succeeds = line.split()[1] == 'succeeds'
             elif line.startswith('run:'):
-                printing = True
+                self.runs = printing = True
             elif line.startswith('contains:'):
                 self.contains.append((section, line[len('contains:'):].strip()))
             elif line.startswith('not-contains:'):
@@ -188,7 +191,7 @@ def fixtures(root: Path) -> Dict[str, Tuple[List[str], Outcome]]:
             continue
         outcome = Outcome(case / f'{case.name}.outcome')
         regions = [('Jamfile', 'jamfile')]
-        if outcome.succeeds:
+        if outcome.succeeds and outcome.runs:
             regions.append((f'{case.name}.outcome', 'output'))
         for file, wanted in regions:
             text = (case / file).read_text(encoding='utf-8')
@@ -514,10 +517,10 @@ def case_list(entries: List[Tuple[str, str, List[Tuple[str, str]]]]) -> str:
 
 
 def jamfiles_page(data: Data, cases: Dict[str, Tuple[List[str], Outcome]]) -> str:
-    """Every fixture that builds: its Jamfile, its targets and what it prints."""
+    """Every fixture that builds and runs: its Jamfile, its targets and what it prints."""
     entries: List[Tuple[str, str, List[Tuple[str, str]]]] = []
     for name, (_, outcome) in cases.items():
-        if not outcome.succeeds:
+        if not outcome.succeeds or not outcome.runs:
             continue
         entries.append((code(name), marked(cite(data, data['fixtures'][name])), [
             (f'Its Jamfile, built and run on {", ".join(outcome.targets)}:',
@@ -569,6 +572,14 @@ def messages_page(data: Data, refusals: Dict[str, Tuple[str, List[str]]],
              'at link time; its text is MSVC\'s own, the same instruction in MSVC\'s words, and '
              'two files compiled with different settings stop the link with LNK2038.\n\n')
     text += table(['Case', 'Stops', 'Fix'], windows, 'cols="1,1,4",')
+    records = [(code(name), marked(cite(data, data['fixtures'][name])),
+                [('Its Jamfile, which builds on ' + ', '.join(outcome.targets) + ':',
+                  included(name, 'Jamfile', 'jamfile'))])
+               for name, (_, outcome) in cases.items() if outcome.succeeds and not outcome.runs]
+    if records:
+        text += ('\nElsewhere than MSVC these mistakes build, and nothing stops them; the fixtures '
+                 'record it:\n\n')
+        text += case_list(records)
     return text
 
 

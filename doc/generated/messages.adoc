@@ -324,6 +324,40 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: OpenSSL is not built for Emscripten. In the program's Jamfile, replace /webcpp/crypto//openssl with /third_party//bearssl.+`
 
+`+memory_missing_definition_install+`:: The memory option set in the program's project, the install called, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_missing_definition_install/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* native, macOS:
+** `+Undefined symbols for architecture+`
+** `+"webcpp::crypto::openssl_memory_resource()", referenced from:+`
+* native, Linux:
+** `pass:[undefined reference to &#96;webcpp::crypto::openssl_memory_resource()']`
+
+`+memory_missing_definition_make+`:: The memory option set in the program's project, a `+make+` on OpenSSL, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_missing_definition_make/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* native, macOS:
+** `+Undefined symbols for architecture+`
+** `+"webcpp::crypto::openssl_memory_resource()", referenced from:+`
+* native, Linux:
+** `pass:[undefined reference to &#96;webcpp::crypto::openssl_memory_resource()']`
+
 `+no_backend_on_emscripten+`:: A program for Emscripten that uses the default backend and links none. The fix: Add `+/third_party//bearssl+` to the program's sources.
 +
 Its Jamfile:
@@ -424,6 +458,18 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Use `+aes256_gcm+` with BearSSL or OpenSSL linked.
 
+|`+memory_missing_definition_install+`
+|the link
+|Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
+
+|`+memory_missing_definition_make+`
+|the link
+|Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
+
+|`+memory_two_files+`
+|the link
+|Give the define in the requirements of the program's project, with OpenSSL beside it, `+project app : requirements <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE <library>/webcpp/crypto//openssl ;+`, so that every target of the program gets both.
+
 |`+no_backend+`
 |the compile
 |As `+no_backend_native+`.
@@ -452,3 +498,14 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Keep one of the two defines.
 |===
+
+Elsewhere than MSVC these mistakes build, and nothing stops them; the fixtures record it:
+
+`+memory_two_files+`:: Two files of one program, one compiled with the memory option and one without.
++
+Its Jamfile, which builds on native:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_two_files/Jamfile[tag=jamfile]
+----

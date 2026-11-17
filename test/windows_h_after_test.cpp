@@ -39,6 +39,16 @@
 
 #include <algorithm>
 #include <limits>
+#include <memory_resource>
+
+// With WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE (test/openssl_memory's twins, spec section 8.6), the
+// option's branch of backends/openssl.hpp is compiled too, and the program defines the resource
+// the option needs.
+#ifdef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept {
+    return *std::pmr::new_delete_resource();
+}
+#endif
 
 int main() {
     BOOST_TEST_EQ(std::max(1, 2), 2);

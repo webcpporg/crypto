@@ -45,11 +45,21 @@
 
 #include <algorithm>
 #include <limits>
+#include <memory_resource>
 
 // webcpp left defined none of the macros it defines for its own include of <windows.h>,
 // which the program's include made add nothing.
 #if defined(_WIN32) && (defined(NOMINMAX) || defined(WIN32_LEAN_AND_MEAN))
 #error "webcpp's headers left NOMINMAX or WIN32_LEAN_AND_MEAN defined"
+#endif
+
+// With WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE (test/openssl_memory's twins, spec section 8.6), the
+// option's branch of backends/openssl.hpp is compiled too, and the program defines the resource
+// the option needs.
+#ifdef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept {
+    return *std::pmr::new_delete_resource();
+}
 #endif
 
 int main() {

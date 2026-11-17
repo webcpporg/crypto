@@ -332,6 +332,9 @@
         "has_openssl_on_emscripten": "OpenSSL declared linked, without b2, in a build for Emscripten.",
         "openssl_on_emscripten": "`/webcpp/crypto//openssl` named in a build for Emscripten.",
         "openssl_memory_on_emscripten": "The memory option of the OpenSSL backend set in a build for Emscripten.",
+        "memory_missing_definition_install": "The memory option set in the program's project, the install called, and `openssl_memory_resource()` not defined.",
+        "memory_missing_definition_make": "The memory option set in the program's project, a `make` on OpenSSL, and `openssl_memory_resource()` not defined.",
+        "memory_two_files": "Two files of one program, one compiled with the memory option and one without.",
         "no_backend_on_emscripten": "A program for Emscripten that uses the default backend and links none."
     },
     "fixes": {
@@ -352,6 +355,9 @@
         "openssl_on_emscripten": "Name `/third_party//bearssl` in its place for the Emscripten build.",
         "openssl_memory_on_emscripten": "Remove `<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` from the WebAssembly build: give that build a project of its own, without the define and OpenSSL, naming `/third_party//bearssl`. On WebAssembly the backend is BearSSL, which allocates nothing.",
         "openssl_memory_on_webassembly": "Remove `<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` from the WebAssembly build: give that build a project of its own, without the define and OpenSSL, naming `/third_party//bearssl`. On WebAssembly the backend is BearSSL, which allocates nothing.",
+        "memory_missing_definition_install": "Define `std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept` once in the program, returning a resource that is never destroyed.",
+        "memory_missing_definition_make": "Define `std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept` once in the program, returning a resource that is never destroyed.",
+        "memory_two_files": "Give the define in the requirements of the program's project, with OpenSSL beside it, `project app : requirements <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE <library>/webcpp/crypto//openssl ;`, so that every target of the program gets both.",
         "openssl_memory_not_linked": "A target has the define and not OpenSSL: put `<library>/webcpp/crypto//openssl` in the same project requirements as the define, or remove the define.",
         "canary_missing": "Link the library through b2, `/third_party//bearssl`; built by other means, it must be the pinned commit, with webcpp's `src/canary_bearssl.c`.",
         "canary_other_commit": "Build the library at the commit of webcpp's submodule, or link it through b2.",

@@ -39,3 +39,6 @@ build-project secp256k1_not_linked ;
 build-project openssl_old ;
 build-project secp256k1_other_backend ;
 build-project openssl_memory_not_linked ;
+build-project memory_missing_definition_install ;
+build-project memory_missing_definition_make ;
+build-project memory_two_files ;

@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <span>
+#include <type_traits>
 
 namespace crypto = webcpp::crypto;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
@@ -32,10 +33,19 @@ namespace hash2 = boost::hash2;
 
 namespace {
 
-// 32 secret bytes the program holds, overwritten when the scope ends, on every path, an early
-// return's included. The bytes are written through a volatile pointer, which the optimiser
-// cannot drop as a dead store: crypto wipes its own copies of keys this way, and the program
-// wipes its own.
+// Overwrites an object's bytes through a volatile pointer, which the optimiser cannot drop as a
+// dead store: crypto wipes its own copies of keys this way, and the program wipes its own.
+template <class T>
+void wipe(T& object) {
+    static_assert(std::is_trivially_destructible_v<T>, "an object whose bytes are all its state");
+    auto* const data = reinterpret_cast<unsigned char volatile*>(&object);
+    for (std::size_t i = 0; i < sizeof(T); ++i) {
+        data[i] = 0;
+    }
+}
+
+// 32 secret bytes the program holds, wiped when the scope ends, on every path, an early return's
+// included.
 struct wiped_bytes {
     std::array<std::uint8_t, 32> bytes{};
 
@@ -43,20 +53,16 @@ struct wiped_bytes {
     wiped_bytes(wiped_bytes const&) = delete;
     wiped_bytes& operator=(wiped_bytes const&) = delete;
 
-    ~wiped_bytes() {
-        std::uint8_t volatile* const data = bytes.data();
-        for (std::size_t i = 0; i < bytes.size(); ++i) {
-            data[i] = 0;
-        }
-    }
+    ~wiped_bytes() { wipe(bytes); }
 };
 
 // The tweak of payment `number`: HMAC-SHA-256 under the chain code of the compressed public key
-// and the number. Both sides compute it; an outsider without the chain code cannot, and so
-// cannot tell that two payment keys belong to one wallet.
-std::array<std::uint8_t, 32> payment_tweak(std::span<std::uint8_t const, 32> chain_code,
-                                           std::span<std::uint8_t const, 33> public_key,
-                                           std::uint32_t number) {
+// and the number, written into `tweak`. Both sides compute it; an outsider without the chain
+// code cannot, and so cannot tell that two payment keys belong to one wallet. The HMAC's state,
+// keyed by the chain code, and its digest, the tweak itself, are wiped before it returns.
+void payment_tweak(std::span<std::uint8_t const, 32> chain_code,
+                   std::span<std::uint8_t const, 33> public_key, std::uint32_t number,
+                   wiped_bytes& tweak) {
     hash2::hmac_sha2_256 mac(chain_code.data(), chain_code.size());
     mac.update(public_key.data(), public_key.size());
     std::array<std::uint8_t, 4> const index{
@@ -66,10 +72,10 @@ std::array<std::uint8_t, 32> payment_tweak(std::span<std::uint8_t const, 32> cha
         static_cast<std::uint8_t>(number),
     };
     mac.update(index.data(), index.size());
-    auto const digest = mac.result();
-    std::array<std::uint8_t, 32> tweak{};
-    std::copy_n(digest.data(), tweak.size(), tweak.begin());
-    return tweak;
+    auto digest = mac.result();
+    std::copy_n(digest.data(), tweak.bytes.size(), tweak.bytes.begin());
+    wipe(digest);
+    wipe(mac);
 }
 
 }  // namespace
@@ -94,7 +100,7 @@ int main() {
     }
     // The tweak and the tweaked secret give back the secret: the tweak is wiped too.
     wiped_bytes tweak;
-    tweak.bytes = payment_tweak(chain_code.bytes, *wallet_public, 7);
+    payment_tweak(chain_code.bytes, *wallet_public, 7, tweak);
 
     // tag::tweak[]
     // The server: the wallet's public key plus the tweak, with no secret anywhere.

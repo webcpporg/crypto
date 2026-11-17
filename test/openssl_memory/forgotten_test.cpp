@@ -31,15 +31,13 @@ int main() {
     auto& resource = webcpp::test::the_counting_resource();
     std::array<std::uint8_t, 32> const key{};
     auto const forgotten = aead::make(key);
-    BOOST_TEST(forgotten.has_error());
-    if (forgotten.has_error()) {
-        BOOST_TEST(forgotten.error() == crypto::error::memory_functions_not_installed);
-        BOOST_TEST_EQ(forgotten.error().message(),
-                      std::string("OpenSSL's memory functions are not webcpp::crypto's. Call "
-                                  "backends::openssl::install_memory_functions() as the first "
-                                  "statement of main, and let nothing else call "
-                                  "CRYPTO_set_mem_functions."));
-    }
+    // On success error() is the empty code, which fails both checks below.
+    BOOST_TEST(forgotten.error() == crypto::error::memory_functions_not_installed);
+    BOOST_TEST_EQ(forgotten.error().message(),
+                  std::string("OpenSSL's memory functions are not webcpp::crypto's. Call "
+                              "backends::openssl::install_memory_functions() as the first "
+                              "statement of main, and let nothing else call "
+                              "CRYPTO_set_mem_functions."));
     BOOST_TEST_EQ(
         CRYPTO_set_mem_functions(&webcpp_crypto_openssl_malloc, &webcpp_crypto_openssl_realloc,
                                  &webcpp_crypto_openssl_free),

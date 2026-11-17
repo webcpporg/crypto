@@ -59,7 +59,7 @@ int main() {
     webcpp::test::say_whether_c_is_counted();
     BOOST_TEST(crypto::backends::openssl::install_memory_functions().has_value());
     std::array<std::uint8_t, 32> const key{};
-    BOOST_TEST(aead::make(key).has_value());
+    BOOST_TEST(make_between_entries(key, std::nullopt).has_value());
 
     auto const no_context = make_between_entries(key, context_new);
     BOOST_TEST(no_context.has_error() &&

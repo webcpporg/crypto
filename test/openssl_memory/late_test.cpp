@@ -24,15 +24,13 @@ int main() {
     webcpp::test::say_whether_c_is_counted();
     EVP_CIPHER_free(EVP_CIPHER_fetch(nullptr, "AES-256-GCM", nullptr));
     auto const installed = crypto::backends::openssl::install_memory_functions();
-    BOOST_TEST(installed.has_error());
-    if (installed.has_error()) {
-        BOOST_TEST(installed.error() == crypto::error::memory_functions_refused);
-        BOOST_TEST_EQ(installed.error().message(),
-                      std::string("OpenSSL's memory functions cannot be installed: OpenSSL has "
-                                  "already allocated, or another party installed its own. Call "
-                                  "backends::openssl::install_memory_functions() as the first "
-                                  "statement of main, before anything uses OpenSSL."));
-    }
+    // On success error() is the empty code, which fails both checks below.
+    BOOST_TEST(installed.error() == crypto::error::memory_functions_refused);
+    BOOST_TEST_EQ(installed.error().message(),
+                  std::string("OpenSSL's memory functions cannot be installed: OpenSSL has "
+                              "already allocated, or another party installed its own. Call "
+                              "backends::openssl::install_memory_functions() as the first "
+                              "statement of main, before anything uses OpenSSL."));
     BOOST_TEST(crypto::detail::openssl_defaults_installed());
     BOOST_TEST_EQ(webcpp::test::the_counting_resource().allocations(), 0U);
     return webcpp::test::exit_status(boost::report_errors());

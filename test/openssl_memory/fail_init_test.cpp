@@ -44,6 +44,9 @@ int main() {
     auto& resource = webcpp::test::the_counting_resource();
     std::array<std::uint8_t, 32> const key{};
     BOOST_TEST_EQ(resource.allocations(), 0U);
+    // The makes live in this scope so that their objects are destroyed before the explicit
+    // OPENSSL_cleanup() below: should a pin move let OpenSSL initialise, no context is then
+    // freed after the cleanup, and the live count compared across it is the library's alone.
     {
         resource.arm(0);
         auto const first = aead::make(key);

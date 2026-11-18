@@ -16,8 +16,10 @@
 // threading=single does not take BOOST_HAS_THREADS away: Boost.Config (1.92) defines it on macOS
 // (__APPLE__, boost/config/detail/suffix.hpp), on MSVC (_MT), with libstdc++ where it has gthreads
 // (boost/config/stdlib/libstdcpp3.hpp) and with libc++ always (boost/config/stdlib/libcpp.hpp), so
-// that a native build without WEBCPP_CRYPTO_NO_THREADS has threads; the single build checks the
-// rule against Boost.Config's macro, whatever it says on the machine.
+// that a native build without WEBCPP_CRYPTO_NO_THREADS has threads. The single build checks the
+// rule against Boost.Config's macro, and pins the documented outcome: should Boost (or its pin)
+// stop defining BOOST_HAS_THREADS under threading=single, the documentation would be wrong, and
+// this build fails.
 
 #include <webcpp/crypto/config.hpp>
 
@@ -40,6 +42,9 @@
 #elif defined(WEBCPP_TEST_CRYPTO_THREADING_SINGLE)
 #if defined(WEBCPP_CRYPTO_HAS_THREADS) != defined(BOOST_HAS_THREADS)
 #error "WEBCPP_CRYPTO_HAS_THREADS is not defined exactly when BOOST_HAS_THREADS is"
+#endif
+#ifndef WEBCPP_CRYPTO_HAS_THREADS
+#error "a native build has threads unless the program defines WEBCPP_CRYPTO_NO_THREADS"
 #endif
 #else
 #error "test/Jamfile builds this file natively with one of the threading cases"

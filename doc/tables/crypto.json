@@ -659,7 +659,9 @@
         "ed25519_on_bearssl_on_emscripten": "A program for Emscripten that names BearSSL, which has no Ed25519, in an Ed25519 key pair's type.",
         "ed25519ph_sha256_on_emscripten": "A program for Emscripten that names SHA-256 in Ed25519ph's type, which RFC 8032 defines over SHA-512.",
         "heavy_without_threads_on_emscripten": "A program for Emscripten without `-pthread` that calls a heavy operation's `async_` variant (a test's own).",
-        "threads_on_emscripten": "A program for Emscripten built with `<threading>multi`, which is `-pthread`: the build has threads."
+        "threads_on_emscripten": "A program for Emscripten built with `<threading>multi`, which is `-pthread`: the build has threads.",
+        "chacha_on_ctaes_on_emscripten": "A program for Emscripten that names ctaes, which has no ChaCha20-Poly1305, in the AEAD's type.",
+        "aead_not_a_family_on_emscripten": "A program for Emscripten that gives `ciphers::aead` AES-GCM's family, which `ciphers::gcm` serves instead."
     },
     "fixes": {
         "gcm_default_openssl_not_linked": "Natively the default is OpenSSL: add `/webcpp/crypto//gcm-default`, which links `/webcpp/crypto//openssl` there, or name BearSSL in the type, as in `gcm<aes256<backends::bearssl>>`.",
@@ -709,6 +711,8 @@
         "ed25519_default_not_linked": "Add `/webcpp/crypto//ed25519-default`, which links `/third_party//sodium` on every target.",
         "ed25519_default_not_linked_on_emscripten": "As `ed25519_default_not_linked`.",
         "heavy_without_threads": "Call the synchronous operation the message names, or build with threads: natively without `WEBCPP_CRYPTO_NO_THREADS`, on Emscripten with `-pthread`; WASI has none.",
-        "heavy_without_threads_on_emscripten": "As `heavy_without_threads`: on Emscripten, add `<threading>multi`."
+        "heavy_without_threads_on_emscripten": "As `heavy_without_threads`: on Emscripten, add `<threading>multi`.",
+        "chacha_on_ctaes_on_emscripten": "As `chacha_on_ctaes`.",
+        "aead_not_a_family_on_emscripten": "As `aead_not_a_family`."
     }
 }

@@ -154,6 +154,20 @@ The fix: Add `+/third_party//sodium+`.
 
 At build and link time, from the fixtures of the user's Jamfiles, each built on a scratch superproject: the texts the build's output contains, per target and linker, as each fixture checks them.
 
+`+aead_not_a_family_on_emscripten+`:: A program for Emscripten that gives `+ciphers::aead+` AES-GCM's family, which `+ciphers::gcm+` serves instead. The fix: As `+aead_not_a_family+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/aead_not_a_family_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original or families::xchacha20_poly1305.+`
+
 `+canary_ctaes_missing+`:: ctaes's headers used without its library. The fix: Link `+/third_party//ctaes+`.
 +
 Its Jamfile:
@@ -378,6 +392,20 @@ On each target, the build's output contains:
 ** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
 ** `pass:[em++: error:]`
 
+`+chacha_on_ctaes_on_emscripten+`:: A program for Emscripten that names ctaes, which has no ChaCha20-Poly1305, in the AEAD's type. The fix: As `+chacha_on_ctaes+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha_on_ctaes_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: ctaes has no ChaCha20-Poly1305. The backends that have it: sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).+`
+
 `+default_bearssl_on_emscripten+`:: Version 0.1's define that chose BearSSL as the default, in a build for Emscripten. The fix: Remove the define: on Emscripten the default is BearSSL.
 +
 Its Jamfile:
@@ -418,7 +446,7 @@ include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/ed25519_default_not_l
 On each target, the build's output contains:
 +
 * emscripten:
-** `+webcpp::crypto: Ed25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /third_party//sodium to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+** `+webcpp::crypto: Ed25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//ed25519-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//ed25519-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
 `+ed25519_on_bearssl_on_emscripten+`:: A program for Emscripten that names BearSSL, which has no Ed25519, in an Ed25519 key pair's type. The fix: As `+ed25519_on_bearssl+`.
 +
@@ -474,7 +502,7 @@ include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/heavy_without_threads
 On each target, the build's output contains:
 +
 * emscripten:
-** `+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively b2 threading=multi; on Emscripten -pthread). Without threads, call slow.+`
+** `+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.+`
 
 `+memory_missing_definition_install+`:: The memory option set in the program's project, the install called, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
 +
@@ -522,7 +550,7 @@ include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/no_backend_on_emscrip
 On each target, the build's output contains:
 +
 * emscripten:
-** `+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked, and the one backend that has it there. Add /third_party//bearssl to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
+** `+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked, and the one backend that has it there. Add /webcpp/crypto//gcm-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//gcm-default ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
 
 `+openssl_memory_on_emscripten+`:: The memory option of the OpenSSL backend set in a build for Emscripten. The fix: Remove `+<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE+` from the WebAssembly build: give that build a project of its own, without the define and OpenSSL, naming `+/third_party//bearssl+`. On WebAssembly the backend is BearSSL, which allocates nothing.
 +

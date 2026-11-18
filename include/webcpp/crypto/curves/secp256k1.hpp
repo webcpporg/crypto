@@ -348,9 +348,8 @@ inline constexpr bool secp256k1_backend = std::is_same_v<Backend, backends::secp
  * is the family's generated refusal (`detail/capabilities.hpp`, design D33), which names the
  * backends that have the family. secp256k1 has no engine trait, so the refusal is reached here,
  * where `secp256k1_refuses_others` instantiates it. The generated macro cannot stand bare in a
- * function: besides refusing the other backends it asserts, for libsecp256k1 itself, that the
- * program includes the backend's header and links it or not, which is right in an engine's
- * primary template (reached only for another backend) and wrong where libsecp256k1 is accepted.
+ * function: for libsecp256k1 itself it asserts both "linked" and "not linked", so it always
+ * fails there; in an engine's primary template, reached only for another backend, that is right.
  *
  * @tparam Family The family's tag, `families::secp256k1` or one of its modules'.
  * @tparam Backend The backend a function or the key pair names.

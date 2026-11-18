@@ -86,13 +86,15 @@ A cryptographic implementation is *constant time* when its running time and
 its memory accesses do not depend on secret data; otherwise a timing attack
 can recover the key (link:https://en.wikipedia.org/wiki/Timing_attack[Wikipedia];
 link:https://www.bearssl.org/constanttime.html[BearSSL's explanation]). Each
-backend's design is stated by its library; crypto's own measurement of the code
-as webcpp compiles it, per target, is not taken in this version.
+backend's design is stated by its library. The table's measured columns are
+not filled in this version: the own lane below checks the code as webcpp
+compiles it, and its results join the table when they are recorded in the
+documentation's data, in a later version.
 
 include::generated/constant-time.adoc[]
 
 The own lane `constant-time` (`libs/crypto/test/constant_time`) checks the code
-as webcpp compiles it, natively on Linux: under Valgrind's memcheck, as
+as webcpp compiles it. On Linux, under Valgrind's memcheck, as
 link:https://github.com/agl/ctgrind[ctgrind] does, and under MemorySanitizer,
 the key, the data and the tag are marked secret, and any branch or memory index
 that depends on them fails the run. It covers `equal`, BearSSL's AES-GCM `make`,
@@ -100,7 +102,7 @@ that depends on them fails the run. It covers `equal`, BearSSL's AES-GCM `make`,
 own `ctime_tests.c`; each check is shown to fail on a planted branch on a key
 byte. dudect's statistics (link:https://eprint.iacr.org/2016/1123[Reparaz,
 Balasch and Verbauwhede]) time BearSSL's seal and open, ctaes and `equal`
-natively and under wasmtime.
+natively, on Linux and macOS, and under wasmtime.
 
 Whether a tag matched is public by design, since `open` reports it, but it is
 computed from the key and the tag: it is the one value webcpp marks public

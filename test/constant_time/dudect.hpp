@@ -54,7 +54,7 @@ struct moments {
  * @return t, 0 when both variances are 0.
  */
 inline double welch(moments const& a, moments const& b) {
-    double const denominator = std::sqrt(a.variance() / a.n + b.variance() / b.n);
+    double const denominator = std::sqrt((a.variance() / a.n) + (b.variance() / b.n));
     return denominator == 0 ? 0 : (a.mean - b.mean) / denominator;
 }
 
@@ -66,7 +66,7 @@ inline double welch(moments const& a, moments const& b) {
  */
 inline double largest_t(std::vector<double> const& timings, std::vector<int> const& classes) {
     std::vector<double> sorted = timings;
-    std::sort(sorted.begin(), sorted.end());
+    std::ranges::sort(sorted);
     double largest = 0;
     for (int k = -1; k < 100; ++k) {
         double const keep = k < 0 ? 1.0 : 1.0 - std::pow(0.5, 10.0 * (k + 1) / 100.0);

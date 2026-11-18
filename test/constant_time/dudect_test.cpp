@@ -83,7 +83,7 @@ int main() {
     // failure zeroes data and returns another way), and that difference is public.
     std::array<std::uint8_t, 16> nearly_right{};
     std::copy(right.data(), right.data() + right.size(), nearly_right.begin());
-    nearly_right[15] ^= 1;
+    nearly_right[15] ^= 1U;
     std::array<std::uint8_t, 16> tag{};
     double const open_t = webcpp::test::twice(
         count,
@@ -91,7 +91,7 @@ int main() {
             data = ciphertext;
             choose(which, generator, nearly_right, tag);
             if (std::equal(tag.begin(), tag.end(), right.data())) {
-                tag[15] ^= 1;  // a random tag equal to the right one, which never happens
+                tag[15] ^= 1U;  // a random tag equal to the right one, which never happens
             }
         },
         [&] { static_cast<void>(made->open(iv, {}, data, tag)); });

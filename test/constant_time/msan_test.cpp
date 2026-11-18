@@ -42,12 +42,17 @@ int main() {
     auto made = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>::make(key);
     auto tag = made->seal(iv, {}, data);
     __msan_poison(tag->data(), tag->size());
-    // The verdict is declassified inside the engine (WEBCPP_CRYPTO_DETAIL_DECLASSIFY). That mark's
-    // teeth are memcheck's (ctgrind_test.cpp): MemorySanitizer's propagation already finds
-    // br_gcm_check_tag's result initialised for a poisoned tag without it (clang 18, measured
-    // 2026-11-18), so a build without the mark passes here too.
+    // The verdict is declassified inside the engine (WEBCPP_CRYPTO_DETAIL_DECLASSIFY).
     auto const opened = made->open(iv, {}, data, *tag);
+    // And the verdict is checked initialised here, the twin of ctgrind_test.cpp's check: an
+    // optimiser may turn the engine's branch on it into a select, and neither the select nor
+    // what main passes on and returns is reported (-fno-sanitize-memory-param-retval). The mark's
+    // teeth are memcheck's all the same: without it this program passes too (measured with clang
+    // 18, 2026-11-18), since MemorySanitizer approximates a subtraction's shadow by its operands'
+    // without the carry, so that BearSSL's EQ0, ~(q | -q) >> 31, of an accumulated difference
+    // whose low byte is poisoned comes out initialised.
     bool const verdict = opened.has_value();
+    __msan_check_mem_is_initialized(&verdict, sizeof verdict);
 
     // ctaes's make, encrypt and decrypt with the key and the block poisoned.
     std::array<std::uint8_t, 16> block{};

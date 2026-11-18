@@ -105,7 +105,9 @@ tag in one pass; when the tag does not match, crypto zeroes the whole of
 `data_bytes`, so that no unauthenticated plaintext is left. A caller who
 needs the ciphertext after a failure keeps a copy. A guard's refusal
 (`invalid_state`, `invalid_iv_size`, `invalid_tag_size`, `message_too_long`)
-comes before any work and leaves `data_bytes` untouched.
+comes before any work and leaves `data_bytes` untouched. Whether the tag
+matched is the one value derived from the key that crypto treats as public
+(<<crypto-backends-constant-time>>).
 * *Plaintext is in `data_bytes` while `open` runs.* The decrypted bytes sit in
 `data_bytes` before the tag is checked. When `data_bytes` is memory another
 party can read during the call (a shared segment, a `SharedArrayBuffer` that

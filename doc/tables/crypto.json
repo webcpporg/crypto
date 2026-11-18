@@ -115,7 +115,8 @@
         "openssl-evp-pkey-ec": ["OpenSSL's EVP_PKEY-EC: an EC key's point form and its encodings", "https://docs.openssl.org/master/man7/EVP_PKEY-EC/"],
         "musig2": ["Nick, Ruffing and Seurin, MuSig2: Simple Two-Round Schnorr Multi-Signatures, CRYPTO 2021", "https://eprint.iacr.org/2020/1261"],
         "bip352": ["BIP 352, Silent Payments", "https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki"],
-        "libsecp256k1-silentpayments": ["libsecp256k1's silent payments header at webcpp's pin: the smallest outpoint, the outputs to keep, the labels to create", "https://github.com/bitcoin-core/secp256k1/blob/6e2c8bc4ecdc6e71dbe7a368f360d8d453ce435d/include/secp256k1_silentpayments.h"]
+        "libsecp256k1-silentpayments": ["libsecp256k1's silent payments header at webcpp's pin: the smallest outpoint, the outputs to keep, the labels to create", "https://github.com/bitcoin-core/secp256k1/blob/6e2c8bc4ecdc6e71dbe7a368f360d8d453ce435d/include/secp256k1_silentpayments.h"],
+        "emscripten-settings": ["Emscripten's compiler settings reference: STACK_SIZE (64 KiB, fixed) and STACK_OVERFLOW_CHECK", "https://emscripten.org/docs/tools_reference/settings_reference.html"]
     },
     "backends": {
         "bearssl": {

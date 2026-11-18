@@ -669,4 +669,9 @@ change output it sent itself, and its balance looks short.
 * The workspaces grow with the counts: `send_workspace_size(r, t, p)` with
 the recipients and the inputs, `scan_workspace_size(n)` with the outputs. A
 workspace on the stack suits a few; a transaction of thousands of outputs
-needs one the program owns on the heap, since WebAssembly's stacks are small.
+needs one the program owns on the heap. On Emscripten the stack is 64 KiB by
+default and cannot grow, and a program built without assertions that
+overruns it fails silently, with no check of overflows by default
+(link:https://emscripten.org/docs/tools_reference/settings_reference.html[Emscripten's settings reference]):
+the workspace then overwrites the program's other memory instead of
+stopping it.

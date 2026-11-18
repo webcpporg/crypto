@@ -81,11 +81,11 @@ namespace webcpp::crypto {
  *
  * It must serve OpenSSL's initialisation, which the first use of OpenSSL in the process runs,
  * usually the first `make`: on an OpenSSL built with threads, which MSVC always builds, a
- * resource that fails there makes OpenSSL re-enter its own initialisation, and that call never
- * returns: the process aborts on macOS, deadlocks on Linux and spins on Windows. Only on an
- * OpenSSL built without threads does it return, and every `make` then gives
- * `backend_failure`. On Windows a thread that used OpenSSL keeps its blocks in the resource
- * until the process ends unless it calls `OPENSSL_thread_stop()` before it ends.
+ * resource that fails during OpenSSL's base initialisation makes OpenSSL re-enter it, and that
+ * call never returns: the process aborts on macOS, deadlocks on Linux and spins on Windows. Only on
+ * an OpenSSL built without threads does it return, and every `make` then gives `backend_failure`.
+ * On Windows a thread that used OpenSSL keeps its blocks in the resource until the process ends
+ * unless it calls `OPENSSL_thread_stop()` before it ends.
  *
  * @return The program's resource.
  * @see "OpenSSL's allocations in your own memory resource", in the guide.
@@ -265,9 +265,9 @@ struct openssl {
      * OpenSSL's in the process goes to `openssl_memory_resource()`. Called as the first
      * statement of `main`, before any thread starts and anything uses OpenSSL. The first use
      * of OpenSSL after it, usually the first `make`, runs OpenSSL's initialisation through the
-     * resource, which must not fail there: on an OpenSSL built with threads (MSVC's only
-     * build) that call then never returns; on one built without threads every `make` gives
-     * `backend_failure` from then on.
+     * resource: on an OpenSSL built with threads (MSVC's only build) a failure during its
+     * base initialisation makes that call never return; on one built without threads every
+     * `make` then gives `backend_failure`.
      *
      * @return Nothing, also when the adapter is installed already;
      * `memory_functions_refused` when another party installed its own functions, or OpenSSL

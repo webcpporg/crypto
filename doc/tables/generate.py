@@ -694,15 +694,17 @@ def others_of(data: Data, family: Data, target: str, backend: str) -> List[str]:
 
 def needs(data: Data, family: Data, target: str, backend: str) -> str:
     """What a program that uses a family's default without linking it needs (design D32): the
-    Jamfile line that links it, and, where another backend has the family on the target, the type
+    Jamfile line that links it, the family's alias /webcpp/crypto//<family>-default (which
+    default_aliases writes), and, where another backend has the family on the target, the type
     that names the first of them (others_of) in the family's shown name; then, as every message
     of a backend not linked, what a build without b2 defines and links. The text holds on every
     target where the default is that backend, so that one message test checks it on each."""
     facts = data['backends'][backend]
     head = (f'webcpp::crypto: {family["title"]}\'s default backend on this target is '
             f'{facts["title"]}, which is not linked')
-    add = (f'Add {facts["jamfile"]} to the program\'s Jamfile, as in: exe app : app.cpp '
-           f'/webcpp/crypto//crypto {facts["jamfile"]} ;')
+    alias = f'/webcpp/crypto//{family["name"]}-default'
+    add = (f'Add {alias}, the default\'s library on every target, to the program\'s Jamfile, as '
+           f'in: exe app : app.cpp /webcpp/crypto//crypto {alias} ;')
     without = (f'(without b2: define WEBCPP_CRYPTO_HAS_{backend.upper()}=1 and '
                f'{facts["without_b2"]})')
     others = others_of(data, family, target, backend)

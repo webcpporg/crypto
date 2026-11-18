@@ -33,9 +33,9 @@ The fix: Add `+/third_party//bearssl+`.
 
 |`+chacha_default_not_linked+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: XChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /third_party//sodium to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+|`+webcpp::crypto: XChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//xchacha20_poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//xchacha20_poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
-The fix: The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add `+/third_party//sodium+`.
+The fix: The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add the family's alias, as `+/webcpp/crypto//chacha20_poly1305-default+`, which links `+/third_party//sodium+`.
 
 |`+chacha_on_ctaes+`
 |native, wasip2, wasip3
@@ -63,9 +63,9 @@ The fix: Remove the define, and name `+gcm<aes256<backends::bearssl>>+` where th
 
 |`+ed25519_default_not_linked+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: Ed25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /third_party//sodium to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+|`+webcpp::crypto: Ed25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//ed25519-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//ed25519-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
-The fix: Add `+/third_party//sodium+`, or `+/webcpp/crypto//ed25519-default+`, which links it on every target.
+The fix: Add `+/webcpp/crypto//ed25519-default+`, which links `+/third_party//sodium+` on every target.
 
 |`+ed25519_on_bearssl+`
 |native, wasip2, wasip3
@@ -81,9 +81,9 @@ The fix: Name `+curves::ed25519::ph<webcpp::hash::sha2_512>+`: RFC 8032 defines 
 
 |`+gcm_default_openssl_not_linked+`
 |native
-|`+webcpp::crypto: AES-GCM's default backend on this target is OpenSSL, which is not linked. Add /webcpp/crypto//openssl to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//openssl ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::bearssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)+`
+|`+webcpp::crypto: AES-GCM's default backend on this target is OpenSSL, which is not linked. Add /webcpp/crypto//gcm-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//gcm-default ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::bearssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)+`
 
-The fix: Natively the default is OpenSSL: add `+/webcpp/crypto//openssl+`, or name BearSSL in the type, as in `+gcm<aes256<backends::bearssl>>+`.
+The fix: Natively the default is OpenSSL: add `+/webcpp/crypto//gcm-default+`, which links `+/webcpp/crypto//openssl+` there, or name BearSSL in the type, as in `+gcm<aes256<backends::bearssl>>+`.
 
 |`+gcm_on_ctaes+`
 |native, wasip2, wasip3
@@ -99,9 +99,9 @@ The fix: Call the synchronous operation the message names, or build with threads
 
 |`+no_backend_wasm+`
 |wasip2, wasip3
-|`+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked. Add /third_party//bearssl to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::openssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
+|`+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked. Add /webcpp/crypto//gcm-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//gcm-default ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::openssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
 
-The fix: On WASI the default is BearSSL: add `+/third_party//bearssl+`, or, with OpenSSL linked, name it in the type, as in `+gcm<aes256<backends::openssl>>+`.
+The fix: On WASI the default is BearSSL: add `+/webcpp/crypto//gcm-default+`, which links `+/third_party//bearssl+` there, or, with OpenSSL linked, name it in the type, as in `+gcm<aes256<backends::openssl>>+`.
 
 |`+openssl_memory_not_linked+`
 |native
@@ -129,9 +129,9 @@ The fix: Name `+/webcpp/crypto//openssl+`, which builds OpenSSL 3.5.9; without b
 
 |`+openssl_only_on_wasi+`
 |wasip2, wasip3
-|`+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked. Add /third_party//bearssl to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::openssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
+|`+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked. Add /webcpp/crypto//gcm-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//gcm-default ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::openssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
 
-The fix: On WASI the default is BearSSL: add `+/third_party//bearssl+`, or, with OpenSSL linked, name it in the type, as in `+gcm<aes256<backends::openssl>>+`.
+The fix: On WASI the default is BearSSL: add `+/webcpp/crypto//gcm-default+`, which links `+/third_party//bearssl+` there, or, with OpenSSL linked, name it in the type, as in `+gcm<aes256<backends::openssl>>+`.
 
 |`+secp256k1_not_linked+`
 |native, wasip2
@@ -510,7 +510,7 @@ On each target, the build's output contains:
 * native, Linux:
 ** `pass:[undefined reference to &#96;webcpp::crypto::openssl_memory_resource()']`
 
-`+no_backend_on_emscripten+`:: A program for Emscripten that uses the default backend and links none. The fix: Add `+/third_party//bearssl+` to the program's sources.
+`+no_backend_on_emscripten+`:: A program for Emscripten that uses the default backend and links none. The fix: Add `+/webcpp/crypto//gcm-default+`, which links `+/third_party//bearssl+` there, to the program's sources.
 +
 Its Jamfile:
 +
@@ -622,7 +622,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+chacha_default_not_linked+`
 |the compile
-|The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add `+/third_party//sodium+`.
+|The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add the family's alias, as `+/webcpp/crypto//chacha20_poly1305-default+`, which links `+/third_party//sodium+`.
 
 |`+chacha_on_ctaes+`
 |the compile
@@ -642,7 +642,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+ed25519_default_not_linked+`
 |the compile
-|Add `+/third_party//sodium+`, or `+/webcpp/crypto//ed25519-default+`, which links it on every target.
+|Add `+/webcpp/crypto//ed25519-default+`, which links `+/third_party//sodium+` on every target.
 
 |`+ed25519_on_bearssl+`
 |the compile
@@ -654,7 +654,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+gcm_default_openssl_not_linked+`
 |the compile
-|Natively the default is OpenSSL: add `+/webcpp/crypto//openssl+`, or name BearSSL in the type, as in `+gcm<aes256<backends::bearssl>>+`.
+|Natively the default is OpenSSL: add `+/webcpp/crypto//gcm-default+`, which links `+/webcpp/crypto//openssl+` there, or name BearSSL in the type, as in `+gcm<aes256<backends::bearssl>>+`.
 
 |`+gcm_on_ctaes+`
 |the compile

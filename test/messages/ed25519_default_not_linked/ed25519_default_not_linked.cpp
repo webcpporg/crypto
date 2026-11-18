@@ -8,7 +8,7 @@
 // (design D32), and does not link it stops where it makes it, with the line that links it.
 
 // clang-format off
-// expected-error@webcpp/crypto/curves/ed25519.hpp:* {{webcpp::crypto: Ed25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /third_party//sodium to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)}}
+// expected-error@webcpp/crypto/curves/ed25519.hpp:* {{webcpp::crypto: Ed25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//ed25519-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//ed25519-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)}}
 // clang-format on
 
 #include <webcpp/crypto/curves/ed25519.hpp>

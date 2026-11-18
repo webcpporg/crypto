@@ -612,9 +612,10 @@ def test_the_default_s_refusal_says_what_the_program_needs(_: Path) -> None:
     # The default, not linked: what to add, and the type that names another backend.
     assert (f'static_assert(!std::is_same_v<Backend, {sodium}> || '
             f'::webcpp::crypto::detail::linked<{sodium}>, "webcpp::crypto: Ed25519\'s default '
-            'backend on this target is libsodium, which is not linked. Add /third_party//sodium to '
-            'the program\'s Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto '
-            '/third_party//sodium ; or name another backend in the type, as in '
+            'backend on this target is libsodium, which is not linked. Add '
+            '/webcpp/crypto//ed25519-default, the default\'s library on every target, to the '
+            'program\'s Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto '
+            '/webcpp/crypto//ed25519-default ; or name another backend in the type, as in '
             'curves::ed25519::basic_keypair<backends::bearssl>. The backends that have it: '
             'sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, '
             'emscripten). (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link '
@@ -628,10 +629,11 @@ def test_the_default_s_refusal_says_what_the_program_needs(_: Path) -> None:
     alone = generate.capabilities_header(data).split('#elif defined(WEBCPP_TARGET_EMSCRIPTEN)\n',
                                                      1)[1]
     assert ('"webcpp::crypto: Ed25519\'s default backend on this target is libsodium, which is '
-            'not linked, and the one backend that has it there. Add /third_party//sodium to the '
+            'not linked, and the one backend that has it there. Add '
+            '/webcpp/crypto//ed25519-default, the default\'s library on every target, to the '
             'program\'s Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto '
-            '/third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link '
-            'libsodium)")') in alone, alone
+            '/webcpp/crypto//ed25519-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and '
+            'link libsodium)")') in alone, alone
     assert 'default backend on this target is BearSSL' in emscripten, emscripten
     # Any other type is refused as no backend of the family, and nothing else is.
     assert ('static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || '

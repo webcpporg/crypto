@@ -114,11 +114,20 @@ explicit ctaes_msan ;
 # which memcheck is told of (sodium_verdicts.supp), need no such list here:
 # MemorySanitizer counts those verdicts initialised (msan_test.cpp says why).
 path-constant SODIUM : ../../../../third_party/libs/libsodium ;
-import modules project set ;
+# The peek reads that project's private names: a rename or a respelling there
+# stops this build here, rather than build libsodium with no configuration or
+# with its inline assembly back in.
+import errors modules project set ;
 local third-party = [ project.find /third_party : . ] ;
-SODIUM_DEFINES = [ set.difference
-    [ modules.peek $(third-party) : .sodium-common .sodium-posix .sodium-linux ]
-    : <define>HAVE_INLINE_ASM=1 ] ;
+local sodium-peeked = [ modules.peek $(third-party)
+    : .sodium-common .sodium-posix .sodium-linux ] ;
+if ! $(sodium-peeked) || ! ( <define>HAVE_INLINE_ASM=1 in $(sodium-peeked) )
+{
+    errors.user-error "constant_time/Jamfile: third_party/Jamfile's libsodium"
+        "configuration, .sodium-common .sodium-posix .sodium-linux, is empty or"
+        "has no <define>HAVE_INLINE_ASM=1 to remove: update sodium_msan's peek" ;
+}
+SODIUM_DEFINES = [ set.difference $(sodium-peeked) : <define>HAVE_INLINE_ASM=1 ] ;
 lib sodium_msan
   : [ glob-tree-ex $(SODIUM)/src/libsodium : *.c : version.c ]
     ../../src/canary_sodium.c

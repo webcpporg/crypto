@@ -31,7 +31,6 @@
 #include <optional>
 #include <span>
 #include <type_traits>
-#include <utility>
 
 namespace webcpp::crypto::detail {
 
@@ -217,24 +216,26 @@ namespace webcpp::crypto::detail {
 
 /**
  * Whether more than `group_limit` recipients share one scan key, which libsecp256k1 refuses as
- * it refuses a sum of zero. A group over the limit holds one of the first `count - group_limit`
- * recipients, so only those are counted from.
+ * it refuses a sum of zero. The recipients' pointers are sorted in place by scan key, as
+ * libsecp256k1 sorts them, and each run of one key is counted: O(n log n), nothing allocated.
  *
- * @param recipients The recipients, more than `group_limit`.
+ * @param recipient_pointers The recipients' pointers, in the workspace.
  * @return Whether a group is over the limit.
  */
 [[nodiscard]] inline bool secp256k1_over_group_limit(
-    std::span<curves::secp256k1::silent_payments::recipient const> recipients) noexcept {
-    using curves::secp256k1::silent_payments::group_limit;
-    for (std::size_t first_index = 0; first_index < recipients.size() - group_limit;
-         ++first_index) {
-        auto const& scan_key = recipients[first_index].scan_key;
-        auto const group_size = std::ranges::count_if(
-            recipients,
-            [&scan_key](curves::secp256k1::silent_payments::recipient const& other_recipient) {
-                return other_recipient.scan_key == scan_key;
-            });
-        if (std::cmp_greater(group_size, group_limit)) {
+    std::span<secp256k1_silentpayments_recipient const*> recipient_pointers) noexcept {
+    auto const scan_key_order = [](secp256k1_silentpayments_recipient const* left_recipient,
+                                   secp256k1_silentpayments_recipient const* right_recipient) {
+        return secp256k1_ec_pubkey_cmp(secp256k1_context_static, &left_recipient->scan_pubkey,
+                                       &right_recipient->scan_pubkey) < 0;
+    };
+    std::ranges::sort(recipient_pointers, scan_key_order);
+    std::size_t group_size = 0;
+    for (std::size_t index = 0; index < recipient_pointers.size(); ++index) {
+        bool const same_group =
+            index != 0 && !scan_key_order(recipient_pointers[index - 1], recipient_pointers[index]);
+        group_size = same_group ? group_size + 1 : 1;
+        if (group_size > curves::secp256k1::silent_payments::group_limit) {
             return true;
         }
     }
@@ -338,8 +339,8 @@ template <class Backend = backends::secp256k1>
             access::context(*signer), output_pointers, recipient_pointers, recipient_count,
             smallest_outpoint.data(), taproot_pointers, taproot_count, plain_pointers,
             plain_count) == 0) {
-        if (recipient_count > group_limit &&
-            webcpp::crypto::detail::secp256k1_over_group_limit(recipients)) {
+        if (recipient_count > group_limit && webcpp::crypto::detail::secp256k1_over_group_limit(
+                                                 std::span(recipient_pointers, recipient_count))) {
             return error::invalid_input_size;
         }
         return error::invalid_secret_key;

@@ -7,7 +7,7 @@
 // dudect's statistics (spec section 8.3) on libsodium: X25519's agreement's time against its
 // secret key, and Ed25519's signing's against its seed, each pair of classes differing only in
 // the secret (all zero, against random ones); natively and under wasmtime, where the engine's
-// compiler decides whether libsodium's field arithmetic stays constant time. Under wasmtime the
+// compiler decides whether libsodium's field arithmetic stays constant time. On wasip2 the
 // agreement's |t| is printed and not judged, an open finding (see the end of main).
 
 #include "dudect.hpp"
@@ -55,19 +55,19 @@ int main() {
         },
         [&] { static_cast<void>(pair->sign(message)); });
 
-#ifdef __wasi__
+#ifdef __wasip2__
     // X25519's agreement under wasmtime is an open finding, measured and printed but left out of
-    // the verdict: |t| 13 to 32 here (wasmtime 47, Apple M5, release, 2026-11-18), where native
-    // builds pass; no branch on a secret was found in the WebAssembly or in wasmtime's compiled
-    // code, and the cause is unknown. The CI's x86-64 run prints it next. The documentation's
-    // constant-time section (doc/backends.adoc) and its generated table say so.
-    bool const agree_judged = true;
+    // the verdict on wasip2, the one WebAssembly target the lane runs: its |t| and the
+    // investigation are in doc/tables/crypto.json (the X25519 family's constant_time on wasip2),
+    // which the documentation's constant-time section renders. Another WASI target is judged,
+    // so that a run of the lane there shows its own value as a failure rather than skip it.
+    bool const agree_passes = true;
     char const* const agree_note = " (wasip2: printed, not judged; an open finding)";
 #else
-    bool const agree_judged = agree_t < 10;
+    bool const agree_passes = agree_t < 10;
     char const* const agree_note = "";
 #endif
     std::printf("|t| X25519 agreement %.2f%s, Ed25519 signing %.2f (threshold 10)\n", agree_t,
                 agree_note, sign_t);
-    return agree_judged && sign_t < 10 ? 0 : 1;
+    return agree_passes && sign_t < 10 ? 0 : 1;
 }

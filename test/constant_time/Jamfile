@@ -170,8 +170,8 @@ webcpp.run dudect_bearssl : dudect_test.cpp
   : <library>/third_party//bearssl <library>/third_party//ctaes <variant>release
   : native wasip2 ;
 # On wasip2, X25519's agreement is measured and printed but not judged: an
-# open finding (doc/backends.adoc, the constant-time section; the program's
-# comment gives the numbers).
+# open finding, whose numbers doc/tables/crypto.json holds (the X25519
+# family's constant_time on wasip2) and the constant-time section renders.
 webcpp.run dudect_sodium : dudect_sodium_test.cpp
   : <library>/third_party//sodium <variant>release : native wasip2 ;
 

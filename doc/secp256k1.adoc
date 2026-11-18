@@ -661,6 +661,11 @@ among them; libsecp256k1 recommends creating the change label alone and
 handing out no labelled address (link:https://github.com/bitcoin-core/secp256k1/blob/6e2c8bc4ecdc6e71dbe7a368f360d8d453ce435d/include/secp256k1_silentpayments.h[libsecp256k1's silent payments header]). The change label itself is never
 handed out, so that no one else can pay what looks like change
 (link:https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki[BIP 352]).
+* A wallet always scans for the change label, recovery from a seed included,
+whether it made other labels or not
+(link:https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki[BIP 352]).
+`scan_outputs` defaults to `no_labels`: a wallet that scans so misses every
+change output it sent itself, and its balance looks short.
 * The workspaces grow with the counts: `send_workspace_size(r, t, p)` with
 the recipients and the inputs, `scan_workspace_size(n)` with the outputs. A
 workspace on the stack suits a few; a transaction of thousands of outputs

@@ -35,6 +35,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -188,6 +189,76 @@ json::object const* object_in(json::object const& parent, std::string_view key) 
     return found == nullptr ? nullptr : found->if_object();
 }
 
+// The upstream file's cases; none when the file or an entry is of another shape, which fails
+// the test, or when it holds another count of cases.
+std::optional<std::vector<edge_case>> upstream_cases(json::value const& document) {
+    auto const* entries = document.if_array();
+    BOOST_TEST(entries != nullptr);
+    if (entries == nullptr) {
+        return std::nullopt;
+    }
+    std::vector<edge_case> cases;
+    for (auto const& entry : *entries) {
+        auto const* fields = entry.if_object();
+        BOOST_TEST(fields != nullptr);
+        if (fields == nullptr) {
+            return std::nullopt;
+        }
+        cases.push_back({
+            .message = test::from_hex(text_at(*fields, "message")),
+            .public_key = test::from_hex(text_at(*fields, "pub_key")),
+            .signature = test::from_hex(text_at(*fields, "signature")),
+        });
+        BOOST_TEST_EQ(cases.back().public_key.size(), 32U);
+        BOOST_TEST_EQ(cases.back().signature.size(), 64U);
+    }
+    BOOST_TEST_EQ(cases.size(), case_count);
+    if (cases.size() != case_count) {
+        return std::nullopt;
+    }
+    return cases;
+}
+
+// The outside view: node's WebCrypto, committed as one row with the node and OpenSSL that
+// gave it. A view of another shape fails the test, rather than end it on an exception.
+// False when the view is missing; its verdicts are compared under Emscripten alone, with node.
+bool outside_agrees(json::object const& root, std::vector<edge_case> const& cases) {
+    auto const* outside = object_in(root, "outside");
+    auto const* view = outside == nullptr ? nullptr : object_in(*outside, "webcrypto-node");
+    BOOST_TEST(outside != nullptr && outside->size() == 1U && view != nullptr);
+    if (view == nullptr) {
+        return false;
+    }
+    BOOST_TEST(value_at(*view, "node").is_string());
+    BOOST_TEST(value_at(*view, "openssl").is_string());
+    BOOST_TEST(view->contains("verdicts"));
+    if (!view->contains("verdicts")) {
+        return false;
+    }
+    auto const webcrypto = committed_row(value_at(*view, "verdicts"), "webcrypto-node");
+#ifdef __EMSCRIPTEN__
+    // The versions this run's node has, beside those committed: a node whose row differs says
+    // which it is.
+    if (value_at(*view, "node").is_string() && value_at(*view, "openssl").is_string()) {
+        std::cout << "webcrypto-node committed with node " << text_at(*view, "node") << ", OpenSSL "
+                  << text_at(*view, "openssl") << '\n';
+    }
+    print_node_versions();
+    verdicts subtle;
+    for (auto const& tested : cases) {
+        auto const answer = subtle_ed25519_verify(tested.public_key.data(), tested.message.data(),
+                                                  tested.message.size(), tested.signature.data());
+        BOOST_TEST(answer >= 0);
+        subtle.emplace_back(verdict(answer == 1));
+    }
+    compare("webcrypto-node", subtle, webcrypto);
+#else
+    static_cast<void>(webcrypto);
+    static_cast<void>(cases);
+#endif
+    return true;
+}
+
 }  // namespace
 
 int main() {
@@ -204,30 +275,11 @@ int main() {
         return test::exit_status(boost::report_errors());
     }
 
-    std::vector<edge_case> cases;
-    auto const* entries = cases_document.if_array();
-    BOOST_TEST(entries != nullptr);
-    if (entries == nullptr) {
+    auto const read = upstream_cases(cases_document);
+    if (!read) {
         return test::exit_status(boost::report_errors());
     }
-    for (auto const& entry : *entries) {
-        auto const* fields = entry.if_object();
-        BOOST_TEST(fields != nullptr);
-        if (fields == nullptr) {
-            return test::exit_status(boost::report_errors());
-        }
-        cases.push_back({
-            .message = test::from_hex(text_at(*fields, "message")),
-            .public_key = test::from_hex(text_at(*fields, "pub_key")),
-            .signature = test::from_hex(text_at(*fields, "signature")),
-        });
-        BOOST_TEST_EQ(cases.back().public_key.size(), 32U);
-        BOOST_TEST_EQ(cases.back().signature.size(), 64U);
-    }
-    BOOST_TEST_EQ(cases.size(), case_count);
-    if (cases.size() != case_count) {
-        return test::exit_status(boost::report_errors());
-    }
+    std::vector<edge_case> const& cases = *read;
 
     // The committed file: each part of another shape fails the test, rather than end it on an
     // exception.
@@ -274,40 +326,9 @@ int main() {
     compare("sodium raw", raw, sodium_raw);
     compare("sodium strict", strict, sodium_strict);
 
-    // The outside view: node's WebCrypto, committed as one row with the node and OpenSSL that
-    // gave it. A view of another shape fails the test, rather than end it on an exception.
-    auto const* outside = object_in(*root, "outside");
-    auto const* view = outside == nullptr ? nullptr : object_in(*outside, "webcrypto-node");
-    BOOST_TEST(outside != nullptr && outside->size() == 1U && view != nullptr);
-    if (view == nullptr) {
+    if (!outside_agrees(*root, cases)) {
         return test::exit_status(boost::report_errors());
     }
-    BOOST_TEST(value_at(*view, "node").is_string());
-    BOOST_TEST(value_at(*view, "openssl").is_string());
-    BOOST_TEST(view->contains("verdicts"));
-    if (!view->contains("verdicts")) {
-        return test::exit_status(boost::report_errors());
-    }
-    auto const webcrypto = committed_row(value_at(*view, "verdicts"), "webcrypto-node");
-#ifdef __EMSCRIPTEN__
-    // The versions this run's node has, beside those committed: a node whose row differs says
-    // which it is.
-    if (value_at(*view, "node").is_string() && value_at(*view, "openssl").is_string()) {
-        std::cout << "webcrypto-node committed with node " << text_at(*view, "node") << ", OpenSSL "
-                  << text_at(*view, "openssl") << '\n';
-    }
-    print_node_versions();
-    verdicts subtle;
-    for (auto const& tested : cases) {
-        auto const answer = subtle_ed25519_verify(tested.public_key.data(), tested.message.data(),
-                                                  tested.message.size(), tested.signature.data());
-        BOOST_TEST(answer >= 0);
-        subtle.emplace_back(verdict(answer == 1));
-    }
-    compare("webcrypto-node", subtle, webcrypto);
-#else
-    static_cast<void>(webcrypto);
-#endif
 
     std::cout << "ed25519 speccheck: cases=" << cases.size() << '\n';
     return test::exit_status(boost::report_errors());

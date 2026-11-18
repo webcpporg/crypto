@@ -92,8 +92,16 @@ struct quiet_lookup {
     }
 };
 
+// A lookup whose result only converts to the concept's type: the scan reads it as that type.
+struct converting_lookup {
+    std::nullopt_t operator()(std::span<std::uint8_t const, 33> /*candidate*/) const noexcept {
+        return std::nullopt;
+    }
+};
+
 static_assert(sp::label_lookup<sp::no_labels>);
 static_assert(sp::label_lookup<quiet_lookup>);
+static_assert(sp::label_lookup<converting_lookup>);
 static_assert(!sp::label_lookup<throwing_lookup>);
 
 // Whether scan_outputs takes `Lookup`.
@@ -498,6 +506,9 @@ void find_labelled(secp::keypair const& scan_key, secp::public_key const& spend_
     auto const unlabelled =
         sp::scan_outputs(scan_key, spend_key, summary, outputs, unlabelled_found, scan_space);
     BOOST_TEST(unlabelled.has_value() && *unlabelled == 0);
+    auto const converted = sp::scan_outputs(scan_key, spend_key, summary, outputs, unlabelled_found,
+                                            scan_space, converting_lookup{});
+    BOOST_TEST(converted.has_value() && *converted == 0);
 }
 
 // A labelled address: the sender pays the labelled spend key, the recipient finds the output

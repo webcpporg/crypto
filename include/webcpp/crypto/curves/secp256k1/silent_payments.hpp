@@ -57,8 +57,10 @@ struct secp256k1_label_context {
 template <class LabelLookup>
 [[nodiscard]] unsigned char const* secp256k1_call_label_lookup(
     void const* lookup_object, unsigned char const* label_bytes) noexcept {
-    auto const found_tweak = (*static_cast<LabelLookup const*>(lookup_object))(
-        std::span<std::uint8_t const, 33>(label_bytes, 33));
+    // The concept's type, which any result the concept admits converts to.
+    std::optional<std::span<std::uint8_t const, 32>> const found_tweak =
+        (*static_cast<LabelLookup const*>(lookup_object))(
+            std::span<std::uint8_t const, 33>(label_bytes, 33));
     return found_tweak ? found_tweak->data() : nullptr;
 }
 

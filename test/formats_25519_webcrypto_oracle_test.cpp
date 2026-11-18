@@ -137,8 +137,10 @@ std::array<std::uint8_t, 32> drawn(std::mt19937_64& generator) {
     return bytes;
 }
 
+/** The message each Ed25519 key pair signs, "spki pkcs#8". */
 constexpr std::array<std::uint8_t, 11> message{
-    's', 'p', 'k', 'i', ' ', 'p', 'k', 'c', 's', '#', '8',
+    's', 'p', 'k', 'i', ' ',       // "spki "
+    'p', 'k', 'c', 's', '#', '8',  // "pkcs#8"
 };
 
 void ed25519_through_webcrypto(std::mt19937_64& generator) {

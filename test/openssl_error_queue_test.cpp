@@ -26,6 +26,8 @@
 
 namespace {
 
+namespace crypto = webcpp::crypto;
+
 /** The queue's entries, oldest first, emptied. */
 std::size_t drain(unsigned long& first) {
     std::size_t count = 0;
@@ -42,7 +44,6 @@ std::size_t drain(unsigned long& first) {
  */
 template <class Aead>
 void check_queue(std::span<std::uint8_t const> key, std::span<std::uint8_t const> iv) {
-    namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> data{};
     // NOLINTNEXTLINE(bugprone-signed-bitwise): OpenSSL's reason macro ORs signed flags
     ERR_raise(ERR_LIB_USER, ERR_R_PASSED_INVALID_ARGUMENT);
@@ -65,7 +66,6 @@ void check_queue(std::span<std::uint8_t const> key, std::span<std::uint8_t const
 }  // namespace
 
 int main() {
-    namespace crypto = webcpp::crypto;
     using gcm = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::openssl>>;
     using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::openssl>;
     std::array<std::uint8_t, 32> const key{};

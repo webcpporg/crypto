@@ -13,9 +13,10 @@
 // C++ test's warnings, MSVC's among them, would refuse.
 //
 // C sees the structs in vectors.h, which bip352_vectors.c includes first. C++ sees the copy
-// below, made from vectors.h at libsecp256k1's pin; webcpp_test_bip352_layout gives the C
-// compiler's sizes and offsets of every field, which the C++ test compares with its own, so that
-// the copy cannot drift from what the C file holds unseen.
+// below, made from vectors.h at libsecp256k1's pin with a std::array for each C array (the same
+// layout); webcpp_test_bip352_layout gives the C compiler's sizes and offsets of every field,
+// which the C++ test compares with its own, so that the copy cannot drift from what the C file
+// holds unseen.
 
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_BIP352_VECTORS_H
 #define WEBCPP_TEST_CRYPTO_SUPPORT_BIP352_VECTORS_H
@@ -23,6 +24,8 @@
 #include <stddef.h>
 
 #ifdef __cplusplus
+
+#include <array>
 
 #define MAX_INPUTS_PER_TEST_CASE 3
 #define MAX_OUTPUTS_PER_TEST_CASE 2324
@@ -33,14 +36,12 @@
 
 extern "C" {
 
-// NOLINTBEGIN(modernize-avoid-c-arrays): the layout of libsecp256k1's C structs, read as they are
-
 /** A recipient's address data: its scan and spend keys, and how many outputs it is paid. */
 struct bip352_recipient_addressdata {
     /** The scan key, SEC1 compressed. */
-    unsigned char scan_pubkey[33];
+    std::array<unsigned char, 33> scan_pubkey;
     /** The spend key, SEC1 compressed. */
-    unsigned char spend_pubkey[33];
+    std::array<unsigned char, 33> spend_pubkey;
     /** How many outputs the sender makes for this address. */
     size_t count;
 };
@@ -48,27 +49,27 @@ struct bip352_recipient_addressdata {
 /** One receiving subtest: the recipient's keys, the outputs to scan, and what is found. */
 struct bip352_receive_subtest {
     /** The scan secret key. */
-    unsigned char scan_seckey[32];
+    std::array<unsigned char, 32> scan_seckey;
     /** The spend secret key. */
-    unsigned char spend_seckey[32];
+    std::array<unsigned char, 32> spend_seckey;
     /** How many outputs the transaction has. */
     size_t num_to_scan_outputs;
     /** The transaction's x-only output keys. */
-    unsigned char to_scan_outputs[MAX_OUTPUTS_PER_TEST_CASE][32];
+    std::array<std::array<unsigned char, 32>, MAX_OUTPUTS_PER_TEST_CASE> to_scan_outputs;
     /** How many labels the recipient uses. */
     size_t num_labels;
     /** The labels' integers m. */
-    unsigned int label_integers[MAX_LABELS_PER_TEST_CASE];
+    std::array<unsigned int, MAX_LABELS_PER_TEST_CASE> label_integers;
     /** 1 to check keys, tweaks and signatures; 0 to check the count alone. */
     size_t full_check;
     /** How many outputs the scan finds. */
     size_t num_found_output_pubkeys;
     /** The found outputs' x-only keys. */
-    unsigned char found_output_pubkeys[MAX_OUTPUTS_PER_TEST_CASE][32];
+    std::array<std::array<unsigned char, 32>, MAX_OUTPUTS_PER_TEST_CASE> found_output_pubkeys;
     /** The found outputs' spend tweaks. */
-    unsigned char found_seckey_tweaks[MAX_OUTPUTS_PER_TEST_CASE][32];
+    std::array<std::array<unsigned char, 32>, MAX_OUTPUTS_PER_TEST_CASE> found_seckey_tweaks;
     /** The BIP 340 signature by each found output's key. */
-    unsigned char found_signatures[MAX_OUTPUTS_PER_TEST_CASE][64];
+    std::array<std::array<unsigned char, 64>, MAX_OUTPUTS_PER_TEST_CASE> found_signatures;
 };
 
 /** One case: the inputs, the smallest outpoint, the recipients, the outputs, the subtests. */
@@ -76,37 +77,36 @@ struct bip352_test_vector {
     /** How many plain (not Taproot) eligible inputs there are. */
     size_t num_plain_inputs;
     /** Their secret keys. */
-    unsigned char plain_seckeys[MAX_INPUTS_PER_TEST_CASE][32];
+    std::array<std::array<unsigned char, 32>, MAX_INPUTS_PER_TEST_CASE> plain_seckeys;
     /** Their public keys, SEC1 compressed. */
-    unsigned char plain_pubkeys[MAX_INPUTS_PER_TEST_CASE][33];
+    std::array<std::array<unsigned char, 33>, MAX_INPUTS_PER_TEST_CASE> plain_pubkeys;
     /** How many Taproot inputs there are. */
     size_t num_taproot_inputs;
     /** Their secret keys. */
-    unsigned char taproot_seckeys[MAX_INPUTS_PER_TEST_CASE][32];
+    std::array<std::array<unsigned char, 32>, MAX_INPUTS_PER_TEST_CASE> taproot_seckeys;
     /** Their x-only public keys. */
-    unsigned char xonly_pubkeys[MAX_INPUTS_PER_TEST_CASE][32];
+    std::array<std::array<unsigned char, 32>, MAX_INPUTS_PER_TEST_CASE> xonly_pubkeys;
     /** The transaction's smallest outpoint, serialised. */
-    unsigned char outpoint_smallest[36];
+    std::array<unsigned char, 36> outpoint_smallest;
     /** How many outputs the sender makes, the recipients' counts summed. */
     size_t num_outputs;
     /** How many recipient entries there are. */
     size_t num_recipient_entries;
     /** The recipients, each with its count. */
-    struct bip352_recipient_addressdata recipient_pubkeys[MAX_RECIPIENT_ENTRIES_PER_TEST_CASE];
+    std::array<bip352_recipient_addressdata, MAX_RECIPIENT_ENTRIES_PER_TEST_CASE> recipient_pubkeys;
     /** How many orders of the outputs are correct. */
     size_t num_output_sets;
     /** How many outputs each order has; 0 when sending fails. */
     size_t num_recipient_outputs;
     /** The correct orders of the outputs' x-only keys. */
-    unsigned char recipient_outputs[MAX_PERMUTATIONS_PER_SENDING_TEST_CASE]
-                                   [MAX_OUTPUTS_PER_TEST_CASE][32];
+    std::array<std::array<std::array<unsigned char, 32>, MAX_OUTPUTS_PER_TEST_CASE>,
+               MAX_PERMUTATIONS_PER_SENDING_TEST_CASE>
+        recipient_outputs;
     /** How many receiving subtests there are. */
     size_t num_receive_subtests;
     /** The receiving subtests. */
-    struct bip352_receive_subtest receive_subtests[MAX_RECEIVE_SUBTESTS];
+    std::array<bip352_receive_subtest, MAX_RECEIVE_SUBTESTS> receive_subtests;
 };
-
-// NOLINTEND(modernize-avoid-c-arrays)
 
 #endif
 

@@ -153,13 +153,6 @@ secp::public_key parsed_key(std::span<std::uint8_t const> encoded) {
     return *parsed;
 }
 
-template <std::size_t N>
-std::array<std::uint8_t, N> array_of(unsigned char const (&bytes)[N]) {  // NOLINT(*-c-arrays)
-    std::array<std::uint8_t, N> out{};
-    std::copy_n(bytes, N, out.begin());
-    return out;
-}
-
 scalar sha256_of(std::string_view text) {
     boost::hash2::sha2_256 hasher;
     hasher.update(text.data(), text.size());
@@ -226,10 +219,10 @@ inputs inputs_of(bip352_test_vector const& test) {
     made.taproot.reserve(test.num_taproot_inputs);
     made.plain.reserve(test.num_plain_inputs);
     for (std::size_t i = 0; i < test.num_taproot_inputs; ++i) {
-        made.taproot.push_back(keypair_of(array_of(test.taproot_seckeys[i])));
+        made.taproot.push_back(keypair_of(test.taproot_seckeys[i]));
     }
     for (std::size_t i = 0; i < test.num_plain_inputs; ++i) {
-        made.plain.push_back(keypair_of(array_of(test.plain_seckeys[i])));
+        made.plain.push_back(keypair_of(test.plain_seckeys[i]));
     }
     made.taproot_pointers.reserve(made.taproot.size());
     made.plain_pointers.reserve(made.plain.size());
@@ -248,8 +241,8 @@ std::vector<sp::recipient> recipients_of(bip352_test_vector const& test) {
     recipients.reserve(test.num_outputs);
     for (std::size_t entry = 0; entry < test.num_recipient_entries; ++entry) {
         auto const& address = test.recipient_pubkeys[entry];
-        auto const scan_key = parsed_key(array_of(address.scan_pubkey));
-        auto const spend_key = parsed_key(array_of(address.spend_pubkey));
+        auto const scan_key = parsed_key(address.scan_pubkey);
+        auto const spend_key = parsed_key(address.spend_pubkey);
         for (std::size_t copy = 0; copy < address.count; ++copy) {
             recipients.push_back(sp::recipient{.scan_key = scan_key, .spend_key = spend_key});
         }
@@ -273,9 +266,10 @@ crypto::error send_refusal(bip352_test_vector const& test, std::size_t recipient
 bool in_one_order(bip352_test_vector const& test, std::span<xonly const> outputs) {
     for (std::size_t order = 0; order < test.num_output_sets; ++order) {
         auto const listed = [&](xonly const& output) {
-            auto const& expected = test.recipient_outputs[order];
-            return std::any_of(expected, expected + test.num_recipient_outputs,
-                               [&](auto const& key) { return std::ranges::equal(output, key); });
+            auto const expected =
+                std::span(test.recipient_outputs[order]).first(test.num_recipient_outputs);
+            return std::ranges::any_of(
+                expected, [&](auto const& key) { return std::ranges::equal(output, key); });
         };
         if (std::cmp_equal(std::ranges::count_if(outputs, listed), test.num_recipient_outputs)) {
             return true;
@@ -357,12 +351,12 @@ std::optional<sp::prevouts_summary> summary_of(bip352_test_vector const& test,
     std::vector<xonly> taproot_keys;
     taproot_keys.reserve(test.num_taproot_inputs);
     for (std::size_t i = 0; i < test.num_taproot_inputs; ++i) {
-        taproot_keys.push_back(array_of(test.xonly_pubkeys[i]));
+        taproot_keys.push_back(test.xonly_pubkeys[i]);
     }
     std::vector<secp::public_key> plain_keys;
     plain_keys.reserve(test.num_plain_inputs);
     for (std::size_t i = 0; i < test.num_plain_inputs; ++i) {
-        plain_keys.push_back(parsed_key(array_of(test.plain_pubkeys[i])));
+        plain_keys.push_back(parsed_key(test.plain_pubkeys[i]));
     }
     auto summary_space = lent(sp::summary_workspace_size(taproot_keys.size(), plain_keys.size()));
     auto const summary =
@@ -384,15 +378,15 @@ std::optional<sp::prevouts_summary> summary_of(bip352_test_vector const& test,
 void check_found(bip352_receive_subtest const& subtest, sp::found_output const& output) {
     auto const message = sha256_of("message");
     auto const aux = sha256_of("random auxiliary data");
-    auto const spend_secret = array_of(subtest.spend_seckey);
-    auto const* const expected_keys = subtest.found_output_pubkeys;
-    auto const* const listed =
-        std::find_if(expected_keys, expected_keys + subtest.num_found_output_pubkeys,
-                     [&](auto const& key) { return std::ranges::equal(output.output_key, key); });
-    if (!BOOST_TEST(listed != expected_keys + subtest.num_found_output_pubkeys)) {
+    auto const spend_secret = subtest.spend_seckey;
+    auto const expected_keys =
+        std::span(subtest.found_output_pubkeys).first(subtest.num_found_output_pubkeys);
+    auto const listed = std::ranges::find_if(
+        expected_keys, [&](auto const& key) { return std::ranges::equal(output.output_key, key); });
+    if (!BOOST_TEST(listed != expected_keys.end())) {
         return;
     }
-    auto const at = static_cast<std::size_t>(listed - expected_keys);
+    auto const at = static_cast<std::size_t>(listed - expected_keys.begin());
     BOOST_TEST(std::ranges::equal(output.spend_tweak.bytes(), subtest.found_seckey_tweaks[at]));
     auto const spend_tweaked = secp::seckey_tweak_add(spend_secret, output.spend_tweak);
     if (!BOOST_TEST(spend_tweaked.has_value())) {
@@ -416,8 +410,8 @@ void receive_one(bip352_test_vector const& test, bip352_receive_subtest const& s
         ++counts.refused;
         return;
     }
-    auto const scan_key = keypair_of(array_of(subtest.scan_seckey));
-    auto const spend_key = public_of(keypair_of(array_of(subtest.spend_seckey)));
+    auto const scan_key = keypair_of(subtest.scan_seckey);
+    auto const spend_key = public_of(keypair_of(subtest.spend_seckey));
     label_cache cache;
     for (std::size_t i = 0; i < subtest.num_labels; ++i) {
         auto const made = sp::create_label(scan_key, subtest.label_integers[i]);
@@ -428,7 +422,7 @@ void receive_one(bip352_test_vector const& test, bip352_receive_subtest const& s
     std::vector<xonly> outputs;
     outputs.reserve(subtest.num_to_scan_outputs);
     for (std::size_t i = 0; i < subtest.num_to_scan_outputs; ++i) {
-        outputs.push_back(array_of(subtest.to_scan_outputs[i]));
+        outputs.push_back(subtest.to_scan_outputs[i]);
     }
     std::vector<sp::found_output> found(outputs.size());
     auto scan_space = lent(sp::scan_workspace_size(outputs.size()));

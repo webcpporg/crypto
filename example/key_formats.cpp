@@ -63,7 +63,7 @@ bool ed25519_from_pem() {
     if (!read) {
         return false;
     }
-    auto const pair = ed25519::decode_pkcs8(pkcs8.bytes());
+    auto const pair = ed25519::decode_pkcs8(pkcs8.bytes().first(*read));
     if (!pair) {
         return false;
     }

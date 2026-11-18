@@ -15,12 +15,14 @@
 #include <webcpp/crypto/curves/ed25519/formats.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/curves/x25519/formats.hpp>
+#include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/pem.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
 
 #include <boost/core/lightweight_test.hpp>
+#include <boost/system/result.hpp>
 
 #include <openssl/bio.h>
 #include <openssl/evp.h>
@@ -38,6 +40,7 @@
 #include <string_view>
 #include <vector>
 
+namespace crypto = webcpp::crypto;
 namespace ed25519 = webcpp::crypto::curves::ed25519;
 namespace x25519 = webcpp::crypto::curves::x25519;
 namespace pem = webcpp::crypto::pem;
@@ -187,13 +190,16 @@ void ed25519_against_openssl(std::mt19937_64& generator) {
     for (std::size_t round = 0; round < cases; ++round) {
         auto const seed_bytes = drawn(generator);
         auto const pair = ed25519::keypair::make(seed_bytes);
-        BOOST_TEST(pair.has_value());
-        if (!pair) {
+        boost::system::result<std::array<std::uint8_t, 32>> const public_key =
+            pair ? pair->public_key() : crypto::error::backend_failure;
+        if (!BOOST_TEST(public_key.has_value())) {
+            std::fprintf(stderr, "Ed25519 key pair not made: seed %s\n",
+                         test::to_hex(seed_bytes).c_str());
             continue;
         }
         std::array<std::uint8_t, ed25519::max_spki_size> spki{};
         std::array<std::uint8_t, ed25519::max_pkcs8_size> pkcs8{};
-        BOOST_TEST(ed25519::encode_spki(*pair->public_key(), spki).has_value());
+        BOOST_TEST(ed25519::encode_spki(*public_key, spki).has_value());
         BOOST_TEST(ed25519::encode_pkcs8(*pair, pkcs8).has_value());
         if (!agree(EVP_PKEY_ED25519, seed_bytes, spki, pkcs8)) {
             std::fprintf(stderr, "Ed25519 disagrees with OpenSSL: seed %s\n",

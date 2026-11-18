@@ -348,6 +348,10 @@ crypto-run oracle_25519_corrupted : oracle_25519_test.cpp
 # wasip2 and wasip3 (linked in the test alone), and node's WebCrypto importKey
 # and exportKey on Emscripten (the JSPI link, for EM_ASYNC_JS): 200 seeded
 # cases per curve each.
+# PEM's generic layer on a stand-in whose base64 decoder is lenient: unarmour's
+# own checks refuse what armour does not write, whatever the backend takes, and
+# a backend failing on the second pass leaves no byte of the DER in the output.
+crypto-run pem_mock : pem_mock_test.cpp ;
 crypto-run formats_25519_sodium : formats_25519_sodium_test.cpp
   : <library>/third_party//sodium ;
 crypto-run formats_25519_openssl_oracle : formats_25519_openssl_oracle_test.cpp

@@ -146,6 +146,9 @@ struct algorithm {
      * Writes DER as PEM under a label: `-----BEGIN <label>-----`, the base64 in lines of 64
      * characters, `-----END <label>-----`, each line ended by a line feed alone.
      *
+     * Tip: the PEM of a PKCS#8 is the private key: a program wipes `out`, or seals it, when it is
+     * done.
+     *
      * @param label The label, as `public_key_label`; printable ASCII, with single spaces or
      * hyphens between its characters.
      * @param der The bytes.
@@ -200,7 +203,8 @@ struct algorithm {
      * @param out At least as many bytes as the DER has; a quarter less than `text.size()` is
      * always enough.
      * @return The bytes written; `invalid_encoding`; `invalid_input_size` for an `out` too small;
-     * `backend_failure`. Nothing is written on a refusal.
+     * `backend_failure`. Nothing is written on a refusal, and a backend that fails after it began
+     * to write leaves zeros.
      */
     [[nodiscard]] static boost::system::result<std::size_t> unarmour(
         std::string_view label, std::string_view text, std::span<std::uint8_t> out) noexcept {
@@ -226,12 +230,13 @@ struct algorithm {
             body,
             [&](std::string_view line, bool last,
                 std::span<std::uint8_t, detail::pem_line_bytes> bytes) {
-                if (line.empty() || line.size() > detail::pem_line_characters ||
-                    (!last && line.size() != detail::pem_line_characters)) {
+                // The engine is given 1 to 64 characters, whatever the text holds.
+                if (line.empty() || line.size() > detail::pem_line_characters) {
                     return false;
                 }
                 auto const decoded = engine::decode(line, bytes);
-                // Padding ends the last line alone: any other line holds 48 bytes.
+                // Padding ends the last line alone: any other line holds 48 bytes, so that, once
+                // encoded again to itself, it is of 64 characters.
                 if (!decoded || (!last && *decoded != detail::pem_line_bytes)) {
                     return false;
                 }
@@ -263,8 +268,10 @@ struct algorithm {
                 return true;
             },
             accepted);
-        // The lines decoded once decode again: a backend that disagrees with itself fails.
+        // The lines decoded once decode again: a backend that disagrees with itself fails, and
+        // the bytes it wrote, a private key's in a PKCS#8, are wiped.
         if (!accepted) {
+            detail::wipe(out.data(), static_cast<std::size_t>(at - out.begin()));
             return error::backend_failure;
         }
         return size;

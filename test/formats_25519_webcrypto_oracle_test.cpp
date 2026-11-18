@@ -145,12 +145,21 @@ void ed25519_through_webcrypto(std::mt19937_64& generator) {
         auto const seed_bytes = drawn(generator);
         auto const pair = ed25519::keypair::make(seed_bytes);
         if (!BOOST_TEST(pair.has_value())) {
+            std::fprintf(stderr, "Ed25519 key pair not made: seed %s\n",
+                         test::to_hex(seed_bytes).c_str());
+            continue;
+        }
+        auto const public_key = pair->public_key();
+        auto const signature = pair->sign(message);
+        if (!BOOST_TEST(public_key.has_value() && signature.has_value())) {
+            std::fprintf(stderr, "Ed25519 key pair failed: seed %s\n",
+                         test::to_hex(seed_bytes).c_str());
             continue;
         }
         std::array<std::uint8_t, 48> pkcs8{};
         std::array<std::uint8_t, 44> spki{};
         BOOST_TEST(ed25519::encode_pkcs8(*pair, pkcs8).has_value());
-        BOOST_TEST(ed25519::encode_spki(*pair->public_key(), spki).has_value());
+        BOOST_TEST(ed25519::encode_spki(*public_key, spki).has_value());
         std::array<std::uint8_t, 156> out{};
         BOOST_TEST_EQ(subtle_round_trip(0, pkcs8.data(), spki.data(), spki.data(), message.data(),
                                         message.size(), out.data()),
@@ -158,7 +167,7 @@ void ed25519_through_webcrypto(std::mt19937_64& generator) {
         bool const same =
             BOOST_TEST(std::ranges::equal(std::span(out).first(48), pkcs8)) &&
             BOOST_TEST(std::ranges::equal(std::span(out).subspan(48, 44), spki)) &&
-            BOOST_TEST(std::ranges::equal(std::span(out).subspan(92, 64), *pair->sign(message)));
+            BOOST_TEST(std::ranges::equal(std::span(out).subspan(92, 64), *signature));
         if (!same) {
             std::fprintf(stderr, "Ed25519 disagrees with WebCrypto: seed %s\n",
                          test::to_hex(seed_bytes).c_str());
@@ -179,8 +188,13 @@ void ed25519_from_webcrypto() {
         if (!BOOST_TEST(pair.has_value() && public_key.has_value())) {
             continue;
         }
-        BOOST_TEST(*pair->public_key() == *public_key);
-        BOOST_TEST(std::ranges::equal(*pair->sign(message), std::span(out).subspan(92, 64)));
+        auto const its_public = pair->public_key();
+        auto const signature = pair->sign(message);
+        if (!BOOST_TEST(its_public.has_value() && signature.has_value())) {
+            continue;
+        }
+        BOOST_TEST(*its_public == *public_key);
+        BOOST_TEST(std::ranges::equal(*signature, std::span(out).subspan(92, 64)));
         std::array<std::uint8_t, 48> pkcs8_again{};
         std::array<std::uint8_t, 44> spki_again{};
         BOOST_TEST(ed25519::encode_pkcs8(*pair, pkcs8_again).has_value());

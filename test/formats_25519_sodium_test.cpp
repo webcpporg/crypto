@@ -270,8 +270,10 @@ void round_trips() {
         BOOST_TEST(decoded.has_value());
         if (decoded) {
             BOOST_TEST(decoded->public_key().has_value() && *decoded->public_key() == *public_key);
-            BOOST_TEST(decoded->sign(message).has_value() &&
-                       *decoded->sign(message) == *pair->sign(message));
+            auto const signed_again = decoded->sign(message);
+            auto const signed_first = pair->sign(message);
+            BOOST_TEST(signed_again.has_value() && signed_first.has_value() &&
+                       *signed_again == *signed_first);
         }
         BOOST_TEST(der_of(pem::public_key_label, text_of(pem::public_key_label, spki)) ==
                    bytes_of(spki));
@@ -434,6 +436,24 @@ void malformed_pem() {
     pem_refused(pem::public_key_label, replaced(rfc8410_public, "-----BEGIN", "----BEGIN"),
                 "four dashes");
     pem_refused(pem::public_key_label, "", "nothing");
+    pem_refused(pem::public_key_label, replaced(rfc8410_public, "ZuE=\n", "ZuE=\n\n"),
+                "an empty line before END");
+    pem_refused(pem::private_key_label, replaced(rfc8410_private, "VhC\n", "VhC\n\n"),
+                "an empty line after a full line, before END");
+
+    // Two armoured bodies spliced: a first line of 64 characters that ends with "==", the
+    // base64 of 46 bytes, then another line. Each line is base64 that encodes its bytes again
+    // to itself; only padding before the last line makes the text another than armour's.
+    std::vector<std::uint8_t> const first(46, 0x5a);
+    std::vector<std::uint8_t> const second(10, 0x33);
+    std::string const first_text = text_of("X", first);
+    std::string const second_text = text_of("X", second);
+    std::string const head = "-----BEGIN X-----\n";
+    std::string const first_line = first_text.substr(head.size(), 65);
+    BOOST_TEST_EQ(first_line.size(), 65U);
+    BOOST_TEST(first_line.ends_with("==\n"));
+    std::string const spliced = head + first_line + second_text.substr(head.size());
+    pem_refused("X", spliced, "padding at the end of a line that is not the last");
 }
 
 void outputs_too_small() {

@@ -141,10 +141,11 @@
 |<<crypto-x25519,[.keep]`+x25519_agree.cpp+`>>
 
 |Export or import an Ed25519 or X25519 key in the standard forms OpenSSL and WebCrypto use: SPKI and PKCS#8 (RFC 8410), as DER or PEM text
-|In `+curves::ed25519, webcpp::crypto::curves::x25519, webcpp::crypto::pem+`: `+encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`; `+pem::armour+`, `+pem::unarmour+`
+|In `+curves+`: `+ed25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`, the same in `+x25519+`; `+webcpp::crypto::pem::armour+`, `+unarmour+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//ed25519-default+` +
+`+/webcpp/crypto//x25519-default+` +
 `+/webcpp/crypto//pem-default+`
 |<<crypto-key-formats,[.keep]`+key_formats.cpp+`>>
 

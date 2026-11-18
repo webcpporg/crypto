@@ -88,7 +88,7 @@ struct pem_engine<families::pem, test::pem_stand_in> {
         if (++control.calls == control.failing_call) {
             return error::backend_failure;
         }
-        std::string_view const read = text.substr(0, 64);
+        std::string_view const read(text.data(), std::min<std::size_t>(text.size(), 64));
         unsigned bits = 0;
         unsigned held = 0;
         std::size_t written = 0;
@@ -135,7 +135,7 @@ void refused(std::string const& text, char const* what) {
     std::vector<std::uint8_t> out(text.size(), 0xa5);
     auto const read = stand_in::unarmour("X", text, out);
     if (!BOOST_TEST(!read && read.error() == crypto::error::invalid_encoding)) {
-        std::fprintf(stderr, "accepted: %s\n", what);
+        static_cast<void>(std::fprintf(stderr, "accepted: %s\n", what));
     }
     BOOST_TEST(std::ranges::all_of(out, [](std::uint8_t b) { return b == 0xa5; }));
     BOOST_TEST_LE(test::pem_stand_in_control.longest, 64U);

@@ -82,6 +82,18 @@ inline constexpr std::size_t pem_line_characters = 64;
 }
 
 /**
+ * The characters of text from `at`, at most `count` of them, none past its end: a
+ * `std::string_view::substr` that never throws.
+ */
+[[nodiscard]] constexpr std::string_view pem_part(std::string_view text, std::size_t at,
+                                                  std::size_t count) noexcept {
+    if (at > text.size()) {
+        return {};
+    }
+    return {text.data() + at, std::min(count, text.size() - at)};
+}
+
+/**
  * Whether two lines of base64 are the same, in a time that does not depend on their characters,
  * which encode a private key's bytes in PEM of a PKCS#8: through `equal`.
  */
@@ -217,7 +229,7 @@ struct algorithm {
             !lined(text, text.size() - tail, detail::pem_end, label)) {
             return error::invalid_encoding;
         }
-        std::string_view const body = text.substr(head, text.size() - head - tail);
+        std::string_view const body = detail::pem_part(text, head, text.size() - head - tail);
         auto const ready = engine::ready();
         if (!ready) {
             return ready.error();
@@ -283,10 +295,10 @@ private:
     // Whether text holds, at `at`, the line `opening`, the label and `-----` with its line feed.
     [[nodiscard]] static bool lined(std::string_view text, std::size_t at, std::string_view opening,
                                     std::string_view label) noexcept {
-        return text.substr(at, opening.size()) == opening &&
-               text.substr(at + opening.size(), label.size()) == label &&
-               text.substr(at + opening.size() + label.size(), detail::pem_close.size()) ==
-                   detail::pem_close;
+        return detail::pem_part(text, at, opening.size()) == opening &&
+               detail::pem_part(text, at + opening.size(), label.size()) == label &&
+               detail::pem_part(text, at + opening.size() + label.size(),
+                                detail::pem_close.size()) == detail::pem_close;
     }
 
     // Calls visit(line, last, bytes) on each line of the body, each ended by a line feed, with a
@@ -302,8 +314,8 @@ private:
                 accepted = false;
                 break;
             }
-            accepted =
-                visit(body.substr(start, end - start), end + 1 == body.size(), std::span(bytes));
+            accepted = visit(detail::pem_part(body, start, end - start), end + 1 == body.size(),
+                             std::span(bytes));
             detail::wipe_object(bytes);
             start = end + 1;
         }

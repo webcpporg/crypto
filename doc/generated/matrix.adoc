@@ -79,7 +79,7 @@
 |`+openssl_memory_resource+`, `+backends::openssl::install_memory_functions+`
 |OpenSSL
 |native; not on wasip2, wasip3, emscripten: `+config.hpp+` refuses the option on every WebAssembly target
-|`+adapter+`, `+everything+`, `+late+`, `+foreign+`, `+fresh_install+`, `+forgotten+`, `+replaced+`, `+second_install+`, `+fail_second+`, `+fail_init+`, `+neighbours+`, `+handshake+`
+|`+adapter+`, `+everything+`, `+late+`, `+foreign+`, `+fresh_install+`, `+forgotten+`, `+replaced+`, `+second_install+`, `+fail_second+`, `+fail_init+`, `+fail_init_threads+`, `+neighbours+`, `+handshake+`
 |===
 
 The same, by target: the backends each operation runs on.

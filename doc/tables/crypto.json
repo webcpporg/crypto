@@ -242,7 +242,7 @@
             "header": "<webcpp/crypto/backends/openssl.hpp>",
             "what": "With `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, natively, every allocation of OpenSSL's in the process goes to a `std::pmr::memory_resource` the program defines.",
             "section": "crypto-memory-openssl",
-            "backends": {"openssl": {"tests": ["adapter", "everything", "late", "foreign", "fresh_install", "forgotten", "replaced", "second_install", "fail_second", "fail_init", "neighbours", "handshake"], "elsewhere": "memory"}}
+            "backends": {"openssl": {"tests": ["adapter", "everything", "late", "foreign", "fresh_install", "forgotten", "replaced", "second_install", "fail_second", "fail_init", "fail_init_threads", "neighbours", "handshake"], "elsewhere": "memory"}}
         }
     ],
     "rules": [

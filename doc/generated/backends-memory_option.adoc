@@ -16,5 +16,5 @@ The backends of `+openssl_memory_resource+`, `+backends::openssl::install_memory
 |OpenSSL
 |`+/webcpp/crypto//openssl+`
 |`+<webcpp/crypto/backends/openssl.hpp>+`
-|native (tested by `+adapter+`, `+everything+`, `+late+`, `+foreign+`, `+fresh_install+`, `+forgotten+`, `+replaced+`, `+second_install+`, `+fail_second+`, `+fail_init+`, `+neighbours+`, `+handshake+`); not on wasip2, wasip3, emscripten: `+config.hpp+` refuses the option on every WebAssembly target
+|native (tested by `+adapter+`, `+everything+`, `+late+`, `+foreign+`, `+fresh_install+`, `+forgotten+`, `+replaced+`, `+second_install+`, `+fail_second+`, `+fail_init+`, `+fail_init_threads+`, `+neighbours+`, `+handshake+`); not on wasip2, wasip3, emscripten: `+config.hpp+` refuses the option on every WebAssembly target
 |===

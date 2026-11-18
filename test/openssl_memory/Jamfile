@@ -44,6 +44,9 @@ memory-run replaced : replaced_test.cpp : $(.counter) ;
 memory-run second_install : second_install_test.cpp : $(.counter) ;
 memory-run fail_second : fail_second_test.cpp : $(.counter) ;
 memory-run fail_init : fail_init_test.cpp : $(.counter) ;
+# The same program on an OpenSSL built with threads (MSVC's only build): the
+# failure is not run there, since OpenSSL re-enters its own initialisation.
+memory-run fail_init_threads : fail_init_test.cpp : $(.counter) <threading>multi ;
 
 # The header alone, with the option: its branch compiles with nothing before it.
 webcpp.compile header_alone : header_alone_test.cpp

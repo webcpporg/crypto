@@ -731,6 +731,7 @@ void group_limits(refusal_keys& keys) {
     std::array<secp::keypair const*, 2> const zero_sum{&keys.sender, &opposite};
     auto const other_scan = public_of(keys.second);
     std::vector<sp::recipient> two_groups;
+    two_groups.reserve(sp::group_limit + 1);
     for (std::size_t index = 0; index < sp::group_limit + 1; ++index) {
         two_groups.push_back(sp::recipient{
             .scan_key = index % 2 == 0 ? public_of(keys.scan_key) : other_scan,
@@ -744,7 +745,8 @@ void group_limits(refusal_keys& keys) {
             .error() == crypto::error::invalid_secret_key);
     BOOST_TEST(all_zero(keys.space));
     std::vector<sp::recipient> one_over{
-        sp::recipient{.scan_key = other_scan, .spend_key = keys.spend_key}};
+        sp::recipient{.scan_key = other_scan, .spend_key = keys.spend_key},
+    };
     one_over.insert(
         one_over.end(), sp::group_limit + 1,
         sp::recipient{.scan_key = public_of(keys.scan_key), .spend_key = keys.spend_key});

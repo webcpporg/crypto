@@ -135,8 +135,8 @@ void silent_payments_allocate_nothing(secp::keypair const& key, secp::public_key
     });
     // An output paid to the change label: no direct match, so the scan computes label
     // candidates and calls the lookup, which is counted with it.
-    std::array<sp::recipient, 1> const change_recipients{
-        sp::recipient{.scan_key = own_key, .spend_key = *labelled_key}};
+    sp::recipient const change_recipient{.scan_key = own_key, .spend_key = *labelled_key};
+    std::array<sp::recipient, 1> const change_recipients{change_recipient};
     std::array<std::array<std::uint8_t, 32>, 1> change_outputs{};
     none("create_outputs to a labelled address", [&] {
         return sp::create_outputs(change_recipients, outpoint, {}, plain_inputs, change_outputs,
@@ -162,6 +162,8 @@ void silent_payments_allocate_nothing(secp::keypair const& key, secp::public_key
 
 }  // namespace
 
+// One allocation count around each call, in one scope that holds the key pair and its buffers.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): the calls share that scope
 int main() {
     std::cout << "the C library's allocations counted: " << webcpp::test::c_allocations_counted
               << "\n";

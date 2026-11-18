@@ -94,15 +94,16 @@ documentation's data, in a later version.
 include::generated/constant-time.adoc[]
 
 The own lane `constant-time` (`libs/crypto/test/constant_time`) checks the code
-as webcpp compiles it. On Linux, under Valgrind's memcheck, as
-link:https://github.com/agl/ctgrind[ctgrind] does, and under MemorySanitizer,
-the key, the data and the tag are marked secret, and any branch or memory index
-that depends on them fails the run. It covers `equal`, BearSSL's AES-GCM `make`,
-`seal` and `open`, OpenSSL's `make` and `seal`, ctaes's AES, and libsecp256k1's
-own `ctime_tests.c`; each check is shown to fail on a planted branch on a key
-byte. dudect's statistics (link:https://eprint.iacr.org/2016/1123[Reparaz,
-Balasch and Verbauwhede]) time BearSSL's seal and open, ctaes and `equal`
-natively, on Linux and macOS, and under wasmtime.
+as webcpp compiles it. On Linux, it marks the key, the data and the tag secret
+under Valgrind's memcheck, as link:https://github.com/agl/ctgrind[ctgrind]
+does, and, in a clang build, under MemorySanitizer, which only clang has (a gcc
+build runs memcheck alone): any branch or memory index that depends on them
+fails the run. The lane covers `equal`, BearSSL's AES-GCM `make`, `seal` and
+`open`, OpenSSL's `make` and `seal`, ctaes's AES, and libsecp256k1's own
+`ctime_tests.c`; each check is shown to fail on a planted branch on a key byte.
+dudect's statistics (link:https://eprint.iacr.org/2016/1123[Reparaz, Balasch
+and Verbauwhede]) time BearSSL's seal and open, ctaes and `equal` natively, on
+Linux and macOS, and under wasmtime.
 
 Whether a tag matched is public by design, since `open` reports it, but it is
 computed from the key and the tag: it is the one value webcpp marks public

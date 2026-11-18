@@ -711,6 +711,17 @@ def test_a_type_names_only_crypto_s_namespaces_from_the_root(_: Path) -> None:
     assert 'crypto::curves::ed25519::basic<std::size_t{32}, backends::sodium>' in test, test
 
 
+def test_a_family_of_functions_has_no_type_to_make(_: Path) -> None:
+    # A family whose operations are free functions names no algorithm type: its cells are
+    # asserted through the test's own `algorithm`, and nothing is made.
+    data = small_table()
+    del data['families'][0]['names'][0]['type']
+    test = generate.capabilities_test(data)
+    assert ('static_assert(crypto::supports_v<algorithm<families::ed25519, families::ed25519>, '
+            'backends::sodium>);\n') in test, test
+    assert 'webcpp::test::made<' not in test, test
+
+
 def test_the_check_prints_each_file_that_differs(scratch: Path) -> None:
     files = {scratch / 'include/a.hpp': 'one\n', scratch / 'test/b.cpp': 'two\n'}
     generated = scratch / 'doc/generated'
@@ -1304,6 +1315,7 @@ CASES: list[Callable[[Path], None]] = [
     test_the_default_s_refusal_says_what_the_program_needs,
     test_a_refusal_holds_on_its_target,
     test_a_type_names_only_crypto_s_namespaces_from_the_root,
+    test_a_family_of_functions_has_no_type_to_make,
     test_the_check_prints_each_file_that_differs,
     test_the_check_names_a_file_that_differs,
     test_the_size_matrix_reads_the_lane_s_tables,

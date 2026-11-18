@@ -4,11 +4,11 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// curves::secp256k1 refuses a backend other than libsecp256k1 where it is instantiated, as the
-// ciphers refuse a backend without their algorithm.
+// curves::secp256k1 refuses a backend other than libsecp256k1 where it is instantiated, with the
+// family's generated refusal, which names the backends that have it (design D33).
 
 // clang-format off
-// expected-error@webcpp/crypto/curves/secp256k1.hpp:* {{webcpp::crypto: curves::secp256k1 runs on libsecp256k1 alone. Name backends::secp256k1, or leave the backend out, as in curves::secp256k1::keypair.}}
+// expected-error@webcpp/crypto/curves/secp256k1.hpp:* {{webcpp::crypto: bearssl has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).}}
 // clang-format on
 #include <webcpp/crypto/curves/secp256k1.hpp>
 

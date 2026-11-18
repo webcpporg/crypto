@@ -247,6 +247,54 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_default/secp256k1_default.outcome[tag=output]
 ----
 
+`+secp256k1_ellswift_default+`:: Two key pairs' ElligatorSwift encodings, each decoded to its public key, and both sides of BIP 324's exchange agreeing, on ElligatorSwift's default on every target, with the one line `+/webcpp/crypto//secp256k1_ellswift-default+`, which links libsecp256k1.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_ellswift_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_ellswift_default/secp256k1_ellswift_default.outcome[tag=output]
+----
+
+`+secp256k1_musig_default+`:: Two key pairs' public keys aggregated with BIP 327's MuSig2, a message signed in its two rounds and the aggregate verified as one BIP 340 signature, on MuSig2's default on every target, with the one line `+/webcpp/crypto//secp256k1_musig-default+`, which links libsecp256k1.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_musig_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_musig_default/secp256k1_musig_default.outcome[tag=output]
+----
+
+`+secp256k1_silent_payments_default+`:: A BIP 352 silent payments address paid from one input and the payment found by a scan of the output, on silent payments' default on every target, with the one line `+/webcpp/crypto//secp256k1_silent_payments-default+`, which links libsecp256k1.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_silent_payments_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_silent_payments_default/secp256k1_silent_payments_default.outcome[tag=output]
+----
+
 `+secretbox_xchacha20poly1305_default+`:: A case of libsodium's XChaCha20 secret boxes, sealed and opened on its default on every target, with the one line `+/webcpp/crypto//secretbox_xchacha20poly1305-default+`, which links libsodium.
 +
 Its Jamfile, built and run on native, wasip2, wasip3, emscripten:

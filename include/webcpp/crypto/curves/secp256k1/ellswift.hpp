@@ -18,6 +18,8 @@
 
 #include <webcpp/crypto/backends/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/secret.hpp>
 
@@ -27,6 +29,21 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+
+namespace webcpp::crypto::detail {
+
+/**
+ * The refusal of a backend other than libsecp256k1 by the family `families::secp256k1_ellswift`:
+ * the functions of `curves/secp256k1/ellswift.hpp`.
+ *
+ * @tparam Backend The backend named.
+ */
+template <class Backend>
+struct secp256k1_refusal<families::secp256k1_ellswift, Backend, false> {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1_ELLSWIFT(Backend);
+};
+
+}  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::curves::secp256k1 {
 
@@ -53,11 +70,11 @@ enum class ellswift_party {
  * @param randomness 32 fresh bytes from crypto's random device: the encoding is one of many.
  * @return The 64 bytes.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_ellswift>>
 [[nodiscard]] std::array<std::uint8_t, ellswift_size> ellswift_encode(
     public_key const& parsed_key, std::span<std::uint8_t const, 32> randomness) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     std::array<std::uint8_t, ellswift_size> encoded_key{};
@@ -75,11 +92,11 @@ template <class Backend = backends::secp256k1>
  * @param encoded_key The 64 bytes, as received.
  * @return The key.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_ellswift>>
 [[nodiscard]] public_key ellswift_decode(
     std::span<std::uint8_t const, ellswift_size> encoded_key) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
@@ -103,8 +120,8 @@ template <class Backend = backends::secp256k1>
 template <class Backend>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, ellswift_size>> ellswift_create(
     basic_keypair<Backend> const& key_pair, std::span<std::uint8_t const, 32> randomness) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     using access = webcpp::crypto::detail::secp256k1_access;
     if (!access::keyed(key_pair)) {
@@ -143,8 +160,8 @@ template <class Backend>
     std::span<std::uint8_t const, ellswift_size> initiator_encoding,
     std::span<std::uint8_t const, ellswift_size> responder_encoding,
     ellswift_party our_party) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     using access = webcpp::crypto::detail::secp256k1_access;
     if (!access::keyed(key_pair)) {

@@ -132,6 +132,24 @@ The lane sizes measured on 2026-11-19, at variant=release: native, clang-21 on D
 |not measured yet
 |not measured yet
 |not measured yet
+
+|ElligatorSwift on libsecp256k1: ElligatorSwift encoding of a public key
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|MuSig2 on libsecp256k1: two-signer MuSig2 signature of a 32-byte message
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|Silent payments on libsecp256k1: a silent payment output for one recipient
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
 |===
 
 OpenSSL: its cells differ by a few bytes whatever the operation: each fetches its algorithm by name from OpenSSL's default provider (link:https://docs.openssl.org/3.5/man7/crypto/[OpenSSL 3.5's crypto(7), algorithm fetching]), and a static link brings the provider's algorithms with it, not the operation's alone.

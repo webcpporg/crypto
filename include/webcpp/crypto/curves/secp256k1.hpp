@@ -39,11 +39,6 @@
 #include <type_traits>
 #include <utility>
 
-// clang-format off
-/** The refusal of a backend other than libsecp256k1 by `curves::secp256k1`. */
-#define WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY "webcpp::crypto: curves::secp256k1 runs on libsecp256k1 alone. Name backends::secp256k1, or leave the backend out, as in curves::secp256k1::keypair."
-// clang-format on
-
 namespace webcpp::crypto::curves::secp256k1 {
 
 template <class Backend>
@@ -347,6 +342,42 @@ inline int webcpp_crypto_detail_secp256k1_copy_point(unsigned char* output_bytes
 template <class Backend>
 inline constexpr bool secp256k1_backend = std::is_same_v<Backend, backends::secp256k1>;
 
+/**
+ * The refusal of `Backend` by a function of the secp256k1 family `Family`: empty for
+ * libsecp256k1, the families' one backend; for any other, a specialisation per family whose body
+ * is the family's generated refusal (`detail/capabilities.hpp`, design D33), which names the
+ * backends that have the family. secp256k1 has no engine trait, so the refusal is reached here,
+ * where `secp256k1_refuses_others` instantiates it.
+ *
+ * @tparam Family The family's tag, `families::secp256k1` or one of its modules'.
+ * @tparam Backend The backend a function or the key pair names.
+ * @tparam Accepted Whether `Backend` is libsecp256k1.
+ */
+template <class Family, class Backend, bool Accepted = secp256k1_backend<Backend>>
+struct secp256k1_refusal {};
+
+/**
+ * The refusal of a backend other than libsecp256k1 by the family `families::secp256k1`: the key
+ * pair and the functions of `curves/secp256k1.hpp`, `tweak.hpp` and `formats.hpp`.
+ *
+ * @tparam Backend The backend named.
+ */
+template <class Backend>
+struct secp256k1_refusal<families::secp256k1, Backend, false> {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1(Backend);
+};
+
+/**
+ * True: reading it instantiates `secp256k1_refusal<Family, Backend>`, which stops the build with
+ * the family's generated refusal where `Backend` is not libsecp256k1. A function's
+ * `static_assert` of it is the family's one refusal, with no second message of its own.
+ *
+ * @tparam Family The family's tag.
+ * @tparam Backend The backend a function or the key pair names.
+ */
+template <class Family, class Backend>
+inline constexpr bool secp256k1_refuses_others = sizeof(secp256k1_refusal<Family, Backend>) != 0;
+
 }  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::curves::secp256k1 {
@@ -456,8 +487,7 @@ struct tweaked_xonly_key {
  */
 template <class Backend = default_backend_t<families::secp256k1>>
 class basic_keypair {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
 
 public:
     /** The backend. */
@@ -896,11 +926,10 @@ namespace webcpp::crypto::curves::secp256k1 {
  * @param encoded_key The key, SEC1.
  * @return The key; `invalid_public_key` for any other length or prefix, or a point off the curve.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> parse_public_key(
     std::span<std::uint8_t const> encoded_key) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
@@ -920,11 +949,11 @@ template <class Backend = backends::secp256k1>
  * @param parsed_key The key.
  * @return 33 bytes (`compressed`, the default) or 65 (`uncompressed`).
  */
-template <point_form Form = point_form::compressed, class Backend = backends::secp256k1>
+template <point_form Form = point_form::compressed,
+          class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] std::array<std::uint8_t, point_size<Form>> serialize_public_key(
     public_key const& parsed_key) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     std::array<std::uint8_t, point_size<Form>> output_bytes{};
@@ -950,12 +979,11 @@ template <point_form Form = point_form::compressed, class Backend = backends::se
  * @return The key; `invalid_signature` for a recovery id above 3, an r or an s not below the
  * group order, or a signature from which no key is recovered.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> recover(
     std::span<std::uint8_t const, recoverable_signature_size> recoverable_signature,
     std::span<std::uint8_t const, 32> message_hash) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // libsecp256k1 checks the id with ARG_CHECK, whose callback aborts: refused first here.
     int const recovery_id = recoverable_signature[64];
@@ -990,8 +1018,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<void> verify_schnorr(
     std::span<std::uint8_t const, 64> signature_bytes, std::span<std::uint8_t const> message_bytes,
     std::span<std::uint8_t const, 32> xonly_key_bytes) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     secp256k1_xonly_pubkey parsed_key{};
@@ -1021,8 +1048,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
     std::span<std::uint8_t const, 64> signature_bytes,
     std::span<std::uint8_t const, 32> message_hash,
     std::span<std::uint8_t const> public_key_bytes) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     secp256k1_pubkey parsed_key{};
@@ -1054,8 +1080,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::size_t> to_der(
     std::span<std::uint8_t const, 64> compact_signature,
     std::span<std::uint8_t> output_bytes) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     if (output_bytes.size() < max_der_size) {
         return error::invalid_input_size;
     }
@@ -1086,8 +1111,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> from_der(
     std::span<std::uint8_t const> der_signature) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     if (der_signature.empty()) {
         return error::invalid_signature;
     }
@@ -1118,8 +1142,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> normalize_ecdsa(
     std::span<std::uint8_t const, 64> compact_signature) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     secp256k1_ecdsa_signature parsed_value{};
@@ -1150,8 +1173,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<tweaked_xonly_key> tweak_xonly(
     std::span<std::uint8_t const, 32> xonly_key_bytes,
     std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     secp256k1_xonly_pubkey parsed_key{};

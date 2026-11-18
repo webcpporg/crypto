@@ -932,8 +932,9 @@ def defaults_header(data: Data) -> str:
 
 def capabilities_test(data: Data) -> str:
     """test/capabilities_test.cpp: `supports_v` of every cell on the target being compiled, each
-    present cell made through its family's own type where its backend is linked, and each
-    family's refusal parsed."""
+    present cell made through its family's own type where its backend is linked (a family of
+    free functions, whose names give no `type`, has none to make), and each family's refusal
+    parsed."""
     tags = tags_of(data)
     headers = sorted({family['header'] for family in data['families']}
                      | {'<webcpp/crypto/supports.hpp>', '<webcpp/test/exit_status.hpp>'})
@@ -979,6 +980,9 @@ def capabilities_test(data: Data) -> str:
                     continue
                 out += [opening(targets), f'static_assert({trait});', '#else',
                         f'static_assert(!{trait});', '#endif']
+                if 'type' not in entry:
+                    # A family of free functions names no type a program makes.
+                    continue
                 algorithm = program_type(data, entry['type'], backend)
                 made += [f'#if ({condition(targets)}) && defined(WEBCPP_CRYPTO_HAS_'
                          f'{backend.upper()})',

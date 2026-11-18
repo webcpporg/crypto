@@ -612,7 +612,7 @@
         },
         {
             "id": "ellswift",
-            "family": "secp256k1",
+            "family": "secp256k1_ellswift",
             "free": true,
             "functions": ["ellswift_encode", "ellswift_decode", "ellswift_create", "ellswift_xdh"],
             "namespace": "curves",
@@ -624,7 +624,7 @@
         },
         {
             "id": "musig",
-            "family": "secp256k1",
+            "family": "secp256k1_musig",
             "functions": ["xonly_public_key", "full_public_key", "tweak_add", "tweak_xonly_add", "workspace_size", "key_aggregate", "nonce_gen", "nonce_aggregate", "nonce_process", "partial_sign", "partial_signature_verify", "partial_signature_aggregate", "parse_public_nonce", "serialize_public_nonce", "parse_aggregate_nonce", "serialize_aggregate_nonce", "parse_partial_signature", "serialize_partial_signature"],
             "namespace": "curves",
             "api": "curves::secp256k1::musig::aggregate_key, key_aggregate, nonce_gen, nonce_aggregate, nonce_process, partial_sign, partial_signature_verify, partial_signature_aggregate, parse_public_nonce, serialize_public_nonce, parse_aggregate_nonce, serialize_aggregate_nonce, parse_partial_signature, serialize_partial_signature",
@@ -635,7 +635,7 @@
         },
         {
             "id": "silent_payments",
-            "family": "secp256k1",
+            "family": "secp256k1_silent_payments",
             "free": true,
             "functions": ["send_workspace_size", "summary_workspace_size", "scan_workspace_size", "create_outputs", "create_label", "create_labeled_spend_key", "make_prevouts_summary", "scan_outputs"],
             "namespace": "curves",
@@ -917,6 +917,57 @@
             "backends": {
                 "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}}
             }
+        },
+        {
+            "name": "secp256k1_ellswift",
+            "title": "ElligatorSwift",
+            "group": "curves",
+            "since": "0.2",
+            "measured": "ElligatorSwift encoding of a public key",
+            "header": "<webcpp/crypto/curves/secp256k1/ellswift.hpp>",
+            "names": [
+                {"name": "secp256k1_ellswift", "title": "ElligatorSwift"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1_ellswift", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
+            ],
+            "backends": {
+                "secp256k1": {"targets": "all", "runtime": false, "lane": {"native": ["memcheck", "msan"]}, "lane_note": "libsecp256k1's own `ctime_tests.c`: `secp256k1_ellswift_create` and `secp256k1_ellswift_xdh`"}
+            }
+        },
+        {
+            "name": "secp256k1_musig",
+            "title": "MuSig2",
+            "group": "curves",
+            "since": "0.2",
+            "measured": "two-signer MuSig2 signature of a 32-byte message",
+            "header": "<webcpp/crypto/curves/secp256k1/musig.hpp>",
+            "names": [
+                {"name": "secp256k1_musig", "title": "MuSig2"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1_musig", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
+            ],
+            "backends": {
+                "secp256k1": {"targets": "all", "runtime": false, "lane": {"native": ["memcheck", "msan"]}, "lane_note": "libsecp256k1's own `ctime_tests.c`: MuSig2's nonce generation and partial signing"}
+            }
+        },
+        {
+            "name": "secp256k1_silent_payments",
+            "title": "Silent payments",
+            "group": "curves",
+            "since": "0.2",
+            "measured": "a silent payment output for one recipient",
+            "header": "<webcpp/crypto/curves/secp256k1/silent_payments.hpp>",
+            "names": [
+                {"name": "secp256k1_silent_payments", "title": "Silent payments"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1_silent_payments", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
+            ],
+            "backends": {
+                "secp256k1": {"targets": "all", "runtime": false, "lane": {"native": ["memcheck", "msan"]}, "lane_note": "libsecp256k1's own `ctime_tests.c`: a sender's outputs, a label and a recipient's scan"}
+            }
         }
     ],
     "rules": [
@@ -1042,6 +1093,9 @@
         "gcm_default": "AES-256-GCM on its default on every target, with the one line `/webcpp/crypto//gcm-default`, which links OpenSSL natively and BearSSL on WebAssembly; the same program as `web`.",
         "openssl_linked": "OpenSSL, built from source, named in the type: natively and on WASI.",
         "secp256k1_default": "BIP 340's first test vector, signed and verified on secp256k1's default on every target, with the one line `/webcpp/crypto//secp256k1-default`, which links libsecp256k1.",
+        "secp256k1_ellswift_default": "Two key pairs' ElligatorSwift encodings, each decoded to its public key, and both sides of BIP 324's exchange agreeing, on ElligatorSwift's default on every target, with the one line `/webcpp/crypto//secp256k1_ellswift-default`, which links libsecp256k1.",
+        "secp256k1_musig_default": "Two key pairs' public keys aggregated with BIP 327's MuSig2, a message signed in its two rounds and the aggregate verified as one BIP 340 signature, on MuSig2's default on every target, with the one line `/webcpp/crypto//secp256k1_musig-default`, which links libsecp256k1.",
+        "secp256k1_silent_payments_default": "A BIP 352 silent payments address paid from one input and the payment found by a scan of the output, on silent payments' default on every target, with the one line `/webcpp/crypto//secp256k1_silent_payments-default`, which links libsecp256k1.",
         "ed25519_default": "RFC 8032's first Ed25519 test, signed and verified on Ed25519's default on every target, with the one line `/webcpp/crypto//ed25519-default`, which links libsodium.",
         "x25519_default": "RFC 7748's shared secret on X25519's default on every target, with the one line `/webcpp/crypto//x25519-default`, which links libsodium.",
         "kx_default": "libsodium's `crypto_kx` test, the client's and the server's session keys from each other's public key, on its default on every target, with the one line `/webcpp/crypto//kx-default`, which links libsodium.",
@@ -1115,6 +1169,9 @@
         "gcm_on_ctaes": "Name `gcm<aes256<backends::bearssl>>` or `gcm<aes256<backends::openssl>>`, or use `aes256_gcm` with its default linked.",
         "secp256k1_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::keypair`.",
         "musig_nonce_copied": "Pass the nonce with std::move, once: a secret nonce signs one message.",
+        "ellswift_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::ellswift_decode(encoded_key)`.",
+        "musig_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::musig::parse_public_nonce(encoded_nonce)`.",
+        "silent_payments_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::silent_payments::make_prevouts_summary(...)`.",
         "aes_on_bearssl": "Name `ciphers::aes256<backends::ctaes>`, include `<webcpp/crypto/backends/ctaes.hpp>` and add `/third_party//ctaes`.",
         "default_selected": "Remove the define, and name `gcm<aes256<backends::bearssl>>` where the program wants BearSSL.",
         "default_openssl_wasm": "Remove the define, and name `gcm<aes256<backends::openssl>>` where the program wants OpenSSL.",

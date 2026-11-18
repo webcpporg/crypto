@@ -109,6 +109,12 @@ The fix: Leave the policy out, as in `+curves::ed25519::verify(public_key, messa
 
 The fix: Name `+curves::ed25519::ph<webcpp::hash::sha2_512>+`: RFC 8032 defines Ed25519ph over SHA-512.
 
+|`+ellswift_other_backend+`
+|native, wasip2
+|`+webcpp::crypto: bearssl has no ElligatorSwift. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
+
+The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::ellswift_decode(encoded_key)+`.
+
 |`+gcm_default_openssl_not_linked+`
 |native
 |`+webcpp::crypto: AES-GCM's default backend on this target is OpenSSL, which is not linked. Add /webcpp/crypto//gcm-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//gcm-default ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::bearssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)+`
@@ -144,6 +150,12 @@ The fix: Add `+/webcpp/crypto//kx-default+`, which links `+/third_party//sodium+
 |`+call to deleted constructor of+`
 
 The fix: Pass the nonce with std::move, once: a secret nonce signs one message.
+
+|`+musig_other_backend+`
+|native, wasip2
+|`+webcpp::crypto: bearssl has no MuSig2. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
+
+The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::musig::parse_public_nonce(encoded_nonce)+`.
 
 |`+no_backend_wasm+`
 |wasip2, wasip3
@@ -195,7 +207,7 @@ The fix: Add `+/third_party//secp256k1+`.
 
 |`+secp256k1_other_backend+`
 |native, wasip2
-|`+webcpp::crypto: curves::secp256k1 runs on libsecp256k1 alone. Name backends::secp256k1, or leave the backend out, as in curves::secp256k1::keypair.+`
+|`+webcpp::crypto: bearssl has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
 
 The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::keypair+`.
 
@@ -204,6 +216,12 @@ The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp2
 |`+webcpp::crypto: a secret of no bytes holds nothing.+`
 
 The fix: Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
+
+|`+silent_payments_other_backend+`
+|native, wasip2
+|`+webcpp::crypto: bearssl has no Silent payments. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
+
+The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::silent_payments::make_prevouts_summary(...)+`.
 
 |`+sodium_not_linked+`
 |native, wasip2, wasip3
@@ -926,6 +944,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Name `+curves::ed25519::ph<webcpp::hash::sha2_512>+`: RFC 8032 defines Ed25519ph over SHA-512.
 
+|`+ellswift_other_backend+`
+|the compile
+|Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::ellswift_decode(encoded_key)+`.
+
 |`+gcm_default_openssl_not_linked+`
 |the compile
 |Natively the default is OpenSSL: add `+/webcpp/crypto//gcm-default+`, which links `+/webcpp/crypto//openssl+` there, or name BearSSL in the type, as in `+gcm<aes256<backends::bearssl>>+`.
@@ -958,6 +980,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Pass the nonce with std::move, once: a secret nonce signs one message.
 
+|`+musig_other_backend+`
+|the compile
+|Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::musig::parse_public_nonce(encoded_nonce)+`.
+
 |`+openssl_memory_not_linked+`
 |the compile
 |A target has the define and not OpenSSL: put `+<library>/webcpp/crypto//openssl+` in the same project requirements as the define, or remove the define.
@@ -985,6 +1011,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+secret_of_no_bytes+`
 |the compile
 |Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
+
+|`+silent_payments_other_backend+`
+|the compile
+|Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::silent_payments::make_prevouts_summary(...)+`.
 
 |`+sodium_not_linked+`
 |the compile

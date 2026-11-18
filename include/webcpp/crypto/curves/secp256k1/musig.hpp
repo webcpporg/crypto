@@ -18,6 +18,8 @@
 
 #include <webcpp/crypto/backends/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the nonce's session randomness
@@ -44,6 +46,17 @@ struct secp256k1_nonce_state {
     std::array<std::uint8_t, 33> signer_key{};
     /** True from `nonce_gen` until a partial signature, a move or the destructor uses it. */
     bool fresh = false;
+};
+
+/**
+ * The refusal of a backend other than libsecp256k1 by the family `families::secp256k1_musig`: the
+ * functions of `curves/secp256k1/musig.hpp`.
+ *
+ * @tparam Backend The backend named.
+ */
+template <class Backend>
+struct secp256k1_refusal<families::secp256k1_musig, Backend, false> {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1_MUSIG(Backend);
 };
 
 }  // namespace webcpp::crypto::detail
@@ -294,11 +307,11 @@ struct nonce_pair {
  * @return The aggregate key; `invalid_input_size` for no keys or a short workspace;
  * `backend_failure`.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<aggregate_key> key_aggregate(
     std::span<public_key const> signer_keys, workspace pointer_space) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace on every return, a refusal's included.
     webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
@@ -345,8 +358,8 @@ template <class Backend>
     basic_keypair<Backend> const& signer, aggregate_key const& signers_key,
     std::span<std::uint8_t const> message_hash = {},
     std::span<std::uint8_t const> extra_input = {}) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     using access = webcpp::crypto::detail::secp256k1_access;
     if (!access::keyed(signer)) {
@@ -396,11 +409,11 @@ template <class Backend>
  * @return The aggregate nonce; `invalid_input_size` for no nonces or a short workspace;
  * `backend_failure`.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<aggregate_nonce> nonce_aggregate(
     std::span<public_nonce const> signer_nonces, workspace pointer_space) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace on every return, a refusal's included.
     webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
@@ -435,12 +448,12 @@ template <class Backend = backends::secp256k1>
  * @param signers_key The aggregate key, with its tweaks.
  * @return The session; `backend_failure`.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<session> nonce_process(
     aggregate_nonce const& nonce_sum, std::span<std::uint8_t const, 32> message_bytes,
     aggregate_key const& signers_key) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
@@ -469,8 +482,8 @@ template <class Backend>
 [[nodiscard]] boost::system::result<partial_signature> partial_sign(
     basic_keypair<Backend> const& signer, secret_nonce signer_nonce,
     aggregate_key const& signers_key, session const& signing_session) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     using access = webcpp::crypto::detail::secp256k1_access;
     auto& state = access::native(signer_nonce);
@@ -511,13 +524,13 @@ template <class Backend>
  * @param signing_session The session of the message.
  * @return Nothing; `invalid_signature` when it does not verify.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<void> partial_signature_verify(
     partial_signature const& signature_part, public_nonce const& signer_nonce,
     public_key const& signer_key, aggregate_key const& signers_key,
     session const& signing_session) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
@@ -542,12 +555,12 @@ template <class Backend = backends::secp256k1>
  * @return 64 bytes; `invalid_input_size` for no partial signatures or a short workspace;
  * `backend_failure`.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> partial_signature_aggregate(
     session const& signing_session, std::span<partial_signature const> signature_parts,
     workspace pointer_space) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace on every return, a refusal's included.
     webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
@@ -582,11 +595,11 @@ template <class Backend = backends::secp256k1>
  * @return The nonce; `invalid_input_size` for another length; `invalid_point` for a half that
  * is not a point.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<public_nonce> parse_public_nonce(
     std::span<std::uint8_t const> encoded_nonce) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     if (encoded_nonce.size() != public_nonce_size) {
         return error::invalid_input_size;
@@ -608,11 +621,11 @@ template <class Backend = backends::secp256k1>
  * @param parsed_nonce The nonce.
  * @return The 66 bytes, two compressed points.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] std::array<std::uint8_t, public_nonce_size> serialize_public_nonce(
     public_nonce const& parsed_nonce) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     std::array<std::uint8_t, public_nonce_size> output_bytes{};
@@ -632,11 +645,11 @@ template <class Backend = backends::secp256k1>
  * @return The nonce; `invalid_input_size` for another length; `invalid_point` for a half that
  * is neither a point nor 33 zero bytes.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<aggregate_nonce> parse_aggregate_nonce(
     std::span<std::uint8_t const> encoded_nonce) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     if (encoded_nonce.size() != aggregate_nonce_size) {
         return error::invalid_input_size;
@@ -658,11 +671,11 @@ template <class Backend = backends::secp256k1>
  * @param parsed_nonce The nonce.
  * @return The 66 bytes, a point at infinity as 33 zero bytes.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] std::array<std::uint8_t, aggregate_nonce_size> serialize_aggregate_nonce(
     aggregate_nonce const& parsed_nonce) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     std::array<std::uint8_t, aggregate_nonce_size> output_bytes{};
@@ -681,11 +694,11 @@ template <class Backend = backends::secp256k1>
  * @return The partial signature; `invalid_input_size` for another length; `invalid_signature`
  * for a scalar not below the group order.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<partial_signature> parse_partial_signature(
     std::span<std::uint8_t const> encoded_signature) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     if (encoded_signature.size() != partial_signature_size) {
         return error::invalid_input_size;
@@ -708,11 +721,11 @@ template <class Backend = backends::secp256k1>
  * @param parsed_signature The partial signature.
  * @return The 32 bytes.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] std::array<std::uint8_t, partial_signature_size> serialize_partial_signature(
     partial_signature const& parsed_signature) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     std::array<std::uint8_t, partial_signature_size> output_bytes{};

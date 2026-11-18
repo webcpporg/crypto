@@ -34,7 +34,7 @@
 
 |libsecp256k1
 |by design: signing and key generation are constant time and constant memory access; link:https://github.com/bitcoin-core/secp256k1#readme[libsecp256k1's README]
-|Valgrind's memcheck (Linux): secp256k1 (libsecp256k1's own `+ctime_tests.c+`); MemorySanitizer (Linux, clang): secp256k1 (libsecp256k1's own `+ctime_tests.c+`)
+|Valgrind's memcheck (Linux): secp256k1 (libsecp256k1's own `+ctime_tests.c+`), ElligatorSwift (libsecp256k1's own `+ctime_tests.c+`: `+secp256k1_ellswift_create+` and `+secp256k1_ellswift_xdh+`), MuSig2 (libsecp256k1's own `+ctime_tests.c+`: MuSig2's nonce generation and partial signing), Silent payments (libsecp256k1's own `+ctime_tests.c+`: a sender's outputs, a label and a recipient's scan); MemorySanitizer (Linux, clang): secp256k1 (libsecp256k1's own `+ctime_tests.c+`), ElligatorSwift (libsecp256k1's own `+ctime_tests.c+`: `+secp256k1_ellswift_create+` and `+secp256k1_ellswift_xdh+`), MuSig2 (libsecp256k1's own `+ctime_tests.c+`: MuSig2's nonce generation and partial signing), Silent payments (libsecp256k1's own `+ctime_tests.c+`: a sender's outputs, a label and a recipient's scan)
 |not measured yet
 |not measured yet
 |not measured yet

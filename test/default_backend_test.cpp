@@ -137,3 +137,17 @@ static_assert(
     !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_SEALED_BOX_SODIUM)
 #error "secretbox.hpp, box.hpp and sealed_box.hpp are not told to include libsodium's header"
 #endif
+
+// secp256k1's modules, each a family of its own: libsecp256k1, the only backend, on every target.
+static_assert(
+    std::is_same_v<crypto::default_backend_t<families::secp256k1_ellswift>, backends::secp256k1>);
+static_assert(
+    std::is_same_v<crypto::default_backend_t<families::secp256k1_musig>, backends::secp256k1>);
+static_assert(std::is_same_v<crypto::default_backend_t<families::secp256k1_silent_payments>,
+                             backends::secp256k1>);
+static_assert(crypto::detail::supported<families::secp256k1_ellswift, families::secp256k1_ellswift,
+                                        backends::secp256k1>);
+static_assert(crypto::detail::supported<families::secp256k1_musig, families::secp256k1_musig,
+                                        backends::secp256k1>);
+static_assert(crypto::detail::supported<families::secp256k1_silent_payments,
+                                        families::secp256k1_silent_payments, backends::secp256k1>);

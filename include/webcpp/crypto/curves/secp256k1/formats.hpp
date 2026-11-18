@@ -18,6 +18,8 @@
 
 #include <webcpp/crypto/backends/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -89,12 +91,11 @@ inline constexpr std::size_t max_pkcs8_size = 135;
  * @return The number of bytes written, `spki_compressed_size` or `spki_uncompressed_size`;
  * `invalid_input_size` when `output_bytes` is shorter than `max_spki_size`.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::size_t> encode_spki(
     public_key const& parsed_key, std::span<std::uint8_t> output_bytes,
     point_form encoded_form = point_form::compressed) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     if (output_bytes.size() < max_spki_size) {
         return error::invalid_input_size;
@@ -125,11 +126,10 @@ template <class Backend = backends::secp256k1>
  * @return The key; `invalid_encoding` for any other bytes, a point off the curve and X9.62's
  * hybrid form included.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> decode_spki(
     std::span<std::uint8_t const> spki_bytes) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     std::span<std::uint8_t const> const prefix =
@@ -163,11 +163,10 @@ template <class Backend = backends::secp256k1>
  * @return The number of bytes written, `max_pkcs8_size`; `invalid_state` moved from;
  * `invalid_input_size` when `output_bytes` is shorter than `max_pkcs8_size`.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::size_t> encode_pkcs8(
     basic_keypair<Backend> const& key_pair, std::span<std::uint8_t> output_bytes) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     using access = webcpp::crypto::detail::secp256k1_access;
     if (!access::keyed(key_pair)) {
@@ -205,12 +204,11 @@ template <class Backend = backends::secp256k1>
  * group order and a public key not the secret's included; `entropy_unavailable` and
  * `backend_failure` as `make` reports them.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<basic_keypair<Backend>> decode_pkcs8(
     std::span<std::uint8_t const> pkcs8_bytes,
     std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource()) {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     constexpr std::size_t prefix_size = webcpp::crypto::detail::secp256k1_pkcs8_prefix.size();

@@ -80,4 +80,19 @@
 |X25519-XSalsa20-Poly1305 sealed box
 |`+/third_party//sodium+` on every target
 |<<crypto-jamfile-cases,`+sealed_box_default+`>>
+
+|`+/webcpp/crypto//secp256k1_ellswift-default+`
+|ElligatorSwift
+|`+/third_party//secp256k1+` on every target
+|<<crypto-jamfile-cases,`+secp256k1_ellswift_default+`>>
+
+|`+/webcpp/crypto//secp256k1_musig-default+`
+|MuSig2
+|`+/third_party//secp256k1+` on every target
+|<<crypto-jamfile-cases,`+secp256k1_musig_default+`>>
+
+|`+/webcpp/crypto//secp256k1_silent_payments-default+`
+|Silent payments
+|`+/third_party//secp256k1+` on every target
+|<<crypto-jamfile-cases,`+secp256k1_silent_payments_default+`>>
 |===

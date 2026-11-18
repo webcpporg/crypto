@@ -19,6 +19,8 @@
 
 #include <webcpp/crypto/backends/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/secret.hpp>
 
@@ -33,6 +35,17 @@
 #include <type_traits>
 
 namespace webcpp::crypto::detail {
+
+/**
+ * The refusal of a backend other than libsecp256k1 by the family
+ * `families::secp256k1_silent_payments`: the functions of `curves/secp256k1/silent_payments.hpp`.
+ *
+ * @tparam Backend The backend named.
+ */
+template <class Backend>
+struct secp256k1_refusal<families::secp256k1_silent_payments, Backend, false> {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1_SILENT_PAYMENTS(Backend);
+};
 
 /**
  * What `scan_outputs` gives libsecp256k1 as its label context: the caller's lookup, and the
@@ -272,15 +285,16 @@ namespace webcpp::crypto::curves::secp256k1::silent_payments {
  * refuses: the inputs' keys sum to zero, or a recipient's spend key gives no output, which only
  * a key chosen against the sender can.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_silent_payments>>
 [[nodiscard]] boost::system::result<void> create_outputs(
     std::span<recipient const> recipients,
     std::span<std::uint8_t const, outpoint_size> smallest_outpoint,
     std::span<std::type_identity_t<basic_keypair<Backend>> const* const> taproot_inputs,
     std::span<std::type_identity_t<basic_keypair<Backend>> const* const> plain_inputs,
     std::span<std::array<std::uint8_t, 32>> output_keys, workspace pointer_space) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
+                                                         Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace, the plain inputs' secrets in it, on every return.
     webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
@@ -369,8 +383,9 @@ template <class Backend = backends::secp256k1>
 template <class Backend>
 [[nodiscard]] boost::system::result<label> create_label(basic_keypair<Backend> const& scan_key,
                                                         std::uint32_t label_number) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
+                                                         Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     using access = webcpp::crypto::detail::secp256k1_access;
     if (!access::keyed(scan_key)) {
@@ -401,11 +416,12 @@ template <class Backend>
  * @return The labelled spend key; `invalid_point` for a label point that is not a point;
  * `invalid_public_key` when the key and the label sum to infinity.
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_silent_payments>>
 [[nodiscard]] boost::system::result<public_key> create_labeled_spend_key(
     public_key const& spend_key, label const& address_label) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
+                                                         Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
@@ -437,13 +453,14 @@ template <class Backend = backends::secp256k1>
  * `ARG_CHECK` in libsecp256k1); `invalid_public_key` when they sum to infinity or a Taproot
  * key does not parse (not a silent payment).
  */
-template <class Backend = backends::secp256k1>
+template <class Backend = default_backend_t<families::secp256k1_silent_payments>>
 [[nodiscard]] boost::system::result<prevouts_summary> make_prevouts_summary(
     std::span<std::uint8_t const, outpoint_size> smallest_outpoint,
     std::span<std::array<std::uint8_t, 32> const> taproot_input_keys,
     std::span<public_key const> plain_input_keys, workspace pointer_space) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
+                                                         Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace on every return, a refusal's included.
     webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
@@ -513,8 +530,9 @@ template <class Backend, label_lookup LabelLookup = no_labels>
     prevouts_summary const& summary, std::span<std::array<std::uint8_t, 32> const> output_keys,
     std::span<found_output> found, workspace pointer_space,
     LabelLookup const& label_lookup = {}) noexcept {
-    static_assert(webcpp::crypto::detail::secp256k1_backend<Backend>,
-                  WEBCPP_CRYPTO_DETAIL_SECP256K1_ONLY);
+    static_assert(
+        webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
+                                                         Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace, the found tweaks in it, on every return.
     webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);

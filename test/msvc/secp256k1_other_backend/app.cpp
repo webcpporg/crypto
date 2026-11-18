@@ -4,8 +4,8 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// curves::secp256k1 named with another backend stops at its static_assert: on MSVC the
-// compile fails. The text is checked on clang, in test/messages/secp256k1_other_backend.
+// curves::secp256k1 named with another backend stops at the family's refusal: on MSVC the compile
+// fails. The text is checked on clang, in test/messages/secp256k1_other_backend.
 #include <webcpp/crypto/curves/secp256k1.hpp>
 
 #include <array>

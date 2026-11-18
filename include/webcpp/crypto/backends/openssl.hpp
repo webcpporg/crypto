@@ -76,6 +76,13 @@ namespace webcpp::crypto {
  * program. It returns a resource that is never destroyed and is thread-safe whenever
  * OpenSSL may run on two threads at once: OpenSSL frees through it after `main` returns.
  *
+ * It must serve OpenSSL's initialisation, which the first use of OpenSSL in the process runs,
+ * usually the first `make`: on an OpenSSL built with threads, which MSVC always builds, a
+ * resource that fails there makes OpenSSL re-enter its own initialisation, and that call never
+ * returns: the process aborts on macOS, deadlocks on Linux and spins on Windows. Only on an
+ * OpenSSL built without threads does it return, and every `make` then gives
+ * `backend_failure`.
+ *
  * @return The program's resource.
  * @see "OpenSSL's allocations in your own memory resource", in the guide.
  */
@@ -252,7 +259,11 @@ struct openssl {
     /**
      * Installs webcpp's adapter as OpenSSL's memory functions, so that every allocation of
      * OpenSSL's in the process goes to `openssl_memory_resource()`. Called as the first
-     * statement of `main`, before any thread starts and anything uses OpenSSL.
+     * statement of `main`, before any thread starts and anything uses OpenSSL. The first use
+     * of OpenSSL after it, usually the first `make`, runs OpenSSL's initialisation through the
+     * resource, which must not fail there: on an OpenSSL built with threads (MSVC's only
+     * build) that call then never returns; on one built without threads every `make` gives
+     * `backend_failure` from then on.
      *
      * @return Nothing, also when the adapter is installed already;
      * `memory_functions_refused` when another party installed its own functions, or OpenSSL

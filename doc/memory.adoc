@@ -143,18 +143,27 @@ thread ends, except on Windows, where the static libcrypto that webcpp builds
 is never told that a thread ends: a thread that used OpenSSL calls
 `OPENSSL_thread_stop()` before it ends, or its blocks stay in the resource
 until the process ends. The test `everything` does so in its second thread.
-* *When the resource cannot allocate.* During the first `make` of the process,
-OpenSSL's own initialisation fails, and OpenSSL stays unusable for the rest of
-the process: `make` gives `backend_failure` from then on. When the failing
-allocation is OpenSSL's base initialisation (with OpenSSL 3.5.9, its first
-lock), OpenSSL never registers its cleanup, and `OPENSSL_cleanup` frees
-nothing: the blocks it took meanwhile stay in the resource until the process
-ends, and the thread's error queue takes no entry from then on. The test
-`fail_init` pins this and prints how many blocks stay. Later, `make` gives
-`not_enough_memory` or `backend_failure`. `seal` and `open` allocate nothing. A
-resource of a fixed size needs room for the first `make`, whose allocations the
-test `allocation_openssl` prints on each run. Without exceptions, a resource
-that throws ends the process; one that returns null reports the failure.
+* *When the resource cannot allocate.* The resource must serve OpenSSL's
+initialisation, which the first use of OpenSSL in the process runs, usually the
+first `make`. On an OpenSSL built with threads, which is MSVC's only build and
+b2's `threading=multi` elsewhere, a failure there is not recoverable: OpenSSL
+reports it through its error queue, whose state needs the initialisation that is
+running, so OpenSSL re-enters its own initialisation and that call never
+returns. The process aborts on macOS, deadlocks on Linux and spins on Windows.
+Only an OpenSSL built without threads, b2's default on macOS and Linux, returns
+from that failure, and stays unusable for the rest of the process: `make` gives
+`backend_failure` from then on. When the failing allocation is OpenSSL's base
+initialisation (with OpenSSL 3.5.9, its first lock), OpenSSL never registers its
+cleanup, and `OPENSSL_cleanup` frees nothing: the blocks it took meanwhile stay
+in the resource until the process ends, and the thread's error queue takes no
+entry from then on. The test `fail_init` pins this on an OpenSSL without threads
+and prints how many blocks stay; with threads, as `fail_init_threads`, it prints
+how many blocks the first `make` took instead. After the initialisation, `make`
+gives `not_enough_memory` or `backend_failure`. `seal` and `open` allocate
+nothing. A resource of a fixed size needs room for the first `make`, whose
+allocations the test `allocation_openssl` prints on each run. Without
+exceptions, a resource that throws ends the process; one that returns null
+reports the failure.
 * *Two allocations stay outside the resource,* because no hook of OpenSSL's
 reaches them: the C library's `FILE` and its buffer while OpenSSL reads its
 configuration file at initialisation (one or two blocks, by C library, freed

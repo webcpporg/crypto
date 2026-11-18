@@ -75,9 +75,9 @@ private:
     alignas(std::max_align_t) std::array<std::byte, 1024> buffer_{};
 };
 
-// silent_payments.hpp: the key pair pays itself, scan and spend, with one plain input, labels
-// its change, and finds the output; each workspace on the stack, each step counted alone by
-// `none`.
+// silent_payments.hpp: the key pair pays itself, scan and spend, with one plain input, finds
+// the output, labels its change, pays the labelled address and finds that output through the
+// lookup; each workspace on the stack, each step counted alone by `none`.
 void silent_payments_allocate_nothing(secp::keypair const& key, secp::public_key const& own_key,
                                       auto const& none) {
     namespace sp = secp::silent_payments;
@@ -103,8 +103,17 @@ void silent_payments_allocate_nothing(secp::keypair const& key, secp::public_key
     if (!BOOST_TEST(change_label.has_value())) {
         return;
     }
-    none("create_labeled_spend_key",
-         [&] { return sp::create_labeled_spend_key(own_key, *change_label); });
+    std::optional<secp::public_key> labelled_key;
+    none("create_labeled_spend_key", [&] {
+        auto r = sp::create_labeled_spend_key(own_key, *change_label);
+        if (r) {
+            labelled_key.emplace(*r);
+        }
+        return r;
+    });
+    if (!BOOST_TEST(labelled_key.has_value())) {
+        return;
+    }
     alignas(std::max_align_t) std::array<std::byte, sp::summary_workspace_size(0, 1)>
         summary_space{};
     std::optional<sp::prevouts_summary> summary;
@@ -124,18 +133,31 @@ void silent_payments_allocate_nothing(secp::keypair const& key, secp::public_key
         auto r = sp::scan_outputs(key, own_key, *summary, payment_outputs, found, scan_space);
         return r && *r == 1;
     });
+    // An output paid to the change label: no direct match, so the scan computes label
+    // candidates and calls the lookup, which is counted with it.
+    std::array<sp::recipient, 1> const change_recipients{
+        sp::recipient{.scan_key = own_key, .spend_key = *labelled_key}};
+    std::array<std::array<std::uint8_t, 32>, 1> change_outputs{};
+    none("create_outputs to a labelled address", [&] {
+        return sp::create_outputs(change_recipients, outpoint, {}, plain_inputs, change_outputs,
+                                  send_space);
+    });
+    std::size_t lookup_calls = 0;
     auto const change_lookup = [&](std::span<std::uint8_t const, 33> candidate) noexcept
         -> std::optional<std::span<std::uint8_t const, 32>> {
+        ++lookup_calls;
         if (std::ranges::equal(candidate, change_label->point)) {
             return std::span<std::uint8_t const, 32>(change_label->tweak);
         }
         return std::nullopt;
     };
     none("scan_outputs with a label lookup", [&] {
-        auto r = sp::scan_outputs(key, own_key, *summary, payment_outputs, found, scan_space,
+        auto r = sp::scan_outputs(key, own_key, *summary, change_outputs, found, scan_space,
                                   change_lookup);
         return r && *r == 1;
     });
+    BOOST_TEST(lookup_calls > 0);
+    BOOST_TEST(found[0].label_point == std::optional(change_label->point));
 }
 
 }  // namespace

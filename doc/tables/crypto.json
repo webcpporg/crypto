@@ -533,6 +533,7 @@
             "title": "AES-GCM",
             "group": "ciphers",
             "since": "0.1",
+            "measured": "seal of 16 KiB, 256-bit key",
             "header": "<webcpp/crypto/ciphers/gcm.hpp>",
             "shown": "aes256_gcm",
             "names": [
@@ -556,6 +557,7 @@
             "title": "AES block cipher",
             "group": "ciphers",
             "since": "0.1",
+            "measured": "encryption of one 16-byte block, 256-bit key",
             "header": "<webcpp/crypto/ciphers/aes.hpp>",
             "names": [
                 {"name": "aes128", "title": "AES-128", "type": "ciphers::aes128<{backend}>"},
@@ -575,6 +577,7 @@
             "title": "secp256k1",
             "group": "curves::secp256k1",
             "since": "0.1",
+            "measured": "BIP340 signature of a 32-byte message",
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
             "names": [
                 {"name": "secp256k1", "title": "secp256k1", "type": "curves::secp256k1::basic_keypair<{backend}>"}
@@ -591,6 +594,7 @@
             "title": "Ed25519",
             "group": "curves::ed25519",
             "since": "0.2",
+            "measured": "signature of a 32-byte message",
             "header": "<webcpp/crypto/curves/ed25519.hpp>",
             "names": [
                 {"name": "ed25519", "title": "Ed25519", "type": "curves::ed25519::basic_keypair<{backend}>"},
@@ -608,6 +612,7 @@
             "title": "X25519",
             "group": "curves::x25519",
             "since": "0.2",
+            "measured": "agreement of a secret key and a public key",
             "header": "<webcpp/crypto/curves/x25519.hpp>",
             "names": [
                 {"name": "x25519", "title": "X25519", "type": "curves::x25519::algorithm<{backend}>"}
@@ -624,6 +629,7 @@
             "title": "crypto_kx",
             "group": "curves::x25519",
             "since": "0.2",
+            "measured": "a client's session keys from a key pair and the server's public key",
             "header": "<webcpp/crypto/curves/x25519/kx.hpp>",
             "names": [
                 {"name": "kx", "title": "crypto_kx", "type": "curves::x25519::kx_keypair<{backend}>"}
@@ -640,6 +646,7 @@
             "title": "PEM",
             "group": "pem",
             "since": "0.2",
+            "measured": "armour of a 44-byte SPKI as PEM",
             "header": "<webcpp/crypto/pem.hpp>",
             "names": [
                 {"name": "pem", "title": "PEM", "type": "pem::algorithm<{backend}>"}
@@ -656,6 +663,7 @@
             "title": "ChaCha20-Poly1305",
             "group": "ciphers",
             "since": "0.2",
+            "measured": "seal of 16 KiB, 256-bit key",
             "header": "<webcpp/crypto/ciphers/chacha20_poly1305.hpp>",
             "shown": "chacha20_poly1305",
             "names": [
@@ -675,6 +683,7 @@
             "title": "original ChaCha20-Poly1305",
             "group": "ciphers",
             "since": "0.2",
+            "measured": "seal of 16 KiB, 256-bit key",
             "header": "<webcpp/crypto/ciphers/chacha20_poly1305.hpp>",
             "shown": "chacha20_poly1305_original",
             "names": [
@@ -692,6 +701,7 @@
             "title": "XChaCha20-Poly1305",
             "group": "ciphers",
             "since": "0.2",
+            "measured": "seal of 16 KiB, 256-bit key",
             "header": "<webcpp/crypto/ciphers/chacha20_poly1305.hpp>",
             "shown": "xchacha20_poly1305",
             "names": [
@@ -709,6 +719,7 @@
             "title": "XSalsa20-Poly1305 secret box",
             "group": "ciphers",
             "since": "0.2",
+            "measured": "seal of 16 KiB, 256-bit key",
             "header": "<webcpp/crypto/ciphers/secretbox.hpp>",
             "names": [
                 {"name": "secretbox_xsalsa20poly1305", "title": "XSalsa20-Poly1305 secret box", "type": "ciphers::secretbox<{backend}>"}
@@ -725,6 +736,7 @@
             "title": "XChaCha20-Poly1305 secret box",
             "group": "ciphers",
             "since": "0.2",
+            "measured": "seal of 16 KiB, 256-bit key",
             "header": "<webcpp/crypto/ciphers/secretbox.hpp>",
             "names": [
                 {"name": "secretbox_xchacha20poly1305", "title": "XChaCha20-Poly1305 secret box", "type": "ciphers::secretbox_xchacha20poly1305<{backend}>"}
@@ -741,6 +753,7 @@
             "title": "X25519-XSalsa20-Poly1305 box",
             "group": "hybrid",
             "since": "0.2",
+            "measured": "seal of 16 KiB between two key pairs",
             "header": "<webcpp/crypto/hybrid/box.hpp>",
             "names": [
                 {"name": "box_xsalsa20poly1305", "title": "X25519-XSalsa20-Poly1305 box", "type": "hybrid::basic_box<families::box_xsalsa20poly1305, {backend}>"}
@@ -757,6 +770,7 @@
             "title": "X25519-XChaCha20-Poly1305 box",
             "group": "hybrid",
             "since": "0.2",
+            "measured": "seal of 16 KiB between two key pairs",
             "header": "<webcpp/crypto/hybrid/box.hpp>",
             "names": [
                 {"name": "box_xchacha20poly1305", "title": "X25519-XChaCha20-Poly1305 box", "type": "hybrid::basic_box<families::box_xchacha20poly1305, {backend}>"}
@@ -773,6 +787,7 @@
             "title": "X25519-XSalsa20-Poly1305 sealed box",
             "group": "hybrid",
             "since": "0.2",
+            "measured": "seal of 16 KiB to a public key",
             "header": "<webcpp/crypto/hybrid/sealed_box.hpp>",
             "names": [
                 {"name": "sealed_box", "title": "X25519-XSalsa20-Poly1305 sealed box", "type": "hybrid::basic_sealed_box<{backend}>"}

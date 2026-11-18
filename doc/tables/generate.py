@@ -18,7 +18,7 @@ Jamfile lines and printed results the page shows as the fixtures hold them. cryp
 no build produces: the facts about the world with their sources, the use cases, the fix of each
 message and the description of each fixture. The table of Ed25519's twelve edge cases is
 meta/ed25519_cases.json's, the verdicts test/ed25519_speccheck_test.cpp asserts. A measurement no
-lane takes yet (size, throughput, constant time measured) is written as not measured yet.
+lane takes yet (constant time measured) is written as not measured yet.
 
 The capability table is crypto.json's families: each family's algorithms and, per backend, the
 targets on which it has them, which the tests of the family's operations must run on (a cell is
@@ -31,14 +31,21 @@ Each fact is checked against the tree: a test, a message case, a fixture or an e
 crypto.json names and the tree does not hold is a fault, and so is a fixture or a message case of
 the tree that crypto.json does not describe.
 
-Usage: generate.py [--check] [--root <superproject>]. Without --check it writes the files; with
-it, it writes nothing and fails when a file differs from what it would write, which the doc
-build runs (doc/Jamfile). Exit 0, 1 naming each fault, 2 on a usage error.
+The size matrix is the own lane sizes' (test/sizes/Jamfile): `--sizes <json>...` reads the tables
+the lane wrote at variant=release on each target (webcpp.program-sizes's <name>.sizes.json), and
+writes them, dated, into doc/tables/sizes.json, which no hand edits (its digest is checked); a cell
+the lane has not built is not measured yet.
+
+Usage: generate.py [--check] [--root <superproject>] [--sizes <json>...]. Without --check it writes
+the files; with it, it writes nothing and fails when a file differs from what it would write, which
+the doc build runs (doc/Jamfile). Exit 0, 1 naming each fault, 2 on a usage error.
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime
+import hashlib
 import json
 import re
 import sys
@@ -75,6 +82,13 @@ RUN_RULES = ('crypto-run', 'memory-run', 'webcpp.run', 'webcpp.compile',
 EXPECTED_ERROR = re.compile(r'expected-error@\S+ \{\{(.*)\}\}')
 SOURCE = re.compile(r'\{([a-z0-9-]+)\}')
 NOT_MEASURED = 'not measured yet'
+# The lane sizes' tables, as generate.py --sizes writes them, and the only variant they are of.
+SIZES = Path('doc/tables/sizes.json')
+RELEASE = 'release'
+SIZES_ABOUT = ('The tables of the own lane sizes (test/sizes/Jamfile, webcpp.program-sizes), '
+               'built at variant=release: a reference that decides nothing. Written by '
+               'generate.py --sizes from the lane\'s <name>.sizes.json files, never by hand: '
+               'digest is the SHA-256 of the rest, which generate.py checks.')
 # The macro defined on each target, in the C++ written here: config.hpp defines the first where
 # no WebAssembly target is defined.
 TARGET_MACROS = {'native': 'WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE', 'wasip2': 'WEBCPP_TARGET_WASIP2',
@@ -1059,13 +1073,94 @@ def constant_time_page(data: Data) -> str:
                  rows)
 
 
-def sizes_page(data: Data) -> str:
-    """Size per target and throughput per operation: no lane measures them yet."""
-    rows = [[names(operation['api'])] + [NOT_MEASURED for _ in data['targets']]
-            + [NOT_MEASURED, NOT_MEASURED]
-            for operation in data['operations'] if operation['namespace'] != 'root']
-    return table(['Operation'] + [f'Size, {target}' for target in data['targets']]
-                 + ['Throughput, native', 'Throughput, node'], rows)
+def digest_of(sizes: Data) -> str:
+    """The SHA-256 of sizes without its digest, as generate.py --sizes writes it."""
+    rest = {key: value for key, value in sizes.items() if key != 'digest'}
+    return hashlib.sha256(json.dumps(rest, sort_keys=True).encode('utf-8')).hexdigest()
+
+
+def imported(tables: List[Data], date: str) -> Data:
+    """doc/tables/sizes.json from the tables the lane sizes wrote (webcpp.program-sizes's
+    <name>.sizes.json, one per table and target), measured on date: a table not built at
+    variant=release is refused, and so is a program two tables measure on one target."""
+    seen: Dict[Tuple[str, str], int] = {}
+    for index, sized in enumerate(tables):
+        variant = sized.get('variant')
+        if variant != RELEASE:
+            raise Fault(f'a size table is built only from release builds, not variant={variant}: '
+                        'the lane sizes builds its tables at variant=release')
+        for row in sized['programs']:
+            key = (row['program'], sized['target'])
+            if seen.setdefault(key, index) != index and row['program'] != sized['baseline']:
+                raise Fault(f'the lane\'s tables measure {key[0]} on {key[1]} twice')
+    ordered = sorted(tables, key=lambda t: (t['target'], t['programs'][-1]['program']))
+    out: Data = {'about': SIZES_ABOUT, 'date': date, 'tables': ordered}
+    out['digest'] = digest_of(out)
+    return out
+
+
+def sized_on(sizes: Data, program: str, target: str) -> Optional[Tuple[int, int, int, int]]:
+    """What program measured on target: its raw and gzip -9n bytes, and their excess over the
+    baseline, summed over its files (on emscripten its .wasm and its .js); None where no table of
+    target holds it."""
+    rows = [row for sized in sizes['tables'] if sized['target'] == target
+            for row in sized['programs'] if row['program'] == program]
+    if not rows:
+        return None
+    files = {row['file']: row for row in rows}
+    return (sum(row['bytes'] for row in files.values()),
+            sum(row['gzip'] for row in files.values()),
+            sum(row['over_baseline'] for row in files.values()),
+            sum(row['gzip_over_baseline'] for row in files.values()))
+
+
+def sizes_page(data: Data, sizes: Data) -> str:
+    """The size matrix: per cell of the capability table, (family, backend), what its program of
+    test/sizes adds to the baseline on each target, raw and gzip -9n, as the lane sizes measured
+    it from release builds (doc/tables/sizes.json); not measured yet where the lane has not built
+    it, and not on this target where the backend does not have the family there."""
+    if sizes.get('digest') != digest_of(sizes):
+        raise Fault(f'{SIZES} is not what generate.py --sizes wrote: write it again from the '
+                    'lane sizes\' tables, never by hand')
+    for sized in sizes['tables']:
+        if sized.get('variant') != RELEASE:
+            raise Fault(f'a size table is built only from release builds, not '
+                        f'variant={sized.get("variant")}')
+    cells = {'baseline'} | {f'{family["name"]}_{backend}' for family in data['families']
+                            for backend in family['backends']}
+    for sized in sizes['tables']:
+        for row in sized['programs']:
+            if row['program'] not in cells:
+                raise Fault(f'{SIZES} measures {row["program"]}, which is no cell of '
+                            'crypto.json\'s families')
+    rows: List[List[str]] = []
+    base = ['The baseline, a program that prints a line']
+    for target in data['targets']:
+        measured = sized_on(sizes, 'baseline', target)
+        base.append(f'{measured[0]:,} B, gzip {measured[1]:,} B' if measured else NOT_MEASURED)
+    rows.append(base)
+    for family in data['families']:
+        for backend in family['backends']:
+            row = [f'{family["title"]} on {data["backends"][backend]["title"]}: '
+                   f'{family["measured"]}']
+            have = cell_targets(data, family, backend)
+            for target in data['targets']:
+                measured = sized_on(sizes, f'{family["name"]}_{backend}', target)
+                if target not in have:
+                    row.append('not on this target')
+                elif measured is None:
+                    row.append(NOT_MEASURED)
+                else:
+                    row.append(f'+{measured[2]:,} B, gzip +{measured[3]:,} B')
+            rows.append(row)
+    toolsets = {sized['target']: sized['toolset'] for sized in sizes['tables']}
+    built = '; '.join(f'{target}, {toolsets[target]}' for target in data['targets']
+                      if target in toolsets)
+    lead = (f'The lane sizes measured on {sizes["date"]}, at variant=release, with b2\'s toolsets '
+            f'{built or "of no target yet"}: natively the executable stripped, on WebAssembly the '
+            '.wasm, and on Emscripten its .js too.\n\n')
+    return lead + table(['Program'] + [f'Size, {target}' for target in data['targets']], rows,
+                        'cols="3,2,2,2,2",')
 
 
 def ed25519_cases_page(data: Data, cases: Data) -> str:
@@ -1390,6 +1485,21 @@ def llms(data: Data, matrix: Matrix, library: Path) -> str:
     return '\n'.join(out)
 
 
+def read_sizes(library: Path) -> Data:
+    """doc/tables/sizes.json, or, before the lane has been read, sizes of no table."""
+    path = library / SIZES
+    if not path.is_file():
+        return imported([], 'no date')
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def write_sizes(library: Path, files: List[Path]) -> None:
+    """--sizes: writes doc/tables/sizes.json from the lane's <name>.sizes.json files, today."""
+    tables = [json.loads(path.read_text(encoding='utf-8')) for path in files]
+    sizes = imported(tables, datetime.date.today().isoformat())
+    (library / SIZES).write_text(json.dumps(sizes, indent=2) + '\n', encoding='utf-8')
+
+
 def generate(root: Path, library: Path) -> Dict[Path, str]:
     """Every generated file, by its path, with its content."""
     data: Data = json.loads((HERE / 'crypto.json').read_text(encoding='utf-8'))
@@ -1415,7 +1525,7 @@ def generate(root: Path, library: Path) -> Dict[Path, str]:
     files[generated / 'backend-facts.adoc'] = facts_page(data, matrix)
     files[generated / 'defaults.adoc'] = defaults_page(data)
     files[generated / 'constant-time.adoc'] = constant_time_page(data)
-    files[generated / 'sizes.adoc'] = sizes_page(data)
+    files[generated / 'sizes.adoc'] = sizes_page(data, read_sizes(library))
     files[generated / 'jamfiles.adoc'] = jamfiles_page(data, cases)
     files[generated / 'default-aliases.adoc'] = aliases_page(data, cases)
     files[generated / 'messages.adoc'] = messages_page(data, refusals, cases,
@@ -1452,8 +1562,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=(__doc__ or '').split('\n', 1)[0])
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--root', type=Path, default=LIBRARY.parent.parent)
+    parser.add_argument('--sizes', type=Path, nargs='+', metavar='JSON',
+                        help='the tables the lane sizes wrote, <name>.sizes.json, which it '
+                        'writes into doc/tables/sizes.json before the pages')
     arguments = parser.parse_args()
+    if arguments.check and arguments.sizes:
+        parser.error('--check writes nothing, and --sizes writes doc/tables/sizes.json')
     try:
+        if arguments.sizes:
+            write_sizes(LIBRARY, arguments.sizes)
         files = generate(arguments.root.resolve(), LIBRARY)
     except Fault as fault:
         print(f'generate.py: {fault}', file=sys.stderr)

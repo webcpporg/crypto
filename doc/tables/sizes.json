@@ -1,0 +1,559 @@
+{
+  "about": "The tables of the own lane sizes (test/sizes/Jamfile, webcpp.program-sizes), built at variant=release: a reference that decides nothing. Written by generate.py --sizes from the lane's <name>.sizes.json files, never by hand: digest is the SHA-256 of the rest, which generate.py checks.",
+  "date": "2026-11-18",
+  "tables": [
+    {
+      "variant": "release",
+      "target": "emscripten",
+      "toolset": "emscripten-6.0.11",
+      "baseline": "baseline",
+      "programs": [
+        {
+          "program": "aes_block_ctaes",
+          "file": "js",
+          "bytes": 9764,
+          "gzip": 3476,
+          "over_baseline": 1704,
+          "gzip_over_baseline": 548
+        },
+        {
+          "program": "aes_block_ctaes",
+          "file": "wasm",
+          "bytes": 25579,
+          "gzip": 11277,
+          "over_baseline": 24377,
+          "gzip_over_baseline": 10545
+        },
+        {
+          "program": "baseline",
+          "file": "js",
+          "bytes": 8060,
+          "gzip": 2928,
+          "over_baseline": 0,
+          "gzip_over_baseline": 0
+        },
+        {
+          "program": "baseline",
+          "file": "wasm",
+          "bytes": 1202,
+          "gzip": 732,
+          "over_baseline": 0,
+          "gzip_over_baseline": 0
+        },
+        {
+          "program": "chacha20_poly1305_bearssl",
+          "file": "js",
+          "bytes": 9774,
+          "gzip": 3486,
+          "over_baseline": 1714,
+          "gzip_over_baseline": 558
+        },
+        {
+          "program": "chacha20_poly1305_bearssl",
+          "file": "wasm",
+          "bytes": 26553,
+          "gzip": 12157,
+          "over_baseline": 25351,
+          "gzip_over_baseline": 11425
+        },
+        {
+          "program": "chacha20_poly1305_original_sodium",
+          "file": "js",
+          "bytes": 11888,
+          "gzip": 4233,
+          "over_baseline": 3828,
+          "gzip_over_baseline": 1305
+        },
+        {
+          "program": "chacha20_poly1305_original_sodium",
+          "file": "wasm",
+          "bytes": 27090,
+          "gzip": 12496,
+          "over_baseline": 25888,
+          "gzip_over_baseline": 11764
+        },
+        {
+          "program": "chacha20_poly1305_sodium",
+          "file": "js",
+          "bytes": 11879,
+          "gzip": 4228,
+          "over_baseline": 3819,
+          "gzip_over_baseline": 1300
+        },
+        {
+          "program": "chacha20_poly1305_sodium",
+          "file": "wasm",
+          "bytes": 27173,
+          "gzip": 12547,
+          "over_baseline": 25971,
+          "gzip_over_baseline": 11815
+        },
+        {
+          "program": "ed25519_sodium",
+          "file": "js",
+          "bytes": 11871,
+          "gzip": 4221,
+          "over_baseline": 3811,
+          "gzip_over_baseline": 1293
+        },
+        {
+          "program": "ed25519_sodium",
+          "file": "wasm",
+          "bytes": 90297,
+          "gzip": 54446,
+          "over_baseline": 89095,
+          "gzip_over_baseline": 53714
+        },
+        {
+          "program": "gcm_bearssl",
+          "file": "js",
+          "bytes": 9760,
+          "gzip": 3474,
+          "over_baseline": 1700,
+          "gzip_over_baseline": 546
+        },
+        {
+          "program": "gcm_bearssl",
+          "file": "wasm",
+          "bytes": 33982,
+          "gzip": 14753,
+          "over_baseline": 32780,
+          "gzip_over_baseline": 14021
+        },
+        {
+          "program": "secp256k1_secp256k1",
+          "file": "js",
+          "bytes": 10100,
+          "gzip": 3588,
+          "over_baseline": 2040,
+          "gzip_over_baseline": 660
+        },
+        {
+          "program": "secp256k1_secp256k1",
+          "file": "wasm",
+          "bytes": 105258,
+          "gzip": 43298,
+          "over_baseline": 104056,
+          "gzip_over_baseline": 42566
+        },
+        {
+          "program": "x25519_sodium",
+          "file": "js",
+          "bytes": 11870,
+          "gzip": 4221,
+          "over_baseline": 3810,
+          "gzip_over_baseline": 1293
+        },
+        {
+          "program": "x25519_sodium",
+          "file": "wasm",
+          "bytes": 70135,
+          "gzip": 45999,
+          "over_baseline": 68933,
+          "gzip_over_baseline": 45267
+        },
+        {
+          "program": "xchacha20_poly1305_sodium",
+          "file": "js",
+          "bytes": 11880,
+          "gzip": 4229,
+          "over_baseline": 3820,
+          "gzip_over_baseline": 1301
+        },
+        {
+          "program": "xchacha20_poly1305_sodium",
+          "file": "wasm",
+          "bytes": 27800,
+          "gzip": 12877,
+          "over_baseline": 26598,
+          "gzip_over_baseline": 12145
+        }
+      ]
+    },
+    {
+      "variant": "release",
+      "target": "native",
+      "toolset": "clang-21",
+      "baseline": "baseline",
+      "programs": [
+        {
+          "program": "aes_block_openssl",
+          "file": "executable",
+          "bytes": 3295640,
+          "gzip": 1746720,
+          "over_baseline": 3262200,
+          "gzip_over_baseline": 1745771
+        },
+        {
+          "program": "baseline",
+          "file": "executable",
+          "bytes": 33440,
+          "gzip": 949,
+          "over_baseline": 0,
+          "gzip_over_baseline": 0
+        },
+        {
+          "program": "chacha20_poly1305_openssl",
+          "file": "executable",
+          "bytes": 3295648,
+          "gzip": 1746985,
+          "over_baseline": 3262208,
+          "gzip_over_baseline": 1746036
+        },
+        {
+          "program": "gcm_openssl",
+          "file": "executable",
+          "bytes": 3295648,
+          "gzip": 1747310,
+          "over_baseline": 3262208,
+          "gzip_over_baseline": 1746361
+        }
+      ]
+    },
+    {
+      "variant": "release",
+      "target": "native",
+      "toolset": "clang-21",
+      "baseline": "baseline",
+      "programs": [
+        {
+          "program": "aes_block_ctaes",
+          "file": "executable",
+          "bytes": 51688,
+          "gzip": 6612,
+          "over_baseline": 18248,
+          "gzip_over_baseline": 5663
+        },
+        {
+          "program": "baseline",
+          "file": "executable",
+          "bytes": 33440,
+          "gzip": 949,
+          "over_baseline": 0,
+          "gzip_over_baseline": 0
+        },
+        {
+          "program": "chacha20_poly1305_bearssl",
+          "file": "executable",
+          "bytes": 51936,
+          "gzip": 8625,
+          "over_baseline": 18496,
+          "gzip_over_baseline": 7676
+        },
+        {
+          "program": "chacha20_poly1305_original_sodium",
+          "file": "executable",
+          "bytes": 86600,
+          "gzip": 24504,
+          "over_baseline": 53160,
+          "gzip_over_baseline": 23555
+        },
+        {
+          "program": "chacha20_poly1305_sodium",
+          "file": "executable",
+          "bytes": 86608,
+          "gzip": 24561,
+          "over_baseline": 53168,
+          "gzip_over_baseline": 23612
+        },
+        {
+          "program": "ed25519_sodium",
+          "file": "executable",
+          "bytes": 137688,
+          "gzip": 67425,
+          "over_baseline": 104248,
+          "gzip_over_baseline": 66476
+        },
+        {
+          "program": "gcm_bearssl",
+          "file": "executable",
+          "bytes": 52352,
+          "gzip": 11056,
+          "over_baseline": 18912,
+          "gzip_over_baseline": 10107
+        },
+        {
+          "program": "secp256k1_secp256k1",
+          "file": "executable",
+          "bytes": 118616,
+          "gzip": 59016,
+          "over_baseline": 85176,
+          "gzip_over_baseline": 58067
+        },
+        {
+          "program": "x25519_sodium",
+          "file": "executable",
+          "bytes": 135992,
+          "gzip": 60557,
+          "over_baseline": 102552,
+          "gzip_over_baseline": 59608
+        },
+        {
+          "program": "xchacha20_poly1305_sodium",
+          "file": "executable",
+          "bytes": 86640,
+          "gzip": 24927,
+          "over_baseline": 53200,
+          "gzip_over_baseline": 23978
+        }
+      ]
+    },
+    {
+      "variant": "release",
+      "target": "wasip2",
+      "toolset": "clang-wasip2",
+      "baseline": "baseline",
+      "programs": [
+        {
+          "program": "aes_block_openssl",
+          "file": "wasm",
+          "bytes": 2324079,
+          "gzip": 777551,
+          "over_baseline": 2292163,
+          "gzip_over_baseline": 766289
+        },
+        {
+          "program": "baseline",
+          "file": "wasm",
+          "bytes": 31916,
+          "gzip": 11262,
+          "over_baseline": 0,
+          "gzip_over_baseline": 0
+        },
+        {
+          "program": "chacha20_poly1305_openssl",
+          "file": "wasm",
+          "bytes": 2324891,
+          "gzip": 778078,
+          "over_baseline": 2292975,
+          "gzip_over_baseline": 766816
+        },
+        {
+          "program": "gcm_openssl",
+          "file": "wasm",
+          "bytes": 2325522,
+          "gzip": 778435,
+          "over_baseline": 2293606,
+          "gzip_over_baseline": 767173
+        }
+      ]
+    },
+    {
+      "variant": "release",
+      "target": "wasip2",
+      "toolset": "clang-wasip2",
+      "baseline": "baseline",
+      "programs": [
+        {
+          "program": "aes_block_ctaes",
+          "file": "wasm",
+          "bytes": 71115,
+          "gzip": 26681,
+          "over_baseline": 39199,
+          "gzip_over_baseline": 15419
+        },
+        {
+          "program": "baseline",
+          "file": "wasm",
+          "bytes": 31916,
+          "gzip": 11262,
+          "over_baseline": 0,
+          "gzip_over_baseline": 0
+        },
+        {
+          "program": "chacha20_poly1305_bearssl",
+          "file": "wasm",
+          "bytes": 74285,
+          "gzip": 28084,
+          "over_baseline": 42369,
+          "gzip_over_baseline": 16822
+        },
+        {
+          "program": "chacha20_poly1305_original_sodium",
+          "file": "wasm",
+          "bytes": 77530,
+          "gzip": 28974,
+          "over_baseline": 45614,
+          "gzip_over_baseline": 17712
+        },
+        {
+          "program": "chacha20_poly1305_sodium",
+          "file": "wasm",
+          "bytes": 77607,
+          "gzip": 29005,
+          "over_baseline": 45691,
+          "gzip_over_baseline": 17743
+        },
+        {
+          "program": "ed25519_sodium",
+          "file": "wasm",
+          "bytes": 138927,
+          "gzip": 68884,
+          "over_baseline": 107011,
+          "gzip_over_baseline": 57622
+        },
+        {
+          "program": "gcm_bearssl",
+          "file": "wasm",
+          "bytes": 81511,
+          "gzip": 30233,
+          "over_baseline": 49595,
+          "gzip_over_baseline": 18971
+        },
+        {
+          "program": "secp256k1_secp256k1",
+          "file": "wasm",
+          "bytes": 179803,
+          "gzip": 79507,
+          "over_baseline": 147887,
+          "gzip_over_baseline": 68245
+        },
+        {
+          "program": "x25519_sodium",
+          "file": "wasm",
+          "bytes": 122630,
+          "gzip": 62230,
+          "over_baseline": 90714,
+          "gzip_over_baseline": 50968
+        },
+        {
+          "program": "xchacha20_poly1305_sodium",
+          "file": "wasm",
+          "bytes": 78348,
+          "gzip": 29327,
+          "over_baseline": 46432,
+          "gzip_over_baseline": 18065
+        }
+      ]
+    },
+    {
+      "variant": "release",
+      "target": "wasip3",
+      "toolset": "clang-wasip3",
+      "baseline": "baseline",
+      "programs": [
+        {
+          "program": "aes_block_openssl",
+          "file": "wasm",
+          "bytes": 2338568,
+          "gzip": 781944,
+          "over_baseline": 2298051,
+          "gzip_over_baseline": 767716
+        },
+        {
+          "program": "baseline",
+          "file": "wasm",
+          "bytes": 40517,
+          "gzip": 14228,
+          "over_baseline": 0,
+          "gzip_over_baseline": 0
+        },
+        {
+          "program": "chacha20_poly1305_openssl",
+          "file": "wasm",
+          "bytes": 2339404,
+          "gzip": 782276,
+          "over_baseline": 2298887,
+          "gzip_over_baseline": 768048
+        },
+        {
+          "program": "gcm_openssl",
+          "file": "wasm",
+          "bytes": 2340035,
+          "gzip": 782560,
+          "over_baseline": 2299518,
+          "gzip_over_baseline": 768332
+        }
+      ]
+    },
+    {
+      "variant": "release",
+      "target": "wasip3",
+      "toolset": "clang-wasip3",
+      "baseline": "baseline",
+      "programs": [
+        {
+          "program": "aes_block_ctaes",
+          "file": "wasm",
+          "bytes": 80753,
+          "gzip": 29669,
+          "over_baseline": 40236,
+          "gzip_over_baseline": 15441
+        },
+        {
+          "program": "baseline",
+          "file": "wasm",
+          "bytes": 40517,
+          "gzip": 14228,
+          "over_baseline": 0,
+          "gzip_over_baseline": 0
+        },
+        {
+          "program": "chacha20_poly1305_bearssl",
+          "file": "wasm",
+          "bytes": 83949,
+          "gzip": 31105,
+          "over_baseline": 43432,
+          "gzip_over_baseline": 16877
+        },
+        {
+          "program": "chacha20_poly1305_original_sodium",
+          "file": "wasm",
+          "bytes": 87377,
+          "gzip": 32061,
+          "over_baseline": 46860,
+          "gzip_over_baseline": 17833
+        },
+        {
+          "program": "chacha20_poly1305_sodium",
+          "file": "wasm",
+          "bytes": 87454,
+          "gzip": 32102,
+          "over_baseline": 46937,
+          "gzip_over_baseline": 17874
+        },
+        {
+          "program": "ed25519_sodium",
+          "file": "wasm",
+          "bytes": 149055,
+          "gzip": 72200,
+          "over_baseline": 108538,
+          "gzip_over_baseline": 57972
+        },
+        {
+          "program": "gcm_bearssl",
+          "file": "wasm",
+          "bytes": 91172,
+          "gzip": 33182,
+          "over_baseline": 50655,
+          "gzip_over_baseline": 18954
+        },
+        {
+          "program": "secp256k1_secp256k1",
+          "file": "wasm",
+          "bytes": 191189,
+          "gzip": 83250,
+          "over_baseline": 150672,
+          "gzip_over_baseline": 69022
+        },
+        {
+          "program": "x25519_sodium",
+          "file": "wasm",
+          "bytes": 132482,
+          "gzip": 65716,
+          "over_baseline": 91965,
+          "gzip_over_baseline": 51488
+        },
+        {
+          "program": "xchacha20_poly1305_sodium",
+          "file": "wasm",
+          "bytes": 88196,
+          "gzip": 32429,
+          "over_baseline": 47679,
+          "gzip_over_baseline": 18201
+        }
+      ]
+    }
+  ],
+  "digest": "d1a9b4bc12e6971510d4c119917121d30a346d723372284552c22c57b88a127a"
+}

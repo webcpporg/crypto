@@ -254,6 +254,11 @@ build-project constant_time ;
 # A backend named and not called adds no byte (webcpp.same-program).
 build-project unused ;
 
+# A program per cell of the capability table, linked here and sized in the own
+# lane sizes; and the throughput program's correctness test.
+build-project sizes ;
+build-project ../bench ;
+
 # The backend OpenSSL: the source-built OpenSSL 3.5.9 on native, wasip2 and
 # wasip3 (Task 11); Emscripten has none.
 crypto-run gcm_openssl : gcm_openssl_test.cpp : <library>/webcpp/crypto//openssl

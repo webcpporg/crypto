@@ -13,7 +13,10 @@ writers whose output a reader of the page sees (inline code that holds a `+` or 
 failing fixture's output per target, a comparison table's names of code, the decision table's
 Jamfile column, the table of Ed25519's edge cases), and the capability table's: its checks of
 crypto.json's families, the refusals and cells of include/webcpp/crypto/detail/capabilities.hpp, the
-cells test/capabilities_test.cpp asserts, and the comparison --check makes.
+cells test/capabilities_test.cpp asserts, and the comparison --check makes; and the size matrix's:
+what each cell adds to the baseline per target, read from the lane sizes' tables (generate.py
+--sizes), "not measured yet" where the lane has not built it, and the refusal of a table not built
+at release, of a program measured twice or of no cell, and of doc/tables/sizes.json edited by hand.
 generate.py --check proves only that the committed tables are what generate.py writes now: a reader
 that regresses and is regenerated in the same change would pass it, and fails here.
 
@@ -735,6 +738,90 @@ def test_the_check_names_a_file_that_differs(scratch: Path) -> None:
         generate.stale(files))
 
 
+def lane_table(target: str, sizes: dict[str, int], variant: str = 'release',
+               files: tuple[str, ...] = ()) -> generate.Data:
+    """A table the lane sizes writes (webcpp.program-sizes) on target, of the programs given with
+    their bytes over the baseline, in the files given, else the target's own file."""
+    kinds = files or (('executable',) if target == 'native' else ('wasm',))
+    rows = [{'program': name, 'file': kind, 'bytes': 1000 + extra, 'gzip': 500 + extra // 2,
+             'over_baseline': extra, 'gzip_over_baseline': extra // 2}
+            for name, extra in sizes.items() for kind in kinds]
+    return {'variant': variant, 'target': target, 'toolset': f'clang-{target}',
+            'baseline': 'baseline', 'programs': rows}
+
+
+def sized_table() -> generate.Data:
+    """small_table's Ed25519 with the operation its lane programs measure."""
+    data = small_table()
+    data['families'][0]['measured'] = 'signature of a 32-byte message'
+    return data
+
+
+def test_the_size_matrix_reads_the_lane_s_tables(_: Path) -> None:
+    sizes = generate.imported([lane_table('native', {'baseline': 0, 'ed25519_sodium': 2048}),
+                               lane_table('emscripten', {'baseline': 0, 'ed25519_sodium': 4096},
+                                          files=('js', 'wasm'))], '2026-11-18')
+    page = generate.sizes_page(sized_table(), sizes)
+    # A cell is what its program adds to the baseline, raw and gzip -9n; on emscripten its .wasm
+    # and .js together; a cell the lane has not built is not measured yet.
+    assert ('|Ed25519 on libsodium: signature of a 32-byte message\n'
+            '|+2,048 B, gzip +1,024 B\n'
+            '|not measured yet\n'
+            '|not measured yet\n'
+            '|+8,192 B, gzip +4,096 B\n') in page, page
+    assert ('|The baseline, a program that prints a line\n'
+            '|1,000 B, gzip 500 B\n'
+            '|not measured yet\n'
+            '|not measured yet\n'
+            '|2,000 B, gzip 1,000 B\n') in page, page
+    assert 'measured on 2026-11-18' in page and 'clang-native' in page, page
+
+
+def test_a_cell_the_backend_does_not_have_says_so(_: Path) -> None:
+    data = sized_table()
+    data['families'][0]['backends']['sodium'] = {'targets': ['native']}
+    sizes = generate.imported([lane_table('native', {'baseline': 0, 'ed25519_sodium': 1})],
+                              '2026-11-18')
+    page = generate.sizes_page(data, sizes)
+    assert ('|+1 B, gzip +0 B\n'
+            '|not on this target\n'
+            '|not on this target\n'
+            '|not on this target\n') in page, page
+
+
+def a_sizes_fault(wanted: str, tables: list[generate.Data],
+                  data: Optional[generate.Data] = None) -> None:
+    """Checks that importing tables, or rendering them on data, is refused saying wanted."""
+    try:
+        generate.sizes_page(data or sized_table(), generate.imported(tables, '2026-11-18'))
+    except generate.Fault as fault:
+        assert wanted in str(fault), fault
+    else:
+        raise AssertionError(f'no fault saying {wanted}')
+
+
+def test_a_size_table_not_built_at_release_is_refused(_: Path) -> None:
+    a_sizes_fault('a size table is built only from release builds, not variant=debug',
+                  [lane_table('native', {'baseline': 0}, variant='debug')])
+    a_sizes_fault('measure ed25519_sodium on native twice',
+                  [lane_table('native', {'baseline': 0, 'ed25519_sodium': 1}),
+                   lane_table('native', {'baseline': 0, 'ed25519_sodium': 2})])
+    a_sizes_fault('measures gcm_bearssl, which is no cell of crypto.json\'s families',
+                  [lane_table('native', {'baseline': 0, 'gcm_bearssl': 1})])
+
+
+def test_sizes_edited_by_hand_are_a_fault(_: Path) -> None:
+    sizes = generate.imported([lane_table('native', {'baseline': 0, 'ed25519_sodium': 1})],
+                              '2026-11-18')
+    sizes['tables'][0]['programs'][1]['over_baseline'] = 0
+    try:
+        generate.sizes_page(sized_table(), sizes)
+    except generate.Fault as fault:
+        assert 'doc/tables/sizes.json is not what generate.py --sizes wrote' in str(fault), fault
+    else:
+        raise AssertionError('a size edited by hand was taken')
+
+
 CASES: list[Callable[[Path], None]] = [
     test_a_rule_body_declares_nothing,
     test_a_program_inside_an_if_is_a_fault,
@@ -770,6 +857,10 @@ CASES: list[Callable[[Path], None]] = [
     test_a_type_names_only_crypto_s_namespaces_from_the_root,
     test_the_check_prints_each_file_that_differs,
     test_the_check_names_a_file_that_differs,
+    test_the_size_matrix_reads_the_lane_s_tables,
+    test_a_cell_the_backend_does_not_have_says_so,
+    test_a_size_table_not_built_at_release_is_refused,
+    test_sizes_edited_by_hand_are_a_fault,
 ]
 
 

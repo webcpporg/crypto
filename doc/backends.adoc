@@ -112,10 +112,17 @@ internal branch, which webcpp cannot mark: OpenSSL is checked with the key
 secret during `seal` only.
 
 [#crypto-backends-sizes]
-=== Size and speed
+=== Size
 
-What each operation adds to a program, per target, and how fast it runs, are
-not measured in this version. Until they are,
-the table says so rather than repeat numbers no lane of this version measured.
+What each cell of the capability table adds to a program, per target: a
+program per family and backend calls the family's fixed operation once
+(`test/sizes/`), and its size is read against a baseline that prints a line and
+calls nothing of crypto. The own lane `sizes` measures them from release builds
+alone (`variant=release`, the superproject's `webcpp.program-sizes`), and the
+table is generated from what it wrote; a cell it has not built says so. Like
+the throughput below, it is a dated reference that decides nothing: a family's
+default is chosen by the reason <<crypto-backends-defaults>> states.
 
 include::generated/sizes.adoc[]
+
+include::performance.adoc[]

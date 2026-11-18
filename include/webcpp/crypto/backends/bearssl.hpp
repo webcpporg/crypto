@@ -327,8 +327,9 @@ struct aead_engine<families::chacha20_poly1305, backends::bearssl> {
     }
 
     /**
-     * Encrypts `data_bytes` in place and writes the tag. BearSSL reads the nonce and the
-     * additional data before it writes a byte of the data.
+     * Encrypts `data_bytes` in place and writes the tag. BearSSL reads the nonce before it
+     * writes a byte of the data, and the additional data after it encrypts (`aead` forbids
+     * their overlap).
      *
      * @param engine_state A keyed state.
      * @param iv_bytes 12 bytes.

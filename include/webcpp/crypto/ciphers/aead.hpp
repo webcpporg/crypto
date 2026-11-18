@@ -307,8 +307,9 @@ public:
      * The nonce is read before the first byte of `data_bytes` is written, so it may lie in
      * `data_bytes`. The additional data may touch `data_bytes`, as a wire format that puts it
      * just before the message does, but not overlap it: BearSSL's ChaCha20-Poly1305 reads it
-     * after it encrypts, in one call over the whole message, and an overlap would give a tag
-     * that no open accepts.
+     * after it encrypts, in one call over the whole message, so an overlap would authenticate
+     * other bytes than the caller's additional data; the backends would give different tags,
+     * and an open with the original additional data would fail.
      *
      * @param iv_bytes The nonce, `iv_size` bytes, never repeated under this key.
      * @param additional_data_bytes Authenticated, not encrypted.

@@ -86,7 +86,7 @@ void runs_elsewhere_and_completes_on_the_caller() {
             completed = true;
         }));
     // The completion keeps the caller's io_context busy: run returns after it, not before.
-    caller.run();
+    caller.run();  // lint-run: that run waits for the tracked work is what this test proves
     pool.join();
     BOOST_TEST(completed);
     BOOST_TEST(timer_fired_meanwhile);
@@ -104,7 +104,7 @@ void move_only_result() {
         boost::asio::bind_executor(caller.get_executor(), [&received](std::unique_ptr<int> result) {
             received = std::move(result);
         }));
-    caller.run();
+    caller.run();  // lint-run: waits for the pool's thread to post the completion
     pool.join();
     BOOST_TEST(received != nullptr);
     if (received) {
@@ -119,7 +119,7 @@ void heavy_operation_with_any_token() {
     auto operation = async_slow(pool.get_executor(), 41, boost::asio::deferred);
     std::move(operation)(boost::asio::bind_executor(
         caller.get_executor(), [&received](int result) { received = result; }));
-    caller.run();
+    caller.run();  // lint-run: waits for the pool's thread to post the completion
     pool.join();
     BOOST_TEST_EQ(received, 42);
 }

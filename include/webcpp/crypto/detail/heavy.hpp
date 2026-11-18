@@ -28,12 +28,12 @@
 #include <utility>
 
 #ifdef WEBCPP_CRYPTO_HAS_THREADS
-#include <boost/asio/associated_executor.hpp>
-#include <boost/asio/async_result.hpp>
-#include <boost/asio/dispatch.hpp>
-#include <boost/asio/execution/outstanding_work.hpp>
-#include <boost/asio/post.hpp>
-#include <boost/asio/prefer.hpp>
+#include <boost/asio/associated_executor.hpp>         // lint-world: async_ variants (D23)
+#include <boost/asio/async_result.hpp>                // lint-world: async_ variants (D23)
+#include <boost/asio/dispatch.hpp>                    // lint-world: async_ variants (D23)
+#include <boost/asio/execution/outstanding_work.hpp>  // lint-world: async_ variants (D23)
+#include <boost/asio/post.hpp>                        // lint-world: async_ variants (D23)
+#include <boost/asio/prefer.hpp>                      // lint-world: async_ variants (D23)
 #endif
 
 namespace webcpp::crypto::detail {
@@ -77,18 +77,17 @@ auto run_heavy(Executor executor, Function function, CompletionToken&& token) {
     static_assert(std::is_nothrow_invocable_v<Function&>,
                   "webcpp::crypto: a heavy operation's call reports its errors as values");
     using result_type = std::invoke_result_t<Function&>;
-    auto initiation = [](auto handler, Executor work_executor, Function call) {
+    auto initiation = [](auto handler, Executor const& work_executor, Function call) {
         auto completion_executor =
             boost::asio::prefer(boost::asio::get_associated_executor(handler, work_executor),
-                                boost::asio::execution::outstanding_work.tracked);
+                                boost::asio::execution::outstanding_work_t::tracked);
         boost::asio::post(
             work_executor, [handler = std::move(handler), call = std::move(call),
                             completion_executor = std::move(completion_executor)]() mutable {
-                auto result = call();
-                boost::asio::dispatch(completion_executor, [handler = std::move(handler),
-                                                            result = std::move(result)]() mutable {
-                    std::move(handler)(std::move(result));
-                });
+                boost::asio::dispatch(completion_executor,
+                                      [handler = std::move(handler), result = call()]() mutable {
+                                          std::move(handler)(std::move(result));
+                                      });
             });
     };
     return boost::asio::async_initiate<CompletionToken, void(result_type)>(

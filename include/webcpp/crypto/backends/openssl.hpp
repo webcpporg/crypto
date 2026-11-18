@@ -553,6 +553,12 @@ struct aead_state<families::chacha20_poly1305, backends::openssl> {
  * sends are the AEAD ones, which OpenSSL 3 names twice (`EVP_CTRL_GCM_SET_IVLEN` is
  * `EVP_CTRL_AEAD_SET_IVLEN`, and so are the tag's, include/openssl/evp.h). The error queue is
  * left as GCM's engine leaves it.
+ *
+ * GCM's `check` holds for ChaCha20-Poly1305's provider too: its final compares the tags with
+ * `CRYPTO_memcmp`, in constant time, and raises nothing on a mismatch
+ * (providers/implementations/ciphers/cipher_chacha20_poly1305_hw.c). Its tag length starts at 0
+ * (the context is zero-allocated), and a final with no tag set would compare 0 bytes and accept
+ * any tag: the 16-byte tag `check` sets before each final is what makes the comparison.
  */
 template <>
 struct aead_engine<families::chacha20_poly1305, backends::openssl> {
@@ -629,6 +635,8 @@ struct aead_engine<families::chacha20_poly1305, backends::openssl> {
         if (!ran) {
             return ran;
         }
+        // GCM's check sets the 16-byte tag before the final, without which the provider would
+        // compare 0 bytes (see the class's comment).
         return sequence::check(view, tag_bytes);
     }
 

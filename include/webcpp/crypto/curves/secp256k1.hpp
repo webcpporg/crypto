@@ -408,13 +408,16 @@ enum class point_form {
 };
 
 /**
- * The size of a point in `Form`: 33 or 65.
+ * The size of a point in `Form`: 33 for the compressed form, 65 for the uncompressed one.
  *
  * @tparam Form The SEC1 form.
  */
 template <point_form Form>
-inline constexpr std::size_t point_size =
-    Form == point_form::compressed ? std::size_t{33} : std::size_t{65};
+inline constexpr std::size_t point_size = 33;
+
+/** The size of an uncompressed point: 65. */
+template <>
+inline constexpr std::size_t point_size<point_form::uncompressed> = 65;
 
 /** The size of a recoverable signature: r, s, then the recovery id. */
 inline constexpr std::size_t recoverable_signature_size = 65;

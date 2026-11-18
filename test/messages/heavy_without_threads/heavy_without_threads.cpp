@@ -7,7 +7,8 @@
 // A heavy operation's async_ variant called in a build without threads (natively with
 // WEBCPP_CRYPTO_NO_THREADS; on WASI always) stops where it is called, with the synchronous
 // operation to call instead (design D23). The operation is a test's own, declared as every heavy
-// operation declares its variant.
+// operation declares its variant. The refusal is the first error; detail::run_heavy's stand-in
+// adds its own after it (test/heavy_refusal_forgotten_test.cpp states that one).
 
 // clang-format off
 // expected-error@*:* {{webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.}}

@@ -88,6 +88,11 @@ webcpp.compile threads_config_wasm : threads_config_test.cpp : : wasip2 wasip3 e
 # A heavy operation's async_ variant with threads: detail::run_heavy runs the
 # work on a thread_pool and completes on the caller's io_context.
 crypto-run heavy : heavy_test.cpp : <threading>multi : native ;
+# Without threads (WEBCPP_CRYPTO_NO_THREADS natively; WASI has none), a heavy
+# operation's async_ variant that forgets its refusal stops at
+# detail::run_heavy's stand-in, which names the refusal, and with that alone.
+webcpp.compile-diagnostic heavy_refusal_forgotten : heavy_refusal_forgotten_test.cpp
+  : <define>WEBCPP_CRYPTO_NO_THREADS : native wasip2 wasip3 : alone ;
 
 crypto-run error : error_test.cpp ;
 crypto-run equal : equal_test.cpp ;

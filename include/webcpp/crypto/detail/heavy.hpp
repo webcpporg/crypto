@@ -40,7 +40,8 @@ namespace webcpp::crypto::detail {
 
 /**
  The refusal of a heavy operation's `async_` variant in a build without threads (design D23).
- Each such variant's body starts with it, so that a program fails only where it calls one.
+ Each such variant's body starts with it, so that a program fails only where it calls one,
+ with this error first; a variant that forgets it stops at `run_heavy`'s stand-in instead.
  The variant's completion token is its parameter `token`.
 */
 #ifdef WEBCPP_CRYPTO_HAS_THREADS
@@ -97,12 +98,18 @@ auto run_heavy(Executor executor, Function function, CompletionToken&& token) {
 #else
 
 /**
- * Without threads, a stand-in that does nothing: a refused variant's body compiles past its
- * refusal, which has stopped the build already, without errors of its own.
+ * Without threads, a stand-in that is never meant to compile: a variant that starts with its
+ * refusal stops there first, and one that forgets `WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS` stops
+ * here, rather than compile into a call that never runs the work nor calls the handler.
  */
 template <class Executor, class Function, class CompletionToken>
 void run_heavy(Executor&& /*executor*/, Function&& /*function*/,
-               CompletionToken&& /*token*/) noexcept {}
+               CompletionToken&& /*token*/) noexcept {
+    static_assert(::webcpp::crypto::detail::dependent_false<CompletionToken>,
+                  "webcpp::crypto: a heavy operation's async_ variant starts with "
+                  "WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS, which stops a build without threads "
+                  "where the program calls it; this one does not.");
+}
 
 #endif
 

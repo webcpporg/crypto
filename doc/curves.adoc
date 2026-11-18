@@ -31,6 +31,8 @@ another form, with the conversion of an Ed25519 key to it
 (link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748]; <<crypto-x25519>>). A
 program chooses a curve for compatibility: a signature on one curve is checked
 only with that curve, and the curve of passkeys and TLS certificates, P-256, is
-another, which this version does not offer.
+another, which this version does not offer. Ed25519's and X25519's keys leave a
+program, and enter it, in the standard forms OpenSSL and WebCrypto use, SPKI
+and PKCS#8, as DER or PEM text (<<crypto-key-formats>>).
 
 include::generated/namespace-curves.adoc[]

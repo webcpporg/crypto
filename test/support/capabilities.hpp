@@ -12,6 +12,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <type_traits>
 
 namespace webcpp::test {
@@ -30,8 +31,9 @@ constexpr std::size_t key_size_of() {
  * Makes an algorithm, through the type a program names, from a key whose bytes are all 1, or,
  * for one made of a secret key and a peer's public key (a box), from that key twice, or, for
  * one keyed by no key of its own (Ed25519ph's signer), begins it, or, for sealed boxes, seals
- * an empty message to that key as a public key, or, for one of free functions alone (X25519),
- * gives that key's public key: a cell the capability
+ * an empty message to that key as a public key, or, for PEM, armours that key as a public key's
+ * DER, or, for one of free functions alone (X25519), gives that key's public key: a cell the
+ * capability
  * table marks present whose engine is missing fails to compile here. The type names its family
  * and its algorithm as the table does, and `supports_v` says that the backend has it.
  *
@@ -39,7 +41,7 @@ constexpr std::size_t key_size_of() {
  * @tparam Family Its family's tag.
  * @tparam Name Its algorithm's tag.
  * @tparam Backend Its backend.
- * @return Whether `make`, `begin`, `seal` or `public_key` succeeded.
+ * @return Whether `make`, `begin`, `seal`, `armour` or `public_key` succeeded.
  */
 template <class Algorithm, class Family, class Name, class Backend>
 [[nodiscard]] bool made() {
@@ -57,6 +59,9 @@ template <class Algorithm, class Family, class Name, class Backend>
     } else if constexpr (requires { Algorithm::overhead; }) {
         std::array<std::uint8_t, Algorithm::overhead> sealed{};
         return Algorithm::seal(key_bytes, {}, sealed).has_value();
+    } else if constexpr (requires { Algorithm::armour("", key_bytes, std::span<char>{}); }) {
+        std::array<char, 128> text{};
+        return Algorithm::armour("PUBLIC KEY", key_bytes, text).has_value();
     } else {
         return Algorithm::public_key(key_bytes).has_value();
     }

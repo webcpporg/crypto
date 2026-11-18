@@ -183,6 +183,22 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_linked/openssl_linked.outcome[tag=output]
 ----
 
+`+pem_default+`:: RFC 8410's Ed25519 public key read from PEM and armoured again to the same text on PEM's default on every target, with the one line `+/webcpp/crypto//pem-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/pem_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/pem_default/pem_default.outcome[tag=output]
+----
+
 `+sealed_box_default+`:: A message sealed to Bob's public key and opened with his key pair on the default on every target, with the one line `+/webcpp/crypto//sealed_box-default+`, which links libsodium.
 +
 Its Jamfile, built and run on native, wasip2, wasip3, emscripten:

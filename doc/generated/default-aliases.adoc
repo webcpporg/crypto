@@ -31,6 +31,11 @@
 |`+/third_party//sodium+` on every target
 |<<crypto-jamfile-cases,`+x25519_default+`>>
 
+|`+/webcpp/crypto//pem-default+`
+|PEM
+|`+/third_party//sodium+` on every target
+|<<crypto-jamfile-cases,`+pem_default+`>>
+
 |`+/webcpp/crypto//chacha20_poly1305-default+`
 |ChaCha20-Poly1305
 |`+/third_party//sodium+` on every target

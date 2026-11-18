@@ -7,18 +7,22 @@
 // On libsodium nothing allocates: make, seal and open of the three ChaCha20-Poly1305 AEADs and
 // of the two secret boxes, a failed open included; Ed25519's key pair, signature, strict
 // verification, Ed25519ph and the conversion to X25519; X25519's public key and agreement, a
-// refused one included; the two boxes' make, seal and open, a refused peer key and a failed open
-// included; and the sealed boxes' seal and open, a failed open included, make no call of
-// operator new, nor of the C library's allocator where the target lets a program count it; a
-// control proves the counter moves. Each later family on libsodium adds its calls here.
+// refused one included; RFC 8410's SPKI and PKCS#8 of both curves and their PEM, both ways; the
+// two boxes' make, seal and open, a refused peer key and a failed open included; and the sealed
+// boxes' seal and open, a failed open included, make no call of operator new, nor of the C
+// library's allocator where the target lets a program count it; a control proves the counter
+// moves. Each later family on libsodium adds its calls here.
 
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/curves/ed25519/formats.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
+#include <webcpp/crypto/curves/x25519/formats.hpp>
 #include <webcpp/crypto/hybrid/box.hpp>
 #include <webcpp/crypto/hybrid/sealed_box.hpp>
+#include <webcpp/crypto/pem.hpp>
 #include <webcpp/hash/algorithms.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -32,6 +36,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <span>
+#include <string_view>
 #include <utility>
 
 namespace {
@@ -205,6 +210,44 @@ void expect_no_allocation_sealed_box() {
     BOOST_TEST_EQ(webcpp::test::allocations(), before);
 }
 
+/**
+ * Encodes and decodes an Ed25519 key pair's and an X25519 key's SPKI and PKCS#8, armours each as
+ * PEM and reads it back, and refuses a PKCS#8 of the other curve: none of it allocates.
+ */
+void expect_no_allocation_formats() {
+    namespace ed25519 = crypto::curves::ed25519;
+    namespace x25519 = crypto::curves::x25519;
+    namespace pem = crypto::pem;
+    std::array<std::uint8_t, 32> key{};
+    key.fill(11);
+    std::size_t const before = webcpp::test::allocations();
+    {
+        auto const pair = ed25519::basic_keypair<crypto::backends::sodium>::make(key);
+        BOOST_TEST(pair.has_value());
+        std::array<std::uint8_t, ed25519::max_pkcs8_size> pkcs8{};
+        BOOST_TEST(ed25519::encode_pkcs8(*pair, pkcs8).has_value());
+        BOOST_TEST(ed25519::decode_pkcs8<crypto::backends::sodium>(pkcs8).has_value());
+        std::array<std::uint8_t, ed25519::max_spki_size> spki{};
+        BOOST_TEST(ed25519::encode_spki<crypto::backends::sodium>(key, spki).has_value());
+        BOOST_TEST(ed25519::decode_spki<crypto::backends::sodium>(spki).has_value());
+        BOOST_TEST(x25519::encode_pkcs8<crypto::backends::sodium>(key, pkcs8).has_value());
+        BOOST_TEST(x25519::decode_pkcs8<crypto::backends::sodium>(pkcs8).has_value());
+        BOOST_TEST(ed25519::decode_pkcs8<crypto::backends::sodium>(pkcs8).error() ==
+                   crypto::error::invalid_encoding);
+        BOOST_TEST(x25519::encode_spki<crypto::backends::sodium>(key, spki).has_value());
+        BOOST_TEST(x25519::decode_spki<crypto::backends::sodium>(spki).has_value());
+        std::array<char, pem::armoured_size(11, ed25519::max_pkcs8_size)> text{};
+        auto const written =
+            pem::armour<crypto::backends::sodium>(pem::private_key_label, pkcs8, text);
+        BOOST_TEST(written.has_value());
+        std::array<std::uint8_t, ed25519::max_pkcs8_size> again{};
+        BOOST_TEST(pem::unarmour<crypto::backends::sodium>(
+                       pem::private_key_label, std::string_view(text.data(), text.size()), again)
+                       .has_value());
+    }
+    BOOST_TEST_EQ(webcpp::test::allocations(), before);
+}
+
 }  // namespace
 
 int main() {
@@ -232,5 +275,6 @@ int main() {
     expect_no_allocation_box<crypto::hybrid::basic_box<crypto::families::box_xchacha20poly1305,
                                                        crypto::backends::sodium>>();
     expect_no_allocation_sealed_box();
+    expect_no_allocation_formats();
     return webcpp::test::exit_status(boost::report_errors());
 }

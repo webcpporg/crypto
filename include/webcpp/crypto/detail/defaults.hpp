@@ -74,6 +74,14 @@ struct default_backend_of<families::x25519> {
     /** `backends::sodium`. */
     using type = backends::sodium;
 };
+/** Defined where libsodium is the default of PEM. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_PEM_SODIUM 1
+/** The default of PEM on native, wasip2, wasip3, emscripten: libsodium. */
+template <>
+struct default_backend_of<families::pem> {
+    /** `backends::sodium`. */
+    using type = backends::sodium;
+};
 /** Defined where libsodium is the default of ChaCha20-Poly1305. */
 #define WEBCPP_CRYPTO_DETAIL_DEFAULT_CHACHA20_POLY1305_SODIUM 1
 /** The default of ChaCha20-Poly1305 on native, wasip2, wasip3, emscripten: libsodium. */

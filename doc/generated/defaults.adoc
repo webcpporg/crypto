@@ -59,6 +59,12 @@
 |the only backend in this version, on every target; it refuses an all-zero shared secret itself (link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748, Elliptic Curves for Security (X25519 and X448)])
 |`+x25519_sodium+`, `+default_backend_none_linked+`
 
+|PEM
+|native, wasip2, wasip3, emscripten
+|libsodium
+|the only backend in this version, on every target; its base64 runs in a time that does not depend on the bytes, a private key's in a PKCS#8 (link:https://doc.libsodium.org/helpers#base64-encoding-decoding[libsodium's documentation, helpers: base64 encoding and decoding])
+|`+formats_25519_sodium+`, `+default_backend_none_linked+`
+
 |ChaCha20-Poly1305
 |native, wasip2, wasip3, emscripten
 |libsodium

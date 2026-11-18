@@ -116,6 +116,21 @@
 |native, wasip2, wasip3, emscripten
 |`+x25519_sodium+`, `+x25519_wycheproof_sodium+`, `+oracle_25519+`
 
+|`+curves::ed25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+formats_25519_webcrypto_oracle+`, `+allocation_sodium+`
+
+|`+curves::x25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+formats_25519_webcrypto_oracle+`, `+allocation_sodium+`
+
+|`+pem::armour+`, `+pem::unarmour+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+allocation_sodium+`
+
 |`+ciphers::chacha20_poly1305+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
@@ -269,6 +284,24 @@ The same, by target: the backends each operation runs on.
 |libsodium
 
 |`+curves::x25519::agree+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::ed25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::x25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+pem::armour+`, `+pem::unarmour+`
 |libsodium
 |libsodium
 |libsodium

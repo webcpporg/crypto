@@ -74,6 +74,14 @@ static_assert(std::is_same_v<crypto::default_backend_t<families::x25519>, backen
 static_assert(crypto::detail::supported<families::x25519, families::x25519,
                                         crypto::default_backend_t<families::x25519>>);
 
+// PEM: libsodium, the only backend, on every target.
+static_assert(std::is_same_v<crypto::default_backend_t<families::pem>, backends::sodium>);
+#ifndef WEBCPP_CRYPTO_DETAIL_DEFAULT_PEM_SODIUM
+#error "pem.hpp is told to include another header than libsodium's"
+#endif
+static_assert(crypto::detail::supported<families::pem, families::pem,
+                                        crypto::default_backend_t<families::pem>>);
+
 // The three ChaCha20-Poly1305 AEADs: libsodium, the only backend, on every target (the owner's
 // answer Q4).
 static_assert(

@@ -58,6 +58,13 @@ struct ed25519ph_state {};
 template <class Name, class Backend>
 struct ed25519ph_engine;
 
+/**
+ * What reads a key pair's state for its PKCS#8, `curves::ed25519::encode_pkcs8`
+ * (`curves/ed25519/formats.hpp` defines it).
+ */
+template <class Backend>
+struct ed25519_keypair_access;
+
 }  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::curves::ed25519 {
@@ -78,6 +85,8 @@ class basic_keypair {
 
     template <class, class>
     friend class ph;
+    template <class>
+    friend struct detail::ed25519_keypair_access;
 
 public:
     /** The family, for `supports_v`. */

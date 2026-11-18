@@ -107,6 +107,22 @@
 |not measured yet
 |not measured yet
 
+|`+curves::ed25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|`+curves::x25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
 |`+ciphers::chacha20_poly1305+`
 |not measured yet
 |not measured yet

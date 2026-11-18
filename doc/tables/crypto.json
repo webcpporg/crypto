@@ -83,7 +83,12 @@
         "xsalsa20": ["D. J. Bernstein, Extending the Salsa20 nonce, 2008", "https://cr.yp.to/snuffle/xsalsa-20081128.pdf"],
         "libsodium-secretbox": ["libsodium's documentation, secret-key authenticated encryption", "https://doc.libsodium.org/secret-key_cryptography/secretbox"],
         "libsodium-box": ["libsodium's documentation, public-key authenticated encryption", "https://doc.libsodium.org/public-key_cryptography/authenticated_encryption"],
-        "libsodium-sealed": ["libsodium's documentation, sealed boxes", "https://doc.libsodium.org/public-key_cryptography/sealed_boxes"]
+        "libsodium-sealed": ["libsodium's documentation, sealed boxes", "https://doc.libsodium.org/public-key_cryptography/sealed_boxes"],
+        "libsodium-base64": ["libsodium's documentation, helpers: base64 encoding and decoding", "https://doc.libsodium.org/helpers#base64-encoding-decoding"],
+        "rfc8410": ["RFC 8410, algorithm identifiers for Ed25519, Ed448, X25519 and X448", "https://www.rfc-editor.org/rfc/rfc8410"],
+        "rfc5958": ["RFC 5958, asymmetric key packages (PKCS#8's OneAsymmetricKey)", "https://www.rfc-editor.org/rfc/rfc5958"],
+        "rfc7468": ["RFC 7468, textual encodings of PKIX, PKCS and CMS structures (PEM)", "https://www.rfc-editor.org/rfc/rfc7468"],
+        "webcrypto-ed25519": ["W3C Web Cryptography API, Ed25519 and X25519 with the spki and pkcs8 formats", "https://www.w3.org/TR/webcrypto-2/#ed25519"]
     },
     "backends": {
         "bearssl": {
@@ -369,6 +374,42 @@
             "backends": {"sodium": {"tests": ["x25519_sodium", "x25519_wycheproof_sodium", "oracle_25519"]}}
         },
         {
+            "id": "ed25519_formats",
+            "family": "ed25519",
+            "free": true,
+            "functions": ["encode_spki", "decode_spki", "encode_pkcs8", "decode_pkcs8"],
+            "namespace": "curves",
+            "api": "curves::ed25519::encode_spki, decode_spki, encode_pkcs8, decode_pkcs8",
+            "header": "<webcpp/crypto/curves/ed25519/formats.hpp>",
+            "what": "RFC 8410's SPKI of an Ed25519 public key (44 bytes) and PKCS#8 of a key pair (version 1, the seed alone, 48 bytes), the forms OpenSSL and WebCrypto write, decoded strictly: any other bytes are `invalid_encoding`.",
+            "section": "crypto-key-formats",
+            "backends": {"sodium": {"tests": ["formats_25519_sodium", "formats_25519_openssl_oracle", "formats_25519_webcrypto_oracle", "allocation_sodium"]}}
+        },
+        {
+            "id": "x25519_formats",
+            "family": "x25519",
+            "free": true,
+            "functions": ["encode_spki", "decode_spki", "encode_pkcs8", "decode_pkcs8"],
+            "namespace": "curves",
+            "api": "curves::x25519::encode_spki, decode_spki, encode_pkcs8, decode_pkcs8",
+            "header": "<webcpp/crypto/curves/x25519/formats.hpp>",
+            "what": "RFC 8410's SPKI of an X25519 public key (44 bytes) and PKCS#8 of a secret key (version 1, 48 bytes), the forms OpenSSL and WebCrypto write, decoded strictly into a `secret<32>`: any other bytes are `invalid_encoding`.",
+            "section": "crypto-key-formats",
+            "backends": {"sodium": {"tests": ["formats_25519_sodium", "formats_25519_openssl_oracle", "formats_25519_webcrypto_oracle", "allocation_sodium"]}}
+        },
+        {
+            "id": "pem",
+            "family": "pem",
+            "free": true,
+            "functions": ["armour", "unarmour", "armoured_size"],
+            "namespace": "root",
+            "api": "pem::armour, pem::unarmour",
+            "header": "<webcpp/crypto/pem.hpp>",
+            "what": "PEM (RFC 7468): DER as base64 between `-----BEGIN <label>-----` and `-----END <label>-----`, lines of 64 characters and line feeds, as OpenSSL writes it; read strictly, so that any other text is `invalid_encoding`.",
+            "section": "crypto-key-formats",
+            "backends": {"sodium": {"tests": ["formats_25519_sodium", "formats_25519_openssl_oracle", "allocation_sodium"]}}
+        },
+        {
             "id": "chacha20_poly1305",
             "family": "chacha20_poly1305",
             "functions": ["make", "seal", "open"],
@@ -567,6 +608,22 @@
             }
         },
         {
+            "name": "pem",
+            "title": "PEM",
+            "group": "pem",
+            "since": "0.2",
+            "header": "<webcpp/crypto/pem.hpp>",
+            "names": [
+                {"name": "pem", "title": "PEM", "type": "pem::algorithm<{backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["formats_25519_sodium", "default_backend_none_linked"], "why": "the only backend in this version, on every target; its base64 runs in a time that does not depend on the bytes, a private key's in a PKCS#8 ({libsodium-base64})"}
+            ],
+            "backends": {
+                "sodium": {"targets": "all"}
+            }
+        },
+        {
             "name": "chacha20_poly1305",
             "title": "ChaCha20-Poly1305",
             "group": "ciphers",
@@ -733,6 +790,7 @@
                 ["`random_device`", "Keys, IVs, tokens, nonces: every secret a program draws", "`<webcpp/crypto/random_device.hpp>`", "`entropy_unavailable`, `errc::not_supported`", "{getentropy}, {bcryptgenrandom}, {getrandomvalues}, {wasi-random}", "you need a random number an attacker must not predict; never `std::mt19937` or `rand` ({cwe338})"],
                 ["`equal`", "Checking a tag, a MAC or a token", "`<webcpp/crypto/equal.hpp>`", "none: it returns `bool`", "{cwe208}", "you compare anything secret; never `==` or `memcmp` on a MAC"],
                 ["`error`", "Telling failures apart", "`<webcpp/crypto/error.hpp>`", "its values are the errors", "none", "you branch on a failure: forged data, a wrong size, no entropy"],
+                ["`pem`", "A key's SPKI or PKCS#8 as text, to paste, store or exchange with OpenSSL", "`<webcpp/crypto/pem.hpp>`", "`invalid_encoding`, `invalid_input_size`", "{rfc7468}, {libsodium-base64}", "a key goes to or comes from a file, a form or a tool as `-----BEGIN PUBLIC KEY-----` text; with the `encode_spki` and `encode_pkcs8` of `curves::ed25519` or `curves::x25519`"],
                 ["`openssl_memory_resource`", "Keeping every allocation of OpenSSL's in the program's own resource, natively", "`<webcpp/crypto/backends/openssl.hpp>`", "`memory_functions_refused`, `memory_functions_not_installed`", "{openssl-mem}", "a native program on OpenSSL must allocate only from its own arena; on WebAssembly, BearSSL allocates nothing"]
             ]
         },
@@ -783,6 +841,7 @@
         {"need": "Hash, or compute an HMAC", "namespace": "Boost.Hash2, not this library", "api": "`boost::hash2::sha2_256`, `hmac_sha2_256`", "backend": "none", "jamfile": "`/webcpp/crypto//crypto` brings Boost's headers", "example": "equal_hmac", "section": "crypto-overview-hash2"},
         {"need": "Sign and verify with Ed25519 (RFC 8032), or sign a large message in pieces with Ed25519ph", "namespace": "webcpp::crypto::curves::ed25519", "api": "`keypair::make`, `keypair::generate`, `keypair::sign`, `verify`; `ph<webcpp::hash::sha2_512>`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default", "example": "ed25519_sign", "section": "crypto-ed25519"},
         {"need": "Agree a shared secret with a peer's public key (X25519, RFC 7748), or with the X25519 form of an Ed25519 key", "namespace": "webcpp::crypto::curves::x25519", "api": "`public_key`, `agree`; `curves::ed25519::to_x25519_public`, `curves::ed25519::keypair::x25519_secret`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//x25519-default", "example": "x25519_agree", "section": "crypto-x25519"},
+        {"need": "Export or import an Ed25519 or X25519 key in the standard forms OpenSSL and WebCrypto use: SPKI and PKCS#8 (RFC 8410), as DER or PEM text", "namespace": "webcpp::crypto::curves::ed25519, webcpp::crypto::curves::x25519, webcpp::crypto::pem", "api": "`encode_spki`, `decode_spki`, `encode_pkcs8`, `decode_pkcs8`; `pem::armour`, `pem::unarmour`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default /webcpp/crypto//pem-default", "example": "key_formats", "section": "crypto-key-formats"},
         {"need": "Encrypt a record or a file under one secret key, each with a random nonce, in libsodium's secret-box format", "namespace": "webcpp::crypto::ciphers", "api": "`secretbox<>`, `secretbox_xchacha20poly1305<>`: `make`, `seal`, `open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default", "example": "", "section": "crypto-secretbox"},
         {"need": "Send messages between two people who know each other's public keys, as NaCl's and libsodium's crypto_box", "namespace": "webcpp::crypto::hybrid", "api": "`box::make`, `box::seal`, `box::open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//box_xsalsa20poly1305-default", "example": "", "section": "crypto-box"},
         {"need": "Let anyone send a message that only the recipient can read, without saying who sent it (anonymous feedback, a drop box)", "namespace": "webcpp::crypto::hybrid", "api": "`sealed_box::seal`, `sealed_box::open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//sealed_box-default", "example": "", "section": "crypto-sealed-box"},
@@ -799,6 +858,7 @@
         "secp256k1_default": "BIP 340's first test vector, signed and verified on secp256k1's default on every target, with the one line `/webcpp/crypto//secp256k1-default`, which links libsecp256k1.",
         "ed25519_default": "RFC 8032's first Ed25519 test, signed and verified on Ed25519's default on every target, with the one line `/webcpp/crypto//ed25519-default`, which links libsodium.",
         "x25519_default": "RFC 7748's shared secret on X25519's default on every target, with the one line `/webcpp/crypto//x25519-default`, which links libsodium.",
+        "pem_default": "RFC 8410's Ed25519 public key read from PEM and armoured again to the same text on PEM's default on every target, with the one line `/webcpp/crypto//pem-default`, which links libsodium.",
         "chacha20_poly1305_default": "RFC 8439's ChaCha20-Poly1305 example, sealed and opened on its default on every target, with the one line `/webcpp/crypto//chacha20_poly1305-default`, which links libsodium.",
         "chacha20_poly1305_original_default": "libsodium's case of the original ChaCha20-Poly1305, sealed and opened on its default on every target, with the one line `/webcpp/crypto//chacha20_poly1305_original-default`, which links libsodium.",
         "xchacha20_poly1305_default": "The XChaCha20-Poly1305 draft's example, sealed and opened on its default on every target, with the one line `/webcpp/crypto//xchacha20_poly1305-default`, which links libsodium.",

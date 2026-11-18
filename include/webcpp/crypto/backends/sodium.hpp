@@ -785,3 +785,241 @@ struct sealed_box_engine<families::sealed_box, backends::sodium> {
 }  // namespace webcpp::crypto::detail
 
 #endif  // sealed boxes on libsodium
+// RFC 8410's key formats on libsodium, for a program that includes curves/ed25519/formats.hpp or
+// curves/x25519/formats.hpp, before this header or after it, as Ed25519's above: each defines
+// its macro ..._FORMATS_DECLARED once its declarations are, then includes this header. RFC 8410
+// fixes the layout around the 32 key bytes, so libsodium's engine writes and compares its
+// prefixes, constants rather than cryptography (design D30).
+#if (defined(WEBCPP_CRYPTO_DETAIL_ED25519_FORMATS_DECLARED) || \
+     defined(WEBCPP_CRYPTO_DETAIL_X25519_FORMATS_DECLARED)) && \
+    defined(WEBCPP_CRYPTO_HAS_SODIUM) && !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_RFC8410)
+/** Defined once libsodium's RFC 8410 layouts are. */
+#define WEBCPP_CRYPTO_BACKENDS_SODIUM_RFC8410
+
+#include <webcpp/crypto/equal.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+
+namespace webcpp::crypto::detail {
+
+/**
+ * RFC 8410's fixed layouts on libsodium: a prefix, then 32 key bytes. A decoding is accepted
+ * only where its prefix is the one encoding the key gives, compared with `equal`, and its size
+ * the one size (the callers check it), which is design D30's re-encoding test for a fixed layout.
+ */
+struct sodium_rfc8410 {
+    /**
+     * Writes the prefix, then the key.
+     *
+     * @param prefix The format's prefix.
+     * @param key 32 bytes.
+     * @param out The prefix's size and 32 bytes.
+     */
+    template <std::size_t PrefixSize>
+    static void encode(std::array<std::uint8_t, PrefixSize> const& prefix,
+                       std::span<std::uint8_t const, 32> key,
+                       std::span<std::uint8_t, PrefixSize + 32> out) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        std::ranges::copy(key, std::ranges::copy(prefix, out.begin()).out);
+    }
+
+    /**
+     * Copies the key out of an encoding whose prefix is the format's.
+     *
+     * @param prefix The format's prefix.
+     * @param der The prefix's size and 32 bytes.
+     * @param key 32 bytes, written only when the prefix is the format's.
+     * @return Nothing; `invalid_encoding`.
+     */
+    template <std::size_t PrefixSize>
+    [[nodiscard]] static boost::system::result<void> decode(
+        std::array<std::uint8_t, PrefixSize> const& prefix,
+        std::span<std::uint8_t const, PrefixSize + 32> der,
+        std::span<std::uint8_t, 32> key) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        if (!equal(der.template first<PrefixSize>(), prefix)) {
+            return error::invalid_encoding;
+        }
+        std::ranges::copy(der.template last<32>(), key.begin());
+        return {};
+    }
+};
+
+}  // namespace webcpp::crypto::detail
+
+#endif  // RFC 8410 on libsodium
+
+#if defined(WEBCPP_CRYPTO_DETAIL_ED25519_FORMATS_DECLARED) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+    !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_ED25519_FORMATS)
+/** Defined once libsodium's Ed25519 formats engine is. */
+#define WEBCPP_CRYPTO_BACKENDS_SODIUM_ED25519_FORMATS
+
+namespace webcpp::crypto::detail {
+
+/** Ed25519's SPKI and PKCS#8 on libsodium: RFC 8410's prefixes around the key bytes. */
+template <>
+struct ed25519_formats_engine<families::ed25519, backends::sodium> {
+    /** Writes the SPKI. */
+    static void encode_spki(std::span<std::uint8_t const, 32> public_key,
+                            std::span<std::uint8_t, 44> out) noexcept {
+        sodium_rfc8410::encode(ed25519_spki_prefix, public_key, out);
+    }
+
+    /**
+     * Reads the public key of an SPKI.
+     *
+     * @return Nothing; `invalid_encoding`.
+     */
+    [[nodiscard]] static boost::system::result<void> decode_spki(
+        std::span<std::uint8_t const, 44> spki, std::span<std::uint8_t, 32> public_key) noexcept {
+        return sodium_rfc8410::decode(ed25519_spki_prefix, spki, public_key);
+    }
+
+    /** Writes the PKCS#8 of the seed, the first half of libsodium's secret key. */
+    static void encode_pkcs8(ed25519_state<families::ed25519, backends::sodium> const& keyed,
+                             std::span<std::uint8_t, 48> out) noexcept {
+        sodium_rfc8410::encode(ed25519_pkcs8_prefix,
+                               std::span<std::uint8_t const>(keyed.secret_key).first<32>(), out);
+    }
+
+    /**
+     * Reads the seed of a PKCS#8.
+     *
+     * @return Nothing; `invalid_encoding`.
+     */
+    [[nodiscard]] static boost::system::result<void> decode_pkcs8(
+        std::span<std::uint8_t const, 48> pkcs8, std::span<std::uint8_t, 32> seed) noexcept {
+        return sodium_rfc8410::decode(ed25519_pkcs8_prefix, pkcs8, seed);
+    }
+};
+
+}  // namespace webcpp::crypto::detail
+
+#endif  // Ed25519's formats on libsodium
+
+#if defined(WEBCPP_CRYPTO_DETAIL_X25519_FORMATS_DECLARED) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+    !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_X25519_FORMATS)
+/** Defined once libsodium's X25519 formats engine is. */
+#define WEBCPP_CRYPTO_BACKENDS_SODIUM_X25519_FORMATS
+
+namespace webcpp::crypto::detail {
+
+/** X25519's SPKI and PKCS#8 on libsodium: RFC 8410's prefixes around the key bytes. */
+template <>
+struct x25519_formats_engine<families::x25519, backends::sodium> {
+    /** Writes the SPKI. */
+    static void encode_spki(std::span<std::uint8_t const, 32> public_key,
+                            std::span<std::uint8_t, 44> out) noexcept {
+        sodium_rfc8410::encode(x25519_spki_prefix, public_key, out);
+    }
+
+    /**
+     * Reads the public key of an SPKI.
+     *
+     * @return Nothing; `invalid_encoding`.
+     */
+    [[nodiscard]] static boost::system::result<void> decode_spki(
+        std::span<std::uint8_t const, 44> spki, std::span<std::uint8_t, 32> public_key) noexcept {
+        return sodium_rfc8410::decode(x25519_spki_prefix, spki, public_key);
+    }
+
+    /** Writes the PKCS#8 of a secret key. */
+    static void encode_pkcs8(std::span<std::uint8_t const, 32> secret_key,
+                             std::span<std::uint8_t, 48> out) noexcept {
+        sodium_rfc8410::encode(x25519_pkcs8_prefix, secret_key, out);
+    }
+
+    /**
+     * Reads the secret key of a PKCS#8.
+     *
+     * @return Nothing; `invalid_encoding`.
+     */
+    [[nodiscard]] static boost::system::result<void> decode_pkcs8(
+        std::span<std::uint8_t const, 48> pkcs8, std::span<std::uint8_t, 32> secret_key) noexcept {
+        return sodium_rfc8410::decode(x25519_pkcs8_prefix, pkcs8, secret_key);
+    }
+};
+
+}  // namespace webcpp::crypto::detail
+
+#endif  // X25519's formats on libsodium
+
+// PEM's base64 on libsodium, for a program that includes pem.hpp, before this header or after
+// it, as Ed25519's above.
+#if defined(WEBCPP_CRYPTO_PEM_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+    !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_PEM)
+/** Defined once libsodium's PEM engine is. */
+#define WEBCPP_CRYPTO_BACKENDS_SODIUM_PEM
+
+#include <webcpp/crypto/detail/wipe.hpp>
+
+#include <sodium/utils.h>
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <string_view>
+
+namespace webcpp::crypto::detail {
+
+/**
+ * PEM's base64 on libsodium: `sodium_bin2base64` and `sodium_base642bin` with the original
+ * alphabet and padding (`sodium_base64_VARIANT_ORIGINAL`), whose time does not depend on the
+ * bytes, a private key's in a PKCS#8.
+ */
+template <>
+struct pem_engine<families::pem, backends::sodium> {
+    /**
+     * Initialises libsodium.
+     *
+     * @return Nothing; `backend_failure`.
+     */
+    [[nodiscard]] static boost::system::result<void> ready() noexcept { return sodium_ready(); }
+
+    /**
+     * The base64 of at most 48 bytes, with padding.
+     *
+     * @param bytes 1 to 48 bytes.
+     * @param out Exactly the base64's characters, four per three bytes begun.
+     */
+    static void encode(std::span<std::uint8_t const> bytes, std::span<char> out) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        // libsodium ends the text with a NUL, which out does not hold.
+        std::array<char, sodium_base64_ENCODED_LEN(48, sodium_base64_VARIANT_ORIGINAL)> text{};
+        static_cast<void>(sodium_bin2base64(text.data(), text.size(), bytes.data(), bytes.size(),
+                                            sodium_base64_VARIANT_ORIGINAL));
+        std::ranges::copy(std::span<char const>(text).first(out.size()), out.begin());
+        wipe_object(text);
+    }
+
+    /**
+     * The bytes of at most 64 characters of base64 with padding.
+     *
+     * @param text 1 to 64 characters.
+     * @param out 48 bytes, of which the decoded are written.
+     * @return The bytes' count; `invalid_encoding` for a character outside the alphabet, padding
+     * missing or misplaced, or characters left over.
+     */
+    [[nodiscard]] static boost::system::result<std::size_t> decode(
+        std::string_view text, std::span<std::uint8_t, 48> out) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        std::size_t written = 0;
+        char const* end = nullptr;
+        if (sodium_base642bin(out.data(), out.size(), text.data(), text.size(), nullptr, &written,
+                              &end, sodium_base64_VARIANT_ORIGINAL) != 0 ||
+            end != text.data() + text.size()) {
+            return error::invalid_encoding;
+        }
+        return written;
+    }
+};
+
+}  // namespace webcpp::crypto::detail
+
+#endif  // PEM on libsodium

@@ -79,3 +79,9 @@ webcpp.example ed25519_sign.cpp : <library>/webcpp/crypto//ed25519-default ;
 # Ed25519 key pairs through their X25519 forms, and a peer of low order
 # refused, on the family's default.
 webcpp.example x25519_agree.cpp : <library>/webcpp/crypto//x25519-default ;
+
+# The guide's key formats program: RFC 8410's Ed25519 key pair read from PEM,
+# its public key written as PEM and a signature; an X25519 public key's SPKI;
+# and the RFC's PKCS#8 version 2 refused, on the families' defaults.
+webcpp.example key_formats.cpp : <library>/webcpp/crypto//ed25519-default
+  <library>/webcpp/crypto//x25519-default <library>/webcpp/crypto//pem-default ;

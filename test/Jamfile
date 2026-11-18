@@ -34,7 +34,7 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/detail/windows.hpp crypto/detail/wipe.hpp crypto/secret.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
   crypto/detail/heavy.hpp crypto/ciphers/aead.hpp crypto/ciphers/chacha20_poly1305.hpp
-  crypto/ciphers/secretbox.hpp ;
+  crypto/ciphers/secretbox.hpp crypto/pem.hpp ;
 
 # The backend BearSSL's header and the default backend's, with BearSSL linked,
 # on every target.
@@ -53,10 +53,12 @@ webcpp.headers-alone crypto : ../include : crypto/backends/openssl.hpp
 # The backend ctaes's header alone, with ctaes linked, on every target.
 webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp
   : <library>/third_party//ctaes ;
-# The backend libsodium's header alone, and Ed25519's, X25519's, the boxes' and
-# the sealed boxes' with it, with libsodium linked, on every target.
+# The backend libsodium's header alone, and Ed25519's, X25519's, their key
+# formats', the boxes' and the sealed boxes' with it, with libsodium linked, on
+# every target (PEM's compiles alone without it, in the first list).
 webcpp.headers-alone crypto : ../include
   : crypto/backends/sodium.hpp crypto/curves/ed25519.hpp crypto/curves/x25519.hpp
+    crypto/curves/ed25519/formats.hpp crypto/curves/x25519/formats.hpp
     crypto/hybrid/box.hpp crypto/hybrid/sealed_box.hpp
   : <library>/third_party//sodium ;
 # libsecp256k1's headers compile alone only with its library, which defines
@@ -339,6 +341,20 @@ crypto-run oracle_25519_corrupted : oracle_25519_test.cpp
   : <library>/third_party//sodium <linkflags>-sJSPI
     <define>WEBCPP_TEST_CRYPTO_ORACLE_CORRUPTED : emscripten ;
 
+# RFC 8410's SPKI and PKCS#8 for Ed25519 and X25519, and PEM, on libsodium
+# (design D30): RFC 8410's own keys, round trips of random keys, every
+# malformed input refused with invalid_encoding and nothing written. OpenSSL's
+# i2d_PUBKEY, i2d_PrivateKey and PEM writers as an outside oracle on native,
+# wasip2 and wasip3 (linked in the test alone), and node's WebCrypto importKey
+# and exportKey on Emscripten (the JSPI link, for EM_ASYNC_JS): 200 seeded
+# cases per curve each.
+crypto-run formats_25519_sodium : formats_25519_sodium_test.cpp
+  : <library>/third_party//sodium ;
+crypto-run formats_25519_openssl_oracle : formats_25519_openssl_oracle_test.cpp
+  : <library>/third_party//sodium <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
+crypto-run formats_25519_webcrypto_oracle : formats_25519_webcrypto_oracle_test.cpp
+  : <library>/third_party//sodium <linkflags>-sJSPI : emscripten ;
+
 # The ChaCha20-Poly1305 AEADs on libsodium, their default on every target: each
 # family's known answers and every check of support/aead_checks.hpp, natively
 # the message's limit too; Wycheproof's vectors of ChaCha20-Poly1305 and
@@ -470,6 +486,9 @@ webcpp.compile doc_ed25519_default_app
 webcpp.compile doc_x25519_default_app
   : ../../../tools/test/fixtures/crypto_jamfiles/x25519_default/app.cpp
   : <library>/webcpp/crypto//x25519-default ;
+webcpp.compile doc_pem_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/pem_default/app.cpp
+  : <library>/webcpp/crypto//pem-default ;
 webcpp.compile doc_chacha20_poly1305_default_app
   : ../../../tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_default/app.cpp
   : <library>/webcpp/crypto//chacha20_poly1305-default ;

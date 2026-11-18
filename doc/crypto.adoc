@@ -60,6 +60,8 @@ include::ed25519.adoc[]
 
 include::x25519.adoc[]
 
+include::formats.adoc[]
+
 include::hybrid.adoc[]
 
 include::backends.adoc[]

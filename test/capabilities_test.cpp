@@ -22,6 +22,7 @@
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/hybrid/box.hpp>
 #include <webcpp/crypto/hybrid/sealed_box.hpp>
+#include <webcpp/crypto/pem.hpp>
 #include <webcpp/crypto/supports.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -89,6 +90,12 @@ struct refuses_ed25519 {
 template <class Backend>
 struct refuses_x25519 {
     WEBCPP_CRYPTO_DETAIL_REFUSE_X25519(Backend);
+};
+
+/** The refusals of PEM, parsed: nothing instantiates it. */
+template <class Backend>
+struct refuses_pem {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_PEM(Backend);
 };
 
 /** The refusals of ChaCha20-Poly1305, parsed: nothing instantiates it. */
@@ -281,6 +288,20 @@ static_assert(crypto::supports_v<algorithm<families::x25519, families::x25519>, 
 #else
 static_assert(!crypto::supports_v<algorithm<families::x25519, families::x25519>, backends::sodium>);
 #endif
+// PEM on bearssl: none.
+static_assert(!crypto::supports_v<algorithm<families::pem, families::pem>, backends::bearssl>);
+// PEM on openssl: none.
+static_assert(!crypto::supports_v<algorithm<families::pem, families::pem>, backends::openssl>);
+// PEM on ctaes: none.
+static_assert(!crypto::supports_v<algorithm<families::pem, families::pem>, backends::ctaes>);
+// PEM on secp256k1: none.
+static_assert(!crypto::supports_v<algorithm<families::pem, families::pem>, backends::secp256k1>);
+// PEM on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::pem, families::pem>, backends::sodium>);
+#else
+static_assert(!crypto::supports_v<algorithm<families::pem, families::pem>, backends::sodium>);
+#endif
 // ChaCha20-Poly1305 on bearssl: native, wasip2, wasip3, emscripten.
 #if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
 static_assert(crypto::supports_v<algorithm<families::chacha20_poly1305, families::chacha20_poly1305>, backends::bearssl>);
@@ -452,6 +473,9 @@ int main() {
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
     BOOST_TEST((webcpp::test::made<crypto::curves::x25519::algorithm<backends::sodium>, families::x25519, families::x25519, backends::sodium>()));
+#endif
+#if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
+    BOOST_TEST((webcpp::test::made<crypto::pem::algorithm<backends::sodium>, families::pem, families::pem, backends::sodium>()));
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_BEARSSL)
     BOOST_TEST((webcpp::test::made<crypto::ciphers::chacha20_poly1305<backends::bearssl>, families::chacha20_poly1305, families::chacha20_poly1305, backends::bearssl>()));

@@ -111,6 +111,14 @@ traced. dudect's statistics
 BearSSL's two AEADs' seal and open, ctaes, `equal`, and libsodium's X25519
 agreement and Ed25519 signing natively, on Linux and macOS, and under wasmtime.
 
+One measurement is an open finding, listed under the table: under wasmtime 47
+on an Apple M5, from a release build, dudect times libsodium's X25519 `agree`
+at |t| 13 to 32 against the threshold 10 (a fixed key against another fixed
+key: 22.9), where the native builds pass at |t| 2 to 4. No branch on a secret
+was found in the WebAssembly or in wasmtime's compiled code, and the cause is
+not known. The lane prints that value on wasip2 without judging it, and judges
+everything else; the CI's x86-64 run measures it next.
+
 Whether a tag matched, or a shared secret came out all zero, is public by
 design, since the operation reports it, but it is computed from the secrets: it
 is the one kind of value webcpp marks public, where webcpp's code first

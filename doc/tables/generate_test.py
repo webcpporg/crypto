@@ -11,7 +11,8 @@ name declared twice), a backend's reason for the targets an operation misses (Op
 outcome reader (each directive and section), the Doc Comment reader (a line reference left out), the
 writers whose output a reader of the page sees (inline code that holds a `+` or a backtick, a
 failing fixture's output per target, a comparison table's names of code, the decision table's
-Jamfile column, the table of Ed25519's edge cases), and the capability table's: its checks of
+Jamfile column, the table of Ed25519's edge cases, a family's measured constant time per target),
+and the capability table's: its checks of
 crypto.json's families, the refusals and cells of include/webcpp/crypto/detail/capabilities.hpp, the
 cells test/capabilities_test.cpp asserts, and the comparison --check makes; and the size matrix's:
 what each cell adds to the baseline per target, read from the lane sizes' tables (generate.py
@@ -869,6 +870,17 @@ def test_a_backend_s_size_note_is_written_under_the_table(_: Path) -> None:
     assert page.endswith('|===\n\nlibsodium: libsodium is one library.\n'), page
 
 
+def test_a_family_s_measured_constant_time_is_written_per_target(_: Path) -> None:
+    data = small_table()
+    data['families'][0]['backends']['sodium']['constant_time'] = {
+        'wasip2': 'measured over the threshold ({rfc8032})'}
+    notes = generate.constant_time_notes(data)
+    assert notes == ('\nMeasured where a family differs from its backend\'s design:\n\n'
+                     '* Ed25519 on libsodium, wasip2: measured over the threshold '
+                     '(link:https://example.org[RFC 8032])\n'), notes
+    assert generate.constant_time_notes(small_table()) == '', 'no entry, no list'
+
+
 CASES: list[Callable[[Path], None]] = [
     test_a_rule_body_declares_nothing,
     test_a_program_inside_an_if_is_a_fault,
@@ -911,6 +923,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_named_operation_is_a_row_under_its_cell,
     test_what_the_size_matrix_cannot_read_is_a_fault,
     test_a_backend_s_size_note_is_written_under_the_table,
+    test_a_family_s_measured_constant_time_is_written_per_target,
 ]
 
 

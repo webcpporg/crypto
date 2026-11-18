@@ -1066,6 +1066,22 @@ def defaults_page(data: Data) -> str:
                  'cols="2,2,2,6,3",')
 
 
+def constant_time_notes(data: Data) -> str:
+    """What a family's backend measured on a target where it differs from the backend's design,
+    crypto.json's per-target `constant_time` of a family, as a list after the table; nothing
+    where no family states one."""
+    notes: List[str] = []
+    for family in data['families']:
+        for backend, entry in family['backends'].items():
+            for target, why in entry.get('constant_time', {}).items():
+                notes.append(f"* {family['title']} on {data['backends'][backend]['title']}, "
+                             f'{target}: {marked(cite(data, why))}')
+    if not notes:
+        return ''
+    return ("\nMeasured where a family differs from its backend's design:\n\n"
+            + '\n'.join(notes) + '\n')
+
+
 def constant_time_page(data: Data) -> str:
     """Constant time per backend: by its library's design, and measured per target."""
     rows: List[List[str]] = []
@@ -1075,7 +1091,7 @@ def constant_time_page(data: Data) -> str:
         rows.append([facts['title'], marked(cite(data, facts['constant_time'] + sources))]
                     + [NOT_MEASURED for _ in data['targets']])
     return table(['Backend', 'By design'] + [f'Measured, {target}' for target in data['targets']],
-                 rows)
+                 rows) + constant_time_notes(data)
 
 
 def digest_of(sizes: Data) -> str:

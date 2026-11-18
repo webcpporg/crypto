@@ -168,6 +168,9 @@ webcpp.run secp256k1_ctime_msan : $(SECP256K1_CTIME)
 webcpp.run dudect_bearssl : dudect_test.cpp
   : <library>/third_party//bearssl <library>/third_party//ctaes <variant>release
   : native wasip2 ;
+# On wasip2, X25519's agreement is measured and printed but not judged: an
+# open finding (doc/backends.adoc, the constant-time section; the program's
+# comment gives the numbers).
 webcpp.run dudect_sodium : dudect_sodium_test.cpp
   : <library>/third_party//sodium <variant>release : native wasip2 ;
 

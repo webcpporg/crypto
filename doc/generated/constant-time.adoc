@@ -39,3 +39,7 @@
 |not measured yet
 |not measured yet
 |===
+
+Measured where a family differs from its backend's design:
+
+* X25519 on libsodium, wasip2: an open finding, measured and not explained: dudect times `+agree+` with an all-zero secret key against random ones at |t| 13 to 32, against the threshold 10 (a fixed key against another fixed key: 22.9), under wasmtime 47 on an Apple M5, from a release build (2026-11-18), where the native builds pass (|t| 2 to 4); no branch on a secret was found in the WebAssembly or in wasmtime's compiled code, and the cause is unknown. The lane prints this value on wasip2 without judging it; the CI's x86-64 run measures it next

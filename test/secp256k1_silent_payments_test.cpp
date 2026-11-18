@@ -21,8 +21,10 @@
 // knows, one found without has none. Then a labelled address round trip, and every refusal:
 // no recipient, no input, outputs not one per recipient, no output key, no input key, a short
 // workspace, `found` shorter than the outputs, an output key that does not parse, a moved-from
-// key pair, a null pointer among the inputs; inputs of one kind only, the other side an emptied
-// vector whose data() is not null, run without abort. Every workspace is zero afterwards.
+// key pair, a null pointer among the inputs, a labelled spend key at infinity, the group limit
+// counted after a refusal (a sum of zero over two groups, a group over it); inputs of one kind
+// only, the other side an emptied vector whose data() is not null, run without abort. Every
+// workspace is zero afterwards.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
@@ -550,6 +552,11 @@ void labelled_round_trip() {
     broken.point[0] = 0x02;
     BOOST_TEST(sp::create_labeled_spend_key(spend_key, broken).error() ==
                crypto::error::invalid_point);
+    // A label whose point is the spend key negated: the sum is the point at infinity.
+    sp::label opposite = *other;
+    opposite.point = secp::serialize_public_key(secp::pubkey_negate(spend_key));
+    BOOST_TEST(sp::create_labeled_spend_key(spend_key, opposite).error() ==
+               crypto::error::invalid_public_key);
 }
 
 // The keys of the refusals: a sender with a plain and a Taproot input, and a recipient paid
@@ -717,8 +724,46 @@ void scan_refusals(refusal_keys& keys) {
     refused(moved, outputs, found, size, crypto::error::invalid_state);
 }
 
+// The group limit, counted by webcpp only after libsecp256k1 refuses: 2324 recipients in two
+// groups of 1162 with inputs that sum to zero stay invalid_secret_key (no group is over the
+// limit), and 2325 recipients whose one group of 2324 starts after another key's recipient are
+// invalid_input_size.
+void group_limits(refusal_keys& keys) {
+    auto const negated = secp::seckey_negate(key_bytes(1));
+    if (!BOOST_TEST(negated.has_value())) {
+        return;
+    }
+    auto const opposite = keypair_of(negated->bytes());
+    std::array<secp::keypair const*, 2> const zero_sum{&keys.sender, &opposite};
+    auto const other_scan = public_of(keys.second);
+    std::vector<sp::recipient> two_groups;
+    for (std::size_t index = 0; index < sp::group_limit + 1; ++index) {
+        two_groups.push_back(sp::recipient{
+            .scan_key = index % 2 == 0 ? public_of(keys.scan_key) : other_scan,
+            .spend_key = keys.spend_key,
+        });
+    }
+    std::vector<xonly> outputs(two_groups.size());
+    auto const size = sp::send_workspace_size(two_groups.size(), 0, 2);
+    BOOST_TEST(
+        sp::create_outputs(two_groups, keys.outpoint, {}, zero_sum, outputs, keys.fresh(size))
+            .error() == crypto::error::invalid_secret_key);
+    BOOST_TEST(all_zero(keys.space));
+    std::vector<sp::recipient> one_over{
+        sp::recipient{.scan_key = other_scan, .spend_key = keys.spend_key}};
+    one_over.insert(
+        one_over.end(), sp::group_limit + 1,
+        sp::recipient{.scan_key = public_of(keys.scan_key), .spend_key = keys.spend_key});
+    outputs.resize(one_over.size());
+    BOOST_TEST(sp::create_outputs(one_over, keys.outpoint, {}, keys.plain, outputs,
+                                  keys.fresh(sp::send_workspace_size(one_over.size(), 0, 1)))
+                   .error() == crypto::error::invalid_input_size);
+    BOOST_TEST(all_zero(keys.space));
+}
+
 void refusals() {
     refusal_keys keys;
+    group_limits(keys);
     send_refusals(keys);
     one_kind_of_input(keys);
     summary_refusals(keys);

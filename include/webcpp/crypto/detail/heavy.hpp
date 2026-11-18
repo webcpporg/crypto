@@ -28,12 +28,16 @@
 #include <utility>
 
 #ifdef WEBCPP_CRYPTO_HAS_THREADS
-#include <boost/asio/associated_executor.hpp>         // lint-world: async_ variants (D23)
-#include <boost/asio/async_result.hpp>                // lint-world: async_ variants (D23)
-#include <boost/asio/dispatch.hpp>                    // lint-world: async_ variants (D23)
-#include <boost/asio/execution/outstanding_work.hpp>  // lint-world: async_ variants (D23)
-#include <boost/asio/post.hpp>                        // lint-world: async_ variants (D23)
-#include <boost/asio/prefer.hpp>                      // lint-world: async_ variants (D23)
+#include <boost/asio/associated_allocator.hpp>          // lint-world: async_ variants (D23)
+#include <boost/asio/associated_cancellation_slot.hpp>  // lint-world: async_ variants (D23)
+#include <boost/asio/associated_executor.hpp>           // lint-world: async_ variants (D23)
+#include <boost/asio/async_result.hpp>                  // lint-world: async_ variants (D23)
+#include <boost/asio/bind_allocator.hpp>                // lint-world: async_ variants (D23)
+#include <boost/asio/bind_cancellation_slot.hpp>        // lint-world: async_ variants (D23)
+#include <boost/asio/dispatch.hpp>                      // lint-world: async_ variants (D23)
+#include <boost/asio/execution/outstanding_work.hpp>    // lint-world: async_ variants (D23)
+#include <boost/asio/post.hpp>                          // lint-world: async_ variants (D23)
+#include <boost/asio/prefer.hpp>                        // lint-world: async_ variants (D23)
 #endif
 
 namespace webcpp::crypto::detail {
@@ -58,11 +62,28 @@ namespace webcpp::crypto::detail {
 #ifdef WEBCPP_CRYPTO_HAS_THREADS
 
 /**
+ * `function` with a handler's associated allocator and cancellation slot, which asio reads
+ * from each function an operation posts or dispatches on its handler's behalf.
+ *
+ * @param allocator The handler's associated allocator.
+ * @param slot The handler's associated cancellation slot.
+ * @param function The function posted or dispatched.
+ * @return `function`, bound to both.
+ */
+template <class Allocator, class Slot, class Function>
+auto carrying(Allocator const& allocator, Slot const& slot, Function function) {
+    return boost::asio::bind_cancellation_slot(
+        slot, boost::asio::bind_allocator(allocator, std::move(function)));
+}
+
+/**
  * Runs a heavy operation's synchronous call on another thread: posts `function` to `executor`
  * (natively a `thread_pool`'s; on Emscripten a pool whose threads are Web Workers) and
  * dispatches its result to the handler's associated executor, which by default is `executor`.
  * The handler's executor is kept busy until then, so that an `io_context` the handler runs on
- * does not run out of work while the call runs elsewhere.
+ * does not run out of work while the call runs elsewhere. Both the posted and the dispatched
+ * functions carry the handler's associated allocator and cancellation slot, as asio asks of an
+ * operation's intermediate handlers; the call itself is never cancelled once posted.
  *
  * @tparam Executor The executor the call runs on.
  * @tparam Function A call without arguments that reports its errors as values, not by throwing.
@@ -82,14 +103,22 @@ auto run_heavy(Executor executor, Function function, CompletionToken&& token) {
         auto completion_executor =
             boost::asio::prefer(boost::asio::get_associated_executor(handler, work_executor),
                                 boost::asio::execution::outstanding_work_t::tracked);
+        auto allocator = boost::asio::get_associated_allocator(handler);
+        auto slot = boost::asio::get_associated_cancellation_slot(handler);
         boost::asio::post(
-            work_executor, [handler = std::move(handler), call = std::move(call),
-                            completion_executor = std::move(completion_executor)]() mutable {
-                boost::asio::dispatch(completion_executor,
-                                      [handler = std::move(handler), result = call()]() mutable {
-                                          std::move(handler)(std::move(result));
-                                      });
-            });
+            work_executor,
+            carrying(
+                allocator, slot,
+                [handler = std::move(handler), call = std::move(call),
+                 completion_executor = std::move(completion_executor), allocator, slot]() mutable {
+                    auto result = call();
+                    boost::asio::dispatch(completion_executor,
+                                          carrying(allocator, slot,
+                                                   [handler = std::move(handler),
+                                                    result = std::move(result)]() mutable {
+                                                       std::move(handler)(std::move(result));
+                                                   }));
+                }));
     };
     return boost::asio::async_initiate<CompletionToken, void(result_type)>(
         std::move(initiation), token, std::move(executor), std::move(function));

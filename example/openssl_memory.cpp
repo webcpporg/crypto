@@ -56,17 +56,18 @@ int main() {
         std::array<std::uint8_t, 16> data{};
         {
             auto aead = crypto::ciphers::aes256_gcm::make(key);
-            if (!aead) {
+            if (aead) {
+                auto const tag = aead->seal(iv, {}, data);
+                ok =
+                    tag && aead->open(iv, {}, data, *tag) && data == std::array<std::uint8_t, 16>{};
+            } else {
                 std::string const message = aead.error().message();
                 std::printf("make: %s\n", message.c_str());
-                return;
             }
-            auto const tag = aead->seal(iv, {}, data);
-            ok = tag && aead->open(iv, {}, data, *tag) && data == std::array<std::uint8_t, 16>{};
         }
         // tag::thread[]
-        // The thread's last call into OpenSSL: it gives the thread's own blocks back to the
-        // resource now. On Windows, whose static libcrypto is never told that a thread ends,
+        // The thread's last call into OpenSSL, on every path: it gives the thread's own blocks back
+        // to the resource now. On Windows, whose static libcrypto is never told that a thread ends,
         // they would otherwise stay in the resource until the process ends.
         OPENSSL_thread_stop();
         // end::thread[]

@@ -103,3 +103,8 @@ print fixed signatures.
 * A signature proves who signed the bytes, not when or for what: a protocol
 that must refuse a replayed message signs a counter, a time or a context with
 it.
+
+Parts of this section, libsodium's rules of strict verification, are adapted
+from libsodium's documentation
+(link:https://github.com/jedisct1/libsodium-doc/tree/6d1ea27b79b853b2a04f09ae9e1a8231c90e3b56[jedisct1/libsodium-doc]
+at `6d1ea27`, ISC, `LICENSE-LIBSODIUM-DOC.txt`).

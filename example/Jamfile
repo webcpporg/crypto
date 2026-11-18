@@ -91,3 +91,20 @@ webcpp.example key_formats.cpp : <library>/webcpp/crypto//ed25519-default
 # ChaCha20-Poly1305, and a peer of low order is refused, on the defaults.
 webcpp.example kx_session.cpp : <library>/webcpp/crypto//kx-default
   <library>/webcpp/crypto//chacha20_poly1305-default ;
+
+# A chat app's messages under one conversation key, each with a random nonce,
+# on XChaCha20-Poly1305's default.
+webcpp.example xchacha_seal.cpp
+  : <library>/webcpp/crypto//xchacha20_poly1305-default ;
+
+# A file-sharing app: the file in a secret box under its own key, the key in a
+# sealed box to the recipient's X25519 public key, on the defaults.
+webcpp.example file_share.cpp
+  : <library>/webcpp/crypto//secretbox_xsalsa20poly1305-default
+    <library>/webcpp/crypto//sealed_box-default
+    <library>/webcpp/crypto//x25519-default ;
+
+# Two people's boxes from each other's X25519 public keys, on the defaults.
+webcpp.example box_messages.cpp
+  : <library>/webcpp/crypto//box_xsalsa20poly1305-default
+    <library>/webcpp/crypto//x25519-default ;

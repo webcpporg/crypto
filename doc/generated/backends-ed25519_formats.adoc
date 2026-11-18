@@ -18,3 +18,13 @@ The backends of `+curves::ed25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs
 |`+<webcpp/crypto/backends/sodium.hpp>+`
 |native, wasip2, wasip3, emscripten (tested by `+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+formats_25519_webcrypto_oracle+`, `+allocation_sodium+`)
 |===
+
+A call that names no backend takes the family's default on each target, whatever the program links, as <<crypto-backends-defaults>> gives it with its reasons and tests:
+
+[cols="1,1",options="header"]
+|===
+|Target |Default
+
+|native, wasip2, wasip3, emscripten
+|libsodium
+|===

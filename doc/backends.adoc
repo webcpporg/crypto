@@ -29,31 +29,6 @@ algorithm for it (`family_type` and `name_type`, tags of `families` and
 
 include::generated/matrix.adoc[]
 
-[#crypto-backends-defaults]
-=== The default backend per target
-
-Each family has one default backend per target, for the reason the table
-gives, whatever the program links; no define changes it, and every other
-backend is reached by naming it in the type. AES-GCM's is OpenSSL natively,
-whose assembly uses the CPU's AES instructions on x86-64 and ARMv8 with Clang
-and GCC, and BearSSL on WebAssembly, the only AES-GCM backend on Emscripten and
-constant time by design where OpenSSL is built without assembly. On MSVC
-OpenSSL is built without assembly too: the default is then table-based and not
-constant time, and a program that timing attacks threaten names
-`ciphers::gcm<ciphers::aes256<backends::bearssl>>`. A program that uses a
-default it does not link stops where it calls it, with the Jamfile line that
-links it and the type that names another backend
-(<<crypto-jamfile-messages>>).
-AES-GCM's default applies to `aes128_gcm`, `aes256_gcm` and `aes256<>`; the
-AES block cipher has none of its own, and libsecp256k1 is the only backend of
-secp256k1. The three ChaCha20-Poly1305 AEADs' default is libsodium on every
-target; RFC 8439's form also runs on BearSSL, on every target, and on OpenSSL,
-natively and on WASI, each named in the type. In {cpp},
-`default_backend_t<Family>` names a family's default on the target being
-compiled, and `default_backend` AES-GCM's.
-
-include::generated/defaults.adoc[]
-
 [#crypto-backends-facts]
 === What each backend is
 
@@ -86,10 +61,11 @@ A cryptographic implementation is *constant time* when its running time and
 its memory accesses do not depend on secret data; otherwise a timing attack
 can recover the key (link:https://en.wikipedia.org/wiki/Timing_attack[Wikipedia];
 link:https://www.bearssl.org/constanttime.html[BearSSL's explanation]). Each
-backend's design is stated by its library. The table's measured columns are
-not filled in this version: the own lane below checks the code as webcpp
-compiles it, and its results join the table when they are recorded in the
-documentation's data, in a later version.
+backend's design is stated by its library's documentation, with its source.
+The table's per-target columns are not filled in this version: the own lane
+below checks the code as webcpp compiles it, and what it measured where a
+family differs from its backend's design is listed under the table, from the
+documentation's data, as each chapter's comparison table shows it.
 
 include::generated/constant-time.adoc[]
 
@@ -103,21 +79,21 @@ branch or memory index that depends on them fails the run. The lane covers
 ChaCha20-Poly1305 `make`, `seal` and `open`; OpenSSL's `make` and `seal` of
 both; ctaes's AES; libsodium's Ed25519 key pair and signature, X25519's public
 key and agreement, its three ChaCha20-Poly1305 AEADs and two secret boxes,
-`hybrid::box` in both families, and `kx`; and libsecp256k1's own
-`ctime_tests.c`. Each check is shown to fail on a planted branch on a key byte,
-and each path's output is checked to carry the mark, so that the path is
-traced. dudect's statistics
+`hybrid::box` in both families, the sealed box's `seal` and `open`, and `kx`;
+and libsecp256k1's own `ctime_tests.c`. Both checkers run the same paths,
+written once (`paths.hpp`), memcheck OpenSSL's besides. Each check is shown to
+fail on a planted branch on a key byte, and each path's output is checked to
+carry the mark, so that the path is traced, where the checker's shadow keeps
+it: MemorySanitizer's loses the mark through a constant-time reduction to one
+bit, so the result of `is_all_zero`, X25519's public key and the bytes a
+destructor wiped are checked by memcheck alone. dudect's statistics
 (link:https://eprint.iacr.org/2016/1123[Reparaz, Balasch and Verbauwhede]) time
 BearSSL's two AEADs' seal and open, ctaes, `equal`, and libsodium's X25519
 agreement and Ed25519 signing natively, on Linux and macOS, and under wasmtime.
 
-One measurement is an open finding, listed under the table: under wasmtime 47
-on an Apple M5, from a release build, dudect times libsodium's X25519 `agree`
-at |t| 13 to 32 against the threshold 10 (a fixed key against another fixed
-key: 22.9), where the native builds pass at |t| 2 to 4. No branch on a secret
-was found in the WebAssembly or in wasmtime's compiled code, and the cause is
-not known. The lane prints that value on wasip2 without judging it, and judges
-everything else; the CI's x86-64 run measures it next.
+One measurement is an open finding, listed under the table with its numbers:
+libsodium's X25519 `agree` under wasmtime, on wasip2. The lane prints its
+value on wasip2 without judging it, and judges everything else.
 
 Whether a tag matched, or a shared secret came out all zero, is public by
 design, since the operation reports it, but it is computed from the secrets: it

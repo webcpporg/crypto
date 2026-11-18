@@ -63,3 +63,8 @@ zero is enough for ChaCha20-Poly1305, since each direction has its own key; a
 key pair kept across sessions gives the same keys again, so a program that
 reconnects starts from a fresh key pair, or uses XChaCha20-Poly1305 with
 random nonces.
+
+Parts of this section, how the two session keys are derived and used, are
+adapted from libsodium's documentation
+(link:https://github.com/jedisct1/libsodium-doc/tree/6d1ea27b79b853b2a04f09ae9e1a8231c90e3b56[jedisct1/libsodium-doc]
+at `6d1ea27`, ISC, `LICENSE-LIBSODIUM-DOC.txt`).

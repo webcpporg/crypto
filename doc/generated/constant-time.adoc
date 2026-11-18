@@ -38,6 +38,27 @@
 |not measured yet
 |not measured yet
 |not measured yet
+
+|libsodium
+|by its documentation for the paths crypto calls, without a guarantee for the whole library: secrets are compared in constant time (link:https://doc.libsodium.org/internals#branches[libsodium's documentation, internals: branches]), ChaCha20 is not sensitive to timing attacks (link:https://doc.libsodium.org/secret-key_cryptography/aead[libsodium's documentation, AEAD constructions: ChaCha20 and timing attacks]), and Ed25519 and X25519 come from designs with no secret branch and no secret array index (link:https://ed25519.cr.yp.to/[Ed25519's design: no secret branch conditions, no secret array indices]); webcpp's lane checks each path it calls
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|the system's generator
+|not applicable: it reads the system's generator
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|no backend
+|`+equal+` is constant time in the contents: every byte is read, no branch and no index depends on one
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
 |===
 
 Measured where a family differs from its backend's design:

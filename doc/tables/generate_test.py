@@ -11,7 +11,10 @@ name declared twice), a backend's reason for the targets an operation misses (Op
 outcome reader (each directive and section), the Doc Comment reader (a line reference left out), the
 writers whose output a reader of the page sees (inline code that holds a `+` or a backtick, a
 failing fixture's output per target, a comparison table's names of code, the decision table's
-Jamfile column, the table of Ed25519's edge cases, a family's measured constant time per target),
+Jamfile column, the table of Ed25519's edge cases, a family's measured constant time per target, a
+comparison table's columns, its measured cells and its refusal of a fact without a source, the
+decision table's link to its example, llms.txt's entry of a function, every backend's facts and own
+suite, every API page's default per target),
 and the capability table's: its checks of
 crypto.json's families, the refusals and cells of include/webcpp/crypto/detail/capabilities.hpp, the
 cells test/capabilities_test.cpp asserts, and the comparison --check makes; and the size matrix's:
@@ -289,7 +292,7 @@ def test_a_comparison_column_is_headed_by_its_plain_name(_: Path) -> None:
     data = {'sources': {}, 'namespaces': {'ciphers': {
         'columns': ['Algorithm', 'AEAD'],
         'rows': [['`gcm`, `aes256_gcm`: AES-GCM', 'yes'], ['`aes256`', 'no']]}}}
-    page = generate.namespace_page(data, 'ciphers')
+    page = generate.namespace_page(data, 'ciphers', {'cases': []})
     assert '|Algorithm |AES-GCM |`aes256`\n' in page, page
     assert '|Names\n|`gcm`, `aes256_gcm`\n|\n' in page, page
 
@@ -881,6 +884,183 @@ def test_a_family_s_measured_constant_time_is_written_per_target(_: Path) -> Non
     assert generate.constant_time_notes(small_table()) == '', 'no entry, no list'
 
 
+
+def two_ciphers() -> generate.Data:
+    """A comparison table of two ciphers with D19's columns, the world's facts cited."""
+    return {
+        'sources': {'rfc8439': ['RFC 8439', 'https://example.org/rfc8439'],
+                    'wireguard': ['WireGuard', 'https://example.org/wireguard']},
+        'namespaces': {'ciphers': {
+            'title': 'webcpp::crypto::ciphers',
+            'columns': ['Algorithm', 'AEAD', 'Key', 'Nonce (IV)', 'Nonce misuse',
+                        'Speed, with and without hardware support',
+                        'Constant time, by design', 'Constant time, measured', 'Standards',
+                        'Where it is used', "Browsers' WebCrypto", 'Choose it when'],
+            'cited': ['Standards', 'Where it is used'],
+            'rows': [['`chacha20_poly1305`: ChaCha20-Poly1305', 'yes', '32 bytes', '12 bytes',
+                      'not resistant', '{speed:chacha20_poly1305}', 'yes',
+                      '{constant_time:chacha20_poly1305}', '{rfc8439}',
+                      'WireGuard ({wireguard})', 'no', 'a protocol names it'],
+                     ['`aes256`: AES block cipher', 'no', '32 bytes', 'none',
+                      'not applicable', 'not measured yet', 'yes', 'not measured yet',
+                      '{rfc8439}', 'none on its own: every mode is built on it', 'no',
+                      'one block']]}},
+        'families': [{'name': 'chacha20_poly1305', 'title': 'ChaCha20-Poly1305',
+                      'backends': {'sodium': {'targets': 'all', 'constant_time': {
+                          'wasip2': 'over the threshold ({rfc8439})'}}}}],
+        'backends': {'sodium': {'title': 'libsodium'}, 'bearssl': {'title': 'BearSSL'}},
+        'targets': EVERY_TARGET}
+
+
+def measured(median: float) -> generate.Data:
+    """doc/performance.json's form, one case: ChaCha20-Poly1305 on libsodium, natively."""
+    return {'date': '2026-11-18', 'machine': {'cpu': 'Apple M5 Max'}, 'cases': [
+        {'family': 'chacha20_poly1305', 'backend': 'sodium', 'target': 'native',
+         'operation': 'seal of 16 KiB, 256-bit key', 'median_us': median}]}
+
+
+def test_the_ciphers_table_has_the_columns_of_d19(_: Path) -> None:
+    page = generate.namespace_page(two_ciphers(), 'ciphers', measured(22.5))
+    for question in ('AEAD', 'Key', 'Nonce (IV)', 'Nonce misuse',
+                     'Speed, with and without hardware support', 'Constant time, by design',
+                     'Constant time, measured', 'Standards', 'Where it is used',
+                     "Browsers' WebCrypto", 'Choose it when'):
+        assert f'\n|{question}\n' in page, (question, page)
+    # The speed is the measurement's, never typed: per target, each backend's median, dated.
+    assert ('|native: libsodium 22.50 µs (seal of 16 KiB, 256-bit key; 2026-11-18, Apple M5 '
+            'Max; <<crypto-performance>>)\n') in page, page
+    # The measured constant time is the family's own entry of crypto.json, per target.
+    assert ('|wasip2, libsodium: over the threshold (link:https://example.org/rfc8439[RFC '
+            '8439]); elsewhere, the lane finds nothing on the paths it checks '
+            '(<<crypto-backends-constant-time>>)\n') in page, page
+    try:
+        data = two_ciphers()
+        data['namespaces']['ciphers']['rows'][0][5] = '{speed:aegis}'
+        generate.namespace_page(data, 'ciphers', measured(22.5))
+    except generate.Fault as fault:
+        assert 'names the family aegis' in str(fault), fault
+    else:
+        raise AssertionError('a measurement of a family crypto.json does not list was written')
+
+
+def test_a_world_fact_without_a_source_is_refused_naming_the_row(_: Path) -> None:
+    data = two_ciphers()
+    data['namespaces']['ciphers']['rows'][0][9] = 'WireGuard'
+    try:
+        generate.namespace_page(data, 'ciphers', measured(22.5))
+    except generate.Fault as fault:
+        assert str(fault) == ('crypto.json: the ciphers table\'s row `chacha20_poly1305`: '
+                              'ChaCha20-Poly1305 states "Where it is used" without a source: '
+                              'cite one, {<source>}, or begin it with "none"'), fault
+    else:
+        raise AssertionError('a world fact without a source was written')
+
+
+def test_the_check_fails_after_a_measurement_changes(_: Path) -> None:
+    before = generate.namespace_page(two_ciphers(), 'ciphers', measured(22.5))
+    after = generate.namespace_page(two_ciphers(), 'ciphers', measured(23.0))
+    assert before != after and 'libsodium 23.00 µs' in after, after
+    # And the page reads the committed measurement: generate() passes it, so that --check
+    # compares the committed page with one built from the committed data.
+    assert generate.read_performance(Path(generate.LIBRARY))['cases'], 'no measurement read'
+
+
+def test_the_decision_table_s_row_links_its_example(scratch: Path) -> None:
+    written(scratch, 'example/xchacha_seal.cpp', '')
+    entry = {'need': 'encrypt messages in a chat app', 'namespace': 'webcpp::crypto::ciphers',
+             'api': '`xchacha20_poly1305`', 'backend': 'libsodium',
+             'jamfile': '/webcpp/crypto//crypto', 'example': 'xchacha_seal',
+             'section': 'crypto-chacha'}
+    page = generate.use_cases_page({'use_cases': [entry]}, scratch)
+    assert '\n|<<crypto-chacha,[.keep]`+xchacha_seal.cpp+`>>\n' in page, page
+    try:
+        generate.use_cases_page({'use_cases': [dict(entry, example='')]}, scratch)
+    except generate.Fault as fault:
+        assert str(fault) == ('crypto.json: the use case "encrypt messages in a chat app" names '
+                              'no example: each row a program can follow links one'), fault
+    else:
+        raise AssertionError('a row without an example was written')
+    # A row of what this version does not offer links none.
+    page = generate.use_cases_page({'use_cases': [dict(entry, example='', jamfile='none')]},
+                                   scratch)
+    assert '\n|<<crypto-chacha>>\n' in page, page
+
+
+def test_llms_lists_a_function_with_its_use_case_and_backends(scratch: Path) -> None:
+    written(scratch, 'include/webcpp/crypto/ciphers/x.hpp',
+            '/** Seals data in place. */\nint seal(int);\n')
+    data = small_table()
+    data.update({'page': 'https://example.org/crypto.html', 'rules': [], 'llms': 'Summary.',
+                 'namespaces': {'ciphers': {'title': 'webcpp::crypto::ciphers'}}})
+    data['operations'] = [{'id': 'seal', 'family': 'ed25519', 'namespace': 'ciphers',
+                           'api': 'ciphers::x', 'functions': ['seal'],
+                           'header': '<webcpp/crypto/ciphers/x.hpp>', 'what': 'Seals.',
+                           'section': 'crypto-x', 'backends': {'sodium': {'tests': ['t']}}}]
+    data['families'][0]['backends']['sodium']['constant_time'] = {'wasip2': 'an open finding'}
+    data['use_cases'] = [{'need': 'encrypt a chat message', 'namespace': 'webcpp::crypto::ciphers',
+                          'api': '`x`', 'backend': 'libsodium', 'jamfile': 'j', 'example': '',
+                          'section': 'crypto-x'}]
+    matrix = generate.Matrix(data, {'t': ['native', 'wasip2']}, {})
+    text = generate.llms(data, matrix, scratch)
+    assert text.startswith('# webcpp::crypto\n\n> Summary.\n'), text
+    assert ('- [ciphers::x](https://example.org/crypto.html#crypto-x): Seals. Header '
+            '<webcpp/crypto/ciphers/x.hpp>. Backends: libsodium (/third_party//sodium) on '
+            'native, wasip2. Default: libsodium on native, wasip2, wasip3, emscripten. Use it '
+            'to: encrypt a chat message.\n  - seal: Seals data in place.\n') in text, text
+    assert ('## Constant time, measured\n\n- Ed25519 on libsodium, wasip2: an open finding\n'
+            ) in text, text
+
+
+def test_every_backend_s_facts_and_design_are_written_with_its_own_suite(_: Path) -> None:
+    data = small_table()
+    for name in ('bearssl', 'sodium'):
+        data['backends'][name].update({
+            'library': f"{data['backends'][name]['title']} 1.0", 'licence': 'ISC',
+            'own_api': '`<x.h>`',
+            'allocation': 'none ({rfc8032})', 'constant_time': 'by design ({rfc8032})',
+            'constant_time_sources': []})
+    data['backends']['sodium']['own_suite'] = {
+        'lane': "webcpp::hash's own lane `c-suites`", 'programs': ['sign', 'box']}
+    matrix = generate.Matrix(data, {'ed25519': EVERY_TARGET}, {})
+    facts = generate.facts_page(data, matrix)
+    assert '\n|libsodium\n|libsodium 1.0\n|ISC\n' in facts, facts
+    # A fact of a backend's cites its source as the tables' facts do.
+    assert '|none (link:https://example.org[RFC 8032])\n' in facts, facts
+    assert ('libsodium\'s own test suite runs in webcpp::hash\'s own lane `+c-suites+`: '
+            '`+sign+`, `+box+`.\n') in facts, facts
+    page = generate.constant_time_page(data)
+    assert '\n|libsodium\n|by design (link:https://example.org[RFC 8032])\n' in page, page
+    # The system's generator, with no library of its own, has no row.
+    assert 'The system' not in facts and 'The system' not in page, (facts, page)
+
+
+def test_the_namespaces_and_backends_come_from_the_data(_: Path) -> None:
+    data = {'namespaces': {'pq': {'title': 'webcpp::crypto::post_quantum'}},
+            'backends': {'zeta': {}, 'alpha': {}}}
+    assert generate.namespace_titles(data) == {'pq': 'webcpp::crypto::post_quantum'}
+    assert generate.backend_order(data) == ['zeta', 'alpha'], generate.backend_order(data)
+
+
+def test_every_api_page_lists_its_default_per_target(_: Path) -> None:
+    data = small_table()
+    data['operations'][0].update({'api': 'curves::ed25519::sign'})
+    matrix = generate.Matrix(data, {'ed25519': EVERY_TARGET}, {})
+    page = generate.api_backends(data, matrix, data['operations'][0])
+    assert ('A call that names no backend takes the family\'s default on each target, '
+            'whatever the program links, as <<crypto-backends-defaults>> gives it with its '
+            'reasons and tests:\n') in page, page
+    assert '|native, wasip2, wasip3, emscripten\n|libsodium\n' in page, page
+
+
+def test_a_use_case_joins_the_operation_it_names(_: Path) -> None:
+    data = {'use_cases': [
+        {'need': 'Encrypt chat messages', 'api': '`xchacha20_poly1305<>`', 'section': 's'},
+        {'need': 'Speak TLS 1.3', 'api': '`chacha20_poly1305<>`', 'section': 's'}]}
+    assert generate.llms_uses(data, {'api': 'ciphers::chacha20_poly1305', 'section': 's'}) == (
+        ' Use it to: speak TLS 1.3.')
+    assert generate.llms_uses(data, {'api': 'ciphers::xchacha20_poly1305', 'section': 's'}) == (
+        ' Use it to: encrypt chat messages.')
+
 CASES: list[Callable[[Path], None]] = [
     test_a_rule_body_declares_nothing,
     test_a_program_inside_an_if_is_a_fault,
@@ -924,6 +1104,15 @@ CASES: list[Callable[[Path], None]] = [
     test_what_the_size_matrix_cannot_read_is_a_fault,
     test_a_backend_s_size_note_is_written_under_the_table,
     test_a_family_s_measured_constant_time_is_written_per_target,
+    test_the_ciphers_table_has_the_columns_of_d19,
+    test_a_world_fact_without_a_source_is_refused_naming_the_row,
+    test_the_check_fails_after_a_measurement_changes,
+    test_the_decision_table_s_row_links_its_example,
+    test_llms_lists_a_function_with_its_use_case_and_backends,
+    test_every_backend_s_facts_and_design_are_written_with_its_own_suite,
+    test_the_namespaces_and_backends_come_from_the_data,
+    test_every_api_page_lists_its_default_per_target,
+    test_a_use_case_joins_the_operation_it_names,
 ]
 
 

@@ -32,14 +32,14 @@
 |none: no signatures
 
 |Speed
-|not measured yet
-|not measured yet
-|not measured yet
+|native: libsecp256k1 10.48 µs; wasip2: libsecp256k1 64.78 µs; wasip3: libsecp256k1 80.00 µs; emscripten: libsecp256k1 57.69 µs (BIP340 signature of a 32-byte message; 2026-11-18, Apple M5 Max; <<crypto-performance>>)
+|native: libsodium 9.03 µs; wasip2: libsodium 22.75 µs; wasip3: libsodium 22.84 µs; emscripten: libsodium 19.09 µs (signature of a 32-byte message; 2026-11-18, Apple M5 Max; <<crypto-performance>>)
+|native: libsodium 19.64 µs; wasip2: libsodium 52.28 µs; wasip3: libsodium 55.01 µs; emscripten: libsodium 45.91 µs (agreement of a secret key and a public key; 2026-11-18, Apple M5 Max; <<crypto-performance>>)
 
 |Constant time, measured
-|not measured yet
-|not measured yet
-|not measured yet
+|the lane finds nothing on the paths it checks (<<crypto-backends-constant-time>>)
+|the lane finds nothing on the paths it checks (<<crypto-backends-constant-time>>)
+|wasip2, libsodium: an open finding, measured and not explained: dudect times `agree` with an all-zero secret key against random ones at |t| 13 to 32, against the threshold 10 (a fixed key against another fixed key: 22.9), under wasmtime 47 on an Apple M5, from a release build (2026-11-18), where the native builds pass (|t| 2 to 4); no branch on a secret was found in the WebAssembly or in wasmtime's compiled code, and the cause is unknown. The lane prints this value on wasip2 without judging it; the CI's x86-64 run measures it next; elsewhere, the lane finds nothing on the paths it checks (<<crypto-backends-constant-time>>)
 
 |Standards
 |link:https://www.secg.org/sec2-v2.pdf[SEC 2, Recommended Elliptic Curve Domain Parameters], link:https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki[BIP 340, Schnorr signatures for secp256k1], link:https://www.rfc-editor.org/rfc/rfc6979[RFC 6979, deterministic ECDSA nonces]

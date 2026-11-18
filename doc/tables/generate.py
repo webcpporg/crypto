@@ -18,7 +18,15 @@ Jamfile lines and printed results the page shows as the fixtures hold them. cryp
 no build produces: the facts about the world with their sources, the use cases, the fix of each
 message and the description of each fixture. The table of Ed25519's twelve edge cases is
 meta/ed25519_cases.json's, the verdicts test/ed25519_speccheck_test.cpp asserts. A measurement no
-lane takes yet (constant time measured) is written as not measured yet.
+lane takes yet is written as not measured yet.
+
+Each namespace's comparison table is crypto.json's rows, with two kinds of cell written from the
+data: {speed:<family>}, the family's throughput from doc/performance.json (bench/collect.py, release
+builds only), and {constant_time:<family>}, what crypto.json records of the family's measured
+constant time; a fact about the world in a column the namespace lists as `cited` holds a source or
+begins with "none", or the table is refused naming its row. The namespaces and the backends are
+crypto.json's, in its order; llms.txt's summary is its `llms`, and each operation's entry gives its
+backends, its default per target and the use cases that name it.
 
 The capability table is crypto.json's families: each family's algorithms and, per backend, the
 targets on which it has them, which the tests of the family's operations must run on (a cell is
@@ -72,15 +80,17 @@ ED25519_CASES = Path('meta/ed25519_cases.json')
 # beside the backends', which strict is never compared with, headed by the versions that gave them.
 OUTSIDE_TITLES = {'webcrypto-node': 'WebCrypto in node {node} (OpenSSL {openssl}), outside view'}
 VERDICTS = ('accept', 'reject')
-BACKEND_ORDER = ('bearssl', 'openssl', 'ctaes', 'secp256k1', 'sodium', 'system', 'none')
-NAMESPACE_TITLES = {'root': 'webcpp::crypto', 'ciphers': 'webcpp::crypto::ciphers',
-                    'curves': 'webcpp::crypto::curves', 'hybrid': 'webcpp::crypto::hybrid'}
 RUN_RULES = ('crypto-run', 'memory-run', 'webcpp.run', 'webcpp.compile',
              'webcpp.compile-diagnostic', 'webcpp.compile-fail', 'webcpp.link-fail',
              'webcpp.example')
 EXPECTED_ERROR = re.compile(r'expected-error@\S+ \{\{(.*)\}\}')
 SOURCE = re.compile(r'\{([a-z0-9-]+)\}')
+# A comparison table's cell that the data writes: {speed:<family>}, the family's throughput from
+# doc/performance.json, or {constant_time:<family>}, its measured constant time from crypto.json.
+MEASURED = re.compile(r'\{(speed|constant_time):([a-z0-9_]+)\}')
 NOT_MEASURED = 'not measured yet'
+# The throughput page's data, which bench/collect.py writes from release builds alone.
+PERFORMANCE = Path('doc/performance.json')
 # The lane sizes' tables, as generate.py --sizes writes them, and the only variant they are of.
 SIZES = Path('doc/tables/sizes.json')
 RELEASE = 'release'
@@ -107,6 +117,23 @@ Data = Dict[str, Any]
 
 class Fault(Exception):
     """A fact of crypto.json that the tree does not hold, or the reverse."""
+
+
+def backend_order(data: Data) -> List[str]:
+    """The backends in the order crypto.json lists them, the page's order."""
+    return list(data['backends'])
+
+
+def libraries(data: Data) -> List[str]:
+    """The backends that are a C library of their own, with its facts: the rows of the backends'
+    facts and constant time; the system's generator and the absence of a backend are none."""
+    return [name for name in backend_order(data) if 'library' in data['backends'][name]]
+
+
+def namespace_titles(data: Data) -> Dict[str, str]:
+    """Each namespace of crypto.json, a chapter's comparison table and a part of llms.txt, with
+    its title, in crypto.json's order."""
+    return {name: entry['title'] for name, entry in data['namespaces'].items()}
 
 
 def statements(jamfile: Path) -> List[List[List[str]]]:
@@ -375,7 +402,7 @@ class Matrix:
 
     def backends_of(self, operation: str) -> List[str]:
         """The backends that implement or refuse an operation, in the page's order."""
-        return [backend for backend in BACKEND_ORDER
+        return [backend for backend in backend_order(self.data)
                 if (operation, backend) in self.supported or (operation, backend) in self.refused]
 
     def targets_of(self, backend: str) -> List[str]:
@@ -951,11 +978,63 @@ def stale(files: Dict[Path, str]) -> List[Path]:
 NAMED_COLUMN = re.compile(r'^((?:`[^`]+`(?:, )?)+): (.+)$')
 
 
-def namespace_page(data: Data, namespace: str) -> str:
+def speed_of(data: Data, family: str, performance: Data) -> str:
+    """A comparison table's speed: the family's fixed operation per target and backend, the
+    median of doc/performance.json, dated and named by its machine, linked to the page that
+    holds the spread; not measured yet where it holds none."""
+    cases = [case for case in performance.get('cases', []) if case['family'] == family]
+    if not cases:
+        return NOT_MEASURED
+    parts: List[str] = []
+    for target in data['targets']:
+        here = [case for case in cases if case['target'] == target]
+        if here:
+            parts.append(f'{target}: ' + ', '.join(
+                f'{data["backends"][case["backend"]]["title"]} {case["median_us"]:.2f} µs'
+                for case in sorted(here, key=lambda case: backend_order(data).index(
+                    case['backend']))))
+    return (f'{"; ".join(parts)} ({cases[0]["operation"]}; {performance["date"]}, '
+            f'{performance["machine"]["cpu"]}; <<crypto-performance>>)')
+
+
+def constant_time_of(data: Data, family: str) -> str:
+    """A comparison table's measured constant time: what crypto.json records of the family per
+    backend and target, where it differs from the backend's design; elsewhere the lane's
+    checks find nothing."""
+    notes = [f'{target}, {data["backends"][backend]["title"]}: {cite(data, why)}'
+             for backend, entry in family_of(data, family)['backends'].items()
+             for target, why in entry.get('constant_time', {}).items()]
+    found = '; '.join(notes) + '; elsewhere, ' if notes else ''
+    return (f'{found}the lane finds nothing on the paths it checks '
+            '(<<crypto-backends-constant-time>>)')
+
+
+def measured_cell(data: Data, text: str, performance: Data) -> str:
+    """A cell with its {speed:<family>} and {constant_time:<family>} written from the data."""
+    def write(match: 're.Match[str]') -> str:
+        kind, family = match.groups()
+        if not any(entry['name'] == family for entry in data.get('families', [])):
+            raise Fault(f'crypto.json: a comparison table names the family {family}, which '
+                        'crypto.json does not list')
+        if kind == 'speed':
+            return speed_of(data, family, performance)
+        return constant_time_of(data, family)
+    return MEASURED.sub(write, text)
+
+
+def namespace_page(data: Data, namespace: str, performance: Data) -> str:
     """A namespace's comparison table: a column per name it holds, a row per question asked of
     each, the question in the row's first cell, so that the many questions stack down the page
-    rather than across it."""
+    rather than across it. A cell of a column the namespace lists as `cited`, a fact about the
+    world, holds a source or begins with "none"; a measured cell is written from the data."""
     entry = data['namespaces'][namespace]
+    for row in entry['rows']:
+        for column in entry.get('cited', []):
+            text = row[entry['columns'].index(column)]
+            if not SOURCE.search(text) and not text.startswith('none'):
+                raise Fault(f'crypto.json: the {namespace} table\'s row {row[0]} states '
+                            f'"{column}" without a source: cite one, {{<source>}}, or begin it '
+                            'with "none"')
     # A column named "`gcm`, `aes128_gcm`: AES-GCM" is headed by its plain name, AES-GCM, and
     # its names of code go to a row of their own: a phone's style labels each stacked cell with
     # its column's header as plain text, which would show the names of code as prose.
@@ -966,7 +1045,8 @@ def namespace_page(data: Data, namespace: str) -> str:
         headers.append(found.group(2) if found else row[0])
         named.append(found.group(1) if found else '')
     columns = [entry['columns'][0]] + headers
-    rows = [[entry['columns'][index]] + [cite(data, row[index]) for row in entry['rows']]
+    rows = [[entry['columns'][index]]
+            + [cite(data, measured_cell(data, row[index], performance)) for row in entry['rows']]
             for index in range(1, len(entry['columns']))]
     if any(named):
         rows.insert(0, ['Names'] + named)
@@ -983,14 +1063,20 @@ def api_backends(data: Data, matrix: Matrix, operation: Data) -> str:
                      matrix.describe(operation['id'], backend)])
     text = (f'The backends of {names(operation["api"])}, from the test programs that run it:\n\n'
             + table(['Backend', 'Jamfile', 'Header', 'Targets'], rows, 'cols="1,2,2,4",'))
-    if 'default' in operation:
+    name = operation.get('default_of', operation.get('family'))
+    if name is not None:
         # The block cipher's default argument is AES-GCM's default: its table is AES-GCM's.
-        family = family_of(data, operation.get('default_of', operation['family']))
+        family = family_of(data, name)
         defaults = [[target_label(data, entry), default_title(data, entry)]
                     for entry in family['default']]
-        text += (f'\n{marked(operation["default"])} The default per target, whatever the program '
-                 'links, as <<crypto-backends-defaults>> gives it with its reasons and tests:\n\n'
-                 + table(['Target', 'Default'], defaults, 'cols="1,1",'))
+        if 'default' in operation:
+            lead = (f'{marked(operation["default"])} The default per target, whatever the '
+                    'program links,')
+        else:
+            lead = ('A call that names no backend takes the family\'s default on each target, '
+                    'whatever the program links,')
+        text += (f'\n{lead} as <<crypto-backends-defaults>> gives it with its reasons and '
+                 'tests:\n\n' + table(['Target', 'Default'], defaults, 'cols="1,1",'))
     return text
 
 
@@ -1008,7 +1094,7 @@ def matrix_page(data: Data, matrix: Matrix) -> str:
     for operation in data['operations']:
         row = [names(operation['api'])]
         for target in data['targets']:
-            titles = [data['backends'][backend]['title'] for backend in BACKEND_ORDER
+            titles = [data['backends'][backend]['title'] for backend in backend_order(data)
                       if target in matrix.supported.get((operation['id'], backend), [])]
             row.append(', '.join(titles) if titles else 'none')
         by_target.append(row)
@@ -1022,16 +1108,22 @@ def facts_page(data: Data, matrix: Matrix) -> str:
     is, its library, licence, own API and allocation. Two tables, each as wide as the page."""
     named: List[List[str]] = []
     rows: List[List[str]] = []
-    for backend in BACKEND_ORDER[:4]:
+    suites: List[str] = []
+    for backend in libraries(data):
         facts = data['backends'][backend]
         named.append([facts['title'], code(facts['jamfile']), names(facts['header']),
                       ', '.join(matrix.targets_of(backend))])
         rows.append([facts['title'], marked(facts['library']), facts['licence'],
-                     marked(facts['own_api']), marked(facts['allocation'])])
+                     marked(facts['own_api']), marked(cite(data, facts['allocation']))])
+        if 'own_suite' in facts:
+            suite = facts['own_suite']
+            suites.append(f"{facts['title']}'s own test suite runs in {marked(suite['lane'])}: "
+                          + ', '.join(code(name) for name in suite['programs']) + '.\n')
     return (table(['Backend', 'Jamfile', 'Header', 'Targets'], named, 'cols="1,2,3,2",')
             + '\nThe library behind each, and what it costs a program:\n\n'
             + table(['Backend', 'Library', 'Licence', 'Its own API, reachable', 'Allocation'],
-                    rows, 'cols="1,2,1,2,3",'))
+                    rows, 'cols="1,2,1,2,3",')
+            + ''.join(f'\n{suite}' for suite in suites))
 
 
 def family_of(data: Data, name: str) -> Data:
@@ -1085,7 +1177,7 @@ def constant_time_notes(data: Data) -> str:
 def constant_time_page(data: Data) -> str:
     """Constant time per backend: by its library's design, and measured per target."""
     rows: List[List[str]] = []
-    for backend in BACKEND_ORDER[:4]:
+    for backend in libraries(data):
         facts = data['backends'][backend]
         sources = ''.join(f'; {{{source}}}' for source in facts['constant_time_sources'])
         rows.append([facts['title'], marked(cite(data, facts['constant_time'] + sources))]
@@ -1244,7 +1336,7 @@ def sizes_page(data: Data, sizes: Data) -> str:
             noted.append(backend)
     notes = ''.join(f'\n{data["backends"][backend]["title"]}: '
                     f'{cite(data, data["backends"][backend]["size_note"])}\n'
-                    for backend in BACKEND_ORDER if backend in noted
+                    for backend in backend_order(data) if backend in noted
                     and 'size_note' in data['backends'][backend])
     return (sizes_lead(data, sizes)
             + table(['Program'] + [f'Size, {target}' for target in data['targets']], rows,
@@ -1260,10 +1352,10 @@ def ed25519_cases_page(data: Data, cases: Data) -> str:
     columns = ['Case', 'What it tests']
     verdicts: List[List[str]] = []
     for backend in cases['backends']:
-        if backend not in BACKEND_ORDER or backend not in data['backends']:
+        if backend not in data['backends']:
             raise Fault(f'{ED25519_CASES} names the backend {backend}, which crypto.json does '
                         'not list')
-    for backend in BACKEND_ORDER:
+    for backend in backend_order(data):
         rows = cases['backends'].get(backend)
         if rows is None:
             continue
@@ -1416,6 +1508,9 @@ def use_cases_page(data: Data, library: Path) -> str:
     rows: List[List[str]] = []
     for entry in data['use_cases']:
         example = entry['example']
+        if not example and entry['jamfile'] != 'none':
+            raise Fault(f'crypto.json: the use case "{entry["need"]}" names no example: each '
+                        'row a program can follow links one')
         if example and not (library / 'example' / f'{example}.cpp').is_file():
             raise Fault(f'crypto.json: the use case "{entry["need"]}" names the example '
                         f'{example}, which example/ does not hold')
@@ -1518,22 +1613,32 @@ def first_comment(source: Path) -> str:
     return ' '.join(words)
 
 
+def llms_default(data: Data, operation: Data) -> str:
+    """An operation's default backend per target in llms.txt, from its family's row."""
+    name = operation.get('default_of', operation.get('family'))
+    if name is None:
+        return ''
+    defaults = [f'{default_title(data, entry)} on {target_label(data, entry)}'
+                for entry in family_of(data, name)['default']]
+    return f' Default: {"; ".join(defaults)}.' if defaults else ''
+
+
+def llms_uses(data: Data, operation: Data) -> str:
+    """The use cases of the decision table that an operation answers: of its section, naming
+    one of its names."""
+    named = [part.rpartition('::')[2] for part in operation['api'].split(', ')]
+    needs = [entry['need'][:1].lower() + entry['need'][1:] for entry in data['use_cases']
+             if entry['section'] == operation['section']
+             and any(re.search(rf'\b{re.escape(name)}\b', entry['api']) for name in named)]
+    return f' Use it to: {"; ".join(needs)}.' if needs else ''
+
+
 def llms(data: Data, matrix: Matrix, library: Path) -> str:
     """The index for LLMs, in the llms.txt form: what crypto offers, where, and for what."""
     page = data['page']
-    out = ['# webcpp::crypto', '',
-           '> Cryptographic primitives for C++20 on native, wasip2, wasip3 and Emscripten: '
-           'AES-GCM, the AES block cipher, secp256k1 (BIP 340 Schnorr, ECDSA, ECDH, the x-only '
-           'tweak), Ed25519 and Ed25519ph (RFC 8032), X25519 (RFC 7748), their keys in SPKI, '
-           'PKCS#8 (RFC 8410) and PEM, libsodium\'s crypto_kx, the ChaCha20-Poly1305 AEADs, '
-           'libsodium\'s secret boxes, boxes and sealed boxes, a random_device on the '
-           'system\'s generator and a constant-time equal, each over a widely used, reviewed C '
-           'library (BearSSL, OpenSSL, ctaes, libsecp256k1, libsodium) that '
-           'the program names in its Jamfile. Hashing and HMAC are Boost.Hash2\'s. Every '
-           'failure is a boost::system::result value. Protocols (Bitcoin, Ethereum, Nostr) '
-           'belong to domain libraries built on these primitives.', '',
+    out = ['# webcpp::crypto', '', f'> {data["llms"]}', '',
            f'Generated by doc/tables/generate.py with the page\'s tables. Page: {page}', '']
-    for namespace, title in NAMESPACE_TITLES.items():
+    for namespace, title in namespace_titles(data).items():
         out += [f'## {title}', '']
         for operation in data['operations']:
             if operation['namespace'] != namespace:
@@ -1544,7 +1649,8 @@ def llms(data: Data, matrix: Matrix, library: Path) -> str:
                 for backend in matrix.backends_of(operation['id'])
                 if (operation['id'], backend) in matrix.supported)
             out.append(f'- [{operation["api"]}]({page}#{operation["section"]}): '
-                       f'{operation["what"]} Header {operation["header"]}. Backends: {backends}.')
+                       f'{operation["what"]} Header {operation["header"]}. Backends: {backends}.'
+                       + llms_default(data, operation) + llms_uses(data, operation))
             out += [llms_entry(library, operation, function)
                     for function in operation['functions']]
         out.append('')
@@ -1553,6 +1659,11 @@ def llms(data: Data, matrix: Matrix, library: Path) -> str:
         for entry in family['default']:
             out.append(f'- {family["title"]}, {target_label(data, entry)}: '
                        f'{default_title(data, entry)}; {cite_markdown(data, entry["why"])}.')
+    out += ['', '## Constant time, measured', '']
+    out += [f'- {family["title"]} on {data["backends"][backend]["title"]}, {target}: '
+            f'{cite_markdown(data, why)}'
+            for family in data['families'] for backend, entry in family['backends'].items()
+            for target, why in entry.get('constant_time', {}).items()]
     out += ['', '## Rules of use', '']
     for rule in data['rules']:
         out.append(f'- [{rule["title"]}]({page}#{rule["section"]}): '
@@ -1571,6 +1682,15 @@ def llms(data: Data, matrix: Matrix, library: Path) -> str:
             f'- [The backends]({page}#crypto-backends)',
             f'- [Reference]({page}#reference)', '']
     return '\n'.join(out)
+
+
+def read_performance(library: Path) -> Data:
+    """doc/performance.json, which bench/collect.py writes from release builds, or no
+    measurement before it has run."""
+    path = library / PERFORMANCE
+    if not path.is_file():
+        return {'cases': []}
+    return json.loads(path.read_text(encoding='utf-8'))
 
 
 def read_sizes(library: Path) -> Data:
@@ -1604,8 +1724,10 @@ def generate(root: Path, library: Path) -> Dict[Path, str]:
     check_families(data, declared)
     generated = DOC / 'generated'
     files: Dict[Path, str] = {}
-    for namespace in NAMESPACE_TITLES:
-        files[generated / f'namespace-{namespace}.adoc'] = namespace_page(data, namespace)
+    performance = read_performance(library)
+    for namespace in namespace_titles(data):
+        files[generated / f'namespace-{namespace}.adoc'] = namespace_page(data, namespace,
+                                                                          performance)
     for operation in data['operations']:
         files[generated / f'backends-{operation["id"]}.adoc'] = api_backends(data, matrix,
                                                                              operation)

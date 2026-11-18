@@ -12,6 +12,59 @@ a shop, a file-sharing app, a program that updates itself. Each needs a few
 primitives used exactly right. This chapter gathers them; each section links
 to the chapter that teaches the primitive.
 
+[#crypto-everyday-files]
+=== A file-sharing app: secret boxes and sealed boxes
+
+*The problem.* A file-sharing app stores files on a server, or in a cloud
+bucket, that its users do not control. Whoever runs the storage, or breaks
+into it, reads every file, and can change one before the recipient downloads
+it. The recipient is known only by a public key, published once; the sender
+and the recipient are never online together.
+
+*The idea.* age, a file encryption tool and format, does it this way
+(link:https://github.com/C2SP/C2SP/blob/main/age.md[the age format]), and its
+TypeScript implementation is built on noble's ciphers and curves: the file is
+encrypted once under a key drawn for that file alone, and that file key is
+encrypted to each recipient's X25519 public key, with a key pair drawn for
+the purpose, so that the recipient's secret key alone recovers it. webcpp's
+primitives do the same in libsodium's formats: the file in a secret box
+(<<crypto-secretbox>>) under a fresh 32-byte key, and the key in a sealed box
+to the recipient (<<crypto-sealed-box>>). Each file has its own key, so a
+leaked key opens one file; the tag of each box makes any change to the upload
+fail to open, never decrypt to something else. age's own steps, its header,
+its recipient stanzas and its chunked payload, are a domain library's to build
+from these primitives; this program does not read age files.
+
+[source,cpp]
+----
+include::{examples}/file_share.cpp[tag=share]
+----
+
+[source,cpp]
+----
+include::{examples}/file_share.cpp[tag=receive]
+----
+
+[listing]
+----
+include::{examples}/file_share.expected[]
+----
+
+The whole program:
+
+[source,cpp]
+----
+include::{examples}/file_share.cpp[tag=program]
+----
+
+*Mistakes to avoid.* Never reuse a file key for a second file, nor a nonce
+under one key. Open the file key and the file before using a byte of either: a
+box that does not open is an attack or a corruption, never a reason to fall
+back on an unencrypted copy. A sealed box says nothing of who sent it: an app
+where the sender matters signs the upload (<<crypto-ed25519>>) or uses a box
+between the two key pairs (<<crypto-box>>). A large file is sealed in chunks,
+each its own box with its own nonce, so that a reader need not hold it whole.
+
 [#crypto-everyday-login]
 === A login: session tokens and reset links
 
@@ -24,8 +77,10 @@ link:https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.
 Password Cheat Sheet]); a random token of 32 bytes needs no slow password hash.
 `equal` is for a token or a MAC checked against one value the program already
 knows. <<crypto-entropy>> shows the program, `reset_token`.
-A password itself is never encrypted: it is hashed with a password hash, a
-hashing library's job, not crypto's.
+A password itself is never encrypted: it is hashed with a slow password hash,
+Argon2id or scrypt, which
+link:{webcpp-libs}/hash/{webcpp-page}#hash-password-hashing[webcpp::hash's password hashing] gives, not
+crypto.
 
 [#crypto-everyday-webhook]
 === A webhook: checking an HMAC

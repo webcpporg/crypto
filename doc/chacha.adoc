@@ -12,10 +12,17 @@ Bernstein's designs: the stream cipher ChaCha20 encrypts, and the one-time
 authenticator Poly1305 computes a 16-byte tag over the ciphertext and the
 additional data
 (link:https://en.wikipedia.org/wiki/ChaCha20-Poly1305[Wikipedia];
-link:https://www.rfc-editor.org/rfc/rfc8439[RFC 8439]). It needs no AES
-instructions to be fast and has no table indexed by a secret, so it is
-constant time in plain portable code: on a phone or a WebAssembly page
-without AES hardware it is the safe choice. It is a cipher suite of TLS 1.3
+link:https://www.rfc-editor.org/rfc/rfc8439[RFC 8439]). A chat app seals each
+message with it, a password manager each entry of its vault: whoever copies
+the ciphertext learns nothing of the text, and a single changed bit makes
+`open` refuse it. ChaCha20 is made of additions, XORs and rotations of 32-bit
+words (link:https://www.rfc-editor.org/rfc/rfc8439#section-2.1[RFC 8439,
+section 2.1]), with no table indexed by a secret, so it needs no AES
+instructions to be fast and is not sensitive to timing attacks in plain
+portable code, as libsodium's documentation says
+(link:https://doc.libsodium.org/secret-key_cryptography/aead[libsodium, AEAD
+constructions]): on a phone or a WebAssembly page without AES hardware it is
+the safe choice. It is a cipher suite of TLS 1.3
 (link:https://www.rfc-editor.org/rfc/rfc8446#section-9.1[RFC 8446]) and the
 AEAD of WireGuard (link:https://www.wireguard.com/protocol/[WireGuard]).
 
@@ -32,7 +39,9 @@ nonce, too short to draw at random, which a counter numbers
 (link:https://doc.libsodium.org/secret-key_cryptography/aead/chacha20-poly1305[libsodium]);
 * `xchacha20_poly1305<>`: a 24-byte nonce, safe to draw at random for every
 message (link:https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha[the
-XChaCha draft]). When in doubt, this one.
+XChaCha draft]). When in doubt, this one, as <<crypto-ciphers>> says: a
+program that draws each nonce at random has nothing to count and nothing to
+store, on the web and natively alike.
 
 Each is made with `make(key_bytes)` and works in place, as AES-GCM's one-shot
 calls do: `seal(iv_bytes, additional_data_bytes, data_bytes)` encrypts
@@ -47,6 +56,49 @@ natively and on WASI, with the same results byte for byte: name the backend in
 the type, as in `chacha20_poly1305<backends::bearssl>`, and link its library.
 On BearSSL nothing allocates; on OpenSSL `make` allocates and a message does
 not.
+
+*Limits.* Each form bounds how much one key may seal, and how many messages
+may take a nonce drawn at random before two of them risk the same one, which
+would reveal both plaintexts' XOR and let tags be forged:
+
+[cols="2,2,2"]
+|===
+|Form |One message, at most |Messages with random nonces, per key
+
+|`chacha20_poly1305` |2^38^ - 64 bytes, about 256 GB |2^32^
+|`chacha20_poly1305_original` |no practical limit |2^16^: use a counter
+|`xchacha20_poly1305` |no practical limit |no practical limit
+|===
+
+A program still splits a large message into chunks, so that memory stays
+bounded and a corrupted chunk is detected before the rest arrives, and changes
+keys periodically.
+
+*Example.* A chat app's messages under one conversation key, each sealed with
+a nonce drawn for it and the conversation's id as additional data, so that a
+message moved to another conversation does not open:
+
+[source,cpp]
+----
+include::{examples}/xchacha_seal.cpp[tag=seal]
+----
+
+[source,cpp]
+----
+include::{examples}/xchacha_seal.cpp[tag=open]
+----
+
+[listing]
+----
+include::{examples}/xchacha_seal.expected[]
+----
+
+The whole program:
+
+[source,cpp]
+----
+include::{examples}/xchacha_seal.cpp[tag=program]
+----
 
 include::generated/backends-chacha20_poly1305.adoc[]
 
@@ -73,3 +125,24 @@ work itself:
 |`open`: the tag does not match |`authentication_failed`
 |the backend fails where it should not |`backend_failure`
 |===
+
+[#crypto-chacha-pitfalls]
+==== Pitfalls
+
+* A nonce is never repeated under one key: two messages under one key and one
+nonce reveal the XOR of their plaintexts and let an attacker forge tags for
+every later message
+(link:https://www.rfc-editor.org/rfc/rfc8439#section-4[RFC 8439, section 4]).
+With `xchacha20_poly1305` draw 24 bytes at random per message; with
+`chacha20_poly1305` count, a restart included, or draw at random within the
+limit above; with the original form, count.
+* The tag covers the ciphertext and the additional data, nothing else: what
+the message belongs to (a conversation, a user, a record's id) goes in the
+additional data, or a message can be moved there unnoticed.
+* A failed `open` zeroes the data: keep the ciphertext if it is needed after a
+failure, and never act on a message before `open` succeeds.
+
+Parts of this section, the limits and the advice on large messages, are
+adapted from libsodium's documentation
+(link:https://github.com/jedisct1/libsodium-doc/tree/6d1ea27b79b853b2a04f09ae9e1a8231c90e3b56[jedisct1/libsodium-doc]
+at `6d1ea27`, ISC, `LICENSE-LIBSODIUM-DOC.txt`).

@@ -58,4 +58,6 @@ from `doc/tables/crypto.json` and the tests; `b2 libs/crypto/doc` checks them.
 crypto is under the Boost Software License, Version 1.0 (`LICENSE_1_0.txt`). The backends keep
 their own: BearSSL is MIT (`LICENSE-BEARSSL.txt`), ctaes is MIT (`LICENSE-CTAES.txt`),
 libsecp256k1 is MIT (`LICENSE-SECP256K1.txt`), libsodium is ISC (`LICENSE-LIBSODIUM.txt`) and
-OpenSSL is Apache-2.0.
+OpenSSL is Apache-2.0. The documentation's sections on libsodium's families adapt parts of
+libsodium's documentation (`jedisct1/libsodium-doc`), which is ISC
+(`LICENSE-LIBSODIUM-DOC.txt`).

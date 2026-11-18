@@ -30,6 +30,21 @@
 |`+/third_party//secp256k1+`
 |`+<webcpp/crypto/backends/secp256k1.hpp>+`
 |native, wasip2, wasip3, emscripten
+
+|libsodium
+|`+/third_party//sodium+`
+|`+<webcpp/crypto/backends/sodium.hpp>+`
+|native, wasip2, wasip3, emscripten
+
+|the system's generator
+|`+/webcpp/crypto//crypto+`
+|`+<webcpp/crypto/random_device.hpp>+`
+|native, wasip2, wasip3, emscripten
+
+|no backend
+|`+/webcpp/crypto//crypto+`
+|`+<webcpp/crypto/equal.hpp>+`, `+<webcpp/crypto/error.hpp>+`
+|native, wasip2, wasip3, emscripten
 |===
 
 The library behind each, and what it costs a program:
@@ -61,4 +76,24 @@ The library behind each, and what it costs a program:
 |MIT
 |`+<secp256k1.h>+` and its modules
 |`+keypair::make+` allocates the signing context, once, in the `+std::pmr::memory_resource+` it is given; nothing else allocates
+
+|libsodium
+|libsodium 1.0.22, built from source
+|ISC
+|`+<sodium.h>+`, all of it
+|none: libsodium's operations allocate nothing on the heap, password hashing and its guarded allocator apart, which crypto does not call (link:https://doc.libsodium.org/internals#branches[libsodium's documentation, internals: branches]); a box, a key pair and an AEAD hold their keys inside the object
+
+|the system's generator
+|getentropy on Linux, macOS and WASI; BCryptGenRandom on Windows; crypto.getRandomValues through Emscripten
+|the platform's
+|none
+|none
+
+|no backend
+|webcpp's own header-only code
+|BSL-1.0
+|none
+|none
 |===
+
+libsodium's own test suite runs in webcpp::hash's own lane `+c-suites+`, `+libs/hash/test/c_suites/Jamfile+`, on every target, against the same `+/third_party//sodium+` that crypto links: `+sign+`, `+box+`, `+box2+`, `+box7+`, `+box8+`, `+box_easy+`, `+box_easy2+`, `+box_seal+`, `+secretbox+`, `+secretbox2+`, `+secretbox7+`, `+secretbox8+`, `+secretbox_easy+`, `+secretbox_easy2+`, `+xchacha20+`, `+aead_chacha20poly1305+`, `+aead_chacha20poly13052+`, `+aead_xchacha20poly1305+`, `+kx+`, `+scalarmult+`, `+ed25519_convert+`, `+codecs+`.

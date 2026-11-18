@@ -19,6 +19,17 @@ XSalsa20-Poly1305, the secret box's cipher (<<crypto-secretbox>>), or, for
 `box_xchacha20poly1305`, XChaCha20-Poly1305, on libsodium, their default on
 every target.
 
+*Which one.* A box when the two parties know each other's public keys and the
+recipient must know the message came from the other: a chat between two
+contacts. A sealed box when anyone may write and the recipient alone reads: a
+feedback form, a drop box, a file key sent to a recipient known by a public key
+(<<crypto-everyday-files>>). `box_xchacha20poly1305` only when the peer uses
+libsodium's XChaCha20 form; otherwise `box`, NaCl's format, which libsodium
+and its bindings in every language read. Without either, a program that
+encrypts to a public key by hand, an agreement and a cipher of its own
+choosing, risks the mistakes these constructions settle: a shared secret used
+as a key, a nonce reused, a weak public key accepted.
+
 include::generated/namespace-hybrid.adoc[]
 
 [#crypto-box]
@@ -62,6 +73,32 @@ include::generated/backends-box_xchacha20poly1305.adoc[]
 |the backend fails where it should not |`backend_failure`
 |===
 
+*Example.* Alice and Bob, each with an X25519 key pair, make their boxes from
+the own secret key and the other's public key; what one seals the other opens,
+and Mallory, who knows Alice's public key but not Bob's secret key, cannot:
+
+[source,cpp]
+----
+include::{examples}/box_messages.cpp[tag=boxes,indent=0]
+----
+
+[source,cpp]
+----
+include::{examples}/box_messages.cpp[tag=exchange]
+----
+
+[listing]
+----
+include::{examples}/box_messages.expected[]
+----
+
+The whole program:
+
+[source,cpp]
+----
+include::{examples}/box_messages.cpp[tag=program]
+----
+
 *Pitfalls.*
 
 * A box proves that one of the two key pairs wrote a message, not which one:
@@ -94,3 +131,11 @@ include::generated/backends-sealed_box.adoc[]
 whether an attacker did. Where the sender matters, use a box or a signature.
 * The sender cannot open what it sealed: it keeps its own copy of the
 message if it needs one.
+
+*Example.* A file-sharing app seals each file's key to its recipient:
+<<crypto-everyday-files>>.
+
+Parts of this chapter, the boxes' and the sealed boxes' descriptions and
+pitfalls, are adapted from libsodium's documentation
+(link:https://github.com/jedisct1/libsodium-doc/tree/6d1ea27b79b853b2a04f09ae9e1a8231c90e3b56[jedisct1/libsodium-doc]
+at `6d1ea27`, ISC, `LICENSE-LIBSODIUM-DOC.txt`).

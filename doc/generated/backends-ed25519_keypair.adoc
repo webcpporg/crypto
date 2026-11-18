@@ -23,3 +23,13 @@ The backends of `+curves::ed25519::keypair+`, from the test programs that run it
 |`+<webcpp/crypto/backends/sodium.hpp>+`
 |native, wasip2, wasip3, emscripten (tested by `+ed25519_sodium+`, `+oracle_25519+`)
 |===
+
+A call that names no backend takes the family's default on each target, whatever the program links, as <<crypto-backends-defaults>> gives it with its reasons and tests:
+
+[cols="1,1",options="header"]
+|===
+|Target |Default
+
+|native, wasip2, wasip3, emscripten
+|libsodium
+|===

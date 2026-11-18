@@ -61,9 +61,24 @@ include::{examples}/x25519_agree.expected[]
 *Pitfalls.*
 
 * The shared secret is not a key: a program derives its keys from it, with the
-two public keys, through a KDF such as HKDF, and never uses its bytes as a
+two public keys, through a KDF such as
+link:{webcpp-libs}/hash/{webcpp-page}#hash-hkdf[webcpp::hash's HKDF], and never uses its bytes as a
 cipher's key directly
 (link:https://doc.libsodium.org/advanced/scalar_multiplication[libsodium's documentation, scalar multiplication]).
 * X25519 proves nothing about who sent a public key: an attacker in the middle
 agrees one secret with each side. A protocol signs the public keys, or checks
 them against keys it already trusts.
+* A peer's key of low order gives an all-zero shared secret whatever the own
+secret key: `agree` refuses it, and a program never replaces the refusal with
+a secret of its own choosing.
+* On WebAssembly, timing is an open finding: under wasmtime, on wasip2, dudect
+times `agree` against its secret key above the lane's threshold, where every
+native build passes, and the cause is not known. The measurement, with its
+numbers, is in <<crypto-backends-constant-time>> and in the curves' comparison
+table (<<crypto-curves>>); a program that agrees keys on WebAssembly where an
+attacker can time many agreements with one secret key reads it first.
+
+Parts of this section, the warnings on the shared secret and on keys of low
+order, are adapted from libsodium's documentation
+(link:https://github.com/jedisct1/libsodium-doc/tree/6d1ea27b79b853b2a04f09ae9e1a8231c90e3b56[jedisct1/libsodium-doc]
+at `6d1ea27`, ISC, `LICENSE-LIBSODIUM-DOC.txt`).

@@ -75,43 +75,59 @@ bool refused_as_signature(boost::system::result<secp::public_key> const& recover
     return recovered.has_error() && recovered.error() == crypto::error::invalid_signature;
 }
 
-// 64 key pairs and hashes: recover finds the key pair's key from the signature and the hash;
-// the id is 0 to 3; the first 64 bytes are sign_ecdsa's; another hash finds another key or
-// none; an id of 4 or 255 is refused without reaching libsecp256k1's illegal callback.
+// An id of 4, 5 or 255 is refused without reaching libsecp256k1's illegal callback.
+void refuses_bad_ids(recoverable const& signature, hash_bytes const& hash) {
+    for (std::uint8_t const id : {4, 5, 255}) {
+        auto bad_id = signature;
+        bad_id[64] = id;
+        BOOST_TEST(refused_as_signature(secp::recover(bad_id, hash)));
+    }
+}
+
+// Another hash finds another key or none; true when it found a key.
+bool another_hash_finds_another_key(secp::keypair const& key, recoverable const& signature,
+                                    hash_bytes const& hash) {
+    auto other_hash = hash;
+    other_hash[0] ^= 0x80U;
+    auto const other = secp::recover(signature, other_hash);
+    if (!other) {
+        BOOST_TEST(other.error() == crypto::error::invalid_signature);
+        return false;
+    }
+    BOOST_TEST(*other != key_of(key));
+    return true;
+}
+
+// One round: the signature recovers the key pair's key, the id is 0 to 3, and the first 64
+// bytes are sign_ecdsa's; true when another hash found another key.
+bool round_trip(std::mt19937_64& generator) {
+    hash_bytes secret{};
+    auto const key = draw(generator, secret);
+    auto const hash = draw_hash(generator);
+    auto const signature = key.sign_recoverable(hash);
+    auto const plain = key.sign_ecdsa(hash);
+    if (!BOOST_TEST(signature && plain)) {
+        return false;
+    }
+    BOOST_TEST((*signature)[64] <= 3);
+    BOOST_TEST(std::ranges::equal(std::span(*signature).first(64), *plain));
+    auto const recovered = secp::recover(*signature, hash);
+    if (BOOST_TEST(recovered.has_value())) {
+        BOOST_TEST(*recovered == key_of(key));
+    }
+    bool const found = another_hash_finds_another_key(key, *signature, hash);
+    refuses_bad_ids(*signature, hash);
+    return found;
+}
+
+// 64 key pairs and hashes, each through round_trip.
 void round_trips() {
     // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x2ec0e7ab1eULL);
     int other_keys = 0;
     for (int round = 0; round < 64; ++round) {
-        hash_bytes secret{};
-        auto const key = draw(generator, secret);
-        auto const hash = draw_hash(generator);
-        auto const signature = key.sign_recoverable(hash);
-        auto const plain = key.sign_ecdsa(hash);
-        if (!BOOST_TEST(signature && plain)) {
-            continue;
-        }
-        BOOST_TEST((*signature)[64] <= 3);
-        BOOST_TEST(std::ranges::equal(std::span(*signature).first(64), *plain));
-        auto const recovered = secp::recover(*signature, hash);
-        if (BOOST_TEST(recovered.has_value())) {
-            BOOST_TEST(*recovered == key_of(key));
-        }
-
-        auto other_hash = hash;
-        other_hash[0] ^= 0x80;
-        auto const other = secp::recover(*signature, other_hash);
-        if (other) {
-            BOOST_TEST(*other != key_of(key));
+        if (round_trip(generator)) {
             ++other_keys;
-        } else {
-            BOOST_TEST(other.error() == crypto::error::invalid_signature);
-        }
-
-        for (std::uint8_t const id : {4, 5, 255}) {
-            auto bad_id = *signature;
-            bad_id[64] = id;
-            BOOST_TEST(refused_as_signature(secp::recover(bad_id, hash)));
         }
     }
     BOOST_TEST(other_keys > 0);
@@ -120,9 +136,10 @@ void round_trips() {
 // From libsecp256k1's src/modules/recovery/tests_impl.h, test_ecdsa_recovery_edge_cases
 // (v0.8.0, MIT; Copyright (c) 2013-2015 Pieter Wuille): its message, and a signature made with
 // the secret key 0 and a fixed nonce, which recovers a key with id 1 alone.
-constexpr hash_bytes edge_message = {'T', 'h', 'i', 's', ' ', 'i', 's', ' ', 'a', ' ', 'v',
-                                     'e', 'r', 'y', ' ', 's', 'e', 'c', 'r', 'e', 't', ' ',
-                                     'm', 'e', 's', 's', 'a', 'g', 'e', '.', '.', '.'};
+constexpr hash_bytes edge_message = {
+    'T', 'h', 'i', 's', ' ', 'i', 's', ' ', 'a', ' ', 'v', 'e', 'r', 'y', ' ', 's',
+    'e', 'c', 'r', 'e', 't', ' ', 'm', 'e', 's', 's', 'a', 'g', 'e', '.', '.', '.',
+};
 constexpr std::array<std::uint8_t, 64> edge_signature = {
     0x67, 0xCB, 0x28, 0x5F, 0x9C, 0xD1, 0x94, 0xE8, 0x40, 0xD6, 0x29, 0x39, 0x7A, 0xF5, 0x56, 0x96,
     0x62, 0xFD, 0xE4, 0x46, 0x49, 0x99, 0x59, 0x63, 0x17, 0x9A, 0x7D, 0xD1, 0x7B, 0xD2, 0x35, 0x32,
@@ -139,7 +156,8 @@ recoverable small_signature(std::uint8_t r, std::uint8_t s, std::uint8_t id) {
     return signature;
 }
 
-void edge_cases() {
+// The fixed signature recovers a key with id 1 alone.
+void edge_signature_ids() {
     for (std::uint8_t id = 0; id < 4; ++id) {
         recoverable signature{};
         std::ranges::copy(edge_signature, signature.begin());
@@ -151,8 +169,11 @@ void edge_cases() {
             BOOST_TEST(refused_as_signature(recovered));
         }
     }
+}
 
-    // (r, s) = (4, 4) recovers a key with each id, and verifies under each.
+// (r, s) = (4, 4) recovers a key with each id, and verifies under each; (1, 1) recovers with id
+// 0, and verifies.
+void small_signatures_recover() {
     for (std::uint8_t id = 0; id < 4; ++id) {
         auto const signature = small_signature(4, 4, id);
         auto const recovered = secp::recover(signature, edge_message);
@@ -164,7 +185,6 @@ void edge_cases() {
                        .has_value());
     }
 
-    // (1, 1) recovers with id 0, and verifies.
     auto const one_one = small_signature(1, 1, 0);
     auto const recovered = secp::recover(one_one, edge_message);
     if (BOOST_TEST(recovered.has_value())) {
@@ -172,13 +192,14 @@ void edge_cases() {
                                       secp::serialize_public_key(*recovered))
                        .has_value());
     }
+}
 
-    // r = 0 or s = 0: no key.
+// r = 0 or s = 0: no key; r or s equal to the group order n, or above it: refused by the parser.
+void out_of_range_signatures() {
     BOOST_TEST(refused_as_signature(secp::recover(small_signature(0, 1, 0), edge_message)));
     BOOST_TEST(refused_as_signature(secp::recover(small_signature(1, 0, 0), edge_message)));
     BOOST_TEST(refused_as_signature(secp::recover(small_signature(0, 0, 0), edge_message)));
 
-    // r or s equal to the group order n, or above it: refused by the parser.
     auto const order =
         test::from_hex("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
     auto r_is_n = small_signature(0, 4, 0);
@@ -191,6 +212,12 @@ void edge_cases() {
     all_ones.fill(0xff);
     all_ones[64] = 0;
     BOOST_TEST(refused_as_signature(secp::recover(all_ones, edge_message)));
+}
+
+void edge_cases() {
+    edge_signature_ids();
+    small_signatures_recover();
+    out_of_range_signatures();
 }
 
 // libsecp256k1's own ECDSA signature with RFC 6979's nonce and the given ndata, through its C
@@ -207,6 +234,39 @@ std::array<std::uint8_t, 64> reference_signature(secp256k1_context const* contex
     return compact;
 }
 
+// One round of the hedged form against libsecp256k1's own signatures.
+void hedged_round(secp256k1_context const* context, std::mt19937_64& generator) {
+    hash_bytes secret{};
+    auto const key = draw(generator, secret);
+    auto const hash = draw_hash(generator);
+    auto const first_entropy = draw_hash(generator);
+    auto second_entropy = first_entropy;
+    second_entropy[31] ^= 0x01U;
+    hash_bytes const zero{};
+
+    auto const first = key.sign_ecdsa(hash, first_entropy);
+    auto const second = key.sign_ecdsa(hash, second_entropy);
+    auto const zeroed = key.sign_ecdsa(hash, zero);
+    auto const plain = key.sign_ecdsa(hash);
+    if (!BOOST_TEST(first && second && zeroed && plain)) {
+        return;
+    }
+    BOOST_TEST(*first != *second);
+    BOOST_TEST(*zeroed != *plain);
+    BOOST_TEST(*first != *plain);
+    auto const public_key = *key.public_key();
+    BOOST_TEST(secp::verify_ecdsa(*first, hash, public_key).has_value());
+    BOOST_TEST(secp::verify_ecdsa(*second, hash, public_key).has_value());
+    BOOST_TEST(secp::verify_ecdsa(*zeroed, hash, public_key).has_value());
+    BOOST_TEST(*first == reference_signature(context, secret, hash, &first_entropy));
+    BOOST_TEST(*second == reference_signature(context, secret, hash, &second_entropy));
+    BOOST_TEST(*zeroed == reference_signature(context, secret, hash, &zero));
+    BOOST_TEST(*plain == reference_signature(context, secret, hash, nullptr));
+    // Hedged twice with the same entropy, the signature is the same: the hedging is
+    // deterministic given its input.
+    BOOST_TEST(key.sign_ecdsa(hash, first_entropy).value() == *first);
+}
+
 // The hedged form: different entropy gives different signatures, both valid, each libsecp256k1's
 // own for that entropy; 32 zero bytes are mixed in too.
 void hedged() {
@@ -218,40 +278,13 @@ void hedged() {
     // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x4ed6edULL);
     for (int round = 0; round < 16; ++round) {
-        hash_bytes secret{};
-        auto const key = draw(generator, secret);
-        auto const hash = draw_hash(generator);
-        auto const first_entropy = draw_hash(generator);
-        auto second_entropy = first_entropy;
-        second_entropy[31] ^= 0x01;
-        hash_bytes const zero{};
-
-        auto const first = key.sign_ecdsa(hash, first_entropy);
-        auto const second = key.sign_ecdsa(hash, second_entropy);
-        auto const zeroed = key.sign_ecdsa(hash, zero);
-        auto const plain = key.sign_ecdsa(hash);
-        if (!BOOST_TEST(first && second && zeroed && plain)) {
-            continue;
-        }
-        BOOST_TEST(*first != *second);
-        BOOST_TEST(*zeroed != *plain);
-        BOOST_TEST(*first != *plain);
-        auto const public_key = *key.public_key();
-        BOOST_TEST(secp::verify_ecdsa(*first, hash, public_key).has_value());
-        BOOST_TEST(secp::verify_ecdsa(*second, hash, public_key).has_value());
-        BOOST_TEST(secp::verify_ecdsa(*zeroed, hash, public_key).has_value());
-        BOOST_TEST(*first == reference_signature(context, secret, hash, &first_entropy));
-        BOOST_TEST(*second == reference_signature(context, secret, hash, &second_entropy));
-        BOOST_TEST(*zeroed == reference_signature(context, secret, hash, &zero));
-        BOOST_TEST(*plain == reference_signature(context, secret, hash, nullptr));
-        // Hedged twice with the same entropy, the signature is the same: the hedging is
-        // deterministic given its input.
-        BOOST_TEST(key.sign_ecdsa(hash, first_entropy).value() == *first);
+        hedged_round(context, generator);
     }
     secp256k1_context_destroy(context);
 }
 
 // A moved-from key pair answers invalid_state from the new members, as from every other.
+// NOLINTBEGIN(bugprone-use-after-move)
 void moved_from() {
     auto made = secp::keypair::make(std::array<std::uint8_t, 32>{7});
     if (!BOOST_TEST(made.has_value())) {
@@ -266,6 +299,8 @@ void moved_from() {
     test::expect_empty_keypair(source);
     BOOST_TEST(target.sign_recoverable(hash).has_value());
 }
+
+// NOLINTEND(bugprone-use-after-move)
 
 }  // namespace
 

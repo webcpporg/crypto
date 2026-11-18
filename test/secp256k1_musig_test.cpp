@@ -46,6 +46,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <numeric>
 #include <optional>
 #include <random>
 #include <span>
@@ -299,14 +300,13 @@ void nonce_agg() {
     BOOST_TEST_EQ(refused, 3);
 }
 
-void sign_verify() {
-    auto const doc = document("sign_verify_vectors.json");
+// sign_verify's valid cases: each partial signature is the vector's and verifies.
+int sign_verify_valid(json::value const& doc, int& skipped) {
     auto const& keys = doc.at("pubkeys").as_array();
     auto const& nonces = doc.at("pnonces").as_array();
     auto const& sums = doc.at("aggnonces").as_array();
     auto const& messages = doc.at("msgs").as_array();
     int verified = 0;
-    int skipped = 0;
     for (auto const& c : doc.at("valid_test_cases").as_array()) {
         auto const message =
             hex(messages.at(static_cast<std::size_t>(c.at("msg_index").as_int64())));
@@ -331,7 +331,14 @@ void sign_verify() {
                                                        signing_session)
                            .has_value()));
     }
-    // verify_fail: the cases carry no aggregate nonce; the session's is the sum of their nonces.
+    return verified;
+}
+
+// verify_fail: the cases carry no aggregate nonce; the session's is the sum of their nonces.
+int sign_verify_failures(json::value const& doc) {
+    auto const& keys = doc.at("pubkeys").as_array();
+    auto const& nonces = doc.at("pnonces").as_array();
+    auto const& messages = doc.at("msgs").as_array();
     int failed = 0;
     for (auto const& c : doc.at("verify_fail_test_cases").as_array()) {
         auto const parsed = musig::parse_partial_signature(hex(c.at("sig")));
@@ -362,7 +369,13 @@ void sign_verify() {
                                                        signers[signer], key, signing_session)
                            .error() == crypto::error::invalid_signature));
     }
-    // verify_error: a nonce or a key that does not parse.
+    return failed;
+}
+
+// verify_error: a nonce or a key that does not parse.
+int sign_verify_errors(json::value const& doc) {
+    auto const& keys = doc.at("pubkeys").as_array();
+    auto const& nonces = doc.at("pnonces").as_array();
     int refused = 0;
     for (auto const& c : doc.at("verify_error_test_cases").as_array()) {
         auto const& error = c.at("error").as_object();
@@ -379,28 +392,44 @@ void sign_verify() {
                                             crypto::error::invalid_public_key));
         }
     }
-    // sign_error: the cases that need no secret nonce of the vector's are refused at parsing.
-    int sign_refused = 0;
-    int sign_skipped = 0;
+    return refused;
+}
+
+// sign_error: the cases that need no secret nonce of the vector's are refused at parsing.
+int sign_errors(json::value const& doc, int& skipped) {
+    auto const& keys = doc.at("pubkeys").as_array();
+    auto const& sums = doc.at("aggnonces").as_array();
+    int refused = 0;
     for (auto const& c : doc.at("sign_error_test_cases").as_array()) {
         auto const& error = c.at("error").as_object();
         if (error.at("type").as_string() != "invalid_contribution") {
-            ++sign_skipped;
+            ++skipped;
             continue;
         }
         if (error.at("contrib").as_string() == "aggnonce") {
             auto const bad = static_cast<std::size_t>(c.at("aggnonce_index").as_int64());
-            sign_refused += static_cast<int>(
+            refused += static_cast<int>(
                 BOOST_TEST(musig::parse_aggregate_nonce(hex(sums.at(bad))).error() ==
                            crypto::error::invalid_point));
         } else {
             auto const bad = index_at(c.at("key_indices").as_array(),
                                       static_cast<std::size_t>(error.at("signer").as_int64()));
-            sign_refused +=
+            refused +=
                 static_cast<int>(BOOST_TEST(secp::parse_public_key(hex(keys.at(bad))).error() ==
                                             crypto::error::invalid_public_key));
         }
     }
+    return refused;
+}
+
+void sign_verify() {
+    auto const doc = document("sign_verify_vectors.json");
+    int skipped = 0;
+    int const verified = sign_verify_valid(doc, skipped);
+    int const failed = sign_verify_failures(doc);
+    int const refused = sign_verify_errors(doc);
+    int sign_skipped = 0;
+    int const sign_refused = sign_errors(doc, sign_skipped);
     std::cout << "sign_verify: verified=" << verified << " skipped=" << skipped
               << " verify_fail=" << failed << " verify_error=" << refused
               << " sign_error=" << sign_refused << " sign_error_skipped=" << sign_skipped << '\n';
@@ -525,73 +554,53 @@ secp::public_key public_of(secp::keypair const& key) {
     return *parsed;
 }
 
-// One signature of `signer_count` seeded signers, its keys sorted, plain or with an x-only
-// tweak: two rounds, every partial signature verified, the aggregate checked as BIP 340's.
-void round_trip(std::mt19937_64& generator, std::size_t signer_count, bool with_tweak) {
-    std::vector<secp::keypair> signers;
-    std::vector<secp::public_key> keys;
-    for (std::size_t i = 0; i < signer_count; ++i) {
-        signers.push_back(keypair_of(draw(generator)));
-        keys.push_back(public_of(signers.back()));
-    }
-    // The signers' order is BIP 327's KeySort; each signer finds its own key's place again.
-    std::vector<std::size_t> order(signer_count);
-    for (std::size_t i = 0; i < signer_count; ++i) {
-        order[i] = i;
-    }
-    std::ranges::sort(order, [&](std::size_t a, std::size_t b) { return keys[a] < keys[b]; });
-    std::vector<secp::public_key> sorted;
-    for (auto const i : order) {
-        sorted.push_back(keys[i]);
-    }
-    auto key = aggregated(sorted);
-    if (with_tweak) {
-        BOOST_TEST(key.tweak_xonly_add(draw(generator)).has_value());
-    }
-    auto const message = draw(generator);
-
-    // Round one: each signer's nonce, the public halves summed.
-    std::vector<musig::secret_nonce> secrets;
-    std::vector<musig::public_nonce> publics;
+// Round one: each signer's nonce, in sorted order, the public halves summed. False when a
+// nonce is refused.
+bool first_round(std::vector<secp::keypair> const& signers, std::vector<std::size_t> const& order,
+                 musig::aggregate_key const& key, scalar const& message,
+                 std::vector<musig::secret_nonce>& secrets,
+                 std::vector<musig::public_nonce>& publics) {
     for (auto const i : order) {
         auto made = musig::nonce_gen(signers[i], key, message);
         if (!BOOST_TEST(made.has_value())) {
-            return;
+            return false;
         }
         secrets.push_back(std::move(made->secret_part));
         publics.push_back(made->public_part);
     }
-    auto nonce_space = lent(signer_count);
-    auto const sum = musig::nonce_aggregate(publics, nonce_space);
-    BOOST_TEST(all_zero(nonce_space));
-    if (!BOOST_TEST(sum.has_value())) {
-        return;
-    }
-    auto const signing_session = session_of(*sum, message, key);
+    return true;
+}
 
-    // Round two: each signer's partial signature, verified by any of them.
-    std::vector<musig::partial_signature> parts;
-    for (std::size_t k = 0; k < signer_count; ++k) {
-        auto part =
-            musig::partial_sign(signers[order[k]], std::move(secrets[k]), key, signing_session);
-        if (!BOOST_TEST(part.has_value())) {
-            return;
-        }
-        BOOST_TEST(
-            musig::partial_signature_verify(*part, publics[k], sorted[k], key, signing_session)
-                .has_value());
-        // The same partial signature changed in one bit does not verify.
-        auto changed = musig::serialize_partial_signature(*part);
-        changed[31] ^= 0x01U;
-        auto const reparsed = musig::parse_partial_signature(changed);
-        if (BOOST_TEST(reparsed.has_value())) {
-            BOOST_TEST(musig::partial_signature_verify(*reparsed, publics[k], sorted[k], key,
-                                                       signing_session)
-                           .error() == crypto::error::invalid_signature);
-        }
-        parts.push_back(*part);
+// One signer's partial signature, verified by any of them; the same one changed in one bit does
+// not verify.
+std::optional<musig::partial_signature> second_round_part(secp::keypair const& signer,
+                                                          musig::secret_nonce secret,
+                                                          musig::public_nonce const& nonce,
+                                                          secp::public_key const& signer_key,
+                                                          musig::aggregate_key const& key,
+                                                          musig::session const& signing_session) {
+    auto part = musig::partial_sign(signer, std::move(secret), key, signing_session);
+    if (!BOOST_TEST(part.has_value())) {
+        return std::nullopt;
     }
-    auto signature_space = lent(signer_count);
+    BOOST_TEST(musig::partial_signature_verify(*part, nonce, signer_key, key, signing_session)
+                   .has_value());
+    auto changed = musig::serialize_partial_signature(*part);
+    changed[31] ^= 0x01U;
+    auto const reparsed = musig::parse_partial_signature(changed);
+    if (BOOST_TEST(reparsed.has_value())) {
+        BOOST_TEST(
+            musig::partial_signature_verify(*reparsed, nonce, signer_key, key, signing_session)
+                .error() == crypto::error::invalid_signature);
+    }
+    return *part;
+}
+
+// The aggregate checked as BIP 340's, and refused for another message.
+void aggregate_verifies(std::span<musig::partial_signature const> parts,
+                        musig::aggregate_key const& key, musig::session const& signing_session,
+                        scalar const& message) {
+    auto signature_space = lent(parts.size());
     auto const signature =
         musig::partial_signature_aggregate(signing_session, parts, signature_space);
     BOOST_TEST(all_zero(signature_space));
@@ -603,6 +612,64 @@ void round_trip(std::mt19937_64& generator, std::size_t signer_count, bool with_
             secp::verify_schnorr(*signature, other_message, key.xonly_public_key()).error() ==
             crypto::error::invalid_signature);
     }
+}
+
+// The signers' order is BIP 327's KeySort; each signer finds its own key's place again.
+std::vector<std::size_t> sort_order(std::vector<secp::public_key> const& keys) {
+    std::vector<std::size_t> order(keys.size());
+    std::iota(order.begin(), order.end(), std::size_t{0});
+    std::ranges::sort(order, [&](std::size_t a, std::size_t b) { return keys[a] < keys[b]; });
+    return order;
+}
+
+// One signature of `signer_count` seeded signers, its keys sorted, plain or with an x-only
+// tweak: two rounds, every partial signature verified, the aggregate checked as BIP 340's.
+void round_trip(std::mt19937_64& generator, std::size_t signer_count, bool with_tweak) {
+    std::vector<secp::keypair> signers;
+    std::vector<secp::public_key> keys;
+    signers.reserve(signer_count);
+    keys.reserve(signer_count);
+    for (std::size_t i = 0; i < signer_count; ++i) {
+        signers.push_back(keypair_of(draw(generator)));
+        keys.push_back(public_of(signers.back()));
+    }
+    auto const order = sort_order(keys);
+    std::vector<secp::public_key> sorted;
+    sorted.reserve(signer_count);
+    for (auto const i : order) {
+        sorted.push_back(keys[i]);
+    }
+    auto key = aggregated(sorted);
+    if (with_tweak) {
+        BOOST_TEST(key.tweak_xonly_add(draw(generator)).has_value());
+    }
+    auto const message = draw(generator);
+
+    std::vector<musig::secret_nonce> secrets;
+    std::vector<musig::public_nonce> publics;
+    if (!first_round(signers, order, key, message, secrets, publics)) {
+        return;
+    }
+    auto nonce_space = lent(signer_count);
+    auto const sum = musig::nonce_aggregate(publics, nonce_space);
+    BOOST_TEST(all_zero(nonce_space));
+    if (!BOOST_TEST(sum.has_value())) {
+        return;
+    }
+    auto const signing_session = session_of(*sum, message, key);
+
+    // Round two: each signer's partial signature.
+    std::vector<musig::partial_signature> parts;
+    parts.reserve(signer_count);
+    for (std::size_t k = 0; k < signer_count; ++k) {
+        auto part = second_round_part(signers[order[k]], std::move(secrets[k]), publics[k],
+                                      sorted[k], key, signing_session);
+        if (!part) {
+            return;
+        }
+        parts.push_back(*part);
+    }
+    aggregate_verifies(parts, key, signing_session, message);
 }
 
 void round_trips() {
@@ -630,8 +697,10 @@ void nonce_rules() {
     if (!BOOST_TEST(alice_nonce && bob_nonce)) {
         return;
     }
-    std::array<musig::public_nonce, 2> const publics{alice_nonce->public_part,
-                                                     bob_nonce->public_part};
+    std::array<musig::public_nonce, 2> const publics{
+        alice_nonce->public_part,
+        bob_nonce->public_part,
+    };
     auto space = lent(2);
     auto const sum = musig::nonce_aggregate(publics, space);
     if (!BOOST_TEST(sum.has_value())) {
@@ -674,37 +743,10 @@ void nonce_rules() {
     BOOST_TEST(musig::nonce_gen(alice, key, {}, message).has_value());
 }
 
-void refusals() {
-    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
-    std::mt19937_64 generator(0x7e7ULL);
-    auto const alice = keypair_of(draw(generator));
-    std::array<secp::public_key, 2> const keys{public_of(alice),
-                                               public_of(keypair_of(draw(generator)))};
-    auto const key = aggregated(keys);
-    auto const nonce = musig::nonce_gen(alice, key);
-    if (!BOOST_TEST(nonce.has_value())) {
-        return;
-    }
-    std::array<musig::public_nonce, 2> const publics{nonce->public_part, nonce->public_part};
-
-    // No keys, nonces or partial signatures: invalid_input_size, the workspace zero afterwards.
-    auto space = lent(2);
-    BOOST_TEST(musig::key_aggregate({}, space).error() == crypto::error::invalid_input_size);
-    BOOST_TEST(all_zero(space));
-    std::ranges::fill(space, std::byte{0xa5});
-    BOOST_TEST(musig::nonce_aggregate({}, space).error() == crypto::error::invalid_input_size);
-    BOOST_TEST(all_zero(space));
-    auto const sum = musig::nonce_aggregate(publics, space);
-    if (!BOOST_TEST(sum.has_value())) {
-        return;
-    }
-    auto const signing_session = session_of(*sum, draw(generator), key);
-    std::ranges::fill(space, std::byte{0xa5});
-    BOOST_TEST(musig::partial_signature_aggregate(signing_session, {}, space).error() ==
-               crypto::error::invalid_input_size);
-    BOOST_TEST(all_zero(space));
-
-    // A workspace one byte short, and none: refused, the workspace zero afterwards.
+// A workspace one byte short, and none: refused, the workspace zero afterwards.
+void short_workspaces_refused(std::vector<std::byte>& space, std::span<secp::public_key const> keys,
+                              std::span<musig::public_nonce const> publics,
+                              musig::session const& signing_session) {
     auto const short_space = [&] {
         std::ranges::fill(space, std::byte{0xa5});
         return std::span(space).first(space.size() - 1);
@@ -727,8 +769,10 @@ void refusals() {
     }
     BOOST_TEST(musig::key_aggregate(keys, {}).error() == crypto::error::invalid_input_size);
     BOOST_TEST(musig::nonce_aggregate(publics, {}).error() == crypto::error::invalid_input_size);
+}
 
-    // Encodings of the wrong size.
+// Encodings of the wrong size, and a public nonce of the point at infinity.
+void wrong_size_encodings_refused() {
     std::array<std::uint8_t, 65> const nonce_65{};
     std::array<std::uint8_t, 31> const signature_31{};
     BOOST_TEST(musig::parse_public_nonce(nonce_65).error() == crypto::error::invalid_input_size);
@@ -741,13 +785,53 @@ void refusals() {
     BOOST_TEST(musig::parse_aggregate_nonce(zero_nonce).has_value());
 }
 
+void refusals() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
+    std::mt19937_64 generator(0x7e7ULL);
+    auto const alice = keypair_of(draw(generator));
+    std::array<secp::public_key, 2> const keys{
+        public_of(alice),
+        public_of(keypair_of(draw(generator))),
+    };
+    auto const key = aggregated(keys);
+    auto const nonce = musig::nonce_gen(alice, key);
+    if (!BOOST_TEST(nonce.has_value())) {
+        return;
+    }
+    std::array<musig::public_nonce, 2> const publics{
+        nonce->public_part,
+        nonce->public_part,
+    };
+
+    // No keys, nonces or partial signatures: invalid_input_size, the workspace zero afterwards.
+    auto space = lent(2);
+    BOOST_TEST(musig::key_aggregate({}, space).error() == crypto::error::invalid_input_size);
+    BOOST_TEST(all_zero(space));
+    std::ranges::fill(space, std::byte{0xa5});
+    BOOST_TEST(musig::nonce_aggregate({}, space).error() == crypto::error::invalid_input_size);
+    BOOST_TEST(all_zero(space));
+    auto const sum = musig::nonce_aggregate(publics, space);
+    if (!BOOST_TEST(sum.has_value())) {
+        return;
+    }
+    auto const signing_session = session_of(*sum, draw(generator), key);
+    std::ranges::fill(space, std::byte{0xa5});
+    BOOST_TEST(musig::partial_signature_aggregate(signing_session, {}, space).error() ==
+               crypto::error::invalid_input_size);
+    BOOST_TEST(all_zero(space));
+    short_workspaces_refused(space, keys, publics, signing_session);
+    wrong_size_encodings_refused();
+}
+
 // The aggregate key's full point and x-only form agree, a plain tweak acts on the full point,
 // and the tweaks match tweak.hpp's on the same point.
 void aggregate_key_forms() {
     // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0xa66ULL);
-    std::array<secp::public_key, 2> const keys{public_of(keypair_of(draw(generator))),
-                                               public_of(keypair_of(draw(generator)))};
+    std::array<secp::public_key, 2> const keys{
+        public_of(keypair_of(draw(generator))),
+        public_of(keypair_of(draw(generator))),
+    };
     auto key = aggregated(keys);
     auto const full = secp::serialize_public_key(key.full_public_key());
     BOOST_TEST(std::ranges::equal(std::span(full).subspan(1), key.xonly_public_key()));
@@ -763,8 +847,10 @@ void aggregate_key_forms() {
                                              tweak_bytes.data()) == 1);
     std::array<std::uint8_t, 33> expected_bytes{};
     std::size_t written = expected_bytes.size();
+    // NOLINTNEXTLINE(bugprone-signed-bitwise): libsecp256k1's macro shifts a signed constant
+    unsigned const flags = SECP256K1_EC_COMPRESSED;
     secp256k1_ec_pubkey_serialize(secp256k1_context_static, expected_bytes.data(), &written,
-                                  &expected, SECP256K1_EC_COMPRESSED);
+                                  &expected, flags);
     BOOST_TEST(secp::serialize_public_key(key.full_public_key()) == expected_bytes);
 }
 

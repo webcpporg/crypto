@@ -114,7 +114,7 @@ public:
     }
 
     /**
-     * Makes a key pair from a seed drawn from `random_device`.
+     * Makes a key pair from a fresh seed, drawn from the system's generator.
      *
      * @return The key pair; `entropy_unavailable` when the system's generator fails or there is
      * none; `backend_failure`.

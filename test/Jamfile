@@ -54,12 +54,12 @@ webcpp.headers-alone crypto : ../include : crypto/backends/openssl.hpp
 webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp
   : <library>/third_party//ctaes ;
 # The backend libsodium's header alone, and Ed25519's, X25519's, their key
-# formats', the boxes' and the sealed boxes' with it, with libsodium linked, on
-# every target (PEM's compiles alone without it, in the first list).
+# formats', crypto_kx's, the boxes' and the sealed boxes' with it, with libsodium
+# linked, on every target (PEM's compiles alone without it, in the first list).
 webcpp.headers-alone crypto : ../include
   : crypto/backends/sodium.hpp crypto/curves/ed25519.hpp crypto/curves/x25519.hpp
     crypto/curves/ed25519/formats.hpp crypto/curves/x25519/formats.hpp
-    crypto/hybrid/box.hpp crypto/hybrid/sealed_box.hpp
+    crypto/curves/x25519/kx.hpp crypto/hybrid/box.hpp crypto/hybrid/sealed_box.hpp
   : <library>/third_party//sodium ;
 # libsecp256k1's headers compile alone only with its library, which defines
 # WEBCPP_CRYPTO_HAS_SECP256K1 (without it, each stops with its message).
@@ -359,6 +359,16 @@ crypto-run formats_25519_openssl_oracle : formats_25519_openssl_oracle_test.cpp
 crypto-run formats_25519_webcrypto_oracle : formats_25519_webcrypto_oracle_test.cpp
   : <library>/third_party//sodium <linkflags>-sJSPI : emscripten ;
 
+# crypto_kx on libsodium: libsodium's kx.exp, the client's transmit key the
+# server's receive key and the reverse, a peer of small order refused as weak,
+# the guards and generate() under the planted entropy source. The key pair's
+# secret key is zero once moved from, moved over and destroyed: optimised,
+# every call inlined, as Ed25519's.
+crypto-run kx_sodium : kx_sodium_test.cpp
+  : <library>/third_party//sodium <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
+crypto-run kx_wipe_sodium : kx_wipe_sodium_test.cpp
+  : <library>/third_party//sodium $(OPTIMISED) <inlining>full ;
+
 # The ChaCha20-Poly1305 AEADs on libsodium, their default on every target: each
 # family's known answers and every check of support/aead_checks.hpp, natively
 # the message's limit too; Wycheproof's vectors of ChaCha20-Poly1305 and
@@ -493,6 +503,9 @@ webcpp.compile doc_x25519_default_app
 webcpp.compile doc_pem_default_app
   : ../../../tools/test/fixtures/crypto_jamfiles/pem_default/app.cpp
   : <library>/webcpp/crypto//pem-default ;
+webcpp.compile doc_kx_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/kx_default/app.cpp
+  : <library>/webcpp/crypto//kx-default ;
 webcpp.compile doc_chacha20_poly1305_default_app
   : ../../../tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_default/app.cpp
   : <library>/webcpp/crypto//chacha20_poly1305-default ;

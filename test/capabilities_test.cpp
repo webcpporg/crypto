@@ -20,6 +20,7 @@
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
+#include <webcpp/crypto/curves/x25519/kx.hpp>
 #include <webcpp/crypto/hybrid/box.hpp>
 #include <webcpp/crypto/hybrid/sealed_box.hpp>
 #include <webcpp/crypto/pem.hpp>
@@ -90,6 +91,12 @@ struct refuses_ed25519 {
 template <class Backend>
 struct refuses_x25519 {
     WEBCPP_CRYPTO_DETAIL_REFUSE_X25519(Backend);
+};
+
+/** The refusals of crypto_kx, parsed: nothing instantiates it. */
+template <class Backend>
+struct refuses_kx {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_KX(Backend);
 };
 
 /** The refusals of PEM, parsed: nothing instantiates it. */
@@ -288,6 +295,20 @@ static_assert(crypto::supports_v<algorithm<families::x25519, families::x25519>, 
 #else
 static_assert(!crypto::supports_v<algorithm<families::x25519, families::x25519>, backends::sodium>);
 #endif
+// crypto_kx on bearssl: none.
+static_assert(!crypto::supports_v<algorithm<families::kx, families::kx>, backends::bearssl>);
+// crypto_kx on openssl: none.
+static_assert(!crypto::supports_v<algorithm<families::kx, families::kx>, backends::openssl>);
+// crypto_kx on ctaes: none.
+static_assert(!crypto::supports_v<algorithm<families::kx, families::kx>, backends::ctaes>);
+// crypto_kx on secp256k1: none.
+static_assert(!crypto::supports_v<algorithm<families::kx, families::kx>, backends::secp256k1>);
+// crypto_kx on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::kx, families::kx>, backends::sodium>);
+#else
+static_assert(!crypto::supports_v<algorithm<families::kx, families::kx>, backends::sodium>);
+#endif
 // PEM on bearssl: none.
 static_assert(!crypto::supports_v<algorithm<families::pem, families::pem>, backends::bearssl>);
 // PEM on openssl: none.
@@ -473,6 +494,9 @@ int main() {
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
     BOOST_TEST((webcpp::test::made<crypto::curves::x25519::algorithm<backends::sodium>, families::x25519, families::x25519, backends::sodium>()));
+#endif
+#if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
+    BOOST_TEST((webcpp::test::made<crypto::curves::x25519::kx_keypair<backends::sodium>, families::kx, families::kx, backends::sodium>()));
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
     BOOST_TEST((webcpp::test::made<crypto::pem::algorithm<backends::sodium>, families::pem, families::pem, backends::sodium>()));

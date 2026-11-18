@@ -31,6 +31,11 @@
 |`+/third_party//sodium+` on every target
 |<<crypto-jamfile-cases,`+x25519_default+`>>
 
+|`+/webcpp/crypto//kx-default+`
+|crypto_kx
+|`+/third_party//sodium+` on every target
+|<<crypto-jamfile-cases,`+kx_default+`>>
+
 |`+/webcpp/crypto//pem-default+`
 |PEM
 |`+/third_party//sodium+` on every target

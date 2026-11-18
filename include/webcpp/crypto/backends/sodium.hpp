@@ -1023,3 +1023,103 @@ struct pem_engine<families::pem, backends::sodium> {
 }  // namespace webcpp::crypto::detail
 
 #endif  // PEM on libsodium
+// crypto_kx on libsodium, for a program that includes curves/x25519/kx.hpp, before this header or
+// after it, as Ed25519's above.
+#if defined(WEBCPP_CRYPTO_CURVES_X25519_KX_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+    !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_KX)
+/** Defined once libsodium's crypto_kx engine is. */
+#define WEBCPP_CRYPTO_BACKENDS_SODIUM_KX
+
+#include <webcpp/crypto/detail/wipe.hpp>
+
+#include <sodium/crypto_kx.h>
+
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <span>
+
+namespace webcpp::crypto::detail {
+
+/** What a crypto_kx key pair stores on libsodium. */
+template <>
+struct kx_state<families::kx, backends::sodium> {
+    /** libsodium's secret key, first, where the wipe test reads it. */
+    std::array<unsigned char, crypto_kx_SECRETKEYBYTES> secret_key{};
+    /** The public key. */
+    std::array<unsigned char, crypto_kx_PUBLICKEYBYTES> public_key{};
+};
+
+/** crypto_kx on libsodium, `crypto_kx_*`. */
+template <>
+struct kx_engine<families::kx, backends::sodium> {
+    /** The key pair's state. */
+    using state = kx_state<families::kx, backends::sodium>;
+
+    /**
+     * Makes the key pair of a seed, `crypto_kx_seed_keypair`.
+     *
+     * @return Nothing; `backend_failure`.
+     */
+    [[nodiscard]] static boost::system::result<void> make(
+        state& keyed, std::span<std::uint8_t const, crypto_kx_SEEDBYTES> seed) noexcept {
+        auto const ready = sodium_ready();
+        if (!ready) {
+            return ready;
+        }
+        if (crypto_kx_seed_keypair(keyed.public_key.data(), keyed.secret_key.data(), seed.data()) !=
+            0) {
+            return error::backend_failure;
+        }
+        return {};
+    }
+
+    /** The public key. */
+    static void public_key(state const& keyed,
+                           std::span<std::uint8_t, crypto_kx_PUBLICKEYBYTES> out) noexcept {
+        std::ranges::copy(keyed.public_key, out.begin());
+    }
+
+    /**
+     * The client's session keys, `crypto_kx_client_session_keys`, which returns -1 for a server
+     * key whose X25519 shared secret is all zero.
+     *
+     * @return Nothing; `weak_public_key`.
+     */
+    [[nodiscard]] static boost::system::result<void> client(
+        state const& keyed, std::span<std::uint8_t const, crypto_kx_PUBLICKEYBYTES> server_key,
+        std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> receive,
+        std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> transmit) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        if (crypto_kx_client_session_keys(receive.data(), transmit.data(), keyed.public_key.data(),
+                                          keyed.secret_key.data(), server_key.data()) != 0) {
+            return error::weak_public_key;
+        }
+        return {};
+    }
+
+    /**
+     * The server's session keys, `crypto_kx_server_session_keys`, which returns -1 for a client
+     * key whose X25519 shared secret is all zero.
+     *
+     * @return Nothing; `weak_public_key`.
+     */
+    [[nodiscard]] static boost::system::result<void> server(
+        state const& keyed, std::span<std::uint8_t const, crypto_kx_PUBLICKEYBYTES> client_key,
+        std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> receive,
+        std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> transmit) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        if (crypto_kx_server_session_keys(receive.data(), transmit.data(), keyed.public_key.data(),
+                                          keyed.secret_key.data(), client_key.data()) != 0) {
+            return error::weak_public_key;
+        }
+        return {};
+    }
+
+    /** Wipes the key pair. */
+    static void reset(state& keyed) noexcept { wipe_object(keyed); }
+};
+
+}  // namespace webcpp::crypto::detail
+
+#endif  // crypto_kx on libsodium

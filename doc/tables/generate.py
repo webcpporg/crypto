@@ -1341,9 +1341,9 @@ def llms(data: Data, matrix: Matrix, library: Path) -> str:
     out = ['# webcpp::crypto', '',
            '> Cryptographic primitives for C++20 on native, wasip2, wasip3 and Emscripten: '
            'AES-GCM, the AES block cipher, secp256k1 (BIP 340 Schnorr, ECDSA, ECDH, the x-only '
-           'tweak), Ed25519 and Ed25519ph (RFC 8032), X25519 (RFC 7748), their SPKI and PKCS#8 '
-           '(RFC 8410) and PEM, the ChaCha20-Poly1305 AEADs, libsodium\'s secret boxes, boxes '
-           'and sealed boxes, a random_device on the '
+           'tweak), Ed25519 and Ed25519ph (RFC 8032), X25519 (RFC 7748) and libsodium\'s '
+           'crypto_kx, their SPKI and PKCS#8 (RFC 8410) and PEM, the ChaCha20-Poly1305 AEADs, '
+           'libsodium\'s secret boxes, boxes and sealed boxes, a random_device on the '
            'system\'s generator and a constant-time equal, each over a widely used, reviewed C '
            'library (BearSSL, OpenSSL, ctaes, libsecp256k1, libsodium) that '
            'the program names in its Jamfile. Hashing and HMAC are Boost.Hash2\'s. Every '

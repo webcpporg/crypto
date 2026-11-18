@@ -82,6 +82,14 @@ static_assert(std::is_same_v<crypto::default_backend_t<families::pem>, backends:
 static_assert(crypto::detail::supported<families::pem, families::pem,
                                         crypto::default_backend_t<families::pem>>);
 
+// crypto_kx: libsodium, the only backend, on every target.
+static_assert(std::is_same_v<crypto::default_backend_t<families::kx>, backends::sodium>);
+#ifndef WEBCPP_CRYPTO_DETAIL_DEFAULT_KX_SODIUM
+#error "curves/x25519/kx.hpp is told to include another header than libsodium's"
+#endif
+static_assert(
+    crypto::detail::supported<families::kx, families::kx, crypto::default_backend_t<families::kx>>);
+
 // The three ChaCha20-Poly1305 AEADs: libsodium, the only backend, on every target (the owner's
 // answer Q4).
 static_assert(

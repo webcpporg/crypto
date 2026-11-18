@@ -123,6 +123,14 @@
 |not measured yet
 |not measured yet
 
+|`+curves::x25519::kx_keypair+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
 |`+ciphers::chacha20_poly1305+`
 |not measured yet
 |not measured yet

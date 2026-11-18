@@ -71,6 +71,7 @@
         "rfc8731": ["RFC 8731, Secure Shell key exchange with Curve25519", "https://www.rfc-editor.org/rfc/rfc8731"],
         "wireguard": ["WireGuard's protocol, cryptography", "https://www.wireguard.com/protocol/"],
         "x3dh": ["Signal, the X3DH key agreement protocol", "https://signal.org/docs/specifications/x3dh/"],
+        "libsodium-kx": ["libsodium's documentation, key exchange", "https://doc.libsodium.org/key_exchange"],
         "fips186-5": ["FIPS 186-5, the Digital Signature Standard, which adds EdDSA", "https://csrc.nist.gov/pubs/fips/186-5/final"],
         "rfc8709": ["RFC 8709, Ed25519 and Ed448 public keys for SSH", "https://www.rfc-editor.org/rfc/rfc8709"],
         "signal-xeddsa": ["Signal, the XEdDSA and VXEdDSA signature schemes", "https://signal.org/docs/specifications/xeddsa/"],
@@ -410,6 +411,17 @@
             "backends": {"sodium": {"tests": ["formats_25519_sodium", "formats_25519_openssl_oracle", "allocation_sodium"]}}
         },
         {
+            "id": "kx_keypair",
+            "family": "kx",
+            "functions": ["make", "generate", "public_key", "client_session_keys", "server_session_keys"],
+            "namespace": "curves",
+            "api": "curves::x25519::kx_keypair",
+            "header": "<webcpp/crypto/curves/x25519/kx.hpp>",
+            "what": "libsodium's `crypto_kx`: a key pair made from a 32-byte seed or drawn from `random_device`, and the two session keys of a client or a server, each a `secret<32>`, from the peer's public key; a peer key of low order is refused with `weak_public_key`.",
+            "section": "crypto-kx",
+            "backends": {"sodium": {"tests": ["kx_sodium", "kx_wipe_sodium", "allocation_sodium"]}}
+        },
+        {
             "id": "chacha20_poly1305",
             "family": "chacha20_poly1305",
             "functions": ["make", "seal", "open"],
@@ -602,6 +614,22 @@
             ],
             "default": [
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["x25519_sodium", "default_backend_none_linked"], "why": "the only backend in this version, on every target; it refuses an all-zero shared secret itself ({rfc7748})"}
+            ],
+            "backends": {
+                "sodium": {"targets": "all"}
+            }
+        },
+        {
+            "name": "kx",
+            "title": "crypto_kx",
+            "group": "curves::x25519",
+            "since": "0.2",
+            "header": "<webcpp/crypto/curves/x25519/kx.hpp>",
+            "names": [
+                {"name": "kx", "title": "crypto_kx", "type": "curves::x25519::kx_keypair<{backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["kx_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own construction, whose session keys only another `crypto_kx` derives ({libsodium-kx})"}
             ],
             "backends": {
                 "sodium": {"targets": "all"}
@@ -808,7 +836,7 @@
             "rows": [
                 ["`secp256k1`", "BIP 340 Schnorr and ECDSA signatures, ECDH, the x-only tweak", "about 128 bits ({sec2})", "secret 32 bytes; public 33 bytes compressed, 32 bytes x-only", "64 bytes; ECDSA in DER up to 72", "not measured yet", "not measured yet", "{sec2}, {bip340}, {rfc6979}", "Bitcoin ({bip340}), Ethereum ({ethereum}), Nostr ({nip01})", "no: WebCrypto offers P-256, P-384, P-521, Ed25519 and X25519, not secp256k1 ({webcrypto})", "Bitcoin's keys and signatures; Nostr's event signatures ({nip01}); Ethereum's ECDSA verification with a known key. Not in this version: Ethereum's recoverable signatures and its addresses from the uncompressed key; ECDH in the raw x-coordinate form of Nostr's encrypted messages ({nip44}); BIP 32's derivation ({bip32})"],
                 ["`ed25519`", "Ed25519 signatures, and Ed25519ph over SHA-512 for a message given in pieces; the X25519 secret key of a key pair", "about 128 bits ({rfc8032})", "secret 32 bytes (the seed); public 32 bytes", "64 bytes", "not measured yet", "not measured yet", "{rfc8032}, {fips186-5}", "SSH keys ({rfc8709}), Signal's signatures on its Curve25519 keys ({signal-xeddsa}), Tor's identity keys ({tor-cert-spec}), Solana's accounts ({solana-accounts})", "yes: Ed25519 ({webcrypto})", "SSH, Tor and Solana keys and signatures, and any protocol that names RFC 8032's Ed25519 or Ed25519ph; verification is strict (libsodium's rules), which some lenient verifiers are not. Not Bitcoin, Ethereum or Nostr, whose keys are secp256k1's"],
-                ["`x25519`", "Key agreement (Diffie-Hellman on Curve25519): two parties who exchanged public keys share a 32-byte secret", "about 128 bits ({rfc7748})", "secret 32 bytes; public 32 bytes", "none: no signatures", "not measured yet", "not measured yet", "{rfc7748}", "TLS 1.3 ({rfc8446-groups}), SSH ({rfc8731}), WireGuard ({wireguard}), Signal ({x3dh})", "yes: X25519 ({webcrypto})", "TLS 1.3's and SSH's key exchange, WireGuard, Signal; libsodium's `crypto_box` and `crypto_kx` keys. The Ed25519 public key of a peer converts with `curves::ed25519::to_x25519_public`. A shared secret goes through a KDF before it keys a cipher. Every case of Wycheproof's X25519 file is tested ({wycheproof})"]
+                ["`x25519`", "Key agreement (Diffie-Hellman on Curve25519): two parties who exchanged public keys share a 32-byte secret; `kx_keypair`, libsodium's `crypto_kx`, gives a client and a server a session key for each direction", "about 128 bits ({rfc7748})", "secret 32 bytes; public 32 bytes", "none: no signatures", "not measured yet", "not measured yet", "{rfc7748}", "TLS 1.3 ({rfc8446-groups}), SSH ({rfc8731}), WireGuard ({wireguard}), Signal ({x3dh})", "yes: X25519 ({webcrypto})", "TLS 1.3's and SSH's key exchange, WireGuard, Signal; libsodium's `crypto_box` keys, and the session keys of `crypto_kx` with `kx_keypair` ({libsodium-kx}). The Ed25519 public key of a peer converts with `curves::ed25519::to_x25519_public`. A shared secret goes through a KDF before it keys a cipher. Every case of Wycheproof's X25519 file is tested ({wycheproof})"]
             ]
         },
         "hybrid": {
@@ -841,6 +869,7 @@
         {"need": "Hash, or compute an HMAC", "namespace": "Boost.Hash2, not this library", "api": "`boost::hash2::sha2_256`, `hmac_sha2_256`", "backend": "none", "jamfile": "`/webcpp/crypto//crypto` brings Boost's headers", "example": "equal_hmac", "section": "crypto-overview-hash2"},
         {"need": "Sign and verify with Ed25519 (RFC 8032), or sign a large message in pieces with Ed25519ph", "namespace": "webcpp::crypto::curves::ed25519", "api": "`keypair::make`, `keypair::generate`, `keypair::sign`, `verify`; `ph<webcpp::hash::sha2_512>`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default", "example": "ed25519_sign", "section": "crypto-ed25519"},
         {"need": "Agree a shared secret with a peer's public key (X25519, RFC 7748), or with the X25519 form of an Ed25519 key", "namespace": "webcpp::crypto::curves::x25519", "api": "`public_key`, `agree`; `curves::ed25519::to_x25519_public`, `curves::ed25519::keypair::x25519_secret`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//x25519-default", "example": "x25519_agree", "section": "crypto-x25519"},
+        {"need": "Give a client and a server a key for each direction from each other's public key, as libsodium's `crypto_kx` does", "namespace": "webcpp::crypto::curves::x25519", "api": "`kx_keypair::make`, `kx_keypair::generate`, `client_session_keys`, `server_session_keys`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//kx-default", "example": "kx_session", "section": "crypto-kx"},
         {"need": "Export or import an Ed25519 or X25519 key in the standard forms OpenSSL and WebCrypto use: SPKI and PKCS#8 (RFC 8410), as DER or PEM text", "namespace": "webcpp::crypto::curves", "api": "`ed25519::encode_spki`, `decode_spki`, `encode_pkcs8`, `decode_pkcs8`, the same in `x25519`; `webcpp::crypto::pem::armour`, `unarmour`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default /webcpp/crypto//x25519-default /webcpp/crypto//pem-default", "example": "key_formats", "section": "crypto-key-formats"},
         {"need": "Encrypt a record or a file under one secret key, each with a random nonce, in libsodium's secret-box format", "namespace": "webcpp::crypto::ciphers", "api": "`secretbox<>`, `secretbox_xchacha20poly1305<>`: `make`, `seal`, `open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default", "example": "", "section": "crypto-secretbox"},
         {"need": "Send messages between two people who know each other's public keys, as NaCl's and libsodium's crypto_box", "namespace": "webcpp::crypto::hybrid", "api": "`box::make`, `box::seal`, `box::open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//box_xsalsa20poly1305-default", "example": "", "section": "crypto-box"},
@@ -858,6 +887,7 @@
         "secp256k1_default": "BIP 340's first test vector, signed and verified on secp256k1's default on every target, with the one line `/webcpp/crypto//secp256k1-default`, which links libsecp256k1.",
         "ed25519_default": "RFC 8032's first Ed25519 test, signed and verified on Ed25519's default on every target, with the one line `/webcpp/crypto//ed25519-default`, which links libsodium.",
         "x25519_default": "RFC 7748's shared secret on X25519's default on every target, with the one line `/webcpp/crypto//x25519-default`, which links libsodium.",
+        "kx_default": "libsodium's `crypto_kx` test, the client's and the server's session keys from each other's public key, on its default on every target, with the one line `/webcpp/crypto//kx-default`, which links libsodium.",
         "pem_default": "RFC 8410's Ed25519 public key read from PEM and armoured again to the same text on PEM's default on every target, with the one line `/webcpp/crypto//pem-default`, which links libsodium.",
         "chacha20_poly1305_default": "RFC 8439's ChaCha20-Poly1305 example, sealed and opened on its default on every target, with the one line `/webcpp/crypto//chacha20_poly1305-default`, which links libsodium.",
         "chacha20_poly1305_original_default": "libsodium's case of the original ChaCha20-Poly1305, sealed and opened on its default on every target, with the one line `/webcpp/crypto//chacha20_poly1305_original-default`, which links libsodium.",

@@ -151,6 +151,22 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/gcm_default/gcm_default.outcome[tag=output]
 ----
 
+`+kx_default+`:: libsodium's `+crypto_kx+` test, the client's and the server's session keys from each other's public key, on its default on every target, with the one line `+/webcpp/crypto//kx-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/kx_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/kx_default/kx_default.outcome[tag=output]
+----
+
 `+memory_option+`:: OpenSSL's allocations in the program's own resource: the define and OpenSSL in the requirements of the program's project, the resource defined once, the install first in `+main+`.
 +
 Its Jamfile, built and run on native:

@@ -131,6 +131,11 @@
 |native, wasip2, wasip3, emscripten
 |`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+allocation_sodium+`
 
+|`+curves::x25519::kx_keypair+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+kx_sodium+`, `+kx_wipe_sodium+`, `+allocation_sodium+`
+
 |`+ciphers::chacha20_poly1305+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
@@ -302,6 +307,12 @@ The same, by target: the backends each operation runs on.
 |libsodium
 
 |`+pem::armour+`, `+pem::unarmour+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::x25519::kx_keypair+`
 |libsodium
 |libsodium
 |libsodium

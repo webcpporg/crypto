@@ -100,6 +100,17 @@ rule x25519-default-linked ( properties * )
     }
 }
 alias x25519-default : : : : <conditional>@x25519-default-linked ;
+rule kx-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/third_party//sodium ;
+        case wasip2 : return <library>/third_party//sodium ;
+        case wasip3 : return <library>/third_party//sodium ;
+        case emscripten : return <library>/third_party//sodium ;
+    }
+}
+alias kx-default : : : : <conditional>@kx-default-linked ;
 rule pem-default-linked ( properties * )
 {
     switch [ webcpp-target.target-of $(properties) ]

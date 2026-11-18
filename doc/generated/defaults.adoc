@@ -59,6 +59,12 @@
 |the only backend in this version, on every target; it refuses an all-zero shared secret itself (link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748, Elliptic Curves for Security (X25519 and X448)])
 |`+x25519_sodium+`, `+default_backend_none_linked+`
 
+|crypto_kx
+|native, wasip2, wasip3, emscripten
+|libsodium
+|the only backend that has it: libsodium's own construction, whose session keys only another `crypto_kx` derives (link:https://doc.libsodium.org/key_exchange[libsodium's documentation, key exchange])
+|`+kx_sodium+`, `+default_backend_none_linked+`
+
 |PEM
 |native, wasip2, wasip3, emscripten
 |libsodium

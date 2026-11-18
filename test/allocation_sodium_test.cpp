@@ -7,11 +7,12 @@
 // On libsodium nothing allocates: make, seal and open of the three ChaCha20-Poly1305 AEADs and
 // of the two secret boxes, a failed open included; Ed25519's key pair, signature, strict
 // verification, Ed25519ph and the conversion to X25519; X25519's public key and agreement, a
-// refused one included; RFC 8410's SPKI and PKCS#8 of both curves and their PEM, both ways; the
-// two boxes' make, seal and open, a refused peer key and a failed open included; and the sealed
-// boxes' seal and open, a failed open included, make no call of operator new, nor of the C
-// library's allocator where the target lets a program count it; a control proves the counter
-// moves. Each later family on libsodium adds its calls here.
+// refused one included; crypto_kx's key pairs and session keys, a refused peer included; RFC
+// 8410's SPKI and PKCS#8 of both curves and their PEM, both ways; the two boxes' make, seal and
+// open, a refused peer key and a failed open included; and the sealed boxes' seal and open, a
+// failed open included, make no call of operator new, nor of the C library's allocator where the
+// target lets a program count it; a control proves the counter moves. Each later family on
+// libsodium adds its calls here.
 
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
@@ -20,6 +21,7 @@
 #include <webcpp/crypto/curves/ed25519/formats.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/curves/x25519/formats.hpp>
+#include <webcpp/crypto/curves/x25519/kx.hpp>
 #include <webcpp/crypto/hybrid/box.hpp>
 #include <webcpp/crypto/hybrid/sealed_box.hpp>
 #include <webcpp/crypto/pem.hpp>
@@ -248,6 +250,40 @@ void expect_no_allocation_formats() {
     BOOST_TEST_EQ(webcpp::test::allocations(), before);
 }
 
+/**
+ * Makes and draws crypto_kx key pairs, computes the client's and the server's session keys, and
+ * refuses a peer key of low order (the all-zero point): none of it allocates.
+ */
+void expect_no_allocation_kx() {
+    using kx_keypair = crypto::curves::x25519::kx_keypair<crypto::backends::sodium>;
+    std::array<std::uint8_t, kx_keypair::seed_size> client_seed{};
+    client_seed.fill(11);
+    std::array<std::uint8_t, kx_keypair::seed_size> server_seed{};
+    server_seed.fill(13);
+    std::array<std::uint8_t, kx_keypair::public_key_size> const low_order{};
+    std::size_t const before = webcpp::test::allocations();
+    {
+        auto client = kx_keypair::make(client_seed);
+        BOOST_TEST(client.has_value());
+        auto const server = kx_keypair::make(server_seed);
+        BOOST_TEST(server.has_value());
+        auto const drawn = kx_keypair::generate();
+        BOOST_TEST(drawn.has_value());
+        auto const client_public = client->public_key();
+        BOOST_TEST(client_public.has_value());
+        auto const server_public = server->public_key();
+        BOOST_TEST(server_public.has_value());
+        auto const client_keys = client->client_session_keys(*server_public);
+        BOOST_TEST(client_keys.has_value());
+        auto const server_keys = server->server_session_keys(*client_public);
+        BOOST_TEST(server_keys.has_value());
+        BOOST_TEST(client->client_session_keys(low_order).error() ==
+                   crypto::error::weak_public_key);
+        kx_keypair const moved = std::move(*client);
+    }
+    BOOST_TEST_EQ(webcpp::test::allocations(), before);
+}
+
 }  // namespace
 
 int main() {
@@ -276,5 +312,6 @@ int main() {
                                                        crypto::backends::sodium>>();
     expect_no_allocation_sealed_box();
     expect_no_allocation_formats();
+    expect_no_allocation_kx();
     return webcpp::test::exit_status(boost::report_errors());
 }

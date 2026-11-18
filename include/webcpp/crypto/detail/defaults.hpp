@@ -74,6 +74,14 @@ struct default_backend_of<families::x25519> {
     /** `backends::sodium`. */
     using type = backends::sodium;
 };
+/** Defined where libsodium is the default of crypto_kx. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_KX_SODIUM 1
+/** The default of crypto_kx on native, wasip2, wasip3, emscripten: libsodium. */
+template <>
+struct default_backend_of<families::kx> {
+    /** `backends::sodium`. */
+    using type = backends::sodium;
+};
 /** Defined where libsodium is the default of PEM. */
 #define WEBCPP_CRYPTO_DETAIL_DEFAULT_PEM_SODIUM 1
 /** The default of PEM on native, wasip2, wasip3, emscripten: libsodium. */

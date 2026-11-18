@@ -107,7 +107,7 @@
 `+/third_party//secp256k1+`
 |<<crypto-memory,[.keep]`+arena_signer.cpp+`>>
 
-|Keep every allocation of OpenSSL in the program's arena
+|Keep every allocation of OpenSSL's in the program's arena
 |`+openssl_memory_resource+`, `+backends::openssl::install_memory_functions+`
 |OpenSSL, natively
 |`+/webcpp/crypto//crypto+` in the program; in the project requirements, `+<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE+` and `+<library>/webcpp/crypto//openssl+`

@@ -279,7 +279,7 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_musig_default/secp256k1_musig_default.outcome[tag=output]
 ----
 
-`+secp256k1_silent_payments_default+`:: A BIP 352 silent payments address paid from one input and the payment found by a scan of the output, on silent payments' default on every target, with the one line `+/webcpp/crypto//secp256k1_silent_payments-default+`, which links libsecp256k1.
+`+secp256k1_silent_payments_default+`:: A BIP 352 silent payments recipient, its scan and spend keys, paid from one input and the payment found by a scan of the output, on silent payments' default on every target, with the one line `+/webcpp/crypto//secp256k1_silent_payments-default+`, which links libsecp256k1.
 +
 Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
 +

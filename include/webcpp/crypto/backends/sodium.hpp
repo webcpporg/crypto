@@ -51,6 +51,8 @@
     WEBCPP_CRYPTO_DETAIL_MISMATCH_VALUE(sodium, WEBCPP_CRYPTO_SODIUM_COMMIT, portable))
 #endif
 
+// src/canary_sodium.c defines the canary with a constant; this is its declaration.
+// NOLINTNEXTLINE(bugprone-dynamic-static-initializers): a declaration, never initialised here
 extern "C" const char WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY;
 
 namespace webcpp::crypto::backends {
@@ -991,6 +993,7 @@ struct pem_engine<families::pem, backends::sodium> {
     static void encode(std::span<std::uint8_t const> bytes, std::span<char> out) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
         // libsodium ends the text with a NUL, which out does not hold.
+        // NOLINTNEXTLINE(readability-math-missing-parentheses,bugprone-signed-bitwise): its macro
         std::array<char, sodium_base64_ENCODED_LEN(48, sodium_base64_VARIANT_ORIGINAL)> text{};
         static_cast<void>(sodium_bin2base64(text.data(), text.size(), bytes.data(), bytes.size(),
                                             sodium_base64_VARIANT_ORIGINAL));

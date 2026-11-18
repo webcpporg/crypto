@@ -930,7 +930,11 @@ def capabilities_test(data: Data) -> str:
                          f'    BOOST_TEST((webcpp::test::made<{algorithm}, '
                          f'families::{family["name"]}, {tag}, backends::{backend}>()));',
                          '#endif']
-    out += ['// clang-format on', '', 'int main() {', '    // clang-format off']
+    # One check per cell, each a BOOST_TEST, which clang-tidy counts as a branch: main grows
+    # with the table, so its complexity is the table's and not a function to split.
+    out += ['// clang-format on', '',
+            '// NOLINTNEXTLINE(readability-function-cognitive-complexity): one check per cell',
+            'int main() {', '    // clang-format off']
     out += made
     out += ['    // clang-format on',
             '    return webcpp::test::exit_status(boost::report_errors());', '}', '']

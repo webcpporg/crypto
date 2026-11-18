@@ -445,6 +445,7 @@ static_assert(!crypto::supports_v<algorithm<families::sealed_box, families::seal
 #endif
 // clang-format on
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): one check per cell
 int main() {
     // clang-format off
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_BEARSSL)

@@ -28,7 +28,7 @@
 #include <sodium/core.h>
 #include <sodium/crypto_sign_ed25519.h>
 
-#if defined(__EMSCRIPTEN__)
+#ifdef __EMSCRIPTEN__
 #include <emscripten/em_js.h>
 #endif
 
@@ -44,7 +44,7 @@ namespace ed25519 = webcpp::crypto::curves::ed25519;
 namespace test = webcpp::test;
 namespace json = boost::json;
 
-#if defined(__EMSCRIPTEN__)
+#ifdef __EMSCRIPTEN__
 // node's crypto.subtle.verify with an Ed25519 key imported raw: 1 when it accepts, 0 when it
 // refuses, 2 when importKey refuses the public key (a refusal of the case too), -1 when verify
 // itself throws (the message goes to the console). The inputs are copied before the first await.
@@ -95,7 +95,7 @@ std::string text_of(json::value const& value) {
     return std::string(std::string_view(value.as_string()));
 }
 
-std::string verdict(bool accepted) {
+std::string_view verdict(bool accepted) {
     return accepted ? "accept" : "reject";
 }
 
@@ -142,15 +142,15 @@ void compare(std::string const& label, verdicts const& computed, verdicts const&
 // curves::ed25519::verify<strict, backends::sodium>, whose refusal is invalid_signature.
 void sodium_rows(std::vector<edge_case> const& cases, verdicts& raw, verdicts& strict) {
     for (auto const& tested : cases) {
-        raw.push_back(verdict(crypto_sign_ed25519_verify_detached(
-                                  tested.signature.data(), tested.message.data(),
-                                  tested.message.size(), tested.public_key.data()) == 0));
+        raw.emplace_back(verdict(crypto_sign_ed25519_verify_detached(
+                                     tested.signature.data(), tested.message.data(),
+                                     tested.message.size(), tested.public_key.data()) == 0));
         auto const verified = ed25519::verify<ed25519::strict, crypto::backends::sodium>(
             tested.public_key, tested.message, tested.signature);
         if (!verified) {
             BOOST_TEST(verified.error() == crypto::error::invalid_signature);
         }
-        strict.push_back(verdict(static_cast<bool>(verified)));
+        strict.emplace_back(verdict(static_cast<bool>(verified)));
     }
 }
 
@@ -172,9 +172,11 @@ int main() {
 
     std::vector<edge_case> cases;
     for (auto const& entry : cases_document.as_array()) {
-        cases.push_back({test::from_hex(text_of(entry.at("message"))),
-                         test::from_hex(text_of(entry.at("pub_key"))),
-                         test::from_hex(text_of(entry.at("signature")))});
+        cases.push_back({
+            .message = test::from_hex(text_of(entry.at("message"))),
+            .public_key = test::from_hex(text_of(entry.at("pub_key"))),
+            .signature = test::from_hex(text_of(entry.at("signature"))),
+        });
         BOOST_TEST_EQ(cases.back().public_key.size(), 32U);
         BOOST_TEST_EQ(cases.back().signature.size(), 64U);
     }
@@ -184,7 +186,8 @@ int main() {
     }
 
     // What each case tests, the page's first column: one text per case.
-    BOOST_TEST_EQ(committed.at("cases").as_array().size(), case_count);
+    auto const& texts = committed.at("cases").as_array();
+    BOOST_TEST_EQ(texts.size(), case_count);
 
     auto const& source = committed.at("source");
     BOOST_TEST_EQ(text_of(source.at("repository")), "novifinancial/ed25519-speccheck");
@@ -231,7 +234,7 @@ int main() {
         return test::exit_status(boost::report_errors());
     }
     auto const webcrypto = committed_row(view.at("verdicts"), "webcrypto-node");
-#if defined(__EMSCRIPTEN__)
+#ifdef __EMSCRIPTEN__
     // The versions this run's node has, beside those committed: a node whose row differs says
     // which it is.
     if (view.contains("node") && view.contains("openssl")) {
@@ -244,7 +247,7 @@ int main() {
         auto const answer = subtle_ed25519_verify(tested.public_key.data(), tested.message.data(),
                                                   tested.message.size(), tested.signature.data());
         BOOST_TEST(answer >= 0);
-        subtle.push_back(verdict(answer == 1));
+        subtle.emplace_back(verdict(answer == 1));
     }
     compare("webcrypto-node", subtle, webcrypto);
 #else

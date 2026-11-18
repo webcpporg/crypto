@@ -1,0 +1,15 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+project : requirements <library>/webcpp/crypto//crypto ;
+
+import webcpp ;
+
+# OpenSSL is linked, as on a WASI program that names it: what is refused is
+# the option.
+webcpp.compile-diagnostic openssl_memory_on_webassembly : openssl_memory_on_webassembly.cpp
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+  : wasip2 wasip3 ;

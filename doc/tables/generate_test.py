@@ -6,12 +6,14 @@
 # https://www.boost.org/LICENSE_1_0.txt)
 
 """Checks generate.py's readers and writers on small fixtures of their own: the Jamfile reader (a
-program inside an `if`, a rule's body, the targets a program inherits), the outcome reader (each
-directive and section), the Doc Comment reader (a line reference left out), and the writers whose
-output a reader of the page sees (inline code that holds a `+` or a backtick, a failing fixture's
-output per target, a comparison table's names of code, the decision table's Jamfile column).
-generate.py --check proves only that the committed tables are what generate.py writes now: a reader
-that regresses and is regenerated in the same change would pass it, and fails here.
+program inside an `if`, a rule's body, the targets a program inherits, the memory option's tests, a
+name declared twice), a backend's reason for the targets an operation misses (OpenSSL's alone), the
+outcome reader (each directive and section), the Doc Comment reader (a line reference left out),
+and the writers whose output a reader of the page sees (inline code that holds a `+` or a backtick,
+a failing fixture's output per target, a comparison table's names of code, the decision table's
+Jamfile column). generate.py --check proves only that the committed tables are what generate.py
+writes now: a reader that regresses and is regenerated in the same change would pass it, and fails
+here.
 
 Usage: generate_test.py [<case>...]. The doc build runs it before generate.py --check
 (doc/Jamfile). Exit 0, or 1 at the first failing case.
@@ -58,6 +60,58 @@ def test_a_program_inside_an_if_is_a_fault(scratch: Path) -> None:
         assert 'inside a block' in str(fault), fault
     else:
         raise AssertionError('a program inside an if was read as declared everywhere')
+
+
+def test_the_memory_option_s_tests_are_declared(scratch: Path) -> None:
+    # The OpenSSL memory option's programs live in test/openssl_memory, each through its own
+    # rule; a name that two Jamfiles declare is a fault, since a table would cite one of them.
+    written(scratch, 'test/Jamfile', 'webcpp.targets native wasip2 ;\ncrypto-run a : a.cpp ;\n')
+    written(scratch, 'test/openssl_memory/Jamfile', (
+        'webcpp.targets native ;\n'
+        'rule memory-run ( name : sources + : requirements * )\n{\n'
+        '    webcpp.run $(name) : $(sources) : $(requirements) ;\n}\n'
+        'memory-run late : late_test.cpp : <threading>multi ;\n'))
+    found = generate.tests(scratch)
+    assert found == {'a': ['native', 'wasip2'], 'late': ['native']}, found
+    written(scratch, 'test/openssl_memory/Jamfile', 'memory-run a : a_test.cpp ;\n')
+    try:
+        generate.tests(scratch)
+    except generate.Fault as fault:
+        assert 'a' in str(fault) and 'twice' in str(fault), fault
+    else:
+        raise AssertionError('a test declared twice was read as one')
+
+
+def test_a_backend_says_why_it_is_missing_elsewhere(_: Path) -> None:
+    # OpenSSL's operations are missing where /webcpp/crypto//openssl stops the build, unless
+    # the operation names its own reason: the memory option is refused on every WebAssembly
+    # target, wasip2 and wasip3 included, where OpenSSL itself builds.
+    data = {'targets': ['native', 'wasip2', 'emscripten'],
+            'elsewhere': {'openssl': 'the build stops', 'memory': 'config.hpp refuses it'},
+            'operations': [
+                {'id': 'gcm', 'backends': {'openssl': {'tests': ['g']}}},
+                {'id': 'memory', 'backends': {'openssl': {'tests': ['m'],
+                                                           'elsewhere': 'memory'}}}]}
+    matrix = generate.Matrix(data, {'g': ['native', 'wasip2'], 'm': ['native']}, {})
+    assert matrix.targets('gcm', 'openssl') == 'native, wasip2; not on emscripten: the build stops'
+    assert matrix.targets('memory', 'openssl') == (
+        'native; not on wasip2, emscripten: config.hpp refuses it'), matrix.targets('memory',
+                                                                                   'openssl')
+
+
+def test_a_reason_elsewhere_is_openssl_s_alone(_: Path) -> None:
+    # Only OpenSSL's cells say why an operation is missing on a target; a reason on another
+    # backend's entry would be read and never shown, so it is a fault.
+    data = {'targets': ['native', 'wasip2'],
+            'elsewhere': {'openssl': 'the build stops', 'memory': 'config.hpp refuses it'},
+            'operations': [{'id': 'gcm', 'backends': {'bearssl': {'tests': ['g'],
+                                                                  'elsewhere': 'memory'}}}]}
+    try:
+        generate.Matrix(data, {'g': ['native']}, {})
+    except generate.Fault as fault:
+        assert 'gcm on bearssl' in str(fault) and 'memory' in str(fault), fault
+    else:
+        raise AssertionError('a reason elsewhere on bearssl was read and never shown')
 
 
 def test_an_outcome_reads_each_directive(scratch: Path) -> None:
@@ -127,6 +181,25 @@ def test_a_failing_fixture_lists_its_texts_per_target(scratch: Path) -> None:
         raise AssertionError('a section with no label was printed')
 
 
+def test_a_fixture_that_builds_and_runs_nothing_is_a_record(scratch: Path) -> None:
+    # A misuse that only MSVC's linker stops builds elsewhere: its fixture says build: succeeds
+    # with no run:. It is no program of the Jamfiles page; the messages page lists it after
+    # MSVC's cases, its Jamfile included, and needs no output region.
+    data = {'outcome_sections': {'all': 'every target'}, 'sources': {}, 'fixes': {},
+            'fixtures': {'program': 'A program.', 'record': 'Two files, one with an option.'}}
+    program = generate.Outcome(written(scratch, 'program.outcome', (
+        'targets: native\nbuild: succeeds\nrun: app\nhello\n')))
+    record = generate.Outcome(written(scratch, 'record.outcome', (
+        'targets: native\nbuild: succeeds\n')))
+    assert program.runs and not record.runs, (program.runs, record.runs)
+    cases = {'program': ([], program), 'record': ([], record)}
+    programs = generate.jamfiles_page(data, cases)
+    assert '`+program+`' in programs and 'record' not in programs, programs
+    messages = generate.messages_page(data, {}, cases, {})
+    assert '`+record+`:: Two files, one with an option.' in messages, messages
+    assert 'record/Jamfile[tag=jamfile]' in messages and 'program' not in messages, messages
+
+
 def test_a_comparison_column_is_headed_by_its_plain_name(_: Path) -> None:
     data = {'sources': {}, 'namespaces': {'ciphers': {
         'columns': ['Algorithm', 'AEAD'],
@@ -159,10 +232,14 @@ def test_the_decision_table_writes_no_jamfile_as_prose(scratch: Path) -> None:
 CASES: list[Callable[[Path], None]] = [
     test_a_rule_body_declares_nothing,
     test_a_program_inside_an_if_is_a_fault,
+    test_the_memory_option_s_tests_are_declared,
+    test_a_backend_says_why_it_is_missing_elsewhere,
+    test_a_reason_elsewhere_is_openssl_s_alone,
     test_an_outcome_reads_each_directive,
     test_a_brief_leaves_out_a_line_reference,
     test_code_that_holds_a_plus_is_one_span,
     test_a_failing_fixture_lists_its_texts_per_target,
+    test_a_fixture_that_builds_and_runs_nothing_is_a_record,
     test_a_comparison_column_is_headed_by_its_plain_name,
     test_the_decision_table_writes_no_jamfile_as_prose,
 ]

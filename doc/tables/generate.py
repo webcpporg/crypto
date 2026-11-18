@@ -48,8 +48,9 @@ FIXTURES = 'tools/test/fixtures/crypto_jamfiles'
 BACKEND_ORDER = ('bearssl', 'openssl', 'ctaes', 'secp256k1', 'system', 'none')
 NAMESPACE_TITLES = {'root': 'webcpp::crypto', 'ciphers': 'webcpp::crypto::ciphers',
                     'curves': 'webcpp::crypto::curves'}
-RUN_RULES = ('crypto-run', 'webcpp.run', 'webcpp.compile', 'webcpp.compile-diagnostic',
-             'webcpp.compile-fail', 'webcpp.link-fail', 'webcpp.example')
+RUN_RULES = ('crypto-run', 'memory-run', 'webcpp.run', 'webcpp.compile',
+             'webcpp.compile-diagnostic', 'webcpp.compile-fail', 'webcpp.link-fail',
+             'webcpp.example')
 EXPECTED_ERROR = re.compile(r'expected-error@\S+ \{\{(.*)\}\}')
 SOURCE = re.compile(r'\{([a-z0-9-]+)\}')
 NOT_MEASURED = 'not measured yet'
@@ -112,10 +113,19 @@ def programs(jamfile: Path, inherited: Optional[List[str]] = None) -> Dict[str, 
 
 
 def tests(library: Path) -> Dict[str, List[str]]:
-    """Every program of the test Jamfile and of each message test, with its targets."""
-    found = programs(library / 'test' / 'Jamfile')
-    for jamfile in sorted((library / 'test' / 'messages').glob('*/Jamfile')):
-        found.update(programs(jamfile))
+    """Every program of the test Jamfile, of each message test and of the OpenSSL memory
+    option's tests (test/openssl_memory), with its targets. A name two Jamfiles declare is a
+    fault: a table that cites it would name one of two programs."""
+    found: Dict[str, List[str]] = {}
+    test = library / 'test'
+    jamfiles = [test / 'Jamfile', *sorted((test / 'messages').glob('*/Jamfile'))]
+    if (test / 'openssl_memory' / 'Jamfile').is_file():
+        jamfiles.append(test / 'openssl_memory' / 'Jamfile')
+    for jamfile in jamfiles:
+        for name, targets in programs(jamfile).items():
+            if name in found:
+                raise Fault(f'{jamfile}: the test {name} is declared twice')
+            found[name] = targets
     return found
 
 
@@ -146,11 +156,14 @@ def msvc_cases(library: Path) -> Dict[str, str]:
 
 
 class Outcome:
-    """A fixture's .outcome: its targets, whether it builds, what it prints or contains."""
+    """A fixture's .outcome: its targets, whether it builds, whether its program runs, what it
+    prints or contains. A fixture that builds and runs nothing is a record: a misuse that only
+    MSVC's linker stops, which links elsewhere."""
 
     def __init__(self, path: Path) -> None:
         self.targets: List[str] = []
         self.succeeds = False
+        self.runs = False
         self.output: List[str] = []
         self.contains: List[Tuple[str, str]] = []
         self.absent: List[Tuple[str, str]] = []
@@ -167,7 +180,7 @@ class Outcome:
             elif line.startswith('build:'):
                 self.succeeds = line.split()[1] == 'succeeds'
             elif line.startswith('run:'):
-                printing = True
+                self.runs = printing = True
             elif line.startswith('contains:'):
                 self.contains.append((section, line[len('contains:'):].strip()))
             elif line.startswith('not-contains:'):
@@ -188,7 +201,7 @@ def fixtures(root: Path) -> Dict[str, Tuple[List[str], Outcome]]:
             continue
         outcome = Outcome(case / f'{case.name}.outcome')
         regions = [('Jamfile', 'jamfile')]
-        if outcome.succeeds:
+        if outcome.succeeds and outcome.runs:
             regions.append((f'{case.name}.outcome', 'output'))
         for file, wanted in regions:
             text = (case / file).read_text(encoding='utf-8')
@@ -279,6 +292,9 @@ class Matrix:
         self.supported: Dict[Tuple[str, str], List[str]] = {}
         self.proofs: Dict[Tuple[str, str], List[str]] = {}
         self.refused: Dict[Tuple[str, str], str] = {}
+        # Why an operation is missing on the targets its tests leave out, when it is not the
+        # backend's own reason: a key of crypto.json's elsewhere.
+        self.elsewhere: Dict[Tuple[str, str], str] = {}
         for operation in data['operations']:
             for backend, entry in operation['backends'].items():
                 key = (operation['id'], backend)
@@ -292,6 +308,18 @@ class Matrix:
                     self.supported[key] = [target for target in data['targets']
                                            if target in targets]
                     self.proofs[key] = list(entry['tests'])
+                    if 'elsewhere' in entry:
+                        # Only OpenSSL's cells name what stops an operation elsewhere
+                        # (targets()); another backend's reason would never be shown.
+                        if backend != 'openssl':
+                            raise Fault(f'crypto.json: {operation["id"]} on {backend} names '
+                                        f'the reason {entry["elsewhere"]}, which only '
+                                        'OpenSSL\'s entries may give')
+                        if entry['elsewhere'] not in data['elsewhere']:
+                            raise Fault(f'crypto.json: {operation["id"]} on {backend} names '
+                                        f'the reason {entry["elsewhere"]}, which elsewhere '
+                                        'does not hold')
+                        self.elsewhere[key] = entry['elsewhere']
                 else:
                     if entry['refused'] not in refusals:
                         raise Fault(f'crypto.json: {operation["id"]} on {backend} is refused by '
@@ -318,7 +346,8 @@ class Matrix:
         missing = [target for target in self.data['targets']
                    if target not in self.supported[key]]
         if missing and backend == 'openssl':
-            text += f'; not on {", ".join(missing)}: {marked(self.data["elsewhere"]["openssl"])}'
+            reason = self.elsewhere.get(key, 'openssl')
+            text += f'; not on {", ".join(missing)}: {marked(self.data["elsewhere"][reason])}'
         return text
 
     def tests(self, operation: str, backend: str) -> str:
@@ -514,10 +543,10 @@ def case_list(entries: List[Tuple[str, str, List[Tuple[str, str]]]]) -> str:
 
 
 def jamfiles_page(data: Data, cases: Dict[str, Tuple[List[str], Outcome]]) -> str:
-    """Every fixture that builds: its Jamfile, its targets and what it prints."""
+    """Every fixture that builds and runs: its Jamfile, its targets and what it prints."""
     entries: List[Tuple[str, str, List[Tuple[str, str]]]] = []
     for name, (_, outcome) in cases.items():
-        if not outcome.succeeds:
+        if not outcome.succeeds or not outcome.runs:
             continue
         entries.append((code(name), marked(cite(data, data['fixtures'][name])), [
             (f'Its Jamfile, built and run on {", ".join(outcome.targets)}:',
@@ -569,6 +598,14 @@ def messages_page(data: Data, refusals: Dict[str, Tuple[str, List[str]]],
              'at link time; its text is MSVC\'s own, the same instruction in MSVC\'s words, and '
              'two files compiled with different settings stop the link with LNK2038.\n\n')
     text += table(['Case', 'Stops', 'Fix'], windows, 'cols="1,1,4",')
+    records = [(code(name), marked(cite(data, data['fixtures'][name])),
+                [('Its Jamfile, which builds on ' + ', '.join(outcome.targets) + ':',
+                  included(name, 'Jamfile', 'jamfile'))])
+               for name, (_, outcome) in cases.items() if outcome.succeeds and not outcome.runs]
+    if records:
+        text += ('\nElsewhere than MSVC these mistakes build, and nothing stops them; the fixtures '
+                 'record it:\n\n')
+        text += case_list(records)
     return text
 
 

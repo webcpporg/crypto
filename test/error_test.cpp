@@ -35,6 +35,8 @@ int main() {
     BOOST_TEST_EQ(static_cast<int>(error::invalid_public_key), 10);
     BOOST_TEST_EQ(static_cast<int>(error::invalid_signature), 11);
     BOOST_TEST_EQ(static_cast<int>(error::backend_failure), 12);
+    BOOST_TEST_EQ(static_cast<int>(error::memory_functions_refused), 13);
+    BOOST_TEST_EQ(static_cast<int>(error::memory_functions_not_installed), 14);
 
     boost::system::error_code const code = error::authentication_failed;
     BOOST_TEST_EQ(std::string_view(code.category().name()), "webcpp.crypto");
@@ -46,9 +48,17 @@ int main() {
 
     BOOST_TEST_EQ(crypto::make_error_code(error::authentication_failed).message(),
                   "the authentication tag does not match");
-    // 13 and 14 are reserved, not declared: their messages are the unknown one.
-    BOOST_TEST_EQ(crypto::make_error_code(static_cast<error>(13)).message(),
-                  "unknown webcpp.crypto error");
+    // The memory option's two errors carry spec section 3.7's texts.
+    BOOST_TEST_EQ(
+        crypto::make_error_code(error::memory_functions_refused).message(),
+        "OpenSSL's memory functions cannot be installed: OpenSSL has already allocated, or "
+        "another party installed its own. Call backends::openssl::install_memory_functions() as "
+        "the first statement of main, before anything uses OpenSSL.");
+    BOOST_TEST_EQ(
+        crypto::make_error_code(error::memory_functions_not_installed).message(),
+        "OpenSSL's memory functions are not webcpp::crypto's. Call "
+        "backends::openssl::install_memory_functions() as the first statement of main, and let "
+        "nothing else call CRYPTO_set_mem_functions.");
     BOOST_TEST_EQ(crypto::make_error_code(static_cast<error>(99)).message(),
                   "unknown webcpp.crypto error");
     // The form that allocates nothing returns the whole message, and copies into the buffer
@@ -61,13 +71,13 @@ int main() {
 
     // Every defined value has its own message, never the unknown one.
     std::set<std::string> messages;
-    for (int value = 1; value <= 12; ++value) {
+    for (int value = 1; value <= 14; ++value) {
         std::string const text = crypto::error_category().message(value);
         BOOST_TEST(!text.empty());
         BOOST_TEST_NE(text, "unknown webcpp.crypto error");
         messages.insert(text);
     }
-    BOOST_TEST_EQ(messages.size(), 12u);
+    BOOST_TEST_EQ(messages.size(), 14u);
 
     // The guards of the buffer form: a null buffer or a size of 0 writes nothing, a size of 1
     // writes the terminating zero alone, and a message longer than the buffer is cut with one.

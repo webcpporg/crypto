@@ -48,7 +48,7 @@ The library behind each, and what it costs a program:
 |OpenSSL 3.5.9's libcrypto, built from source and static
 |Apache-2.0
 |`+<openssl/*.h>+`
-|`+make+` allocates the cipher's context through OpenSSL's own allocator, outside the program's resource; a message allocates nothing after `+make+`
+|`+make+` allocates the cipher's context through OpenSSL's own allocator, outside the program's resource, unless a native program sets `+WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE+`, which sends every allocation of OpenSSL's in the process to `+openssl_memory_resource()+`; a message allocates nothing after `+make+`
 
 |ctaes
 |ctaes as Bitcoin Core v31.1 ships it (`+src/crypto/ctaes+`), built from source

@@ -19,7 +19,9 @@
 // MrDocs parses crypto natively, as a build with exceptions does, where neither
 // macro is defined: these definitions, each undone at once, are the ones the
 // reference lists. WEBCPP_CRYPTO_HAS_OPENSSL stays when the reference's build
-// defines it, linking OpenSSL to read the backend headers (doc/Jamfile).
+// defines it, linking OpenSSL to read the backend headers (doc/Jamfile), and
+// WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE stays, so that the reference lists the
+// declarations of the memory option too.
 #ifdef __MRDOCS__
 /**
  Defined when webcpp::crypto is built without exceptions: when webcpp has none (the
@@ -118,6 +120,16 @@
 */
 #define WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
 #undef WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+/**
+ Defined by a native program, in its project's requirements beside `/webcpp/crypto//openssl`, to
+ send every allocation of OpenSSL's in the process to a resource of the program's: the program
+ then defines `openssl_memory_resource()` once and calls
+ `backends::openssl::install_memory_functions()` as the first statement of `main`. Refused on
+ every WebAssembly target, and natively without OpenSSL linked.
+
+ @see "OpenSSL's allocations in your own memory resource", in the guide.
+*/
+#define WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
 #endif
 
 #if !defined(WEBCPP_HAS_EXCEPTIONS) && !defined(WEBCPP_CRYPTO_NO_EXCEPTIONS)
@@ -142,6 +154,13 @@
 #endif
 #if defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL) && defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL)
 #error "webcpp::crypto: both WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL and WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL are defined. Keep one."
+#endif
+#if defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE) && defined(WEBCPP_CRYPTO_WEBASSEMBLY)
+#error "webcpp::crypto: WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE is an option of native programs, and this program is built for WebAssembly. Remove that define from the program's Jamfile."
+#endif
+#if defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE) && !defined(WEBCPP_CRYPTO_WEBASSEMBLY) && \
+    !defined(WEBCPP_CRYPTO_HAS_OPENSSL)
+#error "webcpp::crypto: WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE routes OpenSSL's allocations, and OpenSSL is not linked. In the program's Jamfile, add /webcpp/crypto//openssl beside /webcpp/crypto//crypto, or remove that define. (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)"
 #endif
 // clang-format on
 

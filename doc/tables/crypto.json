@@ -59,7 +59,8 @@
         "bitcoin-wiki-secp256k1": ["Bitcoin Wiki, secp256k1", "https://en.bitcoin.it/wiki/Secp256k1"],
         "secp256k1-configure": ["libsecp256k1's configure.ac, the precomputed tables' trade", "https://github.com/bitcoin-core/secp256k1/blob/master/configure.ac"],
         "nip44": ["Nostr NIP-44, encrypted payloads", "https://github.com/nostr-protocol/nips/blob/master/44.md"],
-        "bip32": ["BIP 32, hierarchical deterministic wallets", "https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki"]
+        "bip32": ["BIP 32, hierarchical deterministic wallets", "https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki"],
+        "openssl-mem": ["OpenSSL 3.5's OPENSSL_malloc(3), CRYPTO_set_mem_functions", "https://docs.openssl.org/3.5/man3/OPENSSL_malloc/"]
     },
     "backends": {
         "bearssl": {
@@ -80,7 +81,7 @@
             "library": "OpenSSL 3.5.9's libcrypto, built from source and static",
             "licence": "Apache-2.0",
             "own_api": "`<openssl/*.h>`",
-            "allocation": "`make` allocates the cipher's context through OpenSSL's own allocator, outside the program's resource; a message allocates nothing after `make`",
+            "allocation": "`make` allocates the cipher's context through OpenSSL's own allocator, outside the program's resource, unless a native program sets `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, which sends every allocation of OpenSSL's in the process to `openssl_memory_resource()`; a message allocates nothing after `make`",
             "constant_time": "with assembly (native Clang and GCC), AES-NI and carry-less multiplication where the CPU has them; built no-asm (MSVC, wasip2, wasip3), table-based AES and 4-bit GHASH, neither constant time (`OPENSSL_AES_CONST_TIME` makes only the AES core constant time; GHASH stays table-based)",
             "constant_time_sources": ["openssl-install", "openssl-aes-core"]
         },
@@ -232,6 +233,16 @@
             "what": "Tweaks an x-only public key by a 32-byte tweak a protocol computes.",
             "section": "crypto-secp256k1",
             "backends": {"secp256k1": {"tests": ["secp256k1_xonly_tweak"]}}
+        },
+        {
+            "id": "memory_option",
+            "functions": ["openssl_memory_resource", "install_memory_functions"],
+            "namespace": "root",
+            "api": "openssl_memory_resource, backends::openssl::install_memory_functions",
+            "header": "<webcpp/crypto/backends/openssl.hpp>",
+            "what": "With `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, natively, every allocation of OpenSSL's in the process goes to a `std::pmr::memory_resource` the program defines.",
+            "section": "crypto-memory-openssl",
+            "backends": {"openssl": {"tests": ["adapter", "everything", "late", "foreign", "fresh_install", "forgotten", "replaced", "second_install", "fail_second", "fail_init", "fail_init_threads", "neighbours", "handshake"], "elsewhere": "memory"}}
         }
     ],
     "rules": [
@@ -255,6 +266,7 @@
         "emscripten": "emscripten"
     },
     "elsewhere": {
+        "memory": "`config.hpp` refuses the option on every WebAssembly target",
         "openssl": "`/webcpp/crypto//openssl` stops the build there",
         "refused": "refused at compile time"
     },
@@ -274,7 +286,8 @@
             "rows": [
                 ["`random_device`", "Keys, IVs, tokens, nonces: every secret a program draws", "`<webcpp/crypto/random_device.hpp>`", "`entropy_unavailable`, `errc::not_supported`", "{getentropy}, {bcryptgenrandom}, {getrandomvalues}, {wasi-random}", "you need a random number an attacker must not predict; never `std::mt19937` or `rand` ({cwe338})"],
                 ["`equal`", "Checking a tag, a MAC or a token", "`<webcpp/crypto/equal.hpp>`", "none: it returns `bool`", "{cwe208}", "you compare anything secret; never `==` or `memcmp` on a MAC"],
-                ["`error`", "Telling failures apart", "`<webcpp/crypto/error.hpp>`", "its values are the errors", "none", "you branch on a failure: forged data, a wrong size, no entropy"]
+                ["`error`", "Telling failures apart", "`<webcpp/crypto/error.hpp>`", "its values are the errors", "none", "you branch on a failure: forged data, a wrong size, no entropy"],
+                ["`openssl_memory_resource`", "Keeping every allocation of OpenSSL's in the program's own resource, natively", "`<webcpp/crypto/backends/openssl.hpp>`", "`memory_functions_refused`, `memory_functions_not_installed`", "{openssl-mem}", "a native program on OpenSSL must allocate only from its own arena; on WebAssembly, BearSSL allocates nothing"]
             ]
         },
         "ciphers": {
@@ -308,6 +321,7 @@
         {"need": "Sign a Bitcoin SegWit v0 input (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`sign_ecdsa`, `to_der`, `normalize_ecdsa`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ecdsa_der", "section": "crypto-wallets-der"},
         {"need": "Derive a Bitcoin Taproot output key and spend by key path (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`tweak_xonly`, `keypair::tweak_xonly`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "taproot_tweak", "section": "crypto-wallets-taproot"},
         {"need": "Sign where allocation is restricted to the program's arena", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::make(secret, resource)`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "arena_signer", "section": "crypto-memory"},
+        {"need": "Keep every allocation of OpenSSL's in the program's arena", "namespace": "webcpp::crypto", "api": "`openssl_memory_resource`, `backends::openssl::install_memory_functions`", "backend": "OpenSSL, natively", "jamfile": "`/webcpp/crypto//crypto` in the program; in the project requirements, `<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` and `<library>/webcpp/crypto//openssl`", "example": "openssl_memory", "section": "crypto-memory-openssl"},
         {"need": "Seed BearSSL's own generator for code that calls BearSSL directly", "namespace": "webcpp::crypto", "api": "`random_device::fill`", "backend": "BearSSL's C API", "jamfile": "/webcpp/crypto//crypto /third_party//bearssl", "example": "bearssl_prng", "section": "crypto-entropy-bearssl"},
         {"need": "Hash, or compute an HMAC", "namespace": "Boost.Hash2, not this library", "api": "`boost::hash2::sha2_256`, `hmac_sha2_256`", "backend": "none", "jamfile": "`/webcpp/crypto//crypto` brings Boost's headers", "example": "equal_hmac", "section": "crypto-overview-hash2"},
         {"need": "Use P-256 (passkeys, JWT's ES256), Ed25519 or X25519", "namespace": "none in this version", "api": "secp256k1 keys and signatures do not interoperate with these curves", "backend": "none", "jamfile": "none", "example": "", "section": "crypto-curves"}
@@ -331,6 +345,11 @@
         "default_openssl_on_emscripten": "OpenSSL selected as the default in a build for Emscripten.",
         "has_openssl_on_emscripten": "OpenSSL declared linked, without b2, in a build for Emscripten.",
         "openssl_on_emscripten": "`/webcpp/crypto//openssl` named in a build for Emscripten.",
+        "openssl_memory_on_emscripten": "The memory option of the OpenSSL backend set in a build for Emscripten.",
+        "memory_missing_definition_install": "The memory option set in the program's project, the install called, and `openssl_memory_resource()` not defined.",
+        "memory_missing_definition_make": "The memory option set in the program's project, a `make` on OpenSSL, and `openssl_memory_resource()` not defined.",
+        "memory_two_files": "Two files of one program, one compiled with the memory option and one without.",
+        "memory_option": "OpenSSL's allocations in the program's own resource: the define and OpenSSL in the requirements of the program's project, the resource defined once, the install first in `main`.",
         "no_backend_on_emscripten": "A program for Emscripten that uses the default backend and links none."
     },
     "fixes": {
@@ -349,6 +368,12 @@
         "default_openssl_on_emscripten": "Remove the define, or make it `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`.",
         "has_openssl_on_emscripten": "Replace `/webcpp/crypto//openssl` with `/third_party//bearssl`.",
         "openssl_on_emscripten": "Name `/third_party//bearssl` in its place for the Emscripten build.",
+        "openssl_memory_on_emscripten": "Remove `<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` from the WebAssembly build: give that build a project of its own, without the define and OpenSSL, naming `/third_party//bearssl`. On WebAssembly the backend is BearSSL, which allocates nothing.",
+        "openssl_memory_on_webassembly": "Remove `<define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` from the WebAssembly build: give that build a project of its own, without the define and OpenSSL, naming `/third_party//bearssl`. On WebAssembly the backend is BearSSL, which allocates nothing.",
+        "memory_missing_definition_install": "Define `std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept` once in the program, returning a resource that is never destroyed.",
+        "memory_missing_definition_make": "Define `std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept` once in the program, returning a resource that is never destroyed.",
+        "memory_two_files": "Give the define in the requirements of the program's project, with OpenSSL beside it, `project app : requirements <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE <library>/webcpp/crypto//openssl ;`, so that every target of the program gets both.",
+        "openssl_memory_not_linked": "A target has the define and not OpenSSL: put `<library>/webcpp/crypto//openssl` in the same project requirements as the define, or remove the define.",
         "canary_missing": "Link the library through b2, `/third_party//bearssl`; built by other means, it must be the pinned commit, with webcpp's `src/canary_bearssl.c`.",
         "canary_other_commit": "Build the library at the commit of webcpp's submodule, or link it through b2.",
         "canary_other_configuration": "Build BearSSL in webcpp's configuration (`getentropy`), or link it through b2.",

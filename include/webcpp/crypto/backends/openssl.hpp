@@ -8,7 +8,9 @@
  The backend OpenSSL: OpenSSL 3.5.9 built from `third_party/libs/openssl` by
  `/webcpp/crypto//openssl`, static, on native, wasip2 and wasip3; never on Emscripten. It
  serves `ciphers::aes128/192/256<backends::openssl>` and `ciphers::gcm<...<backends::openssl>>`. Its
- `make` allocates through OpenSSL's own functions. On MSVC, wasip2 and wasip3 OpenSSL is compiled
+ `make` allocates through OpenSSL's own functions, unless a native program sets
+ `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, which sends every allocation of OpenSSL's to
+ `openssl_memory_resource()`. On MSVC, wasip2 and wasip3 OpenSSL is compiled
  without assembly: table-driven AES and 4-bit GHASH, no AES-NI, not constant time.
  OpenSSL's default initialisation reads the configuration file of the directory it was
  configured with (`/etc/ssl/openssl.cnf`, when the machine has one), as any program of
@@ -50,6 +52,7 @@
 #include <boost/system/errc.hpp>
 #include <boost/system/result.hpp>
 
+#include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
 
@@ -58,9 +61,196 @@
 #include <climits>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <limits>
+#include <memory_resource>
 #include <span>
 #include <string_view>
 #include <utility>
+
+#ifdef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+
+namespace webcpp::crypto {
+
+/**
+ * The resource every allocation of OpenSSL's in the process goes to, from any thread:
+ * declared by `<webcpp/crypto/backends/openssl.hpp>` under
+ * `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` and defined once by the program. It returns a
+ * resource that is never destroyed and is thread-safe whenever OpenSSL may run on two threads
+ * at once: OpenSSL frees through it after `main` returns.
+ *
+ * It must serve OpenSSL's initialisation, which the first use of OpenSSL in the process runs,
+ * usually the first `make`: on an OpenSSL built with threads, which MSVC always builds, a
+ * resource that fails during OpenSSL's base initialisation makes OpenSSL re-enter it, and that
+ * call never returns: the process aborts on macOS, deadlocks on Linux and spins on Windows. Only on
+ * an OpenSSL built without threads does it return, and every `make` then gives `backend_failure`.
+ * On Windows a thread that used OpenSSL keeps its blocks in the resource until the process ends
+ * unless it calls `OPENSSL_thread_stop()` before it ends.
+ *
+ * @return The program's resource.
+ * @see "OpenSSL's allocations in your own memory resource", in the guide.
+ */
+std::pmr::memory_resource& openssl_memory_resource() noexcept;
+
+}  // namespace webcpp::crypto
+
+namespace webcpp::crypto::detail {
+
+/**
+ * The alignment of the adapter's blocks, and the size of the header before each that
+ * holds its size: at least what the system's `malloc` gives OpenSSL without the option
+ * (16 on x86-64 and arm64; on macOS arm64 `alignof(std::max_align_t)` is only 8).
+ */
+inline constexpr std::size_t openssl_block_alignment =
+    (std::max)(alignof(std::max_align_t), std::size_t{__STDCPP_DEFAULT_NEW_ALIGNMENT__});
+
+}  // namespace webcpp::crypto::detail
+
+// The adapter: three C functions given to OpenSSL, with C linkage since OpenSSL calls
+// them as C, inline with external linkage so that every file of the program sees one
+// function, which the install and make recognise by its address.
+extern "C" {
+
+/**
+ * OpenSSL's `malloc` under the option: a block of the program's resource, after a header
+ * that holds its size.
+ *
+ * @param size The bytes OpenSSL asks for; 0, or a size whose header overflows, gives null.
+ * @return The block, or null, which OpenSSL takes as a failure.
+ */
+inline void* webcpp_crypto_openssl_malloc(std::size_t size, char const* /*file*/,
+                                          int /*line*/) noexcept {
+    constexpr std::size_t header = webcpp::crypto::detail::openssl_block_alignment;
+    // NOLINTNEXTLINE(readability-redundant-parentheses)
+    if (size == 0 || size > (std::numeric_limits<std::size_t>::max)() - header) {
+        return nullptr;
+    }
+#ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+    try {
+#endif
+        void* const block =
+            webcpp::crypto::openssl_memory_resource().allocate(header + size, header);
+        if (block == nullptr) {
+            return nullptr;
+        }
+        std::memcpy(block, &size, sizeof size);
+        return static_cast<unsigned char*>(block) + header;
+#ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+    } catch (...) {  // OpenSSL is C: no exception may cross it
+        return nullptr;
+    }
+#endif
+}
+
+/**
+ * OpenSSL's `free` under the option: the block back to the program's resource.
+ *
+ * @param address A block of the adapter's, or null.
+ */
+inline void webcpp_crypto_openssl_free(void* address, char const* /*file*/, int /*line*/) noexcept {
+    if (address == nullptr) {
+        return;
+    }
+    constexpr std::size_t header = webcpp::crypto::detail::openssl_block_alignment;
+    auto* const block = static_cast<unsigned char*>(address) - header;
+    std::size_t size = 0;
+    std::memcpy(&size, block, sizeof size);
+#ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+    try {
+#endif
+        webcpp::crypto::openssl_memory_resource().deallocate(block, header + size, header);
+#ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+        // NOLINTNEXTLINE(bugprone-empty-catch): no exception may cross OpenSSL
+    } catch (...) {
+    }
+#endif
+}
+
+/**
+ * OpenSSL's `realloc` under the option, as C's: null is `malloc`, 0 frees and gives null,
+ * and a failure gives null and leaves the old block valid.
+ *
+ * @param address The block, or null.
+ * @param size The new size.
+ * @return The new block, or null.
+ */
+inline void* webcpp_crypto_openssl_realloc(void* address, std::size_t size, char const* file,
+                                           int line) noexcept {
+    if (address == nullptr) {
+        return webcpp_crypto_openssl_malloc(size, file, line);
+    }
+    if (size == 0) {
+        webcpp_crypto_openssl_free(address, file, line);
+        return nullptr;
+    }
+    void* const moved = webcpp_crypto_openssl_malloc(size, file, line);
+    if (moved == nullptr) {
+        return nullptr;
+    }
+    constexpr std::size_t header = webcpp::crypto::detail::openssl_block_alignment;
+    std::size_t old = 0;
+    std::memcpy(&old, static_cast<unsigned char*>(address) - header, sizeof old);
+    std::memcpy(moved, address, (std::min)(old, size));
+    webcpp_crypto_openssl_free(address, file, line);
+    return moved;
+}
+
+}  // extern "C"
+
+namespace webcpp::crypto::detail {
+
+/** Whether OpenSSL's functions are the adapter's: three loads, no call into OpenSSL's heap. */
+inline bool openssl_adapter_installed() noexcept {
+    CRYPTO_malloc_fn m = nullptr;
+    CRYPTO_realloc_fn r = nullptr;
+    CRYPTO_free_fn f = nullptr;
+    CRYPTO_get_mem_functions(&m, &r, &f);
+    return m == &webcpp_crypto_openssl_malloc && r == &webcpp_crypto_openssl_realloc &&
+           f == &webcpp_crypto_openssl_free;
+}
+
+/**
+ * Whether OpenSSL's functions are its own defaults (`mem.c:23-25`): the three addresses
+ * are those of `CRYPTO_malloc`, `CRYPTO_realloc` and `CRYPTO_free`. A libcrypto DLL, which
+ * webcpp never builds, is refused by this comparison.
+ */
+inline bool openssl_defaults_installed() noexcept {
+    CRYPTO_malloc_fn m = nullptr;
+    CRYPTO_realloc_fn r = nullptr;
+    CRYPTO_free_fn f = nullptr;
+    CRYPTO_get_mem_functions(&m, &r, &f);
+    return m == &CRYPTO_malloc && r == &CRYPTO_realloc && f == &CRYPTO_free;
+}
+
+}  // namespace webcpp::crypto::detail
+
+#ifdef _MSC_VER
+#pragma detect_mismatch("webcpp_crypto_openssl_memory", "resource")
+#endif
+
+#elif defined(_MSC_VER)
+#pragma detect_mismatch("webcpp_crypto_openssl_memory", "openssl")
+#endif  // WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+
+namespace webcpp::crypto::detail {
+
+/**
+ * The check every OpenSSL `make` runs first, before any call into OpenSSL that allocates:
+ * with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, `memory_functions_not_installed` unless the
+ * adapter is installed; without it, nothing.
+ *
+ * @return Nothing, or `memory_functions_not_installed`.
+ */
+[[nodiscard]] inline boost::system::result<void> openssl_memory_guard() noexcept {
+#ifdef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+    if (!openssl_adapter_installed()) {
+        return error::memory_functions_not_installed;
+    }
+#endif
+    return {};
+}
+
+}  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::backends {
 
@@ -68,6 +258,37 @@ namespace webcpp::crypto::backends {
 struct openssl {
     /** The backend's name, which the examples print. */
     static constexpr std::string_view name = "openssl";
+
+#ifdef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+    /**
+     * Installs webcpp's adapter as OpenSSL's memory functions, so that every allocation of
+     * OpenSSL's in the process goes to `openssl_memory_resource()`. Called as the first
+     * statement of `main`, before any thread starts and anything uses OpenSSL. The first use
+     * of OpenSSL after it, usually the first `make`, runs OpenSSL's initialisation through the
+     * resource: on an OpenSSL built with threads (MSVC's only build) a failure during its
+     * base initialisation makes that call never return; on one built without threads every
+     * `make` then gives `backend_failure`.
+     *
+     * @return Nothing, also when the adapter is installed already;
+     * `memory_functions_refused` when another party installed its own functions, or OpenSSL
+     * has allocated with its own and refuses the change.
+     */
+    [[nodiscard]] static boost::system::result<void> install_memory_functions() noexcept {
+        if (detail::openssl_adapter_installed()) {
+            return {};
+        }
+        if (!detail::openssl_defaults_installed()) {
+            return error::memory_functions_refused;
+        }
+        // The resource is constructed here, outside OpenSSL's allocation path.
+        static_cast<void>(openssl_memory_resource());
+        if (CRYPTO_set_mem_functions(&webcpp_crypto_openssl_malloc, &webcpp_crypto_openssl_realloc,
+                                     &webcpp_crypto_openssl_free) != 1) {
+            return error::memory_functions_refused;
+        }
+        return {};
+    }
+#endif
 };
 
 }  // namespace webcpp::crypto::backends
@@ -120,6 +341,9 @@ inline boost::system::error_code openssl_context(EVP_CIPHER_CTX*& made_context,
                                                  char const* cipher_name,
                                                  std::span<std::uint8_t const> key_bytes,
                                                  bool is_encrypting, bool use_padding) noexcept {
+    if (auto const guard = openssl_memory_guard(); !guard) {
+        return guard.error();
+    }
     ERR_set_mark();
     EVP_CIPHER* const fetched_cipher = EVP_CIPHER_fetch(nullptr, cipher_name, nullptr);
     if (fetched_cipher == nullptr) {

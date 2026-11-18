@@ -1,0 +1,74 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+# OpenSSL's memory functions under WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE (spec
+# sections 3.7 and 8.5): each test is a program of its own, since OpenSSL's
+# functions are the process's and cannot be put back once allocated through;
+# each runs with exceptions on and off, on native programs only.
+project : requirements <library>/webcpp/crypto//openssl ;
+
+import webcpp ;
+
+webcpp.targets native ;
+
+rule memory-run ( name : sources + : requirements * )
+{
+    webcpp.run $(name) : $(sources)
+      : $(requirements) <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;
+    webcpp.run $(name)_no_exceptions : $(sources)
+      : $(requirements) <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE <exception-handling>off ;
+}
+
+memory-run adapter : adapter_test.cpp ;
+
+# The C library's allocator, counted while a test says so: through
+# malloc_logger on macOS, by the program's own malloc on Linux, not at all on
+# Windows (spec section 8.5).
+.counter = <target-os>darwin:<source>interpose_darwin.cpp
+    <target-os>linux:<source>interpose_linux.cpp
+    <target-os>windows:<source>interpose_windows.cpp ;
+
+# A second thread uses OpenSSL: the provider is built with threads.
+memory-run everything : everything_test.cpp : $(.counter) <threading>multi ;
+
+# The late, foreign, fresh, forgotten, replaced and second installs, and a
+# failing resource (spec section 8.5).
+memory-run late : late_test.cpp : $(.counter) ;
+memory-run foreign : foreign_test.cpp : $(.counter) ;
+memory-run fresh_install : fresh_install_test.cpp : $(.counter) ;
+memory-run forgotten : forgotten_test.cpp : $(.counter) ;
+memory-run replaced : replaced_test.cpp : $(.counter) ;
+memory-run second_install : second_install_test.cpp : $(.counter) ;
+memory-run fail_second : fail_second_test.cpp : $(.counter) ;
+memory-run fail_init : fail_init_test.cpp : $(.counter) ;
+# The same program on an OpenSSL built with threads (MSVC's only build): the
+# failure is not run there, since OpenSSL re-enters its own initialisation.
+memory-run fail_init_threads : fail_init_test.cpp : $(.counter) <threading>multi ;
+
+# The header alone, with the option: its branch compiles with nothing before it.
+webcpp.compile header_alone : header_alone_test.cpp
+  : <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;
+
+# <windows.h> before and after every public header with the option on (spec
+# sections 2.2 and 8.6), so that backends/openssl.hpp's branch of the option is
+# compiled beside a bare <windows.h> on MSVC; elsewhere the headers alone.
+.every-backend = <library>/third_party//bearssl <library>/third_party//ctaes
+    <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;
+webcpp.compile windows_h_before_memory : ../windows_h_before_test.cpp : $(.every-backend) ;
+webcpp.compile windows_h_after_memory : ../windows_h_after_test.cpp : $(.every-backend) ;
+
+# Its neighbours in the process (spec section 8.5): Asio's TLS and
+# libdatachannel linked beside the option, as webcpp::beast's tls and
+# webcpp::webrtc link them natively, and the install still succeeds. Test-only
+# dependencies, never in /webcpp/crypto//crypto's usage requirements;
+# libdatachannel needs threads.
+memory-run neighbours : neighbours_test.cpp
+  : <library>/webcpp/asio//asio <library>/webcpp/asio//openssl
+    <library>/third_party//libdatachannel <threading>multi ;
+
+# A TLS 1.3 handshake through libssl over a pair of memory BIOs, with the C
+# library's allocator counted from the key to the last free.
+memory-run handshake : handshake_test.cpp : $(.counter) ;

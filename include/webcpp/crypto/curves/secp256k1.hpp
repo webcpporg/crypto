@@ -413,7 +413,8 @@ enum class point_form {
  * @tparam Form The SEC1 form.
  */
 template <point_form Form>
-inline constexpr std::size_t point_size = Form == point_form::compressed ? 33 : 65;
+inline constexpr std::size_t point_size =
+    Form == point_form::compressed ? std::size_t{33} : std::size_t{65};
 
 /** The size of a recoverable signature: r, s, then the recovery id. */
 inline constexpr std::size_t recoverable_signature_size = 65;
@@ -913,7 +914,7 @@ inline secp256k1_pubkey& secp256k1_access::point(curves::secp256k1::public_key& 
 }
 
 inline curves::secp256k1::public_key secp256k1_access::make_public_key() noexcept {
-    return curves::secp256k1::public_key();
+    return {};
 }
 
 }  // namespace webcpp::crypto::detail

@@ -24,6 +24,11 @@ Each cell is the median of its invocations' medians, each of five timed runs, in
 microseconds per operation, with the fastest and slowest single run beside it: the
 spread is part of the result.
 
+The machine's 1, 5 and 15 minute load averages were 13/109/178 before and
+90/93/161 after, on 18 cores.
+
+WARNING: the machine was shared and loaded while this was measured (rule: the larger of the two 1-minute load averages exceeds half the core count). Read the spread, not a single figure.
+
 [cols="3,2,1,1,1,1,2",options="header"]
 |===
 | Operation | Backend | Target | Median (µs) | Fastest (µs) | Slowest (µs) | Per second
@@ -31,362 +36,362 @@ spread is part of the result.
 | AES-GCM: seal of 16 KiB, 256-bit key
 | BearSSL
 | native
-| 107.83
-| 106.07
-| 132.14
+| 107.71
+| 101.62
+| 169.63
 | 145 MiB/s
 
 | AES-GCM: seal of 16 KiB, 256-bit key
 | BearSSL
 | wasip2
-| 124.23
-| 115.14
-| 137.16
-| 126 MiB/s
+| 124.74
+| 107.21
+| 417.61
+| 125 MiB/s
 
 | AES-GCM: seal of 16 KiB, 256-bit key
 | BearSSL
 | wasip3
-| 122.69
-| 109.89
-| 130.57
-| 127 MiB/s
+| 121.03
+| 104.90
+| 328.63
+| 129 MiB/s
 
 | AES-GCM: seal of 16 KiB, 256-bit key
 | BearSSL
 | emscripten
-| 121.00
-| 101.85
-| 126.42
-| 129 MiB/s
+| 115.40
+| 102.08
+| 260.36
+| 135 MiB/s
 
 | AES-GCM: seal of 16 KiB, 256-bit key
 | OpenSSL
 | native
 | 2.32
-| 2.23
-| 2.42
-| 6,747 MiB/s
+| 2.07
+| 3.87
+| 6,748 MiB/s
 
 | AES-GCM: seal of 16 KiB, 256-bit key
 | OpenSSL
 | wasip2
-| 111.96
-| 108.12
-| 119.87
-| 140 MiB/s
+| 112.78
+| 100.44
+| 351.22
+| 139 MiB/s
 
 | AES-GCM: seal of 16 KiB, 256-bit key
 | OpenSSL
 | wasip3
-| 110.42
-| 106.79
-| 115.49
-| 142 MiB/s
+| 112.80
+| 106.83
+| 297.13
+| 139 MiB/s
 
 | AES block cipher: encryption of one 16-byte block, 256-bit key
 | ctaes
 | native
-| 0.366
-| 0.356
-| 0.392
-| 2,732,987 operations/s
+| 0.364
+| 0.344
+| 0.531
+| 2,747,253 operations/s
 
 | AES block cipher: encryption of one 16-byte block, 256-bit key
 | ctaes
 | wasip2
-| 0.442
-| 0.396
-| 0.49
-| 2,263,468 operations/s
+| 0.448
+| 0.373
+| 1.29
+| 2,233,140 operations/s
 
 | AES block cipher: encryption of one 16-byte block, 256-bit key
 | ctaes
 | wasip3
-| 0.433
-| 0.395
-| 0.48
-| 2,307,337 operations/s
-
-| AES block cipher: encryption of one 16-byte block, 256-bit key
-| ctaes
-| emscripten
+| 0.452
 | 0.375
-| 0.317
-| 0.439
-| 2,669,514 operations/s
+| 1.07
+| 2,213,859 operations/s
+
+| AES block cipher: encryption of one 16-byte block, 256-bit key
+| ctaes
+| emscripten
+| 0.374
+| 0.318
+| 1.10
+| 2,676,660 operations/s
 
 | AES block cipher: encryption of one 16-byte block, 256-bit key
 | OpenSSL
 | native
-| 0.0107
-| 0.0104
-| 0.0112
-| 93,457,944 operations/s
+| 0.0109
+| 0.0102
+| 0.0144
+| 91,743,119 operations/s
 
 | AES block cipher: encryption of one 16-byte block, 256-bit key
 | OpenSSL
 | wasip2
-| 0.0872
-| 0.0819
-| 0.0919
-| 11,467,890 operations/s
+| 0.0873
+| 0.0815
+| 0.244
+| 11,454,754 operations/s
 
 | AES block cipher: encryption of one 16-byte block, 256-bit key
 | OpenSSL
 | wasip3
-| 0.0876
-| 0.0837
-| 0.0918
-| 11,415,525 operations/s
+| 0.0888
+| 0.0789
+| 0.233
+| 11,261,261 operations/s
 
 | secp256k1: BIP340 signature of a 32-byte message
 | libsecp256k1
 | native
-| 10.32
-| 9.52
-| 11.64
-| 96,903 operations/s
+| 10.48
+| 8.43
+| 14.01
+| 95,449 operations/s
 
 | secp256k1: BIP340 signature of a 32-byte message
 | libsecp256k1
 | wasip2
-| 65.56
-| 59.49
-| 72.54
-| 15,254 operations/s
+| 64.78
+| 58.56
+| 226.86
+| 15,438 operations/s
 
 | secp256k1: BIP340 signature of a 32-byte message
 | libsecp256k1
 | wasip3
-| 68.98
-| 61.87
-| 70.60
-| 14,497 operations/s
+| 80.00
+| 62.78
+| 162.19
+| 12,499 operations/s
 
 | secp256k1: BIP340 signature of a 32-byte message
 | libsecp256k1
 | emscripten
-| 55.41
-| 46.67
-| 62.72
-| 18,048 operations/s
+| 57.69
+| 49.02
+| 142.89
+| 17,334 operations/s
 
 | Ed25519: signature of a 32-byte message
 | libsodium
 | native
-| 9.16
-| 8.82
-| 9.54
-| 109,136 operations/s
+| 9.03
+| 8.37
+| 15.02
+| 110,698 operations/s
 
 | Ed25519: signature of a 32-byte message
 | libsodium
 | wasip2
-| 22.69
-| 21.84
-| 25.43
-| 44,072 operations/s
+| 22.75
+| 19.29
+| 58.59
+| 43,965 operations/s
 
 | Ed25519: signature of a 32-byte message
 | libsodium
 | wasip3
-| 22.96
-| 20.04
-| 24.22
-| 43,562 operations/s
+| 22.84
+| 19.22
+| 51.61
+| 43,783 operations/s
 
 | Ed25519: signature of a 32-byte message
 | libsodium
 | emscripten
-| 19.36
-| 16.31
-| 20.67
-| 51,659 operations/s
+| 19.09
+| 16.80
+| 54.69
+| 52,392 operations/s
 
 | X25519: agreement of a secret key and a public key
 | libsodium
 | native
-| 20.27
-| 18.64
-| 22.34
-| 49,323 operations/s
+| 19.64
+| 17.26
+| 103.27
+| 50,929 operations/s
 
 | X25519: agreement of a secret key and a public key
 | libsodium
 | wasip2
-| 52.59
-| 48.48
-| 58.46
-| 19,015 operations/s
+| 52.28
+| 45.98
+| 166.07
+| 19,129 operations/s
 
 | X25519: agreement of a secret key and a public key
 | libsodium
 | wasip3
-| 49.83
-| 47.18
-| 53.90
-| 20,069 operations/s
+| 55.01
+| 43.93
+| 116.78
+| 18,180 operations/s
 
 | X25519: agreement of a secret key and a public key
 | libsodium
 | emscripten
-| 45.39
-| 38.39
-| 49.52
-| 22,032 operations/s
+| 45.91
+| 38.77
+| 215.60
+| 21,781 operations/s
 
 | ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | BearSSL
 | native
-| 23.13
-| 21.98
-| 25.82
-| 676 MiB/s
+| 22.67
+| 20.90
+| 35.95
+| 689 MiB/s
 
 | ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | BearSSL
 | wasip2
-| 59.23
-| 56.32
-| 63.18
-| 264 MiB/s
+| 59.04
+| 51.76
+| 162.68
+| 265 MiB/s
 
 | ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | BearSSL
 | wasip3
-| 61.24
-| 55.31
-| 62.77
-| 255 MiB/s
+| 62.26
+| 56.52
+| 135.86
+| 251 MiB/s
 
 | ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | BearSSL
 | emscripten
-| 42.65
-| 35.38
-| 45.59
-| 366 MiB/s
+| 41.62
+| 35.79
+| 139.78
+| 375 MiB/s
 
 | ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | OpenSSL
 | native
-| 7.77
-| 7.57
-| 8.11
-| 2,012 MiB/s
+| 7.80
+| 7.51
+| 19.31
+| 2,002 MiB/s
 
 | ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | OpenSSL
 | wasip2
-| 39.37
-| 38.29
-| 41.98
-| 397 MiB/s
+| 38.26
+| 35.72
+| 92.54
+| 408 MiB/s
 
 | ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | OpenSSL
 | wasip3
-| 38.56
-| 36.85
-| 40.17
-| 405 MiB/s
+| 38.94
+| 36.88
+| 102.35
+| 401 MiB/s
 
 | ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | libsodium
 | native
-| 23.61
-| 22.80
-| 25.14
-| 662 MiB/s
+| 23.31
+| 21.70
+| 36.66
+| 670 MiB/s
 
 | ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | libsodium
 | wasip2
-| 30.55
-| 29.44
-| 31.87
-| 512 MiB/s
+| 30.79
+| 27.87
+| 107.84
+| 508 MiB/s
 
 | ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | libsodium
 | wasip3
-| 30.43
-| 27.56
-| 32.20
-| 513 MiB/s
+| 30.27
+| 28.01
+| 71.46
+| 516 MiB/s
 
 | ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | libsodium
 | emscripten
-| 26.20
-| 23.21
-| 28.76
-| 596 MiB/s
+| 28.17
+| 23.18
+| 103.48
+| 555 MiB/s
 
 | original ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | libsodium
 | native
-| 23.41
-| 22.42
-| 24.83
-| 668 MiB/s
+| 23.47
+| 21.11
+| 73.79
+| 666 MiB/s
 
 | original ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | libsodium
 | wasip2
-| 30.42
-| 28.59
-| 31.89
-| 514 MiB/s
+| 29.54
+| 27.68
+| 72.59
+| 529 MiB/s
 
 | original ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | libsodium
 | wasip3
-| 30.57
-| 27.86
-| 31.35
+| 30.56
+| 27.68
+| 69.79
 | 511 MiB/s
 
 | original ChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | libsodium
 | emscripten
-| 26.26
-| 22.98
-| 29.51
-| 595 MiB/s
+| 26.14
+| 23.05
+| 73.80
+| 598 MiB/s
 
 | XChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | libsodium
 | native
-| 23.46
-| 22.70
-| 25.51
-| 666 MiB/s
+| 23.88
+| 21.23
+| 72.39
+| 654 MiB/s
 
 | XChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | libsodium
 | wasip2
-| 29.95
-| 28.72
-| 30.92
-| 522 MiB/s
+| 30.82
+| 28.07
+| 90.31
+| 507 MiB/s
 
 | XChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | libsodium
 | wasip3
-| 30.61
-| 28.25
-| 33.57
-| 510 MiB/s
+| 30.93
+| 28.09
+| 78.61
+| 505 MiB/s
 
 | XChaCha20-Poly1305: seal of 16 KiB, 256-bit key
 | libsodium
 | emscripten
-| 26.42
-| 23.16
-| 37.49
-| 591 MiB/s
+| 27.27
+| 23.38
+| 63.69
+| 573 MiB/s
 |===
 
 Compilers: native: Apple LLVM 21.0.0 (clang-2100.4.1.1); wasip2: Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141); wasip3: Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141); emscripten: Clang 24.0.0git (https:/github.com/llvm/llvm-project f718ebe873411a562ef6e5c27da36d75b7aaec98).

@@ -55,6 +55,17 @@ constexpr std::string_view target = "emscripten";
 constexpr std::string_view target = "native";
 #endif
 
+// The compiler, as it names itself: MSVC defines no __VERSION__.
+#ifdef __VERSION__
+constexpr std::string_view compiler = __VERSION__;
+#elif defined(_MSC_FULL_VER)
+#define WEBCPP_CRYPTO_BENCH_STRING(x) #x
+#define WEBCPP_CRYPTO_BENCH_VERSION(x) WEBCPP_CRYPTO_BENCH_STRING(x)
+constexpr std::string_view compiler = "MSVC " WEBCPP_CRYPTO_BENCH_VERSION(_MSC_FULL_VER);
+#else
+constexpr std::string_view compiler = "unknown";
+#endif
+
 // The shortest run measured, in seconds: long enough that the clock's resolution is no part of it.
 constexpr double shortest_run = 0.05;
 
@@ -105,7 +116,7 @@ void measure(std::string_view family, int runs) {
     print_string("backend", Operation::backend_name);
     print_string("operation", Operation::operation);
     print_string("target", target);
-    print_string("compiler", __VERSION__);
+    print_string("compiler", compiler);
     std::printf(R"("repetitions": %llu, "runs_us": [)",
                 static_cast<unsigned long long>(repetitions));
     for (std::size_t i = 0; i < per_operation_us.size(); ++i) {

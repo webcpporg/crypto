@@ -42,6 +42,7 @@
         "ctaes": ["ctaes, constant-time AES", "https://github.com/bitcoin/bitcoin/tree/master/src/crypto/ctaes"],
         "libsecp256k1": ["libsecp256k1's README", "https://github.com/bitcoin-core/secp256k1#readme"],
         "openssl-install": ["OpenSSL's INSTALL.md, no-asm", "https://github.com/openssl/openssl/blob/master/INSTALL.md"],
+        "openssl-fetch": ["OpenSSL 3.5's crypto(7), algorithm fetching", "https://docs.openssl.org/3.5/man7/crypto/"],
         "openssl-aes-core": ["OpenSSL's crypto/aes/aes_core.c, OPENSSL_AES_CONST_TIME", "https://github.com/openssl/openssl/blob/master/crypto/aes/aes_core.c"],
         "wikipedia-aes": ["Wikipedia, Advanced Encryption Standard", "https://en.wikipedia.org/wiki/Advanced_Encryption_Standard"],
         "wikipedia-gcm": ["Wikipedia, Galois/Counter Mode", "https://en.wikipedia.org/wiki/Galois/Counter_Mode"],
@@ -116,7 +117,8 @@
             "own_api": "`<openssl/*.h>`",
             "allocation": "`make` allocates the cipher's context through OpenSSL's own allocator, outside the program's resource, unless a native program sets `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, which sends every allocation of OpenSSL's in the process to `openssl_memory_resource()`; a message allocates nothing after `make`",
             "constant_time": "with assembly (native Clang and GCC), AES-NI and carry-less multiplication where the CPU has them; built no-asm (MSVC, wasip2, wasip3), table-based AES and 4-bit GHASH, neither constant time (`OPENSSL_AES_CONST_TIME` makes only the AES core constant time; GHASH stays table-based)",
-            "constant_time_sources": ["openssl-install", "openssl-aes-core"]
+            "constant_time_sources": ["openssl-install", "openssl-aes-core"],
+            "size_note": "its cells differ by a few bytes whatever the operation: each fetches its algorithm by name from OpenSSL's default provider ({openssl-fetch}), and a static link brings the provider's algorithms with it, not the operation's alone."
         },
         "ctaes": {
             "without_b2": "link ctaes.c with webcpp's src/canary_ctaes.c",

@@ -6,13 +6,33 @@
 
 # The size of a program per cell of the capability table, (family, backend),
 # each calling its family's fixed operation once (bench/operations.hpp),
-# against the baseline, which calls nothing of crypto: the own lane sizes,
-# whose tables webcpp.program-sizes builds from release builds alone
-# (tools/webcpp.jam), and which doc/tables/generate.py reads into the size
-# matrix (generate.py --sizes, doc/generated/sizes.adoc). The ordinary lanes
-# link each program, at their own variant. OpenSSL is not built for
-# Emscripten, so its cells are a table of their own, on native, wasip2 and
-# wasip3: b2 skips a table whole where one of its programs is not built.
+# against the baseline, the same harness around an operation that calls
+# nothing of crypto: the own lane sizes, whose tables webcpp.program-sizes
+# builds from release builds alone (tools/webcpp.jam), and which
+# doc/tables/generate.py reads into the size matrix (doc/generated/sizes.adoc).
+# The ordinary lanes link each program, at their own variant. OpenSSL is not
+# built for Emscripten, so its cells are a table of their own, on native,
+# wasip2 and wasip3: b2 skips a table whole where one of its programs is not
+# built.
+#
+# The contract a task that adds a cell keeps:
+#
+# - A cell's program is <family>_<backend>.cpp, declared here with
+#   webcpp.link <family>_<backend> and the backend's library, on the targets
+#   where the backend has the family; it runs the family's fixed operation,
+#   whose text is the family's "measured" in doc/tables/crypto.json (a family
+#   without it is a fault of generate.py).
+# - A further operation of the same cell is <family>_<backend>_<operation>.cpp
+#   (secp256k1_secp256k1_ecdh_x, say), its text the entry <operation> of the
+#   family's "sized_operations" in crypto.json; it is a row of its own under
+#   the cell's. generate.py faults on a sized program of any other name.
+# - Each program is named in a webcpp.program-sizes table below whose targets
+#   it is built on every one of (the table crypto on the four targets, or
+#   crypto_openssl, or a table of its own named in the lane sizes).
+# - Then the lane sizes runs on each target, and
+#   `python3 libs/crypto/doc/tables/generate.py --sizes <each *.sizes.json>`
+#   writes doc/tables/sizes.json and the matrix; a cell not yet measured is
+#   written "not measured yet".
 project : requirements <library>/webcpp/crypto//crypto <include>../../bench ;
 
 import webcpp ;

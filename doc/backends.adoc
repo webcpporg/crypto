@@ -116,8 +116,9 @@ secret during `seal` only.
 
 What each cell of the capability table adds to a program, per target: a
 program per family and backend calls the family's fixed operation once
-(`test/sizes/`), and its size is read against a baseline that prints a line and
-calls nothing of crypto. The own lane `sizes` measures them from release builds
+(`test/sizes/`), and its size is read against a baseline, the same harness
+around an operation that calls nothing of crypto, so that a cell is its
+operation's code alone. The own lane `sizes` measures them from release builds
 alone (`variant=release`, the superproject's `webcpp.program-sizes`), and the
 table is generated from what it wrote; a cell it has not built says so. Like
 the throughput below, it is a dated reference that decides nothing: a family's

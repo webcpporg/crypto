@@ -22,9 +22,12 @@
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
+#include <webcpp/crypto/error.hpp>
 #ifdef WEBCPP_CRYPTO_HAS_SECP256K1
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #endif
+
+#include <boost/system/result.hpp>
 
 #include <algorithm>
 #include <array>
@@ -64,6 +67,28 @@ auto take(Result&& result, std::string_view what) {
     }
     return *std::forward<Result>(result);
 }
+
+// The baseline's operation (test/sizes/baseline.cpp): nothing of crypto, the harness alone, a
+// result taken and refused as every operation's is, so that what a sized program adds to the
+// baseline is its operation's code, not the harness's.
+class nothing {
+public:
+    static constexpr std::string_view operation = "nothing: the harness alone";
+
+    explicit nothing(std::uint8_t seed) : seed_(seed) {}
+
+    [[nodiscard]] std::uint8_t run() const {
+        boost::system::result<std::uint8_t> const made =
+            seed_ == 0 ? boost::system::result<std::uint8_t>(error::backend_failure)
+                       : boost::system::result<std::uint8_t>(seed_);
+        return take(made, "nothing");
+    }
+
+    static bool check() { return true; }
+
+private:
+    std::uint8_t seed_;
+};
 
 // The encryption of one 16-byte block with a 256-bit key.
 template <class Cipher>

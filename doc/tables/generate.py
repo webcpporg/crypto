@@ -44,7 +44,6 @@ the doc build runs (doc/Jamfile). Exit 0, 1 naming each fault, 2 on a usage erro
 from __future__ import annotations
 
 import argparse
-import datetime
 import hashlib
 import json
 import re
@@ -85,6 +84,8 @@ NOT_MEASURED = 'not measured yet'
 # The lane sizes' tables, as generate.py --sizes writes them, and the only variant they are of.
 SIZES = Path('doc/tables/sizes.json')
 RELEASE = 'release'
+# What every table of the lane carries (tools/variants/variants.py programs).
+TABLE_KEYS = ('variant', 'target', 'toolset', 'baseline', 'date', 'host', 'format', 'programs')
 SIZES_ABOUT = ('The tables of the own lane sizes (test/sizes/Jamfile, webcpp.program-sizes), '
                'built at variant=release: a reference that decides nothing. Written by '
                'generate.py --sizes from the lane\'s <name>.sizes.json files, never by hand: '
@@ -1079,22 +1080,29 @@ def digest_of(sizes: Data) -> str:
     return hashlib.sha256(json.dumps(rest, sort_keys=True).encode('utf-8')).hexdigest()
 
 
-def imported(tables: List[Data], date: str) -> Data:
+def imported(tables: List[Data]) -> Data:
     """doc/tables/sizes.json from the tables the lane sizes wrote (webcpp.program-sizes's
-    <name>.sizes.json, one per table and target), measured on date: a table not built at
-    variant=release is refused, and so is a program two tables measure on one target."""
+    <name>.sizes.json, one per table and target), each dated by its build: a table not built at
+    variant=release, one of no program, and a program two tables measure on one target are
+    refused."""
     seen: Dict[Tuple[str, str], int] = {}
     for index, sized in enumerate(tables):
+        lacking = [key for key in TABLE_KEYS if key not in sized]
+        if lacking:
+            raise Fault(f'a table of the lane sizes lacks {", ".join(lacking)}: run the lane '
+                        'again, whose tools/variants/variants.py writes them')
         variant = sized.get('variant')
         if variant != RELEASE:
             raise Fault(f'a size table is built only from release builds, not variant={variant}: '
                         'the lane sizes builds its tables at variant=release')
+        if not sized.get('programs'):
+            raise Fault(f'a table of the lane sizes on {sized.get("target")} holds no program')
         for row in sized['programs']:
             key = (row['program'], sized['target'])
             if seen.setdefault(key, index) != index and row['program'] != sized['baseline']:
                 raise Fault(f'the lane\'s tables measure {key[0]} on {key[1]} twice')
     ordered = sorted(tables, key=lambda t: (t['target'], t['programs'][-1]['program']))
-    out: Data = {'about': SIZES_ABOUT, 'date': date, 'tables': ordered}
+    out: Data = {'about': SIZES_ABOUT, 'tables': ordered}
     out['digest'] = digest_of(out)
     return out
 
@@ -1114,53 +1122,113 @@ def sized_on(sizes: Data, program: str, target: str) -> Optional[Tuple[int, int,
             sum(row['gzip_over_baseline'] for row in files.values()))
 
 
+def size_rows(data: Data) -> List[Tuple[str, Data, str, str]]:
+    """The rows of the size matrix after the baseline's, in crypto.json's order: per cell of a
+    family, (family, backend), the program <family>_<backend> of the family's fixed operation,
+    `measured`, then one <family>_<backend>_<operation> per entry of its `sized_operations`.
+    Each is (program, family, backend, the operation's text). A family without `measured` and two
+    rows of one program name are faults."""
+    rows: List[Tuple[str, Data, str, str]] = []
+    for family in data['families']:
+        if not isinstance(family.get('measured'), str):
+            raise Fault(f'crypto.json: the family {family["name"]} has no measured, the text of '
+                        'the fixed operation its sized programs call (test/sizes/Jamfile)')
+        operations = family.get('sized_operations', {})
+        if not isinstance(operations, dict) or not all(
+                isinstance(text, str) for text in operations.values()):
+            raise Fault(f'crypto.json: the family {family["name"]}\'s sized_operations is not an '
+                        'object of operation names and their texts')
+        for backend in family['backends']:
+            cell = f'{family["name"]}_{backend}'
+            rows.append((cell, family, backend, family['measured']))
+            for operation, text in operations.items():
+                rows.append((f'{cell}_{operation}', family, backend, text))
+    names = [row[0] for row in rows]
+    for name in names:
+        if names.count(name) > 1 or name == 'baseline':
+            raise Fault(f'crypto.json: two rows of the size matrix are the program {name}')
+    return rows
+
+
+def sizes_lead(data: Data, sizes: Data) -> str:
+    """The sentence above the size matrix: when the lane measured it and, per target, with what
+    and which file; natively the host and the executable's format."""
+    dates = sorted({sized['date'] for sized in sizes['tables']})
+    when = ' to '.join(dict.fromkeys([dates[0], dates[-1]])) if dates else 'no date yet'
+    parts = []
+    for target in data['targets']:
+        found = [sized for sized in sizes['tables'] if sized['target'] == target]
+        if not found:
+            continue
+        sized = found[0]
+        if target == 'native':
+            what = (f'on {sized["host"]}, the {sized["format"]} executable stripped, whose '
+                    'segments are page-aligned: a small cell can add fewer raw bytes than its '
+                    'code, which its gzip -9n bytes show better')
+        elif target == 'emscripten':
+            what = 'the .wasm and its .js'
+        else:
+            what = 'the .wasm'
+        parts.append(f'{target}, {sized["toolset"]} {what}' if target == 'native'
+                     else f'{target}, {sized["toolset"]}, {what}')
+    return (f'The lane sizes measured on {when}, at variant=release: '
+            f'{"; ".join(parts) or "no target yet"}.\n\n')
+
+
 def sizes_page(data: Data, sizes: Data) -> str:
-    """The size matrix: per cell of the capability table, (family, backend), what its program of
-    test/sizes adds to the baseline on each target, raw and gzip -9n, as the lane sizes measured
-    it from release builds (doc/tables/sizes.json); not measured yet where the lane has not built
-    it, and not on this target where the backend does not have the family there."""
+    """The size matrix: per row of size_rows, what its program of test/sizes adds to the
+    baseline on each target, raw and gzip -9n, as the lane sizes measured it from release builds
+    (doc/tables/sizes.json); not measured yet where the lane has not built it, and not on this
+    target where the backend does not have the family there. Under it, the size note of each
+    backend of a row (crypto.json's backends[].size_note)."""
     if sizes.get('digest') != digest_of(sizes):
         raise Fault(f'{SIZES} is not what generate.py --sizes wrote: write it again from the '
                     'lane sizes\' tables, never by hand')
     for sized in sizes['tables']:
+        lacking = [key for key in TABLE_KEYS if key not in sized]
+        if lacking:
+            raise Fault(f'{SIZES} holds a table that lacks {", ".join(lacking)}: run the lane '
+                        'sizes again and generate.py --sizes')
         if sized.get('variant') != RELEASE:
             raise Fault(f'a size table is built only from release builds, not '
                         f'variant={sized.get("variant")}')
-    cells = {'baseline'} | {f'{family["name"]}_{backend}' for family in data['families']
-                            for backend in family['backends']}
+    matrix = size_rows(data)
+    known = {'baseline'} | {row[0] for row in matrix}
     for sized in sizes['tables']:
         for row in sized['programs']:
-            if row['program'] not in cells:
-                raise Fault(f'{SIZES} measures {row["program"]}, which is no cell of '
-                            'crypto.json\'s families')
+            if row['program'] not in known:
+                raise Fault(f'{SIZES} measures {row["program"]}, which is no program the lane '
+                            'sizes declares: its programs are baseline, <family>_<backend> for a '
+                            'cell of crypto.json\'s families, and <family>_<backend>_<operation> '
+                            'for an operation of the family\'s sized_operations')
     rows: List[List[str]] = []
-    base = ['The baseline, a program that prints a line']
+    base = ['The baseline: the harness of every sized program, calling nothing of crypto']
     for target in data['targets']:
         measured = sized_on(sizes, 'baseline', target)
         base.append(f'{measured[0]:,} B, gzip {measured[1]:,} B' if measured else NOT_MEASURED)
     rows.append(base)
-    for family in data['families']:
-        for backend in family['backends']:
-            row = [f'{family["title"]} on {data["backends"][backend]["title"]}: '
-                   f'{family["measured"]}']
-            have = cell_targets(data, family, backend)
-            for target in data['targets']:
-                measured = sized_on(sizes, f'{family["name"]}_{backend}', target)
-                if target not in have:
-                    row.append('not on this target')
-                elif measured is None:
-                    row.append(NOT_MEASURED)
-                else:
-                    row.append(f'+{measured[2]:,} B, gzip +{measured[3]:,} B')
-            rows.append(row)
-    toolsets = {sized['target']: sized['toolset'] for sized in sizes['tables']}
-    built = '; '.join(f'{target}, {toolsets[target]}' for target in data['targets']
-                      if target in toolsets)
-    lead = (f'The lane sizes measured on {sizes["date"]}, at variant=release, with b2\'s toolsets '
-            f'{built or "of no target yet"}: natively the executable stripped, on WebAssembly the '
-            '.wasm, and on Emscripten its .js too.\n\n')
-    return lead + table(['Program'] + [f'Size, {target}' for target in data['targets']], rows,
-                        'cols="3,2,2,2,2",')
+    noted: List[str] = []
+    for program, family, backend, text in matrix:
+        row = [f'{family["title"]} on {data["backends"][backend]["title"]}: {text}']
+        have = cell_targets(data, family, backend)
+        for target in data['targets']:
+            measured = sized_on(sizes, program, target)
+            if target not in have:
+                row.append('not on this target')
+            elif measured is None:
+                row.append(NOT_MEASURED)
+            else:
+                row.append(f'+{measured[2]:,} B, gzip +{measured[3]:,} B')
+        rows.append(row)
+        if backend not in noted:
+            noted.append(backend)
+    notes = ''.join(f'\n{data["backends"][backend]["title"]}: '
+                    f'{cite(data, data["backends"][backend]["size_note"])}\n'
+                    for backend in BACKEND_ORDER if backend in noted
+                    and 'size_note' in data['backends'][backend])
+    return (sizes_lead(data, sizes)
+            + table(['Program'] + [f'Size, {target}' for target in data['targets']], rows,
+                    'cols="3,2,2,2,2",') + notes)
 
 
 def ed25519_cases_page(data: Data, cases: Data) -> str:
@@ -1489,14 +1557,14 @@ def read_sizes(library: Path) -> Data:
     """doc/tables/sizes.json, or, before the lane has been read, sizes of no table."""
     path = library / SIZES
     if not path.is_file():
-        return imported([], 'no date')
+        return imported([])
     return json.loads(path.read_text(encoding='utf-8'))
 
 
 def write_sizes(library: Path, files: List[Path]) -> None:
-    """--sizes: writes doc/tables/sizes.json from the lane's <name>.sizes.json files, today."""
+    """--sizes: writes doc/tables/sizes.json from the lane's <name>.sizes.json files."""
     tables = [json.loads(path.read_text(encoding='utf-8')) for path in files]
-    sizes = imported(tables, datetime.date.today().isoformat())
+    sizes = imported(tables)
     (library / SIZES).write_text(json.dumps(sizes, indent=2) + '\n', encoding='utf-8')
 
 

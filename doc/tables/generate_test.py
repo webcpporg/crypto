@@ -739,7 +739,7 @@ def test_the_check_names_a_file_that_differs(scratch: Path) -> None:
 
 
 def lane_table(target: str, sizes: dict[str, int], variant: str = 'release',
-               files: tuple[str, ...] = ()) -> generate.Data:
+               files: tuple[str, ...] = (), date: str = '2026-11-18') -> generate.Data:
     """A table the lane sizes writes (webcpp.program-sizes) on target, of the programs given with
     their bytes over the baseline, in the files given, else the target's own file."""
     kinds = files or (('executable',) if target == 'native' else ('wasm',))
@@ -747,7 +747,8 @@ def lane_table(target: str, sizes: dict[str, int], variant: str = 'release',
              'over_baseline': extra, 'gzip_over_baseline': extra // 2}
             for name, extra in sizes.items() for kind in kinds]
     return {'variant': variant, 'target': target, 'toolset': f'clang-{target}',
-            'baseline': 'baseline', 'programs': rows}
+            'baseline': 'baseline', 'date': date, 'host': 'Darwin arm64',
+            'format': 'Mach-O' if target == 'native' else 'WebAssembly', 'programs': rows}
 
 
 def sized_table() -> generate.Data:
@@ -760,7 +761,7 @@ def sized_table() -> generate.Data:
 def test_the_size_matrix_reads_the_lane_s_tables(_: Path) -> None:
     sizes = generate.imported([lane_table('native', {'baseline': 0, 'ed25519_sodium': 2048}),
                                lane_table('emscripten', {'baseline': 0, 'ed25519_sodium': 4096},
-                                          files=('js', 'wasm'))], '2026-11-18')
+                                          files=('js', 'wasm'), date='2026-11-17')])
     page = generate.sizes_page(sized_table(), sizes)
     # A cell is what its program adds to the baseline, raw and gzip -9n; on emscripten its .wasm
     # and .js together; a cell the lane has not built is not measured yet.
@@ -769,19 +770,24 @@ def test_the_size_matrix_reads_the_lane_s_tables(_: Path) -> None:
             '|not measured yet\n'
             '|not measured yet\n'
             '|+8,192 B, gzip +4,096 B\n') in page, page
-    assert ('|The baseline, a program that prints a line\n'
+    assert ('|The baseline: the harness of every sized program, calling nothing of crypto\n'
             '|1,000 B, gzip 500 B\n'
             '|not measured yet\n'
             '|not measured yet\n'
             '|2,000 B, gzip 1,000 B\n') in page, page
-    assert 'measured on 2026-11-18' in page and 'clang-native' in page, page
+    # Dated by the builds that measured it, each target with its toolset; natively the host and
+    # the executable's format, which another host's native toolchain would not give.
+    assert ('The lane sizes measured on 2026-11-17 to 2026-11-18, at variant=release: native, '
+            'clang-native on Darwin arm64, the Mach-O executable stripped, whose segments are '
+            'page-aligned: a small cell can add fewer raw bytes than its code, which its gzip -9n '
+            'bytes show better; emscripten, '
+            'clang-emscripten, the .wasm and its .js.') in page, page
 
 
 def test_a_cell_the_backend_does_not_have_says_so(_: Path) -> None:
     data = sized_table()
     data['families'][0]['backends']['sodium'] = {'targets': ['native']}
-    sizes = generate.imported([lane_table('native', {'baseline': 0, 'ed25519_sodium': 1})],
-                              '2026-11-18')
+    sizes = generate.imported([lane_table('native', {'baseline': 0, 'ed25519_sodium': 1})])
     page = generate.sizes_page(data, sizes)
     assert ('|+1 B, gzip +0 B\n'
             '|not on this target\n'
@@ -793,7 +799,7 @@ def a_sizes_fault(wanted: str, tables: list[generate.Data],
                   data: Optional[generate.Data] = None) -> None:
     """Checks that importing tables, or rendering them on data, is refused saying wanted."""
     try:
-        generate.sizes_page(data or sized_table(), generate.imported(tables, '2026-11-18'))
+        generate.sizes_page(data or sized_table(), generate.imported(tables))
     except generate.Fault as fault:
         assert wanted in str(fault), fault
     else:
@@ -806,13 +812,12 @@ def test_a_size_table_not_built_at_release_is_refused(_: Path) -> None:
     a_sizes_fault('measure ed25519_sodium on native twice',
                   [lane_table('native', {'baseline': 0, 'ed25519_sodium': 1}),
                    lane_table('native', {'baseline': 0, 'ed25519_sodium': 2})])
-    a_sizes_fault('measures gcm_bearssl, which is no cell of crypto.json\'s families',
+    a_sizes_fault('measures gcm_bearssl, which is no program the lane sizes declares',
                   [lane_table('native', {'baseline': 0, 'gcm_bearssl': 1})])
 
 
 def test_sizes_edited_by_hand_are_a_fault(_: Path) -> None:
-    sizes = generate.imported([lane_table('native', {'baseline': 0, 'ed25519_sodium': 1})],
-                              '2026-11-18')
+    sizes = generate.imported([lane_table('native', {'baseline': 0, 'ed25519_sodium': 1})])
     sizes['tables'][0]['programs'][1]['over_baseline'] = 0
     try:
         generate.sizes_page(sized_table(), sizes)
@@ -820,6 +825,48 @@ def test_sizes_edited_by_hand_are_a_fault(_: Path) -> None:
         assert 'doc/tables/sizes.json is not what generate.py --sizes wrote' in str(fault), fault
     else:
         raise AssertionError('a size edited by hand was taken')
+
+
+def test_a_named_operation_is_a_row_under_its_cell(_: Path) -> None:
+    # A family may size more operations of a cell than its fixed one: the program
+    # <family>_<backend>_<operation>, whose text is the family's sized_operations entry, is a row
+    # of its own after the cell's.
+    data = sized_table()
+    data['families'][0]['sized_operations'] = {'ph': 'Ed25519ph signature of a 32-byte message'}
+    sizes = generate.imported([lane_table('native', {'baseline': 0, 'ed25519_sodium': 1,
+                                                     'ed25519_sodium_ph': 7})])
+    page = generate.sizes_page(data, sizes)
+    assert ('|Ed25519 on libsodium: signature of a 32-byte message\n|+1 B, gzip +0 B\n'
+            '|not measured yet\n|not measured yet\n|not measured yet\n\n'
+            '|Ed25519 on libsodium: Ed25519ph signature of a 32-byte message\n'
+            '|+7 B, gzip +3 B\n') in page, page
+
+
+def test_what_the_size_matrix_cannot_read_is_a_fault(_: Path) -> None:
+    # A program of no name form, a family without its measured operation and a table of no
+    # program are faults that say what to write, never a KeyError or an IndexError.
+    a_sizes_fault('measures ed25519_sodium_other, which is no program the lane sizes declares: '
+                  'its programs are baseline, <family>_<backend> for a cell of crypto.json\'s '
+                  'families, and <family>_<backend>_<operation> for an operation of the '
+                  'family\'s sized_operations',
+                  [lane_table('native', {'baseline': 0, 'ed25519_sodium_other': 1})])
+    data = sized_table()
+    del data['families'][0]['measured']
+    a_sizes_fault('crypto.json: the family ed25519 has no measured, the text of the fixed '
+                  'operation its sized programs call', [lane_table('native', {'baseline': 0})],
+                  data)
+    empty = lane_table('native', {})
+    a_sizes_fault('a table of the lane sizes on native holds no program', [empty])
+    undated = lane_table('native', {'baseline': 0})
+    del undated['date']
+    a_sizes_fault('a table of the lane sizes lacks date: run the lane again', [undated])
+
+
+def test_a_backend_s_size_note_is_written_under_the_table(_: Path) -> None:
+    data = sized_table()
+    data['backends']['sodium']['size_note'] = 'libsodium is one library.'
+    page = generate.sizes_page(data, generate.imported([lane_table('native', {'baseline': 0})]))
+    assert page.endswith('|===\n\nlibsodium: libsodium is one library.\n'), page
 
 
 CASES: list[Callable[[Path], None]] = [
@@ -861,6 +908,9 @@ CASES: list[Callable[[Path], None]] = [
     test_a_cell_the_backend_does_not_have_says_so,
     test_a_size_table_not_built_at_release_is_refused,
     test_sizes_edited_by_hand_are_a_fault,
+    test_a_named_operation_is_a_row_under_its_cell,
+    test_what_the_size_matrix_cannot_read_is_a_fault,
+    test_a_backend_s_size_note_is_written_under_the_table,
 ]
 
 

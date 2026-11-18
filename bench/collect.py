@@ -185,20 +185,27 @@ def measure(exes, invocations):
             "min_us": min(runs),
             "max_us": max(runs),
         })
-    cores = os.cpu_count() or 1
-    peak = max(loads[0][0], loads[1][0])
     return {
         "measurement": "each family's fixed operation per backend and target, "
                        "bench/operations.hpp",
         "date": datetime.date.today().isoformat(),
         "machine": machine(),
         "load_average_before_after": [list(loads[0]), list(loads[1])],
-        "loaded": peak > cores,
-        "loaded_rule": "the larger of the two 1-minute load averages exceeds the core count",
         "build": BUILD,
         "cases": out,
         "amd64_asm": AMD64_ASM,
     }
+
+
+# When the page warns that the machine was loaded: a shared machine shows in the spread before a
+# single core is short, so the threshold is half the cores.
+LOADED_RULE = "the larger of the two 1-minute load averages exceeds half the core count"
+
+
+def loaded(data):
+    """Whether the measurement ran on a loaded machine, by LOADED_RULE."""
+    load = data["load_average_before_after"]
+    return max(load[0][0], load[1][0]) > (data["machine"]["cores"] or 1) / 2
 
 
 def fmt_load(load):
@@ -251,14 +258,16 @@ def render(data, page):
         "spread is part of the result.",
         "",
     ]
-    if data["loaded"]:
-        load = data["load_average_before_after"]
+    load = data["load_average_before_after"]
+    lines += [
+        f"The machine's 1, 5 and 15 minute load averages were {fmt_load(load[0])} before and",
+        f"{fmt_load(load[1])} after, on {machine_info['cores']} cores.",
+        "",
+    ]
+    if loaded(data):
         lines += [
-            "WARNING: the machine was shared and loaded while this was measured (many builds",
-            f"ran at once; 1, 5 and 15 minute load averages {fmt_load(load[0])} before and",
-            f"{fmt_load(load[1])} after, on {machine_info['cores']} cores; rule: "
-            f"{data['loaded_rule']}).",
-            "Read the spread, not a single figure.",
+            "WARNING: the machine was shared and loaded while this was measured (rule: "
+            + LOADED_RULE + "). Read the spread, not a single figure.",
             "",
         ]
     lines += [

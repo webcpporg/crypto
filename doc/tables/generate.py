@@ -667,8 +667,8 @@ def capabilities_header(data: Data) -> str:
         algorithms = [entry['name'] for entry in family['names']]
         listed = ', '.join(f'`{tag_of(family, name)}`' for name in algorithms)
         if algorithms == [family['name']]:
-            text = (f'The family {family["title"]}, of `{namespace_of(family)}`, also the tag of its '
-                    'one algorithm.')
+            text = (f'The family {family["title"]}, of `{namespace_of(family)}`, also the tag of '
+                    'its one algorithm.')
         else:
             text = (f'The family {family["title"]}, of `{namespace_of(family)}`; its algorithms: '
                     f'{listed}.')
@@ -758,8 +758,8 @@ def capabilities_header(data: Data) -> str:
             lines.append(f'static_assert({known}, "webcpp::crypto: {family["title"]} has no '
                          f'backend of that name. The backends that have it: {have}.")')
             out.append(opening([target], index == 0))
-            out += doc_comment(f'The refusals of the family {possessive(family["title"])} primary engine '
-                               f'for `Backend`, on {target}.') + [
+            out += doc_comment(f'The refusals of the family {possessive(family["title"])} primary '
+                               f'engine for `Backend`, on {target}.') + [
                     f'#define WEBCPP_CRYPTO_DETAIL_REFUSE_{family["name"].upper()}(Backend) \\']
             out += [f'    {line}; \\' for line in lines[:-1]] + [f'    {lines[-1]}']
         out.append('#endif')

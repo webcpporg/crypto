@@ -675,3 +675,9 @@ overruns it fails silently, with no check of overflows by default
 (link:https://emscripten.org/docs/tools_reference/settings_reference.html[Emscripten's settings reference]):
 the workspace then overwrites the program's other memory instead of
 stopping it.
+On wasip2 and wasip3 the stack is likewise a region of the linear memory
+that grows downward
+(link:https://github.com/WebAssembly/tool-conventions/blob/main/BasicCABI.md[the WebAssembly tool conventions' basic C ABI]);
+this page states no default size and no overflow behaviour for it, so a
+workspace of more than a few recipients or outputs belongs on the heap there
+too.

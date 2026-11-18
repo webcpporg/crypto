@@ -8,7 +8,8 @@ project : requirements <library>/webcpp/crypto//crypto ;
 
 import webcpp ;
 
-# OpenSSL is linked, as on a WASI program that names it: the refusal is of the option.
+# OpenSSL is linked, as on a WASI program that names it: what is refused is
+# the option.
 webcpp.compile-diagnostic openssl_memory_on_webassembly : openssl_memory_on_webassembly.cpp
   : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
   : wasip2 wasip3 ;

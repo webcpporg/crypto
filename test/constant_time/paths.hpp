@@ -39,6 +39,7 @@
 #include <webcpp/crypto/detail/bytes.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/hybrid/box.hpp>
+#include <webcpp/crypto/hybrid/sealed_box.hpp>
 #include <webcpp/crypto/secret.hpp>
 
 #include <algorithm>
@@ -252,6 +253,35 @@ int sodium_box(char const* what) {
     return failures + check(opened_verdict, what);
 }
 
+/**
+ * The sealed box on libsodium: seal with the message secret, then open with the recipient's
+ * secret key and the sealed box secret. The verdict is libsodium's own branches (the agreement's
+ * and the tag's, sodium_verdicts.supp), then the engine's, which marks it public.
+ */
+template <class Checker>
+int sodium_sealed_box() {
+    using crypto::hybrid::sealed_box;
+    std::array<std::uint8_t, 32> secret_key{};
+    secret_key.fill(0x42);
+    auto const public_key = crypto::curves::x25519::public_key<sodium>(secret_key);
+    std::array<std::uint8_t, 64> message{};
+    message.fill(0x17);
+    Checker::mark_secret(message);
+    std::array<std::uint8_t, 64 + sealed_box::overhead> sealed{};
+    bool const sealed_ok =
+        public_key.has_value() && sealed_box::seal(*public_key, message, sealed).has_value();
+    int const failures = check(sealed_ok && carries_mark<Checker>(sealed), "sealed box's seal");
+    Checker::mark_secret(secret_key);
+    // The drawn public key, the first 32 bytes, is public: it travels in clear, and libsodium
+    // checks its order. The tag and the ciphertext are secret.
+    Checker::mark_secret(std::span<std::uint8_t>{sealed}.subspan(32));
+    std::array<std::uint8_t, 64> opened{};
+    auto const result = sealed_box::open(*public_key, secret_key, sealed, opened);
+    bool const opened_verdict = result.has_value();
+    Checker::verdict(opened_verdict);
+    return failures + check(opened_verdict && carries_mark<Checker>(opened), "sealed box's open");
+}
+
 /** kx on libsodium: both key pairs from secret seeds, both sides' session keys. */
 template <class Checker>
 int sodium_kx() {
@@ -301,7 +331,7 @@ int common_paths() {
            sodium_box<Checker,
                       crypto::hybrid::basic_box<crypto::families::box_xchacha20poly1305, sodium>>(
                "box_xchacha20poly1305 on libsodium") +
-           sodium_kx<Checker>();
+           sodium_sealed_box<Checker>() + sodium_kx<Checker>();
 }
 
 }  // namespace webcpp::test::constant_time

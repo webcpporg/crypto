@@ -12,7 +12,11 @@
 # in its engines; libsodium is used unchanged. Each entry is a conditional jump whose innermost
 # frame is that function, and the function's body branches on nothing else that is secret
 # (libsodium 1.0.22, at the line given). MemorySanitizer needs none of them: it counts these
-# verdicts initialised (msan_test.cpp says why).
+# verdicts initialised (msan_test.cpp says why). The sealed box's open needs no entry of its own:
+# crypto_box_seal_open reaches crypto_box_curve25519xsalsa20poly1305_beforenm and
+# crypto_secretbox_open_detached, below, and the functions between branch only on the constants
+# those return after their own branch, which memcheck holds defined (checked by its path in
+# paths.hpp, 2026-11-18).
 
 # crypto_aead/chacha20poly1305/aead_chacha20poly1305.c:207, the tag's verdict.
 {

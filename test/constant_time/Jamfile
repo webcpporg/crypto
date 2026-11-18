@@ -12,11 +12,12 @@
 # both (its open branches on the verdict inside OpenSSL, where webcpp cannot
 # mark it public), ctaes's make, encrypt and decrypt, equal, is_all_zero,
 # secret's wipe, libsodium's Ed25519, X25519, three AEADs, two secret boxes,
-# two boxes and kx (its own branches on a verdict listed in
-# sodium_verdicts.supp), and libsecp256k1's own ctime_tests.c.
+# two boxes, the sealed box and kx (its own branches on a verdict listed in
+# sodium_verdicts.supp), and libsecp256k1's own ctime_tests.c. Both checkers
+# run the same paths, paths.hpp, memcheck OpenSSL's besides.
 #
-# A later family adds its cases to ctgrind_test.cpp and msan_test.cpp, as
-# BearSSL's are here: its secrets marked, its verdicts declassified where
+# A later family adds its cases to paths.hpp, which both checkers run, as
+# libsodium's are there: its secrets marked, its verdicts declassified where
 # webcpp branches on them, and its C library built twice more for the lane,
 # beside the programs. For libsecp256k1 (stream B, Task 2.7): libsecp256k1
 # marks its own public branches (a nonce's retry, a verdict) only when it is

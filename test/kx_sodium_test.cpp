@@ -201,6 +201,19 @@ void guards() {
     BOOST_TEST(made->server_session_keys(std::span(long_bytes).first(31)).error() ==
                crypto::error::invalid_public_key);
     BOOST_TEST(made->server_session_keys(long_bytes).error() == crypto::error::invalid_public_key);
+}
+
+void moves() {
+    auto made = kx_keypair::make(client_seed());
+    BOOST_TEST(made.has_value());
+    if (!made) {
+        return;
+    }
+    auto const peer = made->public_key();
+    BOOST_TEST(peer.has_value());
+    if (!peer) {
+        return;
+    }
 
     // Moved from, the key pair is empty: every call is invalid_state.
     kx_keypair const taken = std::move(*made);
@@ -276,6 +289,7 @@ int main() {
     peer_key_counts();
     weak_peers();
     guards();
+    moves();
     generated();
     return test::exit_status(boost::report_errors());
 }

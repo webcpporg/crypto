@@ -237,6 +237,7 @@ bool x25519_case(std::mt19937_64& rng, std::size_t index) {
 int main() {
     std::printf("oracle 25519: seed %llu\n", static_cast<unsigned long long>(seed));
     print_node_versions();
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 rng(seed);
     std::size_t agreed = 0;
     std::vector<std::size_t> ed25519_disagreed;

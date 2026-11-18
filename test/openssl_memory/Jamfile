@@ -56,7 +56,8 @@ webcpp.compile header_alone : header_alone_test.cpp
 # sections 2.2 and 8.6), so that backends/openssl.hpp's branch of the option is
 # compiled beside a bare <windows.h> on MSVC; elsewhere the headers alone.
 .every-backend = <library>/third_party//bearssl <library>/third_party//ctaes
-    <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;
+    <library>/third_party//secp256k1 <library>/third_party//sodium
+    <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;
 webcpp.compile windows_h_before_memory : ../windows_h_before_test.cpp : $(.every-backend) ;
 webcpp.compile windows_h_after_memory : ../windows_h_after_test.cpp : $(.every-backend) ;
 

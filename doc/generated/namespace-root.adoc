@@ -43,6 +43,6 @@
 |you need a random number an attacker must not predict; never `std::mt19937` or `rand` (link:https://cwe.mitre.org/data/definitions/338.html[CWE-338, a weak generator used for security])
 |you compare anything secret; never `==` or `memcmp` on a MAC
 |you branch on a failure: forged data, a wrong size, no entropy
-|a key goes to or comes from a file, a form or a tool as `-----BEGIN PUBLIC KEY-----` text; with the `encode_spki` and `encode_pkcs8` of `curves::ed25519` or `curves::x25519`
+|a key goes to or comes from a file, a form or a tool as `-----BEGIN PUBLIC KEY-----` text; with the `encode_spki` and `encode_pkcs8` of `curves::ed25519`, `curves::x25519` or `curves::secp256k1`
 |a native program on OpenSSL must allocate only from its own arena; on WebAssembly, BearSSL allocates nothing
 |===

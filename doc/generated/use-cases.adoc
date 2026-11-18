@@ -99,6 +99,14 @@
 `+/third_party//secp256k1+`
 |<<crypto-secp256k1-tweaks,[.keep]`+key_tweak.cpp+`>>
 
+|Store or exchange a secp256k1 key with OpenSSL or a config file
+|In `+curves::secp256k1+`: `+encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`; `+webcpp::crypto::pem::armour+`, `+unarmour+`
+|libsecp256k1, libsodium for PEM
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+` +
+`+/webcpp/crypto//pem-default+`
+|<<crypto-secp256k1-formats,[.keep]`+secp256k1_key_formats.cpp+`>>
+
 |Make a peer-to-peer connection's key exchange look like random bytes (BIP 324's transport; its packets are a domain library's)
 |In `+curves::secp256k1+`: `+ellswift_create+`, `+ellswift_decode+`, `+ellswift_xdh+`
 |libsecp256k1

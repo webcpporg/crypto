@@ -49,7 +49,8 @@ DER) and `normalize_ecdsa` convert ECDSA's DER and low-S forms; and
 `tweak_xonly` tweaks an x-only public key. Five more headers hold the tweaks,
 negation and combination of whole keys
 (`<webcpp/crypto/curves/secp256k1/tweak.hpp>`, <<crypto-secp256k1-tweaks>>),
-the keys' SPKI and PKCS#8 (`<webcpp/crypto/curves/secp256k1/formats.hpp>`,
+the keys' SPKI and PKCS#8, which `pem` writes as PEM text
+(`<webcpp/crypto/curves/secp256k1/formats.hpp>`,
 <<crypto-secp256k1-formats>>), ElligatorSwift, keys sent as random-looking
 bytes (`<webcpp/crypto/curves/secp256k1/ellswift.hpp>`,
 <<crypto-secp256k1-ellswift>>), MuSig2, many signers' one signature
@@ -352,7 +353,7 @@ cancel another's
 (link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327]).
 
 [#crypto-secp256k1-formats]
-==== Keys in files: SPKI and PKCS#8
+==== Keys in files: SPKI, PKCS#8 and PEM
 
 A server's key lives in a configuration file, a peer's public key arrives in a
 certificate or a handshake, and other tools, OpenSSL among them, must read
@@ -387,7 +388,38 @@ and a moved-from key pair with `invalid_state`, and write nothing then. The
 tests read OpenSSL's keys and give OpenSSL webcpp's, natively and on WASI, and
 under Emscripten round-trip every encoding through node's `crypto` module.
 
+A configuration file, a terminal or a form carries text, not DER. PEM is the
+DER in base64 between a `-----BEGIN PUBLIC KEY-----` or
+`-----BEGIN PRIVATE KEY-----` line and its `-----END` line
+(link:https://www.rfc-editor.org/rfc/rfc7468[RFC 7468]), the form OpenSSL's
+`-pubout` and `genpkey` write. `pem::armour` and `pem::unarmour`
+(`<webcpp/crypto/pem.hpp>`, <<crypto-key-formats>>) write and read it around
+these functions' bytes, with the labels `pem::public_key_label` and
+`pem::private_key_label`, as strictly as the decoders read DER: another label,
+lines of another length than 64 or a carriage return are `invalid_encoding`.
+PEM needs libsodium's target, whose base64 runs in a time that does not depend
+on the bytes, those of a private key included: a program that writes or reads
+PEM links `/webcpp/crypto//pem-default` (or `/third_party//sodium`) beside
+`/third_party//secp256k1`. The tests compare the text that `pem::armour`
+writes with that of OpenSSL's `PEM_write_bio_PUBKEY` and
+`PEM_write_bio_PrivateKey`, character for character.
+
 include::generated/backends-key_formats.adoc[]
+
+*Example.* A server's key pair from the fixed secret `0x11` repeated: its
+public key written as PEM SPKI for a configuration file and read back, and its
+key pair written as PEM PKCS#8 for its own key file, never printed, and read
+back:
+
+[source,cpp]
+----
+include::{examples}/secp256k1_key_formats.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/secp256k1_key_formats.expected[]
+----
 
 *Pitfalls.*
 
@@ -405,9 +437,10 @@ so a key set to the compressed form carries its compressed point inside the
 PKCS#8 too, 102 bytes, which `decode_pkcs8` refuses: export the key in
 OpenSSL's default uncompressed form, and choose the SPKI's form when writing
 it.
-* The PKCS#8 these functions write holds the secret key in clear. Keep it
-where only the program reads it, out of source control, or seal it at rest
-(<<crypto-wallets-key>>).
+* The PKCS#8 these functions write holds the secret key in clear, and so does
+its PEM text: base64 is an encoding, not encryption. Keep both where only the
+program reads them, out of source control, or seal them at rest
+(<<crypto-wallets-key>>), and wipe the buffers when done, as `secret<N>` does.
 
 [#crypto-secp256k1-ellswift]
 ==== ElligatorSwift: keys that look like noise

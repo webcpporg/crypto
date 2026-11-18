@@ -61,6 +61,12 @@ webcpp.example recover_signer.cpp : <library>/third_party//secp256k1 ;
 # and a signature of the tweaked key pair verified under the tweaked public key.
 webcpp.example key_tweak.cpp : <library>/third_party//secp256k1 ;
 
+# A server's secp256k1 key in files OpenSSL reads: its public key as PEM SPKI
+# for a configuration file, its key pair as PEM PKCS#8, each read back; PEM on
+# its default, libsodium.
+webcpp.example secp256k1_key_formats.cpp : <library>/third_party//secp256k1
+  <library>/webcpp/crypto//pem-default ;
+
 # Two peers send their keys as ElligatorSwift encodings, 64 bytes that look
 # random, and agree on BIP 324's shared secret.
 webcpp.example ellswift_handshake.cpp : <library>/third_party//secp256k1 ;

@@ -5,16 +5,18 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // secp256k1's keys in files: RFC 5480's SPKI in both point forms and PKCS#8 with RFC 5915's
-// ECPrivateKey, strict. The constants equal the DER a small builder writes here from the ASN.1;
-// 64 seeded key pairs round-trip; Wycheproof's 752 SPKIs of its ECDH vectors decode exactly
-// where version 0.1's parser takes their point (WEBCPP_TEST_WYCHEPROOF); every malformed input
-// is invalid_encoding, and an encoder's refusal writes nothing. The outside oracles: OpenSSL's
-// keys and encodings (WEBCPP_TEST_OPENSSL_ORACLE: natively and on WASI), and node's crypto
+// ECPrivateKey, strict, and PEM around both (pem::armour and pem::unarmour, on libsodium). The
+// constants equal the DER a small builder writes here from the ASN.1; 64 seeded key pairs
+// round-trip, as DER and as PEM; Wycheproof's 752 SPKIs of its ECDH vectors decode exactly where
+// version 0.1's parser takes their point (WEBCPP_TEST_WYCHEPROOF); every malformed input, DER or
+// PEM, is invalid_encoding, and a refusal writes nothing. The outside oracles: OpenSSL's keys,
+// encodings and PEM text (WEBCPP_TEST_OPENSSL_ORACLE: natively and on WASI), and node's crypto
 // module under Emscripten.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/formats.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/pem.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -31,11 +33,13 @@
 #endif
 
 #ifdef WEBCPP_TEST_OPENSSL_ORACLE
+#include <openssl/bio.h>
 #include <openssl/core_names.h>
 #include <openssl/crypto.h>
 #include <openssl/encoder.h>
 #include <openssl/err.h>
 #include <openssl/evp.h>
+#include <openssl/pem.h>
 #include <openssl/x509.h>
 #endif
 
@@ -58,6 +62,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
+namespace pem = webcpp::crypto::pem;
 namespace secp = webcpp::crypto::curves::secp256k1;
 namespace test = webcpp::test;
 
@@ -201,6 +206,27 @@ bytes pkcs8(secp::keypair const& key) {
     return {out.begin(), out.begin() + static_cast<std::ptrdiff_t>(*size)};
 }
 
+// DER as PEM under a label, of exactly the size armoured_size gives.
+std::string armoured(std::string_view label, bytes const& der) {
+    std::string text(pem::armoured_size(label.size(), der.size()), '\0');
+    auto const written = pem::armour(label, der, text);
+    if (!BOOST_TEST(written.has_value()) || !BOOST_TEST_EQ(*written, text.size())) {
+        return {};
+    }
+    return text;
+}
+
+// The DER of PEM under a label.
+bytes unarmoured(std::string_view label, std::string_view text) {
+    bytes out(text.size());
+    auto const read = pem::unarmour(label, text, out);
+    if (!BOOST_TEST(read.has_value())) {
+        return {};
+    }
+    out.resize(*read);
+    return out;
+}
+
 // The constants are the DER the builder writes.
 void constants() {
     std::mt19937_64 generator(0xf0a3a75ULL);
@@ -251,7 +277,29 @@ void pkcs8_round_trip(secp::keypair const& key, bytes const& secret) {
     BOOST_TEST(decoded->sign_ecdsa(hash).value() == key.sign_ecdsa(hash).value());
 }
 
-// 64 seeded key pairs, each SPKI in both forms and each PKCS#8.
+// One key pair's SPKI in both forms and its PKCS#8, armoured as PEM under their labels: the text
+// unarmours to the same DER, which decodes to the same key.
+void pem_round_trip(secp::keypair const& key) {
+    for (auto const form : {secp::point_form::compressed, secp::point_form::uncompressed}) {
+        auto const encoding = spki(public_of(key), form);
+        auto const text = armoured(pem::public_key_label, encoding);
+        BOOST_TEST(text.starts_with("-----BEGIN PUBLIC KEY-----\n"));
+        BOOST_TEST(text.ends_with("\n-----END PUBLIC KEY-----\n"));
+        auto const back = unarmoured(pem::public_key_label, text);
+        BOOST_TEST(back == encoding);
+        auto const decoded = secp::decode_spki(back);
+        BOOST_TEST(decoded.has_value() && *decoded == public_of(key));
+    }
+    auto const private_encoding = pkcs8(key);
+    auto const text = armoured(pem::private_key_label, private_encoding);
+    BOOST_TEST(text.starts_with("-----BEGIN PRIVATE KEY-----\n"));
+    auto const back = unarmoured(pem::private_key_label, text);
+    BOOST_TEST(back == private_encoding);
+    auto const decoded = secp::decode_pkcs8(back);
+    BOOST_TEST(decoded.has_value() && public_of(*decoded) == public_of(key));
+}
+
+// 64 seeded key pairs, each SPKI in both forms and each PKCS#8, as DER and as PEM.
 void round_trips() {
     std::mt19937_64 generator(0x5b1c0de5ULL);
     for (int round = 0; round < 64; ++round) {
@@ -259,6 +307,7 @@ void round_trips() {
         spki_round_trip(public_of(key), secp::point_form::compressed);
         spki_round_trip(public_of(key), secp::point_form::uncompressed);
         pkcs8_round_trip(key, secret);
+        pem_round_trip(key);
     }
 }
 
@@ -423,6 +472,59 @@ void malformed() {
                   cat({{0x30, 0x82, 0x00, 0x84}, bytes(good_pkcs8.begin() + 3, good_pkcs8.end())}));
 }
 
+// PEM text refused with invalid_encoding, the output untouched.
+void refused_pem(std::string const& label, std::string_view expected_label, std::string_view text) {
+    std::array<std::uint8_t, 256> out{};
+    out.fill(0xa5);
+    auto const read = pem::unarmour(expected_label, text, out);
+    if (!BOOST_TEST(read.has_error()) ||
+        !BOOST_TEST(read.error() == crypto::error::invalid_encoding)) {
+        BOOST_ERROR(label.c_str());
+    }
+    BOOST_TEST(std::ranges::all_of(out, [](std::uint8_t b) { return b == 0xa5; }));
+}
+
+// Text with every `from` replaced by `to`.
+std::string replaced(std::string text, std::string_view from, std::string_view to) {
+    for (std::size_t at = text.find(from); at != std::string::npos;
+         at = text.find(from, at + to.size())) {
+        text.replace(at, from.size(), to);
+    }
+    return text;
+}
+
+// PEM that is not exactly what pem::armour writes for the label expected is invalid_encoding:
+// another label, a line of 63 characters, a carriage return.
+void malformed_pem() {
+    std::mt19937_64 generator(0x9e3de5ULL);
+    auto const [key, secret] = draw(generator);
+    auto const public_text =
+        armoured(pem::public_key_label, spki(public_of(key), secp::point_form::uncompressed));
+    auto const private_text = armoured(pem::private_key_label, pkcs8(key));
+    BOOST_TEST(!unarmoured(pem::public_key_label, public_text).empty());
+    BOOST_TEST(!unarmoured(pem::private_key_label, private_text).empty());
+
+    refused_pem("PRIVATE KEY read as PUBLIC KEY", pem::public_key_label, private_text);
+    refused_pem("PUBLIC KEY read as PRIVATE KEY", pem::private_key_label, public_text);
+    refused_pem("EC PRIVATE KEY", pem::private_key_label,
+                replaced(private_text, "PRIVATE KEY", "EC PRIVATE KEY"));
+    refused_pem("END under another label", pem::public_key_label,
+                replaced(public_text, "END PUBLIC KEY", "END PRIVATE KEY"));
+    // The first line of base64 one character short: 63 characters, then a line feed.
+    std::size_t const first_line = std::string_view("-----BEGIN PRIVATE KEY-----\n").size();
+    auto short_line = private_text;
+    short_line.erase(first_line + 63, 1);
+    refused_pem("a line of 63 characters", pem::private_key_label, short_line);
+    auto short_public_line = public_text;
+    short_public_line.erase(first_line - 1 + 63, 1);
+    refused_pem("a line of 63 characters, SPKI", pem::public_key_label, short_public_line);
+    // Line feeds preceded by carriage returns, every one, and the last line's alone.
+    refused_pem("carriage returns", pem::private_key_label, replaced(private_text, "\n", "\r\n"));
+    auto last_return = public_text;
+    last_return.insert(last_return.size() - 1, "\r");
+    refused_pem("a carriage return on the last line", pem::public_key_label, last_return);
+}
+
 #ifdef WEBCPP_TEST_WYCHEPROOF
 struct wycheproof_counts {
     int total = 0;
@@ -524,6 +626,25 @@ bytes openssl_spki(EVP_PKEY const* key) {
     return out;
 }
 
+// OpenSSL's PEM of a key: its SPKI with PEM_write_bio_PUBKEY, or its PKCS#8 with
+// PEM_write_bio_PrivateKey (no cipher), each in the key's current point form.
+std::string openssl_pem(EVP_PKEY const* key, bool private_key) {
+    BIO* bio = BIO_new(BIO_s_mem());
+    std::string out;
+    if (BOOST_TEST(bio != nullptr) &&
+        BOOST_TEST((private_key
+                        ? PEM_write_bio_PrivateKey(bio, key, nullptr, nullptr, 0, nullptr, nullptr)
+                        : PEM_write_bio_PUBKEY(bio, key)) == 1)) {
+        char* data = nullptr;
+        long const size = BIO_get_mem_data(bio, &data);
+        if (BOOST_TEST(size > 0)) {
+            out.assign(data, static_cast<std::size_t>(size));
+        }
+    }
+    BIO_free(bio);
+    return out;
+}
+
 // webcpp's SPKI read by OpenSSL is the key it came from.
 void openssl_reads_spki(EVP_PKEY const* key, bytes const& encoding) {
     unsigned char const* cursor = encoding.data();
@@ -556,6 +677,13 @@ void openssl_default_form(EVP_PKEY const* key) {
     EVP_PKEY_free(read);
     openssl_reads_spki(key, spki(*from_uncompressed, secp::point_form::uncompressed));
     openssl_reads_spki(key, spki(*from_uncompressed, secp::point_form::compressed));
+    // OpenSSL's PEM text is pem::armour's, character for character, and unarmours to its DER.
+    auto const public_text = openssl_pem(key, false);
+    BOOST_TEST_EQ(public_text, armoured(pem::public_key_label, uncompressed));
+    BOOST_TEST(unarmoured(pem::public_key_label, public_text) == uncompressed);
+    auto const private_text = openssl_pem(key, true);
+    BOOST_TEST(private_text == armoured(pem::private_key_label, mine));
+    BOOST_TEST(unarmoured(pem::private_key_label, private_text) == private_encoding);
 }
 
 // The same key set to the compressed form: webcpp decodes OpenSSL's compressed SPKI and encodes
@@ -570,6 +698,9 @@ void openssl_compressed_form(EVP_PKEY* key) {
     if (BOOST_TEST(from_compressed.has_value())) {
         BOOST_TEST(spki(*from_compressed, secp::point_form::compressed) == compressed);
         openssl_reads_spki(key, spki(*from_compressed, secp::point_form::uncompressed));
+        BOOST_TEST_EQ(
+            openssl_pem(key, false),
+            armoured(pem::public_key_label, spki(*from_compressed, secp::point_form::compressed)));
     }
     auto const compressed_private = openssl_pkcs8(key);
     BOOST_TEST_EQ(compressed_private.size(), 102U);
@@ -676,6 +807,7 @@ int main() {
     round_trips();
     encoder_refusals();
     malformed();
+    malformed_pem();
 #ifdef WEBCPP_TEST_WYCHEPROOF
     wycheproof();
 #endif

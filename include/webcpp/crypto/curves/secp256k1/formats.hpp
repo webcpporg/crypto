@@ -7,9 +7,10 @@
 /**
  secp256k1's keys in the standard formats on libsecp256k1: a public key's SPKI (RFC 5480, the
  secp256k1 OID, either point form) and a key pair's PKCS#8 (RFC 5208 around RFC 5915's
- ECPrivateKey), each decoded only when it is exactly what the encoder writes.
+ ECPrivateKey), each decoded only when it is exactly what the encoder writes. `pem::armour` and
+ `pem::unarmour` (`<webcpp/crypto/pem.hpp>`, on libsodium) turn either into PEM text.
 
- @see "Keys in files: SPKI and PKCS#8", in the guide's secp256k1 chapter.
+ @see "Keys in files: SPKI, PKCS#8 and PEM", in the guide's secp256k1 chapter.
 */
 #ifndef WEBCPP_CRYPTO_CURVES_SECP256K1_FORMATS_HPP
 #define WEBCPP_CRYPTO_CURVES_SECP256K1_FORMATS_HPP

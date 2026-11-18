@@ -91,6 +91,24 @@ as webcpp compiles it, per target, is not taken in this version.
 
 include::generated/constant-time.adoc[]
 
+The own lane `constant-time` (`libs/crypto/test/constant_time`) checks the code
+as webcpp compiles it, natively on Linux: under Valgrind's memcheck, as
+link:https://github.com/agl/ctgrind[ctgrind] does, and under MemorySanitizer,
+the key, the data and the tag are marked secret, and any branch or memory index
+that depends on them fails the run. It covers `equal`, BearSSL's AES-GCM `make`,
+`seal` and `open`, OpenSSL's `make` and `seal`, ctaes's AES, and libsecp256k1's
+own `ctime_tests.c`; each check is shown to fail on a planted branch on a key
+byte. dudect's statistics (link:https://eprint.iacr.org/2016/1123[Reparaz,
+Balasch and Verbauwhede]) time BearSSL's seal and open, ctaes and `equal`
+natively and under wasmtime.
+
+Whether a tag matched is public by design, since `open` reports it, but it is
+computed from the key and the tag: it is the one value webcpp marks public
+(BearSSL's engines declassify it where webcpp first branches on it), so that
+the checkers report every other branch. OpenSSL's verdict is OpenSSL's own
+internal branch, which webcpp cannot mark: OpenSSL is checked with the key
+secret during `seal` only.
+
 [#crypto-backends-sizes]
 === Size and speed
 

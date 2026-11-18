@@ -245,6 +245,10 @@ webcpp.compile-diagnostic random_device_no_call : random_device_no_call_test.cpp
 # The C libraries' own suites, in the own lane c-suites.
 build-project c_suites ;
 
+# Constant time under memcheck, MemorySanitizer and dudect, in the own lane
+# constant-time.
+build-project constant_time ;
+
 # A backend named and not called adds no byte (webcpp.same-program).
 build-project unused ;
 

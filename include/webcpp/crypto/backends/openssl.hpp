@@ -74,9 +74,10 @@ namespace webcpp::crypto {
 
 /**
  * The resource every allocation of OpenSSL's in the process goes to, from any thread:
- * declared here under `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` and defined once by the
- * program. It returns a resource that is never destroyed and is thread-safe whenever
- * OpenSSL may run on two threads at once: OpenSSL frees through it after `main` returns.
+ * declared by `<webcpp/crypto/backends/openssl.hpp>` under
+ * `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` and defined once by the program. It returns a
+ * resource that is never destroyed and is thread-safe whenever OpenSSL may run on two threads
+ * at once: OpenSSL frees through it after `main` returns.
  *
  * It must serve OpenSSL's initialisation, which the first use of OpenSSL in the process runs,
  * usually the first `make`: on an OpenSSL built with threads, which MSVC always builds, a

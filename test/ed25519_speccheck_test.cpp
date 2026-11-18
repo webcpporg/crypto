@@ -99,11 +99,18 @@ std::string_view verdict(bool accepted) {
     return accepted ? "accept" : "reject";
 }
 
-// A committed row: twelve verdicts, each accept or reject.
+// A committed row: twelve verdicts, each accept or reject. A row of another shape fails the test,
+// rather than end it on an exception.
 verdicts committed_row(json::value const& row, std::string const& label) {
     verdicts out;
-    for (auto const& entry : row.as_array()) {
-        out.push_back(text_of(entry));
+    auto const* entries = row.if_array();
+    if (entries == nullptr) {
+        BOOST_ERROR((label + ": the committed row is no array").c_str());
+        return out;
+    }
+    for (auto const& entry : *entries) {
+        auto const* text = entry.if_string();
+        out.emplace_back(text == nullptr ? "(not a string)" : std::string_view(*text));
         if (out.back() != "accept" && out.back() != "reject") {
             BOOST_ERROR(
                 (label + ": a committed verdict is neither accept nor reject: " + out.back())
@@ -152,6 +159,18 @@ void sodium_rows(std::vector<edge_case> const& cases, verdicts& raw, verdicts& s
         }
         strict.emplace_back(verdict(static_cast<bool>(verified)));
     }
+}
+
+// The object key names in parent; null when parent holds no key, or another kind of value there.
+json::object const* object_in(json::object const& parent, std::string_view key) noexcept {
+    auto const* found = parent.if_contains(key);
+    return found == nullptr ? nullptr : found->if_object();
+}
+
+// The same, null also when parent is no object.
+json::object const* object_in(json::value const& parent, std::string_view key) noexcept {
+    auto const* parent_object = parent.if_object();
+    return parent_object == nullptr ? nullptr : object_in(*parent_object, key);
 }
 
 }  // namespace
@@ -219,27 +238,27 @@ int main() {
     compare("sodium strict", strict, sodium_strict);
 
     // The outside view: node's WebCrypto, committed as one row with the node and OpenSSL that
-    // gave it.
-    auto const* outside = committed.as_object().if_contains("outside");
-    BOOST_TEST(outside != nullptr && outside->as_object().size() == 1U &&
-               outside->as_object().contains("webcrypto-node"));
-    if (outside == nullptr || !outside->as_object().contains("webcrypto-node")) {
+    // gave it. A view of another shape fails the test, rather than end it on an exception.
+    auto const* outside = object_in(committed, "outside");
+    auto const* view = outside == nullptr ? nullptr : object_in(*outside, "webcrypto-node");
+    BOOST_TEST(outside != nullptr && outside->size() == 1U && view != nullptr);
+    if (view == nullptr) {
         return test::exit_status(boost::report_errors());
     }
-    auto const& view = outside->at("webcrypto-node").as_object();
-    BOOST_TEST(view.contains("node") && view.at("node").is_string());
-    BOOST_TEST(view.contains("openssl") && view.at("openssl").is_string());
-    BOOST_TEST(view.contains("verdicts"));
-    if (!view.contains("verdicts")) {
+    BOOST_TEST(view->contains("node") && view->at("node").is_string());
+    BOOST_TEST(view->contains("openssl") && view->at("openssl").is_string());
+    BOOST_TEST(view->contains("verdicts"));
+    if (!view->contains("verdicts")) {
         return test::exit_status(boost::report_errors());
     }
-    auto const webcrypto = committed_row(view.at("verdicts"), "webcrypto-node");
+    auto const webcrypto = committed_row(view->at("verdicts"), "webcrypto-node");
 #ifdef __EMSCRIPTEN__
     // The versions this run's node has, beside those committed: a node whose row differs says
     // which it is.
-    if (view.contains("node") && view.contains("openssl")) {
-        std::cout << "webcrypto-node committed with node " << text_of(view.at("node"))
-                  << ", OpenSSL " << text_of(view.at("openssl")) << '\n';
+    if (view->contains("node") && view->at("node").is_string() && view->contains("openssl") &&
+        view->at("openssl").is_string()) {
+        std::cout << "webcrypto-node committed with node " << text_of(view->at("node"))
+                  << ", OpenSSL " << text_of(view->at("openssl")) << '\n';
     }
     print_node_versions();
     verdicts subtle;

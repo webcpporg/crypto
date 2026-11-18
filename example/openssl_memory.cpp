@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <memory_resource>
+#include <string>
 
 namespace crypto = webcpp::crypto;
 
@@ -36,7 +37,8 @@ int main() {
     // The first statement of main: before any thread starts and before anything uses OpenSSL.
     auto const installed = crypto::backends::openssl::install_memory_functions();
     if (!installed) {
-        std::printf("install: %s\n", installed.error().message().c_str());
+        std::string const message = installed.error().message();
+        std::printf("install: %s\n", message.c_str());
         return 1;
     }
     // end::install[]
@@ -48,7 +50,8 @@ int main() {
     std::array<std::uint8_t, 16> data{};
     auto aead = crypto::ciphers::aes256_gcm::make(key);
     if (!aead) {
-        std::printf("make: %s\n", aead.error().message().c_str());
+        std::string const message = aead.error().message();
+        std::printf("make: %s\n", message.c_str());
         return 1;
     }
     auto const tag = aead->seal(iv, {}, data);

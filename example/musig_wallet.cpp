@@ -71,8 +71,10 @@ int main() {
     }
 
     // Once both public nonces are in, each device computes the same session.
-    std::array<musig::public_nonce, 2> const nonces{phone_nonce->public_part,
-                                                    laptop_nonce->public_part};
+    std::array<musig::public_nonce, 2> const nonces{
+        phone_nonce->public_part,
+        laptop_nonce->public_part,
+    };
     auto const nonce_sum = musig::nonce_aggregate(nonces, space);
     if (!nonce_sum) {
         return 1;

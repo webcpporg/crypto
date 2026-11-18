@@ -67,7 +67,7 @@ void print_hex(char const* label, std::span<std::uint8_t const> bytes) {
 std::array<std::uint8_t, 32> conversation_key(crypto::secret<32> const& shared_x) {
     auto const salt = bytes_of("nip44-v2");
     hash2::hmac_sha2_256 extract(salt.data(), salt.size());
-    extract.update(shared_x.bytes().data(), shared_x.size());
+    extract.update(shared_x.bytes().data(), crypto::secret<32>::size());
     auto digest = extract.result();
     wipe_object(extract);
     std::array<std::uint8_t, 32> key{};

@@ -61,9 +61,10 @@ bool key_pair_to_pem(secp256k1::keypair const& key_pair) {
     if (!size) {
         return false;
     }
-    crypto::secret<pem::armoured_size(pem::private_key_label.size(), secp256k1::max_pkcs8_size)>
-        file;
-    std::span<char> const text(reinterpret_cast<char*>(file.writable().data()), file.size());
+    constexpr std::size_t file_size =
+        pem::armoured_size(pem::private_key_label.size(), secp256k1::max_pkcs8_size);
+    crypto::secret<file_size> file;
+    std::span<char> const text(reinterpret_cast<char*>(file.writable().data()), file_size);
     auto const written = pem::armour(pem::private_key_label, pkcs8.bytes().first(*size), text);
     if (!written) {
         return false;

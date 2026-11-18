@@ -156,7 +156,7 @@
             "licence": "ISC",
             "own_suite": {
                 "lane": "webcpp::hash's own lane `c-suites`, `libs/hash/test/c_suites/Jamfile`, on every target, against the same `/third_party//sodium` that crypto links",
-                "programs": ["sign", "box", "box2", "box7", "box8", "box_easy", "box_easy2", "box_seal", "secretbox", "secretbox2", "secretbox7", "secretbox8", "secretbox_easy", "secretbox_easy2", "xchacha20", "aead_chacha20poly1305", "aead_chacha20poly13052", "aead_xchacha20poly1305", "kx", "scalarmult", "ed25519_convert"]
+                "programs": ["sign", "box", "box2", "box7", "box8", "box_easy", "box_easy2", "box_seal", "secretbox", "secretbox2", "secretbox7", "secretbox8", "secretbox_easy", "secretbox_easy2", "xchacha20", "aead_chacha20poly1305", "aead_chacha20poly13052", "aead_xchacha20poly1305", "kx", "scalarmult", "ed25519_convert", "codecs"]
             }
         },
         "system": {

@@ -40,12 +40,13 @@ those of crypto's operations among them (`sign`, `box`, `box2`, `box7`,
 `box8`, `box_easy`, `box_easy2`, `box_seal`, `secretbox`, `secretbox2`,
 `secretbox7`, `secretbox8`, `secretbox_easy`, `secretbox_easy2`, `xchacha20`,
 `aead_chacha20poly1305`, `aead_chacha20poly13052`, `aead_xchacha20poly1305`,
-`kx`, `scalarmult`, `ed25519_convert`), compared with its `.exp`. The own lane
-`constant-time` checks constant time (<<crypto-backends-constant-time>>):
-natively, Valgrind and clang's MemorySanitizer on Linux and dudect's statistics
-on Linux and macOS, and dudect's under wasmtime on wasip2; the native lane's
-command with `libs/crypto/test/constant_time//constant-time` in place of the
-two directories.
+`kx`, `scalarmult`, `ed25519_convert`, and `codecs`, the base64 functions
+PEM's engine calls), compared with its `.exp`. The own lane `constant-time`
+checks constant time (<<crypto-backends-constant-time>>): natively, Valgrind
+and clang's MemorySanitizer on Linux and dudect's statistics on Linux and
+macOS, and dudect's under wasmtime on wasip2; the native lane's command with
+`libs/crypto/test/constant_time//constant-time` in place of the two
+directories.
 
 What the tests check:
 

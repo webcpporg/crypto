@@ -7,15 +7,18 @@
 // Runs the program under Valgrind's memcheck and passes with its exit status: 99 when
 // memcheck found a use of an undefined value, which a branch on a secret is.
 // With --expect-leak, it passes only when memcheck found one: the planted leak's build.
+// Suppressed: libsodium's own branches on a verdict (sodium_verdicts.supp), and OpenSSL's
+// start-up frames (openssl.supp).
 import {spawnSync} from 'node:child_process'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
 const program = process.argv[process.argv.length - 1]
 const expectLeak = process.argv.includes('--expect-leak')
-const suppressions = join(dirname(fileURLToPath(import.meta.url)), 'openssl.supp')
+const here = dirname(fileURLToPath(import.meta.url))
 const run = spawnSync('valgrind', ['--error-exitcode=99', '--track-origins=yes', '--quiet',
-    `--suppressions=${suppressions}`, program], {stdio: 'inherit'})
+    `--suppressions=${join(here, 'openssl.supp')}`,
+    `--suppressions=${join(here, 'sodium_verdicts.supp')}`, program], {stdio: 'inherit'})
 if (run.error) {
     console.error(`valgrind could not run: ${run.error.message}; install valgrind (Linux)`)
     process.exit(1)

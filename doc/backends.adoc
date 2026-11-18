@@ -94,23 +94,35 @@ documentation's data, in a later version.
 include::generated/constant-time.adoc[]
 
 The own lane `constant-time` (`libs/crypto/test/constant_time`) checks the code
-as webcpp compiles it. On Linux, it marks the key, the data and the tag secret
-under Valgrind's memcheck, as link:https://github.com/agl/ctgrind[ctgrind]
-does, and, in a clang build, under MemorySanitizer, which only clang has (a gcc
-build runs memcheck alone): any branch or memory index that depends on them
-fails the run. The lane covers `equal`, BearSSL's AES-GCM `make`, `seal` and
-`open`, OpenSSL's `make` and `seal`, ctaes's AES, and libsecp256k1's own
-`ctime_tests.c`; each check is shown to fail on a planted branch on a key byte.
-dudect's statistics (link:https://eprint.iacr.org/2016/1123[Reparaz, Balasch
-and Verbauwhede]) time BearSSL's seal and open, ctaes and `equal` natively, on
-Linux and macOS, and under wasmtime.
+as webcpp compiles it. On Linux, it marks the keys, the seeds, the data and the
+tag secret under Valgrind's memcheck, as
+link:https://github.com/agl/ctgrind[ctgrind] does, and, in a clang build, under
+MemorySanitizer, which only clang has (a gcc build runs memcheck alone): any
+branch or memory index that depends on them fails the run. The lane covers
+`equal`, `is_all_zero` and the wipe of `secret<N>`; BearSSL's AES-GCM and
+ChaCha20-Poly1305 `make`, `seal` and `open`; OpenSSL's `make` and `seal` of
+both; ctaes's AES; libsodium's Ed25519 key pair and signature, X25519's public
+key and agreement, its three ChaCha20-Poly1305 AEADs and two secret boxes,
+`hybrid::box` in both families, and `kx`; and libsecp256k1's own
+`ctime_tests.c`. Each check is shown to fail on a planted branch on a key byte,
+and each path's output is checked to carry the mark, so that the path is
+traced. dudect's statistics
+(link:https://eprint.iacr.org/2016/1123[Reparaz, Balasch and Verbauwhede]) time
+BearSSL's two AEADs' seal and open, ctaes, `equal`, and libsodium's X25519
+agreement and Ed25519 signing natively, on Linux and macOS, and under wasmtime.
 
-Whether a tag matched is public by design, since `open` reports it, but it is
-computed from the key and the tag: it is the one value webcpp marks public
-(BearSSL's engines declassify it where webcpp first branches on it), so that
-the checkers report every other branch. OpenSSL's verdict is OpenSSL's own
-internal branch, which webcpp cannot mark: OpenSSL is checked with the key
-secret during `seal` only.
+Whether a tag matched, or a shared secret came out all zero, is public by
+design, since the operation reports it, but it is computed from the secrets: it
+is the one kind of value webcpp marks public, where webcpp's code first
+branches on it (BearSSL's engines, libsodium's engines and X25519's `agree`),
+so that the checkers report every other branch. libsodium branches on its own
+verdicts inside the functions that compute them; the lane tells memcheck of
+each of those functions (`sodium_verdicts.supp`), and libsodium is used
+unchanged. MemorySanitizer approximates a subtraction without its carry, so it
+counts every such verdict public by itself: memcheck is the check of the
+marks. OpenSSL's verdict is OpenSSL's own internal
+branch, which webcpp cannot mark: OpenSSL is checked with the key secret during
+`seal` only.
 
 [#crypto-backends-sizes]
 === Size

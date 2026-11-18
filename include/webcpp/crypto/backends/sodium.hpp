@@ -23,6 +23,7 @@
 
 #include <webcpp/crypto/detail/canary.h>
 #include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -79,6 +80,22 @@ namespace webcpp::crypto::detail {
         return error::backend_failure;
     }
     return {};
+}
+
+/**
+ Whether a libsodium function that checks a secret refused: its verdict, a tag that does not
+ match or an all-zero shared secret, which webcpp reports and so branches on, here, where it is
+ marked public for the constant-time checks (`WEBCPP_CRYPTO_DETAIL_DECLASSIFY`).
+
+ @param returned What the function returned: 0, or -1 when it refused.
+ @return Whether it refused.
+*/
+[[nodiscard]] inline bool sodium_refused(int returned) noexcept {
+    // Not const: the comparison reads it again after the mark (detail/declassify.hpp's tip).
+    // NOLINTNEXTLINE(misc-const-correctness): see above
+    int verdict = returned;
+    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&verdict, sizeof verdict);
+    return verdict != 0;
 }
 
 /** libsodium's detached functions of an AEAD family, which differ only by name. */
@@ -184,9 +201,9 @@ struct aead_engine<Family, backends::sodium> {
         // An empty span's null data() makes libsodium check the tag alone: its detached
         // decryptions return the verdict when the output is null, before clearing or decrypting
         // it.
-        if (calls::decrypt(data.data(), nullptr, data.data(), data.size(), tag.data(),
-                           additional_data.data(), additional_data.size(), iv.data(),
-                           s.key.data()) != 0) {
+        if (sodium_refused(calls::decrypt(data.data(), nullptr, data.data(), data.size(),
+                                          tag.data(), additional_data.data(),
+                                          additional_data.size(), iv.data(), s.key.data()))) {
             return error::authentication_failed;
         }
         return {};
@@ -256,7 +273,8 @@ template <class Decrypt>
     std::span<std::uint8_t> data, std::array<std::uint8_t, 16> const& tag) noexcept {
     std::array<unsigned char, 24> nonce{};
     std::ranges::copy(iv, nonce.begin());
-    if (decrypt(data.data(), data.data(), tag.data(), data.size(), nonce.data(), key.data()) != 0) {
+    if (sodium_refused(
+            decrypt(data.data(), data.data(), tag.data(), data.size(), nonce.data(), key.data()))) {
         return error::authentication_failed;
     }
     return {};
@@ -591,8 +609,8 @@ struct x25519_engine<families::x25519, backends::sodium> {
         if (!ready) {
             return ready;
         }
-        if (crypto_scalarmult_curve25519(out.data(), secret_key.data(), peer_public_key.data()) !=
-            0) {
+        if (sodium_refused(crypto_scalarmult_curve25519(out.data(), secret_key.data(),
+                                                        peer_public_key.data()))) {
             return error::weak_public_key;
         }
         return {};
@@ -677,7 +695,8 @@ struct box_engine<Family, backends::sodium> {
         if (!ready) {
             return ready;
         }
-        if (calls::beforenm(s.key.data(), peer_public_key.data(), secret_key.data()) != 0) {
+        if (sodium_refused(
+                calls::beforenm(s.key.data(), peer_public_key.data(), secret_key.data()))) {
             wipe_object(s.key);
             return error::weak_public_key;
         }
@@ -776,8 +795,9 @@ struct sealed_box_engine<families::sealed_box, backends::sodium> {
         if (!ready) {
             return ready;
         }
-        if (crypto_box_seal_open(out.data(), sealed.data(), sealed.size(),
-                                 recipient_public_key.data(), recipient_secret_key.data()) != 0) {
+        if (sodium_refused(crypto_box_seal_open(out.data(), sealed.data(), sealed.size(),
+                                                recipient_public_key.data(),
+                                                recipient_secret_key.data()))) {
             return error::authentication_failed;
         }
         return {};
@@ -1094,8 +1114,9 @@ struct kx_engine<families::kx, backends::sodium> {
         std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> receive,
         std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> transmit) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        if (crypto_kx_client_session_keys(receive.data(), transmit.data(), keyed.public_key.data(),
-                                          keyed.secret_key.data(), server_key.data()) != 0) {
+        if (sodium_refused(crypto_kx_client_session_keys(
+                receive.data(), transmit.data(), keyed.public_key.data(), keyed.secret_key.data(),
+                server_key.data()))) {
             return error::weak_public_key;
         }
         return {};
@@ -1112,8 +1133,9 @@ struct kx_engine<families::kx, backends::sodium> {
         std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> receive,
         std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> transmit) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        if (crypto_kx_server_session_keys(receive.data(), transmit.data(), keyed.public_key.data(),
-                                          keyed.secret_key.data(), client_key.data()) != 0) {
+        if (sodium_refused(crypto_kx_server_session_keys(
+                receive.data(), transmit.data(), keyed.public_key.data(), keyed.secret_key.data(),
+                client_key.data()))) {
             return error::weak_public_key;
         }
         return {};

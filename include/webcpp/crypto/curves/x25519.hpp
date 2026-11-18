@@ -21,6 +21,7 @@
 
 #include <webcpp/crypto/detail/bytes.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -103,8 +104,13 @@ struct algorithm {
             return done.error();
         }
         // Every backend gives the same answer: libsodium refuses an all-zero result itself,
-        // and the others are checked here, in constant time (design D8).
-        if (detail::is_all_zero(shared.bytes())) {
+        // and the others are checked here, in constant time (design D8). Whether it is all zero
+        // is public, since it is reported: marked so for the constant-time checks, and not const,
+        // so that the branch reads it again after the mark (detail/declassify.hpp's tip).
+        // NOLINTNEXTLINE(misc-const-correctness): see above
+        bool all_zero = detail::is_all_zero(shared.bytes());
+        WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&all_zero, sizeof all_zero);
+        if (all_zero) {
             return error::weak_public_key;
         }
         return shared;

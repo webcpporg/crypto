@@ -7,11 +7,13 @@
 # Constant time (spec section 8.3): Valgrind and MemorySanitizer on Linux, and
 # dudect's statistics natively and under wasmtime, as the own lane
 # constant-time, outside the ordinary lanes. Each deterministic check is shown
-# to fail on a planted leak, a branch on a key byte. The paths are version
-# 0.1's: BearSSL's AES-GCM make, seal and open, OpenSSL's make and seal (its
-# open branches on the verdict inside OpenSSL, where webcpp cannot mark it
-# public), ctaes's make, encrypt and decrypt, equal, and libsecp256k1's own
-# ctime_tests.c.
+# to fail on a planted leak, a branch on a key byte. The paths: BearSSL's
+# AES-GCM and ChaCha20-Poly1305 make, seal and open, OpenSSL's make and seal of
+# both (its open branches on the verdict inside OpenSSL, where webcpp cannot
+# mark it public), ctaes's make, encrypt and decrypt, equal, is_all_zero,
+# secret's wipe, libsodium's Ed25519, X25519, three AEADs, two secret boxes,
+# two boxes and kx (its own branches on a verdict listed in
+# sodium_verdicts.supp), and libsecp256k1's own ctime_tests.c.
 #
 # A later family adds its cases to ctgrind_test.cpp and msan_test.cpp, as
 # BearSSL's are here: its secrets marked, its verdicts declassified where
@@ -55,9 +57,11 @@ rule clang-on-linux ( properties * )
     }
 }
 
-# The libraries the memcheck programs link: BearSSL, OpenSSL and ctaes.
+# The libraries the memcheck programs link: BearSSL, OpenSSL, ctaes and
+# libsodium.
 CTGRIND = <library>/third_party//bearssl <library>/webcpp/crypto//openssl
-    <library>/third_party//ctaes <variant>release <debug-symbols>on
+    <library>/third_party//ctaes <library>/third_party//sodium <variant>release
+    <debug-symbols>on
     <conditional>@linux-only
     <define>WEBCPP_CRYPTO_DETAIL_CT_VALGRIND <webcpp-drive-timeout>300 ;
 
@@ -98,9 +102,38 @@ lib ctaes_msan : $(CTAES)/ctaes.c ../../src/canary_ctaes.c
   : : <include>$(CTAES) <define>WEBCPP_CRYPTO_HAS_CTAES=1 ;
 explicit ctaes_msan ;
 
+# libsodium's sources once more, instrumented, on its portable C code alone:
+# libsodium's configuration for Linux, third_party/Jamfile's defines read from
+# that project, without the architecture's, so that no intrinsic's code is
+# chosen, as BearSSL stays portable below, and without HAVE_INLINE_ASM, whose
+# assembly MemorySanitizer cannot follow (it reports a poisoned operand of
+# ed25519_ref10.c's negative(), constant-time code in C as in assembly).
+# sodium/version.c, the one file that needs the generated version.h, is left
+# out: nothing here reads the version. libsodium's own branches on a verdict,
+# which memcheck is told of (sodium_verdicts.supp), need no such list here:
+# MemorySanitizer counts those verdicts initialised (msan_test.cpp says why).
+path-constant SODIUM : ../../../../third_party/libs/libsodium ;
+import modules project set ;
+local third-party = [ project.find /third_party : . ] ;
+SODIUM_DEFINES = [ set.difference
+    [ modules.peek $(third-party) : .sodium-common .sodium-posix .sodium-linux ]
+    : <define>HAVE_INLINE_ASM=1 ] ;
+lib sodium_msan
+  : [ glob-tree-ex $(SODIUM)/src/libsodium : *.c : version.c ]
+    ../../src/canary_sodium.c
+  : <link>static <warnings>off <warnings-as-errors>off
+    <include>$(SODIUM)/src/libsodium/include
+    <include>$(SODIUM)/src/libsodium/include/sodium <include>../../include
+    $(SODIUM_DEFINES)
+    <cflags>$(MSAN_FLAGS)
+    <conditional>@clang-on-linux
+  : : <include>$(SODIUM)/src/libsodium/include <define>SODIUM_STATIC=1
+    <define>WEBCPP_CRYPTO_HAS_SODIUM=1 ;
+explicit sodium_msan ;
+
 # BearSSL stays on its portable code, whose plain C MemorySanitizer follows
 # exactly; the engine marks the tag's verdict public.
-MSAN = <library>bearssl_msan <library>ctaes_msan
+MSAN = <library>bearssl_msan <library>ctaes_msan <library>sodium_msan
     <define>WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE <define>WEBCPP_CRYPTO_DETAIL_CT_MSAN
     <cxxflags>$(MSAN_FLAGS) <linkflags>-fsanitize=memory <variant>release
     <debug-symbols>on <conditional>@clang-on-linux ;
@@ -130,11 +163,15 @@ webcpp.run secp256k1_ctime_msan : $(SECP256K1_CTIME)
     <warnings-as-errors>off <cflags>$(MSAN_FLAGS) <linkflags>-fsanitize=memory
     <variant>release <debug-symbols>on <conditional>@clang-on-linux : native ;
 
-# dudect's statistics on BearSSL, ctaes and equal, natively and under wasmtime.
+# dudect's statistics on BearSSL, ctaes and equal, and on libsodium's X25519 and
+# Ed25519, natively and under wasmtime.
 webcpp.run dudect_bearssl : dudect_test.cpp
   : <library>/third_party//bearssl <library>/third_party//ctaes <variant>release
   : native wasip2 ;
+webcpp.run dudect_sodium : dudect_sodium_test.cpp
+  : <library>/third_party//sodium <variant>release : native wasip2 ;
 
 webcpp.lane constant-time : ctgrind ctgrind_planted ctgrind_space msan
     msan_planted secp256k1_ctime secp256k1_ctime_msan dudect_bearssl
+    dudect_sodium
   : native wasip2 ;

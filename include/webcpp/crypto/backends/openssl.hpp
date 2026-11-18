@@ -8,7 +8,9 @@
  The backend OpenSSL: OpenSSL 3.5.9 built from `third_party/libs/openssl` by
  `/webcpp/crypto//openssl`, static, on native, wasip2 and wasip3; never on Emscripten. It
  serves `ciphers::aes128/192/256<backends::openssl>` and `ciphers::gcm<...<backends::openssl>>`. Its
- `make` allocates through OpenSSL's own functions. On MSVC, wasip2 and wasip3 OpenSSL is compiled
+ `make` allocates through OpenSSL's own functions, unless a native program sets
+ `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, which sends every allocation of OpenSSL's to
+ `openssl_memory_resource()`. On MSVC, wasip2 and wasip3 OpenSSL is compiled
  without assembly: table-driven AES and 4-bit GHASH, no AES-NI, not constant time.
  OpenSSL's default initialisation reads the configuration file of the directory it was
  configured with (`/etc/ssl/openssl.cnf`, when the machine has one), as any program of

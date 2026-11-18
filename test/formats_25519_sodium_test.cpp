@@ -110,7 +110,7 @@ std::string text_of(std::string_view label, std::span<std::uint8_t const> der) {
 void ed25519_spki_refused(std::vector<std::uint8_t> const& spki, char const* what) {
     auto const decoded = ed25519::decode_spki(spki);
     if (!BOOST_TEST(!decoded.has_value() && decoded.error() == crypto::error::invalid_encoding)) {
-        std::fprintf(stderr, "Ed25519 SPKI accepted: %s\n", what);
+        static_cast<void>(std::fprintf(stderr, "Ed25519 SPKI accepted: %s\n", what));
     }
 }
 
@@ -118,7 +118,7 @@ void ed25519_spki_refused(std::vector<std::uint8_t> const& spki, char const* wha
 void x25519_spki_refused(std::vector<std::uint8_t> const& spki, char const* what) {
     auto const decoded = x25519::decode_spki(spki);
     if (!BOOST_TEST(!decoded.has_value() && decoded.error() == crypto::error::invalid_encoding)) {
-        std::fprintf(stderr, "X25519 SPKI accepted: %s\n", what);
+        static_cast<void>(std::fprintf(stderr, "X25519 SPKI accepted: %s\n", what));
     }
 }
 
@@ -126,7 +126,7 @@ void x25519_spki_refused(std::vector<std::uint8_t> const& spki, char const* what
 void ed25519_pkcs8_refused(std::vector<std::uint8_t> const& pkcs8, char const* what) {
     auto const decoded = ed25519::decode_pkcs8(pkcs8);
     if (!BOOST_TEST(!decoded.has_value() && decoded.error() == crypto::error::invalid_encoding)) {
-        std::fprintf(stderr, "Ed25519 PKCS#8 accepted: %s\n", what);
+        static_cast<void>(std::fprintf(stderr, "Ed25519 PKCS#8 accepted: %s\n", what));
     }
 }
 
@@ -134,7 +134,7 @@ void ed25519_pkcs8_refused(std::vector<std::uint8_t> const& pkcs8, char const* w
 void x25519_pkcs8_refused(std::vector<std::uint8_t> const& pkcs8, char const* what) {
     auto const decoded = x25519::decode_pkcs8(pkcs8);
     if (!BOOST_TEST(!decoded.has_value() && decoded.error() == crypto::error::invalid_encoding)) {
-        std::fprintf(stderr, "X25519 PKCS#8 accepted: %s\n", what);
+        static_cast<void>(std::fprintf(stderr, "X25519 PKCS#8 accepted: %s\n", what));
     }
 }
 
@@ -143,7 +143,7 @@ void pem_refused(std::string_view label, std::string_view text, char const* what
     std::vector<std::uint8_t> out(text.size() + 64, untouched);
     auto const written = pem::unarmour(label, text, out);
     if (!BOOST_TEST(!written.has_value() && written.error() == crypto::error::invalid_encoding)) {
-        std::fprintf(stderr, "PEM accepted: %s\n", what);
+        static_cast<void>(std::fprintf(stderr, "PEM accepted: %s\n", what));
     }
     BOOST_TEST(all_untouched(out));
 }
@@ -246,53 +246,62 @@ void layouts() {
     static_assert(pem::armoured_size(11, 0) == 28 + 26);
 }
 
-void round_trips() {
+/** A generated Ed25519 key pair through its SPKI, its PKCS#8 and their PEM, and back. */
+void ed25519_round_trip() {
     std::array<std::uint8_t, 7> const message{'m', 'e', 's', 's', 'a', 'g', 'e'};
-    for (int round = 0; round < 64; ++round) {
-        auto const pair = ed25519::keypair::generate();
-        BOOST_TEST(pair.has_value());
-        if (!pair) {
-            continue;
-        }
-        auto const public_key = pair->public_key();
-        BOOST_TEST(public_key.has_value());
-        if (!public_key) {
-            continue;
-        }
-        std::array<std::uint8_t, ed25519::max_spki_size> spki{};
-        BOOST_TEST(ed25519::encode_spki(*public_key, spki).has_value());
-        auto const decoded_public = ed25519::decode_spki(spki);
-        BOOST_TEST(decoded_public.has_value() && *decoded_public == *public_key);
-        std::array<std::uint8_t, ed25519::max_pkcs8_size> pkcs8{};
-        BOOST_TEST(ed25519::encode_pkcs8(*pair, pkcs8).has_value());
-        auto const decoded = ed25519::decode_pkcs8(
-            der_of(pem::private_key_label, text_of(pem::private_key_label, pkcs8)));
-        BOOST_TEST(decoded.has_value());
-        if (decoded) {
-            BOOST_TEST(decoded->public_key().has_value() && *decoded->public_key() == *public_key);
-            auto const signed_again = decoded->sign(message);
-            auto const signed_first = pair->sign(message);
-            BOOST_TEST(signed_again.has_value() && signed_first.has_value() &&
-                       *signed_again == *signed_first);
-        }
-        BOOST_TEST(der_of(pem::public_key_label, text_of(pem::public_key_label, spki)) ==
-                   bytes_of(spki));
+    auto const pair = ed25519::keypair::generate();
+    BOOST_TEST(pair.has_value());
+    if (!pair) {
+        return;
+    }
+    auto const public_key = pair->public_key();
+    BOOST_TEST(public_key.has_value());
+    if (!public_key) {
+        return;
+    }
+    std::array<std::uint8_t, ed25519::max_spki_size> spki{};
+    BOOST_TEST(ed25519::encode_spki(*public_key, spki).has_value());
+    auto const decoded_public = ed25519::decode_spki(spki);
+    BOOST_TEST(decoded_public.has_value() && *decoded_public == *public_key);
+    std::array<std::uint8_t, ed25519::max_pkcs8_size> pkcs8{};
+    BOOST_TEST(ed25519::encode_pkcs8(*pair, pkcs8).has_value());
+    auto const decoded = ed25519::decode_pkcs8(
+        der_of(pem::private_key_label, text_of(pem::private_key_label, pkcs8)));
+    BOOST_TEST(decoded.has_value());
+    if (decoded) {
+        BOOST_TEST(decoded->public_key().has_value() && *decoded->public_key() == *public_key);
+        auto const signed_again = decoded->sign(message);
+        auto const signed_first = pair->sign(message);
+        BOOST_TEST(signed_again.has_value() && signed_first.has_value() &&
+                   *signed_again == *signed_first);
+    }
+    BOOST_TEST(der_of(pem::public_key_label, text_of(pem::public_key_label, spki)) ==
+               bytes_of(spki));
+}
 
-        std::array<std::uint8_t, 32> secret_key{};
-        BOOST_TEST(crypto::random_device().fill(secret_key).has_value());
-        auto const x_public = x25519::public_key(secret_key);
-        BOOST_TEST(x_public.has_value());
-        if (!x_public) {
-            continue;
-        }
-        std::array<std::uint8_t, x25519::max_spki_size> x_spki{};
-        BOOST_TEST(x25519::encode_spki(*x_public, x_spki).has_value());
-        auto const x_decoded_public = x25519::decode_spki(x_spki);
-        BOOST_TEST(x_decoded_public.has_value() && *x_decoded_public == *x_public);
-        std::array<std::uint8_t, x25519::max_pkcs8_size> x_pkcs8{};
-        BOOST_TEST(x25519::encode_pkcs8(secret_key, x_pkcs8).has_value());
-        auto const x_decoded = x25519::decode_pkcs8(x_pkcs8);
-        BOOST_TEST(x_decoded.has_value() && std::ranges::equal(x_decoded->bytes(), secret_key));
+/** A drawn X25519 secret key through its SPKI and its PKCS#8, and back. */
+void x25519_round_trip() {
+    std::array<std::uint8_t, 32> secret_key{};
+    BOOST_TEST(crypto::random_device().fill(secret_key).has_value());
+    auto const x_public = x25519::public_key(secret_key);
+    BOOST_TEST(x_public.has_value());
+    if (!x_public) {
+        return;
+    }
+    std::array<std::uint8_t, x25519::max_spki_size> x_spki{};
+    BOOST_TEST(x25519::encode_spki(*x_public, x_spki).has_value());
+    auto const x_decoded_public = x25519::decode_spki(x_spki);
+    BOOST_TEST(x_decoded_public.has_value() && *x_decoded_public == *x_public);
+    std::array<std::uint8_t, x25519::max_pkcs8_size> x_pkcs8{};
+    BOOST_TEST(x25519::encode_pkcs8(secret_key, x_pkcs8).has_value());
+    auto const x_decoded = x25519::decode_pkcs8(x_pkcs8);
+    BOOST_TEST(x_decoded.has_value() && std::ranges::equal(x_decoded->bytes(), secret_key));
+}
+
+void round_trips() {
+    for (int round = 0; round < 64; ++round) {
+        ed25519_round_trip();
+        x25519_round_trip();
     }
 }
 
@@ -477,11 +486,16 @@ void outputs_too_small() {
     }
     BOOST_TEST(all_untouched(short_out));
     BOOST_TEST(all_untouched(short_pkcs8));
+}
 
+/** Keys of another size, and a moved-from key pair, write nothing. */
+void keys_refused() {
+    std::array<std::uint8_t, 32> key{};
+    key.fill(7);
     // Keys of another size.
     std::array<std::uint8_t, 48> out{};
     out.fill(untouched);
-    written = ed25519::encode_spki(std::span(key).first(31), out);
+    auto written = ed25519::encode_spki(std::span(key).first(31), out);
     BOOST_TEST(!written && written.error() == crypto::error::invalid_public_key);
     written = x25519::encode_spki(std::span(key).first(31), out);
     BOOST_TEST(!written && written.error() == crypto::error::invalid_public_key);
@@ -489,7 +503,22 @@ void outputs_too_small() {
     BOOST_TEST(!written && written.error() == crypto::error::invalid_key_size);
     BOOST_TEST(all_untouched(out));
 
-    // PEM: one character short to armour, one byte short to unarmour.
+    // A moved-from key pair.
+    auto moved = ed25519::keypair::make(key);
+    if (moved) {
+        auto const taken = std::move(*moved);
+        static_cast<void>(taken);
+        std::array<std::uint8_t, 48> pkcs8{};
+        pkcs8.fill(untouched);
+        written = ed25519::encode_pkcs8(*moved, pkcs8);  // NOLINT(bugprone-use-after-move)
+        BOOST_TEST(!written && written.error() == crypto::error::invalid_state);
+        BOOST_TEST(all_untouched(pkcs8));
+    }
+}
+
+/** PEM one character short to armour, one byte short to unarmour, or under a label PEM cannot
+ * carry: nothing written. */
+void pem_outputs_refused() {
     auto const spki = der_of(pem::public_key_label, rfc8410_public);
     std::string text(pem::armoured_size(pem::public_key_label.size(), spki.size()) - 1,
                      untouched_char);
@@ -503,24 +532,16 @@ void outputs_too_small() {
     BOOST_TEST(all_untouched(der));
 
     // A label PEM cannot carry.
-    for (std::string_view const label : {std::string_view{}, std::string_view{"A\nB"},
-                                         std::string_view{"-A"}, std::string_view{"A "}}) {
+    for (std::string_view const label : {
+             std::string_view{},
+             std::string_view{"A\nB"},
+             std::string_view{"-A"},
+             std::string_view{"A "},
+         }) {
         std::string labelled(pem::armoured_size(label.size(), spki.size()), untouched_char);
         auto const refused = pem::armour(label, spki, labelled);
         BOOST_TEST(!refused && refused.error() == crypto::error::invalid_encoding);
         BOOST_TEST(all_untouched(labelled));
-    }
-
-    // A moved-from key pair.
-    auto moved = ed25519::keypair::make(key);
-    if (moved) {
-        auto const taken = std::move(*moved);
-        static_cast<void>(taken);
-        std::array<std::uint8_t, 48> pkcs8{};
-        pkcs8.fill(untouched);
-        written = ed25519::encode_pkcs8(*moved, pkcs8);  // NOLINT(bugprone-use-after-move)
-        BOOST_TEST(!written && written.error() == crypto::error::invalid_state);
-        BOOST_TEST(all_untouched(pkcs8));
     }
 }
 
@@ -552,6 +573,8 @@ int main() {
     malformed_der();
     malformed_pem();
     outputs_too_small();
+    keys_refused();
+    pem_outputs_refused();
     pem_lengths();
     return test::exit_status(boost::report_errors());
 }

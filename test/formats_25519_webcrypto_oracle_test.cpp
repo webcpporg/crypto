@@ -137,23 +137,24 @@ std::array<std::uint8_t, 32> drawn(std::mt19937_64& generator) {
     return bytes;
 }
 
-constexpr std::array<std::uint8_t, 11> message{'s', 'p', 'k', 'i', ' ', 'p',
-                                               'k', 'c', 's', '#', '8'};
+constexpr std::array<std::uint8_t, 11> message{
+    's', 'p', 'k', 'i', ' ', 'p', 'k', 'c', 's', '#', '8',
+};
 
 void ed25519_through_webcrypto(std::mt19937_64& generator) {
     for (std::size_t round = 0; round < cases; ++round) {
         auto const seed_bytes = drawn(generator);
         auto const pair = ed25519::keypair::make(seed_bytes);
         if (!BOOST_TEST(pair.has_value())) {
-            std::fprintf(stderr, "Ed25519 key pair not made: seed %s\n",
-                         test::to_hex(seed_bytes).c_str());
+            static_cast<void>(std::fprintf(stderr, "Ed25519 key pair not made: seed %s\n",
+                                           test::to_hex(seed_bytes).c_str()));
             continue;
         }
         auto const public_key = pair->public_key();
         auto const signature = pair->sign(message);
         if (!BOOST_TEST(public_key.has_value() && signature.has_value())) {
-            std::fprintf(stderr, "Ed25519 key pair failed: seed %s\n",
-                         test::to_hex(seed_bytes).c_str());
+            static_cast<void>(std::fprintf(stderr, "Ed25519 key pair failed: seed %s\n",
+                                           test::to_hex(seed_bytes).c_str()));
             continue;
         }
         std::array<std::uint8_t, 48> pkcs8{};
@@ -169,8 +170,8 @@ void ed25519_through_webcrypto(std::mt19937_64& generator) {
             BOOST_TEST(std::ranges::equal(std::span(out).subspan(48, 44), spki)) &&
             BOOST_TEST(std::ranges::equal(std::span(out).subspan(92, 64), *signature));
         if (!same) {
-            std::fprintf(stderr, "Ed25519 disagrees with WebCrypto: seed %s\n",
-                         test::to_hex(seed_bytes).c_str());
+            static_cast<void>(std::fprintf(stderr, "Ed25519 disagrees with WebCrypto: seed %s\n",
+                                           test::to_hex(seed_bytes).c_str()));
         }
     }
 }
@@ -230,8 +231,9 @@ void x25519_through_webcrypto(std::mt19937_64& generator) {
             BOOST_TEST(shared.has_value() &&
                        std::ranges::equal(std::span(out).subspan(92, 32), shared->bytes()));
         if (!same) {
-            std::fprintf(stderr, "X25519 disagrees with WebCrypto: secret key %s\n",
-                         test::to_hex(secret_key).c_str());
+            static_cast<void>(std::fprintf(stderr,
+                                           "X25519 disagrees with WebCrypto: secret key %s\n",
+                                           test::to_hex(secret_key).c_str()));
         }
     }
 }
@@ -264,6 +266,7 @@ void x25519_from_webcrypto() {
 
 int main() {
     print_node_versions();
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(seed);
     ed25519_through_webcrypto(generator);
     ed25519_from_webcrypto();

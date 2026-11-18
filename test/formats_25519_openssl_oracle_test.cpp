@@ -97,6 +97,7 @@ std::string pem_by(EVP_PKEY* key, Write write) {
         return {};
     }
     char* data = nullptr;
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast): OpenSSL's macro casts
     long const size = BIO_get_mem_data(bio.get(), &data);
     return size > 0 ? std::string(data, static_cast<std::size_t>(size)) : std::string{};
 }
@@ -193,8 +194,8 @@ void ed25519_against_openssl(std::mt19937_64& generator) {
         boost::system::result<std::array<std::uint8_t, 32>> const public_key =
             pair ? pair->public_key() : crypto::error::backend_failure;
         if (!BOOST_TEST(public_key.has_value())) {
-            std::fprintf(stderr, "Ed25519 key pair not made: seed %s\n",
-                         test::to_hex(seed_bytes).c_str());
+            static_cast<void>(std::fprintf(stderr, "Ed25519 key pair not made: seed %s\n",
+                                           test::to_hex(seed_bytes).c_str()));
             continue;
         }
         std::array<std::uint8_t, ed25519::max_spki_size> spki{};
@@ -202,8 +203,8 @@ void ed25519_against_openssl(std::mt19937_64& generator) {
         BOOST_TEST(ed25519::encode_spki(*public_key, spki).has_value());
         BOOST_TEST(ed25519::encode_pkcs8(*pair, pkcs8).has_value());
         if (!agree(EVP_PKEY_ED25519, seed_bytes, spki, pkcs8)) {
-            std::fprintf(stderr, "Ed25519 disagrees with OpenSSL: seed %s\n",
-                         test::to_hex(seed_bytes).c_str());
+            static_cast<void>(std::fprintf(stderr, "Ed25519 disagrees with OpenSSL: seed %s\n",
+                                           test::to_hex(seed_bytes).c_str()));
         }
     }
 }
@@ -221,8 +222,8 @@ void x25519_against_openssl(std::mt19937_64& generator) {
         BOOST_TEST(x25519::encode_spki(*public_key, spki).has_value());
         BOOST_TEST(x25519::encode_pkcs8(secret_key, pkcs8).has_value());
         if (!agree(EVP_PKEY_X25519, secret_key, spki, pkcs8)) {
-            std::fprintf(stderr, "X25519 disagrees with OpenSSL: secret key %s\n",
-                         test::to_hex(secret_key).c_str());
+            static_cast<void>(std::fprintf(stderr, "X25519 disagrees with OpenSSL: secret key %s\n",
+                                           test::to_hex(secret_key).c_str()));
         }
     }
 }
@@ -230,6 +231,7 @@ void x25519_against_openssl(std::mt19937_64& generator) {
 }  // namespace
 
 int main() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(seed);
     ed25519_against_openssl(generator);
     x25519_against_openssl(generator);

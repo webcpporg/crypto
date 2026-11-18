@@ -33,14 +33,31 @@ MSVC and Apple Clang run in the continuous integration only. The own lane
 `c-suites` runs the C libraries' own test suites (BearSSL's, ctaes's and
 libsecp256k1's) on webcpp's build of them, on every target, on every push:
 the target's lane command with `libs/crypto/test/c_suites//c-suites` in place
-of the two directories.
+of the two directories. libsodium's own suite runs in webcpp::hash's lane
+`c-suites` (`libs/hash/test/c_suites//c-suites`), on every target, against the
+same build of libsodium that crypto links: each program of its `test/default`,
+those of crypto's operations among them (`sign`, `box`, `box2`, `box7`,
+`box8`, `box_seal`, `secretbox`, `secretbox2`, `secretbox7`, `secretbox8`,
+`aead_chacha20poly1305`, `aead_chacha20poly13052`, `aead_xchacha20poly1305`,
+`kx`, `scalarmult`, `ed25519_convert`), compared with its `.exp`.
 
 What the tests check:
 
 * *The vectors.* AES-GCM against the GCM specification's cases and Project
 Wycheproof's vectors, on BearSSL and on OpenSSL; AES against FIPS 197 on ctaes
 and OpenSSL; secp256k1 against BIP 340's vectors and Wycheproof's ECDSA and DER
-vectors, and the x-only tweak against BIP 341's.
+vectors, and the x-only tweak against BIP 341's. Ed25519 against RFC 8032's
+tests, Wycheproof's EdDSA vectors and the twelve edge cases of "Taming the
+many EdDSAs"; X25519 against RFC 7748's and Wycheproof's; ChaCha20-Poly1305
+and XChaCha20-Poly1305 against RFC 8439's and the XChaCha20 draft's examples
+and Wycheproof's vectors, on every backend that has them.
+* *node's WebCrypto as an outside oracle,* on Emscripten: 200 Ed25519 key
+pairs, messages and signatures from a fixed seed, each verified and signed
+again by `crypto.subtle`, which must give the same public key and signature,
+and 200 X25519 agreements, each derived again to the same public key and
+shared secret (`oracle_25519`, which prints `oracle ok 400`).
+`oracle_25519_corrupted` flips one signature and one shared secret, and
+passes only when WebCrypto disagrees on exactly those two.
 * *The backends against each other,* on random keys, IVs, additional data and
 messages of every size around a block's: BearSSL and OpenSSL seal the same
 bytes with AES-GCM and each opens what the other sealed, with BearSSL on its

@@ -145,7 +145,11 @@
             "targets": ["native", "wasip2", "wasip3", "emscripten"],
             "header": "<webcpp/crypto/backends/sodium.hpp>",
             "library": "libsodium 1.0.22, built from source",
-            "licence": "ISC"
+            "licence": "ISC",
+            "own_suite": {
+                "lane": "webcpp::hash's own lane `c-suites`, `libs/hash/test/c_suites/Jamfile`, on every target, against the same `/third_party//sodium` that crypto links",
+                "programs": ["sign", "box", "box2", "box7", "box8", "box_seal", "secretbox", "secretbox2", "secretbox7", "secretbox8", "aead_chacha20poly1305", "aead_chacha20poly13052", "aead_xchacha20poly1305", "kx", "scalarmult", "ed25519_convert"]
+            }
         },
         "system": {
             "title": "the system's generator",
@@ -301,7 +305,7 @@
             "what": "An Ed25519 key pair (RFC 8032): made from a 32-byte seed or drawn from `random_device`, its 32-byte public key, 64-byte signatures, and its X25519 secret key.",
             "section": "crypto-ed25519",
             "backends": {
-                "sodium": {"tests": ["ed25519_sodium"]},
+                "sodium": {"tests": ["ed25519_sodium", "oracle_25519"]},
                 "bearssl": {"refused": "ed25519_on_bearssl"}
             }
         },
@@ -315,7 +319,7 @@
             "header": "<webcpp/crypto/curves/ed25519.hpp>",
             "what": "Verifies an Ed25519 signature with a public key alone, under the policy `strict`: libsodium's rules, which refuse non-canonical encodings and keys of small order.",
             "section": "crypto-ed25519",
-            "backends": {"sodium": {"tests": ["ed25519_sodium", "ed25519_wycheproof_sodium", "ed25519_speccheck"]}}
+            "backends": {"sodium": {"tests": ["ed25519_sodium", "ed25519_wycheproof_sodium", "ed25519_speccheck", "oracle_25519"]}}
         },
         {
             "id": "ed25519ph",
@@ -350,7 +354,7 @@
             "header": "<webcpp/crypto/curves/x25519.hpp>",
             "what": "The 32-byte X25519 public key of a 32-byte secret key (RFC 7748).",
             "section": "crypto-x25519",
-            "backends": {"sodium": {"tests": ["x25519_sodium"]}}
+            "backends": {"sodium": {"tests": ["x25519_sodium", "oracle_25519"]}}
         },
         {
             "id": "x25519_agree",
@@ -362,7 +366,7 @@
             "header": "<webcpp/crypto/curves/x25519.hpp>",
             "what": "The 32-byte shared secret of a secret key and a peer's public key, a `secret<32>`, refused with `weak_public_key` when it is all zero (a peer key of low order).",
             "section": "crypto-x25519",
-            "backends": {"sodium": {"tests": ["x25519_sodium", "x25519_wycheproof_sodium"]}}
+            "backends": {"sodium": {"tests": ["x25519_sodium", "x25519_wycheproof_sodium", "oracle_25519"]}}
         },
         {
             "id": "chacha20_poly1305",

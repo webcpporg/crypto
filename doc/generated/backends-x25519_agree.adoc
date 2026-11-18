@@ -16,5 +16,5 @@ The backends of `+curves::x25519::agree+`, from the test programs that run it:
 |libsodium
 |`+/third_party//sodium+`
 |`+<webcpp/crypto/backends/sodium.hpp>+`
-|native, wasip2, wasip3, emscripten (tested by `+x25519_sodium+`, `+x25519_wycheproof_sodium+`)
+|native, wasip2, wasip3, emscripten (tested by `+x25519_sodium+`, `+x25519_wycheproof_sodium+`, `+oracle_25519+`)
 |===

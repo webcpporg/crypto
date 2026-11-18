@@ -323,6 +323,18 @@ crypto-run x25519_wycheproof_sodium : x25519_wycheproof_sodium_test.cpp
   : <library>/third_party//sodium <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;
 
+# node's WebCrypto as an outside oracle of Ed25519 and X25519, on Emscripten
+# (EM_ASYNC_JS under the JSPI link, as webcpp::hash's webcrypto_oracle): 200
+# seeded Ed25519 key pairs, messages and signatures, each verified and signed
+# again by WebCrypto, and 200 X25519 agreements, each derived again; it prints
+# `oracle ok 400`. oracle_25519_corrupted flips one signature and one shared
+# secret and passes only when WebCrypto disagrees on exactly those two cases.
+crypto-run oracle_25519 : oracle_25519_test.cpp
+  : <library>/third_party//sodium <linkflags>-sJSPI : emscripten ;
+crypto-run oracle_25519_corrupted : oracle_25519_test.cpp
+  : <library>/third_party//sodium <linkflags>-sJSPI
+    <define>WEBCPP_TEST_CRYPTO_ORACLE_CORRUPTED : emscripten ;
+
 # The ChaCha20-Poly1305 AEADs on libsodium, their default on every target: each
 # family's known answers and every check of support/aead_checks.hpp, natively
 # the message's limit too; Wycheproof's vectors of ChaCha20-Poly1305 and

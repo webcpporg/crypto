@@ -16,5 +16,5 @@ The backends of `+curves::x25519::public_key+`, from the test programs that run 
 |libsodium
 |`+/third_party//sodium+`
 |`+<webcpp/crypto/backends/sodium.hpp>+`
-|native, wasip2, wasip3, emscripten (tested by `+x25519_sodium+`)
+|native, wasip2, wasip3, emscripten (tested by `+x25519_sodium+`, `+oracle_25519+`)
 |===

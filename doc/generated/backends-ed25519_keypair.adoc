@@ -21,5 +21,5 @@ The backends of `+curves::ed25519::keypair+`, from the test programs that run it
 |libsodium
 |`+/third_party//sodium+`
 |`+<webcpp/crypto/backends/sodium.hpp>+`
-|native, wasip2, wasip3, emscripten (tested by `+ed25519_sodium+`)
+|native, wasip2, wasip3, emscripten (tested by `+ed25519_sodium+`, `+oracle_25519+`)
 |===

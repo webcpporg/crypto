@@ -11,6 +11,15 @@
 # bearssl_bound.cpp's, which runs BearSSL's only when it is given the argument
 # all, and fails otherwise: upstream's main lists its tests and returns 0 for
 # any other argument, which would read green.
+#
+# libsodium's own suite is not repeated here: webcpp::hash's lane c-suites
+# (libs/hash/test/c_suites/Jamfile) runs all of libsodium's test/default
+# programs, each compared with its .exp, on every target, against the same
+# archive /third_party//sodium that crypto links, canary included. Among them
+# are the programs of crypto's operations on libsodium: sign, box, box2, box7,
+# box8, box_seal, secretbox, secretbox2, secretbox7, secretbox8,
+# aead_chacha20poly1305, aead_chacha20poly13052, aead_xchacha20poly1305, kx,
+# scalarmult and ed25519_convert.
 import webcpp ;
 
 webcpp.targets native wasip2 wasip3 emscripten ;

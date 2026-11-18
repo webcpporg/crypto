@@ -641,6 +641,7 @@ std::string openssl_pem(EVP_PKEY const* key, bool private_key) {
                         ? PEM_write_bio_PrivateKey(bio, key, nullptr, nullptr, 0, nullptr, nullptr)
                         : PEM_write_bio_PUBKEY(bio, key)) == 1)) {
         char* data = nullptr;
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast): OpenSSL's macro casts
         long const size = BIO_get_mem_data(bio, &data);
         if (BOOST_TEST(size > 0)) {
             out.assign(data, static_cast<std::size_t>(size));

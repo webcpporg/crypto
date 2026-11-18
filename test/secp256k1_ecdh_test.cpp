@@ -176,7 +176,7 @@ void known_answer() {
 // NOLINTBEGIN(bugprone-use-after-move)
 void guards() {
     auto key = from_byte(0x42);
-    secp::keypair moved = std::move(key);
+    secp::keypair const moved = std::move(key);
     auto const peer = *moved.public_key();
     BOOST_TEST(key.ecdh(peer).error() == crypto::error::invalid_state);
     BOOST_TEST(key.ecdh_x(peer).error() == crypto::error::invalid_state);

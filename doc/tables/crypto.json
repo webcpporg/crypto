@@ -708,7 +708,7 @@
         "ed25519ph_sha256_on_emscripten": "As `ed25519ph_sha256`.",
         "ed25519_default_not_linked": "Add `/third_party//sodium`, or `/webcpp/crypto//ed25519-default`, which links it on every target.",
         "ed25519_default_not_linked_on_emscripten": "As `ed25519_default_not_linked`.",
-        "heavy_without_threads": "Call the synchronous operation the message names, or build with threads: natively without `WEBCPP_CRYPTO_NO_THREADS` (b2's `threading=multi`), on Emscripten with `-pthread`; WASI has none.",
+        "heavy_without_threads": "Call the synchronous operation the message names, or build with threads: natively without `WEBCPP_CRYPTO_NO_THREADS`, on Emscripten with `-pthread`; WASI has none.",
         "heavy_without_threads_on_emscripten": "As `heavy_without_threads`: on Emscripten, add `<threading>multi`."
     }
 }

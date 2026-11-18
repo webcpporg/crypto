@@ -10,7 +10,7 @@
 // operation declares its variant.
 
 // clang-format off
-// expected-error@*:* {{webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively b2 threading=multi; on Emscripten -pthread). Without threads, call slow.}}
+// expected-error@*:* {{webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.}}
 // clang-format on
 
 #include <webcpp/crypto/detail/heavy.hpp>

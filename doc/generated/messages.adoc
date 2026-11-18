@@ -93,9 +93,9 @@ The fix: Name `+gcm<aes256<backends::bearssl>>+` or `+gcm<aes256<backends::opens
 
 |`+heavy_without_threads+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively b2 threading=multi; on Emscripten -pthread). Without threads, call slow.+`
+|`+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.+`
 
-The fix: Call the synchronous operation the message names, or build with threads: natively without `+WEBCPP_CRYPTO_NO_THREADS+` (b2's `+threading=multi+`), on Emscripten with `+-pthread+`; WASI has none.
+The fix: Call the synchronous operation the message names, or build with threads: natively without `+WEBCPP_CRYPTO_NO_THREADS+`, on Emscripten with `+-pthread+`; WASI has none.
 
 |`+no_backend_wasm+`
 |wasip2, wasip3
@@ -662,7 +662,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+heavy_without_threads+`
 |the compile
-|Call the synchronous operation the message names, or build with threads: natively without `+WEBCPP_CRYPTO_NO_THREADS+` (b2's `+threading=multi+`), on Emscripten with `+-pthread+`; WASI has none.
+|Call the synchronous operation the message names, or build with threads: natively without `+WEBCPP_CRYPTO_NO_THREADS+`, on Emscripten with `+-pthread+`; WASI has none.
 
 |`+memory_missing_definition_install+`
 |the link

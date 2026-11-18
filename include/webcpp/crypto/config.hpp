@@ -166,8 +166,9 @@
 #define WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE 1
 #endif
 
-// Threads (design D23): natively when Boost.Config sees threads (b2 threading=multi), on
-// Emscripten with -pthread, never on WASI.
+// Threads (design D23): natively when Boost.Config sees threads, which it does whatever b2's
+// threading says (so natively unless WEBCPP_CRYPTO_NO_THREADS), on Emscripten with -pthread,
+// never on WASI.
 #if !defined(WEBCPP_CRYPTO_NO_THREADS) && !defined(WEBCPP_TARGET_WASIP2) &&     \
     !defined(WEBCPP_TARGET_WASIP3) &&                                           \
     ((defined(WEBCPP_TARGET_EMSCRIPTEN) && defined(__EMSCRIPTEN_PTHREADS__)) || \

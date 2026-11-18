@@ -46,12 +46,12 @@ namespace webcpp::crypto::detail {
 #ifdef WEBCPP_CRYPTO_HAS_THREADS
 #define WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS(async_name, sync_name)
 #else
-#define WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS(async_name, sync_name)                            \
-    static_assert(::webcpp::crypto::detail::dependent_false<decltype(token)>,                  \
-                  "webcpp::crypto: " async_name                                                \
-                  " runs on another thread and needs a build with threads (natively b2 "       \
-                  "threading=multi; on Emscripten -pthread). Without threads, call " sync_name \
-                  ".")
+#define WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS(async_name, sync_name)                 \
+    static_assert(                                                                  \
+        ::webcpp::crypto::detail::dependent_false<decltype(token)>,                 \
+        "webcpp::crypto: " async_name                                               \
+        " runs on another thread and needs a build with threads (natively without " \
+        "WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call " sync_name ".")
 #endif
 
 #ifdef WEBCPP_CRYPTO_HAS_THREADS

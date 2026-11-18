@@ -954,13 +954,13 @@
         },
         {
             "name": "secp256k1_silent_payments",
-            "title": "Silent payments",
+            "title": "BIP 352 silent payments",
             "group": "curves",
             "since": "0.2",
             "measured": "a silent payment output for one recipient",
             "header": "<webcpp/crypto/curves/secp256k1/silent_payments.hpp>",
             "names": [
-                {"name": "secp256k1_silent_payments", "title": "Silent payments"}
+                {"name": "secp256k1_silent_payments", "title": "BIP 352 silent payments"}
             ],
             "default": [
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1_silent_payments", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}

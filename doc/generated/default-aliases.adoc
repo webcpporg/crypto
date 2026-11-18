@@ -92,7 +92,7 @@
 |<<crypto-jamfile-cases,`+secp256k1_musig_default+`>>
 
 |`+/webcpp/crypto//secp256k1_silent_payments-default+`
-|Silent payments
+|BIP 352 silent payments
 |`+/third_party//secp256k1+` on every target
 |<<crypto-jamfile-cases,`+secp256k1_silent_payments_default+`>>
 |===

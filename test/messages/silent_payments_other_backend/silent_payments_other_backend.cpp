@@ -9,7 +9,7 @@
 // it (design D33).
 
 // clang-format off
-// expected-error@webcpp/crypto/curves/secp256k1/silent_payments.hpp:* {{webcpp::crypto: bearssl has no Silent payments. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).}}
+// expected-error@webcpp/crypto/curves/secp256k1/silent_payments.hpp:* {{webcpp::crypto: bearssl has no BIP 352 silent payments. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).}}
 // clang-format on
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 

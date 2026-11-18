@@ -131,7 +131,7 @@
 |the only backend (link:https://github.com/bitcoin-core/secp256k1#readme[libsecp256k1's README])
 |`+secp256k1_musig+`, `+default_backend_none_linked+`
 
-|Silent payments
+|BIP 352 silent payments
 |native, wasip2, wasip3, emscripten
 |libsecp256k1
 |the only backend (link:https://github.com/bitcoin-core/secp256k1#readme[libsecp256k1's README])

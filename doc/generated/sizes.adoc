@@ -145,7 +145,7 @@ The lane sizes measured on 2026-11-19, at variant=release: native, clang-21 on D
 |not measured yet
 |not measured yet
 
-|Silent payments on libsecp256k1: a silent payment output for one recipient
+|BIP 352 silent payments on libsecp256k1: a silent payment output for one recipient
 |not measured yet
 |not measured yet
 |not measured yet

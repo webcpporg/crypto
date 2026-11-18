@@ -168,7 +168,7 @@ struct refuses_secp256k1_musig {
     WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1_MUSIG(Backend);
 };
 
-/** The refusals of Silent payments, parsed: nothing instantiates it. */
+/** The refusals of BIP 352 silent payments, parsed: nothing instantiates it. */
 template <class Backend>
 struct refuses_secp256k1_silent_payments {
     WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1_SILENT_PAYMENTS(Backend);
@@ -492,19 +492,19 @@ static_assert(!crypto::supports_v<algorithm<families::secp256k1_musig, families:
 #endif
 // MuSig2 on sodium: none.
 static_assert(!crypto::supports_v<algorithm<families::secp256k1_musig, families::secp256k1_musig>, backends::sodium>);
-// Silent payments on bearssl: none.
+// BIP 352 silent payments on bearssl: none.
 static_assert(!crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::bearssl>);
-// Silent payments on openssl: none.
+// BIP 352 silent payments on openssl: none.
 static_assert(!crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::openssl>);
-// Silent payments on ctaes: none.
+// BIP 352 silent payments on ctaes: none.
 static_assert(!crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::ctaes>);
-// Silent payments on secp256k1: native, wasip2, wasip3, emscripten.
+// BIP 352 silent payments on secp256k1: native, wasip2, wasip3, emscripten.
 #if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
 static_assert(crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::secp256k1>);
 #else
 static_assert(!crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::secp256k1>);
 #endif
-// Silent payments on sodium: none.
+// BIP 352 silent payments on sodium: none.
 static_assert(!crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::sodium>);
 // clang-format on
 

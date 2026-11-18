@@ -219,7 +219,7 @@ The fix: Give `+secret+` the number of bytes it holds, at least one, as in `+sec
 
 |`+silent_payments_other_backend+`
 |native, wasip2
-|`+webcpp::crypto: bearssl has no Silent payments. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
+|`+webcpp::crypto: bearssl has no BIP 352 silent payments. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
 
 The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::silent_payments::make_prevouts_summary(...)+`.
 

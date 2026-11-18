@@ -722,6 +722,35 @@ def test_a_family_of_functions_has_no_type_to_make(_: Path) -> None:
     assert 'webcpp::test::made<' not in test, test
 
 
+def test_a_title_ending_in_s_takes_an_apostrophe_alone(_: Path) -> None:
+    # "BIP 352 silent payments's" is not English: a title that ends in s is possessive with the
+    # apostrophe alone, in the default's refusal and the primary engine's Doc Comment.
+    data = small_table()
+    family = data['families'][0]
+    family['title'] = 'BIP 352 silent payments'
+    text = generate.needs(data, family, 'native', 'sodium')
+    assert "webcpp::crypto: BIP 352 silent payments' default backend" in text, text
+    header = generate.capabilities_header(data)
+    assert "The refusals of the family BIP 352 silent payments' primary engine" in header, header
+    assert "payments's" not in header, header
+
+
+def test_a_family_s_comment_names_the_namespace_of_its_header(_: Path) -> None:
+    # A family of a module header (curves/secp256k1/ellswift.hpp) is of the namespace that
+    # header's directory names, deeper than the plan's group `curves`; a family whose group is
+    # already deeper than its header keeps its group.
+    data = small_table()
+    family = data['families'][0]
+    family['group'] = 'curves'
+    family['header'] = '<webcpp/crypto/curves/ed25519/module.hpp>'
+    header = generate.capabilities_header(data)
+    assert 'The family Ed25519, of `curves::ed25519`, also the tag' in header, header
+    family['group'] = 'curves::ed25519'
+    family['header'] = '<webcpp/crypto/curves/ed25519.hpp>'
+    header = generate.capabilities_header(data)
+    assert 'The family Ed25519, of `curves::ed25519`, also the tag' in header, header
+
+
 def test_the_check_prints_each_file_that_differs(scratch: Path) -> None:
     files = {scratch / 'include/a.hpp': 'one\n', scratch / 'test/b.cpp': 'two\n'}
     generated = scratch / 'doc/generated'
@@ -1316,6 +1345,8 @@ CASES: list[Callable[[Path], None]] = [
     test_a_refusal_holds_on_its_target,
     test_a_type_names_only_crypto_s_namespaces_from_the_root,
     test_a_family_of_functions_has_no_type_to_make,
+    test_a_title_ending_in_s_takes_an_apostrophe_alone,
+    test_a_family_s_comment_names_the_namespace_of_its_header,
     test_the_check_prints_each_file_that_differs,
     test_the_check_names_a_file_that_differs,
     test_the_size_matrix_reads_the_lane_s_tables,

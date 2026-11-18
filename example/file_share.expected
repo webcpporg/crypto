@@ -1,0 +1,4 @@
+on the wire: 80 bytes of sealed key, 24 of nonce, 16 of tag, 25 of file
+read: quarterly report, draft 3
+refused: the authentication tag does not match
+refused: the authentication tag does not match

@@ -135,11 +135,12 @@ int secret_wipe() {
     bool const kept = carries_mark<Checker>(assigned.bytes());
     *first = std::move(assigned);
     first->~secret();
-    bool destroyed_wiped = true;
-    if constexpr (Checker::reads_destroyed) {
-        destroyed_wiped = clear_of_mark<Checker>(
+    // MemorySanitizer poisons a destroyed object by itself: only a checker that reads it back
+    // checks the destructor's wipe.
+    bool const destroyed_wiped =
+        !Checker::reads_destroyed ||
+        clear_of_mark<Checker>(
             {reinterpret_cast<std::uint8_t const*>(storage.data()), storage.size()});
-    }
     return check(moved_from_wiped && assigned_from_wiped && kept && destroyed_wiped,
                  "secret's wipe");
 }
@@ -217,10 +218,8 @@ int sodium_x25519() {
     Checker::mark_secret(secret_key);
     auto const own = x25519::public_key<sodium>(secret_key);
     auto const shared = x25519::agree<sodium>(secret_key, *peer);
-    bool own_traced = own.has_value();
-    if constexpr (Checker::exact_subtraction) {
-        own_traced = own_traced && carries_mark<Checker>(*own);
-    }
+    bool const own_traced =
+        own.has_value() && (!Checker::exact_subtraction || carries_mark<Checker>(*own));
     return check(own_traced, "X25519's public key on libsodium") +
            check(shared.has_value() && carries_mark<Checker>(shared->bytes()),
                  "X25519's agreement on libsodium");

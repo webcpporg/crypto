@@ -191,13 +191,13 @@ public:
     }
 
     template <class Property>
-    auto query(Property const& property) const noexcept
+    [[nodiscard]] auto query(Property const& property) const noexcept
         -> decltype(boost::asio::query(std::declval<Inner const&>(), property)) {
         return boost::asio::query(inner_, property);
     }
 
     template <class Property>
-    auto require(Property const& property) const -> recording_executor<
+    [[nodiscard]] auto require(Property const& property) const -> recording_executor<
         std::decay_t<decltype(boost::asio::require(std::declval<Inner const&>(), property))>> {
         return {boost::asio::require(inner_, property), seen_};
     }

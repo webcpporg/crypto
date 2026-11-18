@@ -103,21 +103,20 @@ auto run_heavy(Executor executor, Function function, CompletionToken&& token) {
         auto completion_executor =
             boost::asio::prefer(boost::asio::get_associated_executor(handler, work_executor),
                                 boost::asio::execution::outstanding_work_t::tracked);
-        auto allocator = boost::asio::get_associated_allocator(handler);
-        auto slot = boost::asio::get_associated_cancellation_slot(handler);
+        auto const allocator = boost::asio::get_associated_allocator(handler);
+        auto const slot = boost::asio::get_associated_cancellation_slot(handler);
         boost::asio::post(
             work_executor,
             carrying(
                 allocator, slot,
                 [handler = std::move(handler), call = std::move(call),
                  completion_executor = std::move(completion_executor), allocator, slot]() mutable {
-                    auto result = call();
-                    boost::asio::dispatch(completion_executor,
-                                          carrying(allocator, slot,
-                                                   [handler = std::move(handler),
-                                                    result = std::move(result)]() mutable {
-                                                       std::move(handler)(std::move(result));
-                                                   }));
+                    boost::asio::dispatch(
+                        completion_executor,
+                        carrying(allocator, slot,
+                                 [handler = std::move(handler), result = call()]() mutable {
+                                     std::move(handler)(std::move(result));
+                                 }));
                 }));
     };
     return boost::asio::async_initiate<CompletionToken, void(result_type)>(

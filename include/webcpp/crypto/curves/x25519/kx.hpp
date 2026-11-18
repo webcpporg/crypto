@@ -189,7 +189,7 @@ public:
      */
     [[nodiscard]] boost::system::result<session_keys> client_session_keys(
         std::span<std::uint8_t const> server_public_key) const noexcept {
-        return session(server_public_key, &engine::client);
+        return session<true>(server_public_key);
     }
 
     /**
@@ -202,20 +202,19 @@ public:
      */
     [[nodiscard]] boost::system::result<session_keys> server_session_keys(
         std::span<std::uint8_t const> client_public_key) const noexcept {
-        return session(client_public_key, &engine::server);
+        return session<false>(client_public_key);
     }
 
 private:
-    /** One side's computation: the engine's client or server function. */
-    using side_function = boost::system::result<void> (*)(state_type const&,
-                                                          std::span<std::uint8_t const, 32>,
-                                                          std::span<std::uint8_t, 32>,
-                                                          std::span<std::uint8_t, 32>) noexcept;
-
     kx_keypair() noexcept = default;
 
+    /**
+     * One side's computation, the client's or the server's: the guards both share, then a direct
+     * call of the engine's function for that side.
+     */
+    template <bool Client>
     [[nodiscard]] boost::system::result<session_keys> session(
-        std::span<std::uint8_t const> peer_public_key, side_function side) const noexcept {
+        std::span<std::uint8_t const> peer_public_key) const noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -223,8 +222,11 @@ private:
             return error::invalid_public_key;
         }
         session_keys keys;
-        auto const done = side(state_, peer_public_key.first<public_key_size>(),
-                               keys.receive.writable(), keys.transmit.writable());
+        auto const peer = peer_public_key.first<public_key_size>();
+        auto const done =
+            Client
+                ? engine::client(state_, peer, keys.receive.writable(), keys.transmit.writable())
+                : engine::server(state_, peer, keys.receive.writable(), keys.transmit.writable());
         if (!done) {
             return done.error();
         }

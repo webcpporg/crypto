@@ -34,3 +34,4 @@ build-project chacha_default_not_linked ;
 build-project aead_not_a_family ;
 build-project chacha_on_ctaes ;
 build-project box_default_not_linked ;
+build-project kx_default_not_linked ;

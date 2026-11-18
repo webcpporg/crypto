@@ -109,7 +109,7 @@ void kx_exp() {
     if (!client_public || !server_public) {
         return;
     }
-    // kx.exp's client_pk; its client_sk is the seed's BLAKE2b, which the key pair keeps.
+    // kx.exp's client_pk; its client_sk, which the key pair keeps, kx_wipe_sodium_test reads.
     BOOST_TEST(bytes_of(*client_public) ==
                test::from_hex("0e0216223f147143d32615a91189c288c1728cba3cc5f9f621b1026e03d83129"));
 

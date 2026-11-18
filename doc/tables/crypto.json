@@ -954,6 +954,7 @@
         "sodium_not_linked": "Add `/third_party//sodium`.",
         "chacha_default_not_linked": "The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add the family's alias, as `/webcpp/crypto//chacha20_poly1305-default`, which links `/third_party//sodium`.",
         "box_default_not_linked": "The secret boxes', the boxes' and the sealed boxes' default is libsodium on every target: add the family's alias, as `/webcpp/crypto//box_xsalsa20poly1305-default`, which links `/third_party//sodium`.",
+        "kx_default_not_linked": "Add `/webcpp/crypto//kx-default`, which links `/third_party//sodium` on every target.",
         "chacha_on_ctaes": "Name a backend that has ChaCha20-Poly1305, as in `chacha20_poly1305<backends::bearssl>`, or its default, `chacha20_poly1305<>`, and link its library.",
         "aead_not_a_family": "Name one of the three ChaCha20-Poly1305 families or the two secret boxes'; AES-GCM is `ciphers::gcm`, as in `aes256_gcm`.",
         "sodium_not_linked_on_emscripten": "Add `/third_party//sodium` to the program's sources.",

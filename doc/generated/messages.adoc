@@ -109,6 +109,12 @@ The fix: Call the synchronous operation the message names, or build with threads
 
 The fix: As `+heavy_without_threads+`.
 
+|`+kx_default_not_linked+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto_kx's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//kx-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//kx-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+The fix: Add `+/webcpp/crypto//kx-default+`, which links `+/third_party//sodium+` on every target.
+
 |`+no_backend_wasm+`
 |wasip2, wasip3
 |`+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked. Add /webcpp/crypto//gcm-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//gcm-default ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::openssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`

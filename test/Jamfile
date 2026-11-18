@@ -368,8 +368,9 @@ crypto-run formats_25519_webcrypto_oracle : formats_25519_webcrypto_oracle_test.
 # crypto_kx on libsodium: libsodium's kx.exp, the client's transmit key the
 # server's receive key and the reverse, a peer of small order refused as weak,
 # the guards and generate() under the planted entropy source. The key pair's
-# secret key is zero once moved from, moved over and destroyed: optimised,
-# every call inlined, as Ed25519's.
+# secret key, kx.exp's client_sk, is zero once moved from, moved over and
+# destroyed, and the session keys once destroyed: optimised, every call
+# inlined, as Ed25519's.
 crypto-run kx_sodium : kx_sodium_test.cpp
   : <library>/third_party//sodium <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
 crypto-run kx_wipe_sodium : kx_wipe_sodium_test.cpp

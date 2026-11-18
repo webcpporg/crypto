@@ -144,7 +144,8 @@ int main() {
     key from;
     fill(from, 7);
     key const expected = from.clone();
-    key to(std::move(from));
+    key const to(std::move(from));
+    // NOLINTNEXTLINE(bugprone-use-after-move): a moved-from secret's bytes are what is tested
     BOOST_TEST(is_zero(from));
     BOOST_TEST(std::equal(to.bytes().begin(), to.bytes().end(), expected.bytes().begin()));
 
@@ -154,6 +155,7 @@ int main() {
     key source;
     fill(source, 7);
     assigned = std::move(source);
+    // NOLINTNEXTLINE(bugprone-use-after-move): a moved-from secret's bytes are what is tested
     BOOST_TEST(is_zero(source));
     BOOST_TEST(
         std::equal(assigned.bytes().begin(), assigned.bytes().end(), expected.bytes().begin()));
@@ -169,7 +171,8 @@ int main() {
 
         key gone;
         fill(gone, 5);
-        key taker(std::move(gone));
+        key const taker(std::move(gone));
+        // NOLINTNEXTLINE(bugprone-use-after-move): a moved-from secret's clone is what is tested
         key const empty = gone.clone();
         BOOST_TEST(is_zero(empty));
         BOOST_TEST(!is_zero(taker));

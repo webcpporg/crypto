@@ -223,6 +223,7 @@ void identity_round(scalar const& d, scalar const& t, secp::workspace space) {
 }
 
 void identities() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x7e3a6b1c0ffeeULL);
     alignas(std::max_align_t) std::array<std::byte, secp::combine_workspace_size(2)> space{};
     for (int round = 0; round < 64; ++round) {
@@ -234,6 +235,7 @@ void identities() {
 
 // More keys than two, and one key alone, against the sum of their secrets.
 void combinations() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0xc0b1e5ULL);
     std::vector<scalar> secrets;
     std::vector<secp::public_key> keys;
@@ -263,6 +265,7 @@ void combinations() {
 // the padding before the pointers and the bytes after them included; the bytes around it are
 // not touched.
 void off_alignment() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0xa1196eULL);
     std::array<scalar, 3> secrets{};
     for (auto& secret_bytes : secrets) {
@@ -317,6 +320,7 @@ void refused(char const* name, Result const& result, crypto::error expected) {
 }
 
 void refusals() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x5eedULL);
     auto const d = draw(generator);
     auto const p_d = public_of(d);

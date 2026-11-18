@@ -229,6 +229,7 @@ bytes unarmoured(std::string_view label, std::string_view text) {
 
 // The constants are the DER the builder writes.
 void constants() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0xf0a3a75ULL);
     auto const [key, secret] = draw(generator);
     auto const compressed = compressed_of(key);
@@ -301,6 +302,7 @@ void pem_round_trip(secp::keypair const& key) {
 
 // 64 seeded key pairs, each SPKI in both forms and each PKCS#8, as DER and as PEM.
 void round_trips() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x5b1c0de5ULL);
     for (int round = 0; round < 64; ++round) {
         auto const [key, secret] = draw(generator);
@@ -314,6 +316,7 @@ void round_trips() {
 // An encoder that refuses writes nothing: a short buffer, a moved-from key pair.
 // NOLINTBEGIN(bugprone-use-after-move)
 void encoder_refusals() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0xe2c0de2ULL);
     auto [key, secret] = draw(generator);
     auto const parsed = public_of(key);
@@ -363,6 +366,7 @@ bytes order() {
 
 // Every malformed input is invalid_encoding.
 void malformed() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0xbad0de5ULL);
     auto const [key, secret] = draw(generator);
     auto const [other, other_secret] = draw(generator);
@@ -496,6 +500,7 @@ std::string replaced(std::string text, std::string_view from, std::string_view t
 // PEM that is not exactly what pem::armour writes for the label expected is invalid_encoding:
 // another label, a line of 63 characters, a carriage return.
 void malformed_pem() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x9e3de5ULL);
     auto const [key, secret] = draw(generator);
     auto const public_text =

@@ -606,6 +606,7 @@ void round_trip(std::mt19937_64& generator, std::size_t signer_count, bool with_
 }
 
 void round_trips() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x3a5195ULL);
     for (int round = 0; round < 16; ++round) {
         round_trip(generator, 2, false);
@@ -616,6 +617,7 @@ void round_trips() {
 }
 
 void nonce_rules() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x90ceULL);
     auto const alice = keypair_of(draw(generator));
     auto const bob = keypair_of(draw(generator));
@@ -673,6 +675,7 @@ void nonce_rules() {
 }
 
 void refusals() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x7e7ULL);
     auto const alice = keypair_of(draw(generator));
     std::array<secp::public_key, 2> const keys{public_of(alice),
@@ -741,6 +744,7 @@ void refusals() {
 // The aggregate key's full point and x-only form agree, a plain tweak acts on the full point,
 // and the tweaks match tweak.hpp's on the same point.
 void aggregate_key_forms() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0xa66ULL);
     std::array<secp::public_key, 2> const keys{public_of(keypair_of(draw(generator))),
                                                public_of(keypair_of(draw(generator)))};

@@ -124,6 +124,7 @@ void types() {
 // point's x is ecdh_x, the point is on the curve, and ecdh is the SHA-256 of its compressed
 // form, as version 0.1's ecdh was.
 void agreement() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x5ec9256b1ecdULL);
     for (int round = 0; round < 32; ++round) {
         auto const a = draw(generator);

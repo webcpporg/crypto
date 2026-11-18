@@ -79,6 +79,7 @@ bool refused_as_signature(boost::system::result<secp::public_key> const& recover
 // the id is 0 to 3; the first 64 bytes are sign_ecdsa's; another hash finds another key or
 // none; an id of 4 or 255 is refused without reaching libsecp256k1's illegal callback.
 void round_trips() {
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x2ec0e7ab1eULL);
     int other_keys = 0;
     for (int round = 0; round < 64; ++round) {
@@ -214,6 +215,7 @@ void hedged() {
     if (!BOOST_TEST(context != nullptr)) {
         return;
     }
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x4ed6edULL);
     for (int round = 0; round < 16; ++round) {
         hash_bytes secret{};

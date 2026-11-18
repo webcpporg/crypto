@@ -128,16 +128,17 @@ auto run_heavy(Executor executor, Function function, CompletionToken&& token) {
 
 /**
  * Without threads, a stand-in that is never meant to compile: a variant that starts with its
- * refusal stops there first, and one that forgets `WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS` stops
- * here, rather than compile into a call that never runs the work nor calls the handler.
+ * refusal stops there first, then here, with a text that defers to that refusal; one that
+ * forgets `WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS` stops here alone, rather than compile into a
+ * call that never runs the work nor calls the handler.
  */
 template <class Executor, class Function, class CompletionToken>
 void run_heavy(Executor&& /*executor*/, Function&& /*function*/,
                CompletionToken&& /*token*/) noexcept {
     static_assert(::webcpp::crypto::detail::dependent_false<CompletionToken>,
-                  "webcpp::crypto: a heavy operation's async_ variant starts with "
-                  "WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS, which stops a build without threads "
-                  "where the program calls it; this one does not.");
+                  "webcpp::crypto: a heavy operation's async_ variant needs a build with "
+                  "threads; if no error above names the synchronous call, this variant lacks "
+                  "WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS.");
 }
 
 #endif

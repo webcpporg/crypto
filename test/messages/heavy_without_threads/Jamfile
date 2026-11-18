@@ -20,4 +20,4 @@ rule without-threads ( properties * )
 }
 
 webcpp.compile-diagnostic heavy_without_threads : heavy_without_threads.cpp
-  : <conditional>@without-threads : native wasip2 wasip3 ;
+  : <conditional>@without-threads : native wasip2 wasip3 : alone ;

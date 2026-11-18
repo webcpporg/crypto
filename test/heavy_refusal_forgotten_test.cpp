@@ -10,7 +10,7 @@
 // without it, the variant would compile, never run the work and never call the handler.
 
 // clang-format off
-// expected-error@webcpp/crypto/detail/heavy.hpp:* {{webcpp::crypto: a heavy operation's async_ variant starts with WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS, which stops a build without threads where the program calls it; this one does not.}}
+// expected-error@webcpp/crypto/detail/heavy.hpp:* {{webcpp::crypto: a heavy operation's async_ variant needs a build with threads; if no error above names the synchronous call, this variant lacks WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS.}}
 // clang-format on
 
 #include <webcpp/crypto/detail/heavy.hpp>

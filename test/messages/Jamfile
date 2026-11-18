@@ -29,6 +29,7 @@ build-project ed25519_on_bearssl ;
 build-project ed25519ph_sha256 ;
 build-project ed25519_default_not_linked ;
 build-project heavy_without_threads ;
+build-project heavy_without_threads_first ;
 build-project chacha_default_not_linked ;
 build-project aead_not_a_family ;
 build-project chacha_on_ctaes ;

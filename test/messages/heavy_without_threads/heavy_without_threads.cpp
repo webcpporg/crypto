@@ -7,10 +7,11 @@
 // A heavy operation's async_ variant called in a build without threads (natively with
 // WEBCPP_CRYPTO_NO_THREADS; on WASI always) stops where it is called, with the synchronous
 // operation to call instead (design D23). The operation is a test's own, declared as every heavy
-// operation declares its variant. The refusal is the first error; detail::run_heavy's stand-in
-// adds its own after it, which defers to an error above that names the synchronous call. The test
-// is alone: these two errors are the compile's only ones. The refusal's directive comes last, as
-// the message the page shows (doc/tables/generate.py reads a test's last directive).
+// operation declares its variant. The refusal is the first error (heavy_without_threads_first
+// pins the order); detail::run_heavy's stand-in adds its own after it, which defers to an error
+// above that names the synchronous call. The test is alone: these two errors are the compile's
+// only ones. The refusal's directive comes last, as the message the page shows
+// (doc/tables/generate.py reads a test's last directive).
 
 // clang-format off
 // expected-error@webcpp/crypto/detail/heavy.hpp:* {{webcpp::crypto: a heavy operation's async_ variant needs a build with threads; if no error above names the synchronous call, this variant lacks WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS.}}

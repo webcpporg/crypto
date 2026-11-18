@@ -103,6 +103,12 @@ The fix: Name `+gcm<aes256<backends::bearssl>>+` or `+gcm<aes256<backends::opens
 
 The fix: Call the synchronous operation the message names, or build with threads: natively without `+WEBCPP_CRYPTO_NO_THREADS+`, on Emscripten with `+-pthread+`; WASI has none.
 
+|`+heavy_without_threads_first+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.+`
+
+The fix: As `+heavy_without_threads+`.
+
 |`+no_backend_wasm+`
 |wasip2, wasip3
 |`+webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked. Add /webcpp/crypto//gcm-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//gcm-default ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::openssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`

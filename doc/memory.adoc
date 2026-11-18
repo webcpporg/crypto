@@ -138,9 +138,11 @@ b2), is refused the same way.
 * *`memory_functions_not_installed` from a `make`* means that the install was
 not called, or that something replaced OpenSSL's functions after it.
 * *One module.* The program's code that uses crypto's OpenSSL backend lives in
-one module: a DLL or a shared library of the program's that includes the
-backend's header has its own copy of crypto's functions, and its `make` returns
-`memory_functions_not_installed`.
+one module: a DLL, or a shared library of the program's that hides its
+symbols, that includes the backend's header has its own copy of crypto's
+functions, and its `make` returns `memory_functions_not_installed`. An ELF
+shared library with default visibility usually binds to the executable's
+copy instead, but nothing guarantees it.
 * *Threads on Windows.* OpenSSL gives a thread's own blocks back when the
 thread ends, except on Windows, where the static libcrypto that webcpp always
 builds is never told that a thread ends. Every thread that used OpenSSL, a

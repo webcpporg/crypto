@@ -82,6 +82,11 @@ int main() {
                 BOOST_TEST(made_there.has_value());
                 messages(*made_there);
             }
+            // The static libcrypto on Windows is never told that a thread ends (OpenSSL's
+            // OPENSSL_init_crypto(3), NOTES): the thread gives its own blocks back itself, or
+            // they stay in the resource and the exit check fails. Elsewhere it frees them now
+            // rather than when the thread ends.
+            OPENSSL_thread_stop();
             webcpp_test_count_c_allocations(0);
         });
         other.join();

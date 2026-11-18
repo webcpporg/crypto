@@ -138,6 +138,11 @@ not called, or that something replaced OpenSSL's functions after it.
 one module: a DLL or a shared library of the program's that includes the
 backend's header has its own copy of crypto's functions, and its `make` returns
 `memory_functions_not_installed`.
+* *Threads on Windows.* OpenSSL gives a thread's own blocks back when the
+thread ends, except on Windows, where the static libcrypto that webcpp builds
+is never told that a thread ends: a thread that used OpenSSL calls
+`OPENSSL_thread_stop()` before it ends, or its blocks stay in the resource
+until the process ends. The test `everything` does so in its second thread.
 * *When the resource cannot allocate.* During the first `make` of the process,
 OpenSSL's own initialisation fails, and OpenSSL stays unusable for the rest of
 the process: `make` gives `backend_failure` from then on. When the failing

@@ -5,17 +5,21 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Sends every allocation of OpenSSL's to the program's own memory resource, natively, then seals
-// and opens one block with AES-256-GCM on OpenSSL. Built with WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
-// and /webcpp/crypto//openssl (example/Jamfile).
+// and opens one block with AES-256-GCM on OpenSSL, on a worker thread as an audio engine's or a
+// server's would. Built with WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE, /webcpp/crypto//openssl and
+// threads (example/Jamfile).
 // tag::program[]
 #include <webcpp/crypto/backends/openssl.hpp>
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
+
+#include <openssl/crypto.h>
 
 #include <array>
 #include <cstdint>
 #include <cstdio>
 #include <memory_resource>
 #include <string>
+#include <thread>
 
 namespace crypto = webcpp::crypto;
 
@@ -43,19 +47,31 @@ int main() {
     }
     // end::install[]
 
-    // A zero key and IV keep the output stable: a real program draws its key from
-    // random_device and never reuses an IV under it.
-    std::array<std::uint8_t, 32> const key{};
-    std::array<std::uint8_t, 12> const iv{};
-    std::array<std::uint8_t, 16> data{};
-    auto aead = crypto::ciphers::aes256_gcm::make(key);
-    if (!aead) {
-        std::string const message = aead.error().message();
-        std::printf("make: %s\n", message.c_str());
-        return 1;
-    }
-    auto const tag = aead->seal(iv, {}, data);
-    bool const ok = tag && aead->open(iv, {}, data, *tag) && data == std::array<std::uint8_t, 16>{};
+    bool ok = false;
+    std::thread worker([&ok] {
+        // A zero key and IV keep the output stable: a real program draws its key from
+        // random_device and never reuses an IV under it.
+        std::array<std::uint8_t, 32> const key{};
+        std::array<std::uint8_t, 12> const iv{};
+        std::array<std::uint8_t, 16> data{};
+        {
+            auto aead = crypto::ciphers::aes256_gcm::make(key);
+            if (!aead) {
+                std::string const message = aead.error().message();
+                std::printf("make: %s\n", message.c_str());
+                return;
+            }
+            auto const tag = aead->seal(iv, {}, data);
+            ok = tag && aead->open(iv, {}, data, *tag) && data == std::array<std::uint8_t, 16>{};
+        }
+        // tag::thread[]
+        // The thread's last call into OpenSSL: it gives the thread's own blocks back to the
+        // resource now. On Windows, whose static libcrypto is never told that a thread ends,
+        // they would otherwise stay in the resource until the process ends.
+        OPENSSL_thread_stop();
+        // end::thread[]
+    });
+    worker.join();
     auto const name = crypto::ciphers::aes256_gcm::backend_type::name;
     std::printf("aes256_gcm %s backend=%.*s\n", ok ? "ok" : "FAILED", static_cast<int>(name.size()),
                 name.data());

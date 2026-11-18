@@ -81,7 +81,8 @@ namespace webcpp::crypto {
  * resource that fails there makes OpenSSL re-enter its own initialisation, and that call never
  * returns: the process aborts on macOS, deadlocks on Linux and spins on Windows. Only on an
  * OpenSSL built without threads does it return, and every `make` then gives
- * `backend_failure`.
+ * `backend_failure`. On Windows a thread that used OpenSSL keeps its blocks in the resource
+ * until the process ends unless it calls `OPENSSL_thread_stop()` before it ends.
  *
  * @return The program's resource.
  * @see "OpenSSL's allocations in your own memory resource", in the guide.

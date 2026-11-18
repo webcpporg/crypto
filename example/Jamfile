@@ -63,9 +63,10 @@ webcpp.example arena_signer.cpp : <library>/third_party//secp256k1 ;
 
 # OpenSSL's allocations sent to the program's own resource, natively only: the
 # define and OpenSSL given together, as a program's project requirements give
-# them (doc/jamfile.adoc).
+# them (doc/jamfile.adoc); its work runs on a thread of its own.
 # tag::openssl_memory[]
 webcpp.example openssl_memory.cpp
   : <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE <library>/webcpp/crypto//openssl
+    <threading>multi
   : native ;
 # end::openssl_memory[]

@@ -139,10 +139,20 @@ one module: a DLL or a shared library of the program's that includes the
 backend's header has its own copy of crypto's functions, and its `make` returns
 `memory_functions_not_installed`.
 * *Threads on Windows.* OpenSSL gives a thread's own blocks back when the
-thread ends, except on Windows, where the static libcrypto that webcpp builds
-is never told that a thread ends: a thread that used OpenSSL calls
-`OPENSSL_thread_stop()` before it ends, or its blocks stay in the resource
-until the process ends. The test `everything` does so in its second thread.
+thread ends, except on Windows, where the static libcrypto that webcpp always
+builds is never told that a thread ends. Every thread that used OpenSSL, a
+`make`, Beast's TLS or libdatachannel's DTLS, leaves its error queue and its
+list of handlers in the resource, never given back, not even at exit, unless
+it calls `OPENSSL_thread_stop()` before it ends. A resource of a fixed size
+under a thread pool that replaces its threads, or a thread per connection,
+then runs out over time, and the failure lands in a later `make` or inside a
+TLS handshake. The example's worker thread ends so, and so does the second
+thread of the test `everything`, whose exit check fails on Windows without it:
++
+[source,cpp]
+----
+include::{examples}/openssl_memory.cpp[tag=thread,indent=0]
+----
 * *When the resource cannot allocate.* The resource must serve OpenSSL's
 initialisation, which the first use of OpenSSL in the process runs, usually the
 first `make`. On an OpenSSL built with threads, which is MSVC's only build and

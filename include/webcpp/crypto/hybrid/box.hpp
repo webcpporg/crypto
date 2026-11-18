@@ -34,6 +34,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <type_traits>
 #include <utility>
 
 namespace webcpp::crypto::detail {
@@ -65,6 +66,15 @@ inline constexpr bool box_family<families::box_xsalsa20poly1305> = true;
 template <>
 inline constexpr bool box_family<families::box_xchacha20poly1305> = true;
 
+/**
+ * The family whose default backend `hybrid::basic_box` takes: `Family` itself when it is a box
+ * family, and otherwise `families::box_xsalsa20poly1305`, so that a type with no default of its
+ * own reaches `basic_box`'s refusal of it, and adds no error of its own before it.
+ */
+template <class Family>
+using box_default_family =
+    std::conditional_t<box_family<Family>, Family, families::box_xsalsa20poly1305>;
+
 }  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::hybrid {
@@ -87,9 +97,11 @@ namespace webcpp::crypto::hybrid {
  * `families::box_xchacha20poly1305`, libsodium's `crypto_box_curve25519xchacha20poly1305`.
  * @tparam Backend The backend; by default the family's.
  */
-template <class Family = families::box_xsalsa20poly1305, class Backend = default_backend_t<Family>>
+template <class Family = families::box_xsalsa20poly1305,
+          class Backend = default_backend_t<detail::box_default_family<Family>>>
 class basic_box {
-    // The first error a program that names another type sees.
+    // The first error a program that names another type sees, and its only one: the default
+    // backend reads a box family's default in the type's place.
     static_assert(detail::box_family<Family>,
                   "webcpp::crypto: hybrid::basic_box takes a box family: "
                   "families::box_xsalsa20poly1305 or families::box_xchacha20poly1305.");
@@ -112,7 +124,13 @@ public:
     static constexpr std::size_t iv_size = 24;
     /** The tag's size. */
     static constexpr std::size_t tag_size = 16;
-    /** The longest message, 2^64 - 17 bytes, as libsodium's `crypto_box_MESSAGEBYTES_MAX`. */
+    /**
+     * The longest message, 2^64 - 17 bytes: libsodium's `crypto_box_MESSAGEBYTES_MAX` on a 64-bit
+     * target.
+     *
+     * On a 32-bit target, wasm32 among them, libsodium's is 2^32 - 17 bytes, more than a
+     * message there can be, since the 4 GiB of memory also hold the program.
+     */
     static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
 
     /**

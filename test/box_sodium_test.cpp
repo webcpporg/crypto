@@ -12,7 +12,8 @@
 // and tag; the same keys, nonce and message under XChaCha20-Poly1305
 // (crypto_box_curve25519xchacha20poly1305), whose ciphertext and tag libsodium's tests do not
 // print and which an independent implementation of X25519, HChaCha20, ChaCha20 and Poly1305
-// computed (checked against libsodium's own XChaCha20 secret boxes and RFC 7748); every check
+// computed (checked against libsodium's own XChaCha20 secret boxes and RFC 7748), the script
+// box_xchacha20poly1305_vector.py beside this file, which prints them; every check
 // of support/aead_checks.hpp that applies to an object with no additional data, made of a
 // secret key and a peer's public key (ruling C35); the guards of make; a peer key of small
 // order refused with weak_public_key, as libsodium's beforenm refuses it; and the box as the
@@ -33,6 +34,8 @@
 #include "support/aead_checks.hpp"
 
 #include <boost/core/lightweight_test.hpp>
+
+#include <sodium/crypto_box.h>  // its MESSAGEBYTES_MAX
 
 #include <algorithm>
 #include <array>
@@ -76,6 +79,12 @@ static_assert(box::key_size == 32 && box::iv_size == 24 && box::tag_size == 16);
 static_assert(box_xchacha::key_size == 32 && box_xchacha::iv_size == 24 &&
               box_xchacha::tag_size == 16);
 static_assert(sealed_box::overhead == 48);
+// The longest message is libsodium's on a 64-bit target; on a 32-bit one libsodium's is the
+// smaller, 2^32 - 17, as the Doc Comment says.
+static_assert(box::max_message_size == ~std::uint64_t{0} - 16 &&
+              box_xchacha::max_message_size == box::max_message_size);
+static_assert(sizeof(std::size_t) == 8 ? box::max_message_size == crypto_box_MESSAGEBYTES_MAX
+                                       : crypto_box_MESSAGEBYTES_MAX == 0xffffffffU - 16);
 // Move-only: the precomputed key has one owner, which wipes it.
 static_assert(!std::is_copy_constructible_v<box> && !std::is_copy_assignable_v<box>);
 static_assert(std::is_nothrow_move_constructible_v<box> && std::is_nothrow_move_assignable_v<box>);
@@ -134,8 +143,8 @@ constexpr std::array<webcpp::test::aead_case, 2> box_cases{
 
 /**
  * The same keys, nonce and message in crypto_box_curve25519xchacha20poly1305, both ways: the
- * independent implementation's ciphertext and tag. Its precomputed key, HChaCha20 of the X25519
- * shared secret under a zero nonce, is box_xchacha_key.
+ * ciphertext and tag box_xchacha20poly1305_vector.py prints. Its precomputed key, HChaCha20 of
+ * the X25519 shared secret under a zero nonce, is box_xchacha_key.
  */
 constexpr std::array<webcpp::test::aead_case, 2> box_xchacha_cases{
     webcpp::test::aead_case{

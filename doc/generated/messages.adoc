@@ -37,6 +37,12 @@ The fix: Add `+/third_party//bearssl+`.
 
 The fix: The secret boxes', the boxes' and the sealed boxes' default is libsodium on every target: add the family's alias, as `+/webcpp/crypto//box_xsalsa20poly1305-default+`, which links `+/third_party//sodium+`.
 
+|`+box_not_a_family+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: hybrid::basic_box takes a box family: families::box_xsalsa20poly1305 or families::box_xchacha20poly1305.+`
+
+The fix: Name `+families::box_xsalsa20poly1305+` or `+families::box_xchacha20poly1305+`, or use `+hybrid::box+` or `+hybrid::box_xchacha20poly1305+`.
+
 |`+chacha_default_not_linked+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: XChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//xchacha20_poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//xchacha20_poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`

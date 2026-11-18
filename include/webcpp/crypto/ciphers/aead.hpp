@@ -90,7 +90,13 @@ struct secretbox_xsalsa20poly1305 {
     static constexpr std::size_t iv_size = 24;
     /** The tag's size. */
     static constexpr std::size_t tag_size = 16;
-    /** The longest message, 2^64 - 17 bytes, as libsodium's `crypto_secretbox_MESSAGEBYTES_MAX`. */
+    /**
+     * The longest message, 2^64 - 17 bytes: libsodium's `crypto_secretbox_MESSAGEBYTES_MAX` on a
+     * 64-bit target.
+     *
+     * On a 32-bit target, wasm32 among them, libsodium's is 2^32 - 17 bytes, more than a
+     * message there can be, since the 4 GiB of memory also hold the program.
+     */
     static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
     /** No additional data: `aead` refuses a non-empty one with `invalid_input_size`. */
     static constexpr std::uint64_t max_additional_data_size = 0;

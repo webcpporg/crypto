@@ -20,7 +20,10 @@
 
 #include <boost/core/lightweight_test.hpp>
 
+#include <sodium/crypto_secretbox.h>  // its MESSAGEBYTES_MAX
+
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <type_traits>
 
@@ -53,6 +56,11 @@ static_assert(secretbox::key_size == 32 && secretbox::iv_size == 24 && secretbox
 static_assert(secretbox_xchacha::key_size == 32 && secretbox_xchacha::iv_size == 24 &&
               secretbox_xchacha::tag_size == 16);
 static_assert(secretbox::max_message_size == ~std::uint64_t{0} - 16);
+// libsodium's own limit on a 64-bit target; on a 32-bit one libsodium's is the smaller,
+// 2^32 - 17, as the Doc Comment says.
+static_assert(sizeof(std::size_t) == 8
+                  ? secretbox::max_message_size == crypto_secretbox_MESSAGEBYTES_MAX
+                  : crypto_secretbox_MESSAGEBYTES_MAX == 0xffffffffU - 16);
 static_assert(secretbox::max_additional_data_size == 0 &&
               secretbox_xchacha::max_additional_data_size == 0);
 

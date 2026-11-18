@@ -315,8 +315,9 @@ void check_aead_no_additional_data(typename Calls::object& made, std::span<std::
 
 /**
  * Every guard but the length's, in its order: the key's size, for an object of one key; the
- * state before the IV and the tag; the IV's size before the tag's; for a family that takes no
- * additional data, a non-empty one refused with invalid_input_size, after the IV and the tag.
+ * state before the IV, the tag and, for a family that takes no additional data, a non-empty
+ * one; the IV's size before the tag's; for such a family, a non-empty additional data refused
+ * with invalid_input_size, after the IV and the tag.
  * Each refusal leaves the data untouched.
  */
 template <class Calls>
@@ -340,6 +341,14 @@ void check_aead_guards() {
     typename Calls::object const moved = std::move(*made);
     BOOST_TEST(Calls::seal(*made, {}, {}, data).error() == crypto::error::invalid_state);
     BOOST_TEST(Calls::open(*made, {}, {}, data, {}).error() == crypto::error::invalid_state);
+    if constexpr (Calls::takes_additional_data && !Calls::has_additional_data) {
+        // And before the additional data a family that takes none refuses.
+        std::array<std::uint8_t, 1> const additional_data{5};
+        BOOST_TEST(Calls::seal(*made, {}, additional_data, data).error() ==
+                   crypto::error::invalid_state);
+        BOOST_TEST(Calls::open(*made, {}, additional_data, data, {}).error() ==
+                   crypto::error::invalid_state);
+    }
     BOOST_TEST(data == untouched);
 }
 

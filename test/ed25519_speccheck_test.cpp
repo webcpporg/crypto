@@ -91,8 +91,29 @@ struct edge_case {
     std::vector<std::uint8_t> signature;
 };
 
-std::string text_of(json::value const& value) {
-    return std::string(std::string_view(value.as_string()));
+// The null value a missing key reads as, which every reader below reports as of another shape.
+json::value const missing_value;
+
+// The value key names in parent, or the null value when it holds none.
+json::value const& value_at(json::object const& parent, std::string_view key) noexcept {
+    auto const* found = parent.if_contains(key);
+    return found == nullptr ? missing_value : *found;
+}
+
+// The text of value, or an empty text and a failed test when it is no string: a committed or
+// upstream file of another shape fails the test rather than end it on an exception.
+std::string text_of(json::value const& value, std::string_view label) {
+    auto const* text = value.if_string();
+    if (text == nullptr) {
+        BOOST_ERROR((std::string(label) + " is no string").c_str());
+        return {};
+    }
+    return std::string(std::string_view(*text));
+}
+
+// The text key names in parent (see text_of).
+std::string text_at(json::object const& parent, std::string_view key) {
+    return text_of(value_at(parent, key), key);
 }
 
 std::string_view verdict(bool accepted) {
@@ -167,12 +188,6 @@ json::object const* object_in(json::object const& parent, std::string_view key) 
     return found == nullptr ? nullptr : found->if_object();
 }
 
-// The same, null also when parent is no object.
-json::object const* object_in(json::value const& parent, std::string_view key) noexcept {
-    auto const* parent_object = parent.if_object();
-    return parent_object == nullptr ? nullptr : object_in(*parent_object, key);
-}
-
 }  // namespace
 
 int main() {
@@ -190,11 +205,21 @@ int main() {
     }
 
     std::vector<edge_case> cases;
-    for (auto const& entry : cases_document.as_array()) {
+    auto const* entries = cases_document.if_array();
+    BOOST_TEST(entries != nullptr);
+    if (entries == nullptr) {
+        return test::exit_status(boost::report_errors());
+    }
+    for (auto const& entry : *entries) {
+        auto const* fields = entry.if_object();
+        BOOST_TEST(fields != nullptr);
+        if (fields == nullptr) {
+            return test::exit_status(boost::report_errors());
+        }
         cases.push_back({
-            .message = test::from_hex(text_of(entry.at("message"))),
-            .public_key = test::from_hex(text_of(entry.at("pub_key"))),
-            .signature = test::from_hex(text_of(entry.at("signature"))),
+            .message = test::from_hex(text_at(*fields, "message")),
+            .public_key = test::from_hex(text_at(*fields, "pub_key")),
+            .signature = test::from_hex(text_at(*fields, "signature")),
         });
         BOOST_TEST_EQ(cases.back().public_key.size(), 32U);
         BOOST_TEST_EQ(cases.back().signature.size(), 64U);
@@ -204,27 +229,39 @@ int main() {
         return test::exit_status(boost::report_errors());
     }
 
-    // What each case tests, the page's first column: one text per case.
-    auto const& texts = committed.at("cases").as_array();
-    BOOST_TEST_EQ(texts.size(), case_count);
+    // The committed file: each part of another shape fails the test, rather than end it on an
+    // exception.
+    auto const* root = committed.if_object();
+    BOOST_TEST(root != nullptr);
+    if (root == nullptr) {
+        return test::exit_status(boost::report_errors());
+    }
 
-    auto const& source = committed.at("source");
-    BOOST_TEST_EQ(text_of(source.at("repository")), "novifinancial/ed25519-speccheck");
-    BOOST_TEST_EQ(text_of(source.at("commit")), "65519336");
-    BOOST_TEST_EQ(text_of(source.at("file")), "cases.json");
+    // What each case tests, the page's first column: one text per case.
+    auto const* texts = value_at(*root, "cases").if_array();
+    BOOST_TEST(texts != nullptr && texts->size() == case_count);
+
+    auto const* source = object_in(*root, "source");
+    BOOST_TEST(source != nullptr);
+    if (source != nullptr) {
+        BOOST_TEST_EQ(text_at(*source, "repository"), "novifinancial/ed25519-speccheck");
+        BOOST_TEST_EQ(text_at(*source, "commit"), "65519336");
+        BOOST_TEST_EQ(text_at(*source, "file"), "cases.json");
+    }
 
     // Every committed backend is one this test runs (libsodium alone in this version), and each
     // backend's strict verdicts are compared with libsodium's committed row: under strict every
     // backend gives libsodium's verdicts.
-    auto const& backends = committed.at("backends").as_object();
-    BOOST_TEST(backends.contains("sodium"));
-    if (!backends.contains("sodium")) {
+    auto const* backends = object_in(*root, "backends");
+    auto const* sodium = backends == nullptr ? nullptr : object_in(*backends, "sodium");
+    BOOST_TEST(sodium != nullptr);
+    if (sodium == nullptr) {
         return test::exit_status(boost::report_errors());
     }
-    auto const sodium_raw = committed_row(backends.at("sodium").at("raw"), "sodium raw");
-    auto const sodium_strict = committed_row(backends.at("sodium").at("strict"), "sodium strict");
+    auto const sodium_raw = committed_row(value_at(*sodium, "raw"), "sodium raw");
+    auto const sodium_strict = committed_row(value_at(*sodium, "strict"), "sodium strict");
     // A backend's rows are committed with its run here.
-    for (auto const& entry : backends) {
+    for (auto const& entry : *backends) {
         if (entry.key() != "sodium") {
             BOOST_ERROR(("a committed backend this test does not run: " + std::string(entry.key()))
                             .c_str());
@@ -239,26 +276,25 @@ int main() {
 
     // The outside view: node's WebCrypto, committed as one row with the node and OpenSSL that
     // gave it. A view of another shape fails the test, rather than end it on an exception.
-    auto const* outside = object_in(committed, "outside");
+    auto const* outside = object_in(*root, "outside");
     auto const* view = outside == nullptr ? nullptr : object_in(*outside, "webcrypto-node");
     BOOST_TEST(outside != nullptr && outside->size() == 1U && view != nullptr);
     if (view == nullptr) {
         return test::exit_status(boost::report_errors());
     }
-    BOOST_TEST(view->contains("node") && view->at("node").is_string());
-    BOOST_TEST(view->contains("openssl") && view->at("openssl").is_string());
+    BOOST_TEST(value_at(*view, "node").is_string());
+    BOOST_TEST(value_at(*view, "openssl").is_string());
     BOOST_TEST(view->contains("verdicts"));
     if (!view->contains("verdicts")) {
         return test::exit_status(boost::report_errors());
     }
-    auto const webcrypto = committed_row(view->at("verdicts"), "webcrypto-node");
+    auto const webcrypto = committed_row(value_at(*view, "verdicts"), "webcrypto-node");
 #ifdef __EMSCRIPTEN__
     // The versions this run's node has, beside those committed: a node whose row differs says
     // which it is.
-    if (view->contains("node") && view->at("node").is_string() && view->contains("openssl") &&
-        view->at("openssl").is_string()) {
-        std::cout << "webcrypto-node committed with node " << text_of(view->at("node"))
-                  << ", OpenSSL " << text_of(view->at("openssl")) << '\n';
+    if (value_at(*view, "node").is_string() && value_at(*view, "openssl").is_string()) {
+        std::cout << "webcrypto-node committed with node " << text_at(*view, "node") << ", OpenSSL "
+                  << text_at(*view, "openssl") << '\n';
     }
     print_node_versions();
     verdicts subtle;

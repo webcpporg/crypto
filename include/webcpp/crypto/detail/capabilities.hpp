@@ -50,6 +50,23 @@ struct chacha20_poly1305_original;
 /** The family XChaCha20-Poly1305, of `ciphers`, also the tag of its one algorithm. */
 struct xchacha20_poly1305;
 
+/** The family XSalsa20-Poly1305 secret box, of `ciphers`, also the tag of its one algorithm. */
+struct secretbox_xsalsa20poly1305;
+
+/** The family XChaCha20-Poly1305 secret box, of `ciphers`, also the tag of its one algorithm. */
+struct secretbox_xchacha20poly1305;
+
+/** The family X25519-XSalsa20-Poly1305 box, of `hybrid`, also the tag of its one algorithm. */
+struct box_xsalsa20poly1305;
+
+/** The family X25519-XChaCha20-Poly1305 box, of `hybrid`, also the tag of its one algorithm. */
+struct box_xchacha20poly1305;
+
+/**
+ * The family X25519-XSalsa20-Poly1305 sealed box, of `hybrid`, also the tag of its one algorithm.
+ */
+struct sealed_box;
+
 }  // namespace webcpp::crypto::families
 
 namespace webcpp::crypto::tags {
@@ -189,6 +206,31 @@ inline constexpr bool supported<families::chacha20_poly1305_original, families::
 #if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
 template <>
 inline constexpr bool supported<families::xchacha20_poly1305, families::xchacha20_poly1305, backends::sodium> = true;
+#endif
+// XSalsa20-Poly1305 secret box on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+template <>
+inline constexpr bool supported<families::secretbox_xsalsa20poly1305, families::secretbox_xsalsa20poly1305, backends::sodium> = true;
+#endif
+// XChaCha20-Poly1305 secret box on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+template <>
+inline constexpr bool supported<families::secretbox_xchacha20poly1305, families::secretbox_xchacha20poly1305, backends::sodium> = true;
+#endif
+// X25519-XSalsa20-Poly1305 box on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+template <>
+inline constexpr bool supported<families::box_xsalsa20poly1305, families::box_xsalsa20poly1305, backends::sodium> = true;
+#endif
+// X25519-XChaCha20-Poly1305 box on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+template <>
+inline constexpr bool supported<families::box_xchacha20poly1305, families::box_xchacha20poly1305, backends::sodium> = true;
+#endif
+// X25519-XSalsa20-Poly1305 sealed box on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+template <>
+inline constexpr bool supported<families::sealed_box, families::sealed_box, backends::sodium> = true;
 #endif
 // clang-format on
 
@@ -561,6 +603,271 @@ inline constexpr bool linked<backends::sodium> = true;
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: XChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//xchacha20_poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//xchacha20_poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's XChaCha20-Poly1305 is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
     static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: XChaCha20-Poly1305 has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#endif
+#ifdef WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE
+/**
+ * The refusals of the family XSalsa20-Poly1305 secret box's primary engine for `Backend`, on
+ * native.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XSALSA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: XSalsa20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's XSalsa20-Poly1305 secret box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: XSalsa20-Poly1305 secret box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP2)
+/**
+ * The refusals of the family XSalsa20-Poly1305 secret box's primary engine for `Backend`, on
+ * wasip2.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XSALSA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: XSalsa20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's XSalsa20-Poly1305 secret box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: XSalsa20-Poly1305 secret box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP3)
+/**
+ * The refusals of the family XSalsa20-Poly1305 secret box's primary engine for `Backend`, on
+ * wasip3.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XSALSA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: XSalsa20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's XSalsa20-Poly1305 secret box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: XSalsa20-Poly1305 secret box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_EMSCRIPTEN)
+/**
+ * The refusals of the family XSalsa20-Poly1305 secret box's primary engine for `Backend`, on
+ * emscripten.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XSALSA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no XSalsa20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: XSalsa20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's XSalsa20-Poly1305 secret box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: XSalsa20-Poly1305 secret box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#endif
+#ifdef WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE
+/**
+ * The refusals of the family XChaCha20-Poly1305 secret box's primary engine for `Backend`, on
+ * native.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XCHACHA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: XChaCha20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's XChaCha20-Poly1305 secret box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: XChaCha20-Poly1305 secret box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP2)
+/**
+ * The refusals of the family XChaCha20-Poly1305 secret box's primary engine for `Backend`, on
+ * wasip2.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XCHACHA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: XChaCha20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's XChaCha20-Poly1305 secret box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: XChaCha20-Poly1305 secret box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP3)
+/**
+ * The refusals of the family XChaCha20-Poly1305 secret box's primary engine for `Backend`, on
+ * wasip3.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XCHACHA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: XChaCha20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's XChaCha20-Poly1305 secret box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: XChaCha20-Poly1305 secret box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_EMSCRIPTEN)
+/**
+ * The refusals of the family XChaCha20-Poly1305 secret box's primary engine for `Backend`, on
+ * emscripten.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XCHACHA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no XChaCha20-Poly1305 secret box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: XChaCha20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's XChaCha20-Poly1305 secret box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: XChaCha20-Poly1305 secret box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#endif
+#ifdef WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE
+/**
+ * The refusals of the family X25519-XSalsa20-Poly1305 box's primary engine for `Backend`, on
+ * native.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_BOX_XSALSA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's X25519-XSalsa20-Poly1305 box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP2)
+/**
+ * The refusals of the family X25519-XSalsa20-Poly1305 box's primary engine for `Backend`, on
+ * wasip2.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_BOX_XSALSA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's X25519-XSalsa20-Poly1305 box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP3)
+/**
+ * The refusals of the family X25519-XSalsa20-Poly1305 box's primary engine for `Backend`, on
+ * wasip3.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_BOX_XSALSA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's X25519-XSalsa20-Poly1305 box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_EMSCRIPTEN)
+/**
+ * The refusals of the family X25519-XSalsa20-Poly1305 box's primary engine for `Backend`, on
+ * emscripten.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_BOX_XSALSA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no X25519-XSalsa20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's X25519-XSalsa20-Poly1305 box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#endif
+#ifdef WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE
+/**
+ * The refusals of the family X25519-XChaCha20-Poly1305 box's primary engine for `Backend`, on
+ * native.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_BOX_XCHACHA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XChaCha20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's X25519-XChaCha20-Poly1305 box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XChaCha20-Poly1305 box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP2)
+/**
+ * The refusals of the family X25519-XChaCha20-Poly1305 box's primary engine for `Backend`, on
+ * wasip2.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_BOX_XCHACHA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XChaCha20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's X25519-XChaCha20-Poly1305 box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XChaCha20-Poly1305 box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP3)
+/**
+ * The refusals of the family X25519-XChaCha20-Poly1305 box's primary engine for `Backend`, on
+ * wasip3.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_BOX_XCHACHA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XChaCha20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's X25519-XChaCha20-Poly1305 box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XChaCha20-Poly1305 box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_EMSCRIPTEN)
+/**
+ * The refusals of the family X25519-XChaCha20-Poly1305 box's primary engine for `Backend`, on
+ * emscripten.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_BOX_XCHACHA20POLY1305(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no X25519-XChaCha20-Poly1305 box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XChaCha20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's X25519-XChaCha20-Poly1305 box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XChaCha20-Poly1305 box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#endif
+#ifdef WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE
+/**
+ * The refusals of the family X25519-XSalsa20-Poly1305 sealed box's primary engine for `Backend`, on
+ * native.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SEALED_BOX(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//sealed_box-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//sealed_box-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's X25519-XSalsa20-Poly1305 sealed box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP2)
+/**
+ * The refusals of the family X25519-XSalsa20-Poly1305 sealed box's primary engine for `Backend`, on
+ * wasip2.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SEALED_BOX(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//sealed_box-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//sealed_box-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's X25519-XSalsa20-Poly1305 sealed box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP3)
+/**
+ * The refusals of the family X25519-XSalsa20-Poly1305 sealed box's primary engine for `Backend`, on
+ * wasip3.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SEALED_BOX(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//sealed_box-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//sealed_box-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's X25519-XSalsa20-Poly1305 sealed box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_EMSCRIPTEN)
+/**
+ * The refusals of the family X25519-XSalsa20-Poly1305 sealed box's primary engine for `Backend`, on
+ * emscripten.
+ */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_SEALED_BOX(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no X25519-XSalsa20-Poly1305 sealed box. The backends that have it: sodium (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//sealed_box-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//sealed_box-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium's X25519-XSalsa20-Poly1305 sealed box is in <webcpp/crypto/backends/sodium.hpp>, which the program does not include. Include it, and add /third_party//sodium to the program's Jamfile."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten).")
 #endif
 // clang-format on
 

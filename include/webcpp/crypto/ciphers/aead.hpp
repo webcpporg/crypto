@@ -6,9 +6,10 @@
 
 /**
  `aead<Family, Backend>`, one-shot authenticated encryption in place, and the families it
- takes: ChaCha20-Poly1305, its original form and XChaCha20-Poly1305.
+ takes: ChaCha20-Poly1305, its original form and XChaCha20-Poly1305, and libsodium's
+ `crypto_secretbox`, XSalsa20-Poly1305 and XChaCha20-Poly1305 without additional data.
 
- @see "ChaCha20-Poly1305", in the guide.
+ @see "ChaCha20-Poly1305" and "Secret boxes", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_CIPHERS_AEAD_HPP
 #define WEBCPP_CRYPTO_CIPHERS_AEAD_HPP
@@ -78,6 +79,40 @@ struct xchacha20_poly1305 {
     static constexpr std::uint64_t max_additional_data_size = ~std::uint64_t{0};
 };
 
+/**
+ * NaCl's and libsodium's `crypto_secretbox`, XSalsa20-Poly1305: a 32-byte key, a 24-byte nonce
+ * safe to draw at random, a 16-byte tag, and no additional data.
+ */
+struct secretbox_xsalsa20poly1305 {
+    /** The key's size. */
+    static constexpr std::size_t key_size = 32;
+    /** The nonce's size, exactly. */
+    static constexpr std::size_t iv_size = 24;
+    /** The tag's size. */
+    static constexpr std::size_t tag_size = 16;
+    /** The longest message, 2^64 - 17 bytes, as libsodium's `crypto_secretbox_MESSAGEBYTES_MAX`. */
+    static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
+    /** No additional data: `aead` refuses a non-empty one with `invalid_input_size`. */
+    static constexpr std::uint64_t max_additional_data_size = 0;
+};
+
+/**
+ * libsodium's `crypto_secretbox_xchacha20poly1305`: `crypto_secretbox` with XChaCha20 in place
+ * of XSalsa20, a 24-byte nonce safe to draw at random, and no additional data.
+ */
+struct secretbox_xchacha20poly1305 {
+    /** The key's size. */
+    static constexpr std::size_t key_size = 32;
+    /** The nonce's size, exactly. */
+    static constexpr std::size_t iv_size = 24;
+    /** The tag's size. */
+    static constexpr std::size_t tag_size = 16;
+    /** The longest message, 2^64 - 17 bytes. */
+    static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
+    /** No additional data: `aead` refuses a non-empty one with `invalid_input_size`. */
+    static constexpr std::uint64_t max_additional_data_size = 0;
+};
+
 }  // namespace webcpp::crypto::families
 
 namespace webcpp::crypto::detail {
@@ -104,6 +139,14 @@ inline constexpr bool aead_family<families::chacha20_poly1305_original> = true;
 /** XChaCha20-Poly1305 is an AEAD family. */
 template <>
 inline constexpr bool aead_family<families::xchacha20_poly1305> = true;
+
+/** `crypto_secretbox`, XSalsa20-Poly1305, is an AEAD family without additional data. */
+template <>
+inline constexpr bool aead_family<families::secretbox_xsalsa20poly1305> = true;
+
+/** `crypto_secretbox_xchacha20poly1305` is an AEAD family without additional data. */
+template <>
+inline constexpr bool aead_family<families::secretbox_xchacha20poly1305> = true;
 
 /**
  * The sizes and limits `ciphers::aead` reads from its family: the family's own.
@@ -156,6 +199,18 @@ struct aead_refusal<families::xchacha20_poly1305, Backend> {
     WEBCPP_CRYPTO_DETAIL_REFUSE_XCHACHA20_POLY1305(Backend);
 };
 
+/** XSalsa20-Poly1305's secret box's refusal (see the first). */
+template <class Backend>
+struct aead_refusal<families::secretbox_xsalsa20poly1305, Backend> {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XSALSA20POLY1305(Backend);
+};
+
+/** XChaCha20-Poly1305's secret box's refusal (see the first). */
+template <class Backend>
+struct aead_refusal<families::secretbox_xchacha20poly1305, Backend> {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XCHACHA20POLY1305(Backend);
+};
+
 /**
  * An AEAD's engine on a backend whose header does not specialise it: the family's refusal.
  * Its functions are never called: the refusal stops the build where the class is
@@ -203,20 +258,23 @@ namespace webcpp::crypto::ciphers {
  * repeated under one key: two messages under one key and one nonce reveal the XOR of their
  * plaintexts and let an attacker forge tags. Drawn at random, ChaCha20-Poly1305's 12-byte
  * nonce lets a key seal at most 2^32 messages, and the original's 8 bytes are too few: a
- * counter numbers them. XChaCha20-Poly1305's 24-byte nonce is safe to draw at random.
+ * counter numbers them. XChaCha20-Poly1305's 24-byte nonce, and the secret boxes', are safe
+ * to draw at random.
  *
- * @tparam Family `families::chacha20_poly1305`, `families::chacha20_poly1305_original` or
- * `families::xchacha20_poly1305`.
- * @tparam Backend The backend; `ciphers::chacha20_poly1305<>` and its two siblings name the
- * family's default.
+ * @tparam Family `families::chacha20_poly1305`, `families::chacha20_poly1305_original`,
+ * `families::xchacha20_poly1305`, or the secret boxes' `families::secretbox_xsalsa20poly1305`
+ * and `families::secretbox_xchacha20poly1305`, which take no additional data.
+ * @tparam Backend The backend; `ciphers::chacha20_poly1305<>`, its two siblings and
+ * `ciphers::secretbox<>` and its twin name the family's default.
  */
 template <class Family, class Backend>
 class aead {
     // The first error a program that names another type sees, and its only one.
     static_assert(detail::aead_family<Family>,
                   "webcpp::crypto: ciphers::aead takes an AEAD family: "
-                  "families::chacha20_poly1305, families::chacha20_poly1305_original or "
-                  "families::xchacha20_poly1305.");
+                  "families::chacha20_poly1305, families::chacha20_poly1305_original, "
+                  "families::xchacha20_poly1305, families::secretbox_xsalsa20poly1305 or "
+                  "families::secretbox_xchacha20poly1305.");
 
     using sizes = detail::aead_sizes<Family>;
     using state_type = detail::aead_state<Family, Backend>;
@@ -239,7 +297,7 @@ public:
     static constexpr std::size_t tag_size = sizes::tag_size;
     /** The longest message. */
     static constexpr std::uint64_t max_message_size = sizes::max_message_size;
-    /** The longest additional data. */
+    /** The longest additional data; 0 for a family that takes none. */
     static constexpr std::uint64_t max_additional_data_size = sizes::max_additional_data_size;
 
     /**
@@ -312,10 +370,11 @@ public:
      * and an open with the original additional data would fail.
      *
      * @param iv_bytes The nonce, `iv_size` bytes, never repeated under this key.
-     * @param additional_data_bytes Authenticated, not encrypted.
+     * @param additional_data_bytes Authenticated, not encrypted; empty for a family that takes
+     * none (`max_additional_data_size` 0).
      * @param data_bytes The message.
-     * @return The tag; `invalid_state` moved from; `invalid_iv_size`; `message_too_long`;
-     * `backend_failure`.
+     * @return The tag; `invalid_state` moved from; `invalid_iv_size`; `invalid_input_size` for
+     * additional data given to a family that takes none; `message_too_long`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<result_type> seal(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
@@ -347,6 +406,7 @@ public:
      * @param tag_bytes The seal's tag, `tag_size` bytes, which may lie anywhere, `data_bytes`
      * included.
      * @return Nothing; `invalid_state` moved from; `invalid_iv_size`; `invalid_tag_size`;
+     * `invalid_input_size` for additional data given to a family that takes none;
      * `message_too_long`; `authentication_failed`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<void> open(
@@ -373,7 +433,8 @@ private:
     aead() noexcept = default;
 
     // Every guard of a message, in the documented order: the state, the nonce, the tag
-    // (open's; seal passes tag_size), the lengths. None reads a byte of the spans.
+    // (open's; seal passes tag_size), additional data given to a family that takes none, the
+    // lengths. None reads a byte of the spans.
     [[nodiscard]] boost::system::result<void> guard_message(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::size_t byte_count, std::size_t tag_bytes) const noexcept {
@@ -385,6 +446,11 @@ private:
         }
         if (tag_bytes != tag_size) {
             return error::invalid_tag_size;
+        }
+        if constexpr (max_additional_data_size == 0) {
+            if (!additional_data_bytes.empty()) {
+                return error::invalid_input_size;
+            }
         }
         if (detail::exceeds(byte_count, max_message_size) ||
             detail::exceeds(additional_data_bytes.size(), max_additional_data_size)) {

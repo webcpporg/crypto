@@ -4,17 +4,21 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// On libsodium nothing allocates: make, seal and open of the three ChaCha20-Poly1305 AEADs,
-// a failed open included; Ed25519's key pair, signature, strict verification, Ed25519ph and
-// the conversion to X25519; and X25519's public key and agreement, a refused one included,
-// make no call of operator new, nor of the C library's allocator where the target lets a
-// program count it; a control proves the counter moves. Each later family on libsodium adds
-// its calls here.
+// On libsodium nothing allocates: make, seal and open of the three ChaCha20-Poly1305 AEADs and
+// of the two secret boxes, a failed open included; Ed25519's key pair, signature, strict
+// verification, Ed25519ph and the conversion to X25519; X25519's public key and agreement, a
+// refused one included; the two boxes' make, seal and open, a refused peer key and a failed open
+// included; and the sealed boxes' seal and open, a failed open included, make no call of
+// operator new, nor of the C library's allocator where the target lets a program count it; a
+// control proves the counter moves. Each later family on libsodium adds its calls here.
 
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
+#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
+#include <webcpp/crypto/hybrid/box.hpp>
+#include <webcpp/crypto/hybrid/sealed_box.hpp>
 #include <webcpp/hash/algorithms.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -34,13 +38,18 @@ namespace {
 
 namespace crypto = webcpp::crypto;
 
-/** Makes an AEAD, seals, opens, and opens a forged message: none of it allocates. */
+/**
+ * Makes an AEAD, seals, opens, and opens a forged message: none of it allocates. A family
+ * without additional data (a secret box) is given none.
+ */
 template <class Aead>
 void expect_no_allocation() {
     std::array<std::uint8_t, Aead::key_size> key{};
     key.fill(3);
     std::array<std::uint8_t, Aead::iv_size> const iv{};
-    std::array<std::uint8_t, 13> const additional_data{};
+    std::array<std::uint8_t, 13> const some_additional_data{};
+    auto const additional_data = std::span<std::uint8_t const>(some_additional_data)
+                                     .first(Aead::max_additional_data_size == 0 ? 0 : 13);
     std::array<std::uint8_t, 4096> data{};
     std::size_t const before = webcpp::test::allocations();
     {
@@ -135,6 +144,67 @@ void expect_no_allocation_x25519() {
     BOOST_TEST_EQ(webcpp::test::allocations(), before);
 }
 
+/**
+ * Makes a box of each family from two key pairs, both ways, seals, opens, opens a forged
+ * message, and refuses a peer key of small order (the all-zero point): none of it allocates.
+ */
+template <class Box>
+void expect_no_allocation_box() {
+    std::array<std::uint8_t, 32> alice{};
+    alice.fill(7);
+    std::array<std::uint8_t, 32> bob{};
+    bob.fill(9);
+    std::array<std::uint8_t, 32> const low_order{};
+    std::array<std::uint8_t, Box::iv_size> const iv{};
+    std::array<std::uint8_t, 4096> data{};
+    auto const alice_public = crypto::curves::x25519::public_key<crypto::backends::sodium>(alice);
+    auto const bob_public = crypto::curves::x25519::public_key<crypto::backends::sodium>(bob);
+    if (!BOOST_TEST(alice_public.has_value()) || !BOOST_TEST(bob_public.has_value())) {
+        return;
+    }
+    std::size_t const before = webcpp::test::allocations();
+    {
+        auto sender = Box::make(alice, *bob_public);
+        auto receiver = Box::make(bob, *alice_public);
+        BOOST_TEST(sender.has_value() && receiver.has_value());
+        auto const tag = sender->seal(iv, data);
+        BOOST_TEST(tag.has_value());
+        BOOST_TEST(receiver->open(iv, data, *tag).has_value());
+        std::array<std::uint8_t, Box::tag_size> const forged{};
+        BOOST_TEST(receiver->open(iv, data, forged).error() ==
+                   crypto::error::authentication_failed);
+        BOOST_TEST(Box::make(alice, low_order).error() == crypto::error::weak_public_key);
+        Box const moved = std::move(*sender);
+    }
+    BOOST_TEST_EQ(webcpp::test::allocations(), before);
+}
+
+/**
+ * Seals a message to a public key, which draws a key pair from libsodium's generator, opens it,
+ * and opens a changed one: none of it allocates.
+ */
+void expect_no_allocation_sealed_box() {
+    using sealed_box = crypto::hybrid::basic_sealed_box<crypto::backends::sodium>;
+    std::array<std::uint8_t, 32> bob{};
+    bob.fill(11);
+    auto const bob_public = crypto::curves::x25519::public_key<crypto::backends::sodium>(bob);
+    if (!BOOST_TEST(bob_public.has_value())) {
+        return;
+    }
+    std::array<std::uint8_t, 1000> const message{};
+    std::array<std::uint8_t, message.size() + sealed_box::overhead> sealed{};
+    std::array<std::uint8_t, message.size()> opened{};
+    std::size_t const before = webcpp::test::allocations();
+    {
+        BOOST_TEST(sealed_box::seal(*bob_public, message, sealed).has_value());
+        BOOST_TEST(sealed_box::open(*bob_public, bob, sealed, opened).has_value());
+        sealed[40] ^= 1U;
+        BOOST_TEST(sealed_box::open(*bob_public, bob, sealed, opened).error() ==
+                   crypto::error::authentication_failed);
+    }
+    BOOST_TEST_EQ(webcpp::test::allocations(), before);
+}
+
 }  // namespace
 
 int main() {
@@ -155,5 +225,12 @@ int main() {
     expect_no_allocation<crypto::ciphers::xchacha20_poly1305<crypto::backends::sodium>>();
     expect_no_allocation_ed25519();
     expect_no_allocation_x25519();
+    expect_no_allocation<crypto::ciphers::secretbox<crypto::backends::sodium>>();
+    expect_no_allocation<crypto::ciphers::secretbox_xchacha20poly1305<crypto::backends::sodium>>();
+    expect_no_allocation_box<crypto::hybrid::basic_box<crypto::families::box_xsalsa20poly1305,
+                                                       crypto::backends::sodium>>();
+    expect_no_allocation_box<crypto::hybrid::basic_box<crypto::families::box_xchacha20poly1305,
+                                                       crypto::backends::sodium>>();
+    expect_no_allocation_sealed_box();
     return webcpp::test::exit_status(boost::report_errors());
 }

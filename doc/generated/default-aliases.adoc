@@ -45,4 +45,29 @@
 |XChaCha20-Poly1305
 |`+/third_party//sodium+` on every target
 |<<crypto-jamfile-cases,`+xchacha20_poly1305_default+`>>
+
+|`+/webcpp/crypto//secretbox_xsalsa20poly1305-default+`
+|XSalsa20-Poly1305 secret box
+|`+/third_party//sodium+` on every target
+|<<crypto-jamfile-cases,`+secretbox_xsalsa20poly1305_default+`>>
+
+|`+/webcpp/crypto//secretbox_xchacha20poly1305-default+`
+|XChaCha20-Poly1305 secret box
+|`+/third_party//sodium+` on every target
+|<<crypto-jamfile-cases,`+secretbox_xchacha20poly1305_default+`>>
+
+|`+/webcpp/crypto//box_xsalsa20poly1305-default+`
+|X25519-XSalsa20-Poly1305 box
+|`+/third_party//sodium+` on every target
+|<<crypto-jamfile-cases,`+box_xsalsa20poly1305_default+`>>
+
+|`+/webcpp/crypto//box_xchacha20poly1305-default+`
+|X25519-XChaCha20-Poly1305 box
+|`+/third_party//sodium+` on every target
+|<<crypto-jamfile-cases,`+box_xchacha20poly1305_default+`>>
+
+|`+/webcpp/crypto//sealed_box-default+`
+|X25519-XSalsa20-Poly1305 sealed box
+|`+/third_party//sodium+` on every target
+|<<crypto-jamfile-cases,`+sealed_box_default+`>>
 |===

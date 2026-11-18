@@ -68,7 +68,7 @@ OUTSIDE_TITLES = {'webcrypto-node': 'WebCrypto in node {node} (OpenSSL {openssl}
 VERDICTS = ('accept', 'reject')
 BACKEND_ORDER = ('bearssl', 'openssl', 'ctaes', 'secp256k1', 'sodium', 'system', 'none')
 NAMESPACE_TITLES = {'root': 'webcpp::crypto', 'ciphers': 'webcpp::crypto::ciphers',
-                    'curves': 'webcpp::crypto::curves'}
+                    'curves': 'webcpp::crypto::curves', 'hybrid': 'webcpp::crypto::hybrid'}
 RUN_RULES = ('crypto-run', 'memory-run', 'webcpp.run', 'webcpp.compile',
              'webcpp.compile-diagnostic', 'webcpp.compile-fail', 'webcpp.link-fail',
              'webcpp.example')
@@ -1341,7 +1341,8 @@ def llms(data: Data, matrix: Matrix, library: Path) -> str:
     out = ['# webcpp::crypto', '',
            '> Cryptographic primitives for C++20 on native, wasip2, wasip3 and Emscripten: '
            'AES-GCM, the AES block cipher, secp256k1 (BIP 340 Schnorr, ECDSA, ECDH, the x-only '
-           'tweak), Ed25519 and Ed25519ph (RFC 8032), X25519 (RFC 7748), a random_device on the '
+           'tweak), Ed25519 and Ed25519ph (RFC 8032), X25519 (RFC 7748), the ChaCha20-Poly1305 '
+           'AEADs, libsodium\'s secret boxes, boxes and sealed boxes, a random_device on the '
            'system\'s generator and a constant-time equal, each over a widely used, reviewed C '
            'library (BearSSL, OpenSSL, ctaes, libsecp256k1, libsodium) that '
            'the program names in its Jamfile. Hashing and HMAC are Boost.Hash2\'s. Every '

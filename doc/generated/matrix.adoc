@@ -145,6 +145,31 @@
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+xchacha_sodium+`, `+chacha_wycheproof_sodium+`, `+allocation_sodium+`
+
+|`+ciphers::secretbox+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`
+
+|`+ciphers::secretbox_xchacha20poly1305+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`
+
+|`+hybrid::box+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+box_sodium+`, `+allocation_sodium+`
+
+|`+hybrid::box_xchacha20poly1305+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+box_sodium+`, `+allocation_sodium+`
+
+|`+hybrid::sealed_box+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+box_sodium+`, `+allocation_sodium+`
 |===
 
 The same, by target: the backends each operation runs on.
@@ -262,6 +287,36 @@ The same, by target: the backends each operation runs on.
 |libsodium
 
 |`+ciphers::xchacha20_poly1305+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+ciphers::secretbox+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+ciphers::secretbox_xchacha20poly1305+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+hybrid::box+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+hybrid::box_xchacha20poly1305+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+hybrid::sealed_box+`
 |libsodium
 |libsodium
 |libsodium

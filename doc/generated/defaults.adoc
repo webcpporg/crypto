@@ -76,4 +76,34 @@
 |libsodium
 |the only backend that has it: libsodium's own C code, the same on every target (link:https://doc.libsodium.org/secret-key_cryptography/aead/chacha20-poly1305[libsodium's ChaCha20-Poly1305 constructions])
 |`+xchacha_sodium+`, `+default_backend_none_linked+`
+
+|XSalsa20-Poly1305 secret box
+|native, wasip2, wasip3, emscripten
+|libsodium
+|the only backend that has it: libsodium's own C code, NaCl's `crypto_secretbox`, the same on every target (link:https://doc.libsodium.org/secret-key_cryptography/secretbox[libsodium's documentation, secret-key authenticated encryption])
+|`+secretbox_sodium+`, `+default_backend_none_linked+`
+
+|XChaCha20-Poly1305 secret box
+|native, wasip2, wasip3, emscripten
+|libsodium
+|the only backend that has it: libsodium's own C code, the same on every target (link:https://doc.libsodium.org/secret-key_cryptography/secretbox[libsodium's documentation, secret-key authenticated encryption])
+|`+secretbox_sodium+`, `+default_backend_none_linked+`
+
+|X25519-XSalsa20-Poly1305 box
+|native, wasip2, wasip3, emscripten
+|libsodium
+|the only backend that has it: libsodium's own C code, NaCl's `crypto_box`, the same on every target (link:https://doc.libsodium.org/public-key_cryptography/authenticated_encryption[libsodium's documentation, public-key authenticated encryption])
+|`+box_sodium+`, `+default_backend_none_linked+`
+
+|X25519-XChaCha20-Poly1305 box
+|native, wasip2, wasip3, emscripten
+|libsodium
+|the only backend that has it: libsodium's own C code, the same on every target (link:https://doc.libsodium.org/public-key_cryptography/authenticated_encryption[libsodium's documentation, public-key authenticated encryption])
+|`+box_sodium+`, `+default_backend_none_linked+`
+
+|X25519-XSalsa20-Poly1305 sealed box
+|native, wasip2, wasip3, emscripten
+|libsodium
+|the only backend that has it: libsodium's own C code, which draws the key pair of each message from its own generator, the same on every target (link:https://doc.libsodium.org/public-key_cryptography/sealed_boxes[libsodium's documentation, sealed boxes])
+|`+box_sodium+`, `+default_backend_none_linked+`
 |===

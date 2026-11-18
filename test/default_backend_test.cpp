@@ -93,3 +93,31 @@ static_assert(crypto::detail::supported<families::xchacha20_poly1305, families::
     !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_XCHACHA20_POLY1305_SODIUM)
 #error "chacha20_poly1305.hpp is not told to include libsodium's header"
 #endif
+
+// The secret boxes, the boxes and the sealed boxes: libsodium, the only backend, on every target.
+static_assert(std::is_same_v<crypto::default_backend_t<families::secretbox_xsalsa20poly1305>,
+                             backends::sodium>);
+static_assert(std::is_same_v<crypto::default_backend_t<families::secretbox_xchacha20poly1305>,
+                             backends::sodium>);
+static_assert(
+    std::is_same_v<crypto::default_backend_t<families::box_xsalsa20poly1305>, backends::sodium>);
+static_assert(
+    std::is_same_v<crypto::default_backend_t<families::box_xchacha20poly1305>, backends::sodium>);
+static_assert(std::is_same_v<crypto::default_backend_t<families::sealed_box>, backends::sodium>);
+static_assert(crypto::detail::supported<families::secretbox_xsalsa20poly1305,
+                                        families::secretbox_xsalsa20poly1305, backends::sodium>);
+static_assert(crypto::detail::supported<families::secretbox_xchacha20poly1305,
+                                        families::secretbox_xchacha20poly1305, backends::sodium>);
+static_assert(crypto::detail::supported<families::box_xsalsa20poly1305,
+                                        families::box_xsalsa20poly1305, backends::sodium>);
+static_assert(crypto::detail::supported<families::box_xchacha20poly1305,
+                                        families::box_xchacha20poly1305, backends::sodium>);
+static_assert(
+    crypto::detail::supported<families::sealed_box, families::sealed_box, backends::sodium>);
+#if !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_SECRETBOX_XSALSA20POLY1305_SODIUM) ||  \
+    !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_SECRETBOX_XCHACHA20POLY1305_SODIUM) || \
+    !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_BOX_XSALSA20POLY1305_SODIUM) ||        \
+    !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_BOX_XCHACHA20POLY1305_SODIUM) ||       \
+    !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_SEALED_BOX_SODIUM)
+#error "secretbox.hpp, box.hpp and sealed_box.hpp are not told to include libsodium's header"
+#endif

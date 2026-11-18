@@ -30,6 +30,8 @@
 #include <sodium/core.h>  // through /third_party//sodium, as webcpp::hash's header does
 #include <sodium/crypto_aead_chacha20poly1305.h>
 #include <sodium/crypto_aead_xchacha20poly1305.h>
+#include <sodium/crypto_secretbox.h>
+#include <sodium/crypto_secretbox_xchacha20poly1305.h>
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
 
@@ -186,6 +188,140 @@ struct aead_engine<Family, backends::sodium> {
             return error::authentication_failed;
         }
         return {};
+    }
+
+    /** Moves the key; the source is wiped. */
+    static void move(state& to, state& from) noexcept {
+        to.key = from.key;
+        wipe_object(from.key);
+    }
+
+    /** Wipes the key. */
+    static void reset(state& s) noexcept { wipe_object(s.key); }
+};
+
+/** libsodium's detached functions of a secret box family, which differ only by name. */
+template <class Family>
+struct sodium_secretbox_calls;
+
+/** `crypto_secretbox`, XSalsa20-Poly1305. */
+template <>
+struct sodium_secretbox_calls<families::secretbox_xsalsa20poly1305> {
+    /** Encrypts and computes the tag apart. */
+    static constexpr auto encrypt = &crypto_secretbox_detached;
+    /** Checks the tag apart, then decrypts. */
+    static constexpr auto decrypt = &crypto_secretbox_open_detached;
+};
+
+/** `crypto_secretbox_xchacha20poly1305`. */
+template <>
+struct sodium_secretbox_calls<families::secretbox_xchacha20poly1305> {
+    /** Encrypts and computes the tag apart. */
+    static constexpr auto encrypt = &crypto_secretbox_xchacha20poly1305_detached;
+    /** Checks the tag apart, then decrypts. */
+    static constexpr auto decrypt = &crypto_secretbox_xchacha20poly1305_open_detached;
+};
+
+/**
+ * Seals `data` in place with a secret box's detached function under a 32-byte key. libsodium
+ * reads the nonce again after it writes the first bytes of the ciphertext, so a nonce that
+ * lies in `data` is copied first; an empty span's null data() is never read or written.
+ *
+ * @return Nothing; `backend_failure` when libsodium fails.
+ */
+template <class Encrypt>
+[[nodiscard]] boost::system::result<void> sodium_secretbox_seal(
+    Encrypt encrypt, std::span<unsigned char const, 32> key, std::span<std::uint8_t const, 24> iv,
+    std::span<std::uint8_t> data, boost::hash2::digest<16>& tag) noexcept {
+    std::array<unsigned char, 24> nonce{};
+    std::ranges::copy(iv, nonce.begin());
+    if (encrypt(data.data(), tag.data(), data.data(), data.size(), nonce.data(), key.data()) != 0) {
+        return error::backend_failure;
+    }
+    return {};
+}
+
+/**
+ * Checks the tag, then decrypts `data` in place, with a secret box's detached function; the
+ * nonce is copied first, as `sodium_secretbox_seal` says. An empty span's null data() makes
+ * libsodium check the tag alone.
+ *
+ * @return Nothing; `authentication_failed` when the tag does not match.
+ */
+template <class Decrypt>
+[[nodiscard]] boost::system::result<void> sodium_secretbox_open(
+    Decrypt decrypt, std::span<unsigned char const, 32> key, std::span<std::uint8_t const, 24> iv,
+    std::span<std::uint8_t> data, std::array<std::uint8_t, 16> const& tag) noexcept {
+    std::array<unsigned char, 24> nonce{};
+    std::ranges::copy(iv, nonce.begin());
+    if (decrypt(data.data(), data.data(), tag.data(), data.size(), nonce.data(), key.data()) != 0) {
+        return error::authentication_failed;
+    }
+    return {};
+}
+
+/** A secret box's state on libsodium: the key, in the object, since libsodium takes it per call. */
+template <class Family>
+    requires requires { sodium_secretbox_calls<Family>::encrypt; }
+struct aead_state<Family, backends::sodium> {
+    /** The key. */
+    std::array<unsigned char, 32> key{};
+};
+
+/**
+ * A secret box on libsodium, `crypto_secretbox` and its XChaCha20 twin, as an `aead` without
+ * additional data (`aead` has refused a non-empty one). libsodium's detached decryption checks
+ * the tag before it writes a byte; `aead` zeroes the data when it does not match.
+ */
+template <class Family>
+    requires requires { sodium_secretbox_calls<Family>::encrypt; }
+struct aead_engine<Family, backends::sodium> {
+    /** The state. */
+    using state = aead_state<Family, backends::sodium>;
+    /** libsodium's functions of the family. */
+    using calls = sodium_secretbox_calls<Family>;
+
+    /**
+     * Initialises libsodium and keeps the key.
+     *
+     * @return Nothing; `backend_failure` when libsodium cannot start.
+     */
+    [[nodiscard]] static boost::system::result<void> init(
+        state& s, std::span<std::uint8_t const> key) noexcept {
+        auto const ready = sodium_ready();
+        if (!ready) {
+            return ready;
+        }
+        std::ranges::copy(key, s.key.begin());
+        return {};
+    }
+
+    /**
+     * Encrypts `data` in place and writes the tag.
+     *
+     * @return Nothing; `backend_failure` when libsodium fails.
+     */
+    [[nodiscard]] static boost::system::result<void> seal(
+        state& s, std::span<std::uint8_t const> iv,
+        std::span<std::uint8_t const> /*additional_data*/, std::span<std::uint8_t> data,
+        boost::hash2::digest<16>& tag) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        return sodium_secretbox_seal(calls::encrypt, std::span<unsigned char const, 32>(s.key),
+                                     iv.first<24>(), data, tag);
+    }
+
+    /**
+     * Checks the tag, then decrypts `data` in place.
+     *
+     * @return Nothing; `authentication_failed` when the tag does not match.
+     */
+    [[nodiscard]] static boost::system::result<void> open(
+        state& s, std::span<std::uint8_t const> iv,
+        std::span<std::uint8_t const> /*additional_data*/, std::span<std::uint8_t> data,
+        std::array<std::uint8_t, 16> const& tag) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        return sodium_secretbox_open(calls::decrypt, std::span<unsigned char const, 32>(s.key),
+                                     iv.first<24>(), data, tag);
     }
 
     /** Moves the key; the source is wiped. */
@@ -464,3 +600,188 @@ struct x25519_engine<families::x25519, backends::sodium> {
 }  // namespace webcpp::crypto::detail
 
 #endif  // X25519 on libsodium
+
+// The boxes on libsodium, for a program that includes hybrid/box.hpp, before this header or
+// after it, as Ed25519's above.
+#if defined(WEBCPP_CRYPTO_HYBRID_BOX_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+    !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_BOX)
+/** Defined once libsodium's box engines are. */
+#define WEBCPP_CRYPTO_BACKENDS_SODIUM_BOX
+
+#include <webcpp/crypto/detail/wipe.hpp>
+
+#include <sodium/crypto_box.h>
+#include <sodium/crypto_box_curve25519xchacha20poly1305.h>
+
+#include <array>
+#include <cstdint>
+#include <span>
+
+namespace webcpp::crypto::detail {
+
+/** libsodium's functions of a box family, which differ only by name. */
+template <class Family>
+struct sodium_box_calls;
+
+/** `crypto_box`, X25519-XSalsa20-Poly1305. */
+template <>
+struct sodium_box_calls<families::box_xsalsa20poly1305> {
+    /** Agrees the key. */
+    static constexpr auto beforenm = &crypto_box_beforenm;
+    /** Encrypts and computes the tag apart. */
+    static constexpr auto encrypt = &crypto_box_detached_afternm;
+    /** Checks the tag apart, then decrypts. */
+    static constexpr auto decrypt = &crypto_box_open_detached_afternm;
+};
+
+/** `crypto_box_curve25519xchacha20poly1305`, X25519-XChaCha20-Poly1305. */
+template <>
+struct sodium_box_calls<families::box_xchacha20poly1305> {
+    /** Agrees the key. */
+    static constexpr auto beforenm = &crypto_box_curve25519xchacha20poly1305_beforenm;
+    /** Encrypts and computes the tag apart. */
+    static constexpr auto encrypt = &crypto_box_curve25519xchacha20poly1305_detached_afternm;
+    /** Checks the tag apart, then decrypts. */
+    static constexpr auto decrypt = &crypto_box_curve25519xchacha20poly1305_open_detached_afternm;
+};
+
+/** What a box stores on libsodium: the key `beforenm` agreed. */
+template <class Family>
+    requires requires { sodium_box_calls<Family>::beforenm; }
+struct box_state<Family, backends::sodium> {
+    /** The agreed key. */
+    std::array<unsigned char, 32> key{};
+};
+
+/** A box on libsodium: `beforenm` once, then the `afternm` functions per message. */
+template <class Family>
+    requires requires { sodium_box_calls<Family>::beforenm; }
+struct box_engine<Family, backends::sodium> {
+    /** The state. */
+    using state = box_state<Family, backends::sodium>;
+    /** libsodium's functions of the family. */
+    using calls = sodium_box_calls<Family>;
+
+    /**
+     * Agrees the key: X25519 of the secret key and the peer's public key, which libsodium
+     * refuses for a peer key of small order, then the family's key derivation.
+     *
+     * @return Nothing; `weak_public_key`; `backend_failure` when libsodium cannot start.
+     */
+    [[nodiscard]] static boost::system::result<void> init(
+        state& s, std::span<std::uint8_t const, 32> secret_key,
+        std::span<std::uint8_t const, 32> peer_public_key) noexcept {
+        auto const ready = sodium_ready();
+        if (!ready) {
+            return ready;
+        }
+        if (calls::beforenm(s.key.data(), peer_public_key.data(), secret_key.data()) != 0) {
+            wipe_object(s.key);
+            return error::weak_public_key;
+        }
+        return {};
+    }
+
+    /**
+     * Encrypts `data` in place and writes the tag.
+     *
+     * @return Nothing; `backend_failure` when libsodium fails.
+     */
+    [[nodiscard]] static boost::system::result<void> seal(state& s,
+                                                          std::span<std::uint8_t const, 24> iv,
+                                                          std::span<std::uint8_t> data,
+                                                          boost::hash2::digest<16>& tag) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        return sodium_secretbox_seal(calls::encrypt, std::span<unsigned char const, 32>(s.key), iv,
+                                     data, tag);
+    }
+
+    /**
+     * Checks the tag, then decrypts `data` in place.
+     *
+     * @return Nothing; `authentication_failed` when the tag does not match.
+     */
+    [[nodiscard]] static boost::system::result<void> open(
+        state& s, std::span<std::uint8_t const, 24> iv, std::span<std::uint8_t> data,
+        std::array<std::uint8_t, 16> const& tag) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        return sodium_secretbox_open(calls::decrypt, std::span<unsigned char const, 32>(s.key), iv,
+                                     data, tag);
+    }
+
+    /** Moves the key; the source is wiped. */
+    static void move(state& to, state& from) noexcept {
+        to.key = from.key;
+        wipe_object(from.key);
+    }
+
+    /** Wipes the key. */
+    static void reset(state& s) noexcept { wipe_object(s.key); }
+};
+
+}  // namespace webcpp::crypto::detail
+
+#endif  // the boxes on libsodium
+
+// Sealed boxes on libsodium, for a program that includes hybrid/sealed_box.hpp, before this
+// header or after it, as Ed25519's above.
+#if defined(WEBCPP_CRYPTO_HYBRID_SEALED_BOX_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+    !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_SEALED_BOX)
+/** Defined once libsodium's sealed box engine is. */
+#define WEBCPP_CRYPTO_BACKENDS_SODIUM_SEALED_BOX
+
+#include <sodium/crypto_box.h>
+
+#include <cstdint>
+#include <span>
+
+namespace webcpp::crypto::detail {
+
+/** Sealed boxes on libsodium, `crypto_box_seal` and `crypto_box_seal_open`. */
+template <>
+struct sealed_box_engine<families::sealed_box, backends::sodium> {
+    /**
+     * Seals `message` into `out` (`basic_sealed_box` has checked the sizes): libsodium draws
+     * the key pair from its own generator and wipes its secret key.
+     *
+     * @return Nothing; `weak_public_key` for a recipient key of small order, which libsodium's
+     * box refuses; `backend_failure` when libsodium cannot start.
+     */
+    [[nodiscard]] static boost::system::result<void> seal(
+        std::span<std::uint8_t const, 32> recipient_public_key,
+        std::span<std::uint8_t const> message, std::span<std::uint8_t> out) noexcept {
+        auto const ready = sodium_ready();
+        if (!ready) {
+            return ready;
+        }
+        if (crypto_box_seal(out.data(), message.data(), message.size(),
+                            recipient_public_key.data()) != 0) {
+            return error::weak_public_key;
+        }
+        return {};
+    }
+
+    /**
+     * Opens `sealed` into `out` (`basic_sealed_box` has checked the sizes).
+     *
+     * @return Nothing; `authentication_failed`; `backend_failure` when libsodium cannot start.
+     */
+    [[nodiscard]] static boost::system::result<void> open(
+        std::span<std::uint8_t const, 32> recipient_public_key,
+        std::span<std::uint8_t const, 32> recipient_secret_key,
+        std::span<std::uint8_t const> sealed, std::span<std::uint8_t> out) noexcept {
+        auto const ready = sodium_ready();
+        if (!ready) {
+            return ready;
+        }
+        if (crypto_box_seal_open(out.data(), sealed.data(), sealed.size(),
+                                 recipient_public_key.data(), recipient_secret_key.data()) != 0) {
+            return error::authentication_failed;
+        }
+        return {};
+    }
+};
+
+}  // namespace webcpp::crypto::detail
+
+#endif  // sealed boxes on libsodium

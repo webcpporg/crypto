@@ -140,6 +140,27 @@
 `+/webcpp/crypto//x25519-default+`
 |<<crypto-x25519,[.keep]`+x25519_agree.cpp+`>>
 
+|Encrypt a record or a file under one secret key, each with a random nonce, in libsodium's secret-box format
+|In `+ciphers+`: `+secretbox<>+`, `+secretbox_xchacha20poly1305<>+`: `+make+`, `+seal+`, `+open+`
+|libsodium
+|`+/webcpp/crypto//crypto+` +
+`+/webcpp/crypto//secretbox_xsalsa20poly1305-default+`
+|<<crypto-secretbox>>
+
+|Send messages between two people who know each other's public keys, as NaCl's and libsodium's crypto_box
+|In `+hybrid+`: `+box::make+`, `+box::seal+`, `+box::open+`
+|libsodium
+|`+/webcpp/crypto//crypto+` +
+`+/webcpp/crypto//box_xsalsa20poly1305-default+`
+|<<crypto-box>>
+
+|Let anyone send a message that only the recipient can read, without saying who sent it (anonymous feedback, a drop box)
+|In `+hybrid+`: `+sealed_box::seal+`, `+sealed_box::open+`
+|libsodium
+|`+/webcpp/crypto//crypto+` +
+`+/webcpp/crypto//sealed_box-default+`
+|<<crypto-sealed-box>>
+
 |Use P-256 (passkeys, JWT's ES256)
 |None in this version: secp256k1, Ed25519 and X25519 keys and signatures do not interoperate with this curve
 |none

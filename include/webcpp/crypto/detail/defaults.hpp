@@ -98,6 +98,53 @@ struct default_backend_of<families::xchacha20_poly1305> {
     /** `backends::sodium`. */
     using type = backends::sodium;
 };
+/** Defined where libsodium is the default of XSalsa20-Poly1305 secret box. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_SECRETBOX_XSALSA20POLY1305_SODIUM 1
+/** The default of XSalsa20-Poly1305 secret box on native, wasip2, wasip3, emscripten: libsodium. */
+template <>
+struct default_backend_of<families::secretbox_xsalsa20poly1305> {
+    /** `backends::sodium`. */
+    using type = backends::sodium;
+};
+/** Defined where libsodium is the default of XChaCha20-Poly1305 secret box. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_SECRETBOX_XCHACHA20POLY1305_SODIUM 1
+/**
+ * The default of XChaCha20-Poly1305 secret box on native, wasip2, wasip3, emscripten: libsodium.
+ */
+template <>
+struct default_backend_of<families::secretbox_xchacha20poly1305> {
+    /** `backends::sodium`. */
+    using type = backends::sodium;
+};
+/** Defined where libsodium is the default of X25519-XSalsa20-Poly1305 box. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_BOX_XSALSA20POLY1305_SODIUM 1
+/** The default of X25519-XSalsa20-Poly1305 box on native, wasip2, wasip3, emscripten: libsodium. */
+template <>
+struct default_backend_of<families::box_xsalsa20poly1305> {
+    /** `backends::sodium`. */
+    using type = backends::sodium;
+};
+/** Defined where libsodium is the default of X25519-XChaCha20-Poly1305 box. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_BOX_XCHACHA20POLY1305_SODIUM 1
+/**
+ * The default of X25519-XChaCha20-Poly1305 box on native, wasip2, wasip3, emscripten: libsodium.
+ */
+template <>
+struct default_backend_of<families::box_xchacha20poly1305> {
+    /** `backends::sodium`. */
+    using type = backends::sodium;
+};
+/** Defined where libsodium is the default of X25519-XSalsa20-Poly1305 sealed box. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_SEALED_BOX_SODIUM 1
+/**
+ * The default of X25519-XSalsa20-Poly1305 sealed box on native, wasip2, wasip3, emscripten:
+ * libsodium.
+ */
+template <>
+struct default_backend_of<families::sealed_box> {
+    /** `backends::sodium`. */
+    using type = backends::sodium;
+};
 // clang-format on
 
 /**

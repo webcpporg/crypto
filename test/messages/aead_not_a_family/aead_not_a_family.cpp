@@ -8,7 +8,7 @@
 // takes, and with that error alone.
 
 // clang-format off
-// expected-error@webcpp/crypto/ciphers/aead.hpp:* {{webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original or families::xchacha20_poly1305.}}
+// expected-error@webcpp/crypto/ciphers/aead.hpp:* {{webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original, families::xchacha20_poly1305, families::secretbox_xsalsa20poly1305 or families::secretbox_xchacha20poly1305.}}
 // clang-format on
 #include <webcpp/crypto/ciphers/aead.hpp>
 

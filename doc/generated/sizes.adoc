@@ -130,4 +130,44 @@
 |not measured yet
 |not measured yet
 |not measured yet
+
+|`+ciphers::secretbox+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|`+ciphers::secretbox_xchacha20poly1305+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|`+hybrid::box+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|`+hybrid::box_xchacha20poly1305+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|`+hybrid::sealed_box+`
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
 |===

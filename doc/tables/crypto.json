@@ -77,7 +77,13 @@
         "tor-cert-spec": ["Tor's specifications, Ed25519 certificates", "https://spec.torproject.org/cert-spec.html"],
         "solana-accounts": ["Solana's documentation, accounts and their Ed25519 keys", "https://solana.com/docs/core/accounts"],
         "rfc8439": ["RFC 8439, ChaCha20 and Poly1305 for IETF Protocols", "https://www.rfc-editor.org/rfc/rfc8439"],
-        "libsodium-aead": ["libsodium's ChaCha20-Poly1305 constructions", "https://doc.libsodium.org/secret-key_cryptography/aead/chacha20-poly1305"]
+        "libsodium-aead": ["libsodium's ChaCha20-Poly1305 constructions", "https://doc.libsodium.org/secret-key_cryptography/aead/chacha20-poly1305"],
+        "nacl-box": ["NaCl, public-key authenticated encryption (crypto_box)", "https://nacl.cr.yp.to/box.html"],
+        "nacl-secretbox": ["NaCl, secret-key authenticated encryption (crypto_secretbox)", "https://nacl.cr.yp.to/secretbox.html"],
+        "xsalsa20": ["D. J. Bernstein, Extending the Salsa20 nonce, 2008", "https://cr.yp.to/snuffle/xsalsa-20081128.pdf"],
+        "libsodium-secretbox": ["libsodium's documentation, secret-key authenticated encryption", "https://doc.libsodium.org/secret-key_cryptography/secretbox"],
+        "libsodium-box": ["libsodium's documentation, public-key authenticated encryption", "https://doc.libsodium.org/public-key_cryptography/authenticated_encryption"],
+        "libsodium-sealed": ["libsodium's documentation, sealed boxes", "https://doc.libsodium.org/public-key_cryptography/sealed_boxes"]
     },
     "backends": {
         "bearssl": {
@@ -402,6 +408,66 @@
             "section": "crypto-chacha",
             "default": "`xchacha20_poly1305<>` names the default backend.",
             "backends": {"sodium": {"tests": ["xchacha_sodium", "chacha_wycheproof_sodium", "allocation_sodium"]}}
+        },
+        {
+            "id": "secretbox",
+            "family": "secretbox_xsalsa20poly1305",
+            "functions": ["make", "seal", "open"],
+            "namespace": "ciphers",
+            "api": "ciphers::secretbox",
+            "header": "<webcpp/crypto/ciphers/secretbox.hpp>, <webcpp/crypto/ciphers/aead.hpp>",
+            "what": "NaCl's and libsodium's `crypto_secretbox`, XSalsa20-Poly1305: authenticated encryption in place under a 32-byte key, with a 24-byte nonce safe to draw at random and no additional data.",
+            "section": "crypto-secretbox",
+            "default": "`secretbox<>` names the default backend.",
+            "backends": {"sodium": {"tests": ["secretbox_sodium", "box_sodium", "allocation_sodium"]}}
+        },
+        {
+            "id": "secretbox_xchacha20poly1305",
+            "family": "secretbox_xchacha20poly1305",
+            "functions": ["make", "seal", "open"],
+            "namespace": "ciphers",
+            "api": "ciphers::secretbox_xchacha20poly1305",
+            "header": "<webcpp/crypto/ciphers/secretbox.hpp>, <webcpp/crypto/ciphers/aead.hpp>",
+            "what": "libsodium's `crypto_secretbox_xchacha20poly1305`: the secret box with XChaCha20 in place of XSalsa20.",
+            "section": "crypto-secretbox",
+            "default": "`secretbox_xchacha20poly1305<>` names the default backend.",
+            "backends": {"sodium": {"tests": ["secretbox_sodium", "box_sodium", "allocation_sodium"]}}
+        },
+        {
+            "id": "box",
+            "family": "box_xsalsa20poly1305",
+            "functions": ["make", "seal", "open"],
+            "namespace": "hybrid",
+            "api": "hybrid::box",
+            "header": "<webcpp/crypto/hybrid/box.hpp>",
+            "what": "NaCl's and libsodium's `crypto_box`: X25519 agrees a key once per pair of keys, refusing a peer key of small order, then XSalsa20-Poly1305 seals and opens each message in place, with a 24-byte nonce safe to draw at random.",
+            "section": "crypto-box",
+            "default": "`box` names the default backend.",
+            "backends": {"sodium": {"tests": ["box_sodium", "allocation_sodium"]}}
+        },
+        {
+            "id": "box_xchacha20poly1305",
+            "family": "box_xchacha20poly1305",
+            "functions": ["make", "seal", "open"],
+            "namespace": "hybrid",
+            "api": "hybrid::box_xchacha20poly1305",
+            "header": "<webcpp/crypto/hybrid/box.hpp>",
+            "what": "libsodium's `crypto_box_curve25519xchacha20poly1305`: the box with XChaCha20 in place of XSalsa20.",
+            "section": "crypto-box",
+            "default": "`box_xchacha20poly1305` names the default backend.",
+            "backends": {"sodium": {"tests": ["box_sodium", "allocation_sodium"]}}
+        },
+        {
+            "id": "sealed_box",
+            "family": "sealed_box",
+            "functions": ["seal", "open"],
+            "namespace": "hybrid",
+            "api": "hybrid::sealed_box",
+            "header": "<webcpp/crypto/hybrid/sealed_box.hpp>",
+            "what": "libsodium's sealed boxes, `crypto_box_seal`: anonymous encryption to a public key under a key pair drawn per message, 48 bytes longer than the message, which only the recipient's key pair opens.",
+            "section": "crypto-sealed-box",
+            "default": "`sealed_box` names the default backend.",
+            "backends": {"sodium": {"tests": ["box_sodium", "allocation_sodium"]}}
         }
     ],
     "families": [
@@ -548,6 +614,86 @@
             "backends": {
                 "sodium": {"targets": "all"}
             }
+        },
+        {
+            "name": "secretbox_xsalsa20poly1305",
+            "title": "XSalsa20-Poly1305 secret box",
+            "group": "ciphers",
+            "since": "0.2",
+            "header": "<webcpp/crypto/ciphers/secretbox.hpp>",
+            "names": [
+                {"name": "secretbox_xsalsa20poly1305", "title": "XSalsa20-Poly1305 secret box", "type": "ciphers::secretbox<{backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["secretbox_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, NaCl's `crypto_secretbox`, the same on every target ({libsodium-secretbox})"}
+            ],
+            "backends": {
+                "sodium": {"targets": "all"}
+            }
+        },
+        {
+            "name": "secretbox_xchacha20poly1305",
+            "title": "XChaCha20-Poly1305 secret box",
+            "group": "ciphers",
+            "since": "0.2",
+            "header": "<webcpp/crypto/ciphers/secretbox.hpp>",
+            "names": [
+                {"name": "secretbox_xchacha20poly1305", "title": "XChaCha20-Poly1305 secret box", "type": "ciphers::secretbox_xchacha20poly1305<{backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["secretbox_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, the same on every target ({libsodium-secretbox})"}
+            ],
+            "backends": {
+                "sodium": {"targets": "all"}
+            }
+        },
+        {
+            "name": "box_xsalsa20poly1305",
+            "title": "X25519-XSalsa20-Poly1305 box",
+            "group": "hybrid",
+            "since": "0.2",
+            "header": "<webcpp/crypto/hybrid/box.hpp>",
+            "names": [
+                {"name": "box_xsalsa20poly1305", "title": "X25519-XSalsa20-Poly1305 box", "type": "hybrid::basic_box<families::box_xsalsa20poly1305, {backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["box_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, NaCl's `crypto_box`, the same on every target ({libsodium-box})"}
+            ],
+            "backends": {
+                "sodium": {"targets": "all"}
+            }
+        },
+        {
+            "name": "box_xchacha20poly1305",
+            "title": "X25519-XChaCha20-Poly1305 box",
+            "group": "hybrid",
+            "since": "0.2",
+            "header": "<webcpp/crypto/hybrid/box.hpp>",
+            "names": [
+                {"name": "box_xchacha20poly1305", "title": "X25519-XChaCha20-Poly1305 box", "type": "hybrid::basic_box<families::box_xchacha20poly1305, {backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["box_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, the same on every target ({libsodium-box})"}
+            ],
+            "backends": {
+                "sodium": {"targets": "all"}
+            }
+        },
+        {
+            "name": "sealed_box",
+            "title": "X25519-XSalsa20-Poly1305 sealed box",
+            "group": "hybrid",
+            "since": "0.2",
+            "header": "<webcpp/crypto/hybrid/sealed_box.hpp>",
+            "names": [
+                {"name": "sealed_box", "title": "X25519-XSalsa20-Poly1305 sealed box", "type": "hybrid::basic_sealed_box<{backend}>"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["box_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, which draws the key pair of each message from its own generator, the same on every target ({libsodium-sealed})"}
+            ],
+            "backends": {
+                "sodium": {"targets": "all"}
+            }
         }
     ],
     "rules": [
@@ -602,6 +748,15 @@
                 ["`ed25519`", "Ed25519 signatures, and Ed25519ph over SHA-512 for a message given in pieces; the X25519 secret key of a key pair", "about 128 bits ({rfc8032})", "secret 32 bytes (the seed); public 32 bytes", "64 bytes", "not measured yet", "not measured yet", "{rfc8032}, {fips186-5}", "SSH keys ({rfc8709}), Signal's signatures on its Curve25519 keys ({signal-xeddsa}), Tor's identity keys ({tor-cert-spec}), Solana's accounts ({solana-accounts})", "yes: Ed25519 ({webcrypto})", "SSH, Tor and Solana keys and signatures, and any protocol that names RFC 8032's Ed25519 or Ed25519ph; verification is strict (libsodium's rules), which some lenient verifiers are not. Not Bitcoin, Ethereum or Nostr, whose keys are secp256k1's"],
                 ["`x25519`", "Key agreement (Diffie-Hellman on Curve25519): two parties who exchanged public keys share a 32-byte secret", "about 128 bits ({rfc7748})", "secret 32 bytes; public 32 bytes", "none: no signatures", "not measured yet", "not measured yet", "{rfc7748}", "TLS 1.3 ({rfc8446-groups}), SSH ({rfc8731}), WireGuard ({wireguard}), Signal ({x3dh})", "yes: X25519 ({webcrypto})", "TLS 1.3's and SSH's key exchange, WireGuard, Signal; libsodium's `crypto_box` and `crypto_kx` keys. The Ed25519 public key of a peer converts with `curves::ed25519::to_x25519_public`. A shared secret goes through a KDF before it keys a cipher. Every case of Wycheproof's X25519 file is tested ({wycheproof})"]
             ]
+        },
+        "hybrid": {
+            "title": "webcpp::crypto::hybrid",
+            "columns": ["Construction", "What it does", "Keys", "Nonce (IV)", "Overhead per message", "Standards and sources", "Choose it when"],
+            "rows": [
+                ["`box`: X25519-XSalsa20-Poly1305", "Authenticated encryption between two key pairs: X25519 agrees a key once per pair, then XSalsa20-Poly1305 seals each message; either party can have written it", "the own 32-byte secret key and the peer's 32-byte X25519 public key", "24 bytes, safe to draw at random ({xsalsa20})", "a 16-byte tag", "{nacl-box}, {libsodium-box}", "two parties who know each other's public keys exchange messages, in NaCl's and libsodium's format; a peer key of small order is refused"],
+                ["`box_xchacha20poly1305`: X25519-XChaCha20-Poly1305", "The same, with XChaCha20-Poly1305 sealing each message", "the same", "24 bytes, safe to draw at random", "a 16-byte tag", "{libsodium-box}", "the peer uses libsodium's `crypto_box_curve25519xchacha20poly1305`; otherwise `box`, NaCl's format"],
+                ["`sealed_box`: X25519-XSalsa20-Poly1305, anonymous", "Encryption to a public key alone: a key pair drawn per message, whose public key travels with it; the recipient cannot tell who sealed it, and the sender cannot open it afterwards", "to seal, the recipient's 32-byte public key; to open, the recipient's key pair", "none: derived from the two public keys", "48 bytes: the ephemeral public key and the tag", "{libsodium-sealed}", "anyone may write to a recipient who must not learn who wrote: anonymous feedback, a drop box; it proves nothing about the sender"]
+            ]
         }
     },
     "use_cases": [
@@ -624,6 +779,9 @@
         {"need": "Hash, or compute an HMAC", "namespace": "Boost.Hash2, not this library", "api": "`boost::hash2::sha2_256`, `hmac_sha2_256`", "backend": "none", "jamfile": "`/webcpp/crypto//crypto` brings Boost's headers", "example": "equal_hmac", "section": "crypto-overview-hash2"},
         {"need": "Sign and verify with Ed25519 (RFC 8032), or sign a large message in pieces with Ed25519ph", "namespace": "webcpp::crypto::curves::ed25519", "api": "`keypair::make`, `keypair::generate`, `keypair::sign`, `verify`; `ph<webcpp::hash::sha2_512>`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default", "example": "ed25519_sign", "section": "crypto-ed25519"},
         {"need": "Agree a shared secret with a peer's public key (X25519, RFC 7748), or with the X25519 form of an Ed25519 key", "namespace": "webcpp::crypto::curves::x25519", "api": "`public_key`, `agree`; `curves::ed25519::to_x25519_public`, `curves::ed25519::keypair::x25519_secret`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//x25519-default", "example": "x25519_agree", "section": "crypto-x25519"},
+        {"need": "Encrypt a record or a file under one secret key, each with a random nonce, in libsodium's secret-box format", "namespace": "webcpp::crypto::ciphers", "api": "`secretbox<>`, `secretbox_xchacha20poly1305<>`: `make`, `seal`, `open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default", "example": "", "section": "crypto-secretbox"},
+        {"need": "Send messages between two people who know each other's public keys, as NaCl's and libsodium's crypto_box", "namespace": "webcpp::crypto::hybrid", "api": "`box::make`, `box::seal`, `box::open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//box_xsalsa20poly1305-default", "example": "", "section": "crypto-box"},
+        {"need": "Let anyone send a message that only the recipient can read, without saying who sent it (anonymous feedback, a drop box)", "namespace": "webcpp::crypto::hybrid", "api": "`sealed_box::seal`, `sealed_box::open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//sealed_box-default", "example": "", "section": "crypto-sealed-box"},
         {"need": "Use P-256 (passkeys, JWT's ES256)", "namespace": "none in this version", "api": "secp256k1, Ed25519 and X25519 keys and signatures do not interoperate with this curve", "backend": "none", "jamfile": "none", "example": "", "section": "crypto-curves"}
     ],
     "fixtures": {
@@ -640,6 +798,11 @@
         "chacha20_poly1305_default": "RFC 8439's ChaCha20-Poly1305 example, sealed and opened on its default on every target, with the one line `/webcpp/crypto//chacha20_poly1305-default`, which links libsodium.",
         "chacha20_poly1305_original_default": "libsodium's case of the original ChaCha20-Poly1305, sealed and opened on its default on every target, with the one line `/webcpp/crypto//chacha20_poly1305_original-default`, which links libsodium.",
         "xchacha20_poly1305_default": "The XChaCha20-Poly1305 draft's example, sealed and opened on its default on every target, with the one line `/webcpp/crypto//xchacha20_poly1305-default`, which links libsodium.",
+        "secretbox_xsalsa20poly1305_default": "NaCl's secret box, sealed and opened on its default on every target, with the one line `/webcpp/crypto//secretbox_xsalsa20poly1305-default`, which links libsodium.",
+        "secretbox_xchacha20poly1305_default": "A case of libsodium's XChaCha20 secret boxes, sealed and opened on its default on every target, with the one line `/webcpp/crypto//secretbox_xchacha20poly1305-default`, which links libsodium.",
+        "box_xsalsa20poly1305_default": "NaCl's box from Alice to Bob, sealed and opened by Bob on its default on every target, with the one line `/webcpp/crypto//box_xsalsa20poly1305-default`, which links libsodium.",
+        "box_xchacha20poly1305_default": "Alice and Bob's keys in the XChaCha20 box, sealed by Alice and opened by Bob on its default on every target, with the one line `/webcpp/crypto//box_xchacha20poly1305-default`, which links libsodium.",
+        "sealed_box_default": "A message sealed to Bob's public key and opened with his key pair on the default on every target, with the one line `/webcpp/crypto//sealed_box-default`, which links libsodium.",
         "sign": "A BIP 340 signature with libsecp256k1's default tables.",
         "sign_small": "The same program with libsecp256k1's small tables, which libsecp256k1 documents as smaller and slower to verify ({secp256k1-configure}); not measured here yet.",
         "canary_missing": "BearSSL's headers used without its library, built by other means than b2.",
@@ -679,8 +842,9 @@
         "ctaes_not_linked": "Add `/third_party//ctaes`.",
         "sodium_not_linked": "Add `/third_party//sodium`.",
         "chacha_default_not_linked": "The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add the family's alias, as `/webcpp/crypto//chacha20_poly1305-default`, which links `/third_party//sodium`.",
+        "box_default_not_linked": "The secret boxes', the boxes' and the sealed boxes' default is libsodium on every target: add the family's alias, as `/webcpp/crypto//box_xsalsa20poly1305-default`, which links `/third_party//sodium`.",
         "chacha_on_ctaes": "Name a backend that has ChaCha20-Poly1305, as in `chacha20_poly1305<backends::bearssl>`, or its default, `chacha20_poly1305<>`, and link its library.",
-        "aead_not_a_family": "Name one of the three ChaCha20-Poly1305 families; AES-GCM is `ciphers::gcm`, as in `aes256_gcm`.",
+        "aead_not_a_family": "Name one of the three ChaCha20-Poly1305 families or the two secret boxes'; AES-GCM is `ciphers::gcm`, as in `aes256_gcm`.",
         "sodium_not_linked_on_emscripten": "Add `/third_party//sodium` to the program's sources.",
         "canary_sodium_other_commit": "Build the library at the commit of webcpp's submodule, or link it through b2.",
         "secp256k1_not_linked": "Add `/third_party//secp256k1`.",

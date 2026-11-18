@@ -15,9 +15,9 @@ At compile time, checked word for word by the message tests of `test/messages` w
 
 |`+aead_not_a_family+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original or families::xchacha20_poly1305.+`
+|`+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original, families::xchacha20_poly1305, families::secretbox_xsalsa20poly1305 or families::secretbox_xchacha20poly1305.+`
 
-The fix: Name one of the three ChaCha20-Poly1305 families; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`.
+The fix: Name one of the three ChaCha20-Poly1305 families or the two secret boxes'; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`.
 
 |`+aes_on_bearssl+`
 |native, wasip2
@@ -30,6 +30,12 @@ The fix: Name `+ciphers::aes256<backends::ctaes>+`, include `+<webcpp/crypto/bac
 |`+webcpp::crypto: the backend BearSSL is used and not linked. In the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
 
 The fix: Add `+/third_party//bearssl+`.
+
+|`+box_default_not_linked+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//sealed_box-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//sealed_box-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+The fix: The secret boxes', the boxes' and the sealed boxes' default is libsodium on every target: add the family's alias, as `+/webcpp/crypto//box_xsalsa20poly1305-default+`, which links `+/third_party//sodium+`.
 
 |`+chacha_default_not_linked+`
 |native, wasip2, wasip3
@@ -166,7 +172,7 @@ include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/aead_not_a_family_on_
 On each target, the build's output contains:
 +
 * emscripten:
-** `+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original or families::xchacha20_poly1305.+`
+** `+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original, families::xchacha20_poly1305, families::secretbox_xsalsa20poly1305 or families::secretbox_xchacha20poly1305.+`
 
 `+canary_ctaes_missing+`:: ctaes's headers used without its library. The fix: Link `+/third_party//ctaes+`.
 +
@@ -602,7 +608,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+aead_not_a_family+`
 |the compile
-|Name one of the three ChaCha20-Poly1305 families; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`.
+|Name one of the three ChaCha20-Poly1305 families or the two secret boxes'; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`.
 
 |`+aes_on_bearssl+`
 |the compile

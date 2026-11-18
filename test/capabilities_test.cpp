@@ -16,9 +16,12 @@
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
+#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
+#include <webcpp/crypto/hybrid/box.hpp>
+#include <webcpp/crypto/hybrid/sealed_box.hpp>
 #include <webcpp/crypto/supports.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -104,6 +107,36 @@ struct refuses_chacha20_poly1305_original {
 template <class Backend>
 struct refuses_xchacha20_poly1305 {
     WEBCPP_CRYPTO_DETAIL_REFUSE_XCHACHA20_POLY1305(Backend);
+};
+
+/** The refusals of XSalsa20-Poly1305 secret box, parsed: nothing instantiates it. */
+template <class Backend>
+struct refuses_secretbox_xsalsa20poly1305 {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XSALSA20POLY1305(Backend);
+};
+
+/** The refusals of XChaCha20-Poly1305 secret box, parsed: nothing instantiates it. */
+template <class Backend>
+struct refuses_secretbox_xchacha20poly1305 {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XCHACHA20POLY1305(Backend);
+};
+
+/** The refusals of X25519-XSalsa20-Poly1305 box, parsed: nothing instantiates it. */
+template <class Backend>
+struct refuses_box_xsalsa20poly1305 {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_BOX_XSALSA20POLY1305(Backend);
+};
+
+/** The refusals of X25519-XChaCha20-Poly1305 box, parsed: nothing instantiates it. */
+template <class Backend>
+struct refuses_box_xchacha20poly1305 {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_BOX_XCHACHA20POLY1305(Backend);
+};
+
+/** The refusals of X25519-XSalsa20-Poly1305 sealed box, parsed: nothing instantiates it. */
+template <class Backend>
+struct refuses_sealed_box {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_SEALED_BOX(Backend);
 };
 
 }  // namespace
@@ -298,6 +331,76 @@ static_assert(crypto::supports_v<algorithm<families::xchacha20_poly1305, familie
 #else
 static_assert(!crypto::supports_v<algorithm<families::xchacha20_poly1305, families::xchacha20_poly1305>, backends::sodium>);
 #endif
+// XSalsa20-Poly1305 secret box on bearssl: none.
+static_assert(!crypto::supports_v<algorithm<families::secretbox_xsalsa20poly1305, families::secretbox_xsalsa20poly1305>, backends::bearssl>);
+// XSalsa20-Poly1305 secret box on openssl: none.
+static_assert(!crypto::supports_v<algorithm<families::secretbox_xsalsa20poly1305, families::secretbox_xsalsa20poly1305>, backends::openssl>);
+// XSalsa20-Poly1305 secret box on ctaes: none.
+static_assert(!crypto::supports_v<algorithm<families::secretbox_xsalsa20poly1305, families::secretbox_xsalsa20poly1305>, backends::ctaes>);
+// XSalsa20-Poly1305 secret box on secp256k1: none.
+static_assert(!crypto::supports_v<algorithm<families::secretbox_xsalsa20poly1305, families::secretbox_xsalsa20poly1305>, backends::secp256k1>);
+// XSalsa20-Poly1305 secret box on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::secretbox_xsalsa20poly1305, families::secretbox_xsalsa20poly1305>, backends::sodium>);
+#else
+static_assert(!crypto::supports_v<algorithm<families::secretbox_xsalsa20poly1305, families::secretbox_xsalsa20poly1305>, backends::sodium>);
+#endif
+// XChaCha20-Poly1305 secret box on bearssl: none.
+static_assert(!crypto::supports_v<algorithm<families::secretbox_xchacha20poly1305, families::secretbox_xchacha20poly1305>, backends::bearssl>);
+// XChaCha20-Poly1305 secret box on openssl: none.
+static_assert(!crypto::supports_v<algorithm<families::secretbox_xchacha20poly1305, families::secretbox_xchacha20poly1305>, backends::openssl>);
+// XChaCha20-Poly1305 secret box on ctaes: none.
+static_assert(!crypto::supports_v<algorithm<families::secretbox_xchacha20poly1305, families::secretbox_xchacha20poly1305>, backends::ctaes>);
+// XChaCha20-Poly1305 secret box on secp256k1: none.
+static_assert(!crypto::supports_v<algorithm<families::secretbox_xchacha20poly1305, families::secretbox_xchacha20poly1305>, backends::secp256k1>);
+// XChaCha20-Poly1305 secret box on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::secretbox_xchacha20poly1305, families::secretbox_xchacha20poly1305>, backends::sodium>);
+#else
+static_assert(!crypto::supports_v<algorithm<families::secretbox_xchacha20poly1305, families::secretbox_xchacha20poly1305>, backends::sodium>);
+#endif
+// X25519-XSalsa20-Poly1305 box on bearssl: none.
+static_assert(!crypto::supports_v<algorithm<families::box_xsalsa20poly1305, families::box_xsalsa20poly1305>, backends::bearssl>);
+// X25519-XSalsa20-Poly1305 box on openssl: none.
+static_assert(!crypto::supports_v<algorithm<families::box_xsalsa20poly1305, families::box_xsalsa20poly1305>, backends::openssl>);
+// X25519-XSalsa20-Poly1305 box on ctaes: none.
+static_assert(!crypto::supports_v<algorithm<families::box_xsalsa20poly1305, families::box_xsalsa20poly1305>, backends::ctaes>);
+// X25519-XSalsa20-Poly1305 box on secp256k1: none.
+static_assert(!crypto::supports_v<algorithm<families::box_xsalsa20poly1305, families::box_xsalsa20poly1305>, backends::secp256k1>);
+// X25519-XSalsa20-Poly1305 box on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::box_xsalsa20poly1305, families::box_xsalsa20poly1305>, backends::sodium>);
+#else
+static_assert(!crypto::supports_v<algorithm<families::box_xsalsa20poly1305, families::box_xsalsa20poly1305>, backends::sodium>);
+#endif
+// X25519-XChaCha20-Poly1305 box on bearssl: none.
+static_assert(!crypto::supports_v<algorithm<families::box_xchacha20poly1305, families::box_xchacha20poly1305>, backends::bearssl>);
+// X25519-XChaCha20-Poly1305 box on openssl: none.
+static_assert(!crypto::supports_v<algorithm<families::box_xchacha20poly1305, families::box_xchacha20poly1305>, backends::openssl>);
+// X25519-XChaCha20-Poly1305 box on ctaes: none.
+static_assert(!crypto::supports_v<algorithm<families::box_xchacha20poly1305, families::box_xchacha20poly1305>, backends::ctaes>);
+// X25519-XChaCha20-Poly1305 box on secp256k1: none.
+static_assert(!crypto::supports_v<algorithm<families::box_xchacha20poly1305, families::box_xchacha20poly1305>, backends::secp256k1>);
+// X25519-XChaCha20-Poly1305 box on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::box_xchacha20poly1305, families::box_xchacha20poly1305>, backends::sodium>);
+#else
+static_assert(!crypto::supports_v<algorithm<families::box_xchacha20poly1305, families::box_xchacha20poly1305>, backends::sodium>);
+#endif
+// X25519-XSalsa20-Poly1305 sealed box on bearssl: none.
+static_assert(!crypto::supports_v<algorithm<families::sealed_box, families::sealed_box>, backends::bearssl>);
+// X25519-XSalsa20-Poly1305 sealed box on openssl: none.
+static_assert(!crypto::supports_v<algorithm<families::sealed_box, families::sealed_box>, backends::openssl>);
+// X25519-XSalsa20-Poly1305 sealed box on ctaes: none.
+static_assert(!crypto::supports_v<algorithm<families::sealed_box, families::sealed_box>, backends::ctaes>);
+// X25519-XSalsa20-Poly1305 sealed box on secp256k1: none.
+static_assert(!crypto::supports_v<algorithm<families::sealed_box, families::sealed_box>, backends::secp256k1>);
+// X25519-XSalsa20-Poly1305 sealed box on sodium: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::sealed_box, families::sealed_box>, backends::sodium>);
+#else
+static_assert(!crypto::supports_v<algorithm<families::sealed_box, families::sealed_box>, backends::sodium>);
+#endif
 // clang-format on
 
 int main() {
@@ -364,6 +467,21 @@ int main() {
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
     BOOST_TEST((webcpp::test::made<crypto::ciphers::xchacha20_poly1305<backends::sodium>, families::xchacha20_poly1305, families::xchacha20_poly1305, backends::sodium>()));
+#endif
+#if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
+    BOOST_TEST((webcpp::test::made<crypto::ciphers::secretbox<backends::sodium>, families::secretbox_xsalsa20poly1305, families::secretbox_xsalsa20poly1305, backends::sodium>()));
+#endif
+#if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
+    BOOST_TEST((webcpp::test::made<crypto::ciphers::secretbox_xchacha20poly1305<backends::sodium>, families::secretbox_xchacha20poly1305, families::secretbox_xchacha20poly1305, backends::sodium>()));
+#endif
+#if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
+    BOOST_TEST((webcpp::test::made<crypto::hybrid::basic_box<families::box_xsalsa20poly1305, backends::sodium>, families::box_xsalsa20poly1305, families::box_xsalsa20poly1305, backends::sodium>()));
+#endif
+#if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
+    BOOST_TEST((webcpp::test::made<crypto::hybrid::basic_box<families::box_xchacha20poly1305, backends::sodium>, families::box_xchacha20poly1305, families::box_xchacha20poly1305, backends::sodium>()));
+#endif
+#if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
+    BOOST_TEST((webcpp::test::made<crypto::hybrid::basic_sealed_box<backends::sodium>, families::sealed_box, families::sealed_box, backends::sodium>()));
 #endif
     // clang-format on
     return webcpp::test::exit_status(boost::report_errors());

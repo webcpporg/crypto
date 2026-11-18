@@ -39,6 +39,38 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_named/both_bearssl_named.outcome[tag=output]
 ----
 
+`+box_xchacha20poly1305_default+`:: Alice and Bob's keys in the XChaCha20 box, sealed by Alice and opened by Bob on its default on every target, with the one line `+/webcpp/crypto//box_xchacha20poly1305-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/box_xchacha20poly1305_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/box_xchacha20poly1305_default/box_xchacha20poly1305_default.outcome[tag=output]
+----
+
+`+box_xsalsa20poly1305_default+`:: NaCl's box from Alice to Bob, sealed and opened by Bob on its default on every target, with the one line `+/webcpp/crypto//box_xsalsa20poly1305-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/box_xsalsa20poly1305_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/box_xsalsa20poly1305_default/box_xsalsa20poly1305_default.outcome[tag=output]
+----
+
 `+chacha20_poly1305_default+`:: RFC 8439's ChaCha20-Poly1305 example, sealed and opened on its default on every target, with the one line `+/webcpp/crypto//chacha20_poly1305-default+`, which links libsodium.
 +
 Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
@@ -151,6 +183,22 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_linked/openssl_linked.outcome[tag=output]
 ----
 
+`+sealed_box_default+`:: A message sealed to Bob's public key and opened with his key pair on the default on every target, with the one line `+/webcpp/crypto//sealed_box-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sealed_box_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sealed_box_default/sealed_box_default.outcome[tag=output]
+----
+
 `+secp256k1_default+`:: BIP 340's first test vector, signed and verified on secp256k1's default on every target, with the one line `+/webcpp/crypto//secp256k1-default+`, which links libsecp256k1.
 +
 Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
@@ -165,6 +213,38 @@ It prints:
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_default/secp256k1_default.outcome[tag=output]
+----
+
+`+secretbox_xchacha20poly1305_default+`:: A case of libsodium's XChaCha20 secret boxes, sealed and opened on its default on every target, with the one line `+/webcpp/crypto//secretbox_xchacha20poly1305-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secretbox_xchacha20poly1305_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secretbox_xchacha20poly1305_default/secretbox_xchacha20poly1305_default.outcome[tag=output]
+----
+
+`+secretbox_xsalsa20poly1305_default+`:: NaCl's secret box, sealed and opened on its default on every target, with the one line `+/webcpp/crypto//secretbox_xsalsa20poly1305-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secretbox_xsalsa20poly1305_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secretbox_xsalsa20poly1305_default/secretbox_xsalsa20poly1305_default.outcome[tag=output]
 ----
 
 `+server+`:: A server, natively: the same program with OpenSSL, the default natively.

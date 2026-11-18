@@ -133,4 +133,59 @@ rule xchacha20_poly1305-default-linked ( properties * )
     }
 }
 alias xchacha20_poly1305-default : : : : <conditional>@xchacha20_poly1305-default-linked ;
+rule secretbox_xsalsa20poly1305-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/third_party//sodium ;
+        case wasip2 : return <library>/third_party//sodium ;
+        case wasip3 : return <library>/third_party//sodium ;
+        case emscripten : return <library>/third_party//sodium ;
+    }
+}
+alias secretbox_xsalsa20poly1305-default : : : : <conditional>@secretbox_xsalsa20poly1305-default-linked ;
+rule secretbox_xchacha20poly1305-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/third_party//sodium ;
+        case wasip2 : return <library>/third_party//sodium ;
+        case wasip3 : return <library>/third_party//sodium ;
+        case emscripten : return <library>/third_party//sodium ;
+    }
+}
+alias secretbox_xchacha20poly1305-default : : : : <conditional>@secretbox_xchacha20poly1305-default-linked ;
+rule box_xsalsa20poly1305-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/third_party//sodium ;
+        case wasip2 : return <library>/third_party//sodium ;
+        case wasip3 : return <library>/third_party//sodium ;
+        case emscripten : return <library>/third_party//sodium ;
+    }
+}
+alias box_xsalsa20poly1305-default : : : : <conditional>@box_xsalsa20poly1305-default-linked ;
+rule box_xchacha20poly1305-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/third_party//sodium ;
+        case wasip2 : return <library>/third_party//sodium ;
+        case wasip3 : return <library>/third_party//sodium ;
+        case emscripten : return <library>/third_party//sodium ;
+    }
+}
+alias box_xchacha20poly1305-default : : : : <conditional>@box_xchacha20poly1305-default-linked ;
+rule sealed_box-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/third_party//sodium ;
+        case wasip2 : return <library>/third_party//sodium ;
+        case wasip3 : return <library>/third_party//sodium ;
+        case emscripten : return <library>/third_party//sodium ;
+    }
+}
+alias sealed_box-default : : : : <conditional>@sealed_box-default-linked ;
 # generate.py: end the defaults' aliases

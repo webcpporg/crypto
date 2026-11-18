@@ -33,7 +33,8 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/detail/engines.hpp crypto/detail/entropy.hpp crypto/detail/limits.hpp
   crypto/detail/windows.hpp crypto/detail/wipe.hpp crypto/secret.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
-  crypto/detail/heavy.hpp crypto/ciphers/aead.hpp crypto/ciphers/chacha20_poly1305.hpp ;
+  crypto/detail/heavy.hpp crypto/ciphers/aead.hpp crypto/ciphers/chacha20_poly1305.hpp
+  crypto/ciphers/secretbox.hpp ;
 
 # The backend BearSSL's header and the default backend's, with BearSSL linked,
 # on every target.
@@ -52,10 +53,11 @@ webcpp.headers-alone crypto : ../include : crypto/backends/openssl.hpp
 # The backend ctaes's header alone, with ctaes linked, on every target.
 webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp
   : <library>/third_party//ctaes ;
-# The backend libsodium's header alone, and Ed25519's and X25519's with it,
-# with libsodium linked, on every target.
+# The backend libsodium's header alone, and Ed25519's, X25519's, the boxes' and
+# the sealed boxes' with it, with libsodium linked, on every target.
 webcpp.headers-alone crypto : ../include
   : crypto/backends/sodium.hpp crypto/curves/ed25519.hpp crypto/curves/x25519.hpp
+    crypto/hybrid/box.hpp crypto/hybrid/sealed_box.hpp
   : <library>/third_party//sodium ;
 # libsecp256k1's headers compile alone only with its library, which defines
 # WEBCPP_CRYPTO_HAS_SECP256K1 (without it, each stops with its message).
@@ -334,6 +336,14 @@ crypto-run chacha_wycheproof_sodium : chacha_wycheproof_sodium_test.cpp
     <library>/webcpp//boost_json ;
 crypto-run allocation_sodium : allocation_sodium_test.cpp : <library>/third_party//sodium ;
 
+# libsodium's boxes, its default on every target: crypto_secretbox and its XChaCha20 twin,
+# libsodium's cases and every check of support/aead_checks.hpp that applies to a family
+# without additional data; hybrid::box and its XChaCha20 twin, NaCl's case both ways, the same
+# checks through an adapter, make's guards and a peer key of small order; and sealed boxes,
+# opened by their recipient alone and refused, the output zeroed, otherwise.
+crypto-run secretbox_sodium : secretbox_sodium_test.cpp : <library>/third_party//sodium ;
+crypto-run box_sodium : box_sodium_test.cpp : <library>/third_party//sodium ;
+
 # ChaCha20-Poly1305 on BearSSL, on every target, and on OpenSSL, on native,
 # wasip2 and wasip3: every check of support/aead_checks.hpp against RFC 8439's
 # cases, natively the message's limit too, and Wycheproof's vectors.
@@ -453,6 +463,21 @@ webcpp.compile doc_chacha20_poly1305_original_default_app
 webcpp.compile doc_xchacha20_poly1305_default_app
   : ../../../tools/test/fixtures/crypto_jamfiles/xchacha20_poly1305_default/app.cpp
   : <library>/webcpp/crypto//xchacha20_poly1305-default ;
+webcpp.compile doc_secretbox_xsalsa20poly1305_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/secretbox_xsalsa20poly1305_default/app.cpp
+  : <library>/webcpp/crypto//secretbox_xsalsa20poly1305-default ;
+webcpp.compile doc_secretbox_xchacha20poly1305_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/secretbox_xchacha20poly1305_default/app.cpp
+  : <library>/webcpp/crypto//secretbox_xchacha20poly1305-default ;
+webcpp.compile doc_box_xsalsa20poly1305_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/box_xsalsa20poly1305_default/app.cpp
+  : <library>/webcpp/crypto//box_xsalsa20poly1305-default ;
+webcpp.compile doc_box_xchacha20poly1305_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/box_xchacha20poly1305_default/app.cpp
+  : <library>/webcpp/crypto//box_xchacha20poly1305-default ;
+webcpp.compile doc_sealed_box_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/sealed_box_default/app.cpp
+  : <library>/webcpp/crypto//sealed_box-default ;
 webcpp.compile doc_openssl_linked
   : ../../../tools/test/fixtures/crypto_jamfiles/openssl_linked/app.cpp
   : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;

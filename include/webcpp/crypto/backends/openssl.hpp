@@ -230,7 +230,7 @@ namespace webcpp::crypto::detail {
  *
  * @return Nothing, or `memory_functions_not_installed`.
  */
-inline boost::system::result<void> openssl_memory_guard() noexcept {
+[[nodiscard]] inline boost::system::result<void> openssl_memory_guard() noexcept {
 #ifdef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
     if (!openssl_adapter_installed()) {
         return error::memory_functions_not_installed;
@@ -258,7 +258,7 @@ struct openssl {
      * `memory_functions_refused` when another party installed its own functions, or OpenSSL
      * has allocated with its own and refuses the change.
      */
-    static boost::system::result<void> install_memory_functions() noexcept {
+    [[nodiscard]] static boost::system::result<void> install_memory_functions() noexcept {
         if (detail::openssl_adapter_installed()) {
             return {};
         }

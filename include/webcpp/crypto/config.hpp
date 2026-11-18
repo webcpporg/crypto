@@ -172,6 +172,12 @@
     !defined(WEBCPP_TARGET_WASIP3) &&                                           \
     ((defined(WEBCPP_TARGET_EMSCRIPTEN) && defined(__EMSCRIPTEN_PTHREADS__)) || \
      (!defined(WEBCPP_TARGET_EMSCRIPTEN) && defined(BOOST_HAS_THREADS)))
+/**
+ Defined in a build with threads, where the heavy operations' `async_` variants exist (design
+ D23): natively unless the program defines `WEBCPP_CRYPTO_NO_THREADS` (Boost.Config's
+ `BOOST_HAS_THREADS`, which b2's `threading=single` leaves defined), on Emscripten with
+ `-pthread`, never on WASI.
+*/
 #define WEBCPP_CRYPTO_HAS_THREADS 1
 #endif
 

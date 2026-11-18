@@ -126,7 +126,10 @@ record each way and every free.
 called it before, `install_memory_functions()` returns
 `memory_functions_refused`; if it calls it after the install, the next `make`
 returns `memory_functions_not_installed`, and only when that call has finished
-before the `make`.
+before the `make`. The damage is done by then: OpenSSL accepts the replacement
+after the install, and from then on frees the blocks it took from the resource
+through the other party's `free`, which corrupts that party's heap; the
+error that `make` then returns does not undo it.
 * *`memory_functions_refused` although the install is the first statement of
 `main`* means that something used OpenSSL before `main`: a static object of
 another library. OpenSSL then keeps its own `malloc` for the rest of the

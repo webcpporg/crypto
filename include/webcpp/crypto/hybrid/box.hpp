@@ -81,7 +81,7 @@ namespace webcpp::crypto::hybrid {
  * at a time, moved and not copied, and wiped when moved from and destroyed. A nonce (the IV) is
  * never repeated for one pair of keys, in either direction: two messages under one pair and
  * one nonce reveal the XOR of their plaintexts and let an attacker forge tags. Its 24 bytes are
- * safe to draw at random from `random_device` for every message.
+ * safe to draw at random for every message.
  *
  * @tparam Family `families::box_xsalsa20poly1305`, NaCl's `crypto_box`, or
  * `families::box_xchacha20poly1305`, libsodium's `crypto_box_curve25519xchacha20poly1305`.

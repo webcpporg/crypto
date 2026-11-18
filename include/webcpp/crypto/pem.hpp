@@ -247,17 +247,22 @@ struct algorithm {
                     return false;
                 }
                 auto const decoded = engine::decode(line, bytes);
+                if (!decoded) {
+                    return false;
+                }
+                // Read unchecked, which never throws: decoded holds a count.
+                std::size_t const count = decoded.unsafe_value();
                 // Padding ends the last line alone: any other line holds 48 bytes, so that, once
                 // encoded again to itself, it is of 64 characters.
-                if (!decoded || (!last && *decoded != detail::pem_line_bytes)) {
+                if (!last && count != detail::pem_line_bytes) {
                     return false;
                 }
                 std::array<char, detail::pem_line_characters> again{};
-                std::size_t const characters = ((*decoded + 2) / 3) * 4;
-                engine::encode(bytes.first(*decoded), std::span(again).first(characters));
+                std::size_t const characters = ((count + 2) / 3) * 4;
+                engine::encode(bytes.first(count), std::span(again).first(characters));
                 bool const same = detail::pem_same_line(line, std::span(again).first(characters));
                 detail::wipe_object(again);
-                size += *decoded;
+                size += count;
                 return same;
             },
             accepted);
@@ -276,7 +281,7 @@ struct algorithm {
                 if (!decoded) {
                     return false;
                 }
-                at = std::ranges::copy(bytes.first(*decoded), at).out;
+                at = std::ranges::copy(bytes.first(decoded.unsafe_value()), at).out;
                 return true;
             },
             accepted);

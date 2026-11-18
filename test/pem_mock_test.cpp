@@ -88,7 +88,7 @@ struct pem_engine<families::pem, test::pem_stand_in> {
         if (++control.calls == control.failing_call) {
             return error::backend_failure;
         }
-        std::string_view const read(text.data(), std::min<std::size_t>(text.size(), 64));
+        std::string_view const read = pem_part(text, 0, 64);
         unsigned bits = 0;
         unsigned held = 0;
         std::size_t written = 0;

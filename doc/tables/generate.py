@@ -740,6 +740,41 @@ def default_aliases(data: Data) -> str:
     return '\n'.join(out) + '\n'
 
 
+def aliases_page(data: Data, cases: Dict[str, Tuple[List[str], Outcome]]) -> str:
+    """The table of the aliases default_aliases writes: per family with a default, its alias
+    /webcpp/crypto//<family>-default, the library it links on each target, and the fixture of the
+    user's Jamfiles that builds and runs it, <family>_default, which must build and run on every
+    target where the family has a default: a public name that no build reaches is a fault."""
+    rows: List[List[str]] = []
+    for family in data['families']:
+        cases_of = [(target, default_on(family, target)) for target in data['targets']]
+        if not any(backend for _, backend in cases_of):
+            continue
+        name = family['name']
+        alias = f'/webcpp/crypto//{name}-default'
+        fixture = f'{name}_default'
+        if fixture not in cases or not cases[fixture][1].succeeds:
+            raise Fault(f'the alias {alias} has no fixture {fixture} that builds it')
+        missing = [target for target, backend in cases_of
+                   if backend and target not in cases[fixture][1].targets]
+        if missing:
+            raise Fault(f'the fixture {fixture} does not run on {", ".join(missing)}, where '
+                        f'{family["title"]} has a default')
+        # The targets of each library, in the order of their first target: one cell that
+        # says "on every target" when one library serves them all.
+        grouped: Dict[str, List[str]] = {}
+        for target, backend in cases_of:
+            if backend:
+                grouped.setdefault(data['backends'][backend]['jamfile'], []).append(target)
+        links = '; '.join(
+            f'{code(jamfile)} on '
+            f'{"every target" if targets == data["targets"] else ", ".join(targets)}'
+            for jamfile, targets in grouped.items())
+        rows.append([code(alias), family['title'], links,
+                     f'<<crypto-jamfile-cases,{code(fixture)}>>'])
+    return table(['Alias', 'Family', 'Links', 'Fixture'], rows, 'cols="3,2,4,3",')
+
+
 def with_aliases(text: str, block: str) -> str:
     """build.jam's text with its block of the defaults' aliases replaced by block."""
     lines = text.splitlines(keepends=True)
@@ -1380,6 +1415,7 @@ def generate(root: Path, library: Path) -> Dict[Path, str]:
     files[generated / 'constant-time.adoc'] = constant_time_page(data)
     files[generated / 'sizes.adoc'] = sizes_page(data)
     files[generated / 'jamfiles.adoc'] = jamfiles_page(data, cases)
+    files[generated / 'default-aliases.adoc'] = aliases_page(data, cases)
     files[generated / 'messages.adoc'] = messages_page(data, refusals, cases,
                                                        msvc_cases(library))
     files[generated / 'use-cases.adoc'] = use_cases_page(data, library)

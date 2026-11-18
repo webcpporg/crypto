@@ -39,6 +39,54 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_named/both_bearssl_named.outcome[tag=output]
 ----
 
+`+chacha20_poly1305_default+`:: RFC 8439's ChaCha20-Poly1305 example, sealed and opened on its default on every target, with the one line `+/webcpp/crypto//chacha20_poly1305-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_default/chacha20_poly1305_default.outcome[tag=output]
+----
+
+`+chacha20_poly1305_original_default+`:: libsodium's case of the original ChaCha20-Poly1305, sealed and opened on its default on every target, with the one line `+/webcpp/crypto//chacha20_poly1305_original-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_original_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_original_default/chacha20_poly1305_original_default.outcome[tag=output]
+----
+
+`+ed25519_default+`:: RFC 8032's first Ed25519 test, signed and verified on Ed25519's default on every target, with the one line `+/webcpp/crypto//ed25519-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/ed25519_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/ed25519_default/ed25519_default.outcome[tag=output]
+----
+
 `+encrypt_and_sign+`:: Two backends in one program on every target: AES-256-GCM on its default, through `+/webcpp/crypto//gcm-default+`, and a BIP 340 signature.
 +
 Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
@@ -101,6 +149,22 @@ It prints:
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_linked/openssl_linked.outcome[tag=output]
+----
+
+`+secp256k1_default+`:: BIP 340's first test vector, signed and verified on secp256k1's default on every target, with the one line `+/webcpp/crypto//secp256k1-default+`, which links libsecp256k1.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_default/secp256k1_default.outcome[tag=output]
 ----
 
 `+server+`:: A server, natively: the same program with OpenSSL, the default natively.
@@ -181,4 +245,36 @@ It prints:
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/web/web.outcome[tag=output]
+----
+
+`+x25519_default+`:: RFC 7748's shared secret on X25519's default on every target, with the one line `+/webcpp/crypto//x25519-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/x25519_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/x25519_default/x25519_default.outcome[tag=output]
+----
+
+`+xchacha20_poly1305_default+`:: The XChaCha20-Poly1305 draft's example, sealed and opened on its default on every target, with the one line `+/webcpp/crypto//xchacha20_poly1305-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/xchacha20_poly1305_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/xchacha20_poly1305_default/xchacha20_poly1305_default.outcome[tag=output]
 ----

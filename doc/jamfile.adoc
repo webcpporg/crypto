@@ -40,8 +40,8 @@ natively OpenSSL, on WebAssembly BearSSL, whatever else the program links
 (<<crypto-backends-defaults>>). A program that wants another backend names it
 in the type, as `ciphers::gcm<ciphers::aes256<backends::bearssl>>`, and links
 it; no define chooses a default. A native program that links BearSSL alone and
-uses `aes256_gcm` stops where it calls it, with the line that links OpenSSL
-and the type that names BearSSL. Version 0.1's
+uses `aes256_gcm` stops where it calls it, with the line that links its
+default, `/webcpp/crypto//gcm-default`, and the type that names BearSSL. Version 0.1's
 `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL` and
 `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL` stop the build with the type to write
 (<<crypto-jamfile-messages>>).
@@ -58,8 +58,11 @@ examples of this page link it so. The whole Jamfile of the fixture
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/gcm_default/Jamfile[tag=jamfile]
 ----
 
-Each family with a default has such a line, `/webcpp/crypto//<family>-default`
-(`secp256k1-default` too), generated with the defaults from the same table.
+Each family with a default has such a line, `/webcpp/crypto//<family>-default`,
+generated with the defaults from the same table; each is built and run on
+every target where its family has a default by the fixture named in its row:
+
+include::generated/default-aliases.adoc[]
 
 The source-built OpenSSL is compiled without assembly (`no-asm`) on MSVC,
 wasip2 and wasip3: its AES is table-based and its GHASH 4-bit, neither constant

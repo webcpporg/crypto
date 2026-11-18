@@ -435,6 +435,24 @@ webcpp.compile doc_encrypt_and_sign
 webcpp.compile doc_gcm_default_app
   : ../../../tools/test/fixtures/crypto_jamfiles/gcm_default/app.cpp
   : <library>/webcpp/crypto//gcm-default ;
+webcpp.compile doc_secp256k1_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/secp256k1_default/app.cpp
+  : <library>/webcpp/crypto//secp256k1-default ;
+webcpp.compile doc_ed25519_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/ed25519_default/app.cpp
+  : <library>/webcpp/crypto//ed25519-default ;
+webcpp.compile doc_x25519_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/x25519_default/app.cpp
+  : <library>/webcpp/crypto//x25519-default ;
+webcpp.compile doc_chacha20_poly1305_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_default/app.cpp
+  : <library>/webcpp/crypto//chacha20_poly1305-default ;
+webcpp.compile doc_chacha20_poly1305_original_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_original_default/app.cpp
+  : <library>/webcpp/crypto//chacha20_poly1305_original-default ;
+webcpp.compile doc_xchacha20_poly1305_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/xchacha20_poly1305_default/app.cpp
+  : <library>/webcpp/crypto//xchacha20_poly1305-default ;
 webcpp.compile doc_openssl_linked
   : ../../../tools/test/fixtures/crypto_jamfiles/openssl_linked/app.cpp
   : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;

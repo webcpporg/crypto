@@ -596,6 +596,42 @@ def test_each_family_s_default_has_an_alias_that_links_it_per_target(_: Path) ->
         raise AssertionError('a build.jam without the block was accepted')
 
 
+def test_each_alias_has_a_row_and_a_fixture_that_runs_it_where_its_family_has_a_default(
+        scratch: Path) -> None:
+    # The page's table of the aliases: per family with a default, its alias, the library it links
+    # on each target and the fixture of the user's Jamfiles that builds and runs it,
+    # <family>_default, which must build and run on every target where the family has a default.
+    def outcome(name: str, text: str) -> generate.Outcome:
+        return generate.Outcome(written(scratch, f'{name}.outcome', text))
+    every = 'targets: native wasip2 wasip3 emscripten\nbuild: succeeds\nrun: app\nok\n'
+    cases = {'ed25519_default': ([], outcome('every', every))}
+    page = generate.aliases_page(two_backends(), cases)
+    assert ('|`+/webcpp/crypto//ed25519-default+`\n|Ed25519\n|`+/third_party//sodium+` on '
+            'native; `+/third_party//bearssl+` on wasip2, wasip3, emscripten\n'
+            '|<<crypto-jamfile-cases,`+ed25519_default+`>>\n') in page, page
+    # One library on every target is said so.
+    one = generate.aliases_page(small_table(), cases)
+    assert '|`+/third_party//sodium+` on every target\n' in one, one
+    # A family without a default has no row.
+    data = small_table()
+    data['families'][0]['default'] = [a_default(EVERY_TARGET, None)]
+    assert '|`+/webcpp' not in generate.aliases_page(data, {}), generate.aliases_page(data, {})
+    # An alias without its fixture, with one that fails, or with one that leaves out a target
+    # where its family has a default, is a fault.
+    for broken, wanted in (
+            ({}, 'has no fixture ed25519_default'),
+            ({'ed25519_default': ([], outcome('fails', every.replace('succeeds', 'fails')))},
+             'has no fixture ed25519_default'),
+            ({'ed25519_default': ([], outcome('native', every.replace(' wasip2', '')))},
+             'the fixture ed25519_default does not run on wasip2')):
+        try:
+            generate.aliases_page(two_backends(), broken)
+        except generate.Fault as fault:
+            assert wanted in str(fault), fault
+        else:
+            raise AssertionError(f'no fault saying {wanted}')
+
+
 def test_a_family_without_a_default_has_no_type(_: Path) -> None:
     data = small_table()
     data['families'][0]['default'] = [a_default(EVERY_TARGET, None)]
@@ -728,6 +764,7 @@ CASES: list[Callable[[Path], None]] = [
     test_the_other_backend_a_refusal_names_is_chosen_as_stated,
     test_a_family_without_a_default_has_no_type,
     test_each_family_s_default_has_an_alias_that_links_it_per_target,
+    test_each_alias_has_a_row_and_a_fixture_that_runs_it_where_its_family_has_a_default,
     test_the_default_s_refusal_says_what_the_program_needs,
     test_a_refusal_holds_on_its_target,
     test_a_type_names_only_crypto_s_namespaces_from_the_root,

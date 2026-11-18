@@ -22,6 +22,7 @@
 #include <span>
 
 namespace webcpp::test {
+namespace {
 
 /** A backend tag for X25519's generic layer alone. */
 struct x25519_stand_in {};
@@ -35,8 +36,9 @@ struct x25519_stand_in_knobs {
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the knobs a test turns
-inline x25519_stand_in_knobs x25519_stand_in_control{};
+x25519_stand_in_knobs x25519_stand_in_control{};
 
+}  // namespace
 }  // namespace webcpp::test
 
 namespace webcpp::crypto::detail {

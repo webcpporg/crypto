@@ -186,8 +186,8 @@ webcpp.run secp256k1_ctime_msan : $(SECP256K1_CTIME)
     <variant>release <debug-symbols>on <conditional>@clang-on-linux : native ;
 
 # dudect's statistics on BearSSL, ctaes and equal, and on libsodium's X25519 and
-# Ed25519, natively and under wasmtime; under arm64's DIT on macOS and Linux on
-# arm64 only (dudect.hpp), without it elsewhere.
+# Ed25519, natively and under wasmtime; under DIT on macOS and Linux on arm64
+# only (dudect.hpp), without it elsewhere.
 webcpp.run dudect_bearssl : dudect_test.cpp
   : <library>/third_party//bearssl <library>/third_party//ctaes <variant>release
   : native wasip2 ;

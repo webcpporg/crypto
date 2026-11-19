@@ -84,10 +84,11 @@ operations, as Apple describes
 times `agree` against its secret key above the lane's threshold, where every
 native build passes (with DIT set on macOS and Linux on arm64, as the lane
 runs it). The cause is measured: Apple silicon's DIT, which wasmtime does not
-set; with DIT set in wasmtime's thread, as an experiment, the case passes. The measurement, with its
-numbers, is in <<crypto-backends-constant-time>> and in the curves' comparison
-table (<<crypto-curves>>); a program that agrees keys on WebAssembly where an
-attacker can time many agreements with one secret key reads it first.
+set; with DIT set in wasmtime's thread, as an experiment, the case passes.
+The measurement, with its numbers, is in <<crypto-backends-constant-time>> and
+in the curves' comparison table (<<crypto-curves>>); a program that agrees
+keys on WebAssembly where an attacker can time many agreements with one
+secret key reads it first.
 
 Parts of this section, the warnings on the shared secret and on keys of low
 order, are adapted from libsodium's documentation

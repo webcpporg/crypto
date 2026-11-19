@@ -120,6 +120,8 @@ crypto-run wipe_objects_secp256k1 : wipe_objects_test.cpp
 crypto-run wipe_objects_openssl : wipe_objects_test.cpp
   : <library>/webcpp/crypto//openssl <define>WEBCPP_TEST_WIPE_OPENSSL $(OPTIMISED)
   : native wasip2 wasip3 ;
+crypto-run wipe_objects_sodium : wipe_objects_test.cpp
+  : <library>/third_party//sodium <define>WEBCPP_TEST_WIPE_SODIUM $(OPTIMISED) ;
 
 # The counter itself: counts each allocation as it documents, on the first
 # thread and a new one.

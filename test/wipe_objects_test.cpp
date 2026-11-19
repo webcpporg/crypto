@@ -12,7 +12,7 @@
 // (the Jamfile's <optimization>speed), where a store the optimiser may drop is the case.
 //
 // One source, one backend per program: WEBCPP_TEST_WIPE_BEARSSL, WEBCPP_TEST_WIPE_CTAES,
-// WEBCPP_TEST_WIPE_SECP256K1 or WEBCPP_TEST_WIPE_OPENSSL.
+// WEBCPP_TEST_WIPE_SECP256K1, WEBCPP_TEST_WIPE_OPENSSL or WEBCPP_TEST_WIPE_SODIUM.
 
 #include <webcpp/test/exit_status.hpp>
 
@@ -31,8 +31,13 @@
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
+#elif defined(WEBCPP_TEST_WIPE_SODIUM)
+#include <webcpp/crypto/backends/sodium.hpp>
+#include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
+#include <webcpp/crypto/ciphers/secretbox.hpp>
+#include <webcpp/crypto/hybrid/box.hpp>
 #else
-#error "name a backend: WEBCPP_TEST_WIPE_BEARSSL, _CTAES, _SECP256K1 or _OPENSSL"
+#error "name a backend: WEBCPP_TEST_WIPE_BEARSSL, _CTAES, _SECP256K1, _OPENSSL or _SODIUM"
 #endif
 
 #include "require.hpp"
@@ -98,16 +103,28 @@ private:
     T* object_;
 };
 
-// A keyed object of the type under test, from a key of non-zero bytes.
+// A peer's X25519 public key: RFC 7748 section 6.1's, Bob's.
+constexpr std::array<std::uint8_t, 32> peer_public_key{
+    0xde, 0x9e, 0xdb, 0x7d, 0x7b, 0x7d, 0xc1, 0xb4, 0xd3, 0x5b, 0x61, 0xc2, 0xec, 0xe4, 0x35, 0x37,
+    0x3f, 0x83, 0x43, 0xc8, 0x5b, 0x78, 0x67, 0x4d, 0xad, 0xfc, 0x7e, 0x14, 0x6f, 0x88, 0x2b, 0x4f};
+
+// A keyed object of the type under test, from a key of non-zero bytes; a box's from that secret
+// key and a peer's public key.
 template <class T>
 T keyed(std::uint8_t first) {
     std::array<std::uint8_t, 32> key{};
     for (std::size_t i = 0; i < key.size(); ++i) {
         key[i] = static_cast<std::uint8_t>(first + i);
     }
-    auto made = T::make(key);
-    webcpp::test::require(made.has_value());
-    return std::move(*made);
+    if constexpr (requires { T::make(key, peer_public_key); }) {
+        auto made = T::make(key, peer_public_key);
+        webcpp::test::require(made.has_value());
+        return std::move(*made);
+    } else {
+        auto made = T::make(key);
+        webcpp::test::require(made.has_value());
+        return std::move(*made);
+    }
 }
 
 // The three ways a keyed object stops holding its key.
@@ -155,6 +172,18 @@ void check_wiped(region where) {
     }
 }
 
+#ifdef WEBCPP_TEST_WIPE_SODIUM
+// The key libsodium's AEAD or secret box of the family Family keeps in the object, first.
+template <class Family>
+constexpr region aead_key{
+    .offset = 0, .size = sizeof(crypto::detail::aead_state<Family, crypto::backends::sodium>)};
+
+// The key libsodium's box of the family Family agreed and keeps in the object, first.
+template <class Family>
+constexpr region box_key{
+    .offset = 0, .size = sizeof(crypto::detail::box_state<Family, crypto::backends::sodium>)};
+#endif
+
 }  // namespace
 
 int main() {
@@ -194,6 +223,24 @@ int main() {
         .size = sizeof(crypto::detail::aead_state<crypto::families::chacha20_poly1305,
                                                   crypto::backends::openssl>),
     });
+#elif defined(WEBCPP_TEST_WIPE_SODIUM)
+    // libsodium takes the key per call, so webcpp keeps it: an AEAD's or a secret box's state
+    // is aead's first member, the key; a box's is basic_box's first member, the key beforenm
+    // agreed.
+    using crypto::backends::sodium;
+    namespace families = crypto::families;
+    check_wiped<crypto::ciphers::chacha20_poly1305<sodium>>(aead_key<families::chacha20_poly1305>);
+    check_wiped<crypto::ciphers::chacha20_poly1305_original<sodium>>(
+        aead_key<families::chacha20_poly1305_original>);
+    check_wiped<crypto::ciphers::xchacha20_poly1305<sodium>>(
+        aead_key<families::xchacha20_poly1305>);
+    check_wiped<crypto::ciphers::secretbox<sodium>>(aead_key<families::secretbox_xsalsa20poly1305>);
+    check_wiped<crypto::ciphers::secretbox_xchacha20poly1305<sodium>>(
+        aead_key<families::secretbox_xchacha20poly1305>);
+    check_wiped<crypto::hybrid::basic_box<families::box_xsalsa20poly1305, sodium>>(
+        box_key<families::box_xsalsa20poly1305>);
+    check_wiped<crypto::hybrid::basic_box<families::box_xchacha20poly1305, sodium>>(
+        box_key<families::box_xchacha20poly1305>);
 #endif
     return webcpp::test::exit_status(boost::report_errors());
 }

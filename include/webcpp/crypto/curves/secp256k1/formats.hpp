@@ -20,6 +20,7 @@
 #include <webcpp/crypto/backends/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/equal.hpp>
@@ -180,8 +181,8 @@ template <class Backend = default_backend_t<families::secp256k1>>
     webcpp::crypto::detail::secp256k1_secret secret_bytes;
     secp256k1_keypair_sec(secp256k1_context_static, secret_bytes.bytes.data(),
                           &access::pair(key_pair));
-    secp256k1_pubkey public_point{};
-    secp256k1_keypair_pub(secp256k1_context_static, &public_point, &access::pair(key_pair));
+    secp256k1_pubkey const public_point = webcpp::crypto::detail::secp256k1_public_point(
+        secp256k1_context_static, access::pair(key_pair));
     std::array<std::uint8_t, 65> point_bytes{};
     std::size_t point_length = point_bytes.size();
     secp256k1_ec_pubkey_serialize(secp256k1_context_static, point_bytes.data(), &point_length,
@@ -230,8 +231,12 @@ template <class Backend = default_backend_t<families::secp256k1>>
     // The rest, the public key above all, is checked by encoding the key pair again: a PKCS#8
     // whose public key is not its secret's is refused.
     std::array<std::uint8_t, max_pkcs8_size> encoded_again{};
-    bool const is_same =
+    // Not const: the branch reads it again after the mark (detail/declassify.hpp's tip); the
+    // comparison runs on the secret's bytes, and its verdict is public.
+    // NOLINTNEXTLINE(misc-const-correctness): see above
+    bool is_same =
         encode_pkcs8(*made_pair, encoded_again).has_value() && equal(encoded_again, pkcs8_bytes);
+    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&is_same, sizeof is_same);
     webcpp::crypto::detail::wipe(encoded_again.data(), encoded_again.size());
     if (!is_same) {
         return error::invalid_encoding;

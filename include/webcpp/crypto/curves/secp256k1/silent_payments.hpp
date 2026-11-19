@@ -20,6 +20,7 @@
 #include <webcpp/crypto/backends/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/secret.hpp>
@@ -349,10 +350,10 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
         plain_pointers[index] = plain_secrets[index].data();
     }
     auto const* const signer = taproot_count != 0 ? taproot_inputs[0] : plain_inputs[0];
-    if (secp256k1_silentpayments_sender_create_outputs(
+    if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_silentpayments_sender_create_outputs(
             access::context(*signer), output_pointers, recipient_pointers, recipient_count,
             smallest_outpoint.data(), taproot_pointers, taproot_count, plain_pointers,
-            plain_count) == 0) {
+            plain_count))) {
         if (recipient_count > group_limit && webcpp::crypto::detail::secp256k1_over_group_limit(
                                                  std::span(recipient_pointers, recipient_count))) {
             return error::invalid_input_size;
@@ -396,12 +397,15 @@ template <class Backend>
                           &access::pair(scan_key));
     secp256k1_silentpayments_label made_label{};
     label created_label{};
-    if (secp256k1_silentpayments_recipient_label_create(
+    if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_silentpayments_recipient_label_create(
             access::context(scan_key), &made_label, created_label.tweak.data(),
-            scan_secret.bytes.data(), label_number) == 0) {
+            scan_secret.bytes.data(), label_number))) {
         return error::backend_failure;
     }
-    // A made label always serialises: libsecp256k1 returns 1.
+    // The label's point is public, the labelled address's part; libsecp256k1 made it from the
+    // scan key's secret, so it is marked public here (detail/declassify.hpp). A made label always
+    // serialises: libsecp256k1 returns 1.
+    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&made_label, sizeof made_label);
     static_cast<void>(secp256k1_silentpayments_recipient_label_serialize(
         secp256k1_context_static, created_label.point.data(), &made_label));
     return created_label;
@@ -568,10 +572,12 @@ template <class Backend, label_lookup LabelLookup = no_labels>
     secp256k1_keypair_sec(access::context(scan_key), scan_secret.bytes.data(),
                           &access::pair(scan_key));
     std::uint32_t found_count = 0;
+    // The scan runs on the scan key pair's context, as a key pair's other functions do, so that
+    // libsecp256k1 marks its public values public under the constant-time checkers.
     int scan_status = 0;
     if constexpr (std::is_same_v<LabelLookup, no_labels>) {
         scan_status = secp256k1_silentpayments_recipient_scan_outputs(
-            secp256k1_context_static, found_pointers, &found_count, output_pointers, output_count,
+            access::context(scan_key), found_pointers, &found_count, output_pointers, output_count,
             scan_secret.bytes.data(), &access::native(summary), &access::point(spend_key), nullptr,
             nullptr);
     } else {
@@ -580,11 +586,11 @@ template <class Backend, label_lookup LabelLookup = no_labels>
             .call_lookup = &webcpp::crypto::detail::secp256k1_call_label_lookup<LabelLookup>,
         };
         scan_status = secp256k1_silentpayments_recipient_scan_outputs(
-            secp256k1_context_static, found_pointers, &found_count, output_pointers, output_count,
+            access::context(scan_key), found_pointers, &found_count, output_pointers, output_count,
             scan_secret.bytes.data(), &access::native(summary), &access::point(spend_key),
             &webcpp::crypto::detail::webcpp_crypto_detail_secp256k1_label_lookup, &lookup_context);
     }
-    if (scan_status == 0) {
+    if (!webcpp::crypto::detail::secp256k1_accepted(scan_status)) {
         return error::backend_failure;
     }
     for (std::size_t index = 0; index < found_count; ++index) {

@@ -54,7 +54,8 @@ using secp256k1_pubkey_tweak = int (*)(secp256k1_context const*, secp256k1_pubke
     std::span<std::uint8_t const, 32> secret_key, unsigned char const* tweak_bytes,
     secp256k1_seckey_tweak tweak_function) noexcept {
     // The key is checked first, so that a refusal names the input that was wrong.
-    if (secp256k1_ec_seckey_verify(secp256k1_context_static, secret_key.data()) == 0) {
+    if (!secp256k1_accepted(
+            secp256k1_ec_seckey_verify(secp256k1_context_static, secret_key.data()))) {
         return error::invalid_secret_key;
     }
     secp256k1_secret working_copy;
@@ -63,7 +64,7 @@ using secp256k1_pubkey_tweak = int (*)(secp256k1_context const*, secp256k1_pubke
         tweak_bytes == nullptr
             ? secp256k1_ec_seckey_negate(secp256k1_context_static, working_copy.bytes.data())
             : tweak_function(secp256k1_context_static, working_copy.bytes.data(), tweak_bytes);
-    if (status == 0) {
+    if (!secp256k1_accepted(status)) {
         return error::invalid_secret_key;
     }
     secret<32> tweaked_secret;

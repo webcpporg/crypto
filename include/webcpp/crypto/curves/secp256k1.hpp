@@ -19,6 +19,7 @@
 
 #include <webcpp/crypto/backends/secp256k1.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -139,8 +140,18 @@ struct secp256k1_access {
 };
 
 // NOLINTBEGIN(bugprone-signed-bitwise): libsecp256k1's macros shift a signed constant
+#if defined(WEBCPP_CRYPTO_DETAIL_CT_VALGRIND) || defined(WEBCPP_CRYPTO_DETAIL_CT_MSAN)
+/**
+ * The flags of a context that signs and verifies, under a constant-time checker:
+ * `SECP256K1_CONTEXT_DECLASSIFY`, so that libsecp256k1 marks its own public values public (a
+ * nonce's retry, a verdict), as its `ctime_tests.c` does; the checker then reports any other
+ * branch on a secret.
+ */
+inline constexpr unsigned secp256k1_context_flags = SECP256K1_CONTEXT_DECLASSIFY;
+#else
 /** The flags of a context that signs and verifies: none. */
 inline constexpr unsigned secp256k1_context_flags = SECP256K1_CONTEXT_NONE;
+#endif
 
 /** The flag of the SEC1 compressed form. */
 inline constexpr unsigned secp256k1_compressed = SECP256K1_EC_COMPRESSED;
@@ -148,6 +159,40 @@ inline constexpr unsigned secp256k1_compressed = SECP256K1_EC_COMPRESSED;
 /** The flag of the SEC1 uncompressed form. */
 inline constexpr unsigned secp256k1_uncompressed = SECP256K1_EC_UNCOMPRESSED;
 // NOLINTEND(bugprone-signed-bitwise)
+
+/**
+ * Whether libsecp256k1 accepted: what it returned on a secret, marked public for the
+ * constant-time checks (`WEBCPP_CRYPTO_DETAIL_DECLASSIFY`) where webcpp branches on it, as its
+ * `ctime_tests.c` marks each verdict.
+ *
+ * @param returned What the function returned: 1, or 0 when it refused.
+ * @return Whether it accepted.
+ */
+[[nodiscard]] inline bool secp256k1_accepted(int returned) noexcept {
+    // Not const: the comparison reads it again after the mark (detail/declassify.hpp's tip).
+    // NOLINTNEXTLINE(misc-const-correctness): see above
+    int verdict = returned;
+    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&verdict, sizeof verdict);
+    return verdict != 0;
+}
+
+/**
+ * A key pair's public key, marked public (`WEBCPP_CRYPTO_DETAIL_DECLASSIFY`): libsecp256k1
+ * derives it from the secret and marks it public only where it loads the key pair itself, and
+ * its `ctime_tests.c` marks a key pair's public key by hand where it reads one.
+ *
+ * @param context The key pair's context, or the static one.
+ * @param key_pair libsecp256k1's key pair.
+ * @return The public key.
+ */
+[[nodiscard]] inline secp256k1_pubkey secp256k1_public_point(
+    secp256k1_context const* context, secp256k1_keypair const& key_pair) noexcept {
+    secp256k1_pubkey public_point{};
+    // libsecp256k1 returns 1 always: a key pair holds its public key.
+    static_cast<void>(secp256k1_keypair_pub(context, &public_point, &key_pair));
+    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&public_point, sizeof public_point);
+    return public_point;
+}
 
 /**
  * The error of a key pair whose context could not be randomised: every failure of the
@@ -525,7 +570,8 @@ public:
         }
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         secp256k1_selftest();
-        if (secp256k1_ec_seckey_verify(secp256k1_context_static, secret_bytes.data()) == 0) {
+        if (!webcpp::crypto::detail::secp256k1_accepted(
+                secp256k1_ec_seckey_verify(secp256k1_context_static, secret_bytes.data()))) {
             return error::invalid_secret_key;
         }
         webcpp::crypto::detail::secp256k1_secret context_seed;
@@ -539,11 +585,10 @@ public:
         made_object.context_ = secp256k1_context_preallocated_create(
             memory_resource->allocate(context_size(), alignof(std::max_align_t)),
             webcpp::crypto::detail::secp256k1_context_flags);
-        int const randomise_status =
-            secp256k1_context_randomize(made_object.context_, context_seed.bytes.data());
-        if (randomise_status == 0 ||
-            secp256k1_keypair_create(made_object.context_, &made_object.keypair_,
-                                     secret_bytes.data()) == 0) {
+        bool const randomised = webcpp::crypto::detail::secp256k1_accepted(
+            secp256k1_context_randomize(made_object.context_, context_seed.bytes.data()));
+        if (!randomised || !webcpp::crypto::detail::secp256k1_accepted(secp256k1_keypair_create(
+                               made_object.context_, &made_object.keypair_, secret_bytes.data()))) {
             return error::backend_failure;
         }
         made_object.keyed_ = true;
@@ -645,9 +690,9 @@ public:
         secp256k1_schnorrsig_extraparams extra_parameters = SECP256K1_SCHNORRSIG_EXTRAPARAMS_INIT;
         extra_parameters.ndata = aux_randomness.bytes.data();
         std::array<std::uint8_t, 64> output_bytes{};
-        if (secp256k1_schnorrsig_sign_custom(context_, output_bytes.data(), message_bytes.data(),
-                                             message_bytes.size(), &keypair_,
-                                             &extra_parameters) == 0) {
+        if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_schnorrsig_sign_custom(
+                context_, output_bytes.data(), message_bytes.data(), message_bytes.size(),
+                &keypair_, &extra_parameters))) {
             return error::backend_failure;
         }
         return output_bytes;
@@ -697,8 +742,9 @@ public:
         webcpp::crypto::detail::secp256k1_secret secret_bytes;
         secp256k1_keypair_sec(context_, secret_bytes.bytes.data(), &keypair_);
         secp256k1_ecdsa_recoverable_signature signature_value{};
-        if (secp256k1_ecdsa_sign_recoverable(context_, &signature_value, message_hash.data(),
-                                             secret_bytes.bytes.data(), nullptr, nullptr) == 0) {
+        if (!webcpp::crypto::detail::secp256k1_accepted(
+                secp256k1_ecdsa_sign_recoverable(context_, &signature_value, message_hash.data(),
+                                                 secret_bytes.bytes.data(), nullptr, nullptr))) {
             return error::backend_failure;
         }
         std::array<std::uint8_t, recoverable_signature_size> output_bytes{};
@@ -769,7 +815,8 @@ public:
             return error::invalid_state;
         }
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-        if (secp256k1_keypair_xonly_tweak_add(context_, &keypair_, tweak_bytes.data()) == 0) {
+        if (!webcpp::crypto::detail::secp256k1_accepted(
+                secp256k1_keypair_xonly_tweak_add(context_, &keypair_, tweak_bytes.data()))) {
             release();
             return error::invalid_secret_key;
         }
@@ -795,10 +842,10 @@ private:
             return error::invalid_state;
         }
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-        secp256k1_pubkey public_point{};
+        secp256k1_pubkey const public_point =
+            webcpp::crypto::detail::secp256k1_public_point(context_, keypair_);
         std::array<std::uint8_t, N> output_bytes{};
         std::size_t written_size = output_bytes.size();
-        secp256k1_keypair_pub(context_, &public_point, &keypair_);
         secp256k1_ec_pubkey_serialize(context_, output_bytes.data(), &written_size, &public_point,
                                       flags);
         return output_bytes;
@@ -822,8 +869,9 @@ private:
         secp256k1_keypair_sec(context_, secret_bytes.bytes.data(), &keypair_);
         secp256k1_ecdsa_signature signature_bytes{};
         std::array<std::uint8_t, 64> output_bytes{};
-        if (secp256k1_ecdsa_sign(context_, &signature_bytes, message_hash.data(),
-                                 secret_bytes.bytes.data(), nullptr, nonce_data) == 0) {
+        if (!webcpp::crypto::detail::secp256k1_accepted(
+                secp256k1_ecdsa_sign(context_, &signature_bytes, message_hash.data(),
+                                     secret_bytes.bytes.data(), nullptr, nonce_data))) {
             return error::backend_failure;
         }
         secp256k1_ecdsa_signature_serialize_compact(context_, output_bytes.data(),
@@ -855,8 +903,9 @@ private:
         webcpp::crypto::detail::secp256k1_secret secret_bytes;
         secp256k1_keypair_sec(context_, secret_bytes.bytes.data(), &keypair_);
         secret<N> shared_secret;
-        if (secp256k1_ecdh(context_, shared_secret.writable().data(), &parsed_value,
-                           secret_bytes.bytes.data(), hash_function, nullptr) == 0) {
+        if (!webcpp::crypto::detail::secp256k1_accepted(
+                secp256k1_ecdh(context_, shared_secret.writable().data(), &parsed_value,
+                               secret_bytes.bytes.data(), hash_function, nullptr))) {
             return error::backend_failure;
         }
         return shared_secret;

@@ -132,8 +132,9 @@ template <class Backend>
                           &access::pair(key_pair));
     std::array<std::uint8_t, ellswift_size> encoded_key{};
     // The key pair's secret is valid: libsecp256k1 refuses only one that is not.
-    if (secp256k1_ellswift_create(access::context(key_pair), encoded_key.data(),
-                                  seckey32.bytes.data(), randomness.data()) == 0) {
+    if (!webcpp::crypto::detail::secp256k1_accepted(
+            secp256k1_ellswift_create(access::context(key_pair), encoded_key.data(),
+                                      seckey32.bytes.data(), randomness.data()))) {
         return error::backend_failure;
     }
     return encoded_key;
@@ -172,10 +173,10 @@ template <class Backend>
                           &access::pair(key_pair));
     secret<32> shared_secret;
     // The secret is valid and BIP 324's hash never fails: libsecp256k1 returns 1.
-    if (secp256k1_ellswift_xdh(access::context(key_pair), shared_secret.writable().data(),
-                               initiator_encoding.data(), responder_encoding.data(),
-                               seckey32.bytes.data(), static_cast<int>(our_party),
-                               secp256k1_ellswift_xdh_hash_function_bip324, nullptr) == 0) {
+    if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_ellswift_xdh(
+            access::context(key_pair), shared_secret.writable().data(), initiator_encoding.data(),
+            responder_encoding.data(), seckey32.bytes.data(), static_cast<int>(our_party),
+            secp256k1_ellswift_xdh_hash_function_bip324, nullptr))) {
         return error::backend_failure;
     }
     return shared_secret;

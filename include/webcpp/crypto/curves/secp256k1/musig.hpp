@@ -379,16 +379,16 @@ template <class Backend>
     webcpp::crypto::detail::secp256k1_secret secret_bytes;
     secp256k1_keypair_sec(access::context(signer), secret_bytes.bytes.data(),
                           &access::pair(signer));
-    secp256k1_pubkey signer_point{};
-    secp256k1_keypair_pub(access::context(signer), &signer_point, &access::pair(signer));
+    secp256k1_pubkey const signer_point = webcpp::crypto::detail::secp256k1_public_point(
+        access::context(signer), access::pair(signer));
     auto made_secret = access::make_opaque<secret_nonce>();
     auto made_public = access::make_opaque<public_nonce>();
     auto& state = access::native(made_secret);
-    if (secp256k1_musig_nonce_gen(
+    if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_musig_nonce_gen(
             access::context(signer), &state.nonce_value, &access::native(made_public),
             session_randomness.bytes.data(), secret_bytes.bytes.data(), &signer_point,
             message_hash.empty() ? nullptr : message_hash.data(), &access::native(signers_key),
-            extra_input.empty() ? nullptr : extra_input.data()) == 0) {
+            extra_input.empty() ? nullptr : extra_input.data()))) {
         return error::backend_failure;
     }
     std::size_t written_size = state.signer_key.size();
@@ -492,8 +492,8 @@ template <class Backend>
     if (!access::keyed(signer) || !state.fresh) {
         return error::invalid_state;
     }
-    secp256k1_pubkey signer_point{};
-    secp256k1_keypair_pub(access::context(signer), &signer_point, &access::pair(signer));
+    secp256k1_pubkey const signer_point = webcpp::crypto::detail::secp256k1_public_point(
+        access::context(signer), access::pair(signer));
     std::array<std::uint8_t, 33> signer_key{};
     std::size_t written_size = signer_key.size();
     secp256k1_ec_pubkey_serialize(secp256k1_context_static, signer_key.data(), &written_size,
@@ -503,10 +503,10 @@ template <class Backend>
     }
     state.fresh = false;
     auto signature_part = access::make_opaque<partial_signature>();
-    if (secp256k1_musig_partial_sign(access::context(signer), &access::native(signature_part),
-                                     &state.nonce_value, &access::pair(signer),
-                                     &access::native(signers_key),
-                                     &access::native(signing_session)) == 0) {
+    if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_musig_partial_sign(
+            access::context(signer), &access::native(signature_part), &state.nonce_value,
+            &access::pair(signer), &access::native(signers_key),
+            &access::native(signing_session)))) {
         return error::backend_failure;
     }
     return signature_part;

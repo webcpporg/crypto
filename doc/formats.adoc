@@ -1,0 +1,98 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-key-formats]
+=== Key formats: SPKI, PKCS#8 and PEM
+
+A key leaves a program in a standard form when another program must read it:
+OpenSSL's command line, a browser's WebCrypto, an SSH or TLS tool, a server
+that stores a user's public key. Two forms of DER, the binary encoding of
+ASN.1, carry a key with the name of its algorithm: *SPKI*, a public key
+(SubjectPublicKeyInfo, the form inside every X.509 certificate), and
+*PKCS#8*, a private key (RFC 5958's OneAsymmetricKey,
+link:https://www.rfc-editor.org/rfc/rfc5958[RFC 5958]). *PEM* writes either as
+text between `-----BEGIN PUBLIC KEY-----` and `-----END PUBLIC KEY-----`, or
+`PRIVATE KEY`, so that it can be pasted into a file, a form or an e-mail
+(link:https://www.rfc-editor.org/rfc/rfc7468[RFC 7468]). A chat app that lets
+a user export an identity key to another device, or a server that accepts a
+public key uploaded by a browser, speaks these forms.
+
+For Ed25519 and X25519, RFC 8410 fixes them to one layout each
+(link:https://www.rfc-editor.org/rfc/rfc8410[RFC 8410]): an SPKI is 12 bytes
+that name the curve, then the 32 bytes of the public key, 44 bytes in all; a
+PKCS#8 is 16 bytes, then the 32 bytes of the seed (Ed25519) or secret key
+(X25519), 48 bytes in all. These are exactly the bytes OpenSSL's `i2d_PUBKEY`
+and `i2d_PrivateKey` and WebCrypto's `exportKey("spki")` and
+`exportKey("pkcs8")` write
+(link:https://www.w3.org/TR/webcrypto-2/#ed25519[W3C]), and the PEM texts
+OpenSSL's `PEM_write_bio_PUBKEY` and `PEM_write_bio_PrivateKey` write: the
+tests compare every byte with OpenSSL's natively and on WASI
+(`formats_25519_openssl_oracle`) and with node's WebCrypto on Emscripten
+(`formats_25519_webcrypto_oracle`), 200 keys per curve each.
+
+`<webcpp/crypto/curves/ed25519/formats.hpp>` gives, in
+`webcpp::crypto::curves::ed25519`, `encode_spki(public_key, out)`,
+`decode_spki(spki)`, `encode_pkcs8(keypair, out)` and `decode_pkcs8(pkcs8)`,
+which makes the key pair at once; `<webcpp/crypto/curves/x25519/formats.hpp>`
+gives the same four in `webcpp::crypto::curves::x25519`, where a PKCS#8
+holds a 32-byte secret key and `decode_pkcs8` gives it as a `secret<32>`, which
+wipes itself. `max_spki_size` and `max_pkcs8_size`, 44 and 48, size the
+caller's buffers. `<webcpp/crypto/pem.hpp>` gives, in `webcpp::crypto::pem`,
+`armour(label, der, out)` and `unarmour(label, text, out)`, with the labels
+`public_key_label` and `private_key_label`, and `armoured_size`, the text's
+size. Each writes into the caller's buffer and returns how many bytes or
+characters it wrote; on a refusal it writes nothing. All run on libsodium
+(`/third_party//sodium`, or the families' aliases `/webcpp/crypto//ed25519-default`,
+`/webcpp/crypto//x25519-default` and `/webcpp/crypto//pem-default`), whose base64 runs
+in a time that does not depend on the bytes, those of a private key included
+(link:https://doc.libsodium.org/helpers#base64-encoding-decoding[libsodium's documentation]).
+
+*Strict decoding.* A decoder accepts an input only if encoding what it
+decoded gives the same bytes (design D30): the one form that OpenSSL and
+WebCrypto write, and nothing else. It refuses with `invalid_encoding` another
+curve's identifier (an Ed25519 key given to X25519's decoder), a byte left
+over, a length in BER's long form where DER requires the short one,
+PKCS#8 version 2, which carries the public key beside the seed, attributes,
+and PEM with another label than the expected, lines of another length than 64,
+carriage returns, text before or after the key, or base64 that is not the one
+encoding of its bytes. A key that one library accepts and another refuses
+lets two programs that should agree on a key disagree on it; one form, and
+one verdict on every backend, closes that door. A program that receives
+version 2, or PEM with Windows line ends, converts it with OpenSSL's
+`openssl pkey` first.
+
+include::generated/backends-ed25519_formats.adoc[]
+
+include::generated/backends-x25519_formats.adoc[]
+
+include::generated/backends-pem.adoc[]
+
+*Example.* RFC 8410's own Ed25519 key pair read from PEM, its public key written
+back as PEM, which is the RFC's to the character, and a signature; an X25519
+public key's SPKI; and the RFC's version 2 of the same private key refused:
+
+[source,cpp]
+----
+include::{examples}/key_formats.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/key_formats.expected[]
+----
+
+*Pitfalls.*
+
+* A PKCS#8, as DER or as PEM, is the secret key: kept in a `secret<N>`, as the
+example does, it is wiped when it goes; written to a file or a database, it is
+sealed first, as any secret at rest (<<crypto-wallets>>).
+* `decode_spki` checks the form, not the key: Ed25519's `verify` refuses a
+public key that is not a point of the curve, and X25519's `agree` one of low
+order (`weak_public_key`). A key read from outside is used through those, which
+check it.
+* SPKI names the algorithm, the raw 32 bytes do not: an Ed25519 key and an
+X25519 key of the same bytes are different keys, and the identifier keeps a
+program from using one as the other.

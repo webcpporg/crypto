@@ -7,17 +7,28 @@ MSVC), wasip2, wasip3 and Emscripten.
 - `webcpp::crypto`: a `random_device` that reads the operating system's or the browser's
   generator, a constant-time `equal` for tags and MACs, and `error`, every failure's value.
 - `webcpp::crypto::ciphers`: AES-GCM (`gcm`, `aes128_gcm`, `aes256_gcm`) with keys of 16, 24 and
-  32 bytes, and the AES block cipher (`aes128`, `aes192`, `aes256`).
+  32 bytes, the AES block cipher (`aes128`, `aes192`, `aes256`), the ChaCha20-Poly1305 AEADs, and
+  NaCl's and libsodium's secret boxes (`secretbox`, `secretbox_xchacha20poly1305`).
 - `webcpp::crypto::curves::secp256k1`: BIP 340 Schnorr and ECDSA signatures, their verification,
   ECDH, ECDSA's strict DER and low-S forms, and the x-only tweak.
+- `webcpp::crypto::curves::ed25519`: Ed25519 signatures (RFC 8032) with strict verification, the
+  X25519 secret key of a key pair, and Ed25519ph over SHA-512 for a message given in pieces.
+- `webcpp::crypto::curves::x25519`: X25519 key agreement (RFC 7748), refusing an all-zero shared
+  secret, `curves::ed25519::to_x25519_public` for a peer known by its Ed25519 key, and
+  `kx_keypair`, libsodium's `crypto_kx`, a session key for each direction of a client and a server.
+- Ed25519's and X25519's keys in RFC 8410's SPKI and PKCS#8, as OpenSSL and WebCrypto write them,
+  and `webcpp::crypto::pem` for their PEM text, each decoded strictly.
+- `webcpp::crypto::hybrid`: NaCl's and libsodium's boxes between two key pairs (`box`,
+  `box_xchacha20poly1305`), refusing a peer key of small order, and sealed boxes (`sealed_box`),
+  anonymous encryption to a public key.
 
 The algorithms are those of widely used, reviewed C libraries, each a backend that a program
 names in its own Jamfile and that webcpp builds from its sources: BearSSL
 (`/third_party//bearssl`), OpenSSL 3.5.9 (`/webcpp/crypto//openssl`, never the system's, refused
-on Emscripten), ctaes (`/third_party//ctaes`) and libsecp256k1 (`/third_party//secp256k1`). Which
-operation runs on which backend and target is the page's generated table, from the tests that run
-each. Hashing and HMAC stay with Boost.Hash2. Protocols built on these primitives (Bitcoin,
-Ethereum, Nostr) belong to domain libraries.
+on Emscripten), ctaes (`/third_party//ctaes`), libsecp256k1 (`/third_party//secp256k1`) and
+libsodium (`/third_party//sodium`). Which operation runs on which backend and target is the
+page's generated table, from the tests that run each. Hashing and HMAC stay with Boost.Hash2.
+Protocols built on these primitives (Bitcoin, Ethereum, Nostr) belong to domain libraries.
 
 ## Building and testing
 
@@ -46,4 +57,7 @@ from `doc/tables/crypto.json` and the tests; `b2 libs/crypto/doc` checks them.
 
 crypto is under the Boost Software License, Version 1.0 (`LICENSE_1_0.txt`). The backends keep
 their own: BearSSL is MIT (`LICENSE-BEARSSL.txt`), ctaes is MIT (`LICENSE-CTAES.txt`),
-libsecp256k1 is MIT (`LICENSE-SECP256K1.txt`) and OpenSSL is Apache-2.0.
+libsecp256k1 is MIT (`LICENSE-SECP256K1.txt`), libsodium is ISC (`LICENSE-LIBSODIUM.txt`) and
+OpenSSL is Apache-2.0. The documentation's sections on libsodium's families adapt parts of
+libsodium's documentation (`jedisct1/libsodium-doc`), which is ISC
+(`LICENSE-LIBSODIUM-DOC.txt`).

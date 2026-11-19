@@ -6,6 +6,7 @@
 
 project : requirements <library>/webcpp/crypto//crypto ;
 
+import regex ;
 import webcpp ;
 
 webcpp.targets native wasip2 wasip3 emscripten ;
@@ -20,29 +21,47 @@ rule crypto-run ( name : sources + : requirements * : targets * )
       : $(requirements) <exception-handling>off : $(targets) ;
 }
 
+# The requirements of a test that reads what an optimiser leaves: -O2, and on
+# Emscripten no debug information, whose DWARF would hold back em++'s
+# post-link optimisation, the wasm-opt a release build runs
+# (-Wlimited-postlink-optimizations).
+OPTIMISED = <optimization>speed <toolset>emscripten:<debug-symbols>off ;
+
 webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/equal.hpp crypto/error.hpp crypto/ciphers/aes.hpp crypto/ciphers/gcm.hpp
-  crypto/random_device.hpp crypto/detail/declassify.hpp crypto/detail/engines.hpp
-  crypto/detail/entropy.hpp crypto/detail/limits.hpp crypto/detail/windows.hpp
-  crypto/detail/wipe.hpp ;
+  crypto/random_device.hpp crypto/detail/bytes.hpp crypto/detail/declassify.hpp
+  crypto/detail/engines.hpp crypto/detail/entropy.hpp crypto/detail/limits.hpp
+  crypto/detail/windows.hpp crypto/detail/wipe.hpp crypto/secret.hpp
+  crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
+  crypto/detail/heavy.hpp crypto/ciphers/aead.hpp crypto/ciphers/chacha20_poly1305.hpp
+  crypto/ciphers/secretbox.hpp crypto/pem.hpp ;
 
 # The backend BearSSL's header and the default backend's, with BearSSL linked,
 # on every target.
 webcpp.headers-alone crypto : ../include
   : crypto/ciphers/aes256_gcm.hpp crypto/backends/bearssl.hpp
   : <library>/third_party//bearssl ;
-# The backend OpenSSL's header, with OpenSSL linked and selected; BearSSL, ctaes
-# and libsecp256k1 are linked too, so that every public header compiles with
-# these options (the lint's aggregate translation unit,
+# The backend OpenSSL's header, with OpenSSL linked; BearSSL,
+# ctaes, libsecp256k1 and libsodium are linked too, so that every public
+# header compiles with these options (the lint's aggregate translation unit,
 # tools/lint/compile_commands.py).
 webcpp.headers-alone crypto : ../include : crypto/backends/openssl.hpp
   : <library>/webcpp/crypto//openssl <library>/third_party//bearssl
     <library>/third_party//ctaes <library>/third_party//secp256k1
-    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+    <library>/third_party//sodium
   : native wasip2 wasip3 ;
 # The backend ctaes's header alone, with ctaes linked, on every target.
 webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp
   : <library>/third_party//ctaes ;
+# The backend libsodium's header alone, and Ed25519's, X25519's, their key
+# formats', crypto_kx's, the boxes' and the sealed boxes' with it, with
+# libsodium linked, on every target (PEM's compiles alone without it, in the
+# first list).
+webcpp.headers-alone crypto : ../include
+  : crypto/backends/sodium.hpp crypto/curves/ed25519.hpp crypto/curves/x25519.hpp
+    crypto/curves/ed25519/formats.hpp crypto/curves/x25519/formats.hpp
+    crypto/curves/x25519/kx.hpp crypto/hybrid/box.hpp crypto/hybrid/sealed_box.hpp
+  : <library>/third_party//sodium ;
 # libsecp256k1's headers compile alone only with its library, which defines
 # WEBCPP_CRYPTO_HAS_SECP256K1 (without it, each stops with its message).
 webcpp.headers-alone crypto : ../include
@@ -59,23 +78,50 @@ webcpp.compile config_all_off : config_test.cpp
 webcpp.compile config_developer_defined : config_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS <define>WEBCPP_TEST_CRYPTO_DEVELOPER_DEFINED ;
 
+# config.hpp defines WEBCPP_CRYPTO_HAS_THREADS by design D23's rule: natively
+# with b2's threading=single (where Boost.Config's BOOST_HAS_THREADS decides),
+# with threading=multi, and with WEBCPP_CRYPTO_NO_THREADS; on WebAssembly
+# without -pthread (Emscripten with -pthread is the fixture
+# threads_on_emscripten of tools/test/crypto_jamfiles_test.py).
+webcpp.compile threads_config_single : threads_config_test.cpp
+  : <threading>single <define>WEBCPP_TEST_CRYPTO_THREADING_SINGLE : native ;
+webcpp.compile threads_config_multi : threads_config_test.cpp
+  : <threading>multi <define>WEBCPP_TEST_CRYPTO_THREADING_MULTI : native ;
+webcpp.compile threads_config_opted_out : threads_config_test.cpp
+  : <threading>multi <define>WEBCPP_CRYPTO_NO_THREADS : native ;
+webcpp.compile threads_config_wasm : threads_config_test.cpp : : wasip2 wasip3 emscripten ;
+# A heavy operation's async_ variant with threads: detail::run_heavy runs the
+# work on a thread_pool and completes on the caller's io_context.
+crypto-run heavy : heavy_test.cpp : <threading>multi : native ;
+# Without threads (WEBCPP_CRYPTO_NO_THREADS natively; WASI has none), a heavy
+# operation's async_ variant that forgets its refusal stops at
+# detail::run_heavy's stand-in, which names the refusal, and with that alone.
+webcpp.compile-diagnostic heavy_refusal_forgotten : heavy_refusal_forgotten_test.cpp
+  : <define>WEBCPP_CRYPTO_NO_THREADS : native wasip2 wasip3 : alone ;
+
 crypto-run error : error_test.cpp ;
 crypto-run equal : equal_test.cpp ;
 # <webcpp/crypto.hpp> alone, with no backend linked, compiles, links and runs.
 crypto-run convenience_header : convenience_header_test.cpp ;
 crypto-run wipe : wipe_test.cpp ;
+# secret<N> is not copyable, moves wipe the source, and the destructor wipes
+# the storage: optimised, with every call inlined (<inlining>full), where a
+# wipe the compiler could drop as a dead store would be dropped.
+crypto-run secret : secret_test.cpp : $(OPTIMISED) <inlining>full ;
 
 # A destroyed or moved-from key schedule is zero in its storage, read at -O2
 # where a dropped store would show: one program per keyed type, one source.
 crypto-run wipe_objects_bearssl : wipe_objects_test.cpp
-  : <library>/third_party//bearssl <define>WEBCPP_TEST_WIPE_BEARSSL <optimization>speed ;
+  : <library>/third_party//bearssl <define>WEBCPP_TEST_WIPE_BEARSSL $(OPTIMISED) ;
 crypto-run wipe_objects_ctaes : wipe_objects_test.cpp
-  : <library>/third_party//ctaes <define>WEBCPP_TEST_WIPE_CTAES <optimization>speed ;
+  : <library>/third_party//ctaes <define>WEBCPP_TEST_WIPE_CTAES $(OPTIMISED) ;
 crypto-run wipe_objects_secp256k1 : wipe_objects_test.cpp
-  : <library>/third_party//secp256k1 <define>WEBCPP_TEST_WIPE_SECP256K1 <optimization>speed ;
+  : <library>/third_party//secp256k1 <define>WEBCPP_TEST_WIPE_SECP256K1 $(OPTIMISED) ;
 crypto-run wipe_objects_openssl : wipe_objects_test.cpp
-  : <library>/webcpp/crypto//openssl <define>WEBCPP_TEST_WIPE_OPENSSL <optimization>speed
+  : <library>/webcpp/crypto//openssl <define>WEBCPP_TEST_WIPE_OPENSSL $(OPTIMISED)
   : native wasip2 wasip3 ;
+crypto-run wipe_objects_sodium : wipe_objects_test.cpp
+  : <library>/third_party//sodium <define>WEBCPP_TEST_WIPE_SODIUM $(OPTIMISED) ;
 
 # The counter itself: counts each allocation as it documents, on the first
 # thread and a new one.
@@ -105,59 +151,53 @@ webcpp.compile-fail openssl_named_c_on_emscripten : openssl_named_c_test.c
 build-project msvc ;
 build-project openssl_memory ;
 
-# The default backend (spec section 5), one combination of linked and selected
-# backends per program, each on the targets where its answer holds.
-webcpp.compile default_backend_none : default_backend_test.cpp
-  : <define>WEBCPP_TEST_CRYPTO_EXPECT_NONE_LINKED ;
-webcpp.compile default_backend_bearssl_linked : default_backend_test.cpp
+# Every family's default backend per target (design D32), the same whatever
+# the program links and defines: every backend of the target linked, none,
+# each alone, and the defines of the profiles and overrides of the plan's
+# first draft, which change nothing.
+webcpp.compile default_backend_all_linked : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 <define>WEBCPP_CRYPTO_HAS_OPENSSL=1
+    <define>WEBCPP_CRYPTO_HAS_CTAES=1 <define>WEBCPP_CRYPTO_HAS_SECP256K1=1
+    <define>WEBCPP_CRYPTO_HAS_SODIUM=1
+  : native wasip2 wasip3 ;
+webcpp.compile default_backend_all_linked_emscripten : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 <define>WEBCPP_CRYPTO_HAS_CTAES=1
+    <define>WEBCPP_CRYPTO_HAS_SECP256K1=1 <define>WEBCPP_CRYPTO_HAS_SODIUM=1
+  : emscripten ;
+webcpp.compile default_backend_none_linked : default_backend_test.cpp ;
+webcpp.compile default_backend_bearssl_alone : default_backend_test.cpp
   : <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 ;
-webcpp.compile default_backend_bearssl_selected : default_backend_test.cpp
-  : <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL ;
-webcpp.compile default_backend_openssl_linked : default_backend_test.cpp
-  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native ;
-webcpp.compile default_backend_openssl_linked_wasi : default_backend_test.cpp
-  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 : wasip2 wasip3 ;
-webcpp.compile default_backend_both_linked : default_backend_test.cpp
-  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1
-    <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native ;
-webcpp.compile default_backend_both_linked_wasi : default_backend_test.cpp
-  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 : wasip2 wasip3 ;
-webcpp.compile default_backend_both_bearssl_selected : default_backend_test.cpp
-  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1
-    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL : native ;
-webcpp.compile default_backend_openssl_selected : default_backend_test.cpp
-  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
-    <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native wasip2 wasip3 ;
+webcpp.compile default_backend_openssl_alone : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 : native wasip2 wasip3 ;
+webcpp.compile default_backend_ctaes_alone : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_CTAES=1 ;
+webcpp.compile default_backend_secp256k1_alone : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_SECP256K1=1 ;
+webcpp.compile default_backend_sodium_alone : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_SODIUM=1 ;
+webcpp.compile default_backend_former_defines : default_backend_test.cpp
+  : <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 <define>WEBCPP_CRYPTO_PROFILE_FASTEST
+    <define>WEBCPP_PROFILE_SMALLEST <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_GCM_BEARSSL ;
 
-# aes128_gcm, aes256_gcm and aes256<> name the default backend (spec section 5),
-# checked from the defines alone against stand-ins for the backends' headers
-# (support/fake_backends), which the test includes first, under the real
-# headers' guards.
-webcpp.compile default_selection_openssl : default_selection_test.cpp
+# aes128_gcm, aes256_gcm and aes256<> name AES-GCM's default backend, OpenSSL
+# natively and BearSSL on WebAssembly, whatever is linked: checked against
+# stand-ins for the backends' headers (support/fake_backends), which the test
+# includes first, under the real headers' guards.
+webcpp.compile default_selection_both : default_selection_test.cpp
   : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1
-    <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native ;
+  : native wasip2 wasip3 ;
 webcpp.compile default_selection_openssl_alone : default_selection_test.cpp
-  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL : native ;
-webcpp.compile default_selection_both_wasm : default_selection_test.cpp
-  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 : wasip2 wasip3 ;
+  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 : native wasip2 wasip3 ;
 webcpp.compile default_selection_bearssl : default_selection_test.cpp
   : <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 ;
-webcpp.compile default_selection_bearssl_selected : default_selection_test.cpp
-  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1
-    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL : native wasip2 wasip3 ;
-webcpp.compile default_selection_openssl_selected : default_selection_test.cpp
-  : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1
-    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL <define>WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL
-    : native wasip2 wasip3 ;
 
 # crypto.hpp's branch for libsecp256k1, which headers-alone, without the
 # library, leaves out.
 webcpp.compile crypto_secp256k1 : crypto_secp256k1_test.cpp : <library>/third_party//secp256k1 ;
-# crypto.hpp with OpenSSL alone linked and BearSSL the default: no
-# aes256_gcm.hpp.
+# crypto.hpp with OpenSSL alone linked, where on WASI BearSSL stays the
+# default: the program names OpenSSL in the type.
 crypto-run crypto_openssl_alone : crypto_openssl_alone_test.cpp
-  : <library>/webcpp/crypto//openssl <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL
-  : native wasip2 wasip3 ;
+  : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
 crypto-run secp256k1 : secp256k1_test.cpp : <library>/third_party//secp256k1 ;
 crypto-run secp256k1_allocation : secp256k1_allocation_test.cpp
   : <library>/third_party//secp256k1 ;
@@ -196,9 +236,9 @@ crypto-run gcm_wycheproof_bearssl : gcm_wycheproof_bearssl_test.cpp
 
 # read_canary's load survives optimisation: without the canary the program does
 # not link, on every compiler; with it, it links and runs.
-webcpp.link-fail canary_read_absent : canary_read_test.cpp : <optimization>speed ;
+webcpp.link-fail canary_read_absent : canary_read_test.cpp : $(OPTIMISED) ;
 crypto-run canary_read : canary_read_test.cpp
-  : <optimization>speed <define>WEBCPP_TEST_CRYPTO_DEFINE_CANARY ;
+  : $(OPTIMISED) <define>WEBCPP_TEST_CRYPTO_DEFINE_CANARY ;
 
 # random_device: the system's generator, and a planted failing source.
 crypto-run random_device : random_device_test.cpp ;
@@ -210,8 +250,17 @@ webcpp.compile-diagnostic random_device_no_call : random_device_no_call_test.cpp
 # The C libraries' own suites, in the own lane c-suites.
 build-project c_suites ;
 
+# Constant time under memcheck, MemorySanitizer and dudect, in the own lane
+# constant-time.
+build-project constant_time ;
+
 # A backend named and not called adds no byte (webcpp.same-program).
 build-project unused ;
+
+# A program per cell of the capability table, linked here and sized in the own
+# lane sizes; and the throughput program's correctness test.
+build-project sizes ;
+build-project ../bench ;
 
 # The backend OpenSSL: the source-built OpenSSL 3.5.9 on native, wasip2 and
 # wasip3 (Task 11); Emscripten has none.
@@ -232,17 +281,12 @@ crypto-run openssl_error_queue : openssl_error_queue_test.cpp
 crypto-run gcm_openssl_threads : gcm_openssl_threads_test.cpp
   : <library>/webcpp/crypto//openssl <threading>multi : native ;
 
-# The default backend with the real backends.
+# AES-GCM's default with the real backends, whatever else is linked: natively
+# OpenSSL, on MSVC too; on WebAssembly BearSSL.
 crypto-run default_both : default_both_test.cpp
   : <library>/third_party//bearssl <library>/webcpp/crypto//openssl : native ;
-crypto-run default_openssl_wasm : default_openssl_wasm_test.cpp
-  : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
-    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL : wasip2 wasip3 ;
-crypto-run default_selected : default_selected_test.cpp
-  : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
-    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL : native wasip2 wasip3 ;
 crypto-run default_bearssl : default_bearssl_test.cpp
-  : <library>/third_party//bearssl ;
+  : <library>/third_party//bearssl : wasip2 wasip3 emscripten ;
 crypto-run default_both_wasm : default_both_wasm_test.cpp
   : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
     : wasip2 wasip3 ;
@@ -250,6 +294,141 @@ crypto-run default_both_wasm : default_both_wasm_test.cpp
 # The backend ctaes: the AES block cipher alone, on every target; FIPS-197 only
 # (ruling R5).
 crypto-run aes_ctaes : aes_ctaes_test.cpp : <library>/third_party//ctaes ;
+
+# The backend libsodium: its canary, its initialisation and its three layers.
+crypto-run sodium_backend : sodium_backend_test.cpp : <library>/third_party//sodium ;
+
+# Ed25519 on libsodium: RFC 8032's tests, the guards, generate() under the
+# planted entropy source and the conversion to X25519; Wycheproof's EdDSA
+# file, strict; Ed25519ph, RFC 8032's test in one piece and in two.
+crypto-run ed25519_sodium : ed25519_sodium_test.cpp
+  : <library>/third_party//sodium <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
+crypto-run ed25519_wycheproof_sodium : ed25519_wycheproof_sodium_test.cpp
+  : <library>/third_party//sodium <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
+crypto-run ed25519ph_sodium : ed25519ph_sodium_test.cpp : <library>/third_party//sodium ;
+# The key pair's secret key and the signer's state are zero once moved from,
+# moved over, ended and destroyed: optimised, every call inlined, as secret's.
+crypto-run ed25519_wipe_sodium : ed25519_wipe_sodium_test.cpp
+  : <library>/third_party//sodium $(OPTIMISED) <inlining>full ;
+# The twelve Ed25519 edge cases of "Taming the many EdDSAs" (design D31):
+# each backend's raw verdict and strict's against meta/ed25519_cases.json, read
+# at run time from the directory WEBCPP_TEST_CRYPTO_META gives, quoted as
+# wycheproof's is, with forward slashes, and preopened on WASI; on Emscripten
+# node's WebCrypto too, the outside view (the JSPI link, for EM_ASYNC_JS).
+path-constant CRYPTO_TEST_META : ../meta ;
+.crypto-meta = [ regex.replace $(CRYPTO_TEST_META) "\\\\" "/" ] ;
+crypto-run ed25519_speccheck : ed25519_speccheck_test.cpp
+  : <library>/third_party//sodium <library>/third_party//ed25519-speccheck
+    <library>/webcpp//boost_json
+    <define>"\"WEBCPP_TEST_CRYPTO_META=\\\"$(.crypto-meta)\\\"\""
+    [ webcpp.data $(CRYPTO_TEST_META) ]
+    <dependency>../meta/ed25519_cases.json
+    <toolset>emscripten:<linkflags>-sJSPI ;
+
+# X25519 on libsodium: RFC 7748's scalar multiplications and Alice and Bob, a
+# peer of order 8 refused as weak, the guards and the conversion from Ed25519;
+# Wycheproof's X25519 file, every case.
+crypto-run x25519_sodium : x25519_sodium_test.cpp : <library>/third_party//sodium ;
+# X25519's generic layer on a stand-in engine that does not refuse an all-zero
+# shared secret: agree refuses it itself (design D8).
+crypto-run x25519_mock : x25519_mock_test.cpp ;
+# ciphers::aead's and hybrid::basic_box's generic layer on a stand-in engine
+# that writes the data before it fails: a failed seal zeroes it, as a failed
+# open does.
+crypto-run aead_box_mock : aead_box_mock_test.cpp ;
+crypto-run x25519_wycheproof_sodium : x25519_wycheproof_sodium_test.cpp
+  : <library>/third_party//sodium <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
+
+# node's WebCrypto as an outside oracle of Ed25519 and X25519, on Emscripten
+# (EM_ASYNC_JS under the JSPI link, as webcpp::hash's webcrypto_oracle): 200
+# seeded Ed25519 key pairs, messages and signatures, each verified and signed
+# again by WebCrypto, and 200 X25519 agreements, each derived again; it prints
+# `oracle ok 400`. oracle_25519_corrupted flips one signature and one shared
+# secret and passes only when WebCrypto disagrees on exactly those two cases.
+crypto-run oracle_25519 : oracle_25519_test.cpp
+  : <library>/third_party//sodium <linkflags>-sJSPI : emscripten ;
+crypto-run oracle_25519_corrupted : oracle_25519_test.cpp
+  : <library>/third_party//sodium <linkflags>-sJSPI
+    <define>WEBCPP_TEST_CRYPTO_ORACLE_CORRUPTED : emscripten ;
+
+# RFC 8410's SPKI and PKCS#8 for Ed25519 and X25519, and PEM, on libsodium
+# (design D30): RFC 8410's own keys, round trips of random keys, every
+# malformed input refused with invalid_encoding and nothing written. OpenSSL's
+# i2d_PUBKEY, i2d_PrivateKey and PEM writers as an outside oracle on native,
+# wasip2 and wasip3 (linked in the test alone), and node's WebCrypto importKey
+# and exportKey on Emscripten (the JSPI link, for EM_ASYNC_JS): 200 seeded
+# cases per curve each.
+# PEM's generic layer on a stand-in whose base64 decoder is lenient: unarmour's
+# own checks refuse what armour does not write, whatever the backend takes, and
+# a backend failing on the second pass leaves no byte of the DER in the output.
+crypto-run pem_mock : pem_mock_test.cpp ;
+crypto-run formats_25519_sodium : formats_25519_sodium_test.cpp
+  : <library>/third_party//sodium ;
+crypto-run formats_25519_openssl_oracle : formats_25519_openssl_oracle_test.cpp
+  : <library>/third_party//sodium <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
+crypto-run formats_25519_webcrypto_oracle : formats_25519_webcrypto_oracle_test.cpp
+  : <library>/third_party//sodium <linkflags>-sJSPI : emscripten ;
+
+# crypto_kx on libsodium: libsodium's kx.exp, the client's transmit key the
+# server's receive key and the reverse, a peer of small order refused as weak,
+# the guards and generate() under the planted entropy source. The key pair's
+# secret key, kx.exp's client_sk, is zero once moved from, moved over and
+# destroyed, and the session keys once destroyed: optimised, every call
+# inlined, as Ed25519's.
+crypto-run kx_sodium : kx_sodium_test.cpp
+  : <library>/third_party//sodium <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
+crypto-run kx_wipe_sodium : kx_wipe_sodium_test.cpp
+  : <library>/third_party//sodium $(OPTIMISED) <inlining>full ;
+
+# The ChaCha20-Poly1305 AEADs on libsodium, their default on every target: each
+# family's known answers and every check of support/aead_checks.hpp, natively
+# the message's limit too; Wycheproof's vectors of ChaCha20-Poly1305 and
+# XChaCha20-Poly1305; and nothing allocated.
+crypto-run chacha_sodium : chacha_sodium_test.cpp : <library>/third_party//sodium ;
+crypto-run chacha_original_sodium : chacha_original_sodium_test.cpp
+  : <library>/third_party//sodium ;
+crypto-run xchacha_sodium : xchacha_sodium_test.cpp : <library>/third_party//sodium ;
+crypto-run chacha_wycheproof_sodium : chacha_wycheproof_sodium_test.cpp
+  : <library>/third_party//sodium <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
+crypto-run allocation_sodium : allocation_sodium_test.cpp : <library>/third_party//sodium ;
+
+# libsodium's boxes, its default on every target: crypto_secretbox and its
+# XChaCha20 twin, libsodium's cases and every check of support/aead_checks.hpp
+# that applies to a family without additional data; hybrid::box and its
+# XChaCha20 twin, NaCl's case both ways, the same checks through an adapter,
+# make's guards and a peer key of small order; and sealed boxes, opened by
+# their recipient alone and refused, the output zeroed, otherwise.
+crypto-run secretbox_sodium : secretbox_sodium_test.cpp : <library>/third_party//sodium ;
+crypto-run box_sodium : box_sodium_test.cpp : <library>/third_party//sodium ;
+
+# ChaCha20-Poly1305 on BearSSL, on every target, and on OpenSSL, on native,
+# wasip2 and wasip3: every check of support/aead_checks.hpp against RFC 8439's
+# cases, natively the message's limit too, and Wycheproof's vectors.
+crypto-run chacha_bearssl : chacha_bearssl_test.cpp : <library>/third_party//bearssl ;
+crypto-run chacha_wycheproof_bearssl : chacha_wycheproof_bearssl_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
+crypto-run chacha_openssl : chacha_openssl_test.cpp : <library>/webcpp/crypto//openssl
+  : native wasip2 wasip3 ;
+crypto-run chacha_wycheproof_openssl : chacha_wycheproof_openssl_test.cpp
+  : <library>/webcpp/crypto//openssl <library>/third_party//wycheproof
+    <library>/webcpp//boost_json : native wasip2 wasip3 ;
+
+# The capability table of doc/tables/crypto.json, which generate.py writes
+# this test from: supports_v of every cell on the target, and each present
+# cell made, with every backend the target builds linked.
+crypto-run capabilities : capabilities_test.cpp
+  : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
+    <library>/third_party//ctaes <library>/third_party//secp256k1
+    <library>/third_party//sodium
+  : native wasip2 wasip3 ;
+crypto-run capabilities_emscripten : capabilities_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//ctaes
+    <library>/third_party//secp256k1 <library>/third_party//sodium
+  : emscripten ;
 
 # ctaes against OpenSSL on 10,000 random keys of each size (spec section 8.2),
 # on native, wasip2 and wasip3 (on WASI OpenSSL runs its portable C code).
@@ -270,16 +449,40 @@ crypto-run agreement_gcm_portable : agreement_gcm_portable_test.cpp
     <define>WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE
   : native wasip2 wasip3 ;
 
+# libsodium, BearSSL and OpenSSL pairwise on ChaCha20-Poly1305 (spec section
+# 8.2), on native, wasip2 and wasip3; on Emscripten, which has no OpenSSL,
+# libsodium against BearSSL. The portable twins keep BearSSL on chacha20_ct
+# and poly1305_ctmul through the backend's test seam, as AES-GCM's does: on
+# x86-64 its other ChaCha20 is SSE2's, and wherever the compiler has 128-bit
+# integers, the WebAssembly targets included, its other Poly1305 is ctmulq.
+crypto-run agreement_chacha : agreement_chacha_test.cpp
+  : <library>/third_party//sodium <library>/third_party//bearssl
+    <library>/webcpp/crypto//openssl
+  : native wasip2 wasip3 ;
+crypto-run agreement_chacha_emscripten : agreement_chacha_test.cpp
+  : <library>/third_party//sodium <library>/third_party//bearssl
+  : emscripten ;
+crypto-run agreement_chacha_portable : agreement_chacha_portable_test.cpp
+  : <library>/third_party//sodium <library>/third_party//bearssl
+    <library>/webcpp/crypto//openssl <define>WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE
+  : native wasip2 wasip3 ;
+crypto-run agreement_chacha_portable_emscripten : agreement_chacha_portable_test.cpp
+  : <library>/third_party//sodium <library>/third_party//bearssl
+    <define>WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE
+  : emscripten ;
+
 # <windows.h> before and after every public header (spec sections 2.2 and 8.6),
 # with every backend linked: on MSVC (the CI's msvc lanes) the headers beside a
 # bare <windows.h>; elsewhere the headers alone.
 crypto-run windows_h_before : windows_h_before_test.cpp
   : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
     <library>/third_party//ctaes <library>/third_party//secp256k1
+    <library>/third_party//sodium
   : native ;
 crypto-run windows_h_after : windows_h_after_test.cpp
   : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
     <library>/third_party//ctaes <library>/third_party//secp256k1
+    <library>/third_party//sodium
   : native ;
 
 # The programs of the user's Jamfiles that the page shows, fixtures of
@@ -287,19 +490,60 @@ crypto-run windows_h_after : windows_h_after_test.cpp
 # so that the ordinary lanes and clang-tidy read the documentation's code; the
 # fixtures that must fail are left to that test.
 webcpp.compile doc_web_app : ../../../tools/test/fixtures/crypto_jamfiles/web/app.cpp
-  : <library>/third_party//bearssl ;
+  : <library>/third_party//bearssl : wasip2 wasip3 emscripten ;
 webcpp.compile doc_server_app
   : ../../../tools/test/fixtures/crypto_jamfiles/server/app.cpp
   : <library>/webcpp/crypto//openssl : native ;
-webcpp.compile doc_both_bearssl_default_app
-  : ../../../tools/test/fixtures/crypto_jamfiles/both_bearssl_default/app.cpp
-  : <library>/webcpp/crypto//openssl <library>/third_party//bearssl
-    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL : native wasip2 wasip3 ;
+webcpp.compile doc_both_bearssl_named_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/both_bearssl_named/app.cpp
+  : <library>/webcpp/crypto//openssl <library>/third_party//bearssl : native wasip2 wasip3 ;
 webcpp.compile doc_block : ../../../tools/test/fixtures/crypto_jamfiles/block/block.cpp
   : <library>/third_party//ctaes ;
 webcpp.compile doc_encrypt_and_sign
   : ../../../tools/test/fixtures/crypto_jamfiles/encrypt_and_sign/app.cpp
-  : <library>/third_party//bearssl <library>/third_party//secp256k1 ;
+  : <library>/webcpp/crypto//gcm-default <library>/third_party//secp256k1 ;
+webcpp.compile doc_gcm_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/gcm_default/app.cpp
+  : <library>/webcpp/crypto//gcm-default ;
+webcpp.compile doc_secp256k1_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/secp256k1_default/app.cpp
+  : <library>/webcpp/crypto//secp256k1-default ;
+webcpp.compile doc_ed25519_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/ed25519_default/app.cpp
+  : <library>/webcpp/crypto//ed25519-default ;
+webcpp.compile doc_x25519_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/x25519_default/app.cpp
+  : <library>/webcpp/crypto//x25519-default ;
+webcpp.compile doc_pem_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/pem_default/app.cpp
+  : <library>/webcpp/crypto//pem-default ;
+webcpp.compile doc_kx_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/kx_default/app.cpp
+  : <library>/webcpp/crypto//kx-default ;
+webcpp.compile doc_chacha20_poly1305_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_default/app.cpp
+  : <library>/webcpp/crypto//chacha20_poly1305-default ;
+webcpp.compile doc_chacha20_poly1305_original_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_original_default/app.cpp
+  : <library>/webcpp/crypto//chacha20_poly1305_original-default ;
+webcpp.compile doc_xchacha20_poly1305_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/xchacha20_poly1305_default/app.cpp
+  : <library>/webcpp/crypto//xchacha20_poly1305-default ;
+webcpp.compile doc_secretbox_xsalsa20poly1305_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/secretbox_xsalsa20poly1305_default/app.cpp
+  : <library>/webcpp/crypto//secretbox_xsalsa20poly1305-default ;
+webcpp.compile doc_secretbox_xchacha20poly1305_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/secretbox_xchacha20poly1305_default/app.cpp
+  : <library>/webcpp/crypto//secretbox_xchacha20poly1305-default ;
+webcpp.compile doc_box_xsalsa20poly1305_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/box_xsalsa20poly1305_default/app.cpp
+  : <library>/webcpp/crypto//box_xsalsa20poly1305-default ;
+webcpp.compile doc_box_xchacha20poly1305_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/box_xchacha20poly1305_default/app.cpp
+  : <library>/webcpp/crypto//box_xchacha20poly1305-default ;
+webcpp.compile doc_sealed_box_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/sealed_box_default/app.cpp
+  : <library>/webcpp/crypto//sealed_box-default ;
 webcpp.compile doc_openssl_linked
   : ../../../tools/test/fixtures/crypto_jamfiles/openssl_linked/app.cpp
   : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;

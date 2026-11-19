@@ -15,17 +15,25 @@ back from the point to the number is infeasible. On a curve a program can
 on a key*, so that two parties who only exchanged public keys share a secret
 (link:https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman[Wikipedia]).
 
-The namespace `webcpp::crypto::curves` holds one curve in this version,
-secp256k1 (link:https://www.secg.org/sec2-v2.pdf[SEC 2];
+The namespace `webcpp::crypto::curves` holds three curves in this version, the
+three columns of the table below. The first is secp256k1 (link:https://www.secg.org/sec2-v2.pdf[SEC 2];
 link:https://en.bitcoin.it/wiki/Secp256k1[Bitcoin Wiki]), the curve of
 Bitcoin, Ethereum and Nostr. This version covers Bitcoin's keys and signatures,
 Nostr's event signatures (NIP-01) and the verification of Ethereum's ECDSA
 signatures with a known key. It does not cover Ethereum's recoverable
 signatures (the recovery id `v`, and the recovery of a public key from a
 signature), nor ECDH in the raw x-coordinate form that Nostr's encrypted
-messages (NIP-44) use. A program chooses a curve for compatibility: a
-signature on secp256k1 is checked only with secp256k1, and the curves of
-passkeys, SSH or TLS certificates are others, which this version does not
-offer.
+messages (NIP-44) use. The second is Ed25519, RFC 8032's signatures on
+edwards25519, with Ed25519ph for a message given in pieces
+(link:https://www.rfc-editor.org/rfc/rfc8032[RFC 8032]; <<crypto-ed25519>>). The
+third is X25519, RFC 7748's key agreement on Curve25519, the same curve in
+another form, with the conversion of an Ed25519 key to it
+(link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748]; <<crypto-x25519>>), and
+libsodium's key exchange on it, `crypto_kx` (<<crypto-kx>>). A
+program chooses a curve for compatibility: a signature on one curve is checked
+only with that curve, and the curve of passkeys and TLS certificates, P-256, is
+another, which this version does not offer. Ed25519's and X25519's keys leave a
+program, and enter it, in the standard forms OpenSSL and WebCrypto use, SPKI
+and PKCS#8, as DER or PEM text (<<crypto-key-formats>>).
 
 include::generated/namespace-curves.adoc[]

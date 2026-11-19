@@ -12,7 +12,10 @@
 #include <span>
 
 #ifdef _WIN32
-#include <windows.h>
+// VirtualAlloc through the library's own <windows.h>, with NOMINMAX and WIN32_LEAN_AND_MEAN:
+// a bare <windows.h> here would define the macros min and max for every test that reads
+// this header, and break their numeric_limits<...>::max().
+#include <webcpp/crypto/detail/windows.hpp>
 #else
 #include <sys/mman.h>
 #endif

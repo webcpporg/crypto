@@ -80,6 +80,116 @@
 |OpenSSL
 |native; not on wasip2, wasip3, emscripten: `+config.hpp+` refuses the option on every WebAssembly target
 |`+adapter+`, `+everything+`, `+late+`, `+foreign+`, `+fresh_install+`, `+forgotten+`, `+replaced+`, `+second_install+`, `+fail_second+`, `+fail_init+`, `+fail_init_threads+`, `+neighbours+`, `+handshake+`
+
+|`+curves::ed25519::keypair+`
+|BearSSL
+|refused at compile time
+|`+ed25519_on_bearssl+`
+
+|`+curves::ed25519::keypair+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+ed25519_sodium+`, `+oracle_25519+`
+
+|`+curves::ed25519::verify+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+ed25519_sodium+`, `+ed25519_wycheproof_sodium+`, `+ed25519_speccheck+`, `+oracle_25519+`
+
+|`+curves::ed25519::ph+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+ed25519ph_sodium+`
+
+|`+curves::ed25519::to_x25519_public+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+x25519_sodium+`
+
+|`+curves::x25519::public_key+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+x25519_sodium+`, `+oracle_25519+`
+
+|`+curves::x25519::agree+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+x25519_sodium+`, `+x25519_wycheproof_sodium+`, `+oracle_25519+`
+
+|`+curves::ed25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+formats_25519_webcrypto_oracle+`, `+allocation_sodium+`
+
+|`+curves::x25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+formats_25519_webcrypto_oracle+`, `+allocation_sodium+`
+
+|`+pem::armour+`, `+pem::unarmour+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+allocation_sodium+`
+
+|`+curves::x25519::kx_keypair+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+kx_sodium+`, `+kx_wipe_sodium+`, `+allocation_sodium+`
+
+|`+ciphers::chacha20_poly1305+`
+|BearSSL
+|native, wasip2, wasip3, emscripten
+|`+chacha_bearssl+`, `+chacha_wycheproof_bearssl+`, `+allocation_bearssl+`, `+agreement_chacha+`, `+agreement_chacha_emscripten+`, `+agreement_chacha_portable+`, `+agreement_chacha_portable_emscripten+`
+
+|`+ciphers::chacha20_poly1305+`
+|OpenSSL
+|native, wasip2, wasip3; not on emscripten: `+/webcpp/crypto//openssl+` stops the build there
+|`+chacha_openssl+`, `+chacha_wycheproof_openssl+`, `+allocation_openssl+`, `+openssl_error_queue+`, `+agreement_chacha+`, `+agreement_chacha_portable+`
+
+|`+ciphers::chacha20_poly1305+`
+|ctaes
+|refused at compile time
+|`+chacha_on_ctaes+`
+
+|`+ciphers::chacha20_poly1305+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+chacha_sodium+`, `+chacha_wycheproof_sodium+`, `+allocation_sodium+`, `+agreement_chacha+`, `+agreement_chacha_emscripten+`
+
+|`+ciphers::chacha20_poly1305_original+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+chacha_original_sodium+`, `+allocation_sodium+`
+
+|`+ciphers::xchacha20_poly1305+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+xchacha_sodium+`, `+chacha_wycheproof_sodium+`, `+allocation_sodium+`
+
+|`+ciphers::secretbox+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`
+
+|`+ciphers::secretbox_xchacha20poly1305+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`
+
+|`+hybrid::box+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+box_sodium+`, `+allocation_sodium+`
+
+|`+hybrid::box_xchacha20poly1305+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+box_sodium+`, `+allocation_sodium+`
+
+|`+hybrid::sealed_box+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+box_sodium+`, `+allocation_sodium+`
 |===
 
 The same, by target: the backends each operation runs on.
@@ -147,4 +257,112 @@ The same, by target: the backends each operation runs on.
 |none
 |none
 |none
+
+|`+curves::ed25519::keypair+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::ed25519::verify+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::ed25519::ph+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::ed25519::to_x25519_public+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::x25519::public_key+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::x25519::agree+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::ed25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::x25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+pem::armour+`, `+pem::unarmour+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::x25519::kx_keypair+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+ciphers::chacha20_poly1305+`
+|BearSSL, OpenSSL, libsodium
+|BearSSL, OpenSSL, libsodium
+|BearSSL, OpenSSL, libsodium
+|BearSSL, libsodium
+
+|`+ciphers::chacha20_poly1305_original+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+ciphers::xchacha20_poly1305+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+ciphers::secretbox+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+ciphers::secretbox_xchacha20poly1305+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+hybrid::box+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+hybrid::box_xchacha20poly1305+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+hybrid::sealed_box+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
 |===

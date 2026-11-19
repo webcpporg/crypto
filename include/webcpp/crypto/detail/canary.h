@@ -36,6 +36,12 @@
 #define WEBCPP_CRYPTO_CTAES_COMMIT 9be056a
 #endif
 
+#ifdef WEBCPP_CRYPTO_SODIUM_CANARY_COMMIT
+#define WEBCPP_CRYPTO_SODIUM_COMMIT WEBCPP_CRYPTO_SODIUM_CANARY_COMMIT
+#else
+#define WEBCPP_CRYPTO_SODIUM_COMMIT 77e1ce5
+#endif
+
 #define WEBCPP_CRYPTO_DETAIL_CANARY_I(name, commit, configuration) \
     webcpp_crypto_##name##_##commit##_##configuration##__add_third_party_##name##_to_your_link
 #define WEBCPP_CRYPTO_DETAIL_CANARY(name, commit, configuration) \

@@ -1,0 +1,76 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+#
+# Valgrind's suppressions for valgrind.mjs: libsodium's own branches on a verdict, public by
+# design since the caller reports it, a tag that does not match or an X25519 shared secret that
+# is all zero. Each function below computes the verdict in constant time, in a function of its
+# own (crypto_verify_16, crypto_onetimeauth_poly1305_verify, or crypto_scalarmult's OR of the
+# bytes), and then branches on it in its own body, where webcpp cannot mark it public as it does
+# in its engines; libsodium is used unchanged. Each entry is a conditional jump whose innermost
+# frame is that function, and the function's body branches on nothing else that is secret
+# (libsodium 1.0.22, at the line given). MemorySanitizer needs none of them: it counts these
+# verdicts initialised (msan_test.cpp says why). The sealed box's open needs no entry of its own:
+# crypto_box_seal_open reaches crypto_box_curve25519xsalsa20poly1305_beforenm and
+# crypto_secretbox_open_detached, below, and the functions between branch only on the constants
+# those return after their own branch, which memcheck holds defined (checked by its path in
+# paths.hpp, 2026-11-18).
+
+# crypto_aead/chacha20poly1305/aead_chacha20poly1305.c:207, the tag's verdict.
+{
+   libsodium-verdict-aead-chacha20poly1305
+   Memcheck:Cond
+   fun:crypto_aead_chacha20poly1305_decrypt_detached
+}
+# crypto_aead/chacha20poly1305/aead_chacha20poly1305.c:292, the tag's verdict.
+{
+   libsodium-verdict-aead-chacha20poly1305-ietf
+   Memcheck:Cond
+   fun:crypto_aead_chacha20poly1305_ietf_decrypt_detached
+}
+# crypto_aead/xchacha20poly1305/aead_xchacha20poly1305.c:111, the tag's verdict, in a static
+# function, the only one of the name in libsodium.
+{
+   libsodium-verdict-aead-xchacha20poly1305
+   Memcheck:Cond
+   fun:_decrypt_detached
+}
+# crypto_secretbox/crypto_secretbox_easy.c:97, the tag's verdict.
+{
+   libsodium-verdict-secretbox
+   Memcheck:Cond
+   fun:crypto_secretbox_open_detached
+}
+# crypto_secretbox/xchacha20poly1305/secretbox_xchacha20poly1305.c:104, the tag's verdict.
+{
+   libsodium-verdict-secretbox-xchacha20poly1305
+   Memcheck:Cond
+   fun:crypto_secretbox_xchacha20poly1305_open_detached
+}
+# crypto_box/curve25519xsalsa20poly1305/box_curve25519xsalsa20poly1305.c:42, the shared
+# secret's.
+{
+   libsodium-verdict-box
+   Memcheck:Cond
+   fun:crypto_box_curve25519xsalsa20poly1305_beforenm
+}
+# crypto_box/curve25519xchacha20poly1305/box_curve25519xchacha20poly1305.c:48, the same.
+{
+   libsodium-verdict-box-xchacha20poly1305
+   Memcheck:Cond
+   fun:crypto_box_curve25519xchacha20poly1305_beforenm
+}
+# crypto_kx/crypto_kx.c:54, the shared secret's.
+{
+   libsodium-verdict-kx-client
+   Memcheck:Cond
+   fun:crypto_kx_client_session_keys
+}
+# crypto_kx/crypto_kx.c:95, the same.
+{
+   libsodium-verdict-kx-server
+   Memcheck:Cond
+   fun:crypto_kx_server_session_keys
+}

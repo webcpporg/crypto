@@ -15,6 +15,8 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/error.hpp>
 
@@ -23,9 +25,57 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <type_traits>
 #include <utility>
 
 namespace webcpp::crypto::detail {
+
+/**
+ * What the AES block cipher stores on a backend whose header does not specialise it: nothing,
+ * since its engine refuses the backend where the cipher is called.
+ */
+template <class Backend, std::size_t KeySize>
+struct block_state {};
+
+/**
+ * The block cipher's engine on a backend whose header does not specialise it: the family's
+ * refusal (`detail/capabilities.hpp`). Its functions are never called: the refusal stops the
+ * build where the class is instantiated, and they keep the compiler from adding errors of their
+ * own after it; those that return report `backend_failure`, so that a path the refusal missed
+ * fails closed.
+ */
+template <class Backend, std::size_t KeySize>
+struct block_engine {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_AES_BLOCK(Backend);
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> init(Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> encrypt(
+        Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> decrypt(
+        Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called. */
+    template <class... Arguments>
+    static void move(Arguments&&... /*arguments*/) noexcept {}
+
+    /** Never called. */
+    template <class... Arguments>
+    static void reset(Arguments&&... /*arguments*/) noexcept {}
+};
 
 /**
  * The AES block cipher with keys of `KeySize` bytes on `Backend`, of which `aes128`, `aes192`
@@ -42,6 +92,12 @@ class basic_aes {
 public:
     /** The backend. */
     using backend_type = Backend;
+    /** The family of the capability table, `families::aes_block`, which `supports_v` reads. */
+    using family_type = families::aes_block;
+    /** The algorithm of the capability table: `tags::aes128`, `tags::aes192` or `tags::aes256`. */
+    using name_type =
+        std::conditional_t<KeySize == 16, tags::aes128,
+                           std::conditional_t<KeySize == 24, tags::aes192, tags::aes256>>;
     /** The key's size in bytes. */
     static constexpr std::size_t key_size = KeySize;
     /** AES's block, 16 bytes. */

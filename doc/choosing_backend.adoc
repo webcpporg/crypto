@@ -1,0 +1,88 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-choosing-backend]
+== Choosing a backend
+
+A *backend* is the C library that does an algorithm's work: BearSSL, OpenSSL,
+ctaes, libsecp256k1 or libsodium. Most families have one; AES-GCM and RFC
+8439's ChaCha20-Poly1305 have several, each giving the same bytes, in code of
+different size, speed and pedigree. A type that names no backend,
+`aes256_gcm` or `xchacha20_poly1305<>`, takes its family's default, which is
+fixed per target: no measurement, link line or define changes it. This
+chapter says what each default is and why, how a program names another
+backend, and what a build with threads means. <<crypto-backends>> holds the
+matrices: which backend has which operation on which target, and what each
+costs in size and time.
+
+[#crypto-backends-defaults]
+=== The default backend per target
+
+Each family has one default backend per target, for the reason the table
+gives, whatever the program links; no define changes it, and every other
+backend is reached by naming it in the type. AES-GCM's is OpenSSL natively,
+whose assembly uses the CPU's AES instructions on x86-64 and ARMv8 with Clang
+and GCC, and BearSSL on WebAssembly, the only AES-GCM backend on Emscripten and
+constant time by design where OpenSSL is built without assembly. On MSVC
+OpenSSL is built without assembly too: the default is then table-based and not
+constant time, and a program that timing attacks threaten names
+`ciphers::gcm<ciphers::aes256<backends::bearssl>>`. A program that uses a
+default it does not link stops where it calls it, with the Jamfile line that
+links it and the type that names another backend
+(<<crypto-jamfile-messages>>).
+AES-GCM's default applies to `aes128_gcm`, `aes256_gcm` and `aes256<>`; the
+AES block cipher has none of its own, and libsecp256k1 is the only backend of
+secp256k1. The three ChaCha20-Poly1305 AEADs' default is libsodium on every
+target; RFC 8439's form also runs on BearSSL, on every target, and on OpenSSL,
+natively and on WASI, each named in the type. Every other family of this
+version, Ed25519, X25519, `kx`, the secret boxes, the boxes, the sealed box and
+PEM, has libsodium alone, on every target. In {cpp},
+`default_backend_t<Family>` names a family's default on the target being
+compiled, and `default_backend` AES-GCM's.
+
+include::generated/defaults.adoc[]
+
+[#crypto-choosing-backend-named]
+=== Naming another backend
+
+A program that wants another backend than the default names it as the type's
+last template argument and links its library, as
+`ciphers::chacha20_poly1305<backends::bearssl>` with `/third_party//bearssl`,
+or `ciphers::gcm<ciphers::aes256<backends::bearssl>>` on MSVC. The backend
+must have the family on the target being compiled, which
+`supports_v<Algorithm, Backend>` tells at compile time; a backend that lacks
+it, or that the program does not link, stops the build with a message that
+says what to do (<<crypto-jamfile-messages>>). Every backend of a family gives
+the same bytes: the agreement tests seal with one and open with another. What
+differs is what each costs and what it promises of its timing: the
+<<crypto-backends-facts,library behind each>>, its
+<<crypto-backends-constant-time,constant-time design and the lane's checks>>,
+its <<crypto-backends-sizes,size>> and its <<crypto-performance,throughput>>.
+The sizes and the throughput are dated references measured from release
+builds: they decide no default.
+
+[#crypto-choosing-backend-threads]
+=== Threads and heavy operations
+
+A *heavy* operation is one slow enough to stall an event loop, and gets an
+`async_` variant that runs it on another thread. Which operations are heavy is
+stated, not measured (design D32): RSA key generation at every size and RSA
+private operations at 3072 bits and above; SLH-DSA key generation, signing and
+verification; ML-DSA key generation and signing; BLS12-381 verification,
+aggregate verification, fast aggregate verification and aggregation; KZG's
+commitments and proofs over a blob and their batch verification; BN254's
+`pairing_check`. Everything else is cheap and synchronous only. None of those
+families is in this version, so no operation here has an `async_` variant;
+the list is fixed now so that a later version, or a new pin, never adds or
+removes one.
+
+The variants exist only in a build with threads, where
+`WEBCPP_CRYPTO_HAS_THREADS` is defined. A native build has threads unless the
+program defines `WEBCPP_CRYPTO_NO_THREADS`: the macro follows Boost.Config's
+`BOOST_HAS_THREADS`, which Boost 1.92 defines natively on Linux, macOS and
+Windows whatever b2's `threading` says, so `threading=single` alone does not
+remove them. On Emscripten a build has threads when it is compiled with
+`-pthread` (b2's `threading=multi`); on wasip2 and wasip3 it never has.

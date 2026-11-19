@@ -4,10 +4,10 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// <webcpp/crypto.hpp> in a program that links OpenSSL alone while BearSSL is the default (here
-// selected by WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL, as WebAssembly's default is): the header
-// leaves out aes256_gcm.hpp, whose default backend is not linked, and the program seals with
-// the type that names OpenSSL.
+// <webcpp/crypto.hpp> in a program that links OpenSSL alone: the header compiles on every
+// target that builds OpenSSL, aes256_gcm.hpp included, whose default on WASI, BearSSL, is not
+// linked and refuses only where it is called, and the program seals with the type that names
+// OpenSSL.
 
 #include <webcpp/crypto.hpp>
 #include <webcpp/test/exit_status.hpp>

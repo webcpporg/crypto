@@ -14,6 +14,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/limits.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
@@ -27,7 +28,73 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <type_traits>
 #include <utility>
+
+namespace webcpp::crypto::detail {
+
+/**
+ * What a `ciphers::gcm` stores on a backend whose header does not specialise it: nothing, since
+ * its engine refuses the backend where the family is called.
+ */
+template <class Backend, std::size_t KeySize>
+struct gcm_state {};
+
+/**
+ * GCM's engine on a backend whose header does not specialise it: the family's refusal, which
+ * names what the program needs (`detail/capabilities.hpp`). Its functions are never called: the
+ * refusal stops the build where the class is instantiated, and they keep the compiler from
+ * adding errors of their own after it; those that return report `backend_failure`, so that a
+ * path the refusal missed fails closed.
+ */
+template <class Backend, std::size_t KeySize>
+struct gcm_engine {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_GCM(Backend);
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> init(Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> start(Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> run(Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> tag(Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> check(Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called. */
+    template <class... Arguments>
+    static void move(Arguments&&... /*arguments*/) noexcept {}
+
+    /** Never called. */
+    template <class... Arguments>
+    static void abandon(Arguments&&... /*arguments*/) noexcept {}
+
+    /** Never called. */
+    template <class... Arguments>
+    static void reset(Arguments&&... /*arguments*/) noexcept {}
+};
+
+}  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::ciphers {
 
@@ -52,6 +119,15 @@ public:
     using cipher_type = Cipher;
     /** The backend. */
     using backend_type = backend;
+    /** The family of the capability table, `families::gcm`, which `supports_v` reads. */
+    using family_type = families::gcm;
+    /**
+     * The algorithm of the capability table: `tags::aes128_gcm`, `tags::aes192_gcm` or
+     * `tags::aes256_gcm`, by the key's size.
+     */
+    using name_type = std::conditional_t<
+        Cipher::key_size == 16, tags::aes128_gcm,
+        std::conditional_t<Cipher::key_size == 24, tags::aes192_gcm, tags::aes256_gcm>>;
     /** The tag, Boost.Hash2's digest of 16 bytes. */
     using result_type = boost::hash2::digest<16>;
     /** The key's size in bytes. */

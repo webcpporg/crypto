@@ -4,14 +4,20 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// A program for WebAssembly that links no backend and uses the default's header stops
-// with the instruction to add BearSSL (spec section 4.3, the first row).
+// A program for wasip2 or wasip3 that links no backend and calls aes256_gcm, whose default
+// backend on WebAssembly is BearSSL, stops where it calls it with the line that links BearSSL
+// (design D32).
 
 // clang-format off
-// expected-error@webcpp/crypto/backends/bearssl.hpp:* {{webcpp::crypto: no backend is linked. On WebAssembly the backend is BearSSL: in the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//bearssl ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)}}
+// expected-error@webcpp/crypto/ciphers/gcm.hpp:* {{webcpp::crypto: AES-GCM's default backend on this target is BearSSL, which is not linked. Add /webcpp/crypto//gcm-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//gcm-default ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::openssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)}}
 // clang-format on
-#include <webcpp/crypto/backends/bearssl.hpp>
+
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
+
+#include <array>
+#include <cstdint>
 
 int main() {
-    return 0;
+    std::array<std::uint8_t, 32> const key{};
+    return webcpp::crypto::ciphers::aes256_gcm::make(key) ? 0 : 1;
 }

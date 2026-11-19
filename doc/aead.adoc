@@ -25,7 +25,8 @@ and the AEAD of browsers' WebCrypto
 `gcm<Cipher>`, in `<webcpp/crypto/ciphers/gcm.hpp>`, is AES-GCM with the key
 size of `Cipher`, on the backend of `Cipher`, which must export GCM over its own
 AES: BearSSL or OpenSSL. `aes128_gcm` and `aes256_gcm`, in
-`<webcpp/crypto/ciphers/aes256_gcm.hpp>`, name it on the default backend. It is
+`<webcpp/crypto/ciphers/aes256_gcm.hpp>`, name it on the default backend,
+OpenSSL natively and BearSSL on WebAssembly. It is
 made with `make(key_bytes)`, and works in place:
 
 * `seal(iv_bytes, additional_data_bytes, data_bytes)` encrypts `data_bytes`
@@ -58,7 +59,10 @@ include::{examples}/store_token.expected[]
 ----
 
 The same, with the backend named rather than the default: AES-256-GCM on
-BearSSL against the GCM specification's test case 14.
+BearSSL against the GCM specification's test case 14. Naming BearSSL lets one
+Jamfile line serve every target, at a cost natively: on an ARM server BearSSL
+runs its portable AES, where the default, OpenSSL, uses the CPU's
+(<<crypto-gcm-arm>>).
 
 [source,cpp]
 ----
@@ -101,7 +105,9 @@ tag in one pass; when the tag does not match, crypto zeroes the whole of
 `data_bytes`, so that no unauthenticated plaintext is left. A caller who
 needs the ciphertext after a failure keeps a copy. A guard's refusal
 (`invalid_state`, `invalid_iv_size`, `invalid_tag_size`, `message_too_long`)
-comes before any work and leaves `data_bytes` untouched.
+comes before any work and leaves `data_bytes` untouched. Whether the tag
+matched is the one value derived from the key that crypto treats as public
+(<<crypto-backends-constant-time>>).
 * *Plaintext is in `data_bytes` while `open` runs.* The decrypted bytes sit in
 `data_bytes` before the tag is checked. When `data_bytes` is memory another
 party can read during the call (a shared segment, a `SharedArrayBuffer` that
@@ -145,15 +151,16 @@ summed over `update`, or additional data longer than 2^61^ - 1 bytes (NIST SP
 [#crypto-gcm-arm]
 ==== A warning for ARM servers
 
-Natively without OpenSSL, the default is BearSSL, which has AES-NI code for x86
-but none for ARM's AES instructions
+Natively the default is OpenSSL. A program that names BearSSL there gets
+AES-NI code for x86 but none for ARM's AES instructions
 (link:https://www.bearssl.org/support.html[BearSSL]): on an ARM server it runs
 its portable constant-time code, while OpenSSL's assembly uses ARMv8's AES and
 polynomial multiplication instructions
 (link:https://github.com/openssl/openssl/tree/master/crypto/aes/asm[OpenSSL's AES];
 link:https://github.com/openssl/openssl/tree/master/crypto/modes/asm[OpenSSL's GHASH]).
-How much slower is not measured yet. A server on ARM names
-`/webcpp/crypto//openssl` (<<crypto-backends-defaults>>).
+<<crypto-performance>> records how much slower, measured by hand on an arm64
+machine. A server on ARM keeps the default and links `/webcpp/crypto//openssl`
+(<<crypto-backends-defaults>>).
 
 [#crypto-gcm-incremental]
 ==== Encrypting what does not fit in memory
@@ -175,7 +182,9 @@ in its additional data: its number, so that a record cannot be reordered or
 replayed at another position, and a flag that is 1 for the last record and 0
 for every other, so that a stream cut after any record does not open: the
 receiver opens the last record it got as the last, and a record that was not
-sealed as the last fails.
+sealed as the last fails. The STREAM construction binds the same two
+(link:https://eprint.iacr.org/2015/189[Hoang, Reyhanitabar, Rogaway and Vizár,
+2015]).
 
 The record's number is its IV, so *each stream has a key of its own*. Every
 stream numbers its records from 0: two files sealed under one key would both

@@ -14,11 +14,17 @@
 //
 // The AES block cipher: 10,000 random keys of each size, each with a random message of 0 to
 // 64 blocks; encrypting and decrypting give the same bytes on both backends.
+//
+// ChaCha20-Poly1305: a random key, a 12-byte nonce and 0 to 64 bytes of additional data per
+// message, messages of every size within 1 of a multiple of 64 up to 4,096 bytes and one in
+// sixteen of the others. What one seals the other opens, and the ciphertexts and tags are
+// byte-identical.
 
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_AGREEMENT_HPP
 #define WEBCPP_TEST_CRYPTO_SUPPORT_AGREEMENT_HPP
 
 #include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -157,6 +163,56 @@ void agree_aes(std::uint64_t seed) {
     agree_aes_size<ciphers::aes128<A>, ciphers::aes128<B>>(generator, seed);
     agree_aes_size<ciphers::aes192<A>, ciphers::aes192<B>>(generator, seed);
     agree_aes_size<ciphers::aes256<A>, ciphers::aes256<B>>(generator, seed);
+}
+
+/** One ChaCha20-Poly1305 message on backends A and B; false once they disagree. */
+template <class A, class B>
+bool agree_chacha_once(std::mt19937_64& generator, std::size_t message_size, std::uint64_t seed) {
+    namespace ciphers = crypto::ciphers;
+    auto const key = random_bytes(generator, 32);
+    auto const iv = random_bytes(generator, 12);
+    auto const additional_data = random_bytes(generator, generator() % 65);
+    auto const message = random_bytes(generator, message_size);
+    auto a = ciphers::chacha20_poly1305<A>::make(key);
+    auto b = ciphers::chacha20_poly1305<B>::make(key);
+    if (!BOOST_TEST(a.has_value()) || !BOOST_TEST(b.has_value())) {
+        return false;
+    }
+    auto data_a = message;
+    auto data_b = message;
+    auto const tag_a = a->seal(iv, additional_data, data_a);
+    auto const tag_b = b->seal(iv, additional_data, data_b);
+    bool const same = tag_a && tag_b && data_a == data_b && *tag_a == *tag_b;
+    if (!BOOST_TEST(same)) {
+        print_disagreement(seed, "ChaCha20-Poly1305", 32, message_size);
+        return false;
+    }
+    bool const opened = BOOST_TEST(b->open(iv, additional_data, data_a, *tag_a).has_value()) &&
+                        BOOST_TEST(a->open(iv, additional_data, data_b, *tag_b).has_value()) &&
+                        BOOST_TEST(data_a == message && data_b == message);
+    if (!opened) {
+        print_disagreement(seed, "ChaCha20-Poly1305", 32, message_size);
+    }
+    return opened;
+}
+
+/**
+ * ChaCha20-Poly1305 on backends A and B: every message size within 1 of a multiple of 64 up to
+ * 4,096 bytes, and one in sixteen of the others; stops at the first disagreement.
+ */
+template <class A, class B>
+void agree_chacha(std::uint64_t seed) {
+    constexpr std::size_t largest = 4096;
+    std::mt19937_64 generator(seed);
+    for (std::size_t size = 0; size <= largest; ++size) {
+        bool const near = size % 64 <= 1 || size % 64 == 63;
+        if (!near && generator() % 16 != 0) {
+            continue;
+        }
+        if (!agree_chacha_once<A, B>(generator, size, seed)) {
+            return;
+        }
+    }
 }
 
 }  // namespace webcpp::test

@@ -23,23 +23,103 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/block/block.outcome[tag=output]
 ----
 
-`+both_bearssl_default+`:: Both backends linked, BearSSL chosen as the default with a define; the same program.
+`+both_bearssl_named+`:: Both backends linked, and BearSSL named in the type where the default is OpenSSL.
 +
 Its Jamfile, built and run on native, wasip2, wasip3:
 +
 [listing]
 ----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_default/Jamfile[tag=jamfile]
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_named/Jamfile[tag=jamfile]
 ----
 +
 It prints:
 +
 [listing]
 ----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_default/both_bearssl_default.outcome[tag=output]
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/both_bearssl_named/both_bearssl_named.outcome[tag=output]
 ----
 
-`+encrypt_and_sign+`:: Two backends in one program: AES-256-GCM on the default backend and a BIP 340 signature.
+`+box_xchacha20poly1305_default+`:: Alice and Bob's keys in the XChaCha20 box, sealed by Alice and opened by Bob on its default on every target, with the one line `+/webcpp/crypto//box_xchacha20poly1305-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/box_xchacha20poly1305_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/box_xchacha20poly1305_default/box_xchacha20poly1305_default.outcome[tag=output]
+----
+
+`+box_xsalsa20poly1305_default+`:: NaCl's box from Alice to Bob, sealed and opened by Bob on its default on every target, with the one line `+/webcpp/crypto//box_xsalsa20poly1305-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/box_xsalsa20poly1305_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/box_xsalsa20poly1305_default/box_xsalsa20poly1305_default.outcome[tag=output]
+----
+
+`+chacha20_poly1305_default+`:: RFC 8439's ChaCha20-Poly1305 example, sealed and opened on its default on every target, with the one line `+/webcpp/crypto//chacha20_poly1305-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_default/chacha20_poly1305_default.outcome[tag=output]
+----
+
+`+chacha20_poly1305_original_default+`:: libsodium's case of the original ChaCha20-Poly1305, sealed and opened on its default on every target, with the one line `+/webcpp/crypto//chacha20_poly1305_original-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_original_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha20_poly1305_original_default/chacha20_poly1305_original_default.outcome[tag=output]
+----
+
+`+ed25519_default+`:: RFC 8032's first Ed25519 test, signed and verified on Ed25519's default on every target, with the one line `+/webcpp/crypto//ed25519-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/ed25519_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/ed25519_default/ed25519_default.outcome[tag=output]
+----
+
+`+encrypt_and_sign+`:: Two backends in one program on every target: AES-256-GCM on its default, through `+/webcpp/crypto//gcm-default+`, and a BIP 340 signature.
 +
 Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
 +
@@ -53,6 +133,38 @@ It prints:
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/encrypt_and_sign/encrypt_and_sign.outcome[tag=output]
+----
+
+`+gcm_default+`:: AES-256-GCM on its default on every target, with the one line `+/webcpp/crypto//gcm-default+`, which links OpenSSL natively and BearSSL on WebAssembly; the same program as `+web+`.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/gcm_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/gcm_default/gcm_default.outcome[tag=output]
+----
+
+`+kx_default+`:: libsodium's `+crypto_kx+` test, the client's and the server's session keys from each other's public key, on its default on every target, with the one line `+/webcpp/crypto//kx-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/kx_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/kx_default/kx_default.outcome[tag=output]
 ----
 
 `+memory_option+`:: OpenSSL's allocations in the program's own resource: the define and OpenSSL in the requirements of the program's project, the resource defined once, the install first in `+main+`.
@@ -87,7 +199,87 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/openssl_linked/openssl_linked.outcome[tag=output]
 ----
 
-`+server+`:: A server, natively: the same program with OpenSSL, the default natively when linked.
+`+pem_default+`:: RFC 8410's Ed25519 public key read from PEM and armoured again to the same text on PEM's default on every target, with the one line `+/webcpp/crypto//pem-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/pem_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/pem_default/pem_default.outcome[tag=output]
+----
+
+`+sealed_box_default+`:: A message sealed to Bob's public key and opened with his key pair on the default on every target, with the one line `+/webcpp/crypto//sealed_box-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sealed_box_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sealed_box_default/sealed_box_default.outcome[tag=output]
+----
+
+`+secp256k1_default+`:: BIP 340's first test vector, signed and verified on secp256k1's default on every target, with the one line `+/webcpp/crypto//secp256k1-default+`, which links libsecp256k1.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secp256k1_default/secp256k1_default.outcome[tag=output]
+----
+
+`+secretbox_xchacha20poly1305_default+`:: A case of libsodium's XChaCha20 secret boxes, sealed and opened on its default on every target, with the one line `+/webcpp/crypto//secretbox_xchacha20poly1305-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secretbox_xchacha20poly1305_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secretbox_xchacha20poly1305_default/secretbox_xchacha20poly1305_default.outcome[tag=output]
+----
+
+`+secretbox_xsalsa20poly1305_default+`:: NaCl's secret box, sealed and opened on its default on every target, with the one line `+/webcpp/crypto//secretbox_xsalsa20poly1305-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secretbox_xsalsa20poly1305_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secretbox_xsalsa20poly1305_default/secretbox_xsalsa20poly1305_default.outcome[tag=output]
+----
+
+`+server+`:: A server, natively: the same program with OpenSSL, the default natively.
 +
 Its Jamfile, built and run on native:
 +
@@ -135,9 +327,25 @@ It prints:
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/sign_small/sign_small.outcome[tag=output]
 ----
 
-`+web+`:: A web application: AES-256-GCM on BearSSL, the default on every target.
+`+threads_on_emscripten+`:: A program for Emscripten built with `+<threading>multi+`, which is `+-pthread+`: the build has threads.
 +
-Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
+Its Jamfile, built and run on emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/threads_on_emscripten/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/threads_on_emscripten/threads_on_emscripten.outcome[tag=output]
+----
+
+`+web+`:: A web application: AES-256-GCM on BearSSL, the default on WebAssembly.
++
+Its Jamfile, built and run on wasip2, wasip3, emscripten:
 +
 [listing]
 ----
@@ -149,4 +357,36 @@ It prints:
 [listing]
 ----
 include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/web/web.outcome[tag=output]
+----
+
+`+x25519_default+`:: RFC 7748's shared secret on X25519's default on every target, with the one line `+/webcpp/crypto//x25519-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/x25519_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/x25519_default/x25519_default.outcome[tag=output]
+----
+
+`+xchacha20_poly1305_default+`:: The XChaCha20-Poly1305 draft's example, sealed and opened on its default on every target, with the one line `+/webcpp/crypto//xchacha20_poly1305-default+`, which links libsodium.
++
+Its Jamfile, built and run on native, wasip2, wasip3, emscripten:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/xchacha20_poly1305_default/Jamfile[tag=jamfile]
+----
++
+It prints:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/xchacha20_poly1305_default/xchacha20_poly1305_default.outcome[tag=output]
 ----

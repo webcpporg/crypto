@@ -1,0 +1,4 @@
+on the wire: 80 bytes of sealed key, 24 of nonce, 16 of tag, 25 of file
+the recipient read: quarterly report, draft 3
+the recipient, the upload changed: the file refused: the authentication tag does not match
+another key pair: the file key refused: the authentication tag does not match

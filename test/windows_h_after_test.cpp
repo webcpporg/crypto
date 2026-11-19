@@ -16,13 +16,19 @@
 #include <webcpp/crypto/backends/ctaes.hpp>
 #include <webcpp/crypto/backends/openssl.hpp>
 #include <webcpp/crypto/backends/secp256k1.hpp>
+#include <webcpp/crypto/backends/sodium.hpp>
+#include <webcpp/crypto/ciphers/aead.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
+#include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
+#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/config.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/hybrid/box.hpp>
+#include <webcpp/crypto/hybrid/sealed_box.hpp>
 #include <webcpp/crypto/random_device.hpp>
 #include <webcpp/test/exit_status.hpp>
 

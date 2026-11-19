@@ -1,0 +1,69 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+# The size of a program per cell of the capability table, (family, backend),
+# each calling its family's fixed operation once (bench/operations.hpp),
+# against the baseline, the same harness around an operation that calls
+# nothing of crypto: the own lane sizes, whose tables webcpp.program-sizes
+# builds from release builds alone (tools/webcpp.jam), and which
+# doc/tables/generate.py reads into the size matrix (doc/generated/sizes.adoc).
+# The ordinary lanes link each program, at their own variant. OpenSSL is not
+# built for Emscripten, so its cells are a table of their own, on native,
+# wasip2 and wasip3: b2 skips a table whole where one of its programs is not
+# built.
+#
+# The contract a task that adds a cell keeps:
+#
+# - A cell's program is <family>_<backend>.cpp, declared here with
+#   webcpp.link <family>_<backend> and the backend's library, on the targets
+#   where the backend has the family; it runs the family's fixed operation,
+#   whose text is the family's "measured" in doc/tables/crypto.json (a family
+#   without it is a fault of generate.py).
+# - A further operation of the same cell is <family>_<backend>_<operation>.cpp
+#   (secp256k1_secp256k1_ecdh_x, say), its text the entry <operation> of the
+#   family's "sized_operations" in crypto.json; it is a row of its own under
+#   the cell's. generate.py faults on a sized program of any other name.
+# - Each program is named in a webcpp.program-sizes table below whose targets
+#   it is built on every one of (the table crypto on the four targets, or
+#   crypto_openssl, or a table of its own named in the lane sizes).
+# - Then the lane sizes runs on each target, and
+#   `python3 libs/crypto/doc/tables/generate.py --sizes <each *.sizes.json>`
+#   writes doc/tables/sizes.json and the matrix; a cell not yet measured is
+#   written "not measured yet".
+project : requirements <library>/webcpp/crypto//crypto <include>../../bench ;
+
+import webcpp ;
+
+webcpp.targets native wasip2 wasip3 emscripten ;
+
+webcpp.link baseline : baseline.cpp ;
+webcpp.link gcm_bearssl : gcm_bearssl.cpp : <library>/third_party//bearssl ;
+webcpp.link gcm_openssl : gcm_openssl.cpp : <library>/webcpp/crypto//openssl
+  : native wasip2 wasip3 ;
+webcpp.link aes_block_ctaes : aes_block_ctaes.cpp : <library>/third_party//ctaes ;
+webcpp.link aes_block_openssl : aes_block_openssl.cpp : <library>/webcpp/crypto//openssl
+  : native wasip2 wasip3 ;
+webcpp.link secp256k1_secp256k1 : secp256k1_secp256k1.cpp : <library>/third_party//secp256k1 ;
+webcpp.link ed25519_sodium : ed25519_sodium.cpp : <library>/third_party//sodium ;
+webcpp.link x25519_sodium : x25519_sodium.cpp : <library>/third_party//sodium ;
+webcpp.link chacha20_poly1305_sodium : chacha20_poly1305_sodium.cpp
+  : <library>/third_party//sodium ;
+webcpp.link chacha20_poly1305_bearssl : chacha20_poly1305_bearssl.cpp
+  : <library>/third_party//bearssl ;
+webcpp.link chacha20_poly1305_openssl : chacha20_poly1305_openssl.cpp
+  : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
+webcpp.link chacha20_poly1305_original_sodium : chacha20_poly1305_original_sodium.cpp
+  : <library>/third_party//sodium ;
+webcpp.link xchacha20_poly1305_sodium : xchacha20_poly1305_sodium.cpp
+  : <library>/third_party//sodium ;
+
+webcpp.program-sizes crypto : baseline : gcm_bearssl aes_block_ctaes secp256k1_secp256k1
+  ed25519_sodium x25519_sodium chacha20_poly1305_sodium chacha20_poly1305_bearssl
+  chacha20_poly1305_original_sodium xchacha20_poly1305_sodium ;
+webcpp.program-sizes crypto_openssl : baseline : gcm_openssl aes_block_openssl
+  chacha20_poly1305_openssl : native wasip2 wasip3 ;
+
+webcpp.lane sizes : crypto.sizes.md crypto_openssl.sizes.md : native wasip2 wasip3 emscripten ;

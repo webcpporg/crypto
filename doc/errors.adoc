@@ -46,6 +46,14 @@ already allocated, or another party installed its own. From `backends::openssl::
 with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
 |14 |`memory_functions_not_installed` |OpenSSL's memory functions are not webcpp::crypto's. From
 every `make` of the OpenSSL backend, with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
+|15 |`weak_public_key` |A public key of small order, or one that gives an all-zero shared secret.
+|16 |`invalid_point` |An encoding that is not a canonical element of the group.
+|17 |`invalid_scalar` |A scalar that is not reduced, or zero where zero is refused.
+|18 |`invalid_padding` |Padding that cannot be removed, whatever the cause: one value for every
+cause, so that no padding oracle is built from it.
+|19 |`invalid_encoding` |Hexadecimal, base64, PEM, or a key's DER form that does not decode, or is
+not the one encoding the format allows.
+|20 |`invalid_ciphertext_size` |A KEM or RSA ciphertext of another size than the key's.
 |===
 
 A value that `error` does not define

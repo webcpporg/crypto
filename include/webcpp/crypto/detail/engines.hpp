@@ -13,12 +13,18 @@
 
 namespace webcpp::crypto::detail {
 
+/** False for every `T`: a `static_assert` on it fires only where its template is instantiated. */
+template <class T>
+inline constexpr bool dependent_false = false;
+
 /**
  * What a backend's header specialises, per algorithm: a state, which an object stores and
- * which never refuses, and an engine, used only inside the algorithm's member functions,
- * whose specialisation for a backend without the algorithm holds the `static_assert` that
- * names the backends that have it. A backend whose header is not included leaves both
- * undefined, and the compiler names the specialisation it lacks.
+ * which never refuses, and an engine, used only inside the algorithm's member functions. The
+ * family's header defines both primaries: an empty state, and an engine whose body is the
+ * family's generated refusal (`detail/capabilities.hpp`), which a backend reaches where its
+ * header does not specialise the engine: one without the algorithm is refused, naming the
+ * backends that have it; the default, not linked, says the Jamfile line that links it and the
+ * type that names another backend; one whose header is not included is told to include it.
  *
  * Tip: `ciphers::gcm<aes256<backends::bearssl>>` reads
  * `ciphers::aes256<backends::bearssl>::key_size`, which instantiates the class and its members'
@@ -35,12 +41,17 @@ struct gcm_state;
 /** The work of GCM on a backend (see @ref block_state). */
 template <class Backend, std::size_t KeySize>
 struct gcm_engine;
-/** What a `chacha20_poly1305` stores (see @ref block_state). */
-template <class Backend>
-struct chacha_state;
-/** The work of ChaCha20-Poly1305 on a backend (see @ref block_state). */
-template <class Backend>
-struct chacha_engine;
+/** What a `ciphers::aead` of the family `Family` stores (see @ref block_state). */
+template <class Family, class Backend>
+struct aead_state;
+/**
+ * The work of a `ciphers::aead` of the family `Family` on a backend, whose specialisation
+ * provides `init(state&, key)`, `seal(state&, iv, additional_data, data, tag&)`,
+ * `open(state&, iv, additional_data, data, tag const&)`, `move(to, from)` and `reset(state&)`
+ * (see @ref block_state).
+ */
+template <class Family, class Backend>
+struct aead_engine;
 
 /**
  * Reads a backend's canary with a volatile load, which no linker can drop: a program built

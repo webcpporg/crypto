@@ -29,24 +29,45 @@ In {cpp}, a program names a backend by including its header,
 `<webcpp/crypto/backends/<name>.hpp>`, and using its tag type,
 `backends::<name>`, as a template argument:
 `ciphers::gcm<ciphers::aes256<backends::bearssl>>`. The default backend needs no
-include of its own: `<webcpp/crypto/ciphers/aes256_gcm.hpp>` brings it.
+include of its own: `<webcpp/crypto/ciphers/aes256_gcm.hpp>` brings it when it is
+linked.
 
 [#crypto-jamfile-default]
 === The default backend, and choosing another
 
-`aes128_gcm`, `aes256_gcm` and `aes256<>` name the default backend: BearSSL on
-WebAssembly; natively OpenSSL when it is linked, else BearSSL. A program
-chooses with a define in its Jamfile's requirements,
-`<define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL` or
-`<define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL`, or names the backend at any
-use. <<crypto-backends-defaults>> gives every combination with the test that
-fixes it.
+`aes128_gcm`, `aes256_gcm` and `aes256<>` name AES-GCM's default backend:
+natively OpenSSL, on WebAssembly BearSSL, whatever else the program links
+(<<crypto-backends-defaults>>). A program that wants another backend names it
+in the type, as `ciphers::gcm<ciphers::aes256<backends::bearssl>>`, and links
+it; no define chooses a default. A native program that links BearSSL alone and
+uses `aes256_gcm` stops where it calls it, with the line that links its
+default, `/webcpp/crypto//gcm-default`, and the type that names BearSSL. Version 0.1's
+`WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL` and
+`WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL` stop the build with the type to write
+(<<crypto-jamfile-messages>>).
+
+A program built for every target links its default with one line,
+`/webcpp/crypto//gcm-default`, which links OpenSSL natively and BearSSL on
+WebAssembly, the library of the backend `aes256_gcm` names on each target; the
+examples of this page link it so. The whole Jamfile of the fixture
+`gcm_default`, built and run on native, wasip2, wasip3 and Emscripten
+(<<crypto-jamfile-cases>>):
+
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/gcm_default/Jamfile[tag=jamfile]
+----
+
+Each family with a default has such a line, `/webcpp/crypto//<family>-default`,
+generated with the defaults from the same table; each is built and run on
+every target where its family has a default by the fixture named in its row:
+
+include::generated/default-aliases.adoc[]
 
 The source-built OpenSSL is compiled without assembly (`no-asm`) on MSVC,
 wasip2 and wasip3: its AES is table-based and its GHASH 4-bit, neither constant
-time, and there is no AES-NI. A program for which timing attacks matter there
-defines `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`, or names
-`ciphers::gcm<ciphers::aes256<backends::bearssl>>`.
+time, and there is no AES-NI. A program for which timing attacks matter on
+MSVC names `ciphers::gcm<ciphers::aes256<backends::bearssl>>`.
 
 [#crypto-jamfile-memory]
 === OpenSSL's memory option
@@ -88,13 +109,14 @@ A user builds a case from its directory with `b2` natively,
 `b2 toolset=emscripten` for the browser, and `b2 toolset=clang-wasip2` or
 `b2 toolset=clang-wasip3` for WASI, and runs the program as each target runs one:
 `./app`, `node app.js`, or a WASI runtime such as wasmtime. The cases `web`,
-`server` and `both_bearssl_default` are one program, byte for byte (the test
-checks the copies), whose output names the backend that ran: BearSSL wherever
-it is the default, OpenSSL natively when the program names it, and BearSSL
-again when a define chooses it with both linked. On WASI the default is BearSSL
-even when OpenSSL is linked (<<crypto-backends-defaults>>), so `server` is a
-native case; a WASI program that wants OpenSSL names the backend in the type,
-as `openssl_linked` does, or defines `WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL`.
+`server` and `gcm_default` are one program, byte for byte (the test checks the
+copies), whose output names the backend that ran: BearSSL, the default on
+WebAssembly, and OpenSSL, the default natively; `gcm_default` links whichever
+the target needs. `both_bearssl_named` links both and names
+BearSSL in the type where OpenSSL is the default. On WASI the default is
+BearSSL even when OpenSSL is linked (<<crypto-backends-defaults>>), so `server`
+is a native case; a WASI program that wants OpenSSL names the backend in the
+type, as `openssl_linked` does.
 
 The examples of this page are built the same way: `example/Jamfile` names
 `/webcpp/crypto//crypto` in its project's requirements, and each example the

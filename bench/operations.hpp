@@ -1,0 +1,258 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+// Each family's fixed operation, the one its size (test/sizes/) and its throughput
+// (bench/throughput.cpp) measure: an operation of a family on a backend is the class
+// `<family><Backend>` below, made once from a seed byte, outside what is measured. Its `run()` does
+// the operation once and returns a byte of what it gave, which the caller prints or folds in, so
+// that the optimiser keeps it; its `check()` says whether the operation's result is right (an open
+// of what it sealed, a verification of what it signed, both sides of an agreement). An operation
+// the library refuses ends the program: a figure measured on a failure would be a wrong one.
+// `operation` names what is measured, the text crypto.json's family states (bench/collect.py
+// checks that the two agree). A seal repeats under one key and one IV: a measurement, never a use.
+
+#ifndef WEBCPP_CRYPTO_BENCH_OPERATIONS_HPP
+#define WEBCPP_CRYPTO_BENCH_OPERATIONS_HPP
+
+#include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
+#include <webcpp/crypto/ciphers/gcm.hpp>
+#include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/curves/x25519.hpp>
+#include <webcpp/crypto/error.hpp>
+#ifdef WEBCPP_CRYPTO_HAS_SECP256K1
+#include <webcpp/crypto/curves/secp256k1.hpp>
+#endif
+
+#include <boost/system/result.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <span>
+#include <string_view>
+#include <utility>
+
+namespace webcpp::crypto::bench {
+
+// The bytes an AEAD seals at once.
+inline constexpr std::size_t message_size = std::size_t{16} * 1024;
+
+// Ends the program, naming the operation the library refused.
+[[noreturn]] inline void refused(std::string_view what) {
+    static_cast<void>(
+        std::fprintf(stderr, "refused: %.*s\n", static_cast<int>(what.size()), what.data()));
+    std::exit(1);
+}
+
+// N bytes, each of them value.
+template <std::size_t N>
+std::array<std::uint8_t, N> filled(std::uint8_t value) {
+    std::array<std::uint8_t, N> bytes{};
+    bytes.fill(value);
+    return bytes;
+}
+
+// What a result holds, or the end of the program.
+template <class Result>
+auto take(Result&& result, std::string_view what) {
+    if (!result) {
+        refused(what);
+    }
+    return *std::forward<Result>(result);
+}
+
+// The baseline's operation (test/sizes/baseline.cpp): nothing of crypto, the harness alone, a
+// result taken and refused as every operation's is, so that what a sized program adds to the
+// baseline is its operation's code, not the harness's.
+class nothing {
+public:
+    static constexpr std::string_view operation = "nothing: the harness alone";
+
+    explicit nothing(std::uint8_t seed) : seed_(seed) {}
+
+    [[nodiscard]] std::uint8_t run() const {
+        boost::system::result<std::uint8_t> const made =
+            seed_ == 0 ? boost::system::result<std::uint8_t>(error::backend_failure)
+                       : boost::system::result<std::uint8_t>(seed_);
+        return take(made, "nothing");
+    }
+
+    static bool check() { return true; }
+
+private:
+    std::uint8_t seed_;
+};
+
+// The encryption of one 16-byte block with a 256-bit key.
+template <class Cipher>
+class block_encryption {
+public:
+    static constexpr std::string_view operation = "encryption of one 16-byte block, 256-bit key";
+
+    explicit block_encryption(std::uint8_t seed)
+        : block_(filled<Cipher::block_size>(static_cast<std::uint8_t>(seed + 1U))),
+          cipher_(take(Cipher::make(filled<Cipher::key_size>(seed)), "make")) {}
+
+    std::uint8_t run() {
+        if (!cipher_.encrypt(block_)) {
+            refused("encrypt");
+        }
+        return block_[0];
+    }
+
+    bool check() {
+        auto const plain = block_;
+        static_cast<void>(run());
+        bool const changed = block_ != plain;
+        if (!cipher_.decrypt(block_)) {
+            refused("decrypt");
+        }
+        return changed && block_ == plain;
+    }
+
+private:
+    std::array<std::uint8_t, Cipher::block_size> block_{};
+    Cipher cipher_;
+};
+
+// The seal of 16 KiB, in place, without additional data.
+template <class Aead>
+class aead_seal {
+public:
+    static constexpr std::string_view operation = "seal of 16 KiB, 256-bit key";
+
+    explicit aead_seal(std::uint8_t seed)
+        : iv_(filled<Aead::iv_size>(static_cast<std::uint8_t>(seed + 2U))),
+          data_(filled<message_size>(seed)),
+          aead_(take(Aead::make(filled<Aead::key_size>(seed)), "make")) {}
+
+    std::uint8_t run() { return take(aead_.seal(iv_, {}, data_), "seal").data()[0]; }
+
+    bool check() {
+        auto const plain = data_;
+        auto const tag = take(aead_.seal(iv_, {}, data_), "seal");
+        bool const changed = data_ != plain;
+        return changed && aead_.open(iv_, {}, data_, tag).has_value() && data_ == plain;
+    }
+
+private:
+    std::array<std::uint8_t, Aead::iv_size> iv_{};
+    std::array<std::uint8_t, message_size> data_{};
+    Aead aead_;
+};
+
+// AES-256-GCM.
+template <class Backend>
+using gcm = aead_seal<ciphers::gcm<ciphers::aes256<Backend>>>;
+
+// The AES block cipher.
+template <class Backend>
+using aes_block = block_encryption<ciphers::aes256<Backend>>;
+
+// ChaCha20-Poly1305 (RFC 8439).
+template <class Backend>
+using chacha20_poly1305 = aead_seal<ciphers::chacha20_poly1305<Backend>>;
+
+// The original ChaCha20-Poly1305.
+template <class Backend>
+using chacha20_poly1305_original = aead_seal<ciphers::chacha20_poly1305_original<Backend>>;
+
+// XChaCha20-Poly1305.
+template <class Backend>
+using xchacha20_poly1305 = aead_seal<ciphers::xchacha20_poly1305<Backend>>;
+
+#ifdef WEBCPP_CRYPTO_HAS_SECP256K1
+// A BIP340 signature of a 32-byte message on secp256k1.
+template <class Backend>
+class secp256k1 {
+public:
+    static constexpr std::string_view operation = "BIP340 signature of a 32-byte message";
+
+    explicit secp256k1(std::uint8_t seed)
+        : message_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
+          key_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                        filled<32>(static_cast<std::uint8_t>(seed | 1U))),
+                    "make")) {}
+
+    std::uint8_t run() { return take(key_.sign_schnorr(message_, aux_), "sign")[0]; }
+
+    bool check() {
+        auto const signature = take(key_.sign_schnorr(message_, aux_), "sign");
+        auto const public_key = take(key_.xonly_public_key(), "xonly_public_key");
+        return curves::secp256k1::verify_schnorr<Backend>(signature, message_, public_key)
+            .has_value();
+    }
+
+private:
+    std::array<std::uint8_t, 32> message_{};
+    std::array<std::uint8_t, 32> aux_{};
+    curves::secp256k1::basic_keypair<Backend> key_;
+};
+#endif
+
+// An Ed25519 signature of a 32-byte message.
+template <class Backend>
+class ed25519 {
+public:
+    static constexpr std::string_view operation = "signature of a 32-byte message";
+
+    explicit ed25519(std::uint8_t seed)
+        : message_(filled<32>(static_cast<std::uint8_t>(seed + 4U))),
+          key_(take(curves::ed25519::basic_keypair<Backend>::make(filled<32>(seed)), "make")) {}
+
+    std::uint8_t run() { return take(key_.sign(message_), "sign")[0]; }
+
+    bool check() {
+        auto const signature = take(key_.sign(message_), "sign");
+        auto const public_key = take(key_.public_key(), "public_key");
+        return curves::ed25519::verify<curves::ed25519::strict, Backend>(public_key, message_,
+                                                                         signature)
+            .has_value();
+    }
+
+private:
+    std::array<std::uint8_t, 32> message_{};
+    curves::ed25519::basic_keypair<Backend> key_;
+};
+
+// An X25519 agreement of a secret key with a peer's public key.
+template <class Backend>
+class x25519 {
+public:
+    static constexpr std::string_view operation = "agreement of a secret key and a public key";
+
+    explicit x25519(std::uint8_t seed) {
+        secret_.fill(seed);
+        peer_secret_.fill(static_cast<std::uint8_t>(seed + 5U));
+        peer_public_ = take(curves::x25519::public_key<Backend>(peer_secret_), "public_key");
+    }
+
+    std::uint8_t run() {
+        auto const shared = take(curves::x25519::agree<Backend>(secret_, peer_public_), "agree");
+        return shared.bytes()[0];
+    }
+
+    bool check() {
+        auto const own_public = take(curves::x25519::public_key<Backend>(secret_), "public_key");
+        auto const shared = take(curves::x25519::agree<Backend>(secret_, peer_public_), "agree");
+        auto const peer_shared =
+            take(curves::x25519::agree<Backend>(peer_secret_, own_public), "agree");
+        return std::ranges::equal(shared.bytes(), peer_shared.bytes());
+    }
+
+private:
+    std::array<std::uint8_t, 32> secret_{};
+    std::array<std::uint8_t, 32> peer_secret_{};
+    std::array<std::uint8_t, 32> peer_public_{};
+};
+
+}  // namespace webcpp::crypto::bench
+
+#endif  // WEBCPP_CRYPTO_BENCH_OPERATIONS_HPP

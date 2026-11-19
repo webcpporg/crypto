@@ -9,9 +9,10 @@
 
 The namespace `webcpp::crypto` holds what every other chapter relies on: where
 secrets come from (`random_device`), how a secret is checked (`equal`) and how
-a failure is told apart (`error`). None needs a backend. It also declares,
-for a native program on OpenSSL that turns the memory option on, the resource
-every allocation of OpenSSL's goes to (`openssl_memory_resource`,
-<<crypto-memory-openssl>>).
+a failure is told apart (`error`), none of which needs a backend; and how a
+key's standard form becomes text and back (`pem`, on libsodium;
+<<crypto-key-formats>>). It also declares, for a native program on OpenSSL that
+turns the memory option on, the resource every allocation of OpenSSL's goes to
+(`openssl_memory_resource`, <<crypto-memory-openssl>>).
 
 include::generated/namespace-root.adoc[]

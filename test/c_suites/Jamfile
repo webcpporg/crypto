@@ -11,6 +11,18 @@
 # bearssl_bound.cpp's, which runs BearSSL's only when it is given the argument
 # all, and fails otherwise: upstream's main lists its tests and returns 0 for
 # any other argument, which would read green.
+#
+# libsodium's own suite is not repeated here: webcpp::hash's lane c-suites
+# (libs/hash/test/c_suites/Jamfile) runs all of libsodium's test/default
+# programs, each compared with its .exp, on every target, against the same
+# archive /third_party//sodium that crypto links, canary included. Among them
+# are the programs of crypto's operations on libsodium: sign, box, box2, box7,
+# box8, box_easy (crypto_box_easy), box_easy2 (crypto_box_beforenm and the
+# detached functions after it), box_seal, secretbox, secretbox2, secretbox7,
+# secretbox8, secretbox_easy, secretbox_easy2 (the detached secret box),
+# xchacha20 (the XChaCha20 box and secret box), aead_chacha20poly1305,
+# aead_chacha20poly13052, aead_xchacha20poly1305, kx, scalarmult,
+# ed25519_convert and codecs (the base64 functions PEM's engine calls).
 import webcpp ;
 
 webcpp.targets native wasip2 wasip3 emscripten ;
@@ -42,11 +54,14 @@ path-constant SECP256K1 : ../../../../third_party/libs/secp256k1 ;
 # both WASI runs. On WASI it runs 4 iterations, so that it ends within that
 # bound (220 s on wasip2, 218 s on wasip3, the same day; a ruling of the
 # controller, 2026-11-14, accepted it); natively and on Emscripten 16, as
-# libsecp256k1's CI runs it.
+# libsecp256k1's CI runs it. On Emscripten without debug information, whose
+# DWARF would hold back em++'s post-link optimisation of the optimised program
+# and make it warn (-Wlimited-postlink-optimizations), as test/Jamfile's
+# OPTIMISED does.
 webcpp.run secp256k1_tests : $(SECP256K1)/src/tests.c
     $(SECP256K1)/src/precomputed_ecmult.c $(SECP256K1)/src/precomputed_ecmult_gen.c
   : <library>/third_party//secp256k1-test-config <warnings>off <warnings-as-errors>off
-    <define>VERIFY <optimization>speed
+    <define>VERIFY <optimization>speed <toolset>emscripten:<debug-symbols>off
     <toolset>emscripten:<source>secp256k1_tests_bound.cpp
     <target-os>wasi:<testing.arg>--iterations=4 ;
 

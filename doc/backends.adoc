@@ -16,26 +16,18 @@ that target, and refused where a message test stops it. The data and the
 tables are regenerated, and checked by the documentation's build, at every
 change of a test or a pin.
 
+A program asks the same table in {cpp}: `supports_v<Algorithm, Backend>`, in
+`<webcpp/crypto/supports.hpp>`, is `true` exactly where the table says that
+the backend has the algorithm on the target being compiled, and needs neither
+the backend's header nor its library, so that generic code can choose a
+backend at compile time. Each algorithm's type names its family and its
+algorithm for it (`family_type` and `name_type`, tags of `families` and
+`tags`); the test that asserts every cell is generated from the same data.
+
 [#crypto-backends-matrix]
 === Operations, backends and targets
 
 include::generated/matrix.adoc[]
-
-[#crypto-backends-defaults]
-=== The default backend per target
-
-The rule, and its reasons, are in the table: on WebAssembly BearSSL, the only
-AEAD backend on Emscripten and constant time by design where OpenSSL is built
-without assembly; natively OpenSSL when it is linked, whose assembly uses the
-CPU's AES instructions on x86-64 and ARMv8 with Clang and GCC. On MSVC the
-rule is the same, but OpenSSL is built without assembly there: the default is
-then table-based and not constant time, and a program that timing attacks
-threaten defines `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`. Sizes and speeds are
-not measured yet.
-It applies to `aes128_gcm`, `aes256_gcm` and `aes256<>`; libsecp256k1 and ctaes
-are the only backends of what they implement.
-
-include::generated/defaults.adoc[]
 
 [#crypto-backends-facts]
 === What each backend is
@@ -69,16 +61,86 @@ A cryptographic implementation is *constant time* when its running time and
 its memory accesses do not depend on secret data; otherwise a timing attack
 can recover the key (link:https://en.wikipedia.org/wiki/Timing_attack[Wikipedia];
 link:https://www.bearssl.org/constanttime.html[BearSSL's explanation]). Each
-backend's design is stated by its library; crypto's own measurement of the code
-as webcpp compiles it, per target, is not taken in this version.
+backend's design is stated by its library's documentation, with its source.
+The table's per-target columns say what the own lane below runs on each
+backend and target, by checker and family, from the documentation's data, the
+same as each chapter's comparison table; "not measured yet" where the lane runs
+nothing. memcheck and MemorySanitizer run on Linux alone, so their native cells
+are Linux's. What the lane measured where a family differs from its backend's
+design is listed under the table.
 
 include::generated/constant-time.adoc[]
 
-[#crypto-backends-sizes]
-=== Size and speed
+The own lane `constant-time` (`libs/crypto/test/constant_time`) checks the code
+as webcpp compiles it. On Linux, it marks the keys, the seeds, the data and the
+tag secret under Valgrind's memcheck, as
+link:https://github.com/agl/ctgrind[ctgrind] does, and, in a clang build, under
+MemorySanitizer, which only clang has (a gcc build runs memcheck alone): any
+branch or memory index that depends on them fails the run. The lane covers
+`equal`, `is_all_zero` and the wipe of `secret<N>`; BearSSL's AES-GCM and
+ChaCha20-Poly1305 `make`, `seal` and `open`; OpenSSL's `make` and `seal` of
+both; ctaes's AES; libsodium's Ed25519 key pair and signature, X25519's public
+key and agreement, its three ChaCha20-Poly1305 AEADs and two secret boxes,
+`hybrid::box` in both families, the sealed box's `seal` and `open`, and `kx`;
+and libsecp256k1's own `ctime_tests.c`. Both checkers run the same paths,
+written once (`paths.hpp`), memcheck OpenSSL's besides. Each check is shown to
+fail on a planted branch on a key byte, and each path's output is checked to
+carry the mark, so that the path is traced, where the checker's shadow keeps
+it: MemorySanitizer's loses the mark through a constant-time reduction to one
+bit, so the result of `is_all_zero`, X25519's public key and the bytes a
+destructor wiped are checked by memcheck alone. dudect's statistics
+(link:https://eprint.iacr.org/2016/1123[Reparaz, Balasch and Verbauwhede]) time
+BearSSL's two AEADs' seal and open, ctaes, `equal`, and libsodium's X25519
+agreement and Ed25519 signing natively, on Linux and macOS, and under wasmtime.
+On 64-bit ARM under macOS and Linux, each dudect program first sets the CPU's
+DIT (data-independent timing) bit, with which the instructions Arm lists take
+a time independent of their data, and which Apple requires of constant-time
+code
+(link:https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms#Enable-DIT-for-constant-time-cryptographic-operations[Apple, enable DIT for constant-time cryptographic operations]);
+it prints whether it is set, and fails where the CPU has DIT and it is not, or
+where macOS cannot say whether the CPU has it. Elsewhere (x86, WebAssembly, and
+64-bit ARM systems the harness does not cover, MSVC on ARM64 among them) it
+sets nothing, prints so, and measures without DIT. The lane's `dudect_planted`
+shows that DIT does not hide a leak: X25519's `agree` after an early-exit scan
+of its secret key, which dudect must find.
+None of the C libraries sets DIT, and neither does webcpp: a program on Apple
+silicon sets it around its secret operations, as Apple describes
+(`timingsafe_enable_if_supported` from macOS 15.2). Without it, libsodium's
+X25519 is measurably not constant time there, listed under the table.
 
-What each operation adds to a program, per target, and how fast it runs, are
-not measured in this version. Until they are,
-the table says so rather than repeat numbers no lane of this version measured.
+One measurement is an open finding, listed under the table with its numbers:
+libsodium's X25519 `agree` under wasmtime, on wasip2. Its cause is the same:
+wasmtime does not set DIT, and with DIT set in wasmtime's main thread, an
+experiment and not the lane, the case passes. The WebAssembly cannot set it,
+so the lane prints its value on wasip2 without judging it, and judges
+everything else.
+
+Whether a tag matched, or a shared secret came out all zero, is public by
+design, since the operation reports it, but it is computed from the secrets: it
+is the one kind of value webcpp marks public, where webcpp's code first
+branches on it (BearSSL's engines, libsodium's engines and X25519's `agree`),
+so that the checkers report every other branch. libsodium branches on its own
+verdicts inside the functions that compute them; the lane tells memcheck of
+each of those functions (`sodium_verdicts.supp`), and libsodium is used
+unchanged. MemorySanitizer approximates a subtraction without its carry, so it
+counts every such verdict public by itself: memcheck is the check of the
+marks. OpenSSL's verdict is OpenSSL's own internal
+branch, which webcpp cannot mark: OpenSSL is checked with the key secret during
+`seal` only.
+
+[#crypto-backends-sizes]
+=== Size
+
+What each cell of the capability table adds to a program, per target: a
+program per family and backend calls the family's fixed operation once
+(`test/sizes/`), and its size is read against a baseline, the same harness
+around an operation that calls nothing of crypto, so that a cell is its
+operation's code alone. The own lane `sizes` measures them from release builds
+alone (`variant=release`, the superproject's `webcpp.program-sizes`), and the
+table is generated from what it wrote; a cell it has not built says so. Like
+the throughput below, it is a dated reference that decides nothing: a family's
+default is chosen by the reason <<crypto-backends-defaults>> states.
 
 include::generated/sizes.adoc[]
+
+include::performance.adoc[]

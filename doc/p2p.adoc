@@ -15,6 +15,63 @@ sees all of them and may change them. Cryptography is what lets the peers trust
 each other instead: a signature proves who wrote a message, and a key agreed in
 public keeps the conversation private.
 
+[#crypto-p2p-identities]
+=== Identities and sessions between peers
+
+*The problem.* Peers of a network find each other through untrusted relays
+and discovery services. Each needs a name that no one else can claim, and each
+connection between two peers must be private and must reach the peer it names,
+not an impostor in the middle.
+
+*The idea.* libp2p, a peer-to-peer networking stack, does it this way: a
+peer's identity is a key pair, Ed25519 among the types its specification
+allows, and its id is derived from the public key
+(link:https://github.com/libp2p/specs/blob/master/peer-ids/peer-ids.md[libp2p's
+peer ids]); each connection agrees fresh X25519 keys and seals with
+ChaCha20-Poly1305, and each side signs its connection key with its identity
+key, so that the other knows whom it reached
+(link:https://github.com/libp2p/specs/blob/master/noise/README.md[libp2p's
+Noise handshake]). webcpp's primitives give each piece: an Ed25519 key pair and
+its signatures (<<crypto-ed25519>>), and a session key for each direction
+from two X25519 key pairs, libsodium's `crypto_kx` (<<crypto-kx>>), with
+ChaCha20-Poly1305 for the messages (<<crypto-chacha>>). The handshake's own
+steps, Noise's patterns and libp2p's framing, are a domain library's to build
+from them, not this library's API.
+
+A peer's identity: the key pair, a signature over what it says, and anyone's
+check of it with the public key alone.
+
+[source,cpp]
+----
+include::{examples}/ed25519_sign.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/ed25519_sign.expected[]
+----
+
+A session: the client's and the server's key pairs, their session keys, and a
+message sealed with one side's transmit key and opened with the other's
+receive key.
+
+[source,cpp]
+----
+include::{examples}/kx_session.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/kx_session.expected[]
+----
+
+*Mistakes to avoid.* A session key pair is drawn for each connection and
+never kept: the identity key signs it, so that a stolen identity key does not
+open past sessions. A public key received during a handshake proves nothing
+until its signature, by an identity the program already trusts, verifies. A
+nonce is never repeated under a session key: number the messages of each
+direction from zero.
+
 [#crypto-p2p-signed]
 === Proving who wrote a message
 

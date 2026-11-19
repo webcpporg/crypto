@@ -16,8 +16,8 @@ crypto gives a {cpp}20 program the cryptographic primitives that Boost does not
 provide, on every target webcpp has: native (Linux, macOS, Windows with MSVC),
 wasip2, wasip3 and Emscripten. It is one of the libraries of
 https://github.com/webcpporg/webcpp[webcpp]. The algorithms are those of
-widely used, reviewed C libraries, BearSSL, OpenSSL, ctaes and libsecp256k1, each a backend
-that the program names in its own Jamfile.
+widely used, reviewed C libraries, BearSSL, OpenSSL, ctaes, libsecp256k1 and
+libsodium, each a backend that the program names in its own Jamfile.
 
 The page is written for two readers at once: a developer who knows little
 cryptography, and a language model that must pick the right tool for a
@@ -46,11 +46,27 @@ include::ciphers.adoc[]
 
 include::aead.adoc[]
 
+include::chacha.adoc[]
+
+include::secretbox.adoc[]
+
 include::block.adoc[]
 
 include::curves.adoc[]
 
 include::secp256k1.adoc[]
+
+include::ed25519.adoc[]
+
+include::x25519.adoc[]
+
+include::kx.adoc[]
+
+include::formats.adoc[]
+
+include::hybrid.adoc[]
+
+include::choosing_backend.adoc[]
 
 include::backends.adoc[]
 
@@ -68,7 +84,7 @@ include::testing.adoc[]
 == Reference
 
 Every name crypto declares, in the namespaces `webcpp::crypto`, `backends`,
-`ciphers` and `curves::secp256k1`, from the Doc Comments of its headers: each
+`ciphers`, `curves` and `hybrid`, from the Doc Comments of its headers: each
 class, function, type and enumerator with its declaration, what it does, what
 it asks of its caller and how it fails. The other sections teach the library;
 this one is where a name is looked up.

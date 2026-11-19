@@ -8,7 +8,8 @@
 # directory's Jamfile gives its case the requirements that raise the message,
 # and nothing else.
 
-build-project two_defaults ;
+build-project default_selected ;
+build-project default_openssl_wasm ;
 build-project openssl_on_wasi ;
 build-project openssl_not_linked ;
 build-project openssl_old ;
@@ -16,10 +17,28 @@ build-project ctaes_not_linked ;
 build-project gcm_on_ctaes ;
 build-project secp256k1_not_linked ;
 build-project no_backend_wasm ;
-build-project no_backend_native ;
+build-project gcm_default_openssl_not_linked ;
 build-project bearssl_not_linked ;
 build-project openssl_only_on_wasi ;
 build-project aes_on_bearssl ;
 build-project secp256k1_other_backend ;
 build-project openssl_memory_on_webassembly ;
 build-project openssl_memory_not_linked ;
+build-project sodium_not_linked ;
+build-project ed25519_on_bearssl ;
+build-project ed25519ph_sha256 ;
+build-project ed25519_default_not_linked ;
+build-project heavy_without_threads ;
+build-project heavy_without_threads_first ;
+build-project chacha_default_not_linked ;
+build-project aead_not_a_family ;
+build-project chacha_on_ctaes ;
+build-project box_default_not_linked ;
+build-project box_not_a_family ;
+build-project kx_default_not_linked ;
+build-project x25519_default_not_linked ;
+build-project pem_default_not_linked ;
+build-project chacha_header_not_included ;
+build-project chacha_unknown_backend ;
+build-project ed25519_unknown_policy ;
+build-project secret_of_no_bytes ;

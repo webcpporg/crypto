@@ -11,9 +11,7 @@
 // a key of its own, drawn when the stream starts: the counter IVs 0, 1, 2 of one stream are safe
 // only because no other stream seals under its key.
 // tag::program[]
-#include <webcpp/crypto/backends/bearssl.hpp>
-#include <webcpp/crypto/ciphers/aes.hpp>
-#include <webcpp/crypto/ciphers/gcm.hpp>
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
 
@@ -30,7 +28,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
-using aead_type = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>;
+using aead_type = crypto::ciphers::aes256_gcm;
 
 namespace {
 

@@ -6,8 +6,10 @@
 
 /**
  The configuration of webcpp::crypto, which each of its headers includes first:
- whether it is built without exceptions, whether the target is WebAssembly, the
- backends the build links and the default backend.
+ whether it is built without exceptions, whether the target is WebAssembly, whether
+ the build has threads, the backends the build links, and the refusal of version
+ 0.1's defines that chose the default backend, which the target alone now chooses
+ (`detail/defaults.hpp`).
 
  @see "Using webcpp::crypto in your Jamfile", in the guide.
 */
@@ -39,6 +41,26 @@
 /** Defined on the WebAssembly targets, wasip2, wasip3 and Emscripten. */
 #define WEBCPP_CRYPTO_WEBASSEMBLY 1
 #undef WEBCPP_CRYPTO_WEBASSEMBLY
+/**
+ Defined when the build has threads (design D23): natively when Boost.Config defines
+ `BOOST_HAS_THREADS`, on Emscripten when the program is built with `-pthread` (b2's
+ `threading=multi`), never on wasip2 or wasip3, and never when the program defines
+ `WEBCPP_CRYPTO_NO_THREADS`. Only then do the heavy operations' `async_` variants run on
+ another thread; without it, a program that calls one stops with the synchronous name to
+ call instead.
+
+ Natively Boost.Config defines `BOOST_HAS_THREADS` whatever b2's `threading` says on macOS,
+ on Windows and with libstdc++ or libc++ on Linux, so that a native build has threads
+ unless the program defines `WEBCPP_CRYPTO_NO_THREADS`.
+*/
+#define WEBCPP_CRYPTO_HAS_THREADS 1
+#undef WEBCPP_CRYPTO_HAS_THREADS
+/**
+ Defined by a program that wants no threads from webcpp::crypto: `WEBCPP_CRYPTO_HAS_THREADS`
+ stays undefined, and the heavy operations' `async_` variants refuse to compile.
+*/
+#define WEBCPP_CRYPTO_NO_THREADS
+#undef WEBCPP_CRYPTO_NO_THREADS
 #ifdef WEBCPP_CRYPTO_HAS_BEARSSL
 /** Defined while config.hpp reads a reference's build that links BearSSL (doc/Jamfile). */
 #define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_BEARSSL
@@ -78,6 +100,19 @@
 #undef WEBCPP_CRYPTO_HAS_CTAES
 #endif
 #undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_CTAES
+#ifdef WEBCPP_CRYPTO_HAS_SODIUM
+/** Defined while config.hpp reads a reference's build that links libsodium (doc/Jamfile). */
+#define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SODIUM
+#endif
+/**
+ Defined by `/third_party//sodium` when the program links libsodium; a program built without
+ b2 defines it to 1 itself, and links libsodium built with webcpp's `src/canary_sodium.c`.
+*/
+#define WEBCPP_CRYPTO_HAS_SODIUM 1
+#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SODIUM
+#undef WEBCPP_CRYPTO_HAS_SODIUM
+#endif
+#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SODIUM
 #ifdef WEBCPP_CRYPTO_HAS_SECP256K1
 /** Defined while config.hpp reads a reference's build that links libsecp256k1 (doc/Jamfile). */
 #define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SECP256K1
@@ -108,19 +143,6 @@
 #endif
 #undef WEBCPP_CRYPTO_DETAIL_REFERENCE_SMALL_TABLES
 /**
- Defined by a program to make BearSSL the default backend, on every target, when OpenSSL
- is linked as well.
-*/
-#define WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL
-#undef WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL
-/**
- Defined by a program to make OpenSSL the default backend, which on wasip2 and wasip3 it is
- not without it. Refused on Emscripten, and together with
- `WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL`.
-*/
-#define WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
-#undef WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
-/**
  Defined by a native program, in its project's requirements beside `/webcpp/crypto//openssl`, to
  send every allocation of OpenSSL's in the process to a resource of the program's: the program
  then defines `openssl_memory_resource()` once and calls
@@ -139,6 +161,25 @@
 #if defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || \
     defined(WEBCPP_TARGET_EMSCRIPTEN)
 #define WEBCPP_CRYPTO_WEBASSEMBLY 1
+#else
+/** Defined on the native target, where no WebAssembly target is: the capability table's name. */
+#define WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE 1
+#endif
+
+// Threads (design D23): natively when Boost.Config sees threads, which it does whatever b2's
+// threading says (so natively unless WEBCPP_CRYPTO_NO_THREADS), on Emscripten with -pthread,
+// never on WASI.
+#if !defined(WEBCPP_CRYPTO_NO_THREADS) && !defined(WEBCPP_TARGET_WASIP2) &&     \
+    !defined(WEBCPP_TARGET_WASIP3) &&                                           \
+    ((defined(WEBCPP_TARGET_EMSCRIPTEN) && defined(__EMSCRIPTEN_PTHREADS__)) || \
+     (!defined(WEBCPP_TARGET_EMSCRIPTEN) && defined(BOOST_HAS_THREADS)))
+/**
+ Defined in a build with threads, where the heavy operations' `async_` variants exist (design
+ D23): natively unless the program defines `WEBCPP_CRYPTO_NO_THREADS` (Boost.Config's
+ `BOOST_HAS_THREADS`, which b2's `threading=single` leaves defined), on Emscripten with
+ `-pthread`, never on WASI.
+*/
+#define WEBCPP_CRYPTO_HAS_THREADS 1
 #endif
 
 // The refusals of impossible combinations. Clang and gcc go on after an
@@ -149,11 +190,13 @@
 #if defined(WEBCPP_TARGET_EMSCRIPTEN) && defined(WEBCPP_CRYPTO_HAS_OPENSSL)
 #error "webcpp::crypto: OpenSSL is not built for Emscripten. In the program's Jamfile, replace /webcpp/crypto//openssl with /third_party//bearssl."
 #endif
-#if defined(WEBCPP_TARGET_EMSCRIPTEN) && defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL)
-#error "webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL selects OpenSSL, which is not built for Emscripten. Remove that define, or make it WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL."
+// Version 0.1's two defines chose the default backend; the target alone chooses it now
+// (design D32), and a define the build ignored would change which code a program runs.
+#ifdef WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL
+#error "webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL no longer chooses a default. Write the backend in the type where the program wants it, as in ciphers::gcm<ciphers::aes256<backends::bearssl>>."
 #endif
-#if defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL) && defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL)
-#error "webcpp::crypto: both WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL and WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL are defined. Keep one."
+#ifdef WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+#error "webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL no longer chooses a default. Write the backend in the type where the program wants it, as in ciphers::gcm<ciphers::aes256<backends::openssl>>."
 #endif
 #if defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE) && defined(WEBCPP_CRYPTO_WEBASSEMBLY)
 #error "webcpp::crypto: WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE is an option of native programs, and this program is built for WebAssembly. Remove that define from the program's Jamfile."
@@ -163,28 +206,6 @@
 #error "webcpp::crypto: WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE routes OpenSSL's allocations, and OpenSSL is not linked. In the program's Jamfile, add /webcpp/crypto//openssl beside /webcpp/crypto//crypto, or remove that define. (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)"
 #endif
 // clang-format on
-
-// The default backend of the AEADs: the one the program selects; else
-// natively the first linked of OpenSSL, BearSSL; else BearSSL, whose header then says that
-// no backend is linked when neither is, and that BearSSL is not linked when OpenSSL alone is
-// (on WebAssembly, where the program selects OpenSSL with its define).
-#ifdef WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
-/** Defined when OpenSSL is the default backend: the program selects it. */
-#define WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL 1
-#elif defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL)
-/** Defined when BearSSL is the default backend: the program selects it. */
-#define WEBCPP_CRYPTO_DETAIL_DEFAULT_BEARSSL 1
-#elif !defined(WEBCPP_CRYPTO_WEBASSEMBLY) && defined(WEBCPP_CRYPTO_HAS_OPENSSL)
-/** Defined when OpenSSL is the default backend: natively, when it is linked. */
-#define WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL 1
-#else
-/** Defined when BearSSL is the default backend: on WebAssembly, or natively without OpenSSL. */
-#define WEBCPP_CRYPTO_DETAIL_DEFAULT_BEARSSL 1
-#if !defined(WEBCPP_CRYPTO_HAS_BEARSSL) && !defined(WEBCPP_CRYPTO_HAS_OPENSSL)
-/** Defined when no backend is linked, which BearSSL's header then says. */
-#define WEBCPP_CRYPTO_DETAIL_NONE_LINKED 1
-#endif
-#endif
 
 namespace webcpp::crypto::backends {
 
@@ -196,31 +217,9 @@ struct openssl;
 struct ctaes;
 /** libsecp256k1, built from its sources by `/third_party//secp256k1`. */
 struct secp256k1;
+/** libsodium 1.0.22, built from its sources by `/third_party//sodium`. */
+struct sodium;
 
 }  // namespace webcpp::crypto::backends
-
-namespace webcpp::crypto {
-
-#ifdef WEBCPP_CRYPTO_DETAIL_DEFAULT_OPENSSL
-/**
- * The default backend, of `ciphers::aes256<>`, `ciphers::gcm<aes256<>>` and
- * `ciphers::aes256_gcm`: the one the program selects; else natively OpenSSL when it is linked;
- * else BearSSL.
- *
- * @see "The default backend, and choosing another", in the guide.
- */
-using default_backend = backends::openssl;
-#else
-/**
- * The default backend, of `ciphers::aes256<>`, `ciphers::gcm<aes256<>>` and
- * `ciphers::aes256_gcm`: the one the program selects; else natively OpenSSL when it is linked;
- * else BearSSL.
- *
- * @see "The default backend, and choosing another", in the guide.
- */
-using default_backend = backends::bearssl;
-#endif
-
-}  // namespace webcpp::crypto
 
 #endif  // WEBCPP_CRYPTO_CONFIG_HPP

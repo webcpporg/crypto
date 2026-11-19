@@ -26,16 +26,16 @@ webcpp.example equal_hmac.cpp ;
 webcpp.example bearssl_prng.cpp : <library>/third_party//bearssl ;
 
 # The three ways AES-GCM refuses a message, on the default backend.
-webcpp.example failure_reasons.cpp : <library>/third_party//bearssl ;
+webcpp.example failure_reasons.cpp : <library>/webcpp/crypto//gcm-default ;
 
 # A reset token and a one-time code from random_device; no backend.
 webcpp.example reset_token.cpp ;
 
 # An API token stored in a row, bound to the user id as additional data.
-webcpp.example store_token.cpp : <library>/third_party//bearssl ;
+webcpp.example store_token.cpp : <library>/webcpp/crypto//gcm-default ;
 
 # The incremental seal, and records bound to their numbers.
-webcpp.example sealed_records.cpp : <library>/third_party//bearssl ;
+webcpp.example sealed_records.cpp : <library>/webcpp/crypto//gcm-default ;
 
 # An order id turned into an opaque reference with the raw AES block cipher.
 webcpp.example order_reference.cpp : <library>/third_party//ctaes ;
@@ -47,10 +47,10 @@ webcpp.example signed_message.cpp : <library>/third_party//secp256k1 ;
 webcpp.example signed_update.cpp : <library>/third_party//secp256k1 ;
 
 # ECDH, HKDF-SHA-256 and AES-256-GCM between two peers.
-webcpp.example ecdh_session.cpp : <library>/third_party//secp256k1 <library>/third_party//bearssl ;
+webcpp.example ecdh_session.cpp : <library>/third_party//secp256k1 <library>/webcpp/crypto//gcm-default ;
 
 # A wallet's key pair, its secret sealed at rest and restored.
-webcpp.example wallet_key.cpp : <library>/third_party//secp256k1 <library>/third_party//bearssl ;
+webcpp.example wallet_key.cpp : <library>/third_party//secp256k1 <library>/webcpp/crypto//gcm-default ;
 
 # ECDSA with DER encoding and the low-S rule, as a domain library uses them.
 webcpp.example ecdsa_der.cpp : <library>/third_party//secp256k1 ;
@@ -70,3 +70,41 @@ webcpp.example openssl_memory.cpp
     <threading>multi
   : native ;
 # end::openssl_memory[]
+
+# The guide's Ed25519 program: RFC 8032's second test signed and verified, then
+# Ed25519ph's test given in two pieces, on the family's default.
+webcpp.example ed25519_sign.cpp : <library>/webcpp/crypto//ed25519-default ;
+
+# The guide's X25519 program: RFC 7748's Alice and Bob, the agreement of two
+# Ed25519 key pairs through their X25519 forms, and a peer of low order
+# refused, on the family's default.
+webcpp.example x25519_agree.cpp : <library>/webcpp/crypto//x25519-default ;
+
+# The guide's key formats program: RFC 8410's Ed25519 key pair read from PEM,
+# its public key written as PEM and a signature; an X25519 public key's SPKI;
+# and the RFC's PKCS#8 version 2 refused, on the families' defaults.
+webcpp.example key_formats.cpp : <library>/webcpp/crypto//ed25519-default
+  <library>/webcpp/crypto//x25519-default <library>/webcpp/crypto//pem-default ;
+
+# The guide's crypto_kx program: libsodium's kx test's client and server
+# compute their session keys, the client seals a message the server opens on
+# ChaCha20-Poly1305, and a peer of low order is refused, on the defaults.
+webcpp.example kx_session.cpp : <library>/webcpp/crypto//kx-default
+  <library>/webcpp/crypto//chacha20_poly1305-default ;
+
+# A chat app's messages under one conversation key, each with a random nonce,
+# on XChaCha20-Poly1305's default.
+webcpp.example xchacha_seal.cpp
+  : <library>/webcpp/crypto//xchacha20_poly1305-default ;
+
+# A file-sharing app: the file in a secret box under its own key, the key in a
+# sealed box to the recipient's X25519 public key, on the defaults.
+webcpp.example file_share.cpp
+  : <library>/webcpp/crypto//secretbox_xsalsa20poly1305-default
+    <library>/webcpp/crypto//sealed_box-default
+    <library>/webcpp/crypto//x25519-default ;
+
+# Two people's boxes from each other's X25519 public keys, on the defaults.
+webcpp.example box_messages.cpp
+  : <library>/webcpp/crypto//box_xsalsa20poly1305-default
+    <library>/webcpp/crypto//x25519-default ;

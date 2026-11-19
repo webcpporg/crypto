@@ -4,12 +4,11 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// The types aes128_gcm, aes256_gcm and aes256<> name, from the defines alone (spec section 5):
-// test/Jamfile builds this file once per combination of linked and selected backends, and
-// tells it the answer through WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL (else BearSSL). The backends'
-// headers are stand-ins from test/support/fake_backends, included first under the real
-// headers' guards, so nothing here needs a real backend, and nothing is instantiated: the
-// aliases are only named.
+// The types aes128_gcm, aes256_gcm and aes256<> name: AES-GCM's default backend, natively
+// OpenSSL and on WebAssembly BearSSL, whatever is linked (design D32). test/Jamfile builds this
+// file once per combination of linked backends. The backends' headers are stand-ins from
+// test/support/fake_backends, included first under the real headers' guards, so nothing here
+// needs a real backend, and nothing is instantiated: the aliases are only named.
 
 // clang-format off
 #include "support/fake_backends/webcpp/crypto/backends/bearssl.hpp"
@@ -26,10 +25,10 @@
 
 namespace crypto = webcpp::crypto;
 
-#ifdef WEBCPP_TEST_CRYPTO_EXPECT_OPENSSL
-using expected = crypto::backends::openssl;
-#else
+#ifdef WEBCPP_CRYPTO_WEBASSEMBLY
 using expected = crypto::backends::bearssl;
+#else
+using expected = crypto::backends::openssl;
 #endif
 
 static_assert(std::is_same_v<crypto::default_backend, expected>);

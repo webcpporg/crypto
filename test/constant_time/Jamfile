@@ -130,7 +130,9 @@ for local name in .sodium-common .sodium-posix .sodium-linux
     }
     sodium-peeked += $(part) ;
 }
-if ! ( <define>HAVE_INLINE_ASM=1 in $(sodium-peeked) )
+# Quoted, as b2 5.5 warns of an unquoted "=" in a condition, and the warning
+# breaks the lines of declared-lanes that tools/ci/matrix.py reads.
+if ! ( "<define>HAVE_INLINE_ASM=1" in $(sodium-peeked) )
 {
     errors.user-error "constant_time/Jamfile: third_party/Jamfile's libsodium"
         "configuration has no <define>HAVE_INLINE_ASM=1 to remove: update"

@@ -5,5 +5,6 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // dudect_sodium_test.cpp with WEBCPP_TEST_CRYPTO_PLANTED_LEAK, a source of its own so that b2
-// compiles it with its own defines: the build in which dudect must find the planted leak.
+// compiles it with its own defines: the build in which dudect must find the planted leak. It
+// builds and runs only X25519's agreement with the planted leak, not Ed25519's signing.
 #include "dudect_sodium_test.cpp"  // NOLINT(bugprone-suspicious-include)

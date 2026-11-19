@@ -186,7 +186,8 @@ webcpp.run secp256k1_ctime_msan : $(SECP256K1_CTIME)
     <variant>release <debug-symbols>on <conditional>@clang-on-linux : native ;
 
 # dudect's statistics on BearSSL, ctaes and equal, and on libsodium's X25519 and
-# Ed25519, natively and under wasmtime.
+# Ed25519, natively and under wasmtime; under arm64's DIT on macOS and Linux on
+# arm64 only (dudect.hpp), without it elsewhere.
 webcpp.run dudect_bearssl : dudect_test.cpp
   : <library>/third_party//bearssl <library>/third_party//ctaes <variant>release
   : native wasip2 ;
@@ -196,9 +197,11 @@ webcpp.run dudect_bearssl : dudect_test.cpp
 webcpp.run dudect_sodium : dudect_sodium_test.cpp
   : <library>/third_party//sodium <variant>release : native wasip2 ;
 # The planted leak under dudect: X25519's agreement with an early-exit scan of
-# its secret key before it, a few nanoseconds longer for the all-zero key. The
-# program passes only when dudect finds it, natively, under DIT where the CPU
-# has it, so that the lane shows DIT does not hide a leak of that size.
+# its secret key before it, a few nanoseconds longer for the all-zero key; the
+# program builds and runs only this case, not Ed25519's signing. It passes only
+# when dudect finds the leak, natively, under DIT where the harness sets it
+# (macOS and Linux on arm64 only, where the CPU has it), so that the lane shows
+# DIT does not hide a leak of that size.
 webcpp.run dudect_planted : dudect_planted_test.cpp
   : <library>/third_party//sodium <variant>release
     <define>WEBCPP_TEST_CRYPTO_PLANTED_LEAK : native ;

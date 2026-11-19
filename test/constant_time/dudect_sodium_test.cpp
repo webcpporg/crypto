@@ -30,7 +30,6 @@ int main() {
     namespace crypto = webcpp::crypto;
     namespace x25519 = crypto::curves::x25519;
     using crypto::backends::sodium;
-    using keypair = crypto::curves::ed25519::basic_keypair<sodium>;
     // An agreement and a signature take 15 to 50 microseconds, natively and under wasmtime (Apple
     // M5, 2026-11-18), hundreds of times an AES block: half of the 2,000,000 measurements of
     // dudect_test.cpp keeps both runs of each, with the key pairs made, within wasmtime's 600
@@ -62,6 +61,14 @@ int main() {
             static_cast<void>(x25519::agree<sodium>(secret_key, peer));
         });
 
+#ifdef WEBCPP_TEST_CRYPTO_PLANTED_LEAK
+    // The planted build measures only the agreement: it passes only when dudect finds the planted
+    // leak there.
+    std::printf("|t| X25519 agreement %.2f (threshold 10)\n", agree_t);
+    std::printf("planted leak %s\n", agree_t >= 10 ? "found" : "not found");
+    return agree_t >= 10 ? 0 : 1;
+#else
+    using keypair = crypto::curves::ed25519::basic_keypair<sodium>;
     std::array<std::uint8_t, 64> const message{};
     std::optional<keypair> pair;
     double const sign_t = webcpp::test::twice(
@@ -88,12 +95,6 @@ int main() {
 #endif
     std::printf("|t| X25519 agreement %.2f%s, Ed25519 signing %.2f (threshold 10)\n", agree_t,
                 agree_note, sign_t);
-#ifdef WEBCPP_TEST_CRYPTO_PLANTED_LEAK
-    // The planted build passes only when dudect finds the planted leak in the agreement.
-    static_cast<void>(agree_passes);
-    std::printf("planted leak %s\n", agree_t >= 10 ? "found" : "not found");
-    return agree_t >= 10 ? 0 : 1;
-#else
     return agree_passes && sign_t < 10 ? 0 : 1;
 #endif
 }

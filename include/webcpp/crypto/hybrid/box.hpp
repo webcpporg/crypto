@@ -206,6 +206,9 @@ public:
      *
      * The nonce may lie in `data_bytes`: it is read before the first byte is written.
      *
+     * When the backend fails, `data_bytes` is zeroed, as a failed open's is: neither the
+     * plaintext nor bytes that look sealed are left; a guard's refusal leaves it untouched.
+     *
      * @param iv_bytes The nonce, `iv_size` bytes, never repeated for this pair of keys.
      * @param data_bytes The message.
      * @return The tag; `invalid_state` moved from; `invalid_iv_size`; `message_too_long`;
@@ -221,6 +224,7 @@ public:
         auto const seal_result =
             engine::seal(state_, iv_bytes.first<iv_size>(), data_bytes, tag_bytes);
         if (!seal_result) {
+            detail::wipe(data_bytes.data(), data_bytes.size());
             return seal_result.error();
         }
         return tag_bytes;

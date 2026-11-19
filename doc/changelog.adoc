@@ -22,8 +22,8 @@ of every version are on webcpp's index page.
 * Added backends::bearssl (AES-GCM alone, allocating nothing), backends::openssl via /webcpp/crypto//openssl natively and on WASI (allocating at make only, or natively in openssl_memory_resource with WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE), and backends::ctaes (block cipher alone).
 * Added curves::secp256k1: key pairs, BIP340 and ECDSA signatures, ECDH, strict DER, low-S and the x-only tweak.
 * Added curves::ed25519 and curves::x25519 on libsodium: strict verification over twelve edge cases, Ed25519ph over hash's sha2_512 (/webcpp/crypto//crypto brings hash), the conversion, agree refusing all-zero secrets, RFC 8410's SPKI and PKCS#8.
-* Added backends::sodium on /third_party//sodium, shared with webcpp::hash, every backend's link-time canary and C suite, and ciphers::aead: chacha20_poly1305 (also BearSSL, OpenSSL), its original form and xchacha20_poly1305.
-* Added ciphers::secretbox and secretbox_xchacha20poly1305, without additional data, hybrid::box, box_xchacha20poly1305 and sealed_box, and curves::x25519::kx_keypair (crypto_kx) on libsodium, refusing peer keys of small order.
+* Added backends::sodium on /third_party//sodium, shared with webcpp::hash, every backend's link-time canary and C suite, and ciphers::aead: chacha20_poly1305 (also BearSSL, OpenSSL), the original form, xchacha20_poly1305, failed seals and opens zeroing data.
+* Added ciphers::secretbox and secretbox_xchacha20poly1305, without additional data, hybrid::box, box_xchacha20poly1305 and sealed_box (failed seals and opens zeroing data), and curves::x25519::kx_keypair (crypto_kx) on libsodium, refusing peer keys of small order.
 * Added the page: chapters per namespace and use case, the memory option's guide, generated tables, every Jamfile and message, llms.txt, release-built sizes and throughput, X25519's open wasip2 timing finding.
 * Added secret<N>, a self-wiping array that is copied only by clone, and the errors 13 to 20: memory_functions_refused, memory_functions_not_installed, weak_public_key, invalid_point, invalid_scalar, invalid_padding, invalid_encoding and invalid_ciphertext_size.
 // end::unreleased[]

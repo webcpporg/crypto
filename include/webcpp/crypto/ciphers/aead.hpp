@@ -375,6 +375,10 @@ public:
      * other bytes than the caller's additional data; the backends would give different tags,
      * and an open with the original additional data would fail.
      *
+     * When the backend fails, `data_bytes` is zeroed, as a failed open's is: a backend may fail
+     * after it began to encrypt, and neither the plaintext nor bytes that look sealed are left;
+     * a guard's refusal leaves it untouched.
+     *
      * @param iv_bytes The nonce, `iv_size` bytes, never repeated under this key.
      * @param additional_data_bytes Authenticated, not encrypted; empty for a family that takes
      * none (`max_additional_data_size` 0).
@@ -394,6 +398,7 @@ public:
         auto const seal_result =
             engine::seal(state_, iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
         if (!seal_result) {
+            detail::wipe(data_bytes.data(), data_bytes.size());
             return seal_result.error();
         }
         return tag_bytes;

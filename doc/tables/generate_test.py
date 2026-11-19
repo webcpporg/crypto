@@ -1145,6 +1145,44 @@ def test_a_note_on_one_family_of_a_cell_names_that_family(_: Path) -> None:
             'below)\n') in page, page
 
 
+def test_a_finding_of_one_checker_marks_that_checker_alone(_: Path) -> None:
+    data = two_ciphers()
+    for backend in data['backends'].values():
+        backend.update({'library': 'l', 'constant_time': 'by design', 'constant_time_sources': []})
+    entry = data['families'][0]['backends']['sodium']
+    entry['constant_time'] = {'native': 'nothing found with DIT set'}
+    # Without a checker, the finding marks every checker of the target.
+    page = generate.constant_time_page(data)
+    assert ('|memcheck (Linux): ChaCha20-Poly1305 (measured differently, below); dudect: '
+            'ChaCha20-Poly1305 (measured differently, below)\n') in page, page
+    entry['constant_time_checker'] = {'native': 'dudect'}
+    page = generate.constant_time_page(data)
+    assert ('|memcheck (Linux): ChaCha20-Poly1305; dudect: ChaCha20-Poly1305 (measured '
+            'differently, below)\n') in page, page
+    text = generate.lane_text(data, data['families'][0], generate.cite)
+    assert text.startswith('libsodium: native, memcheck (Linux) and dudect: nothing found with '
+                           'DIT set'), text
+
+
+def test_a_finding_s_checker_must_measure_it_there(_: Path) -> None:
+    data = small_table()
+    data['checkers'] = {'memcheck': 'memcheck (Linux)', 'dudect': 'dudect'}
+    entry = data['families'][0]['backends']['sodium']
+    entry['lane'] = {'native': ['memcheck', 'dudect']}
+    entry['constant_time'] = {'native': 'nothing found with DIT set'}
+    entry['constant_time_checker'] = {'native': 'msan'}
+    a_fault(data, {'ed25519': EVERY_TARGET},
+            'names msan as the checker of its finding for sodium on native, which its lane '
+            'does not run there')
+    entry['constant_time_checker'] = {'wasip2': 'dudect'}
+    a_fault(data, {'ed25519': EVERY_TARGET},
+            'names dudect as the checker of its finding for sodium on wasip2, which its lane '
+            'does not run there')
+    entry['lane'] = {'native': ['memcheck', 'dudect'], 'wasip2': ['dudect']}
+    a_fault(data, {'ed25519': EVERY_TARGET},
+            'names dudect as the checker of a finding for sodium on wasip2, where it states none')
+
+
 def test_a_lane_note_of_one_checker_is_written_beside_that_checker_alone(_: Path) -> None:
     data = two_ciphers()
     for backend in data['backends'].values():
@@ -1281,6 +1319,8 @@ CASES: list[Callable[[Path], None]] = [
     test_the_constant_time_page_fills_each_target_from_the_lane,
     test_a_note_on_one_family_of_a_cell_names_that_family,
     test_a_lane_entry_the_family_does_not_claim_is_a_fault,
+    test_a_finding_of_one_checker_marks_that_checker_alone,
+    test_a_finding_s_checker_must_measure_it_there,
     test_a_lane_note_of_one_checker_is_written_beside_that_checker_alone,
     test_a_lane_note_of_a_checker_the_lane_does_not_run_is_a_fault,
     test_llms_gives_no_default_where_the_family_has_none,

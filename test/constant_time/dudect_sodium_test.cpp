@@ -23,6 +23,9 @@
 #include <optional>
 
 int main() {
+    if (!webcpp::test::enter_data_independent_timing()) {
+        return 1;
+    }
     namespace crypto = webcpp::crypto;
     namespace x25519 = crypto::curves::x25519;
     using crypto::backends::sodium;

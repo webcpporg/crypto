@@ -92,6 +92,15 @@ destructor wiped are checked by memcheck alone. dudect's statistics
 (link:https://eprint.iacr.org/2016/1123[Reparaz, Balasch and Verbauwhede]) time
 BearSSL's two AEADs' seal and open, ctaes, `equal`, and libsodium's X25519
 agreement and Ed25519 signing natively, on Linux and macOS, and under wasmtime.
+On 64-bit ARM, each dudect program first sets the CPU's DIT (data-independent
+timing) bit, with which the instructions Arm lists take a time independent of
+their data, and which Apple requires of constant-time code
+(link:https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms#Enable-DIT-for-constant-time-cryptographic-operations[Apple, enable DIT for constant-time cryptographic operations]);
+it prints whether it is set, and fails where the CPU has DIT and it is not.
+None of the C libraries sets DIT, and neither does webcpp: a program on Apple
+silicon sets it around its secret operations, as Apple describes
+(`timingsafe_enable_if_supported` from macOS 15.2). Without it, libsodium's
+X25519 is measurably not constant time there, listed under the table.
 
 One measurement is an open finding, listed under the table with its numbers:
 libsodium's X25519 `agree` under wasmtime, on wasip2. The lane prints its

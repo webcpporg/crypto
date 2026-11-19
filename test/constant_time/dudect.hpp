@@ -15,11 +15,17 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <random>
 #include <vector>
 
 #ifdef _MSC_VER
 #include <intrin.h>
+#endif
+#if defined(__aarch64__) && defined(__APPLE__)
+#include <sys/sysctl.h>
+#elif defined(__aarch64__) && defined(__linux__)
+#include <sys/auxv.h>
 #endif
 
 namespace webcpp::test {
@@ -43,6 +49,86 @@ inline void serialise() noexcept {
 #elif defined(_MSC_VER) && defined(_M_ARM64)
     __isb(_ARM64_BARRIER_SY);
 #endif
+}
+
+/** What a dudect program finds of arm64's DIT (Data Independent Timing) bit, PSTATE.DIT. */
+enum class timing_mode : std::uint8_t {
+    /** Not arm64 (x86, WebAssembly, where the engine decides), or an arm64 system whose CPU's
+       features the harness cannot read: nothing to set. */
+    not_applicable,
+    /** An arm64 CPU without DIT. */
+    no_dit,
+    /** DIT is set for this thread. */
+    set,
+    /** The CPU has DIT and it is not set: the timings would not be those of constant-time code. */
+    unset,
+};
+
+/**
+ * Whether the CPU has DIT: `hw.optional.arm.FEAT_DIT` on macOS, `HWCAP_DIT` on Linux.
+ * @return `set` where the CPU has DIT (whether this thread has it set is not read here),
+ * `no_dit` where it has not, `not_applicable` elsewhere.
+ */
+inline timing_mode cpu_dit() noexcept {
+#if defined(__aarch64__) && defined(__APPLE__)
+    int has = 0;
+    std::size_t size = sizeof has;
+    return sysctlbyname("hw.optional.arm.FEAT_DIT", &has, &size, nullptr, 0) == 0 && has != 0
+               ? timing_mode::set
+               : timing_mode::no_dit;
+#elif defined(__aarch64__) && defined(__linux__)
+    constexpr unsigned long hwcap_dit = 1UL << 24U;  // HWCAP_DIT, asm/hwcap.h
+    return (getauxval(AT_HWCAP) & hwcap_dit) != 0 ? timing_mode::set : timing_mode::no_dit;
+#else
+    return timing_mode::not_applicable;
+#endif
+}
+
+/**
+ * Sets DIT for this thread where the CPU has it, then reads it back. With DIT set, the
+ * instructions Arm lists take a time independent of their data; Apple requires it of
+ * constant-time code on Apple silicon, and none of the C libraries the lane measures sets it.
+ * Without it, X25519's agreement on libsodium with an all-zero secret key ran about one
+ * nanosecond faster in 15 microseconds than with random keys (measured natively on an Apple M5
+ * Max, 2026-11-19: |t| 6.7 to 14.5 against the threshold 10 without DIT, 1 to 3.5 with it).
+ * The register is named by its encoding (op0 3, op1 3, CRn 4, CRm 2, op2 5), which every
+ * assembler takes, with or without an architecture flag. The `isb` after the write is the
+ * barrier Apple asks for, so that the code after it runs under the new state.
+ * @return The mode: `unset` when the CPU has DIT and it did not take.
+ */
+inline timing_mode data_independent_timing() noexcept {
+    timing_mode const cpu = cpu_dit();
+    if (cpu != timing_mode::set) {
+        return cpu;
+    }
+#ifdef __aarch64__
+    std::uint64_t state = std::uint64_t{1} << 24U;
+    __asm__ volatile("msr s3_3_c4_c2_5, %0\n\tisb" : : "r"(state) : "memory");
+    __asm__ volatile("mrs %0, s3_3_c4_c2_5" : "=r"(state));
+    return ((state >> 24U) & 1U) != 0 ? timing_mode::set : timing_mode::unset;
+#else
+    return timing_mode::not_applicable;
+#endif
+}
+
+/**
+ * Sets DIT where the CPU has it (data_independent_timing), and prints what it found.
+ * @return false when the CPU has DIT and it is not set, so that the program fails rather than
+ * measure without it.
+ */
+inline bool enter_data_independent_timing() noexcept {
+    switch (data_independent_timing()) {
+        case timing_mode::set: std::printf("DIT (data-independent timing): set\n"); return true;
+        case timing_mode::unset:
+            std::printf("DIT (data-independent timing): the CPU has it and it is not set\n");
+            return false;
+        case timing_mode::no_dit:
+            std::printf("DIT (data-independent timing): not on this CPU\n");
+            return true;
+        case timing_mode::not_applicable: break;
+    }
+    std::printf("DIT (data-independent timing): not applicable here\n");
+    return true;
 }
 
 /** Online mean and variance of one class, Welford's. */

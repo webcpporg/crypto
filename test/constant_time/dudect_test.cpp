@@ -86,6 +86,9 @@ seal_and_open measure_aead() {
 }  // namespace
 
 int main() {
+    if (!webcpp::test::enter_data_independent_timing()) {
+        return 1;
+    }
     namespace crypto = webcpp::crypto;
     using block_cipher = crypto::ciphers::aes256<crypto::backends::ctaes>;
     auto const gcm =

@@ -515,6 +515,14 @@ def check_families(data: Data, declared: Dict[str, List[str]]) -> None:
                     raise Fault(f'crypto.json: the family {name} states constant time for '
                                 f'{backend} on {target}, where the lane does not run it')
                 cite(data, why)
+            for target, checker in entry.get('constant_time_checker', {}).items():
+                if checker not in entry.get('lane', {}).get(target, []):
+                    raise Fault(f'crypto.json: the family {name} names {checker} as the checker '
+                                f'of its finding for {backend} on {target}, which its lane does '
+                                'not run there')
+                if target not in entry.get('constant_time', {}):
+                    raise Fault(f'crypto.json: the family {name} names {checker} as the checker '
+                                f'of a finding for {backend} on {target}, where it states none')
         # One default per target, chosen by the target alone (design D32): a row of some
         # compilers, named from crypto.json's compilers, restates it with a reason of its own, and
         # each compiler of a target has one row. Each is claimed only where a test that fixes it
@@ -1301,8 +1309,12 @@ def lane_cell(data: Data, backend: str, target: str) -> str:
             note = entry.get('lane_note')
             notes = [marked(note)] if isinstance(note, str) else (
                 [marked(note[checker])] if isinstance(note, dict) and checker in note else [])
+            # A finding marks the checker that measured it, where crypto.json names one
+            # (`constant_time_checker`), otherwise every checker of the target.
+            found_by = entry.get('constant_time_checker', {}).get(target, checker)
             by_checker.setdefault(checker, []).append(
-                (family['title'], notes, target in entry.get('constant_time', {})))
+                (family['title'], notes,
+                 target in entry.get('constant_time', {}) and found_by == checker))
     for path in data['backends'][backend].get('lane_paths', []):
         for checker in path['lane'].get(target, []):
             by_checker.setdefault(checker, []).append((marked(path['what']), [], False))

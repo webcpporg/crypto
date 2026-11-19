@@ -94,7 +94,24 @@ struct quiet_lookup {
     }
 };
 
-// A lookup whose result only converts to the concept's type: the scan reads it as that type.
+// Lookups whose result only converts to the concept's type are refused: a span made from a
+// result returned by value would point into a temporary that is gone when libsecp256k1 reads
+// the tweak. libstdc++'s and MSVC's optional convert these noexcept, libc++'s does not, so the
+// gcc-15 lane is where a looser concept would accept them.
+struct tweak_by_value_lookup {
+    std::optional<std::array<std::uint8_t, 32>> operator()(
+        std::span<std::uint8_t const, 33> /*candidate*/) const noexcept {
+        return std::nullopt;
+    }
+};
+
+struct array_lookup {
+    std::array<std::uint8_t, 32> operator()(
+        std::span<std::uint8_t const, 33> /*candidate*/) const noexcept {
+        return {};
+    }
+};
+
 struct converting_lookup {
     std::nullopt_t operator()(std::span<std::uint8_t const, 33> /*candidate*/) const noexcept {
         return std::nullopt;
@@ -103,8 +120,10 @@ struct converting_lookup {
 
 static_assert(sp::label_lookup<sp::no_labels>);
 static_assert(sp::label_lookup<quiet_lookup>);
-static_assert(sp::label_lookup<converting_lookup>);
 static_assert(!sp::label_lookup<throwing_lookup>);
+static_assert(!sp::label_lookup<tweak_by_value_lookup>);
+static_assert(!sp::label_lookup<array_lookup>);
+static_assert(!sp::label_lookup<converting_lookup>);
 
 // Whether scan_outputs takes `Lookup`.
 template <class Lookup>
@@ -115,6 +134,8 @@ constexpr bool scans_with = requires(secp::keypair const& scan_key, secp::public
 };
 static_assert(scans_with<quiet_lookup>);
 static_assert(!scans_with<throwing_lookup>);
+static_assert(!scans_with<tweak_by_value_lookup>);
+static_assert(!scans_with<array_lookup>);
 
 // A workspace on the heap, filled with non-zero bytes, so that its wipe is seen.
 std::vector<std::byte> lent(std::size_t size) {
@@ -502,9 +523,6 @@ void find_labelled(secp::keypair const& scan_key, secp::public_key const& spend_
     auto const unlabelled =
         sp::scan_outputs(scan_key, spend_key, summary, outputs, unlabelled_found, scan_space);
     BOOST_TEST(unlabelled.has_value() && *unlabelled == 0);
-    auto const converted = sp::scan_outputs(scan_key, spend_key, summary, outputs, unlabelled_found,
-                                            scan_space, converting_lookup{});
-    BOOST_TEST(converted.has_value() && *converted == 0);
 }
 
 // A labelled address: the sender pays the labelled spend key, the recipient finds the output

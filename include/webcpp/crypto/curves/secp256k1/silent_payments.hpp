@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <array>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -70,7 +71,7 @@ struct secp256k1_label_context {
 template <class LabelLookup>
 [[nodiscard]] unsigned char const* secp256k1_call_label_lookup(
     void const* lookup_object, unsigned char const* label_bytes) noexcept {
-    // The concept's type, which any result the concept admits converts to.
+    // Exactly the concept's type: its span points into storage the lookup owns.
     std::optional<std::span<std::uint8_t const, 32>> const found_tweak =
         (*static_cast<LabelLookup const*>(lookup_object))(
             std::span<std::uint8_t const, 33>(label_bytes, 33));
@@ -154,16 +155,21 @@ private:
 /**
  * Whether `LabelLookup` can look up a label for `scan_outputs`.
  *
- * Called with a candidate label's 33 bytes, it returns the label's 32-byte tweak or
- * `std::nullopt`, and is noexcept, since libsecp256k1's C frames are between the scan and the
- * lookup. The tweak's bytes stay valid until the lookup is called again.
+ * Called with a candidate label's 33 bytes, it returns exactly
+ * `std::optional<std::span<std::uint8_t const, 32>>`: a span over the label's 32-byte tweak, or
+ * `std::nullopt`. The lookup owns the bytes the span points into for the call: they stay valid
+ * until the lookup is called again, since libsecp256k1 reads them after the lookup returns. A
+ * result returned by value, such as a `std::array` or a `std::optional` of one, would be gone by
+ * then, so no other result type is accepted, a convertible one included. The lookup is noexcept,
+ * since libsecp256k1's C frames are between the scan and the lookup.
  *
  * @tparam LabelLookup The lookup's type.
  */
 template <class LabelLookup>
 concept label_lookup =
-    std::is_nothrow_invocable_r_v<std::optional<std::span<std::uint8_t const, 32>>,
-                                  LabelLookup const&, std::span<std::uint8_t const, 33>>;
+    std::is_nothrow_invocable_v<LabelLookup const&, std::span<std::uint8_t const, 33>> &&
+    std::same_as<std::invoke_result_t<LabelLookup const&, std::span<std::uint8_t const, 33>>,
+                 std::optional<std::span<std::uint8_t const, 32>>>;
 
 /** The lookup of a recipient with no labels: it knows none. */
 struct no_labels {
@@ -507,7 +513,8 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
 /**
  * Scans a transaction's x-only outputs (`..._recipient_scan_outputs`) with the scan key pair
  * and the unlabelled spend key; `label_lookup` is called with a candidate label's 33 bytes
- * and returns its tweak or `std::nullopt`, noexcept (no labels: the default).
+ * and returns a span over its tweak, in bytes the lookup owns, or `std::nullopt`, noexcept (no
+ * labels: the default).
  *
  * Tip: a scan costs one ECDH per transaction, labels or not, which a light client must plan
  * for.

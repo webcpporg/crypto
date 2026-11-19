@@ -64,3 +64,4 @@ build-project musig_nonce_copied ;
 build-project ellswift_other_backend ;
 build-project musig_other_backend ;
 build-project silent_payments_other_backend ;
+build-project label_lookup_by_value ;

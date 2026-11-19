@@ -1175,6 +1175,7 @@
         "ellswift_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::ellswift_decode(encoded_key)`.",
         "musig_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::musig::parse_public_nonce(encoded_nonce)`.",
         "silent_payments_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::silent_payments::make_prevouts_summary(...)`.",
+        "label_lookup_by_value": "Return `std::optional<std::span<std::uint8_t const, 32>>`, a span over a tweak the lookup keeps, such as a map's entry; never the tweak by value.",
         "aes_on_bearssl": "Name `ciphers::aes256<backends::ctaes>`, include `<webcpp/crypto/backends/ctaes.hpp>` and add `/third_party//ctaes`.",
         "default_selected": "Remove the define, and name `gcm<aes256<backends::bearssl>>` where the program wants BearSSL.",
         "default_openssl_wasm": "Remove the define, and name `gcm<aes256<backends::openssl>>` where the program wants OpenSSL.",

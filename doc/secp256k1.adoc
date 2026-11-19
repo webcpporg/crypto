@@ -693,8 +693,11 @@ holds the output's key, its `spend_tweak` (a `secret<32>`, which
 * `create_label` makes the scan key's `m`-th label, 0 being BIP 352's change
 label, and `create_labeled_spend_key` the spend key of the address with that
 label; `scan_outputs` recognises a labelled payment through a lookup the
-caller gives, a `noexcept` callable that returns a label's tweak or
-`std::nullopt`.
+caller gives, a `noexcept` callable that returns exactly
+`std::optional<std::span<std::uint8_t const, 32>>`: a span over the label's
+tweak, in bytes the lookup owns for the call, since libsecp256k1 reads them
+after it returns, or `std::nullopt`. A tweak returned by value is refused at
+compile time.
 
 `create_outputs`, `make_prevouts_summary` and `scan_outputs` take a
 `workspace` for libsecp256k1's arrays (`send_workspace_size`,

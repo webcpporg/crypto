@@ -145,6 +145,12 @@ The fix: As `+heavy_without_threads+`.
 
 The fix: Add `+/webcpp/crypto//kx-default+`, which links `+/third_party//sodium+` on every target.
 
+|`+label_lookup_by_value+`
+|native, wasip2
+|`+no matching function for call to 'scan_outputs'+`
+
+The fix: Return `+std::optional<std::span<std::uint8_t const, 32>>+`, a span over a tweak the lookup keeps, such as a map's entry; never the tweak by value.
+
 |`+musig_nonce_copied+`
 |native, wasip2
 |`+call to deleted constructor of+`
@@ -963,6 +969,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+kx_default_not_linked+`
 |the compile
 |Add `+/webcpp/crypto//kx-default+`, which links `+/third_party//sodium+` on every target.
+
+|`+label_lookup_by_value+`
+|the compile
+|Return `+std::optional<std::span<std::uint8_t const, 32>>+`, a span over a tweak the lookup keeps, such as a map's entry; never the tweak by value.
 
 |`+memory_missing_definition_install+`
 |the link

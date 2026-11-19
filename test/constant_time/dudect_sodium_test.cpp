@@ -8,7 +8,8 @@
 // secret key, and Ed25519's signing's against its seed, each pair of classes differing only in
 // the secret (all zero, against random ones); natively and under wasmtime, where the engine's
 // compiler decides whether libsodium's field arithmetic stays constant time. On wasip2 the
-// agreement's |t| is printed and not judged, an open finding (see the end of main).
+// agreement's |t| is printed and not judged, an open finding whose cause is the host's DIT,
+// which wasmtime does not set (see the end of main).
 
 #include "dudect.hpp"
 
@@ -62,7 +63,9 @@ int main() {
     // X25519's agreement under wasmtime is an open finding, measured and printed but left out of
     // the verdict on wasip2, the one WebAssembly target the lane runs: its |t| and the
     // investigation are in doc/tables/crypto.json (the X25519 family's constant_time on wasip2),
-    // which the documentation's constant-time section renders. Another WASI target is judged,
+    // which the documentation's constant-time section renders. Its cause is measured: Apple
+    // silicon's DIT, which wasmtime does not set and which the WebAssembly cannot set (with DIT
+    // set in wasmtime's main thread, an experiment, |t| 1.5 to 2.1). Another WASI target is judged,
     // so that a run of the lane there shows its own value as a failure rather than skip it.
     bool const agree_passes = true;
     char const* const agree_note = " (wasip2: printed, not judged; an open finding)";

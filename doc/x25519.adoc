@@ -73,7 +73,9 @@ secret key: `agree` refuses it, and a program never replaces the refusal with
 a secret of its own choosing.
 * On WebAssembly, timing is an open finding: under wasmtime, on wasip2, dudect
 times `agree` against its secret key above the lane's threshold, where every
-native build passes, and the cause is not known. The measurement, with its
+native build passes. The cause is measured: Apple silicon's DIT
+(data-independent timing), which wasmtime does not set; with DIT set in
+wasmtime's thread, as an experiment, the case passes. The measurement, with its
 numbers, is in <<crypto-backends-constant-time>> and in the curves' comparison
 table (<<crypto-curves>>); a program that agrees keys on WebAssembly where an
 attacker can time many agreements with one secret key reads it first.

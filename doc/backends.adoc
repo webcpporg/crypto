@@ -103,8 +103,11 @@ silicon sets it around its secret operations, as Apple describes
 X25519 is measurably not constant time there, listed under the table.
 
 One measurement is an open finding, listed under the table with its numbers:
-libsodium's X25519 `agree` under wasmtime, on wasip2. The lane prints its
-value on wasip2 without judging it, and judges everything else.
+libsodium's X25519 `agree` under wasmtime, on wasip2. Its cause is the same:
+wasmtime does not set DIT, and with DIT set in wasmtime's main thread, an
+experiment and not the lane, the case passes. The WebAssembly cannot set it,
+so the lane prints its value on wasip2 without judging it, and judges
+everything else.
 
 Whether a tag matched, or a shared secret came out all zero, is public by
 design, since the operation reports it, but it is computed from the secrets: it

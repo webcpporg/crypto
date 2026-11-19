@@ -54,11 +54,14 @@ path-constant SECP256K1 : ../../../../third_party/libs/secp256k1 ;
 # both WASI runs. On WASI it runs 4 iterations, so that it ends within that
 # bound (220 s on wasip2, 218 s on wasip3, the same day; a ruling of the
 # controller, 2026-11-14, accepted it); natively and on Emscripten 16, as
-# libsecp256k1's CI runs it.
+# libsecp256k1's CI runs it. On Emscripten without debug information, whose
+# DWARF would hold back em++'s post-link optimisation of the optimised program
+# and make it warn (-Wlimited-postlink-optimizations), as test/Jamfile's
+# OPTIMISED does.
 webcpp.run secp256k1_tests : $(SECP256K1)/src/tests.c
     $(SECP256K1)/src/precomputed_ecmult.c $(SECP256K1)/src/precomputed_ecmult_gen.c
   : <library>/third_party//secp256k1-test-config <warnings>off <warnings-as-errors>off
-    <define>VERIFY <optimization>speed
+    <define>VERIFY <optimization>speed <toolset>emscripten:<debug-symbols>off
     <toolset>emscripten:<source>secp256k1_tests_bound.cpp
     <target-os>wasi:<testing.arg>--iterations=4 ;
 

@@ -49,11 +49,23 @@ The fix: Name `+families::box_xsalsa20poly1305+` or `+families::box_xchacha20pol
 
 The fix: The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add the family's alias, as `+/webcpp/crypto//chacha20_poly1305-default+`, which links `+/third_party//sodium+`.
 
+|`+chacha_header_not_included+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: bearssl's ChaCha20-Poly1305 is in <webcpp/crypto/backends/bearssl.hpp>, which the program does not include. Include it, and add /third_party//bearssl to the program's Jamfile.+`
+
+The fix: Include the backend's header the message names, as `+<webcpp/crypto/backends/bearssl.hpp>+`, and add its library, as `+/third_party//bearssl+`.
+
 |`+chacha_on_ctaes+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: ctaes has no ChaCha20-Poly1305. The backends that have it: sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).+`
 
 The fix: Name a backend that has ChaCha20-Poly1305, as in `+chacha20_poly1305<backends::bearssl>+`, or its default, `+chacha20_poly1305<>+`, and link its library.
+
+|`+chacha_unknown_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: ChaCha20-Poly1305 has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).+`
+
+The fix: Name a backend of `+webcpp::crypto::backends+` that has the family, as `+backends::bearssl+`, or leave the backend out for the family's default: `+chacha20_poly1305<>+`.
 
 |`+ctaes_not_linked+`
 |native, wasip2, wasip3
@@ -84,6 +96,12 @@ The fix: Add `+/webcpp/crypto//ed25519-default+`, which links `+/third_party//so
 |`+webcpp::crypto: bearssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten).+`
 
 The fix: Leave the backend out, as in `+curves::ed25519::keypair+`, or name `+backends::sodium+`, and add `+/third_party//sodium+`.
+
+|`+ed25519_unknown_policy+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.+`
+
+The fix: Leave the policy out, as in `+curves::ed25519::verify(public_key, message, signature)+`, or name `+curves::ed25519::strict+`.
 
 |`+ed25519ph_sha256+`
 |native, wasip2, wasip3
@@ -157,6 +175,12 @@ The fix: Name `+/webcpp/crypto//openssl+`, which builds OpenSSL 3.5.9; without b
 
 The fix: On WASI the default is BearSSL: add `+/webcpp/crypto//gcm-default+`, which links `+/third_party//bearssl+` there, or, with OpenSSL linked, name it in the type, as in `+gcm<aes256<backends::openssl>>+`.
 
+|`+pem_default_not_linked+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: PEM's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//pem-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//pem-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+The fix: Add `+/webcpp/crypto//pem-default+`, which links `+/third_party//sodium+` on every target.
+
 |`+secp256k1_not_linked+`
 |native, wasip2
 |`+webcpp::crypto: <webcpp/crypto/curves/secp256k1.hpp> needs libsecp256k1, which is not linked. In the program's Jamfile, add /third_party//secp256k1 beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_SECP256K1=1 and link libsecp256k1 built with webcpp's src/canary_secp256k1.c)+`
@@ -169,11 +193,23 @@ The fix: Add `+/third_party//secp256k1+`.
 
 The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::keypair+`.
 
+|`+secret_of_no_bytes+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: a secret of no bytes holds nothing.+`
+
+The fix: Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
+
 |`+sodium_not_linked+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: the backend libsodium is used and not linked. In the program's Jamfile, add /third_party//sodium beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
 The fix: Add `+/third_party//sodium+`.
+
+|`+x25519_default_not_linked+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: X25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//x25519-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//x25519-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+The fix: Add `+/webcpp/crypto//x25519-default+`, which links `+/third_party//sodium+` on every target.
 |===
 
 At build and link time, from the fixtures of the user's Jamfiles, each built on a scratch superproject: the texts the build's output contains, per target and linker, as each fixture checks them.
@@ -191,6 +227,38 @@ On each target, the build's output contains:
 +
 * emscripten:
 ** `+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original, families::xchacha20_poly1305, families::secretbox_xsalsa20poly1305 or families::secretbox_xchacha20poly1305.+`
+
+`+box_default_not_linked_on_emscripten+`:: A program for Emscripten that calls the secret boxes, the boxes and the sealed box on their default, libsodium, and links none. The fix: As `+box_default_not_linked+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/box_default_not_linked_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: XSalsa20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+** `+webcpp::crypto: XChaCha20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+** `+webcpp::crypto: X25519-XSalsa20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+** `+webcpp::crypto: X25519-XChaCha20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+** `+webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//sealed_box-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//sealed_box-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+box_not_a_family_on_emscripten+`:: A program for Emscripten that gives `+hybrid::basic_box+` a type that is no box family. The fix: As `+box_not_a_family+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/box_not_a_family_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: hybrid::basic_box takes a box family: families::box_xsalsa20poly1305 or families::box_xchacha20poly1305.+`
 
 `+canary_ctaes_missing+`:: ctaes's headers used without its library. The fix: Link `+/third_party//ctaes+`.
 +
@@ -416,6 +484,36 @@ On each target, the build's output contains:
 ** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
 ** `pass:[em++: error:]`
 
+`+chacha_default_not_linked_on_emscripten+`:: A program for Emscripten that calls the three ChaCha20-Poly1305 AEADs on their default, libsodium, and links none. The fix: As `+chacha_default_not_linked+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha_default_not_linked_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: ChaCha20-Poly1305's default backend on this target is libsodium, which is not linked. Add /webcpp/crypto//chacha20_poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//chacha20_poly1305-default ; or name another backend in the type, as in ciphers::chacha20_poly1305<backends::bearssl>. The backends that have it: sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+** `+webcpp::crypto: original ChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//chacha20_poly1305_original-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//chacha20_poly1305_original-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+** `+webcpp::crypto: XChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//xchacha20_poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//xchacha20_poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+chacha_header_not_included_on_emscripten+`:: A program for Emscripten that names BearSSL in ChaCha20-Poly1305's type without including BearSSL's header. The fix: As `+chacha_header_not_included+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha_header_not_included_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: bearssl's ChaCha20-Poly1305 is in <webcpp/crypto/backends/bearssl.hpp>, which the program does not include. Include it, and add /third_party//bearssl to the program's Jamfile.+`
+
 `+chacha_on_ctaes_on_emscripten+`:: A program for Emscripten that names ctaes, which has no ChaCha20-Poly1305, in the AEAD's type. The fix: As `+chacha_on_ctaes+`.
 +
 Its Jamfile:
@@ -429,6 +527,34 @@ On each target, the build's output contains:
 +
 * emscripten:
 ** `+webcpp::crypto: ctaes has no ChaCha20-Poly1305. The backends that have it: sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).+`
+
+`+chacha_openssl_on_emscripten+`:: A program for Emscripten that names OpenSSL, which is not built there, in ChaCha20-Poly1305's type. The fix: Name a backend that has ChaCha20-Poly1305 on Emscripten, as in `+chacha20_poly1305<backends::bearssl>+`, or its default, `+chacha20_poly1305<>+`, and link its library.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha_openssl_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: openssl has no ChaCha20-Poly1305 on emscripten. The backends that have it: sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).+`
+
+`+chacha_unknown_backend_on_emscripten+`:: A program for Emscripten that names a type of its own as ChaCha20-Poly1305's backend. The fix: As `+chacha_unknown_backend+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/chacha_unknown_backend_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: ChaCha20-Poly1305 has no backend of that name. The backends that have it: sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3).+`
 
 `+default_bearssl_on_emscripten+`:: Version 0.1's define that chose BearSSL as the default, in a build for Emscripten. The fix: Remove the define: on Emscripten the default is BearSSL.
 +
@@ -486,6 +612,20 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: bearssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten).+`
 
+`+ed25519_unknown_policy_on_emscripten+`:: A program for Emscripten that names a policy of its own in Ed25519's `+verify+`. The fix: As `+ed25519_unknown_policy+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/ed25519_unknown_policy_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.+`
+
 `+ed25519ph_sha256_on_emscripten+`:: A program for Emscripten that names SHA-256 in Ed25519ph's type, which RFC 8032 defines over SHA-512. The fix: As `+ed25519ph_sha256+`.
 +
 Its Jamfile:
@@ -527,6 +667,20 @@ On each target, the build's output contains:
 +
 * emscripten:
 ** `+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.+`
+
+`+kx_default_not_linked_on_emscripten+`:: A program for Emscripten that makes a `+crypto_kx+` key pair on its default, libsodium, and links none. The fix: As `+kx_default_not_linked+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/kx_default_not_linked_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: crypto_kx's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//kx-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//kx-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
 `+memory_missing_definition_install+`:: The memory option set in the program's project, the install called, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
 +
@@ -604,6 +758,34 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: /webcpp/crypto//openssl is named in a build for Emscripten, where webcpp does not build OpenSSL.+`
 
+`+pem_default_not_linked_on_emscripten+`:: A program for Emscripten that armours DER as PEM on its default, libsodium, and links none. The fix: As `+pem_default_not_linked+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/pem_default_not_linked_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: PEM's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//pem-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//pem-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+secret_of_no_bytes_on_emscripten+`:: A program for Emscripten that names `+secret<0>+`. The fix: As `+secret_of_no_bytes+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secret_of_no_bytes_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: a secret of no bytes holds nothing.+`
+
 `+sodium_not_linked_on_emscripten+`:: A program for Emscripten that names libsodium and links none. The fix: Add `+/third_party//sodium+` to the program's sources.
 +
 Its Jamfile:
@@ -617,6 +799,20 @@ On each target, the build's output contains:
 +
 * emscripten:
 ** `+webcpp::crypto: the backend libsodium is used and not linked. In the program's Jamfile, add /third_party//sodium beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+x25519_default_not_linked_on_emscripten+`:: A program for Emscripten that agrees an X25519 shared secret on its default, libsodium, and links none. The fix: As `+x25519_default_not_linked+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/x25519_default_not_linked_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: X25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//x25519-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//x25519-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
 On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at link time; its text is MSVC's own, the same instruction in MSVC's words, and two files compiled with different settings stop the link with LNK2038.
 
@@ -635,6 +831,14 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+bearssl_not_linked+`
 |the compile
 |Add `+/third_party//bearssl+`.
+
+|`+box_default_not_linked+`
+|the compile
+|The secret boxes', the boxes' and the sealed boxes' default is libsodium on every target: add the family's alias, as `+/webcpp/crypto//box_xsalsa20poly1305-default+`, which links `+/third_party//sodium+`.
+
+|`+box_not_a_family+`
+|the compile
+|Name `+families::box_xsalsa20poly1305+` or `+families::box_xchacha20poly1305+`, or use `+hybrid::box+` or `+hybrid::box_xchacha20poly1305+`.
 
 |`+canary_ctaes_missing+`
 |the link
@@ -676,9 +880,17 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add the family's alias, as `+/webcpp/crypto//chacha20_poly1305-default+`, which links `+/third_party//sodium+`.
 
+|`+chacha_header_not_included+`
+|the compile
+|Include the backend's header the message names, as `+<webcpp/crypto/backends/bearssl.hpp>+`, and add its library, as `+/third_party//bearssl+`.
+
 |`+chacha_on_ctaes+`
 |the compile
 |Name a backend that has ChaCha20-Poly1305, as in `+chacha20_poly1305<backends::bearssl>+`, or its default, `+chacha20_poly1305<>+`, and link its library.
+
+|`+chacha_unknown_backend+`
+|the compile
+|Name a backend of `+webcpp::crypto::backends+` that has the family, as `+backends::bearssl+`, or leave the backend out for the family's default: `+chacha20_poly1305<>+`.
 
 |`+ctaes_not_linked+`
 |the compile
@@ -700,6 +912,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Leave the backend out, as in `+curves::ed25519::keypair+`, or name `+backends::sodium+`, and add `+/third_party//sodium+`.
 
+|`+ed25519_unknown_policy+`
+|the compile
+|Leave the policy out, as in `+curves::ed25519::verify(public_key, message, signature)+`, or name `+curves::ed25519::strict+`.
+
 |`+ed25519ph_sha256+`
 |the compile
 |Name `+curves::ed25519::ph<webcpp::hash::sha2_512>+`: RFC 8032 defines Ed25519ph over SHA-512.
@@ -715,6 +931,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+heavy_without_threads+`
 |the compile
 |Call the synchronous operation the message names, or build with threads: natively without `+WEBCPP_CRYPTO_NO_THREADS+`, on Emscripten with `+-pthread+`; WASI has none.
+
+|`+kx_default_not_linked+`
+|the compile
+|Add `+/webcpp/crypto//kx-default+`, which links `+/third_party//sodium+` on every target.
 
 |`+memory_missing_definition_install+`
 |the link
@@ -740,6 +960,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Name `+/webcpp/crypto//openssl+`, which builds OpenSSL 3.5.9; without b2, put OpenSSL 3's `+include/+` first.
 
+|`+pem_default_not_linked+`
+|the compile
+|Add `+/webcpp/crypto//pem-default+`, which links `+/third_party//sodium+` on every target.
+
 |`+secp256k1_not_linked+`
 |the compile
 |Add `+/third_party//secp256k1+`.
@@ -748,9 +972,17 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::keypair+`.
 
+|`+secret_of_no_bytes+`
+|the compile
+|Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
+
 |`+sodium_not_linked+`
 |the compile
 |Add `+/third_party//sodium+`.
+
+|`+x25519_default_not_linked+`
+|the compile
+|Add `+/webcpp/crypto//x25519-default+`, which links `+/third_party//sodium+` on every target.
 |===
 
 Elsewhere than MSVC these mistakes build, and nothing stops them; the fixtures record it:

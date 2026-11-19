@@ -32,7 +32,7 @@ namespace webcpp::crypto {
 */
 template <std::size_t N>
 class secret {
-    static_assert(N > 0, "a secret of no bytes holds nothing");
+    static_assert(N > 0, "webcpp::crypto: a secret of no bytes holds nothing.");
 
 public:
     /** The number of bytes. */

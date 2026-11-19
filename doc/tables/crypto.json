@@ -707,7 +707,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
             ],
             "backends": {
-                "secp256k1": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}, "lane_note": "libsecp256k1's own `ctime_tests.c`, and webcpp's code around it: the key pair's making, its signatures and x-only tweak, ECDH in three forms, the secret key's tweaks and negation, and PKCS#8; dudect times `ecdh_x` alone"}
+                "secp256k1": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}, "lane_note": {"memcheck": "libsecp256k1's own `ctime_tests.c`, and webcpp's code around it: the key pair's making, its signatures and x-only tweak, ECDH in three forms, the secret key's tweaks and negation, and PKCS#8", "msan": "the same paths as memcheck's", "dudect": "`ecdh_x`"}}
             }
         },
         {
@@ -934,7 +934,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1_ellswift", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
             ],
             "backends": {
-                "secp256k1": {"targets": "all", "runtime": false, "lane": {"native": ["memcheck", "msan"]}, "lane_note": "libsecp256k1's own `ctime_tests.c`, and webcpp's `ellswift_create` and `ellswift_xdh` around it"}
+                "secp256k1": {"targets": "all", "runtime": false, "lane": {"native": ["memcheck", "msan"]}, "lane_note": {"memcheck": "libsecp256k1's own `ctime_tests.c`, and webcpp's `ellswift_create` and `ellswift_xdh` around it", "msan": "the same paths as memcheck's"}}
             }
         },
         {
@@ -951,7 +951,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1_musig", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
             ],
             "backends": {
-                "secp256k1": {"targets": "all", "runtime": false, "lane": {"native": ["memcheck", "msan"]}, "lane_note": "libsecp256k1's own `ctime_tests.c`, and webcpp's `nonce_gen` and `partial_sign` around it"}
+                "secp256k1": {"targets": "all", "runtime": false, "lane": {"native": ["memcheck", "msan"]}, "lane_note": {"memcheck": "libsecp256k1's own `ctime_tests.c`, and webcpp's `nonce_gen` and `partial_sign` around it", "msan": "the same paths as memcheck's"}}
             }
         },
         {
@@ -968,7 +968,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1_silent_payments", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
             ],
             "backends": {
-                "secp256k1": {"targets": "all", "runtime": false, "lane": {"native": ["memcheck", "msan"]}, "lane_note": "libsecp256k1's own `ctime_tests.c`, and webcpp's `create_outputs`, `create_label` and `scan_outputs` around it, each workspace's wipe included"}
+                "secp256k1": {"targets": "all", "runtime": false, "lane": {"native": ["memcheck", "msan"]}, "lane_note": {"memcheck": "libsecp256k1's own `ctime_tests.c`, and webcpp's `create_outputs`, `create_label` and `scan_outputs` around it, each workspace's wipe included", "msan": "the same paths as memcheck's"}}
             }
         }
     ],

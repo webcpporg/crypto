@@ -37,29 +37,47 @@ gives the raw x coordinate that Nostr's encrypted messages
 A `keypair` is made from a 32-byte secret key with `make(secret)`, which
 allocates its signing context in the `std::pmr::memory_resource` it is given,
 and randomises it from `random_device`; crypto's own code allocates nothing
-else (<<crypto-memory>>). A key pair gives its x-only public key
-(`xonly_public_key`), its compressed and uncompressed ones (`public_key`,
-`public_key_uncompressed`), signs (`sign_schnorr`, `sign_ecdsa`,
-`sign_recoverable`), derives an ECDH secret (`ecdh`, `ecdh_x`, `ecdh_point`),
-and is tweaked in place (`tweak_xonly`). `verify_schnorr` and `verify_ecdsa`
-check signatures with a public key alone, and `recover` finds the key from a
-recoverable signature; `parse_public_key` and `serialize_public_key` read and
-write a `public_key` (<<crypto-secp256k1-keys>>); `to_der`, `from_der` (strict
-DER) and `normalize_ecdsa` convert ECDSA's DER and low-S forms; and
-`tweak_xonly` tweaks an x-only public key. Five more headers hold the tweaks,
-negation and combination of whole keys
-(`<webcpp/crypto/curves/secp256k1/tweak.hpp>`, <<crypto-secp256k1-tweaks>>),
-the keys' SPKI and PKCS#8, which `pem` writes as PEM text
-(`<webcpp/crypto/curves/secp256k1/formats.hpp>`,
-<<crypto-secp256k1-formats>>), ElligatorSwift, keys sent as random-looking
-bytes (`<webcpp/crypto/curves/secp256k1/ellswift.hpp>`,
-<<crypto-secp256k1-ellswift>>), MuSig2, many signers' one signature
-(`<webcpp/crypto/curves/secp256k1/musig.hpp>`, <<crypto-secp256k1-musig>>),
-and silent payments, one reusable address whose payments look unrelated
-(`<webcpp/crypto/curves/secp256k1/silent_payments.hpp>`,
-<<crypto-secp256k1-silent-payments>>). Every function reads libsecp256k1's
-canary, so
-that a program linked with another build of the library does not link.
+else (<<crypto-memory>>). The namespace's functions, by header:
+
+* `<webcpp/crypto/curves/secp256k1.hpp>`: the key pair's `make`, its public
+keys (`xonly_public_key`, `public_key`, `public_key_uncompressed`), its
+signatures (`sign_schnorr`, `sign_ecdsa`, hedged or not, and
+`sign_recoverable`), its ECDH (`ecdh`, `ecdh_x`, `ecdh_point`) and its tweak
+in place (`tweak_xonly`); `verify_schnorr` and `verify_ecdsa`, which check a
+signature with a public key alone; `recover`, which finds the key of a
+recoverable signature (<<crypto-secp256k1-recovery>>); `parse_public_key`
+and `serialize_public_key`, which read and write a `public_key`
+(<<crypto-secp256k1-keys>>); `to_der`, `from_der` (strict DER) and
+`normalize_ecdsa`, ECDSA's DER and low-S forms; and `tweak_xonly`, the tweak
+of an x-only public key;
+* `<webcpp/crypto/curves/secp256k1/tweak.hpp>`: `seckey_tweak_add`,
+`seckey_tweak_mul` and `seckey_negate`, `pubkey_tweak_add`,
+`pubkey_tweak_mul` and `pubkey_negate`, and `pubkey_combine` with its
+`combine_workspace_size`: the tweaks, negation and combination of whole keys
+(<<crypto-secp256k1-tweaks>>);
+* `<webcpp/crypto/curves/secp256k1/formats.hpp>`: `encode_spki`,
+`decode_spki`, `encode_pkcs8` and `decode_pkcs8`, the keys' SPKI and PKCS#8,
+which `pem` writes as PEM text (<<crypto-secp256k1-formats>>);
+* `<webcpp/crypto/curves/secp256k1/ellswift.hpp>`: `ellswift_create`,
+`ellswift_encode`, `ellswift_decode` and `ellswift_xdh`, keys sent as
+random-looking bytes (<<crypto-secp256k1-ellswift>>);
+* `<webcpp/crypto/curves/secp256k1/musig.hpp>`, namespace `musig`:
+`key_aggregate` (and the aggregate key's `xonly_public_key`,
+`full_public_key`, `tweak_add` and `tweak_xonly_add`), `nonce_gen`,
+`nonce_aggregate`, `nonce_process`, `partial_sign`,
+`partial_signature_verify` and `partial_signature_aggregate`,
+the `parse_` and `serialize_` functions of the public nonce, the aggregate
+nonce and the partial signature, and `workspace_size`: many signers' one
+signature (<<crypto-secp256k1-musig>>);
+* `<webcpp/crypto/curves/secp256k1/silent_payments.hpp>`, namespace
+`silent_payments`: `create_outputs`, `create_label`,
+`create_labeled_spend_key`, `make_prevouts_summary` and `scan_outputs`, with
+`send_workspace_size`, `summary_workspace_size` and `scan_workspace_size`:
+one reusable address whose payments look unrelated
+(<<crypto-secp256k1-silent-payments>>).
+
+Every function reads libsecp256k1's canary, so that a program linked with
+another build of the library does not link.
 
 include::generated/backends-keypair.adoc[]
 

@@ -140,3 +140,127 @@ and computes its tweak with HMAC-SHA-512, which is a domain library's
 key and the Merkle root), so the tweaked secret key is as sensitive as the
 original: anyone who knows the tweak and either secret key knows the other.
 Check the domain library's tweak against BIP 341's published vectors.
+
+[#crypto-wallets-recovery]
+=== Who signed this? Recoverable signatures
+
+*The problem.* A wallet app receives a request that another wallet signed: a
+transaction to relay, or a message that proves who owns an account. The
+request carries the signed bytes and the signature, but no public key, and the
+app must know whose key signed it before it acts on it.
+
+*The idea.* An ECDSA signature leaves its signer's public key one of a few
+candidates; a recoverable signature adds the id, 0 to 3, of the one that
+verifies, so that a reader computes the signer's key from the signature and
+the hash alone. Ethereum finds a transaction's sender this way
+(link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow paper,
+appendix F]). `sign_recoverable` makes the 65 bytes, and `recover` finds the
+key (<<crypto-secp256k1-recovery>>). Recovery finds some key for almost any
+signature and any hash: what makes it a check is the comparison with the key
+the reader expects.
+
+[source,cpp]
+----
+include::{examples}/recover_signer.cpp[tag=recover,indent=0]
+----
+
+[listing]
+----
+include::{examples}/recover_signer.expected[]
+----
+
+Ethereum compares addresses rather than keys, the last 20 bytes of the
+Keccak-256 of the uncompressed key (the yellow paper, appendix F), and a
+wallet signs a message after EIP-191's prefix
+(link:https://eips.ethereum.org/EIPS/eip-191[EIP-191]). Both are the
+protocol's rules, which a domain library built on crypto, such as a future
+webcpp::ethereum, computes; crypto holds the signature and the recovery. This
+section names no application, since none was verified whose public source
+shows noble or scure doing this step.
+
+*Mistakes to avoid.* Never trust a recovered key on its own: a changed or
+forged message recovers some other key rather than failing, so compare the
+key, or the address made from it, with the one expected before acting. Hash
+exactly what the signer hashed: a message hashed without EIP-191's prefix, or
+with another, recovers another key, which looks like a wrong signer rather
+than a wrong hash.
+
+[#crypto-wallets-musig]
+=== Two devices, one signature: MuSig2
+
+*The problem.* A wallet split across a phone and a laptop, so that a thief who
+takes one device takes nothing: spending needs both. A script that asks for
+two signatures shows on the chain that two keys hold the coins, and costs more
+to spend.
+
+*The idea.* MuSig2 aggregates the two public keys into one, and the two
+devices' partial signatures into one BIP 340 signature under it, which the
+chain checks as any single signer's
+(link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327]).
+It takes two rounds: each device makes a nonce and sends its public half; with
+both in, each signs its part, and the parts add up to the signature
+(<<crypto-secp256k1-musig>>).
+
+[source,cpp]
+----
+include::{examples}/musig_wallet.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/musig_wallet.expected[]
+----
+
+The wallet's address, its transactions and the hash each device signs are a
+domain library's. This section names no application, since none was verified
+whose public source shows noble or scure doing this step.
+
+*Mistakes to avoid.* Reusing a nonce: two partial signatures with one nonce
+give away the secret key, so a nonce is made when the signature is made, never
+stored, and never restored from a backup; `partial_sign` takes it by value and
+refuses one already used. Signing before every nonce is in: a device that
+signs while the other can still choose its nonce lets it steer the final nonce,
+which the two rounds exist to prevent
+(link:https://eprint.iacr.org/2020/1261[Nick, Ruffing and Seurin, MuSig2]). A
+naive key sum: the plain sum of the two public keys, `pubkey_combine`, is not
+a multisignature, since a device that announces its key after seeing the
+other's can choose one that cancels it and spend alone; `key_aggregate` weighs
+each key by a hash of all of them (BIP 327).
+
+[#crypto-wallets-silent]
+=== A reusable address: silent payments
+
+*The problem.* A donation page wants one address to publish for good. With a
+plain address every payment to it is on the chain for anyone to list and add
+up, and a fresh address for each payer needs a server that hands them out.
+
+*The idea.* A silent payment address is two public keys, scan and spend. The
+sender combines the secret keys of its transaction's inputs with the scan key
+into a secret only it and the recipient share, an ECDH, and tweaks the spend
+key with it into an output key that is new for each transaction; the
+recipient scans each transaction with its scan secret and recognises its
+outputs (link:https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki[BIP 352];
+<<crypto-secp256k1-silent-payments>>).
+
+[source,cpp]
+----
+include::{examples}/silent_payment.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/silent_payment.expected[]
+----
+
+The address's encoding, the choice of inputs and the transaction are a domain
+library's. This section names no application, since none was verified whose
+public source shows noble or scure doing this step.
+
+*Mistakes to avoid.* The outpoint: it must be the smallest of all the
+transaction's inputs, eligible or not; with another, the sender computes
+another secret and the recipient never finds the payment. A dropped output:
+every output `create_outputs` makes must be in the transaction, since the
+recipient looks for them in order and stops at the first it does not find
+(link:https://github.com/bitcoin-core/secp256k1/blob/6e2c8bc4ecdc6e71dbe7a368f360d8d453ce435d/include/secp256k1_silentpayments.h[libsecp256k1's silent payments header]).
+Scanning cost: the recipient pays one ECDH for every transaction with eligible
+inputs, its own or not, which a light client must plan for (BIP 352).

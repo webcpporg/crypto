@@ -615,8 +615,10 @@ include::{examples}/musig_network.expected[]
 spent by its key path
 (link:https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki[BIP 341]).
 `tweak_xonly_add` tweaks it by its TapTweak tagged hash before any nonce is
-made, since the nonces and the parts commit to the key as tweaked; the
-signature then verifies under the output key and not under the internal one.
+made, since the session and the partial signatures need the key as tweaked,
+and `nonce_gen` mixes in the key it is given (BIP 327's NonceGen takes it only
+as an optional input); the signature then verifies under the output key and
+not under the internal one.
 The hash is the protocol's, a domain library's to compute; the example shows
 it with webcpp::hash's SHA-256:
 

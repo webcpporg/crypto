@@ -7,10 +7,11 @@
 // The wallet of musig_wallet.cpp receiving to a Taproot output (BIP 341) with a key path only:
 // the two signers' aggregate key is the internal key, and the output key on the chain is that
 // key tweaked by its TapTweak tagged hash. The tweak is applied to the aggregate key with
-// tweak_xonly_add before any nonce is made, since every nonce and partial signature commits to
-// the key as tweaked; then the signers run MuSig2's two rounds as before, and the signature
-// verifies under the output key and not under the internal one. The tweak's hash is the
-// protocol's, which a domain library computes; it is shown here with webcpp::hash's SHA-256.
+// tweak_xonly_add before any nonce is made, since the session and the partial signatures need
+// the key as tweaked, and nonce_gen mixes in the key it is given (BIP 327's NonceGen takes it
+// only as an optional input); then the signers run MuSig2's two rounds as before, and the
+// signature verifies under the output key and not under the internal one. The tweak's hash is
+// the protocol's, which a domain library computes; it is shown here with webcpp::hash's SHA-256.
 // The devices' secrets are fixed here, so that the program runs the same each time; the nonces
 // are fresh in every run, and nothing random is printed.
 // tag::program[]

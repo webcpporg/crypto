@@ -28,9 +28,9 @@ key from a signature, and the uncompressed key
 * `secp256k1.hpp`, the key pair and its signatures and ECDH: `keypair::make`,
 and the key pair's `xonly_public_key`, `public_key`,
 `public_key_uncompressed`, `sign_schnorr`, `sign_ecdsa`, `sign_recoverable`,
-`ecdh`, `ecdh_x`, `ecdh_point` and `tweak_xonly`; `verify_schnorr`, `verify_ecdsa`, `recover`,
-`parse_public_key`, `serialize_public_key`, `to_der`, `from_der`,
-`normalize_ecdsa` and the x-only key's `tweak_xonly`;
+`ecdh`, `ecdh_x`, `ecdh_point` and `tweak_xonly`; `verify_schnorr`,
+`verify_ecdsa`, `recover`, `parse_public_key`, `serialize_public_key`,
+`to_der`, `from_der`, `normalize_ecdsa` and the x-only key's `tweak_xonly`;
 * `secp256k1/tweak.hpp`, tweaks of whole keys, the arithmetic of BIP 32's
 derivation and of watch-only wallets: `seckey_tweak_add`, `seckey_tweak_mul`,
 `seckey_negate`, `pubkey_tweak_add`, `pubkey_tweak_mul`, `pubkey_negate` and

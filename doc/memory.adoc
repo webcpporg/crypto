@@ -17,10 +17,12 @@ key pair. Every buffer is the caller's.
 `begin_seal`, `update`, `result`, `encrypt`, `decrypt`, `fill`, the signatures
 (hedged and recoverable too), `ecdh`, `ecdh_x`, `ecdh_point`, the verifications,
 `recover`, `parse_public_key`, `serialize_public_key`, the tweaks and negations,
-`pubkey_combine` (in a `workspace` the caller lends), and the SPKI and PKCS#8
+`pubkey_combine` (in a `workspace` the caller lends), the SPKI and PKCS#8
 encoders and decoders (`decode_pkcs8` makes a key pair, whose context is the one
-allocation above). The counting tests of `test/` prove it, every `operator new`
-and the C library's allocator counted.
+allocation above), and `ellswift_*`, MuSig2's functions and silent payments'
+(each over a `workspace` the caller lends, where it takes one). The counting
+tests of `test/` prove it, every `operator new` and the C library's allocator
+counted.
 * *BearSSL and ctaes allocate nothing,* `make` included: the key schedule lives
 inside the object.
 * *OpenSSL's `make` allocates its cipher context through OpenSSL's own

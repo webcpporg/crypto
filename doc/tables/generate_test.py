@@ -885,6 +885,17 @@ def test_a_family_s_measured_constant_time_is_written_per_target(_: Path) -> Non
     assert generate.constant_time_notes(small_table()) == '', 'no entry, no list'
 
 
+def test_a_measured_cell_escapes_the_bars_of_its_finding(_: Path) -> None:
+    data = two_ciphers()
+    entry = data['families'][0]['backends']['sodium']
+    entry['constant_time'] = {'wasip2': 'dudect times it at |t| 13 ({rfc8439})'}
+    text = generate.constant_time_of(data, 'chacha20_poly1305')
+    # A bar in a table's cell ends the cell: |t| would split the finding over two cells.
+    assert 'at \\|t\\| 13 (link:https://example.org/rfc8439[RFC 8439])' in text, text
+    notes = generate.constant_time_notes(data)
+    assert 'at |t| 13' in notes, 'a list item keeps its bars'
+
+
 def two_ciphers() -> generate.Data:
     """A comparison table of two ciphers with D19's columns, the world's facts cited."""
     return {
@@ -1266,6 +1277,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_use_case_joins_the_operation_it_names,
     test_a_measurement_not_built_at_release_is_refused,
     test_a_speed_cell_names_each_operation_and_refuses_an_unknown_backend,
+    test_a_measured_cell_escapes_the_bars_of_its_finding,
     test_the_constant_time_page_fills_each_target_from_the_lane,
     test_a_note_on_one_family_of_a_cell_names_that_family,
     test_a_lane_entry_the_family_does_not_claim_is_a_fault,

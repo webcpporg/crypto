@@ -1100,8 +1100,9 @@ def lane_text(data: Data, family: Data, cite_with: Any, names_with: Any = None) 
 
 
 def constant_time_of(data: Data, family: str) -> str:
-    """A comparison table's measured constant time: lane_text, linked to the lane's section."""
-    return (f'{lane_text(data, family_of(data, family), cite)} '
+    """A comparison table's measured constant time: lane_text, linked to the lane's section, its
+    bars escaped, as a finding's |t| would otherwise end the cell."""
+    return (f'{cell(lane_text(data, family_of(data, family), cite))} '
             '(<<crypto-backends-constant-time>>)')
 
 

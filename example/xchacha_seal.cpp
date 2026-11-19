@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -56,7 +57,8 @@ bool seal(xchacha& cipher, crypto::random_device& device, std::span<std::uint8_t
 void open(xchacha& cipher, std::span<std::uint8_t const> id, sealed_message message) {
     auto const opened = cipher.open(message.nonce, id, message.ciphertext, message.tag);
     if (!opened) {
-        std::printf("refused: %s\n", opened.error().message().c_str());
+        std::string const reason = opened.error().message();
+        std::printf("refused: %s\n", reason.c_str());
         return;
     }
     std::printf("read: %.*s\n", static_cast<int>(message.ciphertext.size()),

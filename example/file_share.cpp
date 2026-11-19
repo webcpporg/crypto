@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -72,7 +73,8 @@ void receive(char const* who, std::span<std::uint8_t const> public_key,
     auto const key_opened =
         sealed_box::open(public_key, secret_key, received.sealed_key, file_key.writable());
     if (!key_opened) {
-        std::printf("%s: the file key refused: %s\n", who, key_opened.error().message().c_str());
+        std::string const reason = key_opened.error().message();
+        std::printf("%s: the file key refused: %s\n", who, reason.c_str());
         return;
     }
     auto box = secretbox<>::make(file_key.bytes());
@@ -81,7 +83,8 @@ void receive(char const* who, std::span<std::uint8_t const> public_key,
     }
     auto const opened = box->open(received.nonce, {}, received.file, received.tag);
     if (!opened) {
-        std::printf("%s: the file refused: %s\n", who, opened.error().message().c_str());
+        std::string const reason = opened.error().message();
+        std::printf("%s: the file refused: %s\n", who, reason.c_str());
         return;
     }
     std::printf("%s read: %.*s\n", who, static_cast<int>(received.file.size()),

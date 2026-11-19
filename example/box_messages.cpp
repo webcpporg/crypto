@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -70,7 +71,8 @@ bool send(box& sender, crypto::random_device& device, std::string_view text, sea
 void read(char const* who, box& recipient, sealed_message message) {
     auto const opened = recipient.open(message.nonce, message.ciphertext, message.tag);
     if (!opened) {
-        std::printf("%s refused it: %s\n", who, opened.error().message().c_str());
+        std::string const reason = opened.error().message();
+        std::printf("%s refused it: %s\n", who, reason.c_str());
         return;
     }
     std::printf("%s read: %.*s\n", who, static_cast<int>(message.ciphertext.size()),

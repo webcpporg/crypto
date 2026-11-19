@@ -104,7 +104,7 @@ private:
 };
 
 // A peer's X25519 public key: RFC 7748 section 6.1's, Bob's.
-constexpr std::array<std::uint8_t, 32> peer_public_key{
+constexpr std::array<std::uint8_t, 32> rfc7748_peer_key{
     0xde, 0x9e, 0xdb, 0x7d, 0x7b, 0x7d, 0xc1, 0xb4, 0xd3, 0x5b, 0x61, 0xc2, 0xec, 0xe4, 0x35, 0x37,
     0x3f, 0x83, 0x43, 0xc8, 0x5b, 0x78, 0x67, 0x4d, 0xad, 0xfc, 0x7e, 0x14, 0x6f, 0x88, 0x2b, 0x4f,
 };
@@ -117,8 +117,8 @@ T keyed(std::uint8_t first) {
     for (std::size_t i = 0; i < key.size(); ++i) {
         key[i] = static_cast<std::uint8_t>(first + i);
     }
-    if constexpr (requires { T::make(key, peer_public_key); }) {
-        auto made = T::make(key, peer_public_key);
+    if constexpr (requires { T::make(key, rfc7748_peer_key); }) {
+        auto made = T::make(key, rfc7748_peer_key);
         webcpp::test::require(made.has_value());
         return std::move(*made);
     } else {

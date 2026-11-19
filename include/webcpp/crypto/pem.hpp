@@ -90,7 +90,7 @@ inline constexpr std::size_t pem_line_characters = 64;
     if (at > text.size()) {
         return {};
     }
-    return {text.data() + at, std::min(count, text.size() - at)};
+    return {text.data() + at, (std::min)(count, text.size() - at)};
 }
 
 /**
@@ -190,7 +190,7 @@ struct algorithm {
         put(detail::pem_close);
         for (std::size_t first = 0; first < der.size(); first += detail::pem_line_bytes) {
             auto const line =
-                der.subspan(first, std::min(detail::pem_line_bytes, der.size() - first));
+                der.subspan(first, (std::min)(detail::pem_line_bytes, der.size() - first));
             std::size_t const characters = ((line.size() + 2) / 3) * 4;
             engine::encode(line, std::span<char>(at, characters));
             at += static_cast<std::ptrdiff_t>(characters);

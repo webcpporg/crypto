@@ -50,7 +50,7 @@ namespace {
 
 // The cases per curve, and the seed that makes a failure reproducible.
 constexpr std::size_t cases = 200;
-constexpr std::uint64_t seed = 0x52464338343130ULL;
+constexpr std::uint64_t generator_seed = 0x52464338343130ULL;
 
 /** Frees an EVP_PKEY. */
 struct pkey_free {
@@ -232,7 +232,7 @@ void x25519_against_openssl(std::mt19937_64& generator) {
 
 int main() {
     // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
-    std::mt19937_64 generator(seed);
+    std::mt19937_64 generator(generator_seed);
     ed25519_against_openssl(generator);
     x25519_against_openssl(generator);
     std::printf("formats against OpenSSL: %zu cases per curve\n", cases);

@@ -63,14 +63,14 @@ WEBCPP_TEST_NOINLINE bool memory_is_zero(void const* where, std::size_t count) {
 }
 
 // RFC 8032 section 7.3's seed, and its message "abc".
-constexpr std::array<std::uint8_t, 32> seed{
+constexpr std::array<std::uint8_t, 32> rfc8032_seed{
     0x83, 0x3f, 0xe6, 0x24, 0x09, 0x23, 0x7b, 0x9d, 0x62, 0xec, 0x77, 0x58, 0x75, 0x20, 0x91, 0x1e,
     0x9a, 0x75, 0x9c, 0xec, 0x1d, 0x19, 0x75, 0x5b, 0x7d, 0xa9, 0x01, 0xb9, 0x6d, 0xca, 0x3d, 0x42,
 };
 constexpr std::array<std::uint8_t, 3> abc{0x61, 0x62, 0x63};
 
 void key_pairs() {
-    auto made = keypair::make(seed);
+    auto made = keypair::make(rfc8032_seed);
     BOOST_TEST(made.has_value());
     if (!made) {
         return;
@@ -81,7 +81,7 @@ void key_pairs() {
     keypair taken = std::move(*made);
     BOOST_TEST(memory_is_zero(&*made, keypair_state));
 
-    auto other = keypair::make(seed);
+    auto other = keypair::make(rfc8032_seed);
     BOOST_TEST(other.has_value());
     if (other) {
         taken = std::move(*other);
@@ -98,7 +98,7 @@ void key_pairs() {
 }
 
 void signers() {
-    auto const key = keypair::make(seed);
+    auto const key = keypair::make(rfc8032_seed);
     auto begun = signer::begin();
     BOOST_TEST(key.has_value() && begun.has_value());
     if (!key || !begun) {

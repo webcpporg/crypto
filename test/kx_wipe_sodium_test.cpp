@@ -76,13 +76,13 @@ std::vector<std::uint8_t> bytes_at(void const* where, std::size_t count) {
 }
 
 // libsodium's kx.c seed, the bytes 0 to 31.
-constexpr std::array<std::uint8_t, 32> seed{
+constexpr std::array<std::uint8_t, 32> kx_c_seed{
     0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
     16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
 };
 
 void key_pairs() {
-    auto made = kx_keypair<>::make(seed);
+    auto made = kx_keypair<>::make(kx_c_seed);
     BOOST_TEST(made.has_value());
     if (!made) {
         return;
@@ -96,7 +96,7 @@ void key_pairs() {
     kx_keypair<> taken = std::move(*made);
     BOOST_TEST(memory_is_zero(&*made, secret_key_size));
 
-    auto other = kx_keypair<>::make(seed);
+    auto other = kx_keypair<>::make(kx_c_seed);
     BOOST_TEST(other.has_value());
     if (other) {
         taken = std::move(*other);
@@ -113,9 +113,9 @@ void key_pairs() {
 }
 
 void sessions() {
-    auto server_seed = seed;
+    auto server_seed = kx_c_seed;
     server_seed[0] = 1;  // kx.c's seed after sodium_increment
-    auto const client = kx_keypair<>::make(seed);
+    auto const client = kx_keypair<>::make(kx_c_seed);
     auto const server = kx_keypair<>::make(server_seed);
     BOOST_TEST(client.has_value() && server.has_value());
     if (!client || !server) {

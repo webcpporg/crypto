@@ -147,11 +147,21 @@ int main() {
     std::printf("each device sends its partial signature: %zu bytes\n", phone_part_wire.size());
 
     // The coordinator makes the same session from the nonce sum it sent, and checks each part
-    // before it adds them. A part with one byte flipped on the way is refused.
+    // before it adds them.
     auto const signing_session = musig::nonce_process(*nonce_sum, message, *wallet_key);
     if (!signing_session) {
         return 1;
     }
+    auto const phone_part_in =
+        received_part(phone_part_wire, *phone_nonce_in, *phone_key, *wallet_key, *signing_session);
+    auto const laptop_part_in = received_part(laptop_part_wire, *laptop_nonce_in, *laptop_key,
+                                              *wallet_key, *signing_session);
+    if (!phone_part_in || !laptop_part_in) {
+        return 1;
+    }
+    std::printf("both partial signatures parse and verify\n");
+
+    // The same check refuses the laptop's part with one byte flipped on the way.
     partial_signature_bytes damaged_wire = laptop_part_wire;
     damaged_wire.back() ^= 0x01U;
     auto const damaged =
@@ -161,15 +171,6 @@ int main() {
     }
     std::string const reason = damaged.error().message();
     std::printf("a part with one byte flipped is refused: %s\n", reason.c_str());
-
-    auto const phone_part_in =
-        received_part(phone_part_wire, *phone_nonce_in, *phone_key, *wallet_key, *signing_session);
-    auto const laptop_part_in = received_part(laptop_part_wire, *laptop_nonce_in, *laptop_key,
-                                              *wallet_key, *signing_session);
-    if (!phone_part_in || !laptop_part_in) {
-        return 1;
-    }
-    std::printf("both partial signatures parse and verify\n");
 
     // The parts add up to one BIP 340 signature under the wallet's one x-only key.
     std::array<musig::partial_signature, 2> const parts{*phone_part_in, *laptop_part_in};

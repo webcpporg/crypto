@@ -32,9 +32,9 @@
 |none: no signatures
 
 |Speed
-|BIP340 signature of a 32-byte message: native, libsecp256k1 10.5 µs; wasip2, libsecp256k1 64.8 µs; wasip3, libsecp256k1 80 µs; emscripten, libsecp256k1 57.7 µs (2026-11-18, Apple M5 Max, under load: read the spread; <<crypto-performance>>)
-|signature of a 32-byte message: native, libsodium 9.03 µs; wasip2, libsodium 22.7 µs; wasip3, libsodium 22.8 µs; emscripten, libsodium 19.1 µs (2026-11-18, Apple M5 Max, under load: read the spread; <<crypto-performance>>)
-|agreement of a secret key and a public key: native, libsodium 19.6 µs; wasip2, libsodium 52.3 µs; wasip3, libsodium 55 µs; emscripten, libsodium 45.9 µs (2026-11-18, Apple M5 Max, under load: read the spread; <<crypto-performance>>)
+|BIP340 signature of a 32-byte message: native, libsecp256k1 7.98 µs; wasip2, libsecp256k1 50.8 µs; wasip3, libsecp256k1 56.6 µs; emscripten, libsecp256k1 43.1 µs (2026-11-19, Apple M5 Max; <<crypto-performance>>)
+|signature of a 32-byte message: native, libsodium 7.51 µs; wasip2, libsodium 17.4 µs; wasip3, libsodium 17.5 µs; emscripten, libsodium 15.3 µs (2026-11-19, Apple M5 Max; <<crypto-performance>>)
+|agreement of a secret key and a public key: native, libsodium 15.9 µs; wasip2, libsodium 40.4 µs; wasip3, libsodium 40.4 µs; emscripten, libsodium 35.5 µs (2026-11-19, Apple M5 Max; <<crypto-performance>>)
 
 |Constant time, measured
 |libsecp256k1 (libsecp256k1's own `+ctime_tests.c+`): native, Valgrind's memcheck (Linux) and MemorySanitizer (Linux, clang), nothing found; not measured yet on wasip2, wasip3, emscripten (<<crypto-backends-constant-time>>)

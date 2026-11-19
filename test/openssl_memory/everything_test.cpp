@@ -6,15 +6,16 @@
 
 // Everything in the resource, refused otherwise (spec section 8.5): installed first, the
 // configuration file not read, make, the one-shot and incremental seals, good and failed
-// opens and the destructors, for gcm and aes256 on OpenSSL, make no call of the C
-// library's allocator from any caller; seal, open and the incremental seal allocate
-// nothing anywhere; a second thread does the same (Review Focus 5); no foreign block is
-// freed; and after main OpenSSL's cleanup gives every block back (support.hpp's exit).
-// Built <threading>multi, so that the provider has threads.
+// opens and the destructors, for gcm, aes256 and chacha20_poly1305 on OpenSSL, make no call
+// of the C library's allocator from any caller; seal, open and the incremental seal allocate
+// nothing anywhere; a second thread does the same with gcm and chacha20_poly1305 (Review
+// Focus 5); no foreign block is freed; and after main OpenSSL's cleanup gives every block back
+// (support.hpp's exit). Built <threading>multi, so that the provider has threads.
 
 #include "support.hpp"
 
 #include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -31,6 +32,7 @@ namespace {
 
 namespace crypto = webcpp::crypto;
 using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::openssl>>;
+using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::openssl>;
 
 void messages(aead& made) {
     std::array<std::uint8_t, 12> const iv{};
@@ -48,6 +50,34 @@ void messages(aead& made) {
     BOOST_TEST_EQ(resource.allocations(), before);
 }
 
+// ChaCha20-Poly1305's seal, good open and failed open, which allocate nothing anywhere.
+void messages(chacha& made) {
+    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 64> data{};
+    auto const& resource = webcpp::test::the_counting_resource();
+    std::size_t const before = resource.allocations();
+    auto const tag = made.seal(iv, {}, data);
+    BOOST_TEST(tag.has_value());
+    BOOST_TEST(made.open(iv, {}, data, *tag).has_value());
+    std::array<std::uint8_t, 16> const bad{};
+    BOOST_TEST(made.open(iv, {}, data, bad).error() == crypto::error::authentication_failed);
+    BOOST_TEST_EQ(resource.allocations(), before);
+}
+
+// make, the messages and the destructor of each AEAD.
+void every_aead(std::array<std::uint8_t, 32> const& key) {
+    {
+        auto made = aead::make(key);
+        BOOST_TEST(made.has_value());
+        messages(*made);
+    }
+    {
+        auto made = chacha::make(key);
+        BOOST_TEST(made.has_value());
+        messages(*made);
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -61,9 +91,7 @@ int main() {
     webcpp_test_count_c_allocations(1);
     {
         std::array<std::uint8_t, 32> const key{};
-        auto made = aead::make(key);
-        BOOST_TEST(made.has_value());
-        messages(*made);
+        every_aead(key);
         auto block = crypto::ciphers::aes256<crypto::backends::openssl>::make(key);
         BOOST_TEST(block.has_value());
         std::array<std::uint8_t, 32> blocks{};
@@ -77,11 +105,7 @@ int main() {
         webcpp_test_count_c_allocations(0);
         std::thread other([&key] {
             webcpp_test_count_c_allocations(1);
-            {
-                auto made_there = aead::make(key);
-                BOOST_TEST(made_there.has_value());
-                messages(*made_there);
-            }
+            every_aead(key);
             // The static libcrypto on Windows is never told that a thread ends (OpenSSL's
             // OPENSSL_init_crypto(3), NOTES): the thread gives its own blocks back itself, or
             // they stay in the resource and the exit check fails. Elsewhere it frees them now

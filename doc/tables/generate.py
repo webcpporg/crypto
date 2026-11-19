@@ -499,6 +499,14 @@ def check_families(data: Data, declared: Dict[str, List[str]]) -> None:
                         raise Fault(f'crypto.json: the family {name} names the checker '
                                     f'{checker} for {backend} on {target}, which checkers does '
                                     'not list')
+            note = entry.get('lane_note')
+            if isinstance(note, dict):
+                run = {checker for checkers in entry.get('lane', {}).values()
+                       for checker in checkers}
+                for checker in note:
+                    if checker not in run:
+                        raise Fault(f'crypto.json: the family {name} gives {backend} a lane note '
+                                    f'for {checker}, which its lane does not run')
             for target, why in entry.get('constant_time', {}).items():
                 if target not in claimed:
                     raise Fault(f'crypto.json: the family {name} states constant time for '
@@ -1041,24 +1049,44 @@ def and_list(words: List[str]) -> str:
     return words[0] if len(words) == 1 else f'{", ".join(words[:-1])} and {words[-1]}'
 
 
+def checker_note(entry: Data, checker: str) -> Optional[str]:
+    """The note a family's backend gives one checker of its lane: its `lane_note` of that checker,
+    where the note is per checker (an object); None otherwise."""
+    note = entry.get('lane_note')
+    return note.get(checker) if isinstance(note, dict) else None
+
+
+def with_note(title: str, note: Optional[str], names_with: Any) -> str:
+    """A checker's title with a note of its own: inside the title's closing parenthesis, where it
+    has one, as in memcheck (Linux; note), otherwise after it in parentheses."""
+    if note is None:
+        return title
+    if title.endswith(')'):
+        return f'{title[:-1]}; {names_with(note)})'
+    return f'{title} ({names_with(note)})'
+
+
 def lane_text(data: Data, family: Data, cite_with: Any, names_with: Any = None) -> str:
     """What the constant-time lane covers of a family, per backend and target, from crypto.json's
     `lane` of each backend: the checkers on each target, then nothing found, or the family's
     measured `constant_time` there; not measured yet on the targets the lane does not run; a
-    backend's `lane_note` beside its name. Names between backticks are written by names_with,
-    inline code by default; llms.txt keeps the backticks."""
+    backend's `lane_note` beside its name, or, a note of one checker, beside that checker's.
+    Names between backticks are written by names_with, inline code by default; llms.txt keeps the
+    backticks."""
     names_with = names_with or marked
     sentences: List[str] = []
     for backend, entry in family['backends'].items():
         title = data['backends'][backend]['title']
-        if 'lane_note' in entry:
+        if isinstance(entry.get('lane_note'), str):
             title += f' ({names_with(entry["lane_note"])})'
         lane = entry.get('lane', {})
         found = entry.get('constant_time', {})
         pieces: List[str] = []
         for target in data['targets']:
             if target in lane:
-                checkers = and_list([data['checkers'][name] for name in lane[target]])
+                checkers = and_list([
+                    with_note(data['checkers'][name], checker_note(entry, name), names_with)
+                    for name in lane[target]])
                 result = (f': {cite_with(data, found[target])}' if target in found
                           else ', nothing found')
                 pieces.append(f'{target}, {checkers}{result}')
@@ -1263,21 +1291,35 @@ def lane_cell(data: Data, backend: str, target: str) -> str:
     """The constant-time page's cell of a backend on a target: per checker of the lane, the
     families (and the backend's own `lane_paths`) it runs there, those with a measured finding
     marked; not measured yet where the lane runs none."""
-    by_checker: Dict[str, List[str]] = {}
+    # Per checker, each family's title, its notes of that checker, and whether it measured
+    # differently there; the backend's own paths have neither.
+    by_checker: Dict[str, List[Tuple[str, List[str], bool]]] = {}
     for family in data.get('families', []):
         entry = family['backends'].get(backend, {})
         for checker in entry.get('lane', {}).get(target, []):
-            notes = ([marked(entry['lane_note'])] if 'lane_note' in entry else []) + (
-                [f'{family["title"]} measured differently, below']
-                if target in entry.get('constant_time', {}) else [])
-            note = f' ({"; ".join(notes)})' if notes else ''
-            by_checker.setdefault(checker, []).append(family['title'] + note)
+            note = entry.get('lane_note')
+            notes = [marked(note)] if isinstance(note, str) else (
+                [marked(note[checker])] if isinstance(note, dict) and checker in note else [])
+            by_checker.setdefault(checker, []).append(
+                (family['title'], notes, target in entry.get('constant_time', {})))
     for path in data['backends'][backend].get('lane_paths', []):
         for checker in path['lane'].get(target, []):
-            by_checker.setdefault(checker, []).append(marked(path['what']))
+            by_checker.setdefault(checker, []).append((marked(path['what']), [], False))
     if not by_checker:
         return NOT_MEASURED
-    return '; '.join(f'{title}: {", ".join(by_checker[name])}'
+
+    def listed(items: List[Tuple[str, List[str], bool]]) -> str:
+        # A finding's note names its family where the checker lists several, so that it reads as
+        # that family's alone, and not where the family is the only one.
+        written: List[str] = []
+        for title, notes, differs in items:
+            if differs:
+                notes = notes + ['measured differently, below' if len(items) == 1
+                                 else f'{title} measured differently, below']
+            written.append(title + (f' ({"; ".join(notes)})' if notes else ''))
+        return ', '.join(written)
+
+    return '; '.join(f'{title}: {listed(by_checker[name])}'
                      for name, title in data['checkers'].items() if name in by_checker)
 
 

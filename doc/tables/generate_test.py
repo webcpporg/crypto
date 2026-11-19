@@ -12,9 +12,10 @@ outcome reader (each directive and section), the Doc Comment reader (a line refe
 writers whose output a reader of the page sees (inline code that holds a `+` or a backtick, a
 failing fixture's output per target, a comparison table's names of code, the decision table's
 Jamfile column, the table of Ed25519's edge cases, a family's measured constant time per target, a
-comparison table's columns, its measured cells and its refusal of a fact without a source, the
-decision table's link to its example, llms.txt's entry of a function, every backend's facts and own
-suite, every API page's default per target),
+lane note of one checker beside that checker alone, a comparison table's columns, its measured
+cells and its refusal of a fact without a source, the decision table's link to its example,
+llms.txt's entry of a function, every backend's facts and own suite, every API page's default per
+target),
 and the capability table's: its checks of
 crypto.json's families, the refusals and cells of include/webcpp/crypto/detail/capabilities.hpp, the
 cells test/capabilities_test.cpp asserts, and the comparison --check makes; and the size matrix's:
@@ -1117,8 +1118,7 @@ def test_the_constant_time_page_fills_each_target_from_the_lane(_: Path) -> None
                                     {'what': '`equal`', 'lane': {'native': ['memcheck']}}]}
     page = generate.constant_time_page(data)
     assert ('|libsodium\n|by design\n|memcheck (Linux): ChaCha20-Poly1305; dudect: '
-            'ChaCha20-Poly1305\n|dudect: ChaCha20-Poly1305 (ChaCha20-Poly1305 measured differently, '
-            'below)\n'
+            'ChaCha20-Poly1305\n|dudect: ChaCha20-Poly1305 (measured differently, below)\n'
             '|not measured yet\n|not measured yet\n') in page, page
     assert '|no backend\n|yes\n|memcheck (Linux): `+equal+`\n|not measured yet\n' in page, page
 
@@ -1132,6 +1132,44 @@ def test_a_note_on_one_family_of_a_cell_names_that_family(_: Path) -> None:
     page = generate.constant_time_page(data)
     assert ('|dudect: Ed25519, ChaCha20-Poly1305 (ChaCha20-Poly1305 measured differently, '
             'below)\n') in page, page
+
+
+def test_a_lane_note_of_one_checker_is_written_beside_that_checker_alone(_: Path) -> None:
+    data = two_ciphers()
+    for backend in data['backends'].values():
+        backend.update({'library': 'l', 'constant_time': 'by design', 'constant_time_sources': []})
+    entry = data['families'][0]['backends']['sodium']
+    del entry['constant_time']
+    entry['lane_note'] = {'dudect': 'seal alone'}
+    page = generate.constant_time_page(data)
+    assert ('|libsodium\n|by design\n|memcheck (Linux): ChaCha20-Poly1305; dudect: '
+            'ChaCha20-Poly1305 (seal alone)\n|dudect: ChaCha20-Poly1305 (seal alone)\n'
+            ) in page, page
+    text = generate.lane_text(data, data['families'][0], generate.cite)
+    assert text.startswith('libsodium: native, memcheck (Linux) and dudect (seal alone), nothing '
+                           'found; wasip2, dudect (seal alone), nothing found'), text
+    # A checker whose name ends in its own parenthesis takes the note inside it.
+    entry['lane_note'] = {'memcheck': 'seal alone'}
+    text = generate.lane_text(data, data['families'][0], generate.cite)
+    assert text.startswith('libsodium: native, memcheck (Linux; seal alone) and dudect, nothing '
+                           'found; wasip2, dudect, nothing found'), text
+    # A note of every checker stays beside the backend's name.
+    entry['lane_note'] = 'its own tests'
+    text = generate.lane_text(data, data['families'][0], generate.cite)
+    assert text.startswith('libsodium (its own tests): native, memcheck (Linux) and dudect'), text
+
+
+def test_a_lane_note_of_a_checker_the_lane_does_not_run_is_a_fault(_: Path) -> None:
+    data = small_table()
+    data['checkers'] = {'memcheck': 'memcheck (Linux)', 'dudect': 'dudect'}
+    entry = data['families'][0]['backends']['sodium']
+    entry['lane'] = {'native': ['memcheck']}
+    entry['lane_note'] = {'dudect': 'seal alone'}
+    a_fault(data, {'ed25519': EVERY_TARGET},
+            'gives sodium a lane note for dudect, which its lane does not run')
+    entry['lane_note'] = {'msan': 'seal alone'}
+    a_fault(data, {'ed25519': EVERY_TARGET},
+            'gives sodium a lane note for msan, which its lane does not run')
 
 
 def test_a_lane_entry_the_family_does_not_claim_is_a_fault(_: Path) -> None:
@@ -1231,6 +1269,8 @@ CASES: list[Callable[[Path], None]] = [
     test_the_constant_time_page_fills_each_target_from_the_lane,
     test_a_note_on_one_family_of_a_cell_names_that_family,
     test_a_lane_entry_the_family_does_not_claim_is_a_fault,
+    test_a_lane_note_of_one_checker_is_written_beside_that_checker_alone,
+    test_a_lane_note_of_a_checker_the_lane_does_not_run_is_a_fault,
     test_llms_gives_no_default_where_the_family_has_none,
     test_a_namespace_table_is_split_into_its_parts,
 ]

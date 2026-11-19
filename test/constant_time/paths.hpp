@@ -431,8 +431,8 @@ int secp256k1_secret_tweaks() {
 
 /**
  * PKCS#8 on libsecp256k1: the key pair's secret secret, the encoding traced, then the encoding
- * read back with its secret still secret; the re-encoding's comparison is declassified where
- * webcpp branches on it.
+ * read back with its secret still secret, the decoded key pair's own encoding traced; the
+ * re-encoding's comparison is declassified where webcpp branches on it.
  */
 template <class Checker>
 int secp256k1_pkcs8() {
@@ -447,7 +447,11 @@ int secp256k1_pkcs8() {
     int const failures =
         check(written.has_value() && carries_mark<Checker>(encoded), "secp256k1's encode_pkcs8");
     auto const decoded = secp256k1::decode_pkcs8<backend>(encoded);
-    return failures + check(decoded.has_value(), "secp256k1's decode_pkcs8");
+    std::array<std::uint8_t, secp256k1::max_pkcs8_size> encoded_again{};
+    bool const decoded_traced = decoded.has_value() &&
+                                secp256k1::encode_pkcs8(*decoded, encoded_again).has_value() &&
+                                carries_mark<Checker>(encoded_again);
+    return failures + check(decoded_traced, "secp256k1's decode_pkcs8");
 }
 
 /**
@@ -480,7 +484,7 @@ int secp256k1_ellswift() {
 }
 
 /**
- * MuSig2 on libsecp256k1, two signers: one key pair's secret secret, its nonce made and its
+ * MuSig2 on libsecp256k1, two signers: one key pair's secret secret, its secret nonce and its
  * partial signature traced; the public keys and the public nonces public, as they are sent.
  */
 template <class Checker>
@@ -513,24 +517,27 @@ int secp256k1_musig() {
     if (!own_nonce || !other_nonce) {
         return check(false, "secp256k1's nonce_gen");
     }
+    // The secret nonce is made from the secret: traced before it signs.
+    int const failures =
+        check(carries_mark<Checker>(bytes_of(own_nonce->secret_part)), "secp256k1's nonce_gen");
     Checker::mark_public(bytes_of(own_nonce->public_part));
     std::array<musig::public_nonce, 2> const nonces{own_nonce->public_part,
                                                     other_nonce->public_part};
     auto const nonce_sum = musig::nonce_aggregate<backend>(nonces, space);
     if (!nonce_sum) {
-        return check(false, "secp256k1's nonce_aggregate");
+        return failures + check(false, "secp256k1's nonce_aggregate");
     }
     auto const signing_session = musig::nonce_process<backend>(*nonce_sum, message, *signers_key);
     if (!signing_session) {
-        return check(false, "secp256k1's nonce_process");
+        return failures + check(false, "secp256k1's nonce_process");
     }
     auto const own_part = musig::partial_sign(*pair, std::move(own_nonce->secret_part),
                                               *signers_key, *signing_session);
     if (!own_part) {
-        return check(false, "secp256k1's partial_sign");
+        return failures + check(false, "secp256k1's partial_sign");
     }
     auto const part_bytes = musig::serialize_partial_signature<backend>(*own_part);
-    return check(carries_mark<Checker>(part_bytes), "secp256k1's partial_sign");
+    return failures + check(carries_mark<Checker>(part_bytes), "secp256k1's partial_sign");
 }
 
 /**

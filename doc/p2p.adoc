@@ -185,8 +185,7 @@ include::{examples}/ecdh_x_coordinate.cpp[tag=program]
 include::{examples}/ecdh_x_coordinate.expected[]
 ----
 
-This section names no application, since none was verified whose public
-source shows noble or scure doing this step.
+This section names no application.
 
 *Mistakes to avoid.* Hashing the x coordinate differently on the two sides:
 `ecdh` hashes the compressed shared point with SHA-256, libsecp256k1's
@@ -224,10 +223,9 @@ include::{examples}/ellswift_handshake.cpp[tag=program]
 include::{examples}/ellswift_handshake.expected[]
 ----
 
-The encodings hide that a key exchange happens, not who takes part: both
-peers' addresses stay visible to whoever watches the connection. This section
-names no application, since none was verified whose public source shows noble
-or scure doing this step.
+The encodings hide that a key exchange happens, not who takes part: both peers'
+addresses stay visible to whoever watches the connection. This section names no
+application.
 
 *Mistakes to avoid.* Draw fresh randomness for every encoding: the same key
 with the same randomness gives the same 64 bytes, which links two connections

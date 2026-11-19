@@ -44,7 +44,11 @@ int main() {
         std::printf("the peer's key pair was refused\n");
         return 1;
     }
-    auto const peer_key = *peer->public_key();
+    auto const peer_key = peer->public_key();
+    if (!peer_key) {
+        std::printf("the peer's public key was refused\n");
+        return 1;
+    }
     std::optional<keypair> pair;
     double const agree_t = webcpp::test::twice(
         count,
@@ -57,7 +61,7 @@ int main() {
             }
             pair.emplace(std::move(*made));
         },
-        [&] { static_cast<void>(pair->ecdh_x(peer_key)); });
+        [&] { static_cast<void>(pair->ecdh_x(*peer_key)); });
 
     std::printf("|t| secp256k1 ecdh_x %.2f (threshold 10)\n", agree_t);
     return agree_t < 10 ? 0 : 1;

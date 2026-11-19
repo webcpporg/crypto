@@ -170,13 +170,12 @@ include::{examples}/recover_signer.expected[]
 ----
 
 Ethereum compares addresses rather than keys, the last 20 bytes of the
-Keccak-256 of the uncompressed key (the yellow paper, appendix F), and a
-wallet signs a message after EIP-191's prefix
-(link:https://eips.ethereum.org/EIPS/eip-191[EIP-191]). Both are the
-protocol's rules, which a domain library built on crypto, such as a future
+Keccak-256 of the uncompressed key (the yellow paper, appendix F), and a wallet
+signs a message after EIP-191's prefix
+(link:https://eips.ethereum.org/EIPS/eip-191[EIP-191]). Both are the protocol's
+rules, which a domain library built on crypto, such as a future
 webcpp::ethereum, computes; crypto holds the signature and the recovery. This
-section names no application, since none was verified whose public source
-shows noble or scure doing this step.
+section names no application.
 
 *Mistakes to avoid.* Never trust a recovered key on its own: a changed or
 forged message recovers some other key rather than failing, so compare the
@@ -212,8 +211,7 @@ include::{examples}/musig_wallet.expected[]
 ----
 
 The wallet's address, its transactions and the hash each device signs are a
-domain library's. This section names no application, since none was verified
-whose public source shows noble or scure doing this step.
+domain library's. This section names no application.
 
 *Mistakes to avoid.* Reusing a nonce: two partial signatures with one nonce
 give away the secret key, so a nonce is made when the signature is made, never
@@ -253,8 +251,7 @@ include::{examples}/silent_payment.expected[]
 ----
 
 The address's encoding, the choice of inputs and the transaction are a domain
-library's. This section names no application, since none was verified whose
-public source shows noble or scure doing this step.
+library's. This section names no application.
 
 *Mistakes to avoid.* The outpoint: it must be the smallest of all the
 transaction's inputs, eligible or not; with another, the sender computes

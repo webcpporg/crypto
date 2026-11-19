@@ -7,7 +7,8 @@
 # Constant time (spec section 8.3): Valgrind and MemorySanitizer on Linux, and
 # dudect's statistics natively and under wasmtime, as the own lane
 # constant-time, outside the ordinary lanes. Each deterministic check is shown
-# to fail on a planted leak, a branch on a key byte. The paths: BearSSL's
+# to fail on a planted leak, a branch on a key byte, and dudect to find one, an
+# early exit on the key, natively (dudect_planted). The paths: BearSSL's
 # AES-GCM and ChaCha20-Poly1305 make, seal and open, OpenSSL's make and seal of
 # both (its open branches on the verdict inside OpenSSL, where webcpp cannot
 # mark it public), ctaes's make, encrypt and decrypt, equal, is_all_zero,
@@ -194,8 +195,15 @@ webcpp.run dudect_bearssl : dudect_test.cpp
 # family's constant_time on wasip2) and the constant-time section renders.
 webcpp.run dudect_sodium : dudect_sodium_test.cpp
   : <library>/third_party//sodium <variant>release : native wasip2 ;
+# The planted leak under dudect: X25519's agreement with an early-exit scan of
+# its secret key before it, a few nanoseconds longer for the all-zero key. The
+# program passes only when dudect finds it, natively, under DIT where the CPU
+# has it, so that the lane shows DIT does not hide a leak of that size.
+webcpp.run dudect_planted : dudect_planted_test.cpp
+  : <library>/third_party//sodium <variant>release
+    <define>WEBCPP_TEST_CRYPTO_PLANTED_LEAK : native ;
 
 webcpp.lane constant-time : ctgrind ctgrind_planted ctgrind_space msan
     msan_planted secp256k1_ctime secp256k1_ctime_msan dudect_bearssl
-    dudect_sodium
+    dudect_sodium dudect_planted
   : native wasip2 ;

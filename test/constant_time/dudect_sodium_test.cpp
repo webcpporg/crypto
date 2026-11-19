@@ -47,7 +47,20 @@ int main() {
         [&](int which, auto& generator) {
             webcpp::test::choose(which, generator, zero, secret_key);
         },
-        [&] { static_cast<void>(x25519::agree<sodium>(secret_key, peer)); });
+        [&] {
+#ifdef WEBCPP_TEST_CRYPTO_PLANTED_LEAK
+            // The planted leak: four early-exit scans of the secret key, 128 reads for the
+            // all-zero key and about four for a random one, some tens of nanoseconds.
+            for (int scan = 0; scan < 4; ++scan) {
+                for (auto const& byte : secret_key) {
+                    if (*static_cast<std::uint8_t const volatile*>(&byte) != 0) {
+                        break;
+                    }
+                }
+            }
+#endif
+            static_cast<void>(x25519::agree<sodium>(secret_key, peer));
+        });
 
     std::array<std::uint8_t, 64> const message{};
     std::optional<keypair> pair;
@@ -75,5 +88,12 @@ int main() {
 #endif
     std::printf("|t| X25519 agreement %.2f%s, Ed25519 signing %.2f (threshold 10)\n", agree_t,
                 agree_note, sign_t);
+#ifdef WEBCPP_TEST_CRYPTO_PLANTED_LEAK
+    // The planted build passes only when dudect finds the planted leak in the agreement.
+    static_cast<void>(agree_passes);
+    std::printf("planted leak %s\n", agree_t >= 10 ? "found" : "not found");
+    return agree_t >= 10 ? 0 : 1;
+#else
     return agree_passes && sign_t < 10 ? 0 : 1;
+#endif
 }

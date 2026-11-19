@@ -71,11 +71,18 @@ them against keys it already trusts.
 * A peer's key of low order gives an all-zero shared secret whatever the own
 secret key: `agree` refuses it, and a program never replaces the refusal with
 a secret of its own choosing.
+* On Apple silicon (and other 64-bit ARM CPUs with DIT, data-independent
+timing), neither webcpp nor libsodium sets DIT, and without it `agree` took a
+time that depends on the secret key: about one nanosecond less for the all-zero
+key, enough for dudect to tell it apart (<<crypto-backends-constant-time>>). A
+program sets DIT around its secret operations, as Apple describes
+(link:https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms#Enable-DIT-for-constant-time-cryptographic-operations[Apple, enable DIT for constant-time cryptographic operations];
+`timingsafe_enable_if_supported` from macOS 15.2).
 * On WebAssembly, timing is an open finding: under wasmtime, on wasip2, dudect
 times `agree` against its secret key above the lane's threshold, where every
-native build passes. The cause is measured: Apple silicon's DIT
-(data-independent timing), which wasmtime does not set; with DIT set in
-wasmtime's thread, as an experiment, the case passes. The measurement, with its
+native build passes with DIT set, as the lane runs it. The cause is measured:
+Apple silicon's DIT, which wasmtime does not set; with DIT set in wasmtime's
+thread, as an experiment, the case passes. The measurement, with its
 numbers, is in <<crypto-backends-constant-time>> and in the curves' comparison
 table (<<crypto-curves>>); a program that agrees keys on WebAssembly where an
 attacker can time many agreements with one secret key reads it first.

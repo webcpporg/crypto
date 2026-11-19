@@ -1077,7 +1077,8 @@ def with_note(title: str, note: Optional[str], names_with: Any) -> str:
 def lane_text(data: Data, family: Data, cite_with: Any, names_with: Any = None) -> str:
     """What the constant-time lane covers of a family, per backend and target, from crypto.json's
     `lane` of each backend: the checkers on each target, then nothing found, or the family's
-    measured `constant_time` there; not measured yet on the targets the lane does not run; a
+    measured `constant_time` there, given to the checker `constant_time_checker` names, the others
+    nothing found; not measured yet on the targets the lane does not run; a
     backend's `lane_note` beside its name, or, a note of one checker, beside that checker's.
     Names between backticks are written by names_with, inline code by default; llms.txt keeps the
     backticks."""
@@ -1090,14 +1091,23 @@ def lane_text(data: Data, family: Data, cite_with: Any, names_with: Any = None) 
         lane = entry.get('lane', {})
         found = entry.get('constant_time', {})
         pieces: List[str] = []
+
+        def titled(names: List[str]) -> str:
+            return and_list([
+                with_note(data['checkers'][name], checker_note(entry, name), names_with)
+                for name in names])
         for target in data['targets']:
             if target in lane:
-                checkers = and_list([
-                    with_note(data['checkers'][name], checker_note(entry, name), names_with)
-                    for name in lane[target]])
+                found_by = entry.get('constant_time_checker', {}).get(target)
+                others = [name for name in lane[target] if name != found_by]
+                if target in found and found_by is not None and others:
+                    # A finding of one checker is that checker's: the others found nothing.
+                    pieces.append(f'{target}, {titled(others)}, nothing found, and '
+                                  f'{titled([found_by])}: {cite_with(data, found[target])}')
+                    continue
                 result = (f': {cite_with(data, found[target])}' if target in found
                           else ', nothing found')
-                pieces.append(f'{target}, {checkers}{result}')
+                pieces.append(f'{target}, {titled(lane[target])}{result}')
         rest = [target for target in cell_targets(data, family, backend) if target not in lane]
         if rest and pieces:
             pieces.append(f'not measured yet on {", ".join(rest)}')

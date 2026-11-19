@@ -1159,6 +1159,16 @@ def test_a_finding_of_one_checker_marks_that_checker_alone(_: Path) -> None:
     page = generate.constant_time_page(data)
     assert ('|memcheck (Linux): ChaCha20-Poly1305; dudect: ChaCha20-Poly1305 (measured '
             'differently, below)\n') in page, page
+    # The comparison tables' text gives the finding to its checker alone, as the page's cell.
+    text = generate.lane_text(data, data['families'][0], generate.cite)
+    assert text.startswith('libsodium: native, memcheck (Linux), nothing found, and dudect: '
+                           'nothing found with DIT set; wasip2, dudect, nothing found'), text
+    # With every checker of the target named, or none, the finding is the target's.
+    entry['lane']['native'] = ['dudect']
+    text = generate.lane_text(data, data['families'][0], generate.cite)
+    assert text.startswith('libsodium: native, dudect: nothing found with DIT set; wasip2'), text
+    del entry['constant_time_checker']
+    entry['lane']['native'] = ['memcheck', 'dudect']
     text = generate.lane_text(data, data['families'][0], generate.cite)
     assert text.startswith('libsodium: native, memcheck (Linux) and dudect: nothing found with '
                            'DIT set'), text

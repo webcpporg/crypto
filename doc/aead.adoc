@@ -182,7 +182,9 @@ in its additional data: its number, so that a record cannot be reordered or
 replayed at another position, and a flag that is 1 for the last record and 0
 for every other, so that a stream cut after any record does not open: the
 receiver opens the last record it got as the last, and a record that was not
-sealed as the last fails.
+sealed as the last fails. The STREAM construction binds the same two
+(link:https://eprint.iacr.org/2015/189[Hoang, Reyhanitabar, Rogaway and Vizár,
+2015]).
 
 The record's number is its IV, so *each stream has a key of its own*. Every
 stream numbers its records from 0: two files sealed under one key would both

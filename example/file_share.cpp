@@ -8,7 +8,8 @@
 // file is sealed once in a secret box under a key drawn for this file, and that file key is
 // sealed to the recipient's public key in a sealed box. The upload holds both; only the
 // recipient's secret key opens the file key, and the file key opens the file. Prints what the
-// recipient reads, the sizes on the wire, and the refusal of a changed upload.
+// recipient reads, the sizes on the wire, and the refusals of a changed upload and of another
+// key pair.
 // tag::program[]
 #include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
@@ -21,6 +22,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -64,13 +66,13 @@ bool share(crypto::random_device& device, std::span<std::uint8_t const> recipien
 
 // tag::receive[]
 // The recipient: the file key out of the sealed box, then the file out of the secret box.
-void receive(std::span<std::uint8_t const> public_key, std::span<std::uint8_t const> secret_key,
-             upload received) {
+void receive(char const* who, std::span<std::uint8_t const> public_key,
+             std::span<std::uint8_t const> secret_key, upload received) {
     crypto::secret<32> file_key;
     auto const key_opened =
         sealed_box::open(public_key, secret_key, received.sealed_key, file_key.writable());
     if (!key_opened) {
-        std::printf("refused: %s\n", key_opened.error().message().c_str());
+        std::printf("%s: the file key refused: %s\n", who, key_opened.error().message().c_str());
         return;
     }
     auto box = secretbox<>::make(file_key.bytes());
@@ -79,10 +81,10 @@ void receive(std::span<std::uint8_t const> public_key, std::span<std::uint8_t co
     }
     auto const opened = box->open(received.nonce, {}, received.file, received.tag);
     if (!opened) {
-        std::printf("refused: %s\n", opened.error().message().c_str());
+        std::printf("%s: the file refused: %s\n", who, opened.error().message().c_str());
         return;
     }
-    std::printf("read: %.*s\n", static_cast<int>(received.file.size()),
+    std::printf("%s read: %.*s\n", who, static_cast<int>(received.file.size()),
                 reinterpret_cast<char const*>(received.file.data()));
 }
 
@@ -109,12 +111,12 @@ int main() {
     }
     std::printf("on the wire: %zu bytes of sealed key, %zu of nonce, %zu of tag, %zu of file\n",
                 sent.sealed_key.size(), sent.nonce.size(), sent.tag.size(), sent.file.size());
-    receive(*public_key, secret_key.bytes(), sent);
+    receive("the recipient", *public_key, secret_key.bytes(), sent);
 
     // The storage service changes the file.
     upload changed = sent;
     changed.file[0] ^= 0x01U;
-    receive(*public_key, secret_key.bytes(), changed);
+    receive("the recipient, the upload changed", *public_key, secret_key.bytes(), changed);
     // Someone else's key pair cannot open the file key.
     crypto::secret<32> other_secret;
     if (!device.fill(other_secret.writable())) {
@@ -124,7 +126,7 @@ int main() {
     if (!other_public) {
         return 1;
     }
-    receive(*other_public, other_secret.bytes(), sent);
+    receive("another key pair", *other_public, other_secret.bytes(), sent);
     return 0;
 }
 

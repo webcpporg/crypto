@@ -22,8 +22,7 @@ it. The recipient is known only by a public key, published once; the sender
 and the recipient are never online together.
 
 *The idea.* age, a file encryption tool and format, does it this way
-(link:https://github.com/C2SP/C2SP/blob/main/age.md[the age format]), and its
-TypeScript implementation is built on noble's ciphers and curves: the file is
+(link:https://github.com/C2SP/C2SP/blob/main/age.md[the age format]): the file is
 encrypted once under a key drawn for that file alone, and that file key is
 encrypted to each recipient's X25519 public key, with a key pair drawn for
 the purpose, so that the recipient's secret key alone recovers it. webcpp's
@@ -62,8 +61,17 @@ under one key. Open the file key and the file before using a byte of either: a
 box that does not open is an attack or a corruption, never a reason to fall
 back on an unencrypted copy. A sealed box says nothing of who sent it: an app
 where the sender matters signs the upload (<<crypto-ed25519>>) or uses a box
-between the two key pairs (<<crypto-box>>). A large file is sealed in chunks,
-each its own box with its own nonce, so that a reader need not hold it whole.
+between the two key pairs (<<crypto-box>>). Never cut a large file into
+separate boxes:
+splitting a message into chunks is safe only when each chunk's tag also
+covers its number and a flag marking the last chunk, in the additional data or
+in a nonce built from them, and a reader refuses chunks out of order and a
+stream that ends without the last flag: otherwise whoever holds the ciphertext
+reorders, drops, repeats or truncates chunks and each one still opens. The
+STREAM construction (link:https://eprint.iacr.org/2015/189[Hoang, Reyhanitabar,
+Rogaway and Vizár, 2015]) and libsodium's secretstream
+(link:https://doc.libsodium.org/secret-key_cryptography/secretstream[libsodium's
+documentation]) do this; this version of crypto offers neither.
 
 [#crypto-everyday-login]
 === A login: session tokens and reset links

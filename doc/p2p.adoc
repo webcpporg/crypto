@@ -23,9 +23,9 @@ and discovery services. Each needs a name that no one else can claim, and each
 connection between two peers must be private and must reach the peer it names,
 not an impostor in the middle.
 
-*The idea.* libp2p, a peer-to-peer networking stack, does it this way, and
-its JavaScript implementation is built on noble's curves and ciphers: a peer's identity is an Ed25519 key pair, its id
-derived from the public key
+*The idea.* libp2p, a peer-to-peer networking stack, does it this way: a
+peer's identity is a key pair, Ed25519 among the types its specification
+allows, and its id is derived from the public key
 (link:https://github.com/libp2p/specs/blob/master/peer-ids/peer-ids.md[libp2p's
 peer ids]); each connection agrees fresh X25519 keys and seals with
 ChaCha20-Poly1305, and each side signs its connection key with its identity

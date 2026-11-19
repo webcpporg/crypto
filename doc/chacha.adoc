@@ -70,9 +70,16 @@ would reveal both plaintexts' XOR and let tags be forged:
 |`xchacha20_poly1305` |no practical limit |no practical limit
 |===
 
-A program still splits a large message into chunks, so that memory stays
-bounded and a corrupted chunk is detected before the rest arrives, and changes
-keys periodically.
+A program changes keys periodically. A large message is no reason to improvise:
+splitting a message into chunks is safe only when each chunk's tag also
+covers its number and a flag marking the last chunk, in the additional data or
+in a nonce built from them, and a reader refuses chunks out of order and a
+stream that ends without the last flag: otherwise whoever holds the ciphertext
+reorders, drops, repeats or truncates chunks and each one still opens. The
+STREAM construction (link:https://eprint.iacr.org/2015/189[Hoang, Reyhanitabar,
+Rogaway and Vizár, 2015]) and libsodium's secretstream
+(link:https://doc.libsodium.org/secret-key_cryptography/secretstream[libsodium's
+documentation]) do this; this version of crypto offers neither.
 
 *Example.* A chat app's messages under one conversation key, each sealed with
 a nonce drawn for it and the conversation's id as additional data, so that a
@@ -142,7 +149,7 @@ additional data, or a message can be moved there unnoticed.
 * A failed `open` zeroes the data: keep the ciphertext if it is needed after a
 failure, and never act on a message before `open` succeeds.
 
-Parts of this section, the limits and the advice on large messages, are
+Parts of this section, the limits, are
 adapted from libsodium's documentation
 (link:https://github.com/jedisct1/libsodium-doc/tree/6d1ea27b79b853b2a04f09ae9e1a8231c90e3b56[jedisct1/libsodium-doc]
 at `6d1ea27`, ISC, `LICENSE-LIBSODIUM-DOC.txt`).

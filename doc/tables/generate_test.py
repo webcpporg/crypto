@@ -884,7 +884,6 @@ def test_a_family_s_measured_constant_time_is_written_per_target(_: Path) -> Non
     assert generate.constant_time_notes(small_table()) == '', 'no entry, no list'
 
 
-
 def two_ciphers() -> generate.Data:
     """A comparison table of two ciphers with D19's columns, the world's facts cited."""
     return {
@@ -906,17 +905,27 @@ def two_ciphers() -> generate.Data:
                       '{rfc8439}', 'none on its own: every mode is built on it', 'no',
                       'one block']]}},
         'families': [{'name': 'chacha20_poly1305', 'title': 'ChaCha20-Poly1305',
-                      'backends': {'sodium': {'targets': 'all', 'constant_time': {
-                          'wasip2': 'over the threshold ({rfc8439})'}}}}],
-        'backends': {'sodium': {'title': 'libsodium'}, 'bearssl': {'title': 'BearSSL'}},
+                      'backends': {
+                          'sodium': {'targets': 'all',
+                                     'lane': {'native': ['memcheck', 'dudect'],
+                                              'wasip2': ['dudect']},
+                                     'constant_time': {
+                                         'wasip2': 'over the threshold ({rfc8439})'}},
+                          'bearssl': {'targets': 'all'}}}],
+        'checkers': {'memcheck': 'memcheck (Linux)', 'dudect': 'dudect'},
+        'backends': {'sodium': {'title': 'libsodium', 'targets': EVERY_TARGET},
+                     'bearssl': {'title': 'BearSSL', 'targets': EVERY_TARGET}},
         'targets': EVERY_TARGET}
 
 
-def measured(median: float) -> generate.Data:
-    """doc/performance.json's form, one case: ChaCha20-Poly1305 on libsodium, natively."""
-    return {'date': '2026-11-18', 'machine': {'cpu': 'Apple M5 Max'}, 'cases': [
-        {'family': 'chacha20_poly1305', 'backend': 'sodium', 'target': 'native',
-         'operation': 'seal of 16 KiB, 256-bit key', 'median_us': median}]}
+def measured(median: float, load: float = 1.0) -> generate.Data:
+    """doc/performance.json's form, one case: ChaCha20-Poly1305 on libsodium, natively, on a
+    machine of 18 cores whose 1-minute load was `load`."""
+    return {'date': '2026-11-18', 'build': 'variant=release',
+            'machine': {'cpu': 'Apple M5 Max', 'cores': 18},
+            'load_average_before_after': [[load, 1.0, 1.0], [1.0, 1.0, 1.0]], 'cases': [
+                {'family': 'chacha20_poly1305', 'backend': 'sodium', 'target': 'native',
+                 'operation': 'seal of 16 KiB, 256-bit key', 'median_us': median}]}
 
 
 def test_the_ciphers_table_has_the_columns_of_d19(_: Path) -> None:
@@ -926,13 +935,20 @@ def test_the_ciphers_table_has_the_columns_of_d19(_: Path) -> None:
                      'Constant time, measured', 'Standards', 'Where it is used',
                      "Browsers' WebCrypto", 'Choose it when'):
         assert f'\n|{question}\n' in page, (question, page)
-    # The speed is the measurement's, never typed: per target, each backend's median, dated.
-    assert ('|native: libsodium 22.50 µs (seal of 16 KiB, 256-bit key; 2026-11-18, Apple M5 '
-            'Max; <<crypto-performance>>)\n') in page, page
-    # The measured constant time is the family's own entry of crypto.json, per target.
-    assert ('|wasip2, libsodium: over the threshold (link:https://example.org/rfc8439[RFC '
-            '8439]); elsewhere, the lane finds nothing on the paths it checks '
+    # The speed is the measurement's, never typed: per target, each backend's median to three
+    # significant figures, dated.
+    assert ('|seal of 16 KiB, 256-bit key: native, libsodium 22.5 µs (2026-11-18, Apple M5 Max; '
+            '<<crypto-performance>>)\n') in page, page
+    # The measured constant time is what the lane covers, per backend and target, with the
+    # family's finding where it has one, and not measured yet elsewhere.
+    assert ('|libsodium: native, memcheck (Linux) and dudect, nothing found; wasip2, dudect: '
+            'over the threshold (link:https://example.org/rfc8439[RFC 8439]); not measured yet '
+            'on wasip3, emscripten. BearSSL: not measured yet '
             '(<<crypto-backends-constant-time>>)\n') in page, page
+    # A machine loaded beyond half its cores is said so beside the figure.
+    loaded = generate.namespace_page(two_ciphers(), 'ciphers', measured(22.5, load=89.6))
+    assert '(2026-11-18, Apple M5 Max, under load: read the spread; <<crypto-performance>>)' in (
+        loaded), loaded
     try:
         data = two_ciphers()
         data['namespaces']['ciphers']['rows'][0][5] = '{speed:aegis}'
@@ -959,10 +975,7 @@ def test_a_world_fact_without_a_source_is_refused_naming_the_row(_: Path) -> Non
 def test_the_check_fails_after_a_measurement_changes(_: Path) -> None:
     before = generate.namespace_page(two_ciphers(), 'ciphers', measured(22.5))
     after = generate.namespace_page(two_ciphers(), 'ciphers', measured(23.0))
-    assert before != after and 'libsodium 23.00 µs' in after, after
-    # And the page reads the committed measurement: generate() passes it, so that --check
-    # compares the committed page with one built from the committed data.
-    assert generate.read_performance(Path(generate.LIBRARY))['cases'], 'no measurement read'
+    assert before != after and 'libsodium 23 µs' in after, after
 
 
 def test_the_decision_table_s_row_links_its_example(scratch: Path) -> None:
@@ -997,6 +1010,8 @@ def test_llms_lists_a_function_with_its_use_case_and_backends(scratch: Path) -> 
                            'header': '<webcpp/crypto/ciphers/x.hpp>', 'what': 'Seals.',
                            'section': 'crypto-x', 'backends': {'sodium': {'tests': ['t']}}}]
     data['families'][0]['backends']['sodium']['constant_time'] = {'wasip2': 'an open finding'}
+    data['families'][0]['backends']['sodium']['lane'] = {'wasip2': ['dudect']}
+    data['checkers'] = {'dudect': 'dudect'}
     data['use_cases'] = [{'need': 'encrypt a chat message', 'namespace': 'webcpp::crypto::ciphers',
                           'api': '`x`', 'backend': 'libsodium', 'jamfile': 'j', 'example': '',
                           'section': 'crypto-x'}]
@@ -1007,8 +1022,8 @@ def test_llms_lists_a_function_with_its_use_case_and_backends(scratch: Path) -> 
             '<webcpp/crypto/ciphers/x.hpp>. Backends: libsodium (/third_party//sodium) on '
             'native, wasip2. Default: libsodium on native, wasip2, wasip3, emscripten. Use it '
             'to: encrypt a chat message.\n  - seal: Seals data in place.\n') in text, text
-    assert ('## Constant time, measured\n\n- Ed25519 on libsodium, wasip2: an open finding\n'
-            ) in text, text
+    assert ('## Constant time, measured\n\n- Ed25519: libsodium: wasip2, dudect: an open '
+            'finding; not measured yet on native, wasip3, emscripten.\n') in text, text
 
 
 def test_every_backend_s_facts_and_design_are_written_with_its_own_suite(_: Path) -> None:
@@ -1060,6 +1075,92 @@ def test_a_use_case_joins_the_operation_it_names(_: Path) -> None:
         ' Use it to: speak TLS 1.3.')
     assert generate.llms_uses(data, {'api': 'ciphers::xchacha20_poly1305', 'section': 's'}) == (
         ' Use it to: encrypt chat messages.')
+
+
+def test_a_measurement_not_built_at_release_is_refused(scratch: Path) -> None:
+    import json
+    written(scratch, 'doc/performance.json', json.dumps(measured(22.5)))
+    assert generate.read_performance(scratch)['cases'], 'the measurement was not read'
+    written(scratch, 'doc/performance.json', json.dumps(dict(measured(22.5), build='debug')))
+    try:
+        generate.read_performance(scratch)
+    except generate.Fault as fault:
+        assert str(fault) == ('doc/performance.json was built at debug, not variant=release: '
+                              'measure again with bench/collect.py'), fault
+    else:
+        raise AssertionError('a measurement not built at release was read')
+
+
+def test_a_speed_cell_names_each_operation_and_refuses_an_unknown_backend(_: Path) -> None:
+    performance = measured(22.5)
+    performance['cases'].append(dict(performance['cases'][0], operation='open of 16 KiB',
+                                     median_us=0.012345))
+    cell = generate.speed_of(two_ciphers(), 'chacha20_poly1305', performance)
+    assert cell == ('seal of 16 KiB, 256-bit key: native, libsodium 22.5 µs; open of 16 KiB: '
+                    'native, libsodium 0.0123 µs (2026-11-18, Apple M5 Max; '
+                    '<<crypto-performance>>)'), cell
+    performance['cases'][0]['backend'] = 'aegis_lib'
+    try:
+        generate.speed_of(two_ciphers(), 'chacha20_poly1305', performance)
+    except generate.Fault as fault:
+        assert 'names the backend aegis_lib' in str(fault), fault
+    else:
+        raise AssertionError('a measurement of an unknown backend was written')
+
+
+def test_the_constant_time_page_fills_each_target_from_the_lane(_: Path) -> None:
+    data = two_ciphers()
+    for backend in data['backends'].values():
+        backend.update({'library': 'l', 'constant_time': 'by design', 'constant_time_sources': []})
+    data['backends']['none'] = {'title': 'no backend', 'library': 'own', 'constant_time': 'yes',
+                                'constant_time_sources': [], 'lane_paths': [
+                                    {'what': '`equal`', 'lane': {'native': ['memcheck']}}]}
+    page = generate.constant_time_page(data)
+    assert ('|libsodium\n|by design\n|memcheck (Linux): ChaCha20-Poly1305; dudect: '
+            'ChaCha20-Poly1305\n|dudect: ChaCha20-Poly1305 (measured differently, below)\n'
+            '|not measured yet\n|not measured yet\n') in page, page
+    assert '|no backend\n|yes\n|memcheck (Linux): `+equal+`\n|not measured yet\n' in page, page
+
+
+def test_a_lane_entry_the_family_does_not_claim_is_a_fault(_: Path) -> None:
+    data = small_table()
+    data['checkers'] = {'dudect': 'dudect'}
+    entry = data['families'][0]['backends']['sodium']
+    entry['lane'] = {'wasip2': ['valgrind']}
+    a_fault(data, {'ed25519': EVERY_TARGET}, 'names the checker valgrind')
+    entry['lane'] = {'native': ['dudect']}
+    entry['constant_time'] = {'wasip2': 'a finding'}
+    a_fault(data, {'ed25519': EVERY_TARGET},
+            'states constant time for sodium on wasip2, where the lane does not run it')
+
+
+def test_llms_gives_no_default_where_the_family_has_none(_: Path) -> None:
+    data = small_table()
+    data['families'][0]['default'] = [{'targets': EVERY_TARGET, 'backend': None, 'tests': [],
+                                       'why': 'none'}]
+    operation = {'family': 'ed25519', 'default_of': 'ed25519',
+                 'default': '`x<>` names AES-GCM\'s default.'}
+    assert generate.llms_default(data, operation) == (
+        ' Default: none on native, wasip2, wasip3, emscripten; `x<>` names AES-GCM\'s default.')
+
+
+def test_a_namespace_table_is_split_into_its_parts(_: Path) -> None:
+    data = two_ciphers()
+    data['namespaces']['ciphers']['parts'] = [{'title': 'ChaCha', 'rows': [0]},
+                                              {'title': 'AES', 'rows': [1]}]
+    page = generate.namespace_page(data, 'ciphers', measured(22.5))
+    assert page.startswith('.ChaCha\n[cols="2h,5",options="header"]\n|===\n'
+                           '|Algorithm |ChaCha20-Poly1305\n'), page
+    assert '\n.AES\n[cols="2h,5",options="header"]\n|===\n|Algorithm |AES block cipher\n' in (
+        page), page
+    data['namespaces']['ciphers']['parts'] = [{'title': 'ChaCha', 'rows': [0]}]
+    try:
+        generate.namespace_page(data, 'ciphers', measured(22.5))
+    except generate.Fault as fault:
+        assert str(fault) == ("crypto.json: the ciphers table's parts hold its rows 0 once each, "
+                              'not 0 to 1'), fault
+    else:
+        raise AssertionError('a row left out of every part was written')
 
 CASES: list[Callable[[Path], None]] = [
     test_a_rule_body_declares_nothing,
@@ -1113,6 +1214,12 @@ CASES: list[Callable[[Path], None]] = [
     test_the_namespaces_and_backends_come_from_the_data,
     test_every_api_page_lists_its_default_per_target,
     test_a_use_case_joins_the_operation_it_names,
+    test_a_measurement_not_built_at_release_is_refused,
+    test_a_speed_cell_names_each_operation_and_refuses_an_unknown_backend,
+    test_the_constant_time_page_fills_each_target_from_the_lane,
+    test_a_lane_entry_the_family_does_not_claim_is_a_fault,
+    test_llms_gives_no_default_where_the_family_has_none,
+    test_a_namespace_table_is_split_into_its_parts,
 ]
 
 

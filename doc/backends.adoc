@@ -62,10 +62,12 @@ its memory accesses do not depend on secret data; otherwise a timing attack
 can recover the key (link:https://en.wikipedia.org/wiki/Timing_attack[Wikipedia];
 link:https://www.bearssl.org/constanttime.html[BearSSL's explanation]). Each
 backend's design is stated by its library's documentation, with its source.
-The table's per-target columns are not filled in this version: the own lane
-below checks the code as webcpp compiles it, and what it measured where a
-family differs from its backend's design is listed under the table, from the
-documentation's data, as each chapter's comparison table shows it.
+The table's per-target columns say what the own lane below runs on each
+backend and target, by checker and family, from the documentation's data, the
+same as each chapter's comparison table; "not measured yet" where the lane runs
+nothing. memcheck and MemorySanitizer run on Linux alone, so their native cells
+are Linux's. What the lane measured where a family differs from its backend's
+design is listed under the table.
 
 include::generated/constant-time.adoc[]
 

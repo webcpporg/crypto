@@ -185,7 +185,7 @@
 |<<crypto-sealed-box,[.keep]`+file_share.cpp+`>>
 
 |Share a file with someone known only by a public key, as a file-sharing app does
-|In `+hybrid+`: `+ciphers::secretbox<>+` for the file under a key drawn for it, `+sealed_box::seal+` for that key
+|`+ciphers::secretbox<>+` for the file under a key drawn for it, `+hybrid::sealed_box::seal+` for that key
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//secretbox_xsalsa20poly1305-default+` +

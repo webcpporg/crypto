@@ -4,6 +4,7 @@
     "llms": "Cryptographic primitives for C++20 on native, wasip2, wasip3 and Emscripten: AES-GCM, the AES block cipher, secp256k1 (BIP 340 Schnorr, ECDSA, ECDH, the x-only tweak), Ed25519 and Ed25519ph (RFC 8032), X25519 (RFC 7748), their keys in SPKI, PKCS#8 (RFC 8410) and PEM, libsodium's crypto_kx, the ChaCha20-Poly1305 AEADs, libsodium's secret boxes, boxes and sealed boxes, a random_device on the system's generator and a constant-time equal, each over a widely used, reviewed C library (BearSSL, OpenSSL, ctaes, libsecp256k1, libsodium) that the program names in its Jamfile. Hashing and HMAC are Boost.Hash2's; HKDF and password hashing are webcpp::hash's. Every failure is a boost::system::result value. Protocols (Bitcoin, Ethereum, Nostr) belong to domain libraries built on these primitives.",
     "targets": ["native", "wasip2", "wasip3", "emscripten"],
     "compilers": {"clang": "Clang", "gcc": "GCC", "msvc": "MSVC"},
+    "checkers": {"memcheck": "Valgrind's memcheck (Linux)", "msan": "MemorySanitizer (Linux, clang)", "dudect": "dudect"},
     "sources": {
         "fips197": ["FIPS 197, the Advanced Encryption Standard", "https://csrc.nist.gov/pubs/fips/197/final"],
         "sp800-38d": ["NIST SP 800-38D, GCM and GMAC", "https://csrc.nist.gov/pubs/sp/800/38/d/final"],
@@ -92,6 +93,8 @@
         "rfc5958": ["RFC 5958, asymmetric key packages (PKCS#8's OneAsymmetricKey)", "https://www.rfc-editor.org/rfc/rfc5958"],
         "rfc7468": ["RFC 7468, textual encodings of PKIX, PKCS and CMS structures (PEM)", "https://www.rfc-editor.org/rfc/rfc7468"],
         "webcrypto-ed25519": ["W3C Web Cryptography API, Ed25519 and X25519 with the spki and pkcs8 formats", "https://www.w3.org/TR/webcrypto-2/#ed25519"],
+        "salsa20-design": ["D. J. Bernstein, Salsa20 design: why add-rotate-xor", "https://cr.yp.to/snuffle/design.pdf"],
+        "stream": ["V. T. Hoang, R. Reyhanitabar, P. Rogaway and D. Vizár, Online authenticated-encryption and its nonce-reuse misuse-resistance, 2015 (STREAM)", "https://eprint.iacr.org/2015/189"],
         "libsodium-internals": ["libsodium's documentation, internals: branches", "https://doc.libsodium.org/internals#branches"],
         "libsodium-aead-timing": ["libsodium's documentation, AEAD constructions: ChaCha20 and timing attacks", "https://doc.libsodium.org/secret-key_cryptography/aead"],
         "ed25519-design": ["Ed25519's design: no secret branch conditions, no secret array indices", "https://ed25519.cr.yp.to/"],
@@ -193,7 +196,11 @@
             "own_api": "none",
             "allocation": "none",
             "constant_time": "`equal` is constant time in the contents: every byte is read, no branch and no index depends on one",
-            "constant_time_sources": []
+            "constant_time_sources": [],
+            "lane_paths": [
+                {"what": "`equal`", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}},
+                {"what": "`is_all_zero` and the wipe of `secret<N>`", "lane": {"native": ["memcheck", "msan"]}}
+            ]
         }
     },
     "operations": [
@@ -237,7 +244,7 @@
             "header": "<webcpp/crypto/ciphers/aes.hpp>",
             "what": "The AES block cipher on whole 16-byte blocks: a building block, not encryption of data.",
             "section": "crypto-block",
-            "default": "`aes256<>` names the default backend; where that is BearSSL, its `make` does not compile, and the program names `aes256<backends::ctaes>`.",
+            "default": "`aes256<>` takes AES-GCM's default backend as its argument; where that is BearSSL, its `make` does not compile, and the program names `aes256<backends::ctaes>`.",
             "backends": {
                 "openssl": {"tests": ["aes_openssl", "agreement_aes"]},
                 "ctaes": {"tests": ["aes_ctaes", "agreement_aes"]},
@@ -564,8 +571,8 @@
                 {"targets": ["emscripten"], "backend": "bearssl", "tests": ["default_bearssl", "default_backend_all_linked_emscripten"], "why": "the only AES-GCM backend there: webcpp does not build OpenSSL for Emscripten"}
             ],
             "backends": {
-                "bearssl": {"targets": "all"},
-                "openssl": {"targets": "all"}
+                "bearssl": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}},
+                "openssl": {"targets": "all", "lane": {"native": ["memcheck"]}, "lane_note": "seal alone: its open branches on the verdict inside OpenSSL"}
             }
         },
         {
@@ -585,7 +592,7 @@
             ],
             "backends": {
                 "openssl": {"targets": "all"},
-                "ctaes": {"targets": "all"}
+                "ctaes": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}}
             }
         },
         {
@@ -602,7 +609,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
             ],
             "backends": {
-                "secp256k1": {"targets": "all"}
+                "secp256k1": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}, "lane_note": "libsecp256k1's own `ctime_tests.c`"}
             }
         },
         {
@@ -620,7 +627,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["ed25519_sodium", "default_backend_none_linked"], "why": "the only backend in this version, on every target, and its verification is the policy `strict` ({libsodium-signatures}; {rfc8032})"}
             ],
             "backends": {
-                "sodium": {"targets": "all"}
+                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}}
             }
         },
         {
@@ -637,7 +644,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["x25519_sodium", "default_backend_none_linked"], "why": "the only backend in this version, on every target; it refuses an all-zero shared secret itself ({rfc7748})"}
             ],
             "backends": {
-                "sodium": {"targets": "all", "constant_time": {"wasip2": "an open finding, measured and not explained: dudect times `agree` with an all-zero secret key against random ones at |t| 13 to 32, against the threshold 10 (a fixed key against another fixed key: 22.9), under wasmtime 47 on an Apple M5, from a release build (2026-11-18), where the native builds pass (|t| 2 to 4); no branch on a secret was found in the WebAssembly or in wasmtime's compiled code, and the cause is unknown. The lane prints this value on wasip2 without judging it; the CI's x86-64 run measures it next"}}
+                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}, "constant_time": {"wasip2": "an open finding, measured and not explained: dudect times `agree` with an all-zero secret key against random ones at |t| 13 to 32, against the threshold 10 (a fixed key against another fixed key: 22.9), under wasmtime 47 on an Apple M5 Max, from a release build (2026-11-18), where the native builds pass (|t| 2 to 4); no branch on a secret was found in the WebAssembly or in wasmtime's compiled code, and the cause is unknown. The lane prints this value on wasip2 without judging it; the CI's x86-64 run measures it next"}}
             }
         },
         {
@@ -654,7 +661,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["kx_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own construction, whose session keys only another `crypto_kx` derives ({libsodium-kx})"}
             ],
             "backends": {
-                "sodium": {"targets": "all"}
+                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}}
             }
         },
         {
@@ -689,9 +696,9 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["chacha_sodium", "default_backend_none_linked"], "why": "one library for the three ChaCha20-Poly1305 AEADs on every target, where BearSSL and OpenSSL have RFC 8439's alone ({libsodium-aead}); a program that links BearSSL or OpenSSL alone names it in the type, as in `chacha20_poly1305<backends::bearssl>`"}
             ],
             "backends": {
-                "sodium": {"targets": "all"},
-                "bearssl": {"targets": "all"},
-                "openssl": {"targets": "all"}
+                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}},
+                "bearssl": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}},
+                "openssl": {"targets": "all", "lane": {"native": ["memcheck"]}, "lane_note": "seal alone: its open branches on the verdict inside OpenSSL"}
             }
         },
         {
@@ -709,7 +716,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["chacha_original_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, the same on every target ({libsodium-aead})"}
             ],
             "backends": {
-                "sodium": {"targets": "all"}
+                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}}
             }
         },
         {
@@ -727,7 +734,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["xchacha_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, the same on every target ({libsodium-aead})"}
             ],
             "backends": {
-                "sodium": {"targets": "all"}
+                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}}
             }
         },
         {
@@ -744,7 +751,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["secretbox_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, NaCl's `crypto_secretbox`, the same on every target ({libsodium-secretbox})"}
             ],
             "backends": {
-                "sodium": {"targets": "all"}
+                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}}
             }
         },
         {
@@ -761,7 +768,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["secretbox_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, the same on every target ({libsodium-secretbox})"}
             ],
             "backends": {
-                "sodium": {"targets": "all"}
+                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}}
             }
         },
         {
@@ -778,7 +785,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["box_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, NaCl's `crypto_box`, the same on every target ({libsodium-box})"}
             ],
             "backends": {
-                "sodium": {"targets": "all"}
+                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}}
             }
         },
         {
@@ -795,7 +802,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["box_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, the same on every target ({libsodium-box})"}
             ],
             "backends": {
-                "sodium": {"targets": "all"}
+                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}}
             }
         },
         {
@@ -812,7 +819,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["box_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, which draws the key pair of each message from its own generator, the same on every target ({libsodium-sealed})"}
             ],
             "backends": {
-                "sodium": {"targets": "all"}
+                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}}
             }
         }
     ],
@@ -858,14 +865,19 @@
         "ciphers": {
             "title": "webcpp::crypto::ciphers",
             "columns": ["Algorithm", "AEAD", "Key", "Nonce (IV)", "Nonce misuse", "Speed, with and without hardware support", "Constant time, by design", "Constant time, measured", "Standards", "Where it is used", "Browsers' WebCrypto", "Choose it when"],
-            "cited": ["Standards", "Where it is used", "Browsers' WebCrypto"],
+            "cited": ["Nonce misuse", "Constant time, by design", "Standards", "Where it is used", "Browsers' WebCrypto"],
+            "parts": [
+                {"title": "AES", "rows": [0, 1]},
+                {"title": "ChaCha20-Poly1305", "rows": [2, 3, 4]},
+                {"title": "Secret boxes", "rows": [5, 6]}
+            ],
             "rows": [
-                ["`gcm`, `aes128_gcm`, `aes256_gcm`: AES-GCM", "yes", "16, 24 or 32 bytes", "1 to 128 bytes; 12 recommended", "not resistant: a repeated IV under one key reveals the plaintexts' XOR and lets tags be forged ({joux}, {nonce-reuse})", "{speed:gcm}", "BearSSL and OpenSSL with assembly: yes; OpenSSL no-asm (MSVC, wasip2, wasip3): no", "{constant_time:gcm}", "{sp800-38d}", "TLS 1.3 ({rfc8446}), SSH ({rfc5647}), IPsec ({rfc4106}), SRTP ({rfc7714}), optional for WebRTC's media ({rfc8827})", "yes, with 16- or 32-byte keys ({webcrypto}; {chromium-aes192})", "a protocol, a browser's WebCrypto or a standard names AES-GCM, or the CPU has AES instructions; at most 2^32 messages per key with random IVs, otherwise a counter"],
-                ["`aes128`, `aes192`, `aes256`: AES block cipher", "no", "16, 24 or 32 bytes", "none", "not applicable: equal blocks give equal ciphertext", "{speed:aes_block}", "ctaes: yes; OpenSSL with assembly: yes; OpenSSL no-asm: no", "{constant_time:aes_block}", "{fips197}", "none on its own: every AES mode is built on it", "no raw block cipher ({webcrypto})", "you need one keyed permutation of a 16-byte block, such as an opaque identifier; for data, use an AEAD"],
+                ["`gcm`, `aes128_gcm`, `aes256_gcm`: AES-GCM", "yes", "16, 24 or 32 bytes", "1 to 128 bytes; 12 recommended", "not resistant: a repeated IV under one key reveals the plaintexts' XOR and lets tags be forged ({joux}, {nonce-reuse})", "{speed:gcm}", "BearSSL and OpenSSL with assembly: yes ({bearssl-ct}; {openssl-armv8}); OpenSSL no-asm (MSVC, wasip2, wasip3): no ({openssl-install})", "{constant_time:gcm}", "{sp800-38d}", "TLS 1.3 ({rfc8446}), SSH ({rfc5647}), IPsec ({rfc4106}), SRTP ({rfc7714}), optional for WebRTC's media ({rfc8827})", "yes, with 16- or 32-byte keys ({webcrypto}; {chromium-aes192})", "a protocol, a browser's WebCrypto or a standard names AES-GCM, or the CPU has AES instructions; at most 2^32 messages per key with random IVs, otherwise a counter"],
+                ["`aes128`, `aes192`, `aes256`: AES block cipher", "no", "16, 24 or 32 bytes", "none", "none: a block cipher takes no nonce, and equal blocks give equal ciphertext", "{speed:aes_block}", "ctaes: yes ({ctaes}); OpenSSL with assembly: yes ({openssl-armv8}); OpenSSL no-asm: no ({openssl-aes-core})", "{constant_time:aes_block}", "{fips197}", "none on its own: every AES mode is built on it", "no raw block cipher ({webcrypto})", "you need one keyed permutation of a 16-byte block, such as an opaque identifier; for data, use an AEAD"],
                 ["`chacha20_poly1305`: ChaCha20-Poly1305", "yes", "32 bytes", "12 bytes", "not resistant: a repeated nonce under one key reveals the plaintexts' XOR and lets tags be forged ({rfc8439-nonce})", "{speed:chacha20_poly1305}", "libsodium, BearSSL and OpenSSL: yes, additions, XORs and rotations with no table indexed by a secret ({rfc8439-chacha}; {libsodium-aead-timing})", "{constant_time:chacha20_poly1305}", "{rfc8439}", "TLS 1.3 ({rfc8446}), WireGuard ({wireguard})", "no: WebCrypto offers AES-GCM, not ChaCha20-Poly1305 ({webcrypto})", "a protocol names RFC 8439's AEAD (TLS 1.3, WireGuard), or the program runs without AES hardware and numbers its nonces with a counter; to draw nonces at random, XChaCha20-Poly1305"],
                 ["`chacha20_poly1305_original`: ChaCha20-Poly1305, original", "yes", "32 bytes", "8 bytes, too short to draw at random: a counter", "not resistant ({libsodium-aead})", "{speed:chacha20_poly1305_original}", "libsodium: yes ({libsodium-aead-timing})", "{constant_time:chacha20_poly1305_original}", "none: libsodium's original construction ({libsodium-aead})", "none in new protocols: the format of libsodium's `crypto_aead_chacha20poly1305` ({libsodium-aead})", "no ({webcrypto})", "the peer writes libsodium's original construction; otherwise RFC 8439's form or XChaCha20-Poly1305"],
                 ["`xchacha20_poly1305`: XChaCha20-Poly1305", "yes", "32 bytes", "24 bytes, safe to draw at random for every message", "not resistant to a repeated nonce, but 24 random bytes never repeat in practice ({xchacha-draft})", "{speed:xchacha20_poly1305}", "libsodium: yes ({libsodium-aead-timing})", "{constant_time:xchacha20_poly1305}", "{xchacha-draft}", "libsodium's secretstream ({libsodium-secretstream})", "no ({webcrypto})", "you encrypt many messages under one key and want to draw each nonce at random: a chat app, records in a database, on the web and natively alike; when in doubt, this one"],
-                ["`secretbox`: XSalsa20-Poly1305 (NaCl's secret box)", "yes, without additional data", "32 bytes", "24 bytes, safe to draw at random", "not resistant to a repeated nonce; random ones never repeat in practice ({xsalsa20})", "{speed:secretbox_xsalsa20poly1305}", "libsodium: yes ({libsodium-internals})", "{constant_time:secretbox_xsalsa20poly1305}", "none: NaCl's construction ({nacl-secretbox})", "programs that read or write NaCl's and libsodium's `crypto_secretbox` ({libsodium-secretbox})", "no ({webcrypto})", "the data must be read by a program on NaCl's or libsodium's `crypto_secretbox`; otherwise XChaCha20-Poly1305, which also authenticates additional data"],
+                ["`secretbox`: XSalsa20-Poly1305 (NaCl's secret box)", "yes, without additional data", "32 bytes", "24 bytes, safe to draw at random", "not resistant to a repeated nonce; random ones never repeat in practice ({xsalsa20})", "{speed:secretbox_xsalsa20poly1305}", "libsodium: yes, additions, XORs and rotations with no table lookup ({salsa20-design})", "{constant_time:secretbox_xsalsa20poly1305}", "none: NaCl's construction ({nacl-secretbox})", "programs that read or write NaCl's and libsodium's `crypto_secretbox` ({libsodium-secretbox})", "no ({webcrypto})", "the data must be read by a program on NaCl's or libsodium's `crypto_secretbox`; otherwise XChaCha20-Poly1305, which also authenticates additional data"],
                 ["`secretbox_xchacha20poly1305`: XChaCha20-Poly1305 secret box", "yes, without additional data", "32 bytes", "24 bytes, safe to draw at random", "not resistant to a repeated nonce; random ones never repeat in practice ({xchacha-draft})", "{speed:secretbox_xchacha20poly1305}", "libsodium: yes ({libsodium-aead-timing})", "{constant_time:secretbox_xchacha20poly1305}", "none: libsodium's construction ({libsodium-secretbox})", "programs on libsodium's `crypto_secretbox_xchacha20poly1305` ({libsodium-secretbox})", "no ({webcrypto})", "the peer writes libsodium's `crypto_secretbox_xchacha20poly1305`; otherwise `xchacha20_poly1305`"]
             ]
         },
@@ -916,7 +928,7 @@
         {"need": "Encrypt a record or a file under one secret key, each with a random nonce, in libsodium's secret-box format", "namespace": "webcpp::crypto::ciphers", "api": "`secretbox<>`, `secretbox_xchacha20poly1305<>`: `make`, `seal`, `open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default", "example": "file_share", "section": "crypto-secretbox"},
         {"need": "Send messages between two people who know each other's public keys, as NaCl's and libsodium's crypto_box", "namespace": "webcpp::crypto::hybrid", "api": "`box::make`, `box::seal`, `box::open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//box_xsalsa20poly1305-default", "example": "box_messages", "section": "crypto-box"},
         {"need": "Let anyone send a message that only the recipient can read, without saying who sent it (anonymous feedback, a drop box)", "namespace": "webcpp::crypto::hybrid", "api": "`sealed_box::seal`, `sealed_box::open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//sealed_box-default", "example": "file_share", "section": "crypto-sealed-box"},
-        {"need": "Share a file with someone known only by a public key, as a file-sharing app does", "namespace": "webcpp::crypto::hybrid", "api": "`ciphers::secretbox<>` for the file under a key drawn for it, `sealed_box::seal` for that key", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default /webcpp/crypto//sealed_box-default /webcpp/crypto//x25519-default", "example": "file_share", "section": "crypto-everyday-files"},
+        {"need": "Share a file with someone known only by a public key, as a file-sharing app does", "namespace": "webcpp::crypto", "api": "`ciphers::secretbox<>` for the file under a key drawn for it, `hybrid::sealed_box::seal` for that key", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default /webcpp/crypto//sealed_box-default /webcpp/crypto//x25519-default", "example": "file_share", "section": "crypto-everyday-files"},
         {"need": "Use P-256 (passkeys, JWT's ES256)", "namespace": "none in this version", "api": "secp256k1, Ed25519 and X25519 keys and signatures do not interoperate with this curve", "backend": "none", "jamfile": "none", "example": "", "section": "crypto-curves"}
     ],
     "fixtures": {

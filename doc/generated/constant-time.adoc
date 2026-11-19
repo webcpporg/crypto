@@ -13,36 +13,36 @@
 
 |BearSSL
 |by design: `+aes_ct64+` and `+ghash_ctmul64+`, or AES-NI and PCLMUL where the CPU has them; on a 32-bit host a 64-bit multiplication may not be constant time, which BearSSL documents; link:https://www.bearssl.org/constanttime.html[BearSSL, constant-time crypto]; link:https://www.bearssl.org/ctmul.html[BearSSL, constant-time multiplications]
-|not measured yet
-|not measured yet
+|Valgrind's memcheck (Linux): AES-GCM, ChaCha20-Poly1305; MemorySanitizer (Linux, clang): AES-GCM, ChaCha20-Poly1305; dudect: AES-GCM, ChaCha20-Poly1305
+|dudect: AES-GCM, ChaCha20-Poly1305
 |not measured yet
 |not measured yet
 
 |OpenSSL
 |with assembly (native Clang and GCC), AES-NI and carry-less multiplication where the CPU has them; built no-asm (MSVC, wasip2, wasip3), table-based AES and 4-bit GHASH, neither constant time (`+OPENSSL_AES_CONST_TIME+` makes only the AES core constant time; GHASH stays table-based); link:https://github.com/openssl/openssl/blob/master/INSTALL.md[OpenSSL's INSTALL.md, no-asm]; link:https://github.com/openssl/openssl/blob/master/crypto/aes/aes_core.c[OpenSSL's crypto/aes/aes_core.c, OPENSSL_AES_CONST_TIME]
-|not measured yet
+|Valgrind's memcheck (Linux): AES-GCM (seal alone: its open branches on the verdict inside OpenSSL), ChaCha20-Poly1305 (seal alone: its open branches on the verdict inside OpenSSL)
 |not measured yet
 |not measured yet
 |not measured yet
 
 |ctaes
 |by design: bitsliced, no table and no branch on secret data; link:https://github.com/bitcoin/bitcoin/tree/master/src/crypto/ctaes[ctaes, constant-time AES]
-|not measured yet
-|not measured yet
+|Valgrind's memcheck (Linux): AES block cipher; MemorySanitizer (Linux, clang): AES block cipher; dudect: AES block cipher
+|dudect: AES block cipher
 |not measured yet
 |not measured yet
 
 |libsecp256k1
 |by design: signing and key generation are constant time and constant memory access; link:https://github.com/bitcoin-core/secp256k1#readme[libsecp256k1's README]
-|not measured yet
+|Valgrind's memcheck (Linux): secp256k1 (libsecp256k1's own `+ctime_tests.c+`); MemorySanitizer (Linux, clang): secp256k1 (libsecp256k1's own `+ctime_tests.c+`)
 |not measured yet
 |not measured yet
 |not measured yet
 
 |libsodium
 |by its documentation for the paths crypto calls, without a guarantee for the whole library: secrets are compared in constant time (link:https://doc.libsodium.org/internals#branches[libsodium's documentation, internals: branches]), ChaCha20 is not sensitive to timing attacks (link:https://doc.libsodium.org/secret-key_cryptography/aead[libsodium's documentation, AEAD constructions: ChaCha20 and timing attacks]), and Ed25519 and X25519 come from designs with no secret branch and no secret array index (link:https://ed25519.cr.yp.to/[Ed25519's design: no secret branch conditions, no secret array indices]); webcpp's lane checks each path it calls
-|not measured yet
-|not measured yet
+|Valgrind's memcheck (Linux): Ed25519, X25519, crypto_kx, ChaCha20-Poly1305, original ChaCha20-Poly1305, XChaCha20-Poly1305, XSalsa20-Poly1305 secret box, XChaCha20-Poly1305 secret box, X25519-XSalsa20-Poly1305 box, X25519-XChaCha20-Poly1305 box, X25519-XSalsa20-Poly1305 sealed box; MemorySanitizer (Linux, clang): Ed25519, X25519, crypto_kx, ChaCha20-Poly1305, original ChaCha20-Poly1305, XChaCha20-Poly1305, XSalsa20-Poly1305 secret box, XChaCha20-Poly1305 secret box, X25519-XSalsa20-Poly1305 box, X25519-XChaCha20-Poly1305 box, X25519-XSalsa20-Poly1305 sealed box; dudect: Ed25519, X25519
+|dudect: Ed25519, X25519 (measured differently, below)
 |not measured yet
 |not measured yet
 
@@ -55,12 +55,12 @@
 
 |no backend
 |`+equal+` is constant time in the contents: every byte is read, no branch and no index depends on one
-|not measured yet
-|not measured yet
+|Valgrind's memcheck (Linux): `+equal+`, `+is_all_zero+` and the wipe of `+secret<N>+`; MemorySanitizer (Linux, clang): `+equal+`, `+is_all_zero+` and the wipe of `+secret<N>+`; dudect: `+equal+`
+|dudect: `+equal+`
 |not measured yet
 |not measured yet
 |===
 
 Measured where a family differs from its backend's design:
 
-* X25519 on libsodium, wasip2: an open finding, measured and not explained: dudect times `+agree+` with an all-zero secret key against random ones at |t| 13 to 32, against the threshold 10 (a fixed key against another fixed key: 22.9), under wasmtime 47 on an Apple M5, from a release build (2026-11-18), where the native builds pass (|t| 2 to 4); no branch on a secret was found in the WebAssembly or in wasmtime's compiled code, and the cause is unknown. The lane prints this value on wasip2 without judging it; the CI's x86-64 run measures it next
+* X25519 on libsodium, wasip2: an open finding, measured and not explained: dudect times `+agree+` with an all-zero secret key against random ones at |t| 13 to 32, against the threshold 10 (a fixed key against another fixed key: 22.9), under wasmtime 47 on an Apple M5 Max, from a release build (2026-11-18), where the native builds pass (|t| 2 to 4); no branch on a secret was found in the WebAssembly or in wasmtime's compiled code, and the cause is unknown. The lane prints this value on wasip2 without judging it; the CI's x86-64 run measures it next

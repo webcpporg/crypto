@@ -490,10 +490,22 @@ def check_families(data: Data, declared: Dict[str, List[str]]) -> None:
                 if target not in tested:
                     raise Fault(f'crypto.json: the family {name} claims {backend} on {target}, '
                                 f'where no test of its operations on {backend} runs')
+            for target, checkers in entry.get('lane', {}).items():
+                if target not in claimed:
+                    raise Fault(f'crypto.json: the family {name} puts {backend} in the '
+                                f'constant-time lane on {target}, where it does not claim it')
+                for checker in checkers:
+                    if checker not in data.get('checkers', {}):
+                        raise Fault(f'crypto.json: the family {name} names the checker '
+                                    f'{checker} for {backend} on {target}, which checkers does '
+                                    'not list')
             for target, why in entry.get('constant_time', {}).items():
                 if target not in claimed:
                     raise Fault(f'crypto.json: the family {name} states constant time for '
                                 f'{backend} on {target}, where it does not claim it')
+                if target not in entry.get('lane', {}):
+                    raise Fault(f'crypto.json: the family {name} states constant time for '
+                                f'{backend} on {target}, where the lane does not run it')
                 cite(data, why)
         # One default per target, chosen by the target alone (design D32): a row of some
         # compilers, named from crypto.json's compilers, restates it with a reason of its own, and
@@ -978,34 +990,90 @@ def stale(files: Dict[Path, str]) -> List[Path]:
 NAMED_COLUMN = re.compile(r'^((?:`[^`]+`(?:, )?)+): (.+)$')
 
 
+def figure(value: float) -> str:
+    """A median in microseconds to three significant figures, never in exponent form."""
+    text = f'{value:.3g}'
+    if 'e' in text:
+        text = f'{value:.6f}'.rstrip('0').rstrip('.')
+    return text
+
+
 def speed_of(data: Data, family: str, performance: Data) -> str:
-    """A comparison table's speed: the family's fixed operation per target and backend, the
-    median of doc/performance.json, dated and named by its machine, linked to the page that
-    holds the spread; not measured yet where it holds none."""
+    """A comparison table's speed: per operation the family's measurements per target and
+    backend, the median of doc/performance.json to three significant figures, dated and named by
+    its machine, said to be under load where the machine was, linked to the page that holds the
+    spread; not measured yet where it holds none. A backend crypto.json does not list is a
+    fault."""
     cases = [case for case in performance.get('cases', []) if case['family'] == family]
     if not cases:
         return NOT_MEASURED
+    order = backend_order(data)
+    for case in cases:
+        if case['backend'] not in order:
+            raise Fault(f'{PERFORMANCE} names the backend {case["backend"]}, which crypto.json '
+                        'does not list')
+    operations: List[str] = []
+    for case in cases:
+        if case['operation'] not in operations:
+            operations.append(case['operation'])
     parts: List[str] = []
-    for target in data['targets']:
-        here = [case for case in cases if case['target'] == target]
-        if here:
-            parts.append(f'{target}: ' + ', '.join(
-                f'{data["backends"][case["backend"]]["title"]} {case["median_us"]:.2f} µs'
-                for case in sorted(here, key=lambda case: backend_order(data).index(
-                    case['backend']))))
-    return (f'{"; ".join(parts)} ({cases[0]["operation"]}; {performance["date"]}, '
-            f'{performance["machine"]["cpu"]}; <<crypto-performance>>)')
+    for operation in operations:
+        targets: List[str] = []
+        for target in data['targets']:
+            here = sorted((case for case in cases
+                           if case['operation'] == operation and case['target'] == target),
+                          key=lambda case: order.index(case['backend']))
+            if here:
+                targets.append(f'{target}, ' + ', '.join(
+                    f'{data["backends"][case["backend"]]["title"]} {figure(case["median_us"])} µs'
+                    for case in here))
+        parts.append(f'{operation}: ' + '; '.join(targets))
+    machine = performance['machine']
+    loads = performance.get('load_average_before_after', [])
+    loaded = ', under load: read the spread' if loads and 'cores' in machine and max(
+        load[0] for load in loads) > machine['cores'] / 2 else ''
+    return (f'{"; ".join(parts)} ({performance["date"]}, {machine["cpu"]}{loaded}; '
+            '<<crypto-performance>>)')
+
+
+def and_list(words: List[str]) -> str:
+    """Words as a sentence lists them: a, b and c."""
+    return words[0] if len(words) == 1 else f'{", ".join(words[:-1])} and {words[-1]}'
+
+
+def lane_text(data: Data, family: Data, cite_with: Any, names_with: Any = None) -> str:
+    """What the constant-time lane covers of a family, per backend and target, from crypto.json's
+    `lane` of each backend: the checkers on each target, then nothing found, or the family's
+    measured `constant_time` there; not measured yet on the targets the lane does not run; a
+    backend's `lane_note` beside its name. Names between backticks are written by names_with,
+    inline code by default; llms.txt keeps the backticks."""
+    names_with = names_with or marked
+    sentences: List[str] = []
+    for backend, entry in family['backends'].items():
+        title = data['backends'][backend]['title']
+        if 'lane_note' in entry:
+            title += f' ({names_with(entry["lane_note"])})'
+        lane = entry.get('lane', {})
+        found = entry.get('constant_time', {})
+        pieces: List[str] = []
+        for target in data['targets']:
+            if target in lane:
+                checkers = and_list([data['checkers'][name] for name in lane[target]])
+                result = (f': {cite_with(data, found[target])}' if target in found
+                          else ', nothing found')
+                pieces.append(f'{target}, {checkers}{result}')
+        rest = [target for target in cell_targets(data, family, backend) if target not in lane]
+        if rest and pieces:
+            pieces.append(f'not measured yet on {", ".join(rest)}')
+        elif not pieces:
+            pieces.append(NOT_MEASURED)
+        sentences.append(f'{title}: {"; ".join(pieces)}')
+    return '. '.join(sentences)
 
 
 def constant_time_of(data: Data, family: str) -> str:
-    """A comparison table's measured constant time: what crypto.json records of the family per
-    backend and target, where it differs from the backend's design; elsewhere the lane's
-    checks find nothing."""
-    notes = [f'{target}, {data["backends"][backend]["title"]}: {cite(data, why)}'
-             for backend, entry in family_of(data, family)['backends'].items()
-             for target, why in entry.get('constant_time', {}).items()]
-    found = '; '.join(notes) + '; elsewhere, ' if notes else ''
-    return (f'{found}the lane finds nothing on the paths it checks '
+    """A comparison table's measured constant time: lane_text, linked to the lane's section."""
+    return (f'{lane_text(data, family_of(data, family), cite)} '
             '(<<crypto-backends-constant-time>>)')
 
 
@@ -1035,22 +1103,39 @@ def namespace_page(data: Data, namespace: str, performance: Data) -> str:
                 raise Fault(f'crypto.json: the {namespace} table\'s row {row[0]} states '
                             f'"{column}" without a source: cite one, {{<source>}}, or begin it '
                             'with "none"')
+    parts = entry.get('parts', [{'title': '', 'rows': list(range(len(entry['rows'])))}])
+    held = sorted(index for part in parts for index in part['rows'])
+    if held != list(range(len(entry['rows']))):
+        raise Fault(f"crypto.json: the {namespace} table's parts hold its rows "
+                    f"{', '.join(str(index) for index in held)} once each, not 0 to "
+                    f"{len(entry['rows']) - 1}")
+    tables: List[str] = []
+    for part in parts:
+        title = f'.{part["title"]}\n' if part['title'] else ''
+        tables.append(title + comparison_table(data, entry, [entry['rows'][index]
+                                                             for index in part['rows']],
+                                               performance))
+    return '\n'.join(tables)
+
+
+def comparison_table(data: Data, entry: Data, chosen: List[List[str]], performance: Data) -> str:
+    """A comparison table of the rows chosen, a column per name."""
     # A column named "`gcm`, `aes128_gcm`: AES-GCM" is headed by its plain name, AES-GCM, and
     # its names of code go to a row of their own: a phone's style labels each stacked cell with
     # its column's header as plain text, which would show the names of code as prose.
     headers: List[str] = []
     named: List[str] = []
-    for row in entry['rows']:
+    for row in chosen:
         found = NAMED_COLUMN.match(row[0])
         headers.append(found.group(2) if found else row[0])
         named.append(found.group(1) if found else '')
     columns = [entry['columns'][0]] + headers
     rows = [[entry['columns'][index]]
-            + [cite(data, measured_cell(data, row[index], performance)) for row in entry['rows']]
+            + [cite(data, measured_cell(data, row[index], performance)) for row in chosen]
             for index in range(1, len(entry['columns']))]
     if any(named):
         rows.insert(0, ['Names'] + named)
-    widths = ','.join(['2h'] + ['5'] * len(entry['rows']))
+    widths = ','.join(['2h'] + ['5'] * len(chosen))
     return table(columns, rows, f'cols="{widths}",')
 
 
@@ -1174,14 +1259,37 @@ def constant_time_notes(data: Data) -> str:
             + '\n'.join(notes) + '\n')
 
 
+def lane_cell(data: Data, backend: str, target: str) -> str:
+    """The constant-time page's cell of a backend on a target: per checker of the lane, the
+    families (and the backend's own `lane_paths`) it runs there, those with a measured finding
+    marked; not measured yet where the lane runs none."""
+    by_checker: Dict[str, List[str]] = {}
+    for family in data.get('families', []):
+        entry = family['backends'].get(backend, {})
+        for checker in entry.get('lane', {}).get(target, []):
+            notes = ([marked(entry['lane_note'])] if 'lane_note' in entry else []) + (
+                ['measured differently, below'] if target in entry.get('constant_time', {})
+                else [])
+            note = f' ({"; ".join(notes)})' if notes else ''
+            by_checker.setdefault(checker, []).append(family['title'] + note)
+    for path in data['backends'][backend].get('lane_paths', []):
+        for checker in path['lane'].get(target, []):
+            by_checker.setdefault(checker, []).append(marked(path['what']))
+    if not by_checker:
+        return NOT_MEASURED
+    return '; '.join(f'{title}: {", ".join(by_checker[name])}'
+                     for name, title in data['checkers'].items() if name in by_checker)
+
+
 def constant_time_page(data: Data) -> str:
-    """Constant time per backend: by its library's design, and measured per target."""
+    """Constant time per backend: by its library's design, and per target what the lane runs,
+    from the same `lane` entries as the comparison tables."""
     rows: List[List[str]] = []
     for backend in libraries(data):
         facts = data['backends'][backend]
         sources = ''.join(f'; {{{source}}}' for source in facts['constant_time_sources'])
         rows.append([facts['title'], marked(cite(data, facts['constant_time'] + sources))]
-                    + [NOT_MEASURED for _ in data['targets']])
+                    + [lane_cell(data, backend, target) for target in data['targets']])
     return table(['Backend', 'By design'] + [f'Measured, {target}' for target in data['targets']],
                  rows) + constant_time_notes(data)
 
@@ -1614,13 +1722,19 @@ def first_comment(source: Path) -> str:
 
 
 def llms_default(data: Data, operation: Data) -> str:
-    """An operation's default backend per target in llms.txt, from its family's row."""
-    name = operation.get('default_of', operation.get('family'))
+    """An operation's default backend per target in llms.txt, from its own family's row ("none"
+    where the family has none), then, for an operation whose default argument is another
+    family's, its own note of what that means."""
+    name = operation.get('family')
     if name is None:
         return ''
     defaults = [f'{default_title(data, entry)} on {target_label(data, entry)}'
                 for entry in family_of(data, name)['default']]
-    return f' Default: {"; ".join(defaults)}.' if defaults else ''
+    if not defaults:
+        return ''
+    if 'default_of' in operation:
+        return f' Default: {"; ".join(defaults)}; {operation["default"]}'
+    return f' Default: {"; ".join(defaults)}.'
 
 
 def llms_uses(data: Data, operation: Data) -> str:
@@ -1660,10 +1774,8 @@ def llms(data: Data, matrix: Matrix, library: Path) -> str:
             out.append(f'- {family["title"]}, {target_label(data, entry)}: '
                        f'{default_title(data, entry)}; {cite_markdown(data, entry["why"])}.')
     out += ['', '## Constant time, measured', '']
-    out += [f'- {family["title"]} on {data["backends"][backend]["title"]}, {target}: '
-            f'{cite_markdown(data, why)}'
-            for family in data['families'] for backend, entry in family['backends'].items()
-            for target, why in entry.get('constant_time', {}).items()]
+    out += [f'- {family["title"]}: {lane_text(data, family, cite_markdown, str)}.'
+            for family in data['families']]
     out += ['', '## Rules of use', '']
     for rule in data['rules']:
         out.append(f'- [{rule["title"]}]({page}#{rule["section"]}): '
@@ -1690,7 +1802,11 @@ def read_performance(library: Path) -> Data:
     path = library / PERFORMANCE
     if not path.is_file():
         return {'cases': []}
-    return json.loads(path.read_text(encoding='utf-8'))
+    performance: Data = json.loads(path.read_text(encoding='utf-8'))
+    if performance.get('build') != f'variant={RELEASE}':
+        raise Fault(f'{PERFORMANCE} was built at {performance.get("build", "no variant")}, not '
+                    f'variant={RELEASE}: measure again with bench/collect.py')
+    return performance
 
 
 def read_sizes(library: Path) -> Data:

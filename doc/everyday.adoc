@@ -61,13 +61,12 @@ under one key. Open the file key and the file before using a byte of either: a
 box that does not open is an attack or a corruption, never a reason to fall
 back on an unencrypted copy. A sealed box says nothing of who sent it: an app
 where the sender matters signs the upload (<<crypto-ed25519>>) or uses a box
-between the two key pairs (<<crypto-box>>). Never cut a large file into
-separate boxes:
-splitting a message into chunks is safe only when each chunk's tag also
-covers its number and a flag marking the last chunk, in the additional data or
-in a nonce built from them, and a reader refuses chunks out of order and a
-stream that ends without the last flag: otherwise whoever holds the ciphertext
-reorders, drops, repeats or truncates chunks and each one still opens. The
+between the two key pairs (<<crypto-box>>). A large file cut into
+separate boxes is safe only when each chunk's tag also covers its number and a
+flag marking the last chunk, in the additional data or in a nonce built from
+them, and a reader refuses chunks out of order and a stream that ends without
+the last flag: otherwise whoever holds the ciphertext reorders, drops, repeats
+or truncates chunks and each one still opens. The
 STREAM construction (link:https://eprint.iacr.org/2015/189[Hoang, Reyhanitabar,
 Rogaway and Vizár, 2015]) and libsodium's secretstream
 (link:https://doc.libsodium.org/secret-key_cryptography/secretstream[libsodium's

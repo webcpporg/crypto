@@ -42,7 +42,7 @@
 |libsodium
 |by its documentation for the paths crypto calls, without a guarantee for the whole library: secrets are compared in constant time (link:https://doc.libsodium.org/internals#branches[libsodium's documentation, internals: branches]), ChaCha20 is not sensitive to timing attacks (link:https://doc.libsodium.org/secret-key_cryptography/aead[libsodium's documentation, AEAD constructions: ChaCha20 and timing attacks]), and Ed25519 and X25519 come from designs with no secret branch and no secret array index (link:https://ed25519.cr.yp.to/[Ed25519's design: no secret branch conditions, no secret array indices]); webcpp's lane checks each path it calls
 |Valgrind's memcheck (Linux): Ed25519, X25519, crypto_kx, ChaCha20-Poly1305, original ChaCha20-Poly1305, XChaCha20-Poly1305, XSalsa20-Poly1305 secret box, XChaCha20-Poly1305 secret box, X25519-XSalsa20-Poly1305 box, X25519-XChaCha20-Poly1305 box, X25519-XSalsa20-Poly1305 sealed box; MemorySanitizer (Linux, clang): Ed25519, X25519, crypto_kx, ChaCha20-Poly1305, original ChaCha20-Poly1305, XChaCha20-Poly1305, XSalsa20-Poly1305 secret box, XChaCha20-Poly1305 secret box, X25519-XSalsa20-Poly1305 box, X25519-XChaCha20-Poly1305 box, X25519-XSalsa20-Poly1305 sealed box; dudect: Ed25519, X25519
-|dudect: Ed25519, X25519 (measured differently, below)
+|dudect: Ed25519, X25519 (X25519 measured differently, below)
 |not measured yet
 |not measured yet
 

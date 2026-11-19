@@ -1268,8 +1268,8 @@ def lane_cell(data: Data, backend: str, target: str) -> str:
         entry = family['backends'].get(backend, {})
         for checker in entry.get('lane', {}).get(target, []):
             notes = ([marked(entry['lane_note'])] if 'lane_note' in entry else []) + (
-                ['measured differently, below'] if target in entry.get('constant_time', {})
-                else [])
+                [f'{family["title"]} measured differently, below']
+                if target in entry.get('constant_time', {}) else [])
             note = f' ({"; ".join(notes)})' if notes else ''
             by_checker.setdefault(checker, []).append(family['title'] + note)
     for path in data['backends'][backend].get('lane_paths', []):

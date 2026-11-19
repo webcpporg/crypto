@@ -1117,9 +1117,21 @@ def test_the_constant_time_page_fills_each_target_from_the_lane(_: Path) -> None
                                     {'what': '`equal`', 'lane': {'native': ['memcheck']}}]}
     page = generate.constant_time_page(data)
     assert ('|libsodium\n|by design\n|memcheck (Linux): ChaCha20-Poly1305; dudect: '
-            'ChaCha20-Poly1305\n|dudect: ChaCha20-Poly1305 (measured differently, below)\n'
+            'ChaCha20-Poly1305\n|dudect: ChaCha20-Poly1305 (ChaCha20-Poly1305 measured differently, '
+            'below)\n'
             '|not measured yet\n|not measured yet\n') in page, page
     assert '|no backend\n|yes\n|memcheck (Linux): `+equal+`\n|not measured yet\n' in page, page
+
+
+def test_a_note_on_one_family_of_a_cell_names_that_family(_: Path) -> None:
+    data = two_ciphers()
+    for backend in data['backends'].values():
+        backend.update({'library': 'l', 'constant_time': 'by design', 'constant_time_sources': []})
+    data['families'].insert(0, {'name': 'ed25519', 'title': 'Ed25519', 'backends': {
+        'sodium': {'targets': 'all', 'lane': {'wasip2': ['dudect']}}}})
+    page = generate.constant_time_page(data)
+    assert ('|dudect: Ed25519, ChaCha20-Poly1305 (ChaCha20-Poly1305 measured differently, '
+            'below)\n') in page, page
 
 
 def test_a_lane_entry_the_family_does_not_claim_is_a_fault(_: Path) -> None:
@@ -1217,6 +1229,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_measurement_not_built_at_release_is_refused,
     test_a_speed_cell_names_each_operation_and_refuses_an_unknown_backend,
     test_the_constant_time_page_fills_each_target_from_the_lane,
+    test_a_note_on_one_family_of_a_cell_names_that_family,
     test_a_lane_entry_the_family_does_not_claim_is_a_fault,
     test_llms_gives_no_default_where_the_family_has_none,
     test_a_namespace_table_is_split_into_its_parts,

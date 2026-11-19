@@ -1,0 +1,5 @@
+internal key aggregated from 2 signers
+output key tweaked with TapTweak, a key other than the internal key
+both partial signatures verify
+the signature verifies under the output key
+under the internal key it is refused: the signature does not verify or is not a valid encoding

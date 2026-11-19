@@ -594,6 +594,42 @@ include::{examples}/musig_wallet.cpp[tag=program]
 include::{examples}/musig_wallet.expected[]
 ----
 
+*Example.* The same wallet with its devices apart. Every public piece crosses
+the network as bytes: each public nonce in 66, the aggregate nonce a
+coordinator sums in 66, each partial signature in 32. The coordinator, which
+holds no secret, parses each part and checks it with
+`partial_signature_verify` before it adds the parts, so that a part damaged on
+the way is refused by name:
+
+[source,cpp]
+----
+include::{examples}/musig_network.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/musig_network.expected[]
+----
+
+*Example.* The wallet's aggregate key as the internal key of a Taproot output
+spent by its key path
+(link:https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki[BIP 341]).
+`tweak_xonly_add` tweaks it by its TapTweak tagged hash before any nonce is
+made, since the nonces and the parts commit to the key as tweaked; the
+signature then verifies under the output key and not under the internal one.
+The hash is the protocol's, a domain library's to compute; the example shows
+it with webcpp::hash's SHA-256:
+
+[source,cpp]
+----
+include::{examples}/musig_taproot.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/musig_taproot.expected[]
+----
+
 *Pitfalls.*
 
 * A nonce used for two signatures gives away the secret key: from two partial

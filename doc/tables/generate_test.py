@@ -1129,6 +1129,16 @@ def test_a_use_case_joins_the_operation_it_names(_: Path) -> None:
         ' Use it to: encrypt chat messages.')
 
 
+def test_a_use_case_that_links_a_teaching_section_joins_the_operation_it_answers(_: Path) -> None:
+    data = {'use_cases': [
+        {'need': 'Find who signed a message', 'api': '`recover`', 'section': 'teaching',
+         'answers': 'reference'},
+        {'need': 'Recover elsewhere', 'api': '`recover`', 'section': 'teaching'}]}
+    assert generate.llms_uses(data, {'api': 'curves::secp256k1::recover',
+                                     'section': 'reference'}) == (
+        ' Use it to: find who signed a message.')
+
+
 def test_a_measurement_not_built_at_release_is_refused(scratch: Path) -> None:
     import json
     written(scratch, 'doc/performance.json', json.dumps(measured(22.5)))
@@ -1366,6 +1376,7 @@ CASES: list[Callable[[Path], None]] = [
     test_the_namespaces_and_backends_come_from_the_data,
     test_every_api_page_lists_its_default_per_target,
     test_a_use_case_joins_the_operation_it_names,
+    test_a_use_case_that_links_a_teaching_section_joins_the_operation_it_answers,
     test_a_measurement_not_built_at_release_is_refused,
     test_a_speed_cell_names_each_operation_and_refuses_an_unknown_backend,
     test_a_measured_cell_escapes_the_bars_of_its_finding,

@@ -1822,11 +1822,12 @@ def llms_default(data: Data, operation: Data) -> str:
 
 
 def llms_uses(data: Data, operation: Data) -> str:
-    """The use cases of the decision table that an operation answers: of its section, naming
-    one of its names."""
+    """The use cases of the decision table that an operation answers: of its section, or whose
+    `answers` names it where the use case links a teaching chapter instead, naming one of its
+    names."""
     named = [part.rpartition('::')[2] for part in operation['api'].split(', ')]
     needs = [entry['need'][:1].lower() + entry['need'][1:] for entry in data['use_cases']
-             if entry['section'] == operation['section']
+             if entry.get('answers', entry['section']) == operation['section']
              and any(re.search(rf'\b{re.escape(name)}\b', entry['api']) for name in named)]
     return f' Use it to: {"; ".join(needs)}.' if needs else ''
 

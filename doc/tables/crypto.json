@@ -170,7 +170,8 @@
             "own_api": "`<secp256k1.h>` and its modules",
             "allocation": "`keypair::make` allocates the signing context, once, in the `std::pmr::memory_resource` it is given; nothing else allocates",
             "constant_time": "by design: signing and key generation are constant time and constant memory access",
-            "constant_time_sources": ["libsecp256k1"]
+            "constant_time_sources": ["libsecp256k1"],
+            "size_note": "a row that recovers a key or computes with a public point other than the generator (`recover`, MuSig2's session, a silent payment's output) links the precomputed table of libsecp256k1's variable-time multiplication too, built at window 15 natively and on WASI and at window 2 on Emscripten, the small tables ({secp256k1-configure})."
         },
         "sodium": {
             "without_b2": "link libsodium built with webcpp's src/canary_sodium.c",
@@ -697,6 +698,7 @@
             "group": "curves::secp256k1",
             "since": "0.1",
             "measured": "BIP340 signature of a 32-byte message",
+            "sized_operations": {"ecdh_x": "x coordinate of the ECDH shared point with a peer's public key", "recover": "public key recovered from an ECDSA signature of a 32-byte hash"},
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
             "names": [
                 {"name": "secp256k1", "title": "secp256k1", "type": "curves::secp256k1::basic_keypair<{backend}>"}
@@ -923,7 +925,7 @@
             "title": "ElligatorSwift",
             "group": "curves",
             "since": "0.2",
-            "measured": "ElligatorSwift encoding of a public key",
+            "measured": "BIP 324 shared secret of two ElligatorSwift encodings",
             "header": "<webcpp/crypto/curves/secp256k1/ellswift.hpp>",
             "names": [
                 {"name": "secp256k1_ellswift", "title": "ElligatorSwift"}

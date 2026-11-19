@@ -123,6 +123,38 @@
           "gzip_over_baseline": 5422
         },
         {
+          "program": "secp256k1_ellswift_secp256k1",
+          "file": "js",
+          "bytes": 10109,
+          "gzip": 3595,
+          "over_baseline": 352,
+          "gzip_over_baseline": 123
+        },
+        {
+          "program": "secp256k1_ellswift_secp256k1",
+          "file": "wasm",
+          "bytes": 249284,
+          "gzip": 91443,
+          "over_baseline": 229093,
+          "gzip_over_baseline": 81927
+        },
+        {
+          "program": "secp256k1_musig_secp256k1",
+          "file": "js",
+          "bytes": 10106,
+          "gzip": 3593,
+          "over_baseline": 349,
+          "gzip_over_baseline": 121
+        },
+        {
+          "program": "secp256k1_musig_secp256k1",
+          "file": "wasm",
+          "bytes": 270560,
+          "gzip": 100089,
+          "over_baseline": 250369,
+          "gzip_over_baseline": 90573
+        },
+        {
           "program": "secp256k1_secp256k1",
           "file": "js",
           "bytes": 10100,
@@ -137,6 +169,54 @@
           "gzip": 43471,
           "over_baseline": 85484,
           "gzip_over_baseline": 33955
+        },
+        {
+          "program": "secp256k1_secp256k1_ecdh_x",
+          "file": "js",
+          "bytes": 10107,
+          "gzip": 3593,
+          "over_baseline": 350,
+          "gzip_over_baseline": 121
+        },
+        {
+          "program": "secp256k1_secp256k1_ecdh_x",
+          "file": "wasm",
+          "bytes": 195099,
+          "gzip": 72442,
+          "over_baseline": 174908,
+          "gzip_over_baseline": 62926
+        },
+        {
+          "program": "secp256k1_secp256k1_recover",
+          "file": "js",
+          "bytes": 10108,
+          "gzip": 3594,
+          "over_baseline": 351,
+          "gzip_over_baseline": 122
+        },
+        {
+          "program": "secp256k1_secp256k1_recover",
+          "file": "wasm",
+          "bytes": 223279,
+          "gzip": 81062,
+          "over_baseline": 203088,
+          "gzip_over_baseline": 71546
+        },
+        {
+          "program": "secp256k1_silent_payments_secp256k1",
+          "file": "js",
+          "bytes": 10116,
+          "gzip": 3600,
+          "over_baseline": 359,
+          "gzip_over_baseline": 128
+        },
+        {
+          "program": "secp256k1_silent_payments_secp256k1",
+          "file": "wasm",
+          "bytes": 235439,
+          "gzip": 87296,
+          "over_baseline": 215248,
+          "gzip_over_baseline": 77780
         },
         {
           "program": "x25519_sodium",
@@ -281,12 +361,52 @@
           "gzip_over_baseline": 8057
         },
         {
+          "program": "secp256k1_ellswift_secp256k1",
+          "file": "executable",
+          "bytes": 184776,
+          "gzip": 101420,
+          "over_baseline": 133528,
+          "gzip_over_baseline": 98241
+        },
+        {
+          "program": "secp256k1_musig_secp256k1",
+          "file": "executable",
+          "bytes": 1258240,
+          "gzip": 1170515,
+          "over_baseline": 1206992,
+          "gzip_over_baseline": 1167336
+        },
+        {
           "program": "secp256k1_secp256k1",
           "file": "executable",
           "bytes": 118616,
           "gzip": 59180,
           "over_baseline": 67368,
           "gzip_over_baseline": 56001
+        },
+        {
+          "program": "secp256k1_secp256k1_ecdh_x",
+          "file": "executable",
+          "bytes": 168400,
+          "gzip": 85036,
+          "over_baseline": 117152,
+          "gzip_over_baseline": 81857
+        },
+        {
+          "program": "secp256k1_secp256k1_recover",
+          "file": "executable",
+          "bytes": 1225104,
+          "gzip": 1149570,
+          "over_baseline": 1173856,
+          "gzip_over_baseline": 1146391
+        },
+        {
+          "program": "secp256k1_silent_payments_secp256k1",
+          "file": "executable",
+          "bytes": 1241656,
+          "gzip": 1157324,
+          "over_baseline": 1190408,
+          "gzip_over_baseline": 1154145
         },
         {
           "program": "x25519_sodium",
@@ -415,12 +535,52 @@
           "gzip_over_baseline": 5984
         },
         {
+          "program": "secp256k1_ellswift_secp256k1",
+          "file": "wasm",
+          "bytes": 336841,
+          "gzip": 128107,
+          "over_baseline": 272419,
+          "gzip_over_baseline": 103703
+        },
+        {
+          "program": "secp256k1_musig_secp256k1",
+          "file": "wasm",
+          "bytes": 1417621,
+          "gzip": 1186030,
+          "over_baseline": 1353199,
+          "gzip_over_baseline": 1161626
+        },
+        {
           "program": "secp256k1_secp256k1",
           "file": "wasm",
           "bytes": 180219,
           "gzip": 79655,
           "over_baseline": 115797,
           "gzip_over_baseline": 55251
+        },
+        {
+          "program": "secp256k1_secp256k1_ecdh_x",
+          "file": "wasm",
+          "bytes": 278726,
+          "gzip": 108506,
+          "over_baseline": 214304,
+          "gzip_over_baseline": 84102
+        },
+        {
+          "program": "secp256k1_secp256k1_recover",
+          "file": "wasm",
+          "bytes": 1357572,
+          "gzip": 1166931,
+          "over_baseline": 1293150,
+          "gzip_over_baseline": 1142527
+        },
+        {
+          "program": "secp256k1_silent_payments_secp256k1",
+          "file": "wasm",
+          "bytes": 1382735,
+          "gzip": 1172149,
+          "over_baseline": 1318313,
+          "gzip_over_baseline": 1147745
         },
         {
           "program": "x25519_sodium",
@@ -549,12 +709,52 @@
           "gzip_over_baseline": 5911
         },
         {
+          "program": "secp256k1_ellswift_secp256k1",
+          "file": "wasm",
+          "bytes": 348232,
+          "gzip": 131827,
+          "over_baseline": 274172,
+          "gzip_over_baseline": 104395
+        },
+        {
+          "program": "secp256k1_musig_secp256k1",
+          "file": "wasm",
+          "bytes": 1428661,
+          "gzip": 1189992,
+          "over_baseline": 1354601,
+          "gzip_over_baseline": 1162560
+        },
+        {
           "program": "secp256k1_secp256k1",
           "file": "wasm",
           "bytes": 191605,
           "gzip": 83456,
           "over_baseline": 117545,
           "gzip_over_baseline": 56024
+        },
+        {
+          "program": "secp256k1_secp256k1_ecdh_x",
+          "file": "wasm",
+          "bytes": 290109,
+          "gzip": 112377,
+          "over_baseline": 216049,
+          "gzip_over_baseline": 84945
+        },
+        {
+          "program": "secp256k1_secp256k1_recover",
+          "file": "wasm",
+          "bytes": 1368952,
+          "gzip": 1170584,
+          "over_baseline": 1294892,
+          "gzip_over_baseline": 1143152
+        },
+        {
+          "program": "secp256k1_silent_payments_secp256k1",
+          "file": "wasm",
+          "bytes": 1394173,
+          "gzip": 1175682,
+          "over_baseline": 1320113,
+          "gzip_over_baseline": 1148250
         },
         {
           "program": "x25519_sodium",
@@ -575,5 +775,5 @@
       ]
     }
   ],
-  "digest": "d92449e7da23410f7ff00d5d9c8bb33823c6f57294eee6ea8a7ceac09767b07a"
+  "digest": "2386dc15472f2e685d8828e0e486cd217f85826e889780554e2b77a7e87e1f0e"
 }

@@ -25,6 +25,9 @@
 #include <webcpp/crypto/error.hpp>
 #ifdef WEBCPP_CRYPTO_HAS_SECP256K1
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
+#include <webcpp/crypto/curves/secp256k1/musig.hpp>
+#include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #endif
 
 #include <boost/system/result.hpp>
@@ -194,6 +197,258 @@ private:
     std::array<std::uint8_t, 32> message_{};
     std::array<std::uint8_t, 32> aux_{};
     curves::secp256k1::basic_keypair<Backend> key_;
+};
+
+// The x coordinate of the ECDH shared point of a key pair and a peer's public key, unhashed.
+template <class Backend>
+class secp256k1_ecdh_x {
+public:
+    static constexpr std::string_view operation =
+        "x coordinate of the ECDH shared point with a peer's public key";
+
+    explicit secp256k1_ecdh_x(std::uint8_t seed)
+        : key_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                        filled<32>(static_cast<std::uint8_t>(seed | 1U))),
+                    "make")),
+          peer_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                         filled<32>(static_cast<std::uint8_t>(seed + 6U))),
+                     "make")),
+          peer_public_(take(peer_.public_key(), "public_key")) {}
+
+    std::uint8_t run() {
+        auto const shared = take(key_.ecdh_x(peer_public_), "ecdh_x");
+        return shared.bytes()[0];
+    }
+
+    bool check() {
+        auto const own_public = take(key_.public_key(), "public_key");
+        auto const shared = take(key_.ecdh_x(peer_public_), "ecdh_x");
+        auto const peer_shared = take(peer_.ecdh_x(own_public), "ecdh_x");
+        return std::ranges::equal(shared.bytes(), peer_shared.bytes());
+    }
+
+private:
+    curves::secp256k1::basic_keypair<Backend> key_;
+    curves::secp256k1::basic_keypair<Backend> peer_;
+    std::array<std::uint8_t, 33> peer_public_{};
+};
+
+// The public key recovered from a recoverable ECDSA signature of a 32-byte hash; the signature
+// is made once, outside what is measured.
+template <class Backend>
+class secp256k1_recover {
+public:
+    static constexpr std::string_view operation =
+        "public key recovered from an ECDSA signature of a 32-byte hash";
+
+    explicit secp256k1_recover(std::uint8_t seed)
+        : hash_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
+          key_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                        filled<32>(static_cast<std::uint8_t>(seed | 1U))),
+                    "make")),
+          signature_(take(key_.sign_recoverable(hash_), "sign_recoverable")) {}
+
+    std::uint8_t run() {
+        auto const recovered =
+            take(curves::secp256k1::recover<Backend>(signature_, hash_), "recover");
+        return curves::secp256k1::serialize_public_key<curves::secp256k1::point_form::compressed,
+                                                       Backend>(recovered)[1];
+    }
+
+    bool check() {
+        auto const recovered =
+            take(curves::secp256k1::recover<Backend>(signature_, hash_), "recover");
+        return curves::secp256k1::serialize_public_key<curves::secp256k1::point_form::compressed,
+                                                       Backend>(recovered) ==
+               take(key_.public_key(), "public_key");
+    }
+
+private:
+    std::array<std::uint8_t, 32> hash_{};
+    curves::secp256k1::basic_keypair<Backend> key_;
+    std::array<std::uint8_t, curves::secp256k1::recoverable_signature_size> signature_{};
+};
+
+// BIP 324's shared secret of a key pair and a peer, each known by its ElligatorSwift encoding.
+template <class Backend>
+class secp256k1_ellswift {
+public:
+    static constexpr std::string_view operation =
+        "BIP 324 shared secret of two ElligatorSwift encodings";
+
+    explicit secp256k1_ellswift(std::uint8_t seed)
+        : key_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                        filled<32>(static_cast<std::uint8_t>(seed | 1U))),
+                    "make")),
+          peer_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                         filled<32>(static_cast<std::uint8_t>(seed + 6U))),
+                     "make")),
+          own_encoding_(
+              take(curves::secp256k1::ellswift_create(key_, filled<32>(seed)), "ellswift_create")),
+          peer_encoding_(take(curves::secp256k1::ellswift_create(
+                                  peer_, filled<32>(static_cast<std::uint8_t>(seed + 7U))),
+                              "ellswift_create")) {}
+
+    std::uint8_t run() {
+        auto const shared =
+            take(curves::secp256k1::ellswift_xdh(key_, own_encoding_, peer_encoding_,
+                                                 curves::secp256k1::ellswift_party::initiator),
+                 "ellswift_xdh");
+        return shared.bytes()[0];
+    }
+
+    bool check() {
+        auto const shared =
+            take(curves::secp256k1::ellswift_xdh(key_, own_encoding_, peer_encoding_,
+                                                 curves::secp256k1::ellswift_party::initiator),
+                 "ellswift_xdh");
+        auto const peer_shared =
+            take(curves::secp256k1::ellswift_xdh(peer_, own_encoding_, peer_encoding_,
+                                                 curves::secp256k1::ellswift_party::responder),
+                 "ellswift_xdh");
+        return std::ranges::equal(shared.bytes(), peer_shared.bytes());
+    }
+
+private:
+    curves::secp256k1::basic_keypair<Backend> key_;
+    curves::secp256k1::basic_keypair<Backend> peer_;
+    std::array<std::uint8_t, curves::secp256k1::ellswift_size> own_encoding_{};
+    std::array<std::uint8_t, curves::secp256k1::ellswift_size> peer_encoding_{};
+};
+
+// A two-signer MuSig2 signature of a 32-byte message: both signers' nonces, the session, both
+// partial signatures and their aggregate, the keys aggregated once outside what is measured.
+template <class Backend>
+class secp256k1_musig {
+public:
+    static constexpr std::string_view operation =
+        "two-signer MuSig2 signature of a 32-byte message";
+
+    explicit secp256k1_musig(std::uint8_t seed)
+        : message_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
+          first_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                          filled<32>(static_cast<std::uint8_t>(seed | 1U))),
+                      "make")),
+          second_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                           filled<32>(static_cast<std::uint8_t>(seed + 6U))),
+                       "make")),
+          signers_key_(aggregate(first_, second_, space_)) {}
+
+    std::uint8_t run() { return sign()[0]; }
+
+    bool check() {
+        return curves::secp256k1::verify_schnorr<Backend>(sign(), message_,
+                                                          signers_key_.xonly_public_key())
+            .has_value();
+    }
+
+private:
+    using space_type = std::array<std::byte, curves::secp256k1::musig::workspace_size(2)>;
+
+    static curves::secp256k1::musig::aggregate_key aggregate(
+        curves::secp256k1::basic_keypair<Backend> const& first,
+        curves::secp256k1::basic_keypair<Backend> const& second, space_type& space) {
+        std::array<curves::secp256k1::public_key, 2> const keys{
+            take(curves::secp256k1::parse_public_key<Backend>(take(first.public_key(), "key")),
+                 "parse_public_key"),
+            take(curves::secp256k1::parse_public_key<Backend>(take(second.public_key(), "key")),
+                 "parse_public_key"),
+        };
+        return take(curves::secp256k1::musig::key_aggregate<Backend>(keys, space), "key_aggregate");
+    }
+
+    std::array<std::uint8_t, 64> sign() {
+        namespace musig = curves::secp256k1::musig;
+        auto first_nonce = take(musig::nonce_gen(first_, signers_key_, message_), "nonce_gen");
+        auto second_nonce = take(musig::nonce_gen(second_, signers_key_, message_), "nonce_gen");
+        std::array<musig::public_nonce, 2> const nonces{first_nonce.public_part,
+                                                        second_nonce.public_part};
+        auto const nonce_sum = take(musig::nonce_aggregate<Backend>(nonces, space_), "nonce_sum");
+        auto const signing_session =
+            take(musig::nonce_process<Backend>(nonce_sum, message_, signers_key_), "session");
+        std::array<musig::partial_signature, 2> const parts{
+            take(musig::partial_sign(first_, std::move(first_nonce.secret_part), signers_key_,
+                                     signing_session),
+                 "partial_sign"),
+            take(musig::partial_sign(second_, std::move(second_nonce.secret_part), signers_key_,
+                                     signing_session),
+                 "partial_sign"),
+        };
+        return take(musig::partial_signature_aggregate<Backend>(signing_session, parts, space_),
+                    "partial_signature_aggregate");
+    }
+
+    std::array<std::uint8_t, 32> message_{};
+    alignas(std::max_align_t) space_type space_{};
+    curves::secp256k1::basic_keypair<Backend> first_;
+    curves::secp256k1::basic_keypair<Backend> second_;
+    curves::secp256k1::musig::aggregate_key signers_key_;
+};
+
+// A silent payment output for one recipient, from one input's key pair.
+template <class Backend>
+class secp256k1_silent_payments {
+public:
+    static constexpr std::string_view operation = "a silent payment output for one recipient";
+
+    explicit secp256k1_silent_payments(std::uint8_t seed)
+        : scan_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
+                     "make")),
+          spend_key_(public_of(take(curves::secp256k1::basic_keypair<Backend>::make(
+                                        filled<32>(static_cast<std::uint8_t>(seed + 6U))),
+                                    "make"))),
+          input_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                          filled<32>(static_cast<std::uint8_t>(seed + 8U))),
+                      "make")),
+          outpoint_(filled<curves::secp256k1::silent_payments::outpoint_size>(seed)) {}
+
+    std::uint8_t run() { return send()[0]; }
+
+    bool check() {
+        namespace silent_payments = curves::secp256k1::silent_payments;
+        std::array<std::array<std::uint8_t, 32>, 1> const outputs{send()};
+        std::array<curves::secp256k1::public_key, 1> const input_keys{public_of(input_)};
+        alignas(std::max_align_t)
+            std::array<std::byte, silent_payments::summary_workspace_size(0, 1)>
+                summary_space{};
+        auto const summary = take(silent_payments::make_prevouts_summary<Backend>(
+                                      outpoint_, {}, input_keys, summary_space),
+                                  "make_prevouts_summary");
+        std::array<silent_payments::found_output, 1> found{};
+        alignas(std::max_align_t) std::array<std::byte, silent_payments::scan_workspace_size(1)>
+            scan_space{};
+        return take(silent_payments::scan_outputs(scan_, spend_key_, summary, outputs, found,
+                                                  scan_space),
+                    "scan_outputs") == 1;
+    }
+
+private:
+    static curves::secp256k1::public_key public_of(
+        curves::secp256k1::basic_keypair<Backend> const& key) {
+        return take(curves::secp256k1::parse_public_key<Backend>(take(key.public_key(), "key")),
+                    "parse_public_key");
+    }
+
+    std::array<std::uint8_t, 32> send() {
+        namespace silent_payments = curves::secp256k1::silent_payments;
+        std::array<silent_payments::recipient, 1> const recipients{
+            silent_payments::recipient{.scan_key = public_of(scan_), .spend_key = spend_key_}};
+        std::array<curves::secp256k1::basic_keypair<Backend> const*, 1> const plain_inputs{&input_};
+        std::array<std::array<std::uint8_t, 32>, 1> outputs{};
+        alignas(std::max_align_t)
+            std::array<std::byte, silent_payments::send_workspace_size(1, 0, 1)>
+                space{};
+        take(silent_payments::create_outputs<Backend>(recipients, outpoint_, {}, plain_inputs,
+                                                      outputs, space),
+             "create_outputs");
+        return outputs[0];
+    }
+
+    curves::secp256k1::basic_keypair<Backend> scan_;
+    curves::secp256k1::public_key spend_key_;
+    curves::secp256k1::basic_keypair<Backend> input_;
+    std::array<std::uint8_t, curves::secp256k1::silent_payments::outpoint_size> outpoint_{};
 };
 #endif
 

@@ -47,6 +47,16 @@ webcpp.link aes_block_ctaes : aes_block_ctaes.cpp : <library>/third_party//ctaes
 webcpp.link aes_block_openssl : aes_block_openssl.cpp : <library>/webcpp/crypto//openssl
   : native wasip2 wasip3 ;
 webcpp.link secp256k1_secp256k1 : secp256k1_secp256k1.cpp : <library>/third_party//secp256k1 ;
+webcpp.link secp256k1_secp256k1_ecdh_x : secp256k1_secp256k1_ecdh_x.cpp
+  : <library>/third_party//secp256k1 ;
+webcpp.link secp256k1_secp256k1_recover : secp256k1_secp256k1_recover.cpp
+  : <library>/third_party//secp256k1 ;
+webcpp.link secp256k1_ellswift_secp256k1 : secp256k1_ellswift_secp256k1.cpp
+  : <library>/third_party//secp256k1 ;
+webcpp.link secp256k1_musig_secp256k1 : secp256k1_musig_secp256k1.cpp
+  : <library>/third_party//secp256k1 ;
+webcpp.link secp256k1_silent_payments_secp256k1 : secp256k1_silent_payments_secp256k1.cpp
+  : <library>/third_party//secp256k1 ;
 webcpp.link ed25519_sodium : ed25519_sodium.cpp : <library>/third_party//sodium ;
 webcpp.link x25519_sodium : x25519_sodium.cpp : <library>/third_party//sodium ;
 webcpp.link chacha20_poly1305_sodium : chacha20_poly1305_sodium.cpp
@@ -61,8 +71,10 @@ webcpp.link xchacha20_poly1305_sodium : xchacha20_poly1305_sodium.cpp
   : <library>/third_party//sodium ;
 
 webcpp.program-sizes crypto : baseline : gcm_bearssl aes_block_ctaes secp256k1_secp256k1
-  ed25519_sodium x25519_sodium chacha20_poly1305_sodium chacha20_poly1305_bearssl
-  chacha20_poly1305_original_sodium xchacha20_poly1305_sodium ;
+  secp256k1_secp256k1_ecdh_x secp256k1_secp256k1_recover ed25519_sodium x25519_sodium
+  chacha20_poly1305_sodium chacha20_poly1305_bearssl chacha20_poly1305_original_sodium
+  xchacha20_poly1305_sodium secp256k1_ellswift_secp256k1 secp256k1_musig_secp256k1
+  secp256k1_silent_payments_secp256k1 ;
 webcpp.program-sizes crypto_openssl : baseline : gcm_openssl aes_block_openssl
   chacha20_poly1305_openssl : native wasip2 wasip3 ;
 

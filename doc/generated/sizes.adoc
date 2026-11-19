@@ -49,6 +49,18 @@ The lane sizes measured on 2026-11-19, at variant=release: native, clang-21 on D
 |+117,545 B, gzip +56,024 B
 |+85,827 B, gzip +34,071 B
 
+|secp256k1 on libsecp256k1: x coordinate of the ECDH shared point with a peer's public key
+|+117,152 B, gzip +81,857 B
+|+214,304 B, gzip +84,102 B
+|+216,049 B, gzip +84,945 B
+|+175,258 B, gzip +63,047 B
+
+|secp256k1 on libsecp256k1: public key recovered from an ECDSA signature of a 32-byte hash
+|+1,173,856 B, gzip +1,146,391 B
+|+1,293,150 B, gzip +1,142,527 B
+|+1,294,892 B, gzip +1,143,152 B
+|+203,439 B, gzip +71,668 B
+
 |Ed25519 on libsodium: signature of a 32-byte message
 |+86,440 B, gzip +64,421 B
 |+74,905 B, gzip +44,662 B
@@ -133,23 +145,25 @@ The lane sizes measured on 2026-11-19, at variant=release: native, clang-21 on D
 |not measured yet
 |not measured yet
 
-|ElligatorSwift on libsecp256k1: ElligatorSwift encoding of a public key
-|not measured yet
-|not measured yet
-|not measured yet
-|not measured yet
+|ElligatorSwift on libsecp256k1: BIP 324 shared secret of two ElligatorSwift encodings
+|+133,528 B, gzip +98,241 B
+|+272,419 B, gzip +103,703 B
+|+274,172 B, gzip +104,395 B
+|+229,445 B, gzip +82,050 B
 
 |MuSig2 on libsecp256k1: two-signer MuSig2 signature of a 32-byte message
-|not measured yet
-|not measured yet
-|not measured yet
-|not measured yet
+|+1,206,992 B, gzip +1,167,336 B
+|+1,353,199 B, gzip +1,161,626 B
+|+1,354,601 B, gzip +1,162,560 B
+|+250,718 B, gzip +90,694 B
 
 |BIP 352 silent payments on libsecp256k1: a silent payment output for one recipient
-|not measured yet
-|not measured yet
-|not measured yet
-|not measured yet
+|+1,190,408 B, gzip +1,154,145 B
+|+1,318,313 B, gzip +1,147,745 B
+|+1,320,113 B, gzip +1,148,250 B
+|+215,607 B, gzip +77,908 B
 |===
 
 OpenSSL: its cells differ by a few bytes whatever the operation: each fetches its algorithm by name from OpenSSL's default provider (link:https://docs.openssl.org/3.5/man7/crypto/[OpenSSL 3.5's crypto(7), algorithm fetching]), and a static link brings the provider's algorithms with it, not the operation's alone.
+
+libsecp256k1: a row that recovers a key or computes with a public point other than the generator (`recover`, MuSig2's session, a silent payment's output) links the precomputed table of libsecp256k1's variable-time multiplication too, built at window 15 natively and on WASI and at window 2 on Emscripten, the small tables (link:https://github.com/bitcoin-core/secp256k1/blob/master/configure.ac[libsecp256k1's configure.ac, the precomputed tables' trade]).

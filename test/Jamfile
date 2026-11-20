@@ -113,6 +113,17 @@ crypto-run timing_threads : timing_test.cpp
 # A public operation on a stand-in backend runs it with DIT set, and a call
 # refused before the backend still enters the guard and restores the state.
 crypto-run timing_mock : timing_mock_test.cpp ;
+# Every public function that runs a backend's code enters the guard and leaves
+# the thread's DIT as it found it: one program per backend, wherever the
+# backend is built (support/timing_coverage.hpp).
+crypto-run timing_coverage_bearssl : timing_coverage_bearssl_test.cpp
+  : <library>/third_party//bearssl ;
+crypto-run timing_coverage_openssl : timing_coverage_openssl_test.cpp
+  : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
+crypto-run timing_coverage_ctaes : timing_coverage_ctaes_test.cpp
+  : <library>/third_party//ctaes ;
+crypto-run timing_coverage_sodium : timing_coverage_sodium_test.cpp
+  : <library>/third_party//sodium ;
 # <webcpp/crypto.hpp> alone, with no backend linked, compiles, links and runs.
 crypto-run convenience_header : convenience_header_test.cpp ;
 crypto-run wipe : wipe_test.cpp ;

@@ -83,8 +83,11 @@ static_assert(sealed_box::overhead == 48);
 // smaller, 2^32 - 17, as the Doc Comment says.
 static_assert(box::max_message_size == ~std::uint64_t{0} - 16 &&
               box_xchacha::max_message_size == box::max_message_size);
+// NOLINTBEGIN(bugprone-branch-clone): libsodium's limit is its SODIUM_MIN macro, a ?: whose two
+// operands are the same value on 64-bit Linux.
 static_assert(sizeof(std::size_t) != 8 || box::max_message_size == crypto_box_MESSAGEBYTES_MAX);
 static_assert(sizeof(std::size_t) == 8 || crypto_box_MESSAGEBYTES_MAX == 0xffffffffU - 16);
+// NOLINTEND(bugprone-branch-clone)
 // Move-only: the precomputed key has one owner, which wipes it.
 static_assert(!std::is_copy_constructible_v<box> && !std::is_copy_assignable_v<box>);
 static_assert(std::is_nothrow_move_constructible_v<box> && std::is_nothrow_move_assignable_v<box>);

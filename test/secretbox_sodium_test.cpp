@@ -58,9 +58,9 @@ static_assert(secretbox_xchacha::key_size == 32 && secretbox_xchacha::iv_size ==
 static_assert(secretbox::max_message_size == ~std::uint64_t{0} - 16);
 // libsodium's own limit on a 64-bit target; on a 32-bit one libsodium's is the smaller,
 // 2^32 - 17, as the Doc Comment says.
-static_assert(sizeof(std::size_t) == 8
-                  ? secretbox::max_message_size == crypto_secretbox_MESSAGEBYTES_MAX
-                  : crypto_secretbox_MESSAGEBYTES_MAX == 0xffffffffU - 16);
+static_assert(sizeof(std::size_t) != 8 ||
+              secretbox::max_message_size == crypto_secretbox_MESSAGEBYTES_MAX);
+static_assert(sizeof(std::size_t) == 8 || crypto_secretbox_MESSAGEBYTES_MAX == 0xffffffffU - 16);
 static_assert(secretbox::max_additional_data_size == 0 &&
               secretbox_xchacha::max_additional_data_size == 0);
 

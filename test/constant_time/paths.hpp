@@ -521,8 +521,10 @@ int secp256k1_musig() {
     int const failures =
         check(carries_mark<Checker>(bytes_of(own_nonce->secret_part)), "secp256k1's nonce_gen");
     Checker::mark_public(bytes_of(own_nonce->public_part));
-    std::array<musig::public_nonce, 2> const nonces{own_nonce->public_part,
-                                                    other_nonce->public_part};
+    std::array<musig::public_nonce, 2> const nonces{
+        own_nonce->public_part,
+        other_nonce->public_part,
+    };
     auto const nonce_sum = musig::nonce_aggregate<backend>(nonces, space);
     if (!nonce_sum) {
         return failures + check(false, "secp256k1's nonce_aggregate");
@@ -567,7 +569,8 @@ int secp256k1_silent_payments() {
         return check(false, "secp256k1's public keys for silent payments");
     }
     std::array<silent_payments::recipient, 1> const recipients{
-        silent_payments::recipient{.scan_key = *scan_key, .spend_key = *spend_key}};
+        silent_payments::recipient{.scan_key = *scan_key, .spend_key = *spend_key},
+    };
     std::array<std::uint8_t, silent_payments::outpoint_size> outpoint{};
     outpoint.fill(0x01);
     std::array<secp256k1_pair const*, 1> const plain_inputs{&*input_pair};

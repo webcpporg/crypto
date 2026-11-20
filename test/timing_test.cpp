@@ -41,8 +41,7 @@ void force_dit([[maybe_unused]] bool set) {
     if (!detail::cpu_has_dit()) {
         return;
     }
-    std::uint64_t const value = set ? detail::dit_bit : 0;
-    __asm__ volatile("msr s3_3_c4_c2_5, %0\n\tisb" : : "r"(value) : "memory");
+    detail::write_dit(set ? detail::dit_bit : 0);
 #endif
 }
 

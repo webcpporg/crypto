@@ -116,7 +116,10 @@ inline void write_dit(std::uint64_t value) noexcept {
  * only. A guard that finds DIT set does nothing and leaves it set: the program set it itself (as
  * Apple's `timingsafe_enable_if_supported` does), or an outer guard did, so that guards nest and
  * a thread whose program asked for DIT keeps it after every call. DIT is a thread's own state,
- * so a guard never changes another thread's.
+ * so a guard never changes another thread's. The writes' `memory` clobber orders them against
+ * memory accesses and calls (the backends' out-of-line C calls, equal's volatile accumulator),
+ * not against arithmetic on registers alone, which the compiler may move across them: the same
+ * limit as every program that sets DIT.
  */
 class timing_guard {
 public:

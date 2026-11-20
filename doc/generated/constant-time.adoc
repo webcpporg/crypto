@@ -13,8 +13,8 @@
 
 |BearSSL
 |by design: `+aes_ct64+` and `+ghash_ctmul64+`, or AES-NI and PCLMUL where the CPU has them; on a 32-bit host a 64-bit multiplication may not be constant time, which BearSSL documents; link:https://www.bearssl.org/constanttime.html[BearSSL, constant-time crypto]; link:https://www.bearssl.org/ctmul.html[BearSSL, constant-time multiplications]
-|Valgrind's memcheck (Linux): AES-GCM, ChaCha20-Poly1305; MemorySanitizer (Linux, clang): AES-GCM, ChaCha20-Poly1305; dudect: AES-GCM, ChaCha20-Poly1305
-|dudect: AES-GCM, ChaCha20-Poly1305
+|Valgrind's memcheck (Linux): AES-GCM, ChaCha20-Poly1305; MemorySanitizer (Linux, clang): AES-GCM, ChaCha20-Poly1305; dudect (judged off the runners GitHub hosts): AES-GCM, ChaCha20-Poly1305
+|dudect (judged off the runners GitHub hosts): AES-GCM, ChaCha20-Poly1305
 |not measured yet
 |not measured yet
 
@@ -27,22 +27,22 @@
 
 |ctaes
 |by design: bitsliced, no table and no branch on secret data; link:https://github.com/bitcoin/bitcoin/tree/master/src/crypto/ctaes[ctaes, constant-time AES]
-|Valgrind's memcheck (Linux): AES block cipher; MemorySanitizer (Linux, clang): AES block cipher; dudect: AES block cipher
-|dudect: AES block cipher
+|Valgrind's memcheck (Linux): AES block cipher; MemorySanitizer (Linux, clang): AES block cipher; dudect (judged off the runners GitHub hosts): AES block cipher
+|dudect (judged off the runners GitHub hosts): AES block cipher
 |not measured yet
 |not measured yet
 
 |libsecp256k1
 |by design: signing and key generation are constant time and constant memory access; link:https://github.com/bitcoin-core/secp256k1#readme[libsecp256k1's README]
-|Valgrind's memcheck (Linux): secp256k1 (libsecp256k1's own `+ctime_tests.c+`, and webcpp's code around it: the key pair's making, its signatures and x-only tweak, ECDH in three forms, the secret key's tweaks and negation, and PKCS#8), ElligatorSwift (libsecp256k1's own `+ctime_tests.c+`, and webcpp's `+ellswift_create+` and `+ellswift_xdh+` around it), MuSig2 (libsecp256k1's own `+ctime_tests.c+`, and webcpp's `+nonce_gen+` and `+partial_sign+` around it), BIP 352 silent payments (libsecp256k1's own `+ctime_tests.c+`, and webcpp's `+create_outputs+`, `+create_label+` and `+scan_outputs+` around it, each workspace's wipe included); MemorySanitizer (Linux, clang): secp256k1 (the same paths as memcheck's), ElligatorSwift (the same paths as memcheck's), MuSig2 (the same paths as memcheck's), BIP 352 silent payments (the same paths as memcheck's); dudect: secp256k1 (`+ecdh_x+`)
-|dudect: secp256k1 (`+ecdh_x+`)
+|Valgrind's memcheck (Linux): secp256k1 (libsecp256k1's own `+ctime_tests.c+`, and webcpp's code around it: the key pair's making, its signatures and x-only tweak, ECDH in three forms, the secret key's tweaks and negation, and PKCS#8), ElligatorSwift (libsecp256k1's own `+ctime_tests.c+`, and webcpp's `+ellswift_create+` and `+ellswift_xdh+` around it), MuSig2 (libsecp256k1's own `+ctime_tests.c+`, and webcpp's `+nonce_gen+` and `+partial_sign+` around it), BIP 352 silent payments (libsecp256k1's own `+ctime_tests.c+`, and webcpp's `+create_outputs+`, `+create_label+` and `+scan_outputs+` around it, each workspace's wipe included); MemorySanitizer (Linux, clang): secp256k1 (the same paths as memcheck's), ElligatorSwift (the same paths as memcheck's), MuSig2 (the same paths as memcheck's), BIP 352 silent payments (the same paths as memcheck's); dudect (judged off the runners GitHub hosts): secp256k1 (`+ecdh_x+`)
+|dudect (judged off the runners GitHub hosts): secp256k1 (`+ecdh_x+`)
 |not measured yet
 |not measured yet
 
 |libsodium
 |by its documentation for the paths crypto calls, without a guarantee for the whole library: secrets are compared in constant time (link:https://doc.libsodium.org/internals#branches[libsodium's documentation, internals: branches]), ChaCha20 is not sensitive to timing attacks (link:https://doc.libsodium.org/secret-key_cryptography/aead[libsodium's documentation, AEAD constructions: ChaCha20 and timing attacks]), and Ed25519 and X25519 come from designs with no secret branch and no secret array index (link:https://ed25519.cr.yp.to/[Ed25519's design: no secret branch conditions, no secret array indices]); webcpp's lane checks each path it calls
-|Valgrind's memcheck (Linux): Ed25519, X25519, crypto_kx, ChaCha20-Poly1305, original ChaCha20-Poly1305, XChaCha20-Poly1305, XSalsa20-Poly1305 secret box, XChaCha20-Poly1305 secret box, X25519-XSalsa20-Poly1305 box, X25519-XChaCha20-Poly1305 box, X25519-XSalsa20-Poly1305 sealed box; MemorySanitizer (Linux, clang): Ed25519, X25519, crypto_kx, ChaCha20-Poly1305, original ChaCha20-Poly1305, XChaCha20-Poly1305, XSalsa20-Poly1305 secret box, XChaCha20-Poly1305 secret box, X25519-XSalsa20-Poly1305 box, X25519-XChaCha20-Poly1305 box, X25519-XSalsa20-Poly1305 sealed box; dudect: Ed25519, X25519 (X25519 measured differently, below)
-|dudect: Ed25519, X25519 (X25519 measured differently, below)
+|Valgrind's memcheck (Linux): Ed25519, X25519, crypto_kx, ChaCha20-Poly1305, original ChaCha20-Poly1305, XChaCha20-Poly1305, XSalsa20-Poly1305 secret box, XChaCha20-Poly1305 secret box, X25519-XSalsa20-Poly1305 box, X25519-XChaCha20-Poly1305 box, X25519-XSalsa20-Poly1305 sealed box; MemorySanitizer (Linux, clang): Ed25519, X25519, crypto_kx, ChaCha20-Poly1305, original ChaCha20-Poly1305, XChaCha20-Poly1305, XSalsa20-Poly1305 secret box, XChaCha20-Poly1305 secret box, X25519-XSalsa20-Poly1305 box, X25519-XChaCha20-Poly1305 box, X25519-XSalsa20-Poly1305 sealed box; dudect (judged off the runners GitHub hosts): Ed25519, X25519 (X25519 measured differently, below)
+|dudect (judged off the runners GitHub hosts): Ed25519, X25519 (X25519 measured differently, below)
 |not measured yet
 |not measured yet
 
@@ -55,8 +55,8 @@
 
 |no backend
 |`+equal+` is constant time in the contents: every byte is read, no branch and no index depends on one
-|Valgrind's memcheck (Linux): `+equal+`, `+is_all_zero+` and the wipe of `+secret<N>+`; MemorySanitizer (Linux, clang): `+equal+`, `+is_all_zero+` and the wipe of `+secret<N>+`; dudect: `+equal+`
-|dudect: `+equal+`
+|Valgrind's memcheck (Linux): `+equal+`, `+is_all_zero+` and the wipe of `+secret<N>+`; MemorySanitizer (Linux, clang): `+equal+`, `+is_all_zero+` and the wipe of `+secret<N>+`; dudect (judged off the runners GitHub hosts): `+equal+`
+|dudect (judged off the runners GitHub hosts): `+equal+`
 |not measured yet
 |not measured yet
 |===

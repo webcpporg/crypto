@@ -222,17 +222,26 @@ inline double largest_t(std::vector<double> const& timings, std::vector<int> con
 }
 
 /**
- * Draws `Size` bytes, then copies into `input` either `fixed`, for class 0, or the drawn bytes,
- * for class 1. Both classes draw the same bytes and store the same way: the source is chosen
- * through a volatile pointer, which the compiler cannot see through, so that it cannot split
- * the copy by class into a store of constants for one and of drawn bytes for the other. Such
- * a split, which an optimiser makes of `which == 0 ? 0 : drawn`, leaks the class into the
- * measured call (measured natively on an Apple M5, 2026-11-18: |t| 16 to 18 on equal and 9 to
- * 26 on open with the split, below 3 for both through this copy).
+ * Draws `Size` bytes, then writes into `input` either `fixed`, for class 0, or the drawn bytes,
+ * for class 1, so that the two classes differ in the bytes written and in nothing else. Both
+ * classes draw the same bytes, read both `fixed` and the drawn bytes, and write `input` with the
+ * same instructions: each byte is blended through a mask read from a volatile, which the
+ * compiler cannot see through, so that it can neither split the work by class nor read one
+ * source alone. Whatever a class does differently before the measured call leaks the class into
+ * it. A copy from a volatile pointer to the chosen source (until 2026-11-20) read the fixed
+ * input for class 0 and the bytes just drawn, still in the store buffer, for class 1: on the
+ * CI's x86-64 runners the measured call then differed by class whatever it computed (measured
+ * on GitHub's ubuntu-24.04 runners, 2026-11-20: equal at |t| 31 to 56 on an Intel Xeon 6975P-C
+ * and ChaCha20-Poly1305's seal at 28 to 85 on AMD EPYC 9V45 and 9V74; through this blend, on
+ * the Xeon, the EPYC 9V74 and an AMD EPYC 7763, idle and with every processor busy, every case
+ * of 23 runs of 24 stayed below 4.4, the 24th is in `judged`). Before it,
+ * a choice the optimiser made of `which == 0 ? 0 : drawn` split the copy into a store of
+ * constants and a store of drawn bytes (measured natively on an Apple M5, 2026-11-18: |t| 16 to
+ * 18 on equal and 9 to 26 on open with the split, below 3 for both without it).
  * @param which The class, 0 or 1.
  * @param generator The seeded generator.
  * @param fixed The class 0 input.
- * @param input Where the input of the class is copied.
+ * @param input Where the input of the class is written.
  */
 template <std::size_t Size, class Generator>
 void choose(int which, Generator& generator, std::array<std::uint8_t, Size> const& fixed,
@@ -241,9 +250,13 @@ void choose(int which, Generator& generator, std::array<std::uint8_t, Size> cons
     for (auto& byte : drawn) {
         byte = static_cast<std::uint8_t>(generator());
     }
-    std::uint8_t const* volatile chosen = which == 0 ? fixed.data() : drawn.data();
-    std::uint8_t const* const source = chosen;
-    std::copy(source, source + Size, input.begin());
+    std::uint8_t volatile const chosen = which == 0 ? 0xFFU : 0x00U;
+    unsigned const keep = chosen;
+    unsigned const drop = keep ^ 0xFFU;
+    for (std::size_t index = 0; index < Size; ++index) {
+        input[index] = static_cast<std::uint8_t>((unsigned{fixed[index]} & keep) |
+                                                 (unsigned{drawn[index]} & drop));
+    }
 }
 
 /**
@@ -289,6 +302,41 @@ template <class Prepare, class Run>
 double twice(std::size_t count, Prepare&& prepare, Run&& run) {
     double const first = measure(20261011, count, prepare, run);
     return first < 10 ? first : (std::min)(first, measure(20261012, count, prepare, run));
+}
+
+/**
+ * Whether this build's verdict is judged: false where the lane's Jamfile defines
+ * WEBCPP_TEST_DUDECT_UNJUDGED, on a runner GitHub hosts (RUNNER_ENVIRONMENT=github-hosted), true
+ * elsewhere. A hosted runner is a virtual machine shared with other tenants, whose processor
+ * changes from one run to the next (an Intel Xeon 6975P-C, an AMD EPYC 7763, 9V45 or 9V74 on
+ * 2026-11-20), and there |t| moved with what the measurement could not control: through the
+ * class-blind preparation of `choose`, one run of 24 read |t| 69.8 on ChaCha20-Poly1305's open,
+ * on both seeds, where the 23 others read below 4.4 (an AMD EPYC 7763, idle); through the
+ * earlier copy, a measured call that does nothing read up to 117 with every processor busy. A
+ * verdict there would pass or fail with the machine drawn, so it prints its |t| and passes;
+ * Valgrind's memcheck and MemorySanitizer, which do not measure time, are judged there. dudect
+ * is judged wherever else the lane runs, natively and on wasip2, on a machine of one's own;
+ * dudect_planted is judged everywhere, as it shows that the measurement still finds a leak of a
+ * few nanoseconds on the machine it ran on.
+ */
+#ifdef WEBCPP_TEST_DUDECT_UNJUDGED
+inline constexpr bool judged = false;
+#else
+inline constexpr bool judged = true;
+#endif
+
+/**
+ * The exit status of a dudect program: 0 when every case passes, else 1, where `judged`; 0
+ * elsewhere, after a line that says so.
+ * @param passes Whether every case's |t| is below the threshold.
+ * @return The exit status.
+ */
+inline int verdict(bool passes) noexcept {
+    if (!judged) {
+        std::printf("printed, not judged: a runner GitHub hosts (dudect.hpp, judged)\n");
+        return 0;
+    }
+    return passes ? 0 : 1;
 }
 
 }  // namespace webcpp::test

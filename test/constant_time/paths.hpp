@@ -568,9 +568,8 @@ int secp256k1_silent_payments() {
     if (!scan_key || !spend_key || !input_key) {
         return check(false, "secp256k1's public keys for silent payments");
     }
-    std::array<silent_payments::recipient, 1> const recipients{
-        silent_payments::recipient{.scan_key = *scan_key, .spend_key = *spend_key},
-    };
+    silent_payments::recipient const recipient{.scan_key = *scan_key, .spend_key = *spend_key};
+    std::array<silent_payments::recipient, 1> const recipients{recipient};
     std::array<std::uint8_t, silent_payments::outpoint_size> outpoint{};
     outpoint.fill(0x01);
     std::array<secp256k1_pair const*, 1> const plain_inputs{&*input_pair};

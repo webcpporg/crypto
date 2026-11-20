@@ -20,6 +20,7 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the nonce's session randomness
@@ -85,6 +86,7 @@ public:
      * @return 32 bytes, the tweaks included.
      */
     [[nodiscard]] std::array<std::uint8_t, 32> xonly_public_key() const noexcept {
+        detail::timing_guard const timing;
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         secp256k1_selftest();
         public_key full_key = full_public_key();
@@ -105,6 +107,7 @@ public:
      * @return The key, the tweaks included.
      */
     [[nodiscard]] public_key full_public_key() const noexcept {
+        detail::timing_guard const timing;
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         secp256k1_selftest();
         using access = webcpp::crypto::detail::secp256k1_access;
@@ -127,6 +130,7 @@ public:
      */
     [[nodiscard]] boost::system::result<void> tweak_add(
         std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
+        detail::timing_guard const timing;
         return tweaked(tweak_bytes, secp256k1_musig_pubkey_ec_tweak_add);
     }
 
@@ -140,6 +144,7 @@ public:
      */
     [[nodiscard]] boost::system::result<void> tweak_xonly_add(
         std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
+        detail::timing_guard const timing;
         return tweaked(tweak_bytes, secp256k1_musig_pubkey_xonly_tweak_add);
     }
 
@@ -310,6 +315,7 @@ struct nonce_pair {
 template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<aggregate_key> key_aggregate(
     std::span<public_key const> signer_keys, workspace pointer_space) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -358,6 +364,7 @@ template <class Backend>
     basic_keypair<Backend> const& signer, aggregate_key const& signers_key,
     std::span<std::uint8_t const> message_hash = {},
     std::span<std::uint8_t const> extra_input = {}) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -412,6 +419,7 @@ template <class Backend>
 template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<aggregate_nonce> nonce_aggregate(
     std::span<public_nonce const> signer_nonces, workspace pointer_space) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -452,6 +460,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<session> nonce_process(
     aggregate_nonce const& nonce_sum, std::span<std::uint8_t const, 32> message_bytes,
     aggregate_key const& signers_key) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -482,6 +491,7 @@ template <class Backend>
 [[nodiscard]] boost::system::result<partial_signature> partial_sign(
     basic_keypair<Backend> const& signer, secret_nonce signer_nonce,
     aggregate_key const& signers_key, session const& signing_session) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -529,6 +539,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
     partial_signature const& signature_part, public_nonce const& signer_nonce,
     public_key const& signer_key, aggregate_key const& signers_key,
     session const& signing_session) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -559,6 +570,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> partial_signature_aggregate(
     session const& signing_session, std::span<partial_signature const> signature_parts,
     workspace pointer_space) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -598,6 +610,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
 template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<public_nonce> parse_public_nonce(
     std::span<std::uint8_t const> encoded_nonce) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -624,6 +637,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
 template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] std::array<std::uint8_t, public_nonce_size> serialize_public_nonce(
     public_nonce const& parsed_nonce) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -648,6 +662,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
 template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<aggregate_nonce> parse_aggregate_nonce(
     std::span<std::uint8_t const> encoded_nonce) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -674,6 +689,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
 template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] std::array<std::uint8_t, aggregate_nonce_size> serialize_aggregate_nonce(
     aggregate_nonce const& parsed_nonce) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -697,6 +713,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
 template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] boost::system::result<partial_signature> parse_partial_signature(
     std::span<std::uint8_t const> encoded_signature) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -724,6 +741,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
 template <class Backend = default_backend_t<families::secp256k1_musig>>
 [[nodiscard]] std::array<std::uint8_t, partial_signature_size> serialize_partial_signature(
     partial_signature const& parsed_signature) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);

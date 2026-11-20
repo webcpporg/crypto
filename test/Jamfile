@@ -124,6 +124,8 @@ crypto-run timing_coverage_ctaes : timing_coverage_ctaes_test.cpp
   : <library>/third_party//ctaes ;
 crypto-run timing_coverage_sodium : timing_coverage_sodium_test.cpp
   : <library>/third_party//sodium ;
+crypto-run timing_coverage_secp256k1 : timing_coverage_secp256k1_test.cpp
+  : <library>/third_party//secp256k1 ;
 # The specification's scenarios on libsodium's Ed25519: a thread whose DIT is
 # clear finds it clear after sign, one that set it finds it still set.
 crypto-run timing_sodium : timing_sodium_test.cpp : <library>/third_party//sodium ;

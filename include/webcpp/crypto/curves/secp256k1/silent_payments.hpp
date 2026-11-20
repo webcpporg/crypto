@@ -22,6 +22,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/secret.hpp>
 
@@ -299,6 +300,7 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
     std::span<std::type_identity_t<basic_keypair<Backend>> const* const> taproot_inputs,
     std::span<std::type_identity_t<basic_keypair<Backend>> const* const> plain_inputs,
     std::span<std::array<std::uint8_t, 32>> output_keys, workspace pointer_space) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
                                                          Backend>);
@@ -390,6 +392,7 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
 template <class Backend>
 [[nodiscard]] boost::system::result<label> create_label(basic_keypair<Backend> const& scan_key,
                                                         std::uint32_t label_number) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
                                                          Backend>);
@@ -429,6 +432,7 @@ template <class Backend>
 template <class Backend = default_backend_t<families::secp256k1_silent_payments>>
 [[nodiscard]] boost::system::result<public_key> create_labeled_spend_key(
     public_key const& spend_key, label const& address_label) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
                                                          Backend>);
@@ -468,6 +472,7 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
     std::span<std::uint8_t const, outpoint_size> smallest_outpoint,
     std::span<std::array<std::uint8_t, 32> const> taproot_input_keys,
     std::span<public_key const> plain_input_keys, workspace pointer_space) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
                                                          Backend>);
@@ -541,6 +546,7 @@ template <class Backend, label_lookup LabelLookup = no_labels>
     prevouts_summary const& summary, std::span<std::array<std::uint8_t, 32> const> output_keys,
     std::span<found_output> found, workspace pointer_space,
     LabelLookup const& label_lookup = {}) noexcept {
+    detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
                                                          Backend>);

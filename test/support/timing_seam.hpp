@@ -161,41 +161,78 @@ inline std::string_view qualifier_before(std::string_view text, std::size_t sepa
 }
 
 /**
- * Whether a `function_name()` is the named function: the identifier, after `::` and followed by
- * its parameter list or its template arguments, qualified by the named scope, and its parameter
- * list holding the named word. A lambda's (`(lambda)`, `(anonymous class)`, `<lambda()>`,
- * `<lambda_1>`) never is: a guard belongs at the top of the public function, not in a lambda in
- * it.
+ * The position of the `(` that opens a function's own parameter list in a normalized
+ * `function_name()`: the one matching its last `)`, so that parentheses and template arguments in
+ * the return type and the parameter types are skipped.
+ *
+ * @param text A normalized `function_name()`.
+ * @return The position, or `npos` when there is no parameter list.
+ */
+inline std::size_t parameter_list_of(std::string_view text) {
+    std::size_t position = text.rfind(')');
+    if (position == std::string_view::npos) {
+        return position;
+    }
+    std::size_t depth = 0;
+    while (true) {
+        if (text[position] == ')') {
+            ++depth;
+        } else if (text[position] == '(' && --depth == 0) {
+            return position;
+        }
+        if (position == 0) {
+            return std::string_view::npos;
+        }
+        --position;
+    }
+}
+
+/**
+ * Whether a `function_name()` is the named function: its own name, the qualified name before its
+ * outermost parameter list (and before the template arguments MSVC writes there), ends with
+ * `::<scope>::<identifier>`, its scope read without template arguments, and its parameter list
+ * holds the named word. A name in the return type or a parameter type never counts, a named
+ * function without a scope never matches, and a lambda's (`(lambda)`, `(anonymous class)`,
+ * `<lambda()>`, `<lambda_1>`) never is: a guard belongs at the top of the public function, not in
+ * a lambda in it.
  *
  * @param entered A `function_name()`, as clang, GCC or MSVC spells it.
  * @param named The function a check names.
  * @return Whether `entered` is `named`.
  */
 inline bool names_function(std::string_view entered, named_function const& named) {
-    if (entered.find("lambda") != std::string_view::npos ||
+    if (named.scope.empty() || entered.find("lambda") != std::string_view::npos ||
         entered.find("anonymous class") != std::string_view::npos) {
         return false;
     }
-    std::string const text = normalized_function_name(entered);
-    std::string const needle = "::" + named.identifier;
-    for (std::size_t found = text.find(needle); found != std::string::npos;
-         found = text.find(needle, found + 1)) {
-        std::size_t const after = found + needle.size();
-        if (after >= text.size() || (text[after] != '(' && text[after] != '<')) {
-            continue;
-        }
-        if (!named.scope.empty() && qualifier_before(text, found) != named.scope) {
-            continue;
-        }
-        if (named.parameter.empty()) {
-            return true;
-        }
-        std::string_view const rest = std::string_view(text).substr(after);
-        if (rest.substr(0, rest.find(')')).find(named.parameter) != std::string_view::npos) {
-            return true;
-        }
+    std::string const normal = normalized_function_name(entered);
+    std::string_view const text = normal;
+    std::size_t const open = parameter_list_of(text);
+    if (open == std::string_view::npos) {
+        return false;
     }
-    return false;
+    std::string const needle = "::" + named.identifier;
+    std::string_view name = text.substr(0, open);
+    if (!name.ends_with(needle) && name.ends_with('>')) {
+        // MSVC writes a function template's arguments after its name: armour<struct ...>(.
+        std::size_t depth = 0;
+        std::size_t end = name.size();
+        while (end > 0) {
+            --end;
+            if (name[end] == '>') {
+                ++depth;
+            } else if (name[end] == '<' && --depth == 0) {
+                break;
+            }
+        }
+        name = name.substr(0, end);
+    }
+    if (!name.ends_with(needle) ||
+        qualifier_before(text, name.size() - needle.size()) != named.scope) {
+        return false;
+    }
+    std::string_view const parameters = text.substr(open, text.rfind(')') - open);
+    return named.parameter.empty() || parameters.find(named.parameter) != std::string_view::npos;
 }
 
 /**
@@ -215,6 +252,10 @@ void require_enters(std::string_view name, std::string_view function, Call&& cal
     std::forward<Call>(call)();
     if (timing_entries == before) {
         std::string const message = std::string(name) + " did not enter detail::timing_guard";
+        BOOST_ERROR(message.c_str());
+    } else if (function_named(function).scope.empty()) {
+        std::string const message =
+            std::string(name) + " names no scope: give the function, <scope>::<identifier>";
         BOOST_ERROR(message.c_str());
     } else if (!names_function(timing_first_entry, function_named(function))) {
         std::string const message = std::string(name) +

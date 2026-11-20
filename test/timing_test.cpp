@@ -81,8 +81,8 @@ void seam_names_function() {
         std::string_view const entered = webcpp::test::timing_first_entry;
         BOOST_TEST(webcpp::test::names_function(
             entered, webcpp::test::function_named("seam_probe::guarded_function")));
-        BOOST_TEST(webcpp::test::names_function(entered,
-                                                webcpp::test::function_named("guarded_function")));
+        BOOST_TEST(!webcpp::test::names_function(entered,
+                                                 webcpp::test::function_named("guarded_function")));
         BOOST_TEST(!webcpp::test::names_function(
             entered, webcpp::test::function_named("seam_probe::forwarding_function")));
         BOOST_TEST(!webcpp::test::names_function(
@@ -120,6 +120,20 @@ void names_function_spellings() {
     BOOST_TEST(
         !names("bool ns::equal(std::span<const unsigned char>, std::span<const unsigned char>)",
                "ns::equal(digest"));
+    BOOST_TEST(
+        names("bool __cdecl ns::equal<16>(const class ns::digest<16> &)", "ns::equal(digest"));
+    // A name in the return type or a parameter type is not the function's own.
+    BOOST_TEST(!names("int ns::other(ns::pem::armour<int>, int) [with B = int]", "pem::armour"));
+    BOOST_TEST(!names("int ns::other(ns::pem::armour(int)) [with B = int]", "pem::armour"));
+    BOOST_TEST(!names("ns::pem::armour<int> ns::make(int) [B = int]", "pem::armour"));
+    BOOST_TEST(!names("struct ns::pem::armour<int> __cdecl ns::make<int>(int)", "pem::armour"));
+    BOOST_TEST(!names("ns::algorithm<ns::pem::armour<int>>::seal(int)", "pem::armour"));
+    BOOST_TEST(names("ns::pem::armour<int> ns::pem::armour(ns::pem::armour<int>)", "pem::armour"));
+    // A function named without a scope never matches.
+    BOOST_TEST(!names("int ns::pem::armour(int) [with B = int]", "armour"));
+    BOOST_TEST(names("auto ns::pk::operator<=>(const pk &) const", "pk::operator<=>"));
+    BOOST_TEST(
+        names("auto __cdecl ns::pk::operator <=>(const struct ns::pk &) const", "pk::operator<=>"));
     BOOST_TEST(!names("auto ns::f()::(anonymous class)::operator()() const", "ns::f"));
     BOOST_TEST(!names("auto ns::f()::(lambda)::operator()() const", "ns::f"));
     BOOST_TEST(!names("ns::f()::<lambda()>", "ns::f"));

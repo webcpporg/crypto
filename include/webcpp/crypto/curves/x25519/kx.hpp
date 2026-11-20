@@ -23,6 +23,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: random_device draws generate()'s seed
 #include <webcpp/crypto/secret.hpp>
@@ -102,6 +103,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<kx_keypair> make(
         std::span<std::uint8_t const> seed) noexcept {
+        detail::timing_guard const timing;
         if (seed.size() != seed_size) {
             return error::invalid_key_size;
         }
@@ -121,6 +123,7 @@ public:
      * none; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<kx_keypair> generate() noexcept {
+        detail::timing_guard const timing;
         secret<seed_size> seed;
         auto const drawn = random_device().fill(seed.writable());  // lint-world: the seed
         if (!drawn) {
@@ -189,6 +192,7 @@ public:
      */
     [[nodiscard]] boost::system::result<session_keys> client_session_keys(
         std::span<std::uint8_t const> server_public_key) const noexcept {
+        detail::timing_guard const timing;
         return session<true>(server_public_key);
     }
 
@@ -202,6 +206,7 @@ public:
      */
     [[nodiscard]] boost::system::result<session_keys> server_session_keys(
         std::span<std::uint8_t const> client_public_key) const noexcept {
+        detail::timing_guard const timing;
         return session<false>(client_public_key);
     }
 

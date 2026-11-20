@@ -23,6 +23,7 @@
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/secret.hpp>
 
@@ -131,6 +132,7 @@ template <class Backend = default_backend_t<families::ed25519>>
 template <class Backend = default_backend_t<families::ed25519>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> decode_spki(
     std::span<std::uint8_t const> spki) noexcept {
+    detail::timing_guard const timing;
     if (spki.size() != max_spki_size) {
         return error::invalid_encoding;
     }
@@ -181,6 +183,7 @@ template <class Backend = default_backend_t<families::ed25519>>
 template <class Backend = default_backend_t<families::ed25519>>
 [[nodiscard]] boost::system::result<basic_keypair<Backend>> decode_pkcs8(
     std::span<std::uint8_t const> pkcs8) noexcept {
+    detail::timing_guard const timing;
     if (pkcs8.size() != max_pkcs8_size) {
         return error::invalid_encoding;
     }

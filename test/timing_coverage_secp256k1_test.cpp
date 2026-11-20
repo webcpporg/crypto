@@ -329,8 +329,11 @@ void cover_ellswift() {
     covered("secp256k1::ellswift_encode on secp256k1",
             [&] { encoded = secp::ellswift_encode(responder_key, randomness); });
     BOOST_TEST(secp::ellswift_decode(encoded) == responder_key);
+    // Each check calls the function alone: the comparison, guarded too, runs after it.
+    std::optional<secp::public_key> decoded;
     covered("secp256k1::ellswift_decode on secp256k1",
-            [&] { BOOST_TEST(secp::ellswift_decode(*responder_encoding) == responder_key); });
+            [&] { decoded = secp::ellswift_decode(*responder_encoding); });
+    BOOST_TEST((decoded && *decoded == responder_key));
     covered("secp256k1::ellswift_create on secp256k1",
             [&] { BOOST_TEST(secp::ellswift_create(initiator, randomness).has_value()); });
     covered("secp256k1::ellswift_xdh on secp256k1", [&] {
@@ -421,8 +424,10 @@ void cover_musig_key() {
     covered_around_callee("musig::aggregate_key::xonly_public_key on secp256k1",
                           [&] { xonly_key = aggregate->xonly_public_key(); });
     BOOST_TEST(xonly_key != bytes32{});
+    std::optional<secp::public_key> full_key;
     covered("musig::aggregate_key::full_public_key on secp256k1",
-            [&] { BOOST_TEST(!(aggregate->full_public_key() == keys[0])); });
+            [&] { full_key = aggregate->full_public_key(); });
+    BOOST_TEST((full_key && !(*full_key == keys[0])));
     covered("musig::aggregate_key::tweak_add on secp256k1",
             [&] { BOOST_TEST(aggregate->tweak_add(tweak).has_value()); });
     covered("musig::aggregate_key::tweak_xonly_add on secp256k1",
@@ -798,8 +803,10 @@ void cover_tweaks() {
             [&] { BOOST_TEST(secp::pubkey_tweak_add(keys[0], tweak).has_value()); });
     covered("secp256k1::pubkey_tweak_mul on secp256k1",
             [&] { BOOST_TEST(secp::pubkey_tweak_mul(keys[0], tweak).has_value()); });
+    std::optional<secp::public_key> negated;
     covered("secp256k1::pubkey_negate on secp256k1",
-            [&] { BOOST_TEST(!(secp::pubkey_negate(keys[0]) == keys[0])); });
+            [&] { negated = secp::pubkey_negate(keys[0]); });
+    BOOST_TEST((negated && !(*negated == keys[0])));
     auto space = lent(secp::combine_workspace_size(keys.size()));
     covered("secp256k1::pubkey_combine on secp256k1",
             [&] { BOOST_TEST(secp::pubkey_combine(keys, space).has_value()); });
@@ -872,6 +879,8 @@ void throwing_resource_restores_state() {
         return;
     }
     auto const make = [&] { static_cast<void>(secp::keypair::make(secret_key, &resource)); };
+    // decode_pkcs8 reaches the resource through make, guarded too: its own entry is checked by
+    // cover_formats' refusal; here the subject is the state the unwinding leaves.
     auto const decode = [&] {
         static_cast<void>(secp::decode_pkcs8(std::span<std::uint8_t const>(pkcs8), &resource));
     };

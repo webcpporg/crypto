@@ -95,6 +95,6 @@ int main() {
 #endif
     std::printf("|t| X25519 agreement %.2f%s, Ed25519 signing %.2f (threshold 10)\n", agree_t,
                 agree_note, sign_t);
-    return agree_passes && sign_t < 10 ? 0 : 1;
+    return webcpp::test::verdict(agree_passes && sign_t < 10);
 #endif
 }

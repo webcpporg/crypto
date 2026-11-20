@@ -64,5 +64,5 @@ int main() {
         [&] { static_cast<void>(pair->ecdh_x(*peer_key)); });
 
     std::printf("|t| secp256k1 ecdh_x %.2f (threshold 10)\n", agree_t);
-    return agree_t < 10 ? 0 : 1;
+    return webcpp::test::verdict(agree_t < 10);
 }

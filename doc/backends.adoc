@@ -122,6 +122,18 @@ experiment and not the lane, the case passes. The WebAssembly cannot set it,
 so the lane prints its value on wasip2 without judging it, and judges
 everything else.
 
+dudect's two classes differ in the secret's bytes and in nothing else: the
+preparation of each measurement reads both inputs and writes the secret with
+the same instructions whatever the class, since anything a class does
+differently before the measured call shows in its time. On a runner GitHub
+hosts, a virtual machine shared with other tenants whose processor changes from
+run to run, the lane prints each dudect |t| and judges none but
+`dudect_planted`'s: measured there on 2026-11-20 on three processors, 23 runs of
+24 stayed below 4.4 and one read 69.8, on both seeds, on a case below 4.4 in
+every other run, so a verdict there would pass or fail with the machine drawn.
+Valgrind's memcheck and MemorySanitizer, which do not measure time, are judged
+there; dudect is judged wherever else the lane runs, on a machine of one's own.
+
 Whether a tag matched, or a shared secret came out all zero, is public by
 design, since the operation reports it, but it is computed from the secrets: it
 is the one kind of value webcpp marks public, where webcpp's code first

@@ -122,7 +122,7 @@ path-constant SODIUM : ../../../../third_party/libs/libsodium ;
 # The peek reads that project's private names: a rename or a respelling of any
 # of them there stops this build here, rather than build libsodium with part of
 # its configuration missing or with its inline assembly back in.
-import errors modules project set ;
+import errors modules os project set ;
 local third-party = [ project.find /third_party : . ] ;
 local sodium-peeked ;
 for local name in .sodium-common .sodium-posix .sodium-linux
@@ -217,15 +217,24 @@ webcpp.run secp256k1_ctime_msan : $(SECP256K1_CTIME)
 
 # dudect's statistics on BearSSL, ctaes and equal, on libsodium's X25519 and
 # Ed25519, and on libsecp256k1's ecdh_x, natively and under wasmtime; under DIT
-# on macOS and Linux on arm64 only (dudect.hpp), without it elsewhere.
+# on macOS and Linux on arm64 only (dudect.hpp), without it elsewhere. On a
+# runner GitHub hosts, a virtual machine shared with other tenants whose
+# processor changes from run to run, each |t| is printed and not judged:
+# there it moved with what the measurement cannot control (dudect.hpp,
+# judged). dudect_planted is judged everywhere.
+DUDECT = <variant>release ;
+if [ os.environ RUNNER_ENVIRONMENT ] = github-hosted
+{
+    DUDECT += <define>WEBCPP_TEST_DUDECT_UNJUDGED ;
+}
 webcpp.run dudect_bearssl : dudect_test.cpp
-  : <library>/third_party//bearssl <library>/third_party//ctaes <variant>release
+  : <library>/third_party//bearssl <library>/third_party//ctaes $(DUDECT)
   : native wasip2 ;
 # On wasip2, X25519's agreement is measured and printed but not judged: an
 # open finding, whose numbers doc/tables/crypto.json holds (the X25519
 # family's constant_time on wasip2) and the constant-time section renders.
 webcpp.run dudect_sodium : dudect_sodium_test.cpp
-  : <library>/third_party//sodium <variant>release : native wasip2 ;
+  : <library>/third_party//sodium $(DUDECT) : native wasip2 ;
 # The planted leak under dudect: X25519's agreement with an early-exit scan of
 # its secret key before it, a few nanoseconds longer for the all-zero key; the
 # program builds and runs only this case, not Ed25519's signing. It passes only
@@ -238,7 +247,7 @@ webcpp.run dudect_planted : dudect_planted_test.cpp
 
 # libsecp256k1's ecdh_x, natively and under wasmtime.
 webcpp.run dudect_secp256k1 : dudect_secp256k1_test.cpp
-  : <library>/third_party//secp256k1 <variant>release : native wasip2 ;
+  : <library>/third_party//secp256k1 $(DUDECT) : native wasip2 ;
 
 webcpp.lane constant-time : ctgrind ctgrind_planted ctgrind_space msan
     msan_planted secp256k1_ctime secp256k1_ctime_msan dudect_bearssl

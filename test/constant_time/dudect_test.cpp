@@ -121,8 +121,6 @@ int main() {
         "|t| seal %.2f, open %.2f, chacha seal %.2f, chacha open %.2f, ctaes %.2f, equal %.2f "
         "(threshold 10)\n",
         gcm.seal, gcm.open, chacha.seal, chacha.open, block_t, equal_t);
-    return gcm.seal < 10 && gcm.open < 10 && chacha.seal < 10 && chacha.open < 10 && block_t < 10 &&
-                   equal_t < 10
-               ? 0
-               : 1;
+    return webcpp::test::verdict(gcm.seal < 10 && gcm.open < 10 && chacha.seal < 10 &&
+                                 chacha.open < 10 && block_t < 10 && equal_t < 10);
 }

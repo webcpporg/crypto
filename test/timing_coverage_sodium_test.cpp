@@ -4,13 +4,25 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Every public function that runs libsodium's code enters detail::timing_guard and leaves the
-// thread's DIT as it found it, on every target, also where DIT does not apply, each with valid
+// Every public function that runs libsodium's code enters its own detail::timing_guard and leaves
+// the thread's DIT as it found it, on every target, also where DIT does not apply, each with valid
 // input and with input refused before the backend (support/timing_coverage.hpp). One section per
-// part of the library: the ciphers (ChaCha20-Poly1305, its original form, XChaCha20-Poly1305 and
-// both secret boxes), the boxes (both boxes and the sealed box), PEM, and the curves (Ed25519
-// and Ed25519ph, X25519, crypto_kx, and the decoders of their key formats; the encoders call no
-// backend and hold no guard).
+// part of the library: the ciphers, the boxes, PEM and the curves.
+// A check fails, naming itself, when its call enters no guard or when the first guard it enters is
+// not the one of the function it names (support/timing_seam.hpp), so that a function that forgot
+// its own guard fails although it calls another guarded function.
+//
+// What it covers, by family; a family libsodium gains adds its line and its checks:
+// - ChaCha20-Poly1305, its original form, XChaCha20-Poly1305 and both secret boxes, aead: make,
+//   seal, open.
+// - Both boxes, basic_box: make, seal, open. The sealed box, basic_sealed_box: seal, open.
+// - PEM: algorithm::armour, algorithm::unarmour, and the free armour and unarmour, which forward.
+// - Ed25519, basic_keypair: make, generate, public_key, sign, x25519_secret; the free verify and
+//   to_x25519_public. Ed25519ph, ph: begin, update, sign, verify. Its formats: decode_spki,
+//   decode_pkcs8 (the encoders call no backend and hold no guard, ruling R4).
+// - X25519, algorithm: public_key, agree; the free public_key and agree, which forward. Its
+//   formats: decode_spki, decode_pkcs8.
+// - crypto_kx, kx_keypair: make, generate, client_session_keys, server_session_keys.
 
 #include "support/timing_seam.hpp"
 
@@ -99,9 +111,9 @@ void cover_box(std::string const& family) {
     std::string const on = " on sodium";
     auto const alice = make_keypair(0x41);
     auto const bob = make_keypair(0x42);
-    covered(family + "::make" + on,
+    covered(family + "::make" + on, "basic_box::make",
             [&] { BOOST_TEST(Box::make(alice.secret_key, bob.public_key).has_value()); });
-    covered(family + "::make with a short secret key" + on, [&] {
+    covered(family + "::make with a short secret key" + on, "basic_box::make", [&] {
         BOOST_TEST(Box::make(std::span(alice.secret_key).first(31), bob.public_key).error() ==
                    crypto::error::invalid_key_size);
     });
@@ -112,20 +124,20 @@ void cover_box(std::string const& family) {
     std::array<std::uint8_t, Box::iv_size> const iv{};
     std::array<std::uint8_t, 40> data{};
     typename Box::result_type tag{};
-    covered(family + "::seal" + on, [&] {
+    covered(family + "::seal" + on, "basic_box::seal", [&] {
         auto const sealed = made->seal(iv, data);
         if (BOOST_TEST(sealed.has_value())) {
             tag = *sealed;
         }
     });
-    covered(family + "::open" + on, [&] {
+    covered(family + "::open" + on, "basic_box::open", [&] {
         BOOST_TEST(made->open(iv, data, std::span(tag.data(), tag.size())).has_value());
     });
-    covered(family + "::seal with a short nonce" + on, [&] {
+    covered(family + "::seal with a short nonce" + on, "basic_box::seal", [&] {
         BOOST_TEST(made->seal(std::span(iv).first(Box::iv_size - 1), data).error() ==
                    crypto::error::invalid_iv_size);
     });
-    covered(family + "::open with a short nonce" + on, [&] {
+    covered(family + "::open with a short nonce" + on, "basic_box::open", [&] {
         BOOST_TEST(made->open(std::span(iv).first(Box::iv_size - 1), data,
                               std::span(tag.data(), tag.size()))
                        .error() == crypto::error::invalid_iv_size);
@@ -139,16 +151,16 @@ void cover_sealed_box() {
     std::array<std::uint8_t, 8> const message{1, 2, 3, 4, 5, 6, 7, 8};
     std::array<std::uint8_t, message.size() + sealed_box::overhead> sealed{};
     std::array<std::uint8_t, message.size()> opened{};
-    covered("sealed_box::seal on sodium",
+    covered("sealed_box::seal on sodium", "basic_sealed_box::seal",
             [&] { BOOST_TEST(sealed_box::seal(bob.public_key, message, sealed).has_value()); });
-    covered("sealed_box::open on sodium", [&] {
+    covered("sealed_box::open on sodium", "basic_sealed_box::open", [&] {
         BOOST_TEST(sealed_box::open(bob.public_key, bob.secret_key, sealed, opened).has_value());
     });
-    covered("sealed_box::seal into a short output on sodium", [&] {
+    covered("sealed_box::seal into a short output on sodium", "basic_sealed_box::seal", [&] {
         BOOST_TEST(sealed_box::seal(bob.public_key, message, std::span(sealed).first(1)).error() ==
                    crypto::error::invalid_input_size);
     });
-    covered("sealed_box::open into a short output on sodium", [&] {
+    covered("sealed_box::open into a short output on sodium", "basic_sealed_box::open", [&] {
         BOOST_TEST(
             sealed_box::open(bob.public_key, bob.secret_key, sealed, std::span(opened).first(1))
                 .error() == crypto::error::invalid_input_size);

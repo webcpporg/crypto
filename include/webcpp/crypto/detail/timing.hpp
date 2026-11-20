@@ -9,6 +9,8 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <source_location>
+
 /*
  * timing_guard sets 64-bit ARM's DIT (Data Independent Timing) bit, PSTATE.DIT, for the scope of
  * one public operation and restores the thread's state after it. With DIT set, the instructions
@@ -33,14 +35,16 @@
 #endif
 
 /*
- * WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED() runs first in timing_guard's constructor, on every target.
- * Nothing in a program's build; a test defines it before its first include to count the guards a
- * call enters (test/support/timing_seam.hpp), so that a public function that forgets its guard
- * fails on every lane, also where DIT does not apply.
+ * WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED(where) runs first in timing_guard's constructor, on every
+ * target, with the std::source_location of the guard's declaration, whose function_name() is the
+ * function that holds it. Nothing in a program's build; a test defines it before its first
+ * include to record the guards a call enters and the function of the first, the outermost
+ * (test/support/timing_seam.hpp), so that a public function that forgets its guard fails on every
+ * lane, also where DIT does not apply and also when it calls another guarded function.
  */
 #ifndef WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED
-/** Marks the entry into a timing_guard: nothing in a program's build. */
-#define WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED() static_cast<void>(0)
+/** Marks the entry into a timing_guard declared at `where`: nothing in a program's build. */
+#define WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED(where) static_cast<void>(where)
 #endif
 
 namespace webcpp::crypto::detail {
@@ -123,9 +127,14 @@ inline void write_dit(std::uint64_t value) noexcept {
  */
 class timing_guard {
 public:
-    /** Sets DIT where the CPU has it and it is clear. */
-    timing_guard() noexcept {
-        WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED();
+    /**
+     * Sets DIT where the CPU has it and it is clear.
+     *
+     * @param where Where the guard is declared, the default: the seam's argument alone, which a
+     * program's build discards.
+     */
+    explicit timing_guard(std::source_location where = std::source_location::current()) noexcept {
+        WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED(where);
 #ifdef WEBCPP_CRYPTO_DETAIL_TIMING_COVERED
         if (cpu_has_dit() && !dit_is_set()) {
             write_dit(dit_bit);

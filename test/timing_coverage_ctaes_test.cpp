@@ -4,10 +4,15 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Every public function that runs ctaes's code enters detail::timing_guard and leaves the
-// thread's DIT as it found it, on every target, also where DIT does not apply: the AES block
-// cipher of each key size, with valid input and with input refused before the backend
-// (support/timing_coverage.hpp).
+// Every public function that runs ctaes's code enters its own detail::timing_guard and leaves the
+// thread's DIT as it found it, on every target, also where DIT does not apply, each with valid
+// input and with input refused before the backend (support/timing_coverage.hpp).
+// A check fails, naming itself, when its call enters no guard or when the first guard it enters is
+// not the one of the function it names (support/timing_seam.hpp), so that a function that forgot
+// its own guard fails although it calls another guarded function.
+//
+// What it covers, by family; a family ctaes gains adds its line and its checks:
+// - The AES block cipher, aes128, aes192 and aes256: make; basic_aes: encrypt, decrypt.
 
 #include "support/timing_seam.hpp"
 

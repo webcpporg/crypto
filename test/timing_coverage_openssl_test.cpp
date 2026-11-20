@@ -4,11 +4,18 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Every public function that runs OpenSSL's code enters detail::timing_guard and leaves the
-// thread's DIT as it found it, on native, wasip2 and wasip3, also where DIT does not apply: the
-// AES block cipher of each key size, AES-128-GCM and AES-256-GCM, their moves included, and
-// ChaCha20-Poly1305, each with valid input and with input refused before the backend
-// (support/timing_coverage.hpp).
+// Every public function that runs OpenSSL's code enters its own detail::timing_guard and leaves
+// the thread's DIT as it found it, on native, wasip2 and wasip3, also where DIT does not apply,
+// each with valid input and with input refused before the backend (support/timing_coverage.hpp).
+// A check fails, naming itself, when its call enters no guard or when the first guard it enters is
+// not the one of the function it names (support/timing_seam.hpp), so that a function that forgot
+// its own guard fails although it calls another guarded function.
+//
+// What it covers, by family; a family OpenSSL gains adds its line and its checks:
+// - The AES block cipher, aes128, aes192 and aes256: make; basic_aes: encrypt, decrypt.
+// - AES-GCM, gcm<aes128>, gcm<aes192> and gcm<aes256>: make, the move constructor and move
+//   assignment (ruling R3), seal, open, begin_seal, update, result.
+// - ChaCha20-Poly1305, aead: make, seal, open.
 
 #include "support/timing_seam.hpp"
 
@@ -33,6 +40,8 @@ void cover_ciphers() {
     webcpp::test::cover_aes<crypto::ciphers::aes192<openssl>>("aes192", "openssl");
     webcpp::test::cover_aes<crypto::ciphers::aes256<openssl>>("aes256", "openssl");
     webcpp::test::cover_gcm<crypto::ciphers::gcm<crypto::ciphers::aes128<openssl>>>("aes128_gcm",
+                                                                                    "openssl");
+    webcpp::test::cover_gcm<crypto::ciphers::gcm<crypto::ciphers::aes192<openssl>>>("aes192_gcm",
                                                                                     "openssl");
     webcpp::test::cover_gcm<crypto::ciphers::gcm<crypto::ciphers::aes256<openssl>>>("aes256_gcm",
                                                                                     "openssl");

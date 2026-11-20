@@ -4,14 +4,31 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Every public function that runs libsecp256k1's code enters detail::timing_guard and leaves the
-// thread's DIT as it found it, on every target, also where DIT does not apply, each with valid
-// input and, where it has one, with input refused before the backend
-// (support/timing_coverage.hpp). One section per header: the key pair, the public key and the
-// free functions of curves/secp256k1.hpp; ElligatorSwift; SPKI and PKCS#8; a whole MuSig2 round
-// of two signers; a silent payment created and scanned; the tweaks. With exceptions, a memory
-// resource that throws in basic_keypair::make and decode_pkcs8 unwinds through the guard, which
-// leaves DIT clear from clear and set from set.
+// Every public function that runs libsecp256k1's code enters its own detail::timing_guard and
+// leaves the thread's DIT as it found it, on every target, also where DIT does not apply, each
+// with valid input and, where it has one, with input refused before the backend
+// (support/timing_coverage.hpp). One section per header. With exceptions, a memory resource that
+// throws in basic_keypair::make and decode_pkcs8 unwinds through the guard, which leaves DIT clear
+// from clear and set from set.
+// A check fails, naming itself, when its call enters no guard or when the first guard it enters is
+// not the one of the function it names (support/timing_seam.hpp), so that a function that forgot
+// its own guard fails although it calls another guarded function.
+//
+// What it covers, by family; a family libsecp256k1 gains adds its line and its checks:
+// - secp256k1, curves/secp256k1.hpp: public_key's operator== and operator<=>; basic_keypair:
+//   make, xonly_public_key, public_key, public_key_uncompressed, sign_schnorr, both sign_ecdsa,
+//   sign_recoverable, ecdh, ecdh_x, ecdh_point, tweak_xonly; the free parse_public_key,
+//   serialize_public_key, recover, verify_schnorr, verify_ecdsa, to_der, from_der,
+//   normalize_ecdsa, tweak_xonly. Its formats: encode_spki, decode_spki, encode_pkcs8,
+//   decode_pkcs8. Its tweaks: seckey_tweak_add, seckey_tweak_mul, seckey_negate,
+//   pubkey_tweak_add, pubkey_tweak_mul, pubkey_negate, pubkey_combine.
+// - ElligatorSwift: ellswift_encode, ellswift_decode, ellswift_create, ellswift_xdh.
+// - MuSig2, a whole round of two signers: aggregate_key's xonly_public_key, full_public_key,
+//   tweak_add, tweak_xonly_add; the free key_aggregate, nonce_gen, nonce_aggregate,
+//   nonce_process, partial_sign, partial_signature_verify, partial_signature_aggregate, and the
+//   parse and serialize of the public nonce, the aggregate nonce and the partial signature.
+// - BIP 352 silent payments, a payment created and scanned: create_label,
+//   create_labeled_spend_key, create_outputs, make_prevouts_summary, scan_outputs.
 
 #include "support/timing_seam.hpp"
 
@@ -56,24 +73,6 @@ using webcpp::test::covered;
 
 /** 32 bytes. */
 using bytes32 = std::array<std::uint8_t, 32>;
-
-/**
- * `covered`, for a function that calls another guarded function on every path: it must enter
- * two guards at least, its own and its callee's, so that a function that forgot its own guard is
- * seen although its callee holds one.
- *
- * @param name What the call is, `<namespace>::<function> on secp256k1`, as an error names it.
- * @param call The call, with its arguments bound.
- */
-template <class Call>
-void covered_around_callee(std::string const& name, Call&& call) {
-    std::size_t const before = webcpp::test::timing_entries;
-    covered(name, std::forward<Call>(call));
-    if (webcpp::test::timing_entries - before < 2) {
-        std::string const message = name + " entered its callee's detail::timing_guard alone";
-        BOOST_ERROR(message.c_str());
-    }
-}
 
 /** A secret key of 32 bytes `fill`, below the group order for any `fill` but 0xff. */
 bytes32 secret_bytes(std::uint8_t fill) {
@@ -134,8 +133,9 @@ void cover_make_and_compare() {
     });
     auto const alice = public_of(keypair_of(0x11));
     auto const bob = public_of(keypair_of(0x12));
-    covered("secp256k1::public_key::operator== on secp256k1", [&] { BOOST_TEST(!(alice == bob)); });
-    covered("secp256k1::public_key::operator<=> on secp256k1",
+    covered("secp256k1::public_key::operator== on secp256k1",
+            "secp256k1::operator==", [&] { BOOST_TEST(!(alice == bob)); });
+    covered("secp256k1::public_key::operator<=> on secp256k1", "secp256k1::operator<=>",
             [&] { BOOST_TEST((alice <=> bob) != std::strong_ordering::equal); });
 }
 
@@ -419,10 +419,11 @@ void cover_musig_key() {
     }
     bytes32 const tweak = secret_bytes(0x0a);
     bytes32 const too_large = secret_bytes(0xff);
-    // xonly_public_key calls full_public_key, guarded too, on its one path.
+    // xonly_public_key calls full_public_key, guarded too, on its one path: the check requires
+    // that the first guard entered is xonly_public_key's own.
     bytes32 xonly_key{};
-    covered_around_callee("musig::aggregate_key::xonly_public_key on secp256k1",
-                          [&] { xonly_key = aggregate->xonly_public_key(); });
+    covered("musig::aggregate_key::xonly_public_key on secp256k1",
+            [&] { xonly_key = aggregate->xonly_public_key(); });
     BOOST_TEST(xonly_key != bytes32{});
     std::optional<secp::public_key> full_key;
     covered("musig::aggregate_key::full_public_key on secp256k1",

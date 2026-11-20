@@ -4,10 +4,12 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// detail::timing_guard, with no backend: its seam fires once per guard on every target; where
-// the CPU has DIT, a guard sets it for its scope and clears it after when it was clear, leaves it
-// set when it was set, and nests; equal enters a guard. Built with WEBCPP_TEST_TIMING_THREADS
-// (timing_threads, native, with threads), a guard on one thread leaves another's DIT clear.
+// detail::timing_guard, with no backend: its seam fires once per guard on every target and names
+// the function that holds the guard, which require_enters reads in the spellings of clang, GCC
+// and MSVC; where the CPU has DIT, a guard sets it for its scope and clears it after when it was
+// clear, leaves it set when it was set, and nests; equal enters its own guard. Built with
+// WEBCPP_TEST_TIMING_THREADS (timing_threads, native, with threads), a guard on one thread leaves
+// another's DIT clear.
 
 #include "support/timing_seam.hpp"
 
@@ -22,6 +24,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string_view>
 
 #ifdef WEBCPP_TEST_TIMING_THREADS
 #include <future>
@@ -31,6 +34,20 @@
 namespace {
 
 namespace detail = webcpp::crypto::detail;
+
+namespace seam_probe {
+
+/** Holds a guard, as a public function does, for seam_names_function. */
+void guarded_function() {
+    webcpp::crypto::detail::timing_guard const guard;
+}
+
+/** Calls guarded_function and holds no guard of its own, as a function that forgot its own. */
+void forwarding_function() {
+    guarded_function();
+}
+
+}  // namespace seam_probe
 
 /**
  * Sets or clears DIT for this thread, as a program can, so that a test starts from a known state;
@@ -53,6 +70,60 @@ void seam_fires() {
         BOOST_TEST_EQ(webcpp::test::timing_entries, before + 1);
     }
     BOOST_TEST_EQ(webcpp::test::timing_entries, before + 1);
+}
+
+// The seam records the function that holds the first guard a call enters, as the compiler spells
+// it, and require_enters' reading of it finds that function and no other.
+void seam_names_function() {
+    webcpp::test::timing_first_entry = nullptr;
+    seam_probe::forwarding_function();
+    if (BOOST_TEST(webcpp::test::timing_first_entry != nullptr)) {
+        std::string_view const entered = webcpp::test::timing_first_entry;
+        BOOST_TEST(webcpp::test::names_function(
+            entered, webcpp::test::function_named("seam_probe::guarded_function")));
+        BOOST_TEST(webcpp::test::names_function(entered,
+                                                webcpp::test::function_named("guarded_function")));
+        BOOST_TEST(!webcpp::test::names_function(
+            entered, webcpp::test::function_named("seam_probe::forwarding_function")));
+        BOOST_TEST(!webcpp::test::names_function(
+            entered, webcpp::test::function_named("other::guarded_function")));
+        BOOST_TEST(!webcpp::test::names_function(
+            entered, webcpp::test::function_named("seam_probe::guarded")));
+    }
+    webcpp::test::timing_first_entry = nullptr;
+}
+
+// require_enters' reading of a function_name() in the spellings of clang, GCC and MSVC, whatever
+// compiles this test: a free forwarder and the member it forwards to, a constructor, operators,
+// overloads told apart by a parameter, and lambdas, which are never a public function.
+void names_function_spellings() {
+    auto const names = [](std::string_view entered, std::string_view spelled) {
+        return webcpp::test::names_function(entered, webcpp::test::function_named(spelled));
+    };
+    BOOST_TEST(names("int ns::pem::armour(int) [with B = int]", "pem::armour"));
+    BOOST_TEST(!names("static int ns::pem::algorithm<int>::armour(int) [B = int]", "pem::armour"));
+    BOOST_TEST(
+        names("static int ns::pem::algorithm<B>::armour(int) [with B = int]", "algorithm::armour"));
+    BOOST_TEST(names("int __cdecl ns::pem::armour<struct ns::b>(int)", "pem::armour"));
+    BOOST_TEST(!names("int __cdecl ns::pem::algorithm<struct ns::b>::armour(int)", "pem::armour"));
+    BOOST_TEST(
+        names("struct ns::gcm<int> &__cdecl ns::gcm<int>::operator =(struct ns::gcm<int> &&)",
+              "gcm::operator="));
+    BOOST_TEST(
+        !names("bool __cdecl ns::operator ==(struct ns::pk,struct ns::pk)", "ns::operator="));
+    BOOST_TEST(
+        names("bool __cdecl ns::operator ==(struct ns::pk,struct ns::pk)", "ns::operator=="));
+    BOOST_TEST(names("ns::gcm<C>::gcm(ns::gcm<C>&&) [with C = int]", "gcm::gcm"));
+    BOOST_TEST(
+        names("bool ns::equal(std::span<const unsigned char>, std::span<const unsigned char>)",
+              "ns::equal(span"));
+    BOOST_TEST(
+        !names("bool ns::equal(std::span<const unsigned char>, std::span<const unsigned char>)",
+               "ns::equal(digest"));
+    BOOST_TEST(!names("auto ns::f()::(anonymous class)::operator()() const", "ns::f"));
+    BOOST_TEST(!names("auto ns::f()::(lambda)::operator()() const", "ns::f"));
+    BOOST_TEST(!names("ns::f()::<lambda()>", "ns::f"));
+    BOOST_TEST(!names("auto __cdecl ns::f::<lambda_1>::operator ()(void) const", "ns::f"));
 }
 
 // From clear: set inside a guard, clear after it. Where the guard does not apply, never set.
@@ -98,15 +169,16 @@ void equal_enters() {
     force_dit(false);
     std::array<std::uint8_t, 16> const first{};
     std::array<std::uint8_t, 16> const second{};
-    webcpp::test::require_enters("equal(span, span)", [&first, &second] {
+    webcpp::test::require_enters("equal(span, span)", "crypto::equal(span", [&first, &second] {
         BOOST_TEST(webcpp::crypto::equal(std::span<std::uint8_t const>(first),
                                          std::span<std::uint8_t const>(second)));
     });
     boost::hash2::digest<16> const first_digest{};
     boost::hash2::digest<16> const second_digest{};
-    webcpp::test::require_enters("equal(digest, digest)", [&first_digest, &second_digest] {
-        BOOST_TEST(webcpp::crypto::equal(first_digest, second_digest));
-    });
+    webcpp::test::require_enters("equal(digest, digest)", "crypto::equal(digest",
+                                 [&first_digest, &second_digest] {
+                                     BOOST_TEST(webcpp::crypto::equal(first_digest, second_digest));
+                                 });
     BOOST_TEST(!detail::dit_is_set());
 }
 
@@ -137,6 +209,8 @@ void other_thread_untouched() {
 
 int main() {
     seam_fires();
+    seam_names_function();
+    names_function_spellings();
     guard_sets_and_clears();
     guard_leaves_set_bit();
     nested_guards();

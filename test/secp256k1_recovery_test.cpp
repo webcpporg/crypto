@@ -77,7 +77,7 @@ bool refused_as_signature(boost::system::result<secp::public_key> const& recover
 
 // An id of 4, 5 or 255 is refused without reaching libsecp256k1's illegal callback.
 void refuses_bad_ids(recoverable const& signature, hash_bytes const& hash) {
-    for (std::uint8_t const id : {4, 5, 255}) {
+    for (std::uint8_t const id : std::to_array<std::uint8_t>({4, 5, 255})) {
         auto bad_id = signature;
         bad_id[64] = id;
         BOOST_TEST(refused_as_signature(secp::recover(bad_id, hash)));

@@ -165,7 +165,8 @@ void refusals() {
     }
 
     // Every prefix but 02, 03 and 04, on 33 and on 65 bytes.
-    for (std::uint8_t const prefix : {0x00, 0x01, 0x05, 0x06, 0x07, 0x08, 0xff}) {
+    for (std::uint8_t const prefix :
+         std::to_array<std::uint8_t>({0x00, 0x01, 0x05, 0x06, 0x07, 0x08, 0xff})) {
         auto short_form = one_g;
         short_form[0] = prefix;
         refused("prefix " + std::to_string(prefix) + ", 33 bytes", short_form);
@@ -199,7 +200,7 @@ void refusals() {
     refused("x = p, 65 bytes", p_long);
 
     // x = 5: x^3 + 7 is not a square modulo p, so no point has this x. x = 0 neither.
-    for (std::uint8_t const x : {0x00, 0x05}) {
+    for (std::uint8_t const x : std::to_array<std::uint8_t>({0x00, 0x05})) {
         std::array<std::uint8_t, 33> no_y{};
         no_y[0] = 0x02;
         no_y.back() = x;

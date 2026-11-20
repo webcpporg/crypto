@@ -7,8 +7,12 @@
 /**
  The backend libsecp256k1: its v0.8.0, built from its sources by `/third_party//secp256k1`,
  every module on. It serves `curves::secp256k1::keypair`, `verify_schnorr`, `verify_ecdsa`,
- the DER and low-S functions and the x-only tweak, and its whole C API stays reachable
- through `<secp256k1*.h>`.
+ `recover`, the parsed `public_key`, the DER and low-S functions, the x-only tweak, the tweaks
+ and combination of `curves/secp256k1/tweak.hpp`, the SPKI and PKCS#8 of
+ `curves/secp256k1/formats.hpp`, the ElligatorSwift of `curves/secp256k1/ellswift.hpp`, the
+ MuSig2 of `curves/secp256k1/musig.hpp` and the silent payments of
+ `curves/secp256k1/silent_payments.hpp`, and its whole C API stays reachable through
+ `<secp256k1*.h>`.
 
  @see "secp256k1", in the guide.
 */
@@ -27,9 +31,13 @@
 
 #include <secp256k1.h>
 #include <secp256k1_ecdh.h>
+#include <secp256k1_ellswift.h>
 #include <secp256k1_extrakeys.h>
+#include <secp256k1_musig.h>
 #include <secp256k1_preallocated.h>
+#include <secp256k1_recovery.h>
 #include <secp256k1_schnorrsig.h>
+#include <secp256k1_silentpayments.h>
 
 #include <string_view>
 

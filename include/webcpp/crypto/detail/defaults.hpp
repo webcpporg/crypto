@@ -161,6 +161,30 @@ struct default_backend_of<families::sealed_box> {
     /** `backends::sodium`. */
     using type = backends::sodium;
 };
+/** Defined where libsecp256k1 is the default of ElligatorSwift. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_SECP256K1_ELLSWIFT_SECP256K1 1
+/** The default of ElligatorSwift on native, wasip2, wasip3, emscripten: libsecp256k1. */
+template <>
+struct default_backend_of<families::secp256k1_ellswift> {
+    /** `backends::secp256k1`. */
+    using type = backends::secp256k1;
+};
+/** Defined where libsecp256k1 is the default of MuSig2. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_SECP256K1_MUSIG_SECP256K1 1
+/** The default of MuSig2 on native, wasip2, wasip3, emscripten: libsecp256k1. */
+template <>
+struct default_backend_of<families::secp256k1_musig> {
+    /** `backends::secp256k1`. */
+    using type = backends::secp256k1;
+};
+/** Defined where libsecp256k1 is the default of BIP 352 silent payments. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_SECP256K1_SILENT_PAYMENTS_SECP256K1 1
+/** The default of BIP 352 silent payments on native, wasip2, wasip3, emscripten: libsecp256k1. */
+template <>
+struct default_backend_of<families::secp256k1_silent_payments> {
+    /** `backends::secp256k1`. */
+    using type = backends::secp256k1;
+};
 // clang-format on
 
 /**

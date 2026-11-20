@@ -18,6 +18,7 @@
 #include <boost/core/lightweight_test.hpp>
 #include <boost/system/errc.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -119,7 +120,7 @@ void ecdh() {
     auto const b = from_byte(0x22);
     auto const shared_a = a.ecdh(*b.public_key());
     auto const shared_b = b.ecdh(*a.public_key());
-    BOOST_TEST(shared_a && shared_b && *shared_a == *shared_b);
+    BOOST_TEST(shared_a && shared_b && std::ranges::equal(shared_a->bytes(), shared_b->bytes()));
     std::array<std::uint8_t, 33> off_curve{};
     off_curve[0] = 0x02;  // x = 0: no point
     BOOST_TEST(a.ecdh(off_curve).error() == crypto::error::invalid_public_key);
@@ -128,7 +129,9 @@ void ecdh() {
     BOOST_TEST(a.ecdh(std::array<std::uint8_t, 66>{}).error() == crypto::error::invalid_public_key);
     // The uncompressed form agrees; the hybrid forms, 06 and 07, are refused.
     auto const full = uncompressed(b);
-    BOOST_TEST(a.ecdh(full).has_value() && *a.ecdh(full) == *shared_a);
+    auto const shared_full = a.ecdh(full);
+    BOOST_TEST(shared_full && shared_a &&
+               std::ranges::equal(shared_full->bytes(), shared_a->bytes()));
     BOOST_TEST(a.ecdh(hybrid(full)).error() == crypto::error::invalid_public_key);
 }
 

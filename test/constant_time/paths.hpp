@@ -29,11 +29,18 @@
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/backends/ctaes.hpp>
+#include <webcpp/crypto/backends/secp256k1.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
+#include <webcpp/crypto/curves/secp256k1/formats.hpp>
+#include <webcpp/crypto/curves/secp256k1/musig.hpp>
+#include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
+#include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/curves/x25519/kx.hpp>
 #include <webcpp/crypto/detail/bytes.hpp>
@@ -41,6 +48,8 @@
 #include <webcpp/crypto/hybrid/box.hpp>
 #include <webcpp/crypto/hybrid/sealed_box.hpp>
 #include <webcpp/crypto/secret.hpp>
+
+#include <boost/system/result.hpp>
 
 #include <algorithm>
 #include <array>
@@ -306,6 +315,305 @@ int sodium_kx() {
                  "kx on libsodium");
 }
 
+/** libsecp256k1's key pair, the type every secp256k1 path below makes. */
+using secp256k1_pair = crypto::curves::secp256k1::basic_keypair<crypto::backends::secp256k1>;
+
+/** A key pair made from 32 bytes of `value`, its secret key secret, its public key public. */
+template <class Checker>
+boost::system::result<secp256k1_pair> secp256k1_secret_pair(std::uint8_t value) {
+    std::array<std::uint8_t, 32> secret_key{};
+    secret_key.fill(value);
+    Checker::mark_secret(secret_key);
+    return secp256k1_pair::make(secret_key);
+}
+
+/** A key pair made from 32 public bytes of `value`: a peer's. */
+inline boost::system::result<secp256k1_pair> secp256k1_public_pair(std::uint8_t value) {
+    std::array<std::uint8_t, 32> secret_key{};
+    secret_key.fill(value);
+    return secp256k1_pair::make(secret_key);
+}
+
+/** A key pair's compressed public key, marked public: it is sent to a peer. */
+template <class Checker>
+std::array<std::uint8_t, 33> secp256k1_sent_key(secp256k1_pair const& pair) {
+    auto const encoded_key = pair.public_key();
+    std::array<std::uint8_t, 33> sent_key{};
+    if (encoded_key) {
+        sent_key = *encoded_key;
+    }
+    Checker::mark_public(sent_key);
+    return sent_key;
+}
+
+/** The bytes of a caller's workspace, for a checker's primitives. */
+template <std::size_t N>
+std::span<std::uint8_t const> workspace_bytes(std::array<std::byte, N> const& space) {
+    return {reinterpret_cast<std::uint8_t const*>(space.data()), space.size()};
+}
+
+/**
+ * ECDH on libsecp256k1, its three forms: the key pair's secret secret, the peer's key public.
+ * Each shared secret is traced.
+ */
+template <class Checker>
+int secp256k1_ecdh() {
+    auto const pair = secp256k1_secret_pair<Checker>(0x42);
+    auto const peer = secp256k1_public_pair(0x24);
+    if (!pair || !peer) {
+        return check(false, "secp256k1's key pairs for ECDH");
+    }
+    auto const peer_key = secp256k1_sent_key<Checker>(*peer);
+    auto const hashed = pair->ecdh(peer_key);
+    auto const x_only = pair->ecdh_x(peer_key);
+    auto const point = pair->ecdh_point(peer_key);
+    return check(hashed.has_value() && carries_mark<Checker>(hashed->bytes()), "secp256k1's ecdh") +
+           check(x_only.has_value() && carries_mark<Checker>(x_only->bytes()),
+                 "secp256k1's ecdh_x") +
+           check(point.has_value() && carries_mark<Checker>(point->bytes()),
+                 "secp256k1's ecdh_point");
+}
+
+/**
+ * The key pair's signatures, BIP340, the recoverable ECDSA and the hedged one, then its x-only
+ * tweak: the key pair's secret, the auxiliary randomness and the extra entropy secret, the hash
+ * and the tweak public (libsecp256k1's `ctime_tests.c` holds the tweak public too). Each
+ * signature is traced.
+ */
+template <class Checker>
+int secp256k1_signing() {
+    auto pair = secp256k1_secret_pair<Checker>(0x42);
+    if (!pair) {
+        return check(false, "secp256k1's key pair for signing");
+    }
+    std::array<std::uint8_t, 32> message_hash{};
+    std::array<std::uint8_t, 32> extra_entropy{};
+    message_hash.fill(0x17);
+    extra_entropy.fill(0x5a);
+    Checker::mark_secret(extra_entropy);
+    auto const schnorr = pair->sign_schnorr(message_hash, extra_entropy);
+    auto const recoverable = pair->sign_recoverable(message_hash);
+    auto const hedged = pair->sign_ecdsa(message_hash, extra_entropy);
+    std::array<std::uint8_t, 32> tweak_bytes{};
+    tweak_bytes.fill(0x24);
+    auto const tweaked = pair->tweak_xonly(tweak_bytes);
+    return check(schnorr.has_value() && carries_mark<Checker>(*schnorr),
+                 "secp256k1's sign_schnorr") +
+           check(recoverable.has_value() && carries_mark<Checker>(*recoverable),
+                 "secp256k1's sign_recoverable") +
+           check(hedged.has_value() && carries_mark<Checker>(*hedged),
+                 "secp256k1's hedged sign_ecdsa") +
+           check(tweaked.has_value(), "secp256k1's tweak_xonly");
+}
+
+/** The secret key's tweaks and negation: the secret key and the tweak secret, each result traced.
+ */
+template <class Checker>
+int secp256k1_secret_tweaks() {
+    namespace secp256k1 = crypto::curves::secp256k1;
+    using backend = crypto::backends::secp256k1;
+    std::array<std::uint8_t, 32> secret_key{};
+    std::array<std::uint8_t, 32> tweak_bytes{};
+    secret_key.fill(0x42);
+    tweak_bytes.fill(0x17);
+    Checker::mark_secret(secret_key);
+    Checker::mark_secret(tweak_bytes);
+    auto const added = secp256k1::seckey_tweak_add<backend>(secret_key, tweak_bytes);
+    auto const multiplied = secp256k1::seckey_tweak_mul<backend>(secret_key, tweak_bytes);
+    auto const negated = secp256k1::seckey_negate<backend>(secret_key);
+    return check(added.has_value() && carries_mark<Checker>(added->bytes()),
+                 "secp256k1's seckey_tweak_add") +
+           check(multiplied.has_value() && carries_mark<Checker>(multiplied->bytes()),
+                 "secp256k1's seckey_tweak_mul") +
+           check(negated.has_value() && carries_mark<Checker>(negated->bytes()),
+                 "secp256k1's seckey_negate");
+}
+
+/**
+ * PKCS#8 on libsecp256k1: the key pair's secret secret, the encoding traced, then the encoding
+ * read back with its secret still secret, the decoded key pair's own encoding traced; the
+ * re-encoding's comparison is declassified where webcpp branches on it.
+ */
+template <class Checker>
+int secp256k1_pkcs8() {
+    namespace secp256k1 = crypto::curves::secp256k1;
+    using backend = crypto::backends::secp256k1;
+    auto const pair = secp256k1_secret_pair<Checker>(0x42);
+    if (!pair) {
+        return check(false, "secp256k1's key pair for PKCS#8");
+    }
+    std::array<std::uint8_t, secp256k1::max_pkcs8_size> encoded{};
+    auto const written = secp256k1::encode_pkcs8(*pair, encoded);
+    int const failures =
+        check(written.has_value() && carries_mark<Checker>(encoded), "secp256k1's encode_pkcs8");
+    auto const decoded = secp256k1::decode_pkcs8<backend>(encoded);
+    std::array<std::uint8_t, secp256k1::max_pkcs8_size> encoded_again{};
+    bool const decoded_traced = decoded.has_value() &&
+                                secp256k1::encode_pkcs8(*decoded, encoded_again).has_value() &&
+                                carries_mark<Checker>(encoded_again);
+    return failures + check(decoded_traced, "secp256k1's decode_pkcs8");
+}
+
+/**
+ * ElligatorSwift on libsecp256k1: the encoding of a key pair with its secret secret, sent and so
+ * public, then the exchange with a peer's encoding, its secret traced. The randomness is public:
+ * libsecp256k1 hashes it after it marks the hash of the secret public, since it only chooses
+ * among the encodings of the public key (its `secp256k1_ellswift_create`).
+ */
+template <class Checker>
+int secp256k1_ellswift() {
+    namespace secp256k1 = crypto::curves::secp256k1;
+    auto const pair = secp256k1_secret_pair<Checker>(0x42);
+    auto const peer = secp256k1_public_pair(0x24);
+    if (!pair || !peer) {
+        return check(false, "secp256k1's key pairs for ElligatorSwift");
+    }
+    std::array<std::uint8_t, 32> randomness{};
+    randomness.fill(0x5a);
+    auto own_encoding = secp256k1::ellswift_create(*pair, randomness);
+    std::array<std::uint8_t, 32> const peer_randomness{};
+    auto const peer_encoding = secp256k1::ellswift_create(*peer, peer_randomness);
+    if (!own_encoding || !peer_encoding) {
+        return check(false, "secp256k1's ellswift_create");
+    }
+    Checker::mark_public(*own_encoding);
+    auto const shared = secp256k1::ellswift_xdh(*pair, *own_encoding, *peer_encoding,
+                                                secp256k1::ellswift_party::initiator);
+    return check(shared.has_value() && carries_mark<Checker>(shared->bytes()),
+                 "secp256k1's ellswift_xdh");
+}
+
+/**
+ * MuSig2 on libsecp256k1, two signers: one key pair's secret secret, its secret nonce and its
+ * partial signature traced; the public keys and the public nonces public, as they are sent.
+ */
+template <class Checker>
+int secp256k1_musig() {
+    namespace secp256k1 = crypto::curves::secp256k1;
+    namespace musig = secp256k1::musig;
+    using backend = crypto::backends::secp256k1;
+    auto const pair = secp256k1_secret_pair<Checker>(0x42);
+    auto const other = secp256k1_public_pair(0x24);
+    if (!pair || !other) {
+        return check(false, "secp256k1's key pairs for MuSig2");
+    }
+    auto const own_key = secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*pair));
+    auto const other_key =
+        secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*other));
+    if (!own_key || !other_key) {
+        return check(false, "secp256k1's public keys for MuSig2");
+    }
+    std::array<secp256k1::public_key, 2> keys{*own_key, *other_key};
+    std::ranges::sort(keys);
+    alignas(std::max_align_t) std::array<std::byte, musig::workspace_size(2)> space{};
+    auto const signers_key = musig::key_aggregate<backend>(keys, space);
+    std::array<std::uint8_t, 32> message{};
+    message.fill(0x17);
+    if (!signers_key) {
+        return check(false, "secp256k1's key_aggregate");
+    }
+    auto own_nonce = musig::nonce_gen(*pair, *signers_key, message);
+    auto other_nonce = musig::nonce_gen(*other, *signers_key, message);
+    if (!own_nonce || !other_nonce) {
+        return check(false, "secp256k1's nonce_gen");
+    }
+    // The secret nonce is made from the secret: traced before it signs.
+    int const failures =
+        check(carries_mark<Checker>(bytes_of(own_nonce->secret_part)), "secp256k1's nonce_gen");
+    Checker::mark_public(bytes_of(own_nonce->public_part));
+    std::array<musig::public_nonce, 2> const nonces{own_nonce->public_part,
+                                                    other_nonce->public_part};
+    auto const nonce_sum = musig::nonce_aggregate<backend>(nonces, space);
+    if (!nonce_sum) {
+        return failures + check(false, "secp256k1's nonce_aggregate");
+    }
+    auto const signing_session = musig::nonce_process<backend>(*nonce_sum, message, *signers_key);
+    if (!signing_session) {
+        return failures + check(false, "secp256k1's nonce_process");
+    }
+    auto const own_part = musig::partial_sign(*pair, std::move(own_nonce->secret_part),
+                                              *signers_key, *signing_session);
+    if (!own_part) {
+        return failures + check(false, "secp256k1's partial_sign");
+    }
+    auto const part_bytes = musig::serialize_partial_signature<backend>(*own_part);
+    return failures + check(carries_mark<Checker>(part_bytes), "secp256k1's partial_sign");
+}
+
+/**
+ * Silent payments on libsecp256k1: a sender's output from an input whose secret is secret, the
+ * workspace that held the input's secret wiped after; a label, its tweak traced, and a
+ * recipient's scan with the scan key's secret secret, the scan's workspace wiped after. The
+ * public keys, the output and the outpoint are public.
+ */
+template <class Checker>
+int secp256k1_silent_payments() {
+    namespace secp256k1 = crypto::curves::secp256k1;
+    namespace silent_payments = secp256k1::silent_payments;
+    using backend = crypto::backends::secp256k1;
+    auto const scan_pair = secp256k1_secret_pair<Checker>(0x51);
+    auto const spend_pair = secp256k1_public_pair(0x52);
+    auto const input_pair = secp256k1_secret_pair<Checker>(0x53);
+    if (!scan_pair || !spend_pair || !input_pair) {
+        return check(false, "secp256k1's key pairs for silent payments");
+    }
+    auto const scan_key =
+        secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*scan_pair));
+    auto const spend_key =
+        secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*spend_pair));
+    auto const input_key =
+        secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*input_pair));
+    if (!scan_key || !spend_key || !input_key) {
+        return check(false, "secp256k1's public keys for silent payments");
+    }
+    std::array<silent_payments::recipient, 1> const recipients{
+        silent_payments::recipient{.scan_key = *scan_key, .spend_key = *spend_key}};
+    std::array<std::uint8_t, silent_payments::outpoint_size> outpoint{};
+    outpoint.fill(0x01);
+    std::array<secp256k1_pair const*, 1> const plain_inputs{&*input_pair};
+    std::array<std::array<std::uint8_t, 32>, 1> outputs{};
+    alignas(std::max_align_t) std::array<std::byte, silent_payments::send_workspace_size(1, 0, 1)>
+        send_space{};
+    auto const sent = silent_payments::create_outputs<backend>(recipients, outpoint, {},
+                                                               plain_inputs, outputs, send_space);
+    int failures = check(sent.has_value() && clear_of_mark<Checker>(workspace_bytes(send_space)),
+                         "secp256k1's create_outputs");
+    // The output is in the transaction: public.
+    Checker::mark_public(outputs[0]);
+    auto const made_label = silent_payments::create_label(*scan_pair, 0);
+    failures += check(made_label.has_value() && carries_mark<Checker>(made_label->tweak),
+                      "secp256k1's create_label");
+    std::array<secp256k1::public_key, 1> const input_keys{*input_key};
+    alignas(std::max_align_t) std::array<std::byte, silent_payments::summary_workspace_size(0, 1)>
+        summary_space{};
+    auto const summary =
+        silent_payments::make_prevouts_summary<backend>(outpoint, {}, input_keys, summary_space);
+    if (!summary) {
+        return failures + check(false, "secp256k1's make_prevouts_summary");
+    }
+    std::array<silent_payments::found_output, 1> found{};
+    alignas(std::max_align_t) std::array<std::byte, silent_payments::scan_workspace_size(1)>
+        scan_space{};
+    auto const found_count =
+        silent_payments::scan_outputs(*scan_pair, *spend_key, *summary, outputs, found, scan_space);
+    // The found output's tweak is not checked traced: libsecp256k1 marks the hash it is made of
+    // public itself, since the scan branches on the output it gives (its silent payments'
+    // main_impl.h, "the caller wants to branch when a payment is found").
+    return failures +
+           check(found_count.has_value() && *found_count == 1, "secp256k1's scan_outputs") +
+           check(clear_of_mark<Checker>(workspace_bytes(scan_space)),
+                 "secp256k1's scan_outputs, its workspace");
+}
+
+/** Every secp256k1 path above, on the checker: the number of failed checks. */
+template <class Checker>
+int secp256k1_paths() {
+    return secp256k1_ecdh<Checker>() + secp256k1_signing<Checker>() +
+           secp256k1_secret_tweaks<Checker>() + secp256k1_pkcs8<Checker>() +
+           secp256k1_ellswift<Checker>() + secp256k1_musig<Checker>() +
+           secp256k1_silent_payments<Checker>();
+}
+
 /** Every path above, on the checker: the number of failed checks. */
 template <class Checker>
 int common_paths() {
@@ -330,7 +638,7 @@ int common_paths() {
            sodium_box<Checker,
                       crypto::hybrid::basic_box<crypto::families::box_xchacha20poly1305, sodium>>(
                "box_xchacha20poly1305 on libsodium") +
-           sodium_sealed_box<Checker>() + sodium_kx<Checker>();
+           sodium_sealed_box<Checker>() + sodium_kx<Checker>() + secp256k1_paths<Checker>();
 }
 
 }  // namespace webcpp::test::constant_time

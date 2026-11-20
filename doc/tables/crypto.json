@@ -1,7 +1,7 @@
 {
     "comment": "The data of crypto's generated tables and of llms.txt; doc/tables/generate.py reads it with the test Jamfiles, the message tests and the superproject's Jamfile fixtures, and writes doc/generated/, doc/llms.txt, include/webcpp/crypto/detail/capabilities.hpp, include/webcpp/crypto/detail/defaults.hpp and test/capabilities_test.cpp. The capability table is `families`: per family its algorithms, the targets on which each backend has it (each claimed only where a test of the family's operations on that backend runs), constant time per target where it differs from the backend's own `constant_time` (X25519 on wasip2, an open finding, and natively without arm64's DIT, the cause of both), with `constant_time_checker` naming the checker that measured it where that is not every checker of the target, and the default per target, one whatever the program links (design D32), with its reason and the tests that fix it (a row of some of `compilers` restates its target's default for them, with a reason of their own, and each compiler of a target has one row), from which come include/webcpp/crypto/detail/defaults.hpp and the refusal that says what a program whose default is not linked needs; a backend with `targets`, where it is built, is a tag of `backends`. A name in a text is written between backticks, as Markdown writes code: the tables show it as code and llms.txt keeps the backticks. A comparison table's cell {speed:<family>} or {constant_time:<family>} is written from doc/performance.json or from the family's `constant_time`, and each cell of a column a namespace lists in `cited` cites a source or begins with \"none\". Edit this file, then run python3 libs/crypto/doc/tables/generate.py; the doc build runs it with --check.",
     "page": "https://webcpporg.github.io/libs/crypto/",
-    "llms": "Cryptographic primitives for C++20 on native, wasip2, wasip3 and Emscripten: AES-GCM, the AES block cipher, secp256k1 (BIP 340 Schnorr, ECDSA, ECDH, the x-only tweak), Ed25519 and Ed25519ph (RFC 8032), X25519 (RFC 7748), their keys in SPKI, PKCS#8 (RFC 8410) and PEM, libsodium's crypto_kx, the ChaCha20-Poly1305 AEADs, libsodium's secret boxes, boxes and sealed boxes, a random_device on the system's generator and a constant-time equal, each over a widely used, reviewed C library (BearSSL, OpenSSL, ctaes, libsecp256k1, libsodium) that the program names in its Jamfile. Hashing and HMAC are Boost.Hash2's; HKDF and password hashing are webcpp::hash's. Every failure is a boost::system::result value. Protocols (Bitcoin, Ethereum, Nostr) belong to domain libraries built on these primitives.",
+    "llms": "Cryptographic primitives for C++20 on native, wasip2, wasip3 and Emscripten: AES-GCM, the AES block cipher, secp256k1 (BIP 340 Schnorr, ECDSA and recoverable signatures, ECDH, tweaks, ElligatorSwift, MuSig2, silent payments), Ed25519 and Ed25519ph (RFC 8032), X25519 (RFC 7748), their keys in SPKI, PKCS#8 (RFC 8410) and PEM, libsodium's crypto_kx, the ChaCha20-Poly1305 AEADs, libsodium's secret boxes, boxes and sealed boxes, a random_device on the system's generator and a constant-time equal, each over a widely used, reviewed C library (BearSSL, OpenSSL, ctaes, libsecp256k1, libsodium) that the program names in its Jamfile. Hashing and HMAC are Boost.Hash2's; HKDF and password hashing are webcpp::hash's. Every failure is a boost::system::result value. Protocols (Bitcoin, Ethereum, Nostr) belong to domain libraries built on these primitives.",
     "targets": ["native", "wasip2", "wasip3", "emscripten"],
     "compilers": {"clang": "Clang", "gcc": "GCC", "msvc": "MSVC"},
     "checkers": {"memcheck": "Valgrind's memcheck (Linux)", "msan": "MemorySanitizer (Linux, clang)", "dudect": "dudect"},
@@ -104,7 +104,19 @@
         "xchacha-draft": ["draft-irtf-cfrg-xchacha, XChaCha20-Poly1305", "https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha"],
         "libsodium-secretstream": ["libsodium's documentation, encrypted streams (secretstream, on XChaCha20-Poly1305)", "https://doc.libsodium.org/secret-key_cryptography/secretstream"],
         "rfc7748-kdf": ["RFC 7748, section 6.1: a KDF over the shared secret and both public keys", "https://www.rfc-editor.org/rfc/rfc7748#section-6.1"],
-        "libsodium-doc-licence": ["libsodium's documentation, jedisct1/libsodium-doc at 6d1ea27, ISC", "https://github.com/jedisct1/libsodium-doc/tree/6d1ea27b79b853b2a04f09ae9e1a8231c90e3b56"]
+        "libsodium-doc-licence": ["libsodium's documentation, jedisct1/libsodium-doc at 6d1ea27, ISC", "https://github.com/jedisct1/libsodium-doc/tree/6d1ea27b79b853b2a04f09ae9e1a8231c90e3b56"],
+        "sec1": ["SEC 1 version 2, Elliptic Curve Cryptography, sections 2.3.3 and 2.3.4: a point's encodings", "https://www.secg.org/sec1-v2.pdf"],
+        "bip327": ["BIP 327, MuSig2 for BIP340-compatible multi-signatures", "https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki"],
+        "rfc5480": ["RFC 5480, Elliptic Curve Cryptography Subject Public Key Information", "https://www.rfc-editor.org/rfc/rfc5480"],
+        "rfc5915": ["RFC 5915, Elliptic Curve Private Key Structure", "https://www.rfc-editor.org/rfc/rfc5915"],
+        "rfc5208": ["RFC 5208, PKCS #8: Private-Key Information Syntax", "https://www.rfc-editor.org/rfc/rfc5208"],
+        "bip324": ["BIP 324, version 2 P2P encrypted transport protocol", "https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki"],
+        "elligatorswift": ["Chavez-Saab, Rodríguez-Henríquez and Tibouchi, SwiftEC: Shallue-van de Woestijne Indifferentiable Function to Elliptic Curves, 2022", "https://eprint.iacr.org/2022/759"],
+        "openssl-evp-pkey-ec": ["OpenSSL's EVP_PKEY-EC: an EC key's point form and its encodings", "https://docs.openssl.org/master/man7/EVP_PKEY-EC/"],
+        "musig2": ["Nick, Ruffing and Seurin, MuSig2: Simple Two-Round Schnorr Multi-Signatures, CRYPTO 2021", "https://eprint.iacr.org/2020/1261"],
+        "bip352": ["BIP 352, Silent Payments", "https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki"],
+        "libsecp256k1-silentpayments": ["libsecp256k1's silent payments header at webcpp's pin: the smallest outpoint, the outputs to keep, the labels to create", "https://github.com/bitcoin-core/secp256k1/blob/6e2c8bc4ecdc6e71dbe7a368f360d8d453ce435d/include/secp256k1_silentpayments.h"],
+        "emscripten-settings": ["Emscripten's compiler settings reference: STACK_SIZE (64 KiB, fixed) and STACK_OVERFLOW_CHECK", "https://emscripten.org/docs/tools_reference/settings_reference.html"]
     },
     "backends": {
         "bearssl": {
@@ -158,7 +170,8 @@
             "own_api": "`<secp256k1.h>` and its modules",
             "allocation": "`keypair::make` allocates the signing context, once, in the `std::pmr::memory_resource` it is given; nothing else allocates",
             "constant_time": "by design: signing and key generation are constant time and constant memory access",
-            "constant_time_sources": ["libsecp256k1"]
+            "constant_time_sources": ["libsecp256k1"],
+            "size_note": "a row that recovers a key or computes with a public point other than the generator (`recover`, MuSig2's session, a silent payment's output) links the precomputed table of libsecp256k1's variable-time multiplication too, built at window 15 natively and on WASI and at window 2 on Emscripten, the small tables ({secp256k1-configure})."
         },
         "sodium": {
             "without_b2": "link libsodium built with webcpp's src/canary_sodium.c",
@@ -273,13 +286,13 @@
         {
             "id": "keypair",
             "family": "secp256k1",
-            "functions": ["make", "xonly_public_key", "public_key", "sign_schnorr", "sign_ecdsa", "ecdh", "tweak_xonly"],
+            "functions": ["make", "xonly_public_key", "public_key", "public_key_uncompressed", "sign_schnorr", "sign_ecdsa", "sign_recoverable", "ecdh", "ecdh_x", "ecdh_point", "tweak_xonly"],
             "namespace": "curves",
             "api": "curves::secp256k1::keypair",
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
-            "what": "A secp256k1 key pair: BIP 340 Schnorr and ECDSA signatures, ECDH and the x-only tweak.",
+            "what": "A secp256k1 key pair: BIP 340 Schnorr and ECDSA signatures, hedged and recoverable too, ECDH in three forms and the x-only tweak.",
             "section": "crypto-secp256k1",
-            "backends": {"secp256k1": {"tests": ["secp256k1", "secp256k1_bip340", "secp256k1_xonly_tweak"]}}
+            "backends": {"secp256k1": {"tests": ["secp256k1", "secp256k1_bip340", "secp256k1_xonly_tweak", "secp256k1_ecdh", "secp256k1_recovery"]}}
         },
         {
             "id": "verify",
@@ -549,6 +562,89 @@
             "section": "crypto-sealed-box",
             "default": "`sealed_box` names the default backend.",
             "backends": {"sodium": {"tests": ["box_sodium", "allocation_sodium"]}}
+        },
+        {
+            "id": "recovery",
+            "family": "secp256k1",
+            "free": true,
+            "functions": ["recover"],
+            "namespace": "curves",
+            "api": "curves::secp256k1::recover",
+            "header": "<webcpp/crypto/curves/secp256k1.hpp>",
+            "what": "The public key that made a recoverable ECDSA signature of a hash.",
+            "section": "crypto-secp256k1-recovery",
+            "backends": {"secp256k1": {"tests": ["secp256k1_recovery"]}}
+        },
+        {
+            "id": "public_key",
+            "family": "secp256k1",
+            "free": true,
+            "functions": ["parse_public_key", "serialize_public_key"],
+            "namespace": "curves",
+            "api": "curves::secp256k1::public_key, parse_public_key, serialize_public_key",
+            "header": "<webcpp/crypto/curves/secp256k1.hpp>",
+            "what": "A parsed public key, read from and written to its compressed or uncompressed form.",
+            "section": "crypto-secp256k1-keys",
+            "backends": {"secp256k1": {"tests": ["secp256k1_keys"]}}
+        },
+        {
+            "id": "key_tweaks",
+            "family": "secp256k1",
+            "free": true,
+            "functions": ["seckey_tweak_add", "seckey_tweak_mul", "seckey_negate", "pubkey_tweak_add", "pubkey_tweak_mul", "pubkey_negate", "pubkey_combine"],
+            "namespace": "curves",
+            "api": "curves::secp256k1::seckey_tweak_add, seckey_tweak_mul, seckey_negate, pubkey_tweak_add, pubkey_tweak_mul, pubkey_negate, pubkey_combine",
+            "header": "<webcpp/crypto/curves/secp256k1/tweak.hpp>",
+            "what": "A secret or public key plus or times a tweak, its negation, and the sum of public keys.",
+            "section": "crypto-secp256k1-tweaks",
+            "backends": {"secp256k1": {"tests": ["secp256k1_tweak"]}}
+        },
+        {
+            "id": "key_formats",
+            "family": "secp256k1",
+            "free": true,
+            "functions": ["encode_spki", "decode_spki", "encode_pkcs8", "decode_pkcs8"],
+            "namespace": "curves",
+            "api": "curves::secp256k1::encode_spki, decode_spki, encode_pkcs8, decode_pkcs8",
+            "header": "<webcpp/crypto/curves/secp256k1/formats.hpp>",
+            "what": "A public key's SPKI and a key pair's PKCS#8, in OpenSSL's forms, decoded strictly; `pem::armour` makes either PEM text.",
+            "section": "crypto-secp256k1-formats",
+            "backends": {"secp256k1": {"tests": ["secp256k1_formats", "secp256k1_formats_openssl"]}}
+        },
+        {
+            "id": "ellswift",
+            "family": "secp256k1_ellswift",
+            "free": true,
+            "functions": ["ellswift_encode", "ellswift_decode", "ellswift_create", "ellswift_xdh"],
+            "namespace": "curves",
+            "api": "curves::secp256k1::ellswift_encode, ellswift_decode, ellswift_create, ellswift_xdh",
+            "header": "<webcpp/crypto/curves/secp256k1/ellswift.hpp>",
+            "what": "A public key written as 64 bytes that look random, and BIP 324's key exchange of two such encodings.",
+            "section": "crypto-secp256k1-ellswift",
+            "backends": {"secp256k1": {"tests": ["secp256k1_ellswift"]}}
+        },
+        {
+            "id": "musig",
+            "family": "secp256k1_musig",
+            "functions": ["xonly_public_key", "full_public_key", "tweak_add", "tweak_xonly_add", "workspace_size", "key_aggregate", "nonce_gen", "nonce_aggregate", "nonce_process", "partial_sign", "partial_signature_verify", "partial_signature_aggregate", "parse_public_nonce", "serialize_public_nonce", "parse_aggregate_nonce", "serialize_aggregate_nonce", "parse_partial_signature", "serialize_partial_signature"],
+            "namespace": "curves",
+            "api": "curves::secp256k1::musig::aggregate_key, key_aggregate, nonce_gen, nonce_aggregate, nonce_process, partial_sign, partial_signature_verify, partial_signature_aggregate, parse_public_nonce, serialize_public_nonce, parse_aggregate_nonce, serialize_aggregate_nonce, parse_partial_signature, serialize_partial_signature",
+            "header": "<webcpp/crypto/curves/secp256k1/musig.hpp>",
+            "what": "BIP 327's MuSig2: many signers' keys aggregated into one, and their two rounds into one BIP 340 signature, each secret nonce consumed by its partial signature.",
+            "section": "crypto-secp256k1-musig",
+            "backends": {"secp256k1": {"tests": ["secp256k1_musig", "secp256k1_musig_entropy"]}}
+        },
+        {
+            "id": "silent_payments",
+            "family": "secp256k1_silent_payments",
+            "free": true,
+            "functions": ["send_workspace_size", "summary_workspace_size", "scan_workspace_size", "create_outputs", "create_label", "create_labeled_spend_key", "make_prevouts_summary", "scan_outputs"],
+            "namespace": "curves",
+            "api": "curves::secp256k1::silent_payments::create_outputs, create_label, create_labeled_spend_key, make_prevouts_summary, scan_outputs, send_workspace_size, summary_workspace_size, scan_workspace_size",
+            "header": "<webcpp/crypto/curves/secp256k1/silent_payments.hpp>",
+            "what": "BIP 352's silent payments: the sender's outputs to a reusable address of a scan and a spend key, the recipient's labels, and its scan of a transaction's outputs.",
+            "section": "crypto-secp256k1-silent-payments",
+            "backends": {"secp256k1": {"tests": ["secp256k1_silent_payments"]}}
         }
     ],
     "families": [
@@ -602,6 +698,7 @@
             "group": "curves::secp256k1",
             "since": "0.1",
             "measured": "BIP340 signature of a 32-byte message",
+            "sized_operations": {"ecdh_x": "x coordinate of the ECDH shared point with a peer's public key", "recover": "public key recovered from an ECDSA signature of a 32-byte hash"},
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
             "names": [
                 {"name": "secp256k1", "title": "secp256k1", "type": "curves::secp256k1::basic_keypair<{backend}>"}
@@ -610,7 +707,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
             ],
             "backends": {
-                "secp256k1": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}, "lane_note": "libsecp256k1's own `ctime_tests.c`"}
+                "secp256k1": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}, "lane_note": {"memcheck": "libsecp256k1's own `ctime_tests.c`, and webcpp's code around it: the key pair's making, its signatures and x-only tweak, ECDH in three forms, the secret key's tweaks and negation, and PKCS#8", "msan": "the same paths as memcheck's", "dudect": "`ecdh_x`"}}
             }
         },
         {
@@ -822,6 +919,57 @@
             "backends": {
                 "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan"]}}
             }
+        },
+        {
+            "name": "secp256k1_ellswift",
+            "title": "ElligatorSwift",
+            "group": "curves",
+            "since": "0.2",
+            "measured": "BIP 324 shared secret of two ElligatorSwift encodings",
+            "header": "<webcpp/crypto/curves/secp256k1/ellswift.hpp>",
+            "names": [
+                {"name": "secp256k1_ellswift", "title": "ElligatorSwift"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1_ellswift", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
+            ],
+            "backends": {
+                "secp256k1": {"targets": "all", "runtime": false, "lane": {"native": ["memcheck", "msan"]}, "lane_note": {"memcheck": "libsecp256k1's own `ctime_tests.c`, and webcpp's `ellswift_create` and `ellswift_xdh` around it", "msan": "the same paths as memcheck's"}}
+            }
+        },
+        {
+            "name": "secp256k1_musig",
+            "title": "MuSig2",
+            "group": "curves",
+            "since": "0.2",
+            "measured": "two-signer MuSig2 signature of a 32-byte message",
+            "header": "<webcpp/crypto/curves/secp256k1/musig.hpp>",
+            "names": [
+                {"name": "secp256k1_musig", "title": "MuSig2"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1_musig", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
+            ],
+            "backends": {
+                "secp256k1": {"targets": "all", "runtime": false, "lane": {"native": ["memcheck", "msan"]}, "lane_note": {"memcheck": "libsecp256k1's own `ctime_tests.c`, and webcpp's `nonce_gen` and `partial_sign` around it", "msan": "the same paths as memcheck's"}}
+            }
+        },
+        {
+            "name": "secp256k1_silent_payments",
+            "title": "BIP 352 silent payments",
+            "group": "curves",
+            "since": "0.2",
+            "measured": "a silent payment output for one recipient",
+            "header": "<webcpp/crypto/curves/secp256k1/silent_payments.hpp>",
+            "names": [
+                {"name": "secp256k1_silent_payments", "title": "BIP 352 silent payments"}
+            ],
+            "default": [
+                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1_silent_payments", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
+            ],
+            "backends": {
+                "secp256k1": {"targets": "all", "runtime": false, "lane": {"native": ["memcheck", "msan"]}, "lane_note": {"memcheck": "libsecp256k1's own `ctime_tests.c`, and webcpp's `create_outputs`, `create_label` and `scan_outputs` around it, each workspace's wipe included", "msan": "the same paths as memcheck's"}}
+            }
         }
     ],
     "rules": [
@@ -829,9 +977,9 @@
         {"title": "The usage limit", "section": "crypto-gcm-rules", "text": "with random IVs, at most 2^32 messages under one key ({sp800-38d}, section 8.3); rotate the key before."},
         {"title": "A failed open zeroes data", "section": "crypto-gcm-rules", "text": "when the tag does not match, `open` returns `authentication_failed` and zeroes the whole of `data`; keep a copy of the ciphertext if it is needed after a failure. There is no incremental open: a large message is split into records."},
         {"title": "Records: each stream its own key", "section": "crypto-gcm-incremental", "text": "records numbered from 0 with the number as IV are safe only under a key used for that one stream: derive a key per stream (HKDF of the storage key with a random salt) or draw one; never number two streams' records under one key."},
-        {"title": "ECDH's form", "section": "crypto-secp256k1", "text": "`keypair::ecdh` returns libsecp256k1's hashed form, the SHA-256 of the compressed shared point; it does not interoperate with protocols that take the raw x coordinate, such as Nostr's NIP-44 ({nip44}). Derive keys from it with HKDF, never use it directly."},
-        {"title": "The x-only tweak is not BIP 32", "section": "crypto-wallets-taproot", "text": "`tweak_xonly` is BIP 341's even-y arithmetic ({bip341}); BIP 32's child derivation needs a tweak of the full key, which this version does not offer ({bip32})."},
-        {"title": "Ethereum", "section": "crypto-curves", "text": "this version verifies Ethereum's ECDSA signatures with a known key but has no recoverable signature (no recovery id `v`, no public key recovery) and no uncompressed public key output, so it cannot sign Ethereum transactions or derive addresses."},
+        {"title": "ECDH's form", "section": "crypto-secp256k1-ecdh", "text": "`keypair::ecdh` returns libsecp256k1's hashed form, the SHA-256 of the compressed shared point; protocols that take the raw x coordinate, such as Nostr's NIP-44 ({nip44}), need `ecdh_x`. Both sides must use the same form, or they derive different keys. Derive keys with a KDF, never use a shared secret directly."},
+        {"title": "The x-only tweak is not BIP 32", "section": "crypto-wallets-taproot", "text": "`tweak_xonly` is BIP 341's even-y arithmetic ({bip341}); BIP 32's child derivation tweaks the full key, with `seckey_tweak_add` and `pubkey_tweak_add`, and computes the tweak with HMAC-SHA-512, a domain library's ({bip32})."},
+        {"title": "Ethereum", "section": "crypto-curves", "text": "this version signs and verifies Ethereum's ECDSA, recoverable signatures included (`keypair::sign_recoverable`), recovers a signer's public key from a signature and a hash (`recover`), and writes the uncompressed key ({ethereum}); the recovery id's `v` encoding, the hash Ethereum signs, transactions and addresses are a domain library's."},
         {"title": "Compare secrets in constant time", "section": "crypto-equal", "text": "compare a tag, a MAC or a token with `equal`, never `==` or `memcmp` ({cwe208})."},
         {"title": "Secrets come from random_device", "section": "crypto-entropy", "text": "keys, IVs and tokens are drawn from `random_device`, never `std::mt19937` or `rand` ({cwe338})."},
         {"title": "Never reuse a nonce under one ChaCha20-Poly1305 key", "section": "crypto-chacha", "text": "two messages under one key and one nonce reveal the XOR of their plaintexts and let an attacker forge tags ({rfc8439-nonce}). `xchacha20_poly1305` and the secret boxes: draw 24 bytes at random per message. `chacha20_poly1305`: number the 12-byte nonces with a counter that never repeats, a restart included, or draw them at random for at most 2^32 messages per key, AES-GCM's bound for random 12-byte IVs ({sp800-38d}). `chacha20_poly1305_original`: a counter only, its 8 bytes are too short to draw."},
@@ -859,7 +1007,7 @@
                 ["`random_device`", "Keys, IVs, tokens, nonces: every secret a program draws", "`<webcpp/crypto/random_device.hpp>`", "`entropy_unavailable`, `errc::not_supported`", "{getentropy}, {bcryptgenrandom}, {getrandomvalues}, {wasi-random}", "you need a random number an attacker must not predict; never `std::mt19937` or `rand` ({cwe338})"],
                 ["`equal`", "Checking a tag, a MAC or a token", "`<webcpp/crypto/equal.hpp>`", "none: it returns `bool`", "{cwe208}", "you compare anything secret; never `==` or `memcmp` on a MAC"],
                 ["`error`", "Telling failures apart", "`<webcpp/crypto/error.hpp>`", "its values are the errors", "none", "you branch on a failure: forged data, a wrong size, no entropy"],
-                ["`pem`", "A key's SPKI or PKCS#8 as text, to paste, store or exchange with OpenSSL", "`<webcpp/crypto/pem.hpp>`", "`invalid_encoding`, `invalid_input_size`", "{rfc7468}, {libsodium-base64}", "a key goes to or comes from a file, a form or a tool as `-----BEGIN PUBLIC KEY-----` text; with the `encode_spki` and `encode_pkcs8` of `curves::ed25519` or `curves::x25519`"],
+                ["`pem`", "A key's SPKI or PKCS#8 as text, to paste, store or exchange with OpenSSL", "`<webcpp/crypto/pem.hpp>`", "`invalid_encoding`, `invalid_input_size`", "{rfc7468}, {libsodium-base64}", "a key goes to or comes from a file, a form or a tool as `-----BEGIN PUBLIC KEY-----` text; with the `encode_spki` and `encode_pkcs8` of `curves::ed25519`, `curves::x25519` or `curves::secp256k1`"],
                 ["`openssl_memory_resource`", "Keeping every allocation of OpenSSL's in the program's own resource, natively", "`<webcpp/crypto/backends/openssl.hpp>`", "`memory_functions_refused`, `memory_functions_not_installed`", "{openssl-mem}", "a native program on OpenSSL must allocate only from its own arena; on WebAssembly, BearSSL allocates nothing"]
             ]
         },
@@ -887,7 +1035,7 @@
             "columns": ["Curve", "What it does", "Security level", "Key sizes", "Signature sizes", "Speed", "Constant time, measured", "Standards", "Ecosystems that require it", "Browsers' WebCrypto", "Choose it for compatibility with"],
             "cited": ["Standards", "Ecosystems that require it", "Browsers' WebCrypto"],
             "rows": [
-                ["`secp256k1`", "BIP 340 Schnorr and ECDSA signatures, ECDH, the x-only tweak", "about 128 bits ({sec2})", "secret 32 bytes; public 33 bytes compressed, 32 bytes x-only", "64 bytes; ECDSA in DER up to 72", "{speed:secp256k1}", "{constant_time:secp256k1}", "{sec2}, {bip340}, {rfc6979}", "Bitcoin ({bip340}), Ethereum ({ethereum}), Nostr ({nip01})", "no: WebCrypto offers P-256, P-384, P-521, Ed25519 and X25519, not secp256k1 ({webcrypto})", "Bitcoin's keys and signatures; Nostr's event signatures ({nip01}); Ethereum's ECDSA verification with a known key. Not in this version: Ethereum's recoverable signatures and its addresses from the uncompressed key; ECDH in the raw x-coordinate form of Nostr's encrypted messages ({nip44}); BIP 32's derivation ({bip32})"],
+                ["`secp256k1`", "BIP 340 Schnorr and ECDSA signatures, recoverable signatures, ECDH in three forms, tweaks, ElligatorSwift, MuSig2, silent payments, SPKI and PKCS#8", "about 128 bits ({sec2})", "secret 32 bytes; public 33 bytes compressed, 65 bytes uncompressed ({sec1}), 32 bytes x-only, 64 bytes as ElligatorSwift ({bip324}); SPKI 56 or 88 bytes ({rfc5480}), PKCS#8 135 bytes ({rfc5208}, {rfc5915})", "64 bytes, MuSig2's aggregate too ({bip327}); 65 bytes recoverable; ECDSA in DER up to 72", "{speed:secp256k1}", "{constant_time:secp256k1}", "{sec2}, {bip340}, {rfc6979}, {bip324}, {bip327}, {bip352}", "Bitcoin ({bip340}), Ethereum ({ethereum}), Nostr ({nip01})", "no: WebCrypto offers P-256, P-384, P-521, Ed25519 and X25519, not secp256k1 ({webcrypto})", "Bitcoin's keys and signatures; Nostr's event signatures ({nip01}); Ethereum's ECDSA verification with a known key; ECDH in the raw x-coordinate form of Nostr's encrypted messages ({nip44}); Ethereum's recoverable signatures and uncompressed keys ({ethereum}), the address hashing being a domain library's; BIP 32's tweaks of the full key, its derivation of the tweak being a domain library's ({bip32}); keys exchanged with OpenSSL as SPKI or PKCS#8 ({rfc5480}, {rfc5915}), in DER or PEM ({rfc7468}); Bitcoin's version 2 transport, whose keys are ElligatorSwift encodings ({bip324}); MuSig2's multisignatures ({bip327}); silent payments ({bip352}), the addresses and transactions being a domain library's"],
                 ["`ed25519`", "Ed25519 signatures, and Ed25519ph over SHA-512 for a message given in pieces; the X25519 secret key of a key pair", "about 128 bits ({rfc8032})", "secret 32 bytes (the seed); public 32 bytes", "64 bytes", "{speed:ed25519}", "{constant_time:ed25519}", "{rfc8032}, {fips186-5}", "SSH keys ({rfc8709}), Signal's signatures on its Curve25519 keys ({signal-xeddsa}), Tor's identity keys ({tor-cert-spec}), Solana's accounts ({solana-accounts})", "yes: Ed25519 ({webcrypto})", "SSH, Tor and Solana keys and signatures, and any protocol that names RFC 8032's Ed25519 or Ed25519ph; verification is strict (libsodium's rules), which some lenient verifiers are not. Not Bitcoin, Ethereum or Nostr, whose keys are secp256k1's"],
                 ["`x25519`", "Key agreement (Diffie-Hellman on Curve25519): two parties who exchanged public keys share a 32-byte secret; `kx_keypair`, libsodium's `crypto_kx`, gives a client and a server a session key for each direction", "about 128 bits ({rfc7748})", "secret 32 bytes; public 32 bytes", "none: no signatures", "{speed:x25519}", "{constant_time:x25519}", "{rfc7748}", "TLS 1.3 ({rfc8446-groups}), SSH ({rfc8731}), WireGuard ({wireguard}), Signal ({x3dh})", "yes: X25519 ({webcrypto})", "TLS 1.3's and SSH's key exchange, WireGuard, Signal; libsodium's `crypto_box` keys, and the session keys of `crypto_kx` with `kx_keypair` ({libsodium-kx}). The Ed25519 public key of a peer converts with `curves::ed25519::to_x25519_public`. A shared secret goes through a KDF before it keys a cipher. Every case of Wycheproof's X25519 file is tested ({wycheproof})"]
             ]
@@ -913,7 +1061,14 @@
         {"need": "Turn a sequential id into an opaque reference", "namespace": "webcpp::crypto::ciphers", "api": "`aes256<backends::ctaes>`", "backend": "ctaes, or OpenSSL natively and on WASI", "jamfile": "/webcpp/crypto//crypto /third_party//ctaes", "example": "order_reference", "section": "crypto-block"},
         {"need": "Prove who wrote a message posted to a relay", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign_schnorr`, `verify_schnorr`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "signed_message", "section": "crypto-p2p-signed"},
         {"need": "Check a software update or a licence file", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign_ecdsa`, `verify_ecdsa`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "signed_update", "section": "crypto-everyday-update"},
-        {"need": "Agree on a key with a peer through a relay that sees everything", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::ecdh` (SHA-256 of the shared point: not NIP-44's raw x coordinate), then HKDF on Boost.Hash2 and `aes256_gcm`", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//gcm-default", "example": "ecdh_session", "section": "crypto-p2p-session"},
+        {"need": "Agree on a key with a peer through a relay that sees everything", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::ecdh` (SHA-256 of the shared point), then HKDF on Boost.Hash2 and `aes256_gcm`", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//gcm-default", "example": "ecdh_session", "section": "crypto-p2p-session"},
+        {"need": "Derive a Nostr direct message's conversation key (NIP-44; the format is a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::ecdh_x`, then HKDF on Boost.Hash2", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ecdh_x_coordinate", "section": "crypto-p2p-nostr-dm", "answers": "crypto-secp256k1-ecdh"},
+        {"need": "Find who signed a message or a transaction without being sent their key (Ethereum's signatures)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign_recoverable`, `recover`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "recover_signer", "section": "crypto-wallets-recovery", "answers": "crypto-secp256k1-recovery"},
+        {"need": "Derive child keys for a watch-only wallet (BIP 32's derivation is a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`seckey_tweak_add`, `pubkey_tweak_add`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "key_tweak", "section": "crypto-secp256k1-tweaks"},
+        {"need": "Store or exchange a secp256k1 key with OpenSSL or a config file", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`encode_spki`, `decode_spki`, `encode_pkcs8`, `decode_pkcs8`; `webcpp::crypto::pem::armour`, `unarmour`", "backend": "libsecp256k1, libsodium for PEM", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//pem-default", "example": "secp256k1_key_formats", "section": "crypto-secp256k1-formats"},
+        {"need": "Make a peer-to-peer connection's key exchange look like random bytes (BIP 324's transport; its packets are a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`ellswift_create`, `ellswift_decode`, `ellswift_xdh`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ellswift_handshake", "section": "crypto-p2p-v2", "answers": "crypto-secp256k1-ellswift"},
+        {"need": "Publish one donation address that never shows two payments as related (BIP 352's addresses and transactions are a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1::silent_payments", "api": "`create_outputs`, `make_prevouts_summary`, `scan_outputs`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "silent_payment", "section": "crypto-wallets-silent", "answers": "crypto-secp256k1-silent-payments"},
+        {"need": "Require two devices to sign for a wallet, with one ordinary signature on the chain", "namespace": "webcpp::crypto::curves::secp256k1::musig", "api": "`key_aggregate`, `nonce_gen`, `partial_sign`, `partial_signature_aggregate`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "musig_wallet", "section": "crypto-wallets-musig", "answers": "crypto-secp256k1-musig"},
         {"need": "Make and keep a wallet's key", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::make`, `xonly_public_key`, `public_key`; `aes256_gcm` at rest", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//gcm-default", "example": "wallet_key", "section": "crypto-wallets-key"},
         {"need": "Sign a Bitcoin SegWit v0 input (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`sign_ecdsa`, `to_der`, `normalize_ecdsa`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ecdsa_der", "section": "crypto-wallets-der"},
         {"need": "Derive a Bitcoin Taproot output key and spend by key path (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`tweak_xonly`, `keypair::tweak_xonly`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "taproot_tweak", "section": "crypto-wallets-taproot"},
@@ -941,6 +1096,9 @@
         "gcm_default": "AES-256-GCM on its default on every target, with the one line `/webcpp/crypto//gcm-default`, which links OpenSSL natively and BearSSL on WebAssembly; the same program as `web`.",
         "openssl_linked": "OpenSSL, built from source, named in the type: natively and on WASI.",
         "secp256k1_default": "BIP 340's first test vector, signed and verified on secp256k1's default on every target, with the one line `/webcpp/crypto//secp256k1-default`, which links libsecp256k1.",
+        "secp256k1_ellswift_default": "Two key pairs' ElligatorSwift encodings, each decoded to its public key, and both sides of BIP 324's exchange agreeing, on ElligatorSwift's default on every target, with the one line `/webcpp/crypto//secp256k1_ellswift-default`, which links libsecp256k1.",
+        "secp256k1_musig_default": "Two key pairs' public keys aggregated with BIP 327's MuSig2, a message signed in its two rounds and the aggregate verified as one BIP 340 signature, on MuSig2's default on every target, with the one line `/webcpp/crypto//secp256k1_musig-default`, which links libsecp256k1.",
+        "secp256k1_silent_payments_default": "A BIP 352 silent payments recipient, its scan and spend keys, paid from one input and the payment found by a scan of the output, on silent payments' default on every target, with the one line `/webcpp/crypto//secp256k1_silent_payments-default`, which links libsecp256k1.",
         "ed25519_default": "RFC 8032's first Ed25519 test, signed and verified on Ed25519's default on every target, with the one line `/webcpp/crypto//ed25519-default`, which links libsodium.",
         "x25519_default": "RFC 7748's shared secret on X25519's default on every target, with the one line `/webcpp/crypto//x25519-default`, which links libsodium.",
         "kx_default": "libsodium's `crypto_kx` test, the client's and the server's session keys from each other's public key, on its default on every target, with the one line `/webcpp/crypto//kx-default`, which links libsodium.",
@@ -1013,6 +1171,11 @@
         "secp256k1_not_linked": "Add `/third_party//secp256k1`.",
         "gcm_on_ctaes": "Name `gcm<aes256<backends::bearssl>>` or `gcm<aes256<backends::openssl>>`, or use `aes256_gcm` with its default linked.",
         "secp256k1_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::keypair`.",
+        "musig_nonce_copied": "Pass the nonce with std::move, once: a secret nonce signs one message.",
+        "ellswift_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::ellswift_decode(encoded_key)`.",
+        "musig_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::musig::parse_public_nonce(encoded_nonce)`.",
+        "silent_payments_other_backend": "Name `backends::secp256k1`, or leave the backend out: `curves::secp256k1::silent_payments::make_prevouts_summary(...)`.",
+        "label_lookup_by_value": "Return `std::optional<std::span<std::uint8_t const, 32>>`, a span over a tweak the lookup keeps, such as a map's entry; never the tweak by value.",
         "aes_on_bearssl": "Name `ciphers::aes256<backends::ctaes>`, include `<webcpp/crypto/backends/ctaes.hpp>` and add `/third_party//ctaes`.",
         "default_selected": "Remove the define, and name `gcm<aes256<backends::bearssl>>` where the program wants BearSSL.",
         "default_openssl_wasm": "Remove the define, and name `gcm<aes256<backends::openssl>>` where the program wants OpenSSL.",

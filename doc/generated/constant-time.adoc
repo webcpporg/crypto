@@ -34,8 +34,8 @@
 
 |libsecp256k1
 |by design: signing and key generation are constant time and constant memory access; link:https://github.com/bitcoin-core/secp256k1#readme[libsecp256k1's README]
-|Valgrind's memcheck (Linux): secp256k1 (libsecp256k1's own `+ctime_tests.c+`); MemorySanitizer (Linux, clang): secp256k1 (libsecp256k1's own `+ctime_tests.c+`)
-|not measured yet
+|Valgrind's memcheck (Linux): secp256k1 (libsecp256k1's own `+ctime_tests.c+`, and webcpp's code around it: the key pair's making, its signatures and x-only tweak, ECDH in three forms, the secret key's tweaks and negation, and PKCS#8), ElligatorSwift (libsecp256k1's own `+ctime_tests.c+`, and webcpp's `+ellswift_create+` and `+ellswift_xdh+` around it), MuSig2 (libsecp256k1's own `+ctime_tests.c+`, and webcpp's `+nonce_gen+` and `+partial_sign+` around it), BIP 352 silent payments (libsecp256k1's own `+ctime_tests.c+`, and webcpp's `+create_outputs+`, `+create_label+` and `+scan_outputs+` around it, each workspace's wipe included); MemorySanitizer (Linux, clang): secp256k1 (the same paths as memcheck's), ElligatorSwift (the same paths as memcheck's), MuSig2 (the same paths as memcheck's), BIP 352 silent payments (the same paths as memcheck's); dudect: secp256k1 (`+ecdh_x+`)
+|dudect: secp256k1 (`+ecdh_x+`)
 |not measured yet
 |not measured yet
 

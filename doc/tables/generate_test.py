@@ -711,6 +711,46 @@ def test_a_type_names_only_crypto_s_namespaces_from_the_root(_: Path) -> None:
     assert 'crypto::curves::ed25519::basic<std::size_t{32}, backends::sodium>' in test, test
 
 
+def test_a_family_of_functions_has_no_type_to_make(_: Path) -> None:
+    # A family whose operations are free functions names no algorithm type: its cells are
+    # asserted through the test's own `algorithm`, and nothing is made.
+    data = small_table()
+    del data['families'][0]['names'][0]['type']
+    test = generate.capabilities_test(data)
+    assert ('static_assert(crypto::supports_v<algorithm<families::ed25519, families::ed25519>, '
+            'backends::sodium>);\n') in test, test
+    assert 'webcpp::test::made<' not in test, test
+
+
+def test_a_title_ending_in_s_takes_an_apostrophe_alone(_: Path) -> None:
+    # "BIP 352 silent payments's" is not English: a title that ends in s is possessive with the
+    # apostrophe alone, in the default's refusal and the primary engine's Doc Comment.
+    data = small_table()
+    family = data['families'][0]
+    family['title'] = 'BIP 352 silent payments'
+    text = generate.needs(data, family, 'native', 'sodium')
+    assert "webcpp::crypto: BIP 352 silent payments' default backend" in text, text
+    header = generate.capabilities_header(data)
+    assert "The refusals of the family BIP 352 silent payments' primary engine" in header, header
+    assert "payments's" not in header, header
+
+
+def test_a_family_s_comment_names_the_namespace_of_its_header(_: Path) -> None:
+    # A family of a module header (curves/secp256k1/ellswift.hpp) is of the namespace that
+    # header's directory names, deeper than the plan's group `curves`; a family whose group is
+    # already deeper than its header keeps its group.
+    data = small_table()
+    family = data['families'][0]
+    family['group'] = 'curves'
+    family['header'] = '<webcpp/crypto/curves/ed25519/module.hpp>'
+    header = generate.capabilities_header(data)
+    assert 'The family Ed25519, of `curves::ed25519`, also the tag' in header, header
+    family['group'] = 'curves::ed25519'
+    family['header'] = '<webcpp/crypto/curves/ed25519.hpp>'
+    header = generate.capabilities_header(data)
+    assert 'The family Ed25519, of `curves::ed25519`, also the tag' in header, header
+
+
 def test_the_check_prints_each_file_that_differs(scratch: Path) -> None:
     files = {scratch / 'include/a.hpp': 'one\n', scratch / 'test/b.cpp': 'two\n'}
     generated = scratch / 'doc/generated'
@@ -1089,6 +1129,16 @@ def test_a_use_case_joins_the_operation_it_names(_: Path) -> None:
         ' Use it to: encrypt chat messages.')
 
 
+def test_a_use_case_that_links_a_teaching_section_joins_the_operation_it_answers(_: Path) -> None:
+    data = {'use_cases': [
+        {'need': 'Find who signed a message', 'api': '`recover`', 'section': 'teaching',
+         'answers': 'reference'},
+        {'need': 'Recover elsewhere', 'api': '`recover`', 'section': 'teaching'}]}
+    assert generate.llms_uses(data, {'api': 'curves::secp256k1::recover',
+                                     'section': 'reference'}) == (
+        ' Use it to: find who signed a message.')
+
+
 def test_a_measurement_not_built_at_release_is_refused(scratch: Path) -> None:
     import json
     written(scratch, 'doc/performance.json', json.dumps(measured(22.5)))
@@ -1304,6 +1354,9 @@ CASES: list[Callable[[Path], None]] = [
     test_the_default_s_refusal_says_what_the_program_needs,
     test_a_refusal_holds_on_its_target,
     test_a_type_names_only_crypto_s_namespaces_from_the_root,
+    test_a_family_of_functions_has_no_type_to_make,
+    test_a_title_ending_in_s_takes_an_apostrophe_alone,
+    test_a_family_s_comment_names_the_namespace_of_its_header,
     test_the_check_prints_each_file_that_differs,
     test_the_check_names_a_file_that_differs,
     test_the_size_matrix_reads_the_lane_s_tables,
@@ -1323,6 +1376,7 @@ CASES: list[Callable[[Path], None]] = [
     test_the_namespaces_and_backends_come_from_the_data,
     test_every_api_page_lists_its_default_per_target,
     test_a_use_case_joins_the_operation_it_names,
+    test_a_use_case_that_links_a_teaching_section_joins_the_operation_it_answers,
     test_a_measurement_not_built_at_release_is_refused,
     test_a_speed_cell_names_each_operation_and_refuses_an_unknown_backend,
     test_a_measured_cell_escapes_the_bars_of_its_finding,

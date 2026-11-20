@@ -59,7 +59,7 @@
 |`+curves::secp256k1::keypair+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
-|`+secp256k1+`, `+secp256k1_bip340+`, `+secp256k1_xonly_tweak+`
+|`+secp256k1+`, `+secp256k1_bip340+`, `+secp256k1_xonly_tweak+`, `+secp256k1_ecdh+`, `+secp256k1_recovery+`
 
 |`+curves::secp256k1::verify_schnorr+`, `+verify_ecdsa+`
 |libsecp256k1
@@ -190,6 +190,41 @@
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+box_sodium+`, `+allocation_sodium+`
+
+|`+curves::secp256k1::recover+`
+|libsecp256k1
+|native, wasip2, wasip3, emscripten
+|`+secp256k1_recovery+`
+
+|`+curves::secp256k1::public_key+`, `+parse_public_key+`, `+serialize_public_key+`
+|libsecp256k1
+|native, wasip2, wasip3, emscripten
+|`+secp256k1_keys+`
+
+|`+curves::secp256k1::seckey_tweak_add+`, `+seckey_tweak_mul+`, `+seckey_negate+`, `+pubkey_tweak_add+`, `+pubkey_tweak_mul+`, `+pubkey_negate+`, `+pubkey_combine+`
+|libsecp256k1
+|native, wasip2, wasip3, emscripten
+|`+secp256k1_tweak+`
+
+|`+curves::secp256k1::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsecp256k1
+|native, wasip2, wasip3, emscripten
+|`+secp256k1_formats+`, `+secp256k1_formats_openssl+`
+
+|`+curves::secp256k1::ellswift_encode+`, `+ellswift_decode+`, `+ellswift_create+`, `+ellswift_xdh+`
+|libsecp256k1
+|native, wasip2, wasip3, emscripten
+|`+secp256k1_ellswift+`
+
+|`+curves::secp256k1::musig::aggregate_key+`, `+key_aggregate+`, `+nonce_gen+`, `+nonce_aggregate+`, `+nonce_process+`, `+partial_sign+`, `+partial_signature_verify+`, `+partial_signature_aggregate+`, `+parse_public_nonce+`, `+serialize_public_nonce+`, `+parse_aggregate_nonce+`, `+serialize_aggregate_nonce+`, `+parse_partial_signature+`, `+serialize_partial_signature+`
+|libsecp256k1
+|native, wasip2, wasip3, emscripten
+|`+secp256k1_musig+`, `+secp256k1_musig_entropy+`
+
+|`+curves::secp256k1::silent_payments::create_outputs+`, `+create_label+`, `+create_labeled_spend_key+`, `+make_prevouts_summary+`, `+scan_outputs+`, `+send_workspace_size+`, `+summary_workspace_size+`, `+scan_workspace_size+`
+|libsecp256k1
+|native, wasip2, wasip3, emscripten
+|`+secp256k1_silent_payments+`
 |===
 
 The same, by target: the backends each operation runs on.
@@ -365,4 +400,46 @@ The same, by target: the backends each operation runs on.
 |libsodium
 |libsodium
 |libsodium
+
+|`+curves::secp256k1::recover+`
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+
+|`+curves::secp256k1::public_key+`, `+parse_public_key+`, `+serialize_public_key+`
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+
+|`+curves::secp256k1::seckey_tweak_add+`, `+seckey_tweak_mul+`, `+seckey_negate+`, `+pubkey_tweak_add+`, `+pubkey_tweak_mul+`, `+pubkey_negate+`, `+pubkey_combine+`
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+
+|`+curves::secp256k1::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+
+|`+curves::secp256k1::ellswift_encode+`, `+ellswift_decode+`, `+ellswift_create+`, `+ellswift_xdh+`
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+
+|`+curves::secp256k1::musig::aggregate_key+`, `+key_aggregate+`, `+nonce_gen+`, `+nonce_aggregate+`, `+nonce_process+`, `+partial_sign+`, `+partial_signature_verify+`, `+partial_signature_aggregate+`, `+parse_public_nonce+`, `+serialize_public_nonce+`, `+parse_aggregate_nonce+`, `+serialize_aggregate_nonce+`, `+parse_partial_signature+`, `+serialize_partial_signature+`
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+
+|`+curves::secp256k1::silent_payments::create_outputs+`, `+create_label+`, `+create_labeled_spend_key+`, `+make_prevouts_summary+`, `+scan_outputs+`, `+send_workspace_size+`, `+summary_workspace_size+`, `+scan_workspace_size+`
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
+|libsecp256k1
 |===

@@ -71,12 +71,62 @@
 |<<crypto-everyday-update,[.keep]`+signed_update.cpp+`>>
 
 |Agree on a key with a peer through a relay that sees everything
-|In `+curves::secp256k1+`: `+keypair::ecdh+` (SHA-256 of the shared point: not NIP-44's raw x coordinate), then HKDF on Boost.Hash2 and `+aes256_gcm+`
+|In `+curves::secp256k1+`: `+keypair::ecdh+` (SHA-256 of the shared point), then HKDF on Boost.Hash2 and `+aes256_gcm+`
 |libsecp256k1, and AES-GCM's default
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+` +
 `+/webcpp/crypto//gcm-default+`
 |<<crypto-p2p-session,[.keep]`+ecdh_session.cpp+`>>
+
+|Derive a Nostr direct message's conversation key (NIP-44; the format is a domain library's)
+|In `+curves::secp256k1+`: `+keypair::ecdh_x+`, then HKDF on Boost.Hash2
+|libsecp256k1
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+`
+|<<crypto-p2p-nostr-dm,[.keep]`+ecdh_x_coordinate.cpp+`>>
+
+|Find who signed a message or a transaction without being sent their key (Ethereum's signatures)
+|In `+curves::secp256k1+`: `+keypair::sign_recoverable+`, `+recover+`
+|libsecp256k1
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+`
+|<<crypto-wallets-recovery,[.keep]`+recover_signer.cpp+`>>
+
+|Derive child keys for a watch-only wallet (BIP 32's derivation is a domain library's)
+|In `+curves::secp256k1+`: `+seckey_tweak_add+`, `+pubkey_tweak_add+`
+|libsecp256k1
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+`
+|<<crypto-secp256k1-tweaks,[.keep]`+key_tweak.cpp+`>>
+
+|Store or exchange a secp256k1 key with OpenSSL or a config file
+|In `+curves::secp256k1+`: `+encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`; `+webcpp::crypto::pem::armour+`, `+unarmour+`
+|libsecp256k1, libsodium for PEM
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+` +
+`+/webcpp/crypto//pem-default+`
+|<<crypto-secp256k1-formats,[.keep]`+secp256k1_key_formats.cpp+`>>
+
+|Make a peer-to-peer connection's key exchange look like random bytes (BIP 324's transport; its packets are a domain library's)
+|In `+curves::secp256k1+`: `+ellswift_create+`, `+ellswift_decode+`, `+ellswift_xdh+`
+|libsecp256k1
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+`
+|<<crypto-p2p-v2,[.keep]`+ellswift_handshake.cpp+`>>
+
+|Publish one donation address that never shows two payments as related (BIP 352's addresses and transactions are a domain library's)
+|In `+curves::secp256k1::silent_payments+`: `+create_outputs+`, `+make_prevouts_summary+`, `+scan_outputs+`
+|libsecp256k1
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+`
+|<<crypto-wallets-silent,[.keep]`+silent_payment.cpp+`>>
+
+|Require two devices to sign for a wallet, with one ordinary signature on the chain
+|In `+curves::secp256k1::musig+`: `+key_aggregate+`, `+nonce_gen+`, `+partial_sign+`, `+partial_signature_aggregate+`
+|libsecp256k1
+|`+/webcpp/crypto//crypto+` +
+`+/third_party//secp256k1+`
+|<<crypto-wallets-musig,[.keep]`+musig_wallet.cpp+`>>
 
 |Make and keep a wallet's key
 |In `+curves::secp256k1+`: `+keypair::make+`, `+xonly_public_key+`, `+public_key+`; `+aes256_gcm+` at rest

@@ -66,6 +66,9 @@ webcpp.headers-alone crypto : ../include
 # WEBCPP_CRYPTO_HAS_SECP256K1 (without it, each stops with its message).
 webcpp.headers-alone crypto : ../include
   : crypto/curves/secp256k1.hpp crypto/backends/secp256k1.hpp
+    crypto/curves/secp256k1/tweak.hpp crypto/curves/secp256k1/formats.hpp
+    crypto/curves/secp256k1/ellswift.hpp crypto/curves/secp256k1/musig.hpp
+    crypto/curves/secp256k1/silent_payments.hpp
   : <library>/third_party//secp256k1 ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
@@ -206,9 +209,57 @@ crypto-run secp256k1_bip340 : secp256k1_bip340_test.cpp
 crypto-run secp256k1_wycheproof : secp256k1_wycheproof_test.cpp
   : <library>/third_party//secp256k1 <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;
-# libsecp256k1's recovery and ElligatorSwift modules, which webcpp does not
-# wrap, called through the C API and linked.
+# The three forms of ECDH, each a secret<N>, and Wycheproof's ECDH vectors.
+crypto-run secp256k1_ecdh : secp256k1_ecdh_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
+# The parsed public key in both SEC1 forms, and its refusals.
+crypto-run secp256k1_keys : secp256k1_keys_test.cpp : <library>/third_party//secp256k1 ;
+# Recoverable ECDSA signatures, libsecp256k1's edge cases, and hedged ECDSA.
+crypto-run secp256k1_recovery : secp256k1_recovery_test.cpp : <library>/third_party//secp256k1 ;
+# libsecp256k1's recovery and ElligatorSwift modules called through its C API,
+# which stays reachable beside the wrappers, and compared with them.
 crypto-run secp256k1_c_api : secp256k1_c_api_test.cpp : <library>/third_party//secp256k1 ;
+# Tweaks, negation and combination of secret and public keys, against the
+# C API, and their refusals.
+crypto-run secp256k1_tweak : secp256k1_tweak_test.cpp : <library>/third_party//secp256k1 ;
+# SPKI and PKCS#8, and PEM around them on libsodium: round trips, Wycheproof's
+# SPKIs, malformed inputs and, on Emscripten, node's crypto module as the
+# outside oracle.
+crypto-run secp256k1_formats : secp256k1_formats_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//sodium
+    <library>/third_party//wycheproof <library>/webcpp//boost_json ;
+# The same source with OpenSSL as the outside oracle: its keys, encodings and
+# PEM text.
+crypto-run secp256k1_formats_openssl : secp256k1_formats_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//sodium
+    <library>/webcpp/crypto//openssl <define>WEBCPP_TEST_OPENSSL_ORACLE
+  : native wasip2 wasip3 ;
+# ElligatorSwift against BIP 324's decoding and packet vectors, round trips
+# over seeded key pairs, and the key exchange from both sides.
+crypto-run secp256k1_ellswift : secp256k1_ellswift_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//bips ;
+# MuSig2 against BIP 327's vectors, 2-of-2 and 3-of-3 round trips, and a
+# secret nonce that signs once.
+crypto-run secp256k1_musig : secp256k1_musig_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//bips
+    <library>/webcpp//boost_json ;
+# MuSig2's nonce with the system's source failing: a program of its own, since
+# the test seam is a whole-program define.
+crypto-run secp256k1_musig_entropy : secp256k1_musig_entropy_test.cpp
+  : <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
+# BIP 352's vectors as libsecp256k1's test reads them, its vectors.h compiled in
+# C with warnings off, as libsecp256k1's own sources are (the C++ test keeps
+# every warning).
+obj bip352_vectors : support/bip352_vectors.c
+  : <library>/third_party//secp256k1-test-config <warnings>off
+    <warnings-as-errors>off ;
+explicit bip352_vectors ;
+# Silent payments against BIP 352's vectors, a labelled address, and every
+# refusal of a precondition libsecp256k1 would abort on.
+crypto-run secp256k1_silent_payments : secp256k1_silent_payments_test.cpp
+    bip352_vectors
+  : <library>/third_party//secp256k1 <library>/third_party//secp256k1-test-config ;
 crypto-run secp256k1_der : secp256k1_der_test.cpp
   : <library>/third_party//secp256k1 <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;

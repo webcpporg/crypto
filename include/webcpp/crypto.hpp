@@ -57,6 +57,11 @@
 
 #ifdef WEBCPP_CRYPTO_HAS_SECP256K1
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
+#include <webcpp/crypto/curves/secp256k1/formats.hpp>
+#include <webcpp/crypto/curves/secp256k1/musig.hpp>
+#include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
+#include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #endif
 
 #endif  // WEBCPP_CRYPTO_HPP

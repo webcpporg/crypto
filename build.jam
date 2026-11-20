@@ -210,4 +210,37 @@ rule sealed_box-default-linked ( properties * )
     }
 }
 alias sealed_box-default : : : : <conditional>@sealed_box-default-linked ;
+rule secp256k1_ellswift-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/third_party//secp256k1 ;
+        case wasip2 : return <library>/third_party//secp256k1 ;
+        case wasip3 : return <library>/third_party//secp256k1 ;
+        case emscripten : return <library>/third_party//secp256k1 ;
+    }
+}
+alias secp256k1_ellswift-default : : : : <conditional>@secp256k1_ellswift-default-linked ;
+rule secp256k1_musig-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/third_party//secp256k1 ;
+        case wasip2 : return <library>/third_party//secp256k1 ;
+        case wasip3 : return <library>/third_party//secp256k1 ;
+        case emscripten : return <library>/third_party//secp256k1 ;
+    }
+}
+alias secp256k1_musig-default : : : : <conditional>@secp256k1_musig-default-linked ;
+rule secp256k1_silent_payments-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/third_party//secp256k1 ;
+        case wasip2 : return <library>/third_party//secp256k1 ;
+        case wasip3 : return <library>/third_party//secp256k1 ;
+        case emscripten : return <library>/third_party//secp256k1 ;
+    }
+}
+alias secp256k1_silent_payments-default : : : : <conditional>@secp256k1_silent_payments-default-linked ;
 # generate.py: end the defaults' aliases

@@ -13,6 +13,7 @@
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
+#include <webcpp/crypto/secret.hpp>
 
 #include <boost/hash2/sha2.hpp>
 #include <boost/system/result.hpp>
@@ -22,9 +23,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 
 namespace crypto = webcpp::crypto;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
@@ -126,10 +129,11 @@ boost::system::result<secp256k1::keypair> generate_key() {
     }
 }
 
-// Both sides derive their session key the same way.
+// Both sides derive their session key the same way. The shared secret wipes itself when it
+// goes out of scope; the key derived from it is the program's to wipe.
 boost::system::result<crypto::ciphers::aes256_gcm> session_cipher(
-    std::array<std::uint8_t, 32> const& shared) {
-    auto key = hkdf_sha256<32>(shared, {}, bytes_of("example chat v1 session key"));
+    crypto::secret<32> const& shared) {
+    auto key = hkdf_sha256<32>(shared.bytes(), {}, bytes_of("example chat v1 session key"));
     auto cipher = crypto::ciphers::aes256_gcm::make(key);
     // The cipher keeps its own copy of the key, which it wipes; this one goes now.
     wipe(std::as_writable_bytes(std::span(key)));
@@ -167,22 +171,28 @@ int main() {
     if (!alice_public || !bob_public) {
         return 1;
     }
-    auto alice_shared = alice->ecdh(*bob_public);
-    auto bob_shared = bob->ecdh(*alice_public);
-    if (!alice_shared || !bob_shared || !crypto::equal(*alice_shared, *bob_shared)) {
-        return 1;
+    // The shared secrets live only in this block: each is a secret<32>, which wipes itself at
+    // the block's end, as soon as the session ciphers are made from it.
+    std::optional<crypto::ciphers::aes256_gcm> alice_cipher;
+    std::optional<crypto::ciphers::aes256_gcm> bob_cipher;
+    {
+        auto const alice_shared = alice->ecdh(*bob_public);
+        auto const bob_shared = bob->ecdh(*alice_public);
+        if (!alice_shared || !bob_shared ||
+            !crypto::equal(alice_shared->bytes(), bob_shared->bytes())) {
+            return 1;
+        }
+        std::printf("shared secrets match\n");
+        auto alice_made = session_cipher(*alice_shared);
+        auto bob_made = session_cipher(*bob_shared);
+        if (!alice_made || !bob_made) {
+            return 1;
+        }
+        alice_cipher.emplace(std::move(*alice_made));
+        bob_cipher.emplace(std::move(*bob_made));
     }
-    std::printf("shared secrets match\n");
     // end::agree[]
 
-    auto alice_cipher = session_cipher(*alice_shared);
-    auto bob_cipher = session_cipher(*bob_shared);
-    // The shared secrets have given their keys: wipe them.
-    wipe(std::as_writable_bytes(std::span(*alice_shared)));
-    wipe(std::as_writable_bytes(std::span(*bob_shared)));
-    if (!alice_cipher || !bob_cipher) {
-        return 1;
-    }
     std::array<std::uint8_t, 12> iv{};
     if (!crypto::random_device().fill(iv)) {
         return 1;

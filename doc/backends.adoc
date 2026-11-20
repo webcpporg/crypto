@@ -82,16 +82,23 @@ ChaCha20-Poly1305 `make`, `seal` and `open`; OpenSSL's `make` and `seal` of
 both; ctaes's AES; libsodium's Ed25519 key pair and signature, X25519's public
 key and agreement, its three ChaCha20-Poly1305 AEADs and two secret boxes,
 `hybrid::box` in both families, the sealed box's `seal` and `open`, and `kx`;
-and libsecp256k1's own `ctime_tests.c`. Both checkers run the same paths,
-written once (`paths.hpp`), memcheck OpenSSL's besides. Each check is shown to
-fail on a planted branch on a key byte, and each path's output is checked to
-carry the mark, so that the path is traced, where the checker's shadow keeps
-it: MemorySanitizer's loses the mark through a constant-time reduction to one
-bit, so the result of `is_all_zero`, X25519's public key and the bytes a
-destructor wiped are checked by memcheck alone. dudect's statistics
+libsecp256k1's own `ctime_tests.c`; and webcpp's code around libsecp256k1:
+the key pair's making, its BIP 340, recoverable and hedged ECDSA signatures and
+x-only tweak, ECDH in its three forms, the secret key's tweaks and negation,
+PKCS#8's encoding and decoding, ElligatorSwift's `ellswift_create` and
+`ellswift_xdh`, MuSig2's `nonce_gen` and `partial_sign`, and silent payments'
+`create_outputs`, `create_label` and `scan_outputs`, with the wipe of their
+workspaces. Both checkers run the same paths, written once (`paths.hpp`),
+memcheck OpenSSL's besides. Each check is shown to fail on a planted branch on
+a key byte, and each path's output is checked to carry the mark, so that the
+path is traced, where the checker's shadow keeps it: MemorySanitizer's loses
+the mark through a constant-time reduction to one bit, so the result of
+`is_all_zero`, X25519's public key and the bytes a destructor wiped are checked
+by memcheck alone. dudect's statistics
 (link:https://eprint.iacr.org/2016/1123[Reparaz, Balasch and Verbauwhede]) time
-BearSSL's two AEADs' seal and open, ctaes, `equal`, and libsodium's X25519
-agreement and Ed25519 signing natively, on Linux and macOS, and under wasmtime.
+BearSSL's two AEADs' seal and open, ctaes, `equal`, libsodium's X25519
+agreement and Ed25519 signing, and libsecp256k1's `ecdh_x` natively, on Linux
+and macOS, and under wasmtime.
 On 64-bit ARM under macOS and Linux, each dudect program first sets the CPU's
 DIT (data-independent timing) bit, with which the instructions Arm lists take
 a time independent of their data, and which Apple requires of constant-time
@@ -118,8 +125,14 @@ everything else.
 Whether a tag matched, or a shared secret came out all zero, is public by
 design, since the operation reports it, but it is computed from the secrets: it
 is the one kind of value webcpp marks public, where webcpp's code first
-branches on it (BearSSL's engines, libsodium's engines and X25519's `agree`),
-so that the checkers report every other branch. libsodium branches on its own
+branches on it (BearSSL's engines, libsodium's engines, X25519's `agree`, and
+each verdict of libsecp256k1's that webcpp reads), so that the checkers report
+every other branch. libsecp256k1 marks its own public values (a nonce's retry,
+a verdict, a public key it loads) when its context is made with
+`SECP256K1_CONTEXT_DECLASSIFY`, which webcpp's contexts are under the
+checkers, as its `ctime_tests.c` makes its own; a key pair's public key and a
+silent payments label, which webcpp reads from libsecp256k1's structures, are
+marked public where webcpp reads them. libsodium branches on its own
 verdicts inside the functions that compute them; the lane tells memcheck of
 each of those functions (`sodium_verdicts.supp`), and libsodium is used
 unchanged. MemorySanitizer approximates a subtraction without its carry, so it

@@ -19,6 +19,9 @@
 #include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
+#include <webcpp/crypto/curves/secp256k1/musig.hpp>
+#include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/curves/x25519/kx.hpp>
 #include <webcpp/crypto/hybrid/box.hpp>
@@ -151,6 +154,24 @@ struct refuses_box_xchacha20poly1305 {
 template <class Backend>
 struct refuses_sealed_box {
     WEBCPP_CRYPTO_DETAIL_REFUSE_SEALED_BOX(Backend);
+};
+
+/** The refusals of ElligatorSwift, parsed: nothing instantiates it. */
+template <class Backend>
+struct refuses_secp256k1_ellswift {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1_ELLSWIFT(Backend);
+};
+
+/** The refusals of MuSig2, parsed: nothing instantiates it. */
+template <class Backend>
+struct refuses_secp256k1_musig {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1_MUSIG(Backend);
+};
+
+/** The refusals of BIP 352 silent payments, parsed: nothing instantiates it. */
+template <class Backend>
+struct refuses_secp256k1_silent_payments {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1_SILENT_PAYMENTS(Backend);
 };
 
 }  // namespace
@@ -443,6 +464,48 @@ static_assert(crypto::supports_v<algorithm<families::sealed_box, families::seale
 #else
 static_assert(!crypto::supports_v<algorithm<families::sealed_box, families::sealed_box>, backends::sodium>);
 #endif
+// ElligatorSwift on bearssl: none.
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_ellswift, families::secp256k1_ellswift>, backends::bearssl>);
+// ElligatorSwift on openssl: none.
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_ellswift, families::secp256k1_ellswift>, backends::openssl>);
+// ElligatorSwift on ctaes: none.
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_ellswift, families::secp256k1_ellswift>, backends::ctaes>);
+// ElligatorSwift on secp256k1: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::secp256k1_ellswift, families::secp256k1_ellswift>, backends::secp256k1>);
+#else
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_ellswift, families::secp256k1_ellswift>, backends::secp256k1>);
+#endif
+// ElligatorSwift on sodium: none.
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_ellswift, families::secp256k1_ellswift>, backends::sodium>);
+// MuSig2 on bearssl: none.
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_musig, families::secp256k1_musig>, backends::bearssl>);
+// MuSig2 on openssl: none.
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_musig, families::secp256k1_musig>, backends::openssl>);
+// MuSig2 on ctaes: none.
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_musig, families::secp256k1_musig>, backends::ctaes>);
+// MuSig2 on secp256k1: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::secp256k1_musig, families::secp256k1_musig>, backends::secp256k1>);
+#else
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_musig, families::secp256k1_musig>, backends::secp256k1>);
+#endif
+// MuSig2 on sodium: none.
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_musig, families::secp256k1_musig>, backends::sodium>);
+// BIP 352 silent payments on bearssl: none.
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::bearssl>);
+// BIP 352 silent payments on openssl: none.
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::openssl>);
+// BIP 352 silent payments on ctaes: none.
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::ctaes>);
+// BIP 352 silent payments on secp256k1: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::secp256k1>);
+#else
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::secp256k1>);
+#endif
+// BIP 352 silent payments on sodium: none.
+static_assert(!crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::sodium>);
 // clang-format on
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity): one check per cell

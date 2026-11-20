@@ -151,6 +151,86 @@ a secret key computes every past session's secret from the recorded public
 keys, while fresh pairs wiped after the session give *forward secrecy*
 (link:https://en.wikipedia.org/wiki/Forward_secrecy[Wikipedia]); a long-lived
 key signs the fresh public keys instead. `ecdh` returns libsecp256k1's hashed
-form, the SHA-256 of the compressed shared point: both sides must use it, and
-it does not interoperate with protocols that take the raw x coordinate, such
-as Nostr's NIP-44 (<<crypto-secp256k1>>).
+form, the SHA-256 of the compressed shared point, as a `secret<32>` that wipes
+itself: both sides must use the same form, and a protocol that takes the raw x
+coordinate, such as Nostr's NIP-44, needs `ecdh_x` (<<crypto-secp256k1-ecdh>>).
+
+[#crypto-p2p-nostr-dm]
+=== A shared key in Nostr's direct messages
+
+*The problem.* A Nostr chat app sends a private message to a contact through
+public relays, which keep every event and serve it to anyone who asks. The two
+users know each other only by their public keys, the secp256k1 keys that sign
+their notes.
+
+*The idea.* Each side combines its secret key with the other's public key, an
+ECDH, and both find the same shared point. Nostr's encrypted payloads take its
+x coordinate unhashed, and derive from it a conversation key, HKDF-extract
+with the salt `nip44-v2`, then a key for each message
+(link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44]).
+`ecdh_x` gives the x coordinate as a `secret<32>`
+(<<crypto-secp256k1-ecdh>>); the conversation key and everything after it,
+the message keys, the padding and the payload's format, are NIP-44's, which a
+domain library built on crypto and hash, such as a future webcpp::nostr,
+derives. The example computes the conversation key only to show where the x
+coordinate goes:
+
+[source,cpp]
+----
+include::{examples}/ecdh_x_coordinate.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/ecdh_x_coordinate.expected[]
+----
+
+This section names no application.
+
+*Mistakes to avoid.* Hashing the x coordinate differently on the two sides:
+`ecdh` hashes the compressed shared point with SHA-256, libsecp256k1's
+default, and a side that uses it while the other takes the raw x coordinate
+gets another key, so that every message fails to open with nothing pointing at
+the cause. Reusing the conversation key as a message key: it is the same for
+every message between the two users, in both directions; NIP-44 derives each
+message's keys from it and a fresh 32-byte nonce, and a program that encrypts
+with the conversation key itself repeats its keys across messages.
+
+[#crypto-p2p-v2]
+=== A handshake an observer cannot recognise
+
+*The problem.* A node of a peer-to-peer network, a Bitcoin node or a
+messenger, opens connections that a box on the path may want to recognise and
+block. A handshake that starts with a public key is easy to spot: a compressed
+key begins with 02 or 03, and its next 32 bytes are always the x coordinate of
+a point of the curve, which only about half of all random strings are.
+
+*The idea.* Bitcoin's version 2 transport sends each peer's key as an
+ElligatorSwift encoding instead: 64 bytes, made from the key pair and fresh
+randomness, that cannot be told from random ones; both peers compute the same
+secret from the two encodings
+(link:https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki[BIP 324];
+<<crypto-secp256k1-ellswift>>). The secret feeds the protocol's key schedule;
+that schedule and the protocol's packets are BIP 324's, a domain library's.
+
+[source,cpp]
+----
+include::{examples}/ellswift_handshake.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/ellswift_handshake.expected[]
+----
+
+The encodings hide that a key exchange happens, not who takes part: both peers'
+addresses stay visible to whoever watches the connection. This section names no
+application.
+
+*Mistakes to avoid.* Draw fresh randomness for every encoding: the same key
+with the same randomness gives the same 64 bytes, which links two connections
+of one node. Pass the two encodings in the protocol's order, the initiator's
+first, and name the right party: a side that passes them in its own order
+computes another secret, and the connection fails with nothing pointing at the
+cause. Never use the secret as a key by itself: BIP 324 derives its session's
+keys from it with HKDF.

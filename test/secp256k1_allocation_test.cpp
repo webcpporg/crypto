@@ -7,22 +7,34 @@
 // secp256k1's one allocation (spec section 8.5): make allocates the signing context once, in
 // the resource it is given, of libsecp256k1's preallocated size and aligned to max_align_t,
 // and never through operator new nor the C library's allocator where the target lets a
-// program count it; the signatures, ECDH, the public keys, both verifications, the DER and
-// low-S functions and the x-only tweak allocate nothing, each counted alone; the destructor
+// program count it; the signatures (hedged and recoverable too), the three forms of ECDH, the
+// public keys in both forms, both verifications, the parsed public key, recovery, the DER and
+// low-S functions, the x-only tweak, the tweaks, negations and combination of tweak.hpp, the
+// SPKI and PKCS#8 encoders and decoders of formats.hpp, the ElligatorSwift functions of
+// ellswift.hpp, the MuSig2 functions of musig.hpp and the silent payments of
+// silent_payments.hpp allocate nothing, each counted alone
+// (decode_pkcs8's key pair takes its one block from the resource it is given); the destructor
 // gives the block back; a refused make allocates nothing. A control proves the counter moves.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
+#include <webcpp/crypto/curves/secp256k1/formats.hpp>
+#include <webcpp/crypto/curves/secp256k1/musig.hpp>
+#include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
+#include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/counting.hpp"
 
 #include <boost/core/lightweight_test.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <memory_resource>
+#include <optional>
 #include <span>
 #include <utility>
 
@@ -63,8 +75,95 @@ private:
     alignas(std::max_align_t) std::array<std::byte, 1024> buffer_{};
 };
 
+// silent_payments.hpp: the key pair pays itself, scan and spend, with one plain input, finds
+// the output, labels its change, pays the labelled address and finds that output through the
+// lookup; each workspace on the stack, each step counted alone by `none`.
+void silent_payments_allocate_nothing(secp::keypair const& key, secp::public_key const& own_key,
+                                      auto const& none) {
+    namespace sp = secp::silent_payments;
+    sp::recipient const address{.scan_key = own_key, .spend_key = own_key};
+    std::array<sp::recipient, 1> const recipients{address};
+    std::array<std::uint8_t, sp::outpoint_size> const outpoint{7};
+    std::array<secp::keypair const*, 1> const plain_inputs{&key};
+    std::array<secp::public_key, 1> const input_keys{own_key};
+    std::array<std::array<std::uint8_t, 32>, 1> payment_outputs{};
+    alignas(std::max_align_t) std::array<std::byte, sp::send_workspace_size(1, 0, 1)> send_space{};
+    none("create_outputs", [&] {
+        return sp::create_outputs(recipients, outpoint, {}, plain_inputs, payment_outputs,
+                                  send_space);
+    });
+    std::optional<sp::label> change_label;
+    none("create_label", [&] {
+        auto r = sp::create_label(key, 0);
+        if (r) {
+            change_label.emplace(*r);
+        }
+        return r;
+    });
+    if (!BOOST_TEST(change_label.has_value())) {
+        return;
+    }
+    std::optional<secp::public_key> labelled_key;
+    none("create_labeled_spend_key", [&] {
+        auto r = sp::create_labeled_spend_key(own_key, *change_label);
+        if (r) {
+            labelled_key.emplace(*r);
+        }
+        return r;
+    });
+    if (!BOOST_TEST(labelled_key.has_value())) {
+        return;
+    }
+    alignas(std::max_align_t) std::array<std::byte, sp::summary_workspace_size(0, 1)>
+        summary_space{};
+    std::optional<sp::prevouts_summary> summary;
+    none("make_prevouts_summary", [&] {
+        auto r = sp::make_prevouts_summary(outpoint, {}, input_keys, summary_space);
+        if (r) {
+            summary.emplace(*r);
+        }
+        return r;
+    });
+    if (!BOOST_TEST(summary.has_value())) {
+        return;
+    }
+    alignas(std::max_align_t) std::array<std::byte, sp::scan_workspace_size(1)> scan_space{};
+    std::array<sp::found_output, 1> found{};
+    none("scan_outputs", [&] {
+        auto r = sp::scan_outputs(key, own_key, *summary, payment_outputs, found, scan_space);
+        return r && *r == 1;
+    });
+    // An output paid to the change label: no direct match, so the scan computes label
+    // candidates and calls the lookup, which is counted with it.
+    sp::recipient const change_recipient{.scan_key = own_key, .spend_key = *labelled_key};
+    std::array<sp::recipient, 1> const change_recipients{change_recipient};
+    std::array<std::array<std::uint8_t, 32>, 1> change_outputs{};
+    none("create_outputs to a labelled address", [&] {
+        return sp::create_outputs(change_recipients, outpoint, {}, plain_inputs, change_outputs,
+                                  send_space);
+    });
+    std::size_t lookup_calls = 0;
+    auto const change_lookup = [&](std::span<std::uint8_t const, 33> candidate) noexcept
+        -> std::optional<std::span<std::uint8_t const, 32>> {
+        ++lookup_calls;
+        if (std::ranges::equal(candidate, change_label->point)) {
+            return std::span<std::uint8_t const, 32>(change_label->tweak);
+        }
+        return std::nullopt;
+    };
+    none("scan_outputs with a label lookup", [&] {
+        auto r = sp::scan_outputs(key, own_key, *summary, change_outputs, found, scan_space,
+                                  change_lookup);
+        return r && *r == 1;
+    });
+    BOOST_TEST(lookup_calls > 0);
+    BOOST_TEST(found[0].label_point == std::optional(change_label->point));
+}
+
 }  // namespace
 
+// One allocation count around each call, in one scope that holds the key pair and its buffers.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): the calls share that scope
 int main() {
     std::cout << "the C library's allocations counted: " << webcpp::test::c_allocations_counted
               << "\n";
@@ -101,7 +200,13 @@ int main() {
         auto const xonly = key.xonly_public_key();
         auto const public_key = key.public_key();
         auto const shared = key.ecdh(*public_key);
-        BOOST_TEST(schnorr && ecdsa && xonly && public_key && shared);
+        auto const shared_x = key.ecdh_x(*public_key);
+        auto const shared_point = key.ecdh_point(*public_key);
+        auto const hedged = key.sign_ecdsa(message, aux);
+        auto const recoverable = key.sign_recoverable(message);
+        auto const uncompressed = key.public_key_uncompressed();
+        BOOST_TEST(schnorr && ecdsa && xonly && public_key && shared && shared_x && shared_point);
+        BOOST_TEST(hedged && recoverable && uncompressed);
         BOOST_TEST(secp::verify_schnorr(*schnorr, message, *xonly).has_value());
         BOOST_TEST(secp::verify_ecdsa(*ecdsa, message, *public_key).has_value());
         BOOST_TEST_EQ(webcpp::test::allocations(), before);
@@ -125,9 +230,146 @@ int main() {
         none("from_der", [&] { return secp::from_der(encoded); });
         none("normalize_ecdsa", [&] { return secp::normalize_ecdsa(*ecdsa); });
         none("tweak_xonly", [&] { return secp::tweak_xonly(*xonly, message); });
+        auto const parsed = secp::parse_public_key(*uncompressed);
+        none("parse_public_key", [&] { return secp::parse_public_key(*public_key); });
+        none("serialize_public_key", [&] {
+            return secp::serialize_public_key<secp::point_form::uncompressed>(*parsed) ==
+                   *uncompressed;
+        });
+        none("recover", [&] { return secp::recover(*recoverable, message); });
+        none("public_key <=>", [&] { return (*parsed <=> *parsed) == 0; });
         none("keypair::tweak_xonly", [&] { return key.tweak_xonly(message); });
+
+        // tweak.hpp: the tweaks, the negations and the combination, its workspace on the stack.
+        none("seckey_tweak_add", [&] { return secp::seckey_tweak_add(secret, message); });
+        none("seckey_tweak_mul", [&] { return secp::seckey_tweak_mul(secret, message); });
+        none("seckey_negate", [&] { return secp::seckey_negate(secret); });
+        none("pubkey_tweak_add", [&] { return secp::pubkey_tweak_add(*parsed, message); });
+        none("pubkey_tweak_mul", [&] { return secp::pubkey_tweak_mul(*parsed, message); });
+        none("pubkey_negate", [&] { return secp::pubkey_negate(*parsed) != *parsed; });
+        alignas(std::max_align_t) std::array<std::byte, secp::combine_workspace_size(2)> space{};
+        std::array<secp::public_key, 2> const pair{*parsed, *parsed};
+        none("pubkey_combine", [&] { return secp::pubkey_combine(pair, space); });
+
+        // formats.hpp: both SPKIs and the PKCS#8, written and read.
+        std::array<std::uint8_t, secp::max_pkcs8_size> encoding{};
+        std::size_t spki_size = 0;
+        none("encode_spki", [&] {
+            auto const r = secp::encode_spki(*parsed, encoding, secp::point_form::uncompressed);
+            spki_size = r ? *r : 0;
+            return r;
+        });
+        none("decode_spki", [&] {
+            return secp::decode_spki(std::span<std::uint8_t const>(encoding).first(spki_size));
+        });
+        none("encode_pkcs8", [&] { return secp::encode_pkcs8(key, encoding); });
+
+        // ellswift.hpp: the encoding of a key and of a key pair, its decoding, and the exchange.
+        std::array<std::uint8_t, secp::ellswift_size> noise{};
+        none("ellswift_encode", [&] {
+            noise = secp::ellswift_encode(*parsed, aux);
+            return true;
+        });
+        none("ellswift_decode", [&] { return secp::ellswift_decode(noise) == *parsed; });
+        none("ellswift_create", [&] { return secp::ellswift_create(key, aux); });
+        none("ellswift_xdh", [&] {
+            return secp::ellswift_xdh(key, noise, noise, secp::ellswift_party::initiator);
+        });
+
+        // musig.hpp: one signer's two rounds, its workspace on the stack, each step alone.
+        namespace musig = secp::musig;
+        // The key pair was tweaked above: its key now, not the one parsed before.
+        auto const signer_key = secp::parse_public_key(*key.public_key());
+        if (!BOOST_TEST(signer_key.has_value())) {
+            return webcpp::test::exit_status(boost::report_errors());
+        }
+        std::array<secp::public_key, 1> const signer_keys{*signer_key};
+        alignas(std::max_align_t) std::array<std::byte, musig::workspace_size(1)> musig_space{};
+        std::optional<musig::aggregate_key> signers_key;
+        none("key_aggregate", [&] {
+            auto r = musig::key_aggregate(signer_keys, musig_space);
+            if (r) {
+                signers_key.emplace(*r);
+            }
+            return r;
+        });
+        if (!BOOST_TEST(signers_key.has_value())) {
+            return webcpp::test::exit_status(boost::report_errors());
+        }
+        none("aggregate_key::xonly_public_key",
+             [&] { return signers_key->xonly_public_key() != std::array<std::uint8_t, 32>{}; });
+        none("aggregate_key::full_public_key",
+             [&] { return signers_key->full_public_key() == signers_key->full_public_key(); });
+        none("aggregate_key::tweak_add", [&] { return signers_key->tweak_add(message); });
+        none("aggregate_key::tweak_xonly_add",
+             [&] { return signers_key->tweak_xonly_add(message); });
+        // The tweaks stay in the aggregate key, whose cache the session reads; the signer's key
+        // pair signs as it is.
+        std::optional<musig::nonce_pair> nonces;
+        none("nonce_gen", [&] {
+            auto r = musig::nonce_gen(key, *signers_key, message);
+            if (r) {
+                nonces.emplace(std::move(*r));
+            }
+            return r.has_value();
+        });
+        if (!BOOST_TEST(nonces.has_value())) {
+            return webcpp::test::exit_status(boost::report_errors());
+        }
+        std::array<musig::public_nonce, 1> const public_nonces{nonces->public_part};
+        std::optional<musig::aggregate_nonce> nonce_sum;
+        none("nonce_aggregate", [&] {
+            auto r = musig::nonce_aggregate(public_nonces, musig_space);
+            if (r) {
+                nonce_sum.emplace(*r);
+            }
+            return r;
+        });
+        std::optional<musig::session> signing_session;
+        none("nonce_process", [&] {
+            auto r = musig::nonce_process(*nonce_sum, message, *signers_key);
+            if (r) {
+                signing_session.emplace(*r);
+            }
+            return r;
+        });
+        std::optional<musig::partial_signature> part;
+        none("partial_sign", [&] {
+            auto r = musig::partial_sign(key, std::move(nonces->secret_part), *signers_key,
+                                         *signing_session);
+            if (r) {
+                part.emplace(*r);
+            }
+            return r;
+        });
+        none("partial_signature_verify", [&] {
+            return musig::partial_signature_verify(*part, public_nonces[0], *signer_key,
+                                                   *signers_key, *signing_session);
+        });
+        std::array<musig::partial_signature, 1> const parts{*part};
+        none("partial_signature_aggregate", [&] {
+            return musig::partial_signature_aggregate(*signing_session, parts, musig_space);
+        });
+        none("serialize_public_nonce, parse_public_nonce", [&] {
+            return musig::parse_public_nonce(musig::serialize_public_nonce(public_nonces[0]));
+        });
+        none("serialize_aggregate_nonce, parse_aggregate_nonce", [&] {
+            return musig::parse_aggregate_nonce(musig::serialize_aggregate_nonce(*nonce_sum));
+        });
+        none("serialize_partial_signature, parse_partial_signature", [&] {
+            return musig::parse_partial_signature(musig::serialize_partial_signature(*part));
+        });
+
+        silent_payments_allocate_nothing(key, *signer_key, none);
         BOOST_TEST_EQ(resource.allocated, 1U);
         BOOST_TEST_EQ(resource.deallocated, 0U);
+
+        // decode_pkcs8 makes a key pair: its one block from the resource it is given, nothing
+        // else.
+        counting_resource decoded_resource;
+        none("decode_pkcs8", [&] { return secp::decode_pkcs8(encoding, &decoded_resource); });
+        BOOST_TEST_EQ(decoded_resource.allocated, 1U);
+        BOOST_TEST_EQ(decoded_resource.deallocated, 1U);
     }
     // The destructor gave the block back, once.
     BOOST_TEST_EQ(resource.deallocated, 1U);

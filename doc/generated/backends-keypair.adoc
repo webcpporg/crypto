@@ -16,7 +16,7 @@ The backends of `+curves::secp256k1::keypair+`, from the test programs that run 
 |libsecp256k1
 |`+/third_party//secp256k1+`
 |`+<webcpp/crypto/backends/secp256k1.hpp>+`
-|native, wasip2, wasip3, emscripten (tested by `+secp256k1+`, `+secp256k1_bip340+`, `+secp256k1_xonly_tweak+`)
+|native, wasip2, wasip3, emscripten (tested by `+secp256k1+`, `+secp256k1_bip340+`, `+secp256k1_xonly_tweak+`, `+secp256k1_ecdh+`, `+secp256k1_recovery+`)
 |===
 
 A call that names no backend takes the family's default on each target, whatever the program links, as <<crypto-backends-defaults>> gives it with its reasons and tests:

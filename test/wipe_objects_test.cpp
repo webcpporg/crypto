@@ -12,7 +12,8 @@
 // (the Jamfile's <optimization>speed), where a store the optimiser may drop is the case.
 //
 // One source, one backend per program: WEBCPP_TEST_WIPE_BEARSSL, WEBCPP_TEST_WIPE_CTAES,
-// WEBCPP_TEST_WIPE_SECP256K1, WEBCPP_TEST_WIPE_OPENSSL or WEBCPP_TEST_WIPE_SODIUM.
+// WEBCPP_TEST_WIPE_SECP256K1 (the key pair, and MuSig2's secret nonce),
+// WEBCPP_TEST_WIPE_OPENSSL or WEBCPP_TEST_WIPE_SODIUM.
 
 #include <webcpp/test/exit_status.hpp>
 
@@ -26,6 +27,7 @@
 #include <webcpp/crypto/ciphers/aes.hpp>
 #elif defined(WEBCPP_TEST_WIPE_SECP256K1)
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/secp256k1/musig.hpp>
 #elif defined(WEBCPP_TEST_WIPE_OPENSSL)
 #include <webcpp/crypto/backends/openssl.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
@@ -128,13 +130,13 @@ T keyed(std::uint8_t first) {
     }
 }
 
-// The three ways a keyed object stops holding its key.
+// The three ways a keyed object stops holding its key; `make` makes one from a first byte.
 template <class T>
-void check_wiped(region where) {
+void check_wiped(region where, T (*make)(std::uint8_t) = &keyed<T>) {
     {
         // The destructor.
         slot<T> storage;
-        placed<T> object(storage, keyed<T>(1));
+        placed<T> object(storage, make(1));
         BOOST_TEST(any_set(storage, where));
         object.destroy();
         BOOST_TEST(!any_set(storage, where));
@@ -144,7 +146,7 @@ void check_wiped(region where) {
         // none.
         slot<T> from_storage;
         slot<T> to_storage;
-        placed<T> from(from_storage, keyed<T>(1));
+        placed<T> from(from_storage, make(1));
         BOOST_TEST(any_set(from_storage, where));
         placed<T> to(to_storage, std::move(*from));
         BOOST_TEST(!any_set(from_storage, where));
@@ -159,8 +161,8 @@ void check_wiped(region where) {
         // gives up first.
         slot<T> from_storage;
         slot<T> to_storage;
-        placed<T> from(from_storage, keyed<T>(1));
-        placed<T> to(to_storage, keyed<T>(100));
+        placed<T> from(from_storage, make(1));
+        placed<T> to(to_storage, make(100));
         BOOST_TEST(any_set(from_storage, where));
         BOOST_TEST(any_set(to_storage, where));
         *to = std::move(*from);
@@ -187,6 +189,23 @@ constexpr region box_key{
     .offset = 0,
     .size = sizeof(crypto::detail::box_state<Family, crypto::backends::sodium>),
 };
+#endif
+
+#ifdef WEBCPP_TEST_WIPE_SECP256K1
+// A MuSig2 secret nonce of the key pair of `first`, its key aggregated alone.
+crypto::curves::secp256k1::musig::secret_nonce nonce_of(std::uint8_t first) {
+    namespace secp = crypto::curves::secp256k1;
+    auto const signer = keyed<secp::keypair>(first);
+    auto const signer_key = secp::parse_public_key(*signer.public_key());
+    webcpp::test::require(signer_key.has_value());
+    std::array<secp::public_key, 1> const keys{*signer_key};
+    std::array<std::byte, secp::musig::workspace_size(1)> space{};
+    auto const key = secp::musig::key_aggregate(keys, space);
+    webcpp::test::require(key.has_value());
+    auto made = secp::musig::nonce_gen(signer, *key);
+    webcpp::test::require(made.has_value());
+    return std::move(made->secret_part);
+}
 #endif
 
 }  // namespace
@@ -216,6 +235,10 @@ int main() {
     using type = crypto::curves::secp256k1::keypair;
     static_assert(sizeof(type) >= (2 * sizeof(void*)) + sizeof(secp256k1_keypair));
     check_wiped<type>({.offset = 2 * sizeof(void*), .size = sizeof(secp256k1_keypair)});
+    // A MuSig2 secret nonce: libsecp256k1's secnonce comes first, its two secret scalars and the
+    // signer's key, zero after the destructor and in the source of a move.
+    check_wiped<crypto::curves::secp256k1::musig::secret_nonce>(
+        {.offset = 0, .size = sizeof(secp256k1_musig_secnonce)}, &nonce_of);
 #elif defined(WEBCPP_TEST_WIPE_OPENSSL)
     // OpenSSL cleanses the expanded key in EVP_CIPHER_CTX_free (its own, not webcpp's); what
     // webcpp holds is the pointers, which are null once the key is given up.

@@ -612,6 +612,21 @@ def doc_comment(text: str) -> List[str]:
     return ['/**'] + [f' * {line}' for line in textwrap.wrap(text, 97)] + [' */']
 
 
+def possessive(title: str) -> str:
+    """A title in the possessive: an apostrophe alone after an s, else 's."""
+    return title + ("'" if title.endswith('s') else "'s")
+
+
+def namespace_of(family: Data) -> str:
+    """The namespace a family's comment names: its group, or, where its header's directory is
+    deeper inside that group (curves/secp256k1/ellswift.hpp for the group `curves`), that
+    directory's namespace."""
+    directory = family['header'].strip('<>').split('/')[2:-1]
+    deeper = '::'.join(directory)
+    group = family['group']
+    return deeper if deeper.startswith(group + '::') else group
+
+
 def program_type(data: Data, written: str, backend: str) -> str:
     """A type of crypto.json, written from webcpp::crypto, as the generated test names it: each
     of crypto's namespaces that starts a name is reached through `crypto::`, and `{backend}` is
@@ -652,10 +667,10 @@ def capabilities_header(data: Data) -> str:
         algorithms = [entry['name'] for entry in family['names']]
         listed = ', '.join(f'`{tag_of(family, name)}`' for name in algorithms)
         if algorithms == [family['name']]:
-            text = (f'The family {family["title"]}, of `{family["group"]}`, also the tag of its '
-                    'one algorithm.')
+            text = (f'The family {family["title"]}, of `{namespace_of(family)}`, also the tag of '
+                    'its one algorithm.')
         else:
-            text = (f'The family {family["title"]}, of `{family["group"]}`; its algorithms: '
+            text = (f'The family {family["title"]}, of `{namespace_of(family)}`; its algorithms: '
                     f'{listed}.')
         out += doc_comment(text) + [f'struct {family["name"]};', '']
         named += [(family, entry) for entry in family['names'] if entry['name'] != family['name']]
@@ -743,8 +758,8 @@ def capabilities_header(data: Data) -> str:
             lines.append(f'static_assert({known}, "webcpp::crypto: {family["title"]} has no '
                          f'backend of that name. The backends that have it: {have}.")')
             out.append(opening([target], index == 0))
-            out += doc_comment(f'The refusals of the family {family["title"]}\'s primary engine '
-                               f'for `Backend`, on {target}.') + [
+            out += doc_comment(f'The refusals of the family {possessive(family["title"])} primary '
+                               f'engine for `Backend`, on {target}.') + [
                     f'#define WEBCPP_CRYPTO_DETAIL_REFUSE_{family["name"].upper()}(Backend) \\']
             out += [f'    {line}; \\' for line in lines[:-1]] + [f'    {lines[-1]}']
         out.append('#endif')
@@ -770,7 +785,7 @@ def needs(data: Data, family: Data, target: str, backend: str) -> str:
     of a backend not linked, what a build without b2 defines and links. The text holds on every
     target where the default is that backend, so that one message test checks it on each."""
     facts = data['backends'][backend]
-    head = (f'webcpp::crypto: {family["title"]}\'s default backend on this target is '
+    head = (f'webcpp::crypto: {possessive(family["title"])} default backend on this target is '
             f'{facts["title"]}, which is not linked')
     alias = f'/webcpp/crypto//{family["name"]}-default'
     add = (f'Add {alias}, the default\'s library on every target, to the program\'s Jamfile, as '
@@ -932,8 +947,9 @@ def defaults_header(data: Data) -> str:
 
 def capabilities_test(data: Data) -> str:
     """test/capabilities_test.cpp: `supports_v` of every cell on the target being compiled, each
-    present cell made through its family's own type where its backend is linked, and each
-    family's refusal parsed."""
+    present cell made through its family's own type where its backend is linked (a family of
+    free functions, whose names give no `type`, has none to make), and each family's refusal
+    parsed."""
     tags = tags_of(data)
     headers = sorted({family['header'] for family in data['families']}
                      | {'<webcpp/crypto/supports.hpp>', '<webcpp/test/exit_status.hpp>'})
@@ -979,6 +995,9 @@ def capabilities_test(data: Data) -> str:
                     continue
                 out += [opening(targets), f'static_assert({trait});', '#else',
                         f'static_assert(!{trait});', '#endif']
+                if 'type' not in entry:
+                    # A family of free functions names no type a program makes.
+                    continue
                 algorithm = program_type(data, entry['type'], backend)
                 made += [f'#if ({condition(targets)}) && defined(WEBCPP_CRYPTO_HAS_'
                          f'{backend.upper()})',
@@ -1803,11 +1822,12 @@ def llms_default(data: Data, operation: Data) -> str:
 
 
 def llms_uses(data: Data, operation: Data) -> str:
-    """The use cases of the decision table that an operation answers: of its section, naming
-    one of its names."""
+    """The use cases of the decision table that an operation answers: of its section, or whose
+    `answers` names it where the use case links a teaching chapter instead, naming one of its
+    names."""
     named = [part.rpartition('::')[2] for part in operation['api'].split(', ')]
     needs = [entry['need'][:1].lower() + entry['need'][1:] for entry in data['use_cases']
-             if entry['section'] == operation['section']
+             if entry.get('answers', entry['section']) == operation['section']
              and any(re.search(rf'\b{re.escape(name)}\b', entry['api']) for name in named)]
     return f' Use it to: {"; ".join(needs)}.' if needs else ''
 

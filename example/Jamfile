@@ -49,6 +49,46 @@ webcpp.example signed_update.cpp : <library>/third_party//secp256k1 ;
 # ECDH, HKDF-SHA-256 and AES-256-GCM between two peers.
 webcpp.example ecdh_session.cpp : <library>/third_party//secp256k1 <library>/webcpp/crypto//gcm-default ;
 
+# ECDH's raw x coordinate, and the NIP-44 conversation key a domain library
+# derives from it.
+webcpp.example ecdh_x_coordinate.cpp : <library>/third_party//secp256k1 ;
+
+# A recoverable signature: a reader finds the signer's key from the signature
+# and the hash.
+webcpp.example recover_signer.cpp : <library>/third_party//secp256k1 ;
+
+# A watch-only wallet: the same tweak on the public key and on the secret key,
+# and a signature of the tweaked key pair verified under the tweaked public key.
+webcpp.example key_tweak.cpp : <library>/third_party//secp256k1 ;
+
+# A server's secp256k1 key in files OpenSSL reads: its public key as PEM SPKI
+# for a configuration file, its key pair as PEM PKCS#8, each read back; PEM on
+# its default, libsodium.
+webcpp.example secp256k1_key_formats.cpp : <library>/third_party//secp256k1
+  <library>/webcpp/crypto//pem-default ;
+
+# Two peers send their keys as ElligatorSwift encodings, 64 bytes that look
+# random, and agree on BIP 324's shared secret.
+webcpp.example ellswift_handshake.cpp : <library>/third_party//secp256k1 ;
+
+# A wallet split across two devices: their keys aggregated with MuSig2, two
+# rounds of nonces and partial signatures, one BIP 340 signature on the chain.
+webcpp.example musig_wallet.cpp : <library>/third_party//secp256k1 ;
+
+# The same wallet with its devices apart: public nonces, the aggregate nonce and
+# partial signatures cross the network as bytes, and the coordinator checks
+# each part, refusing one damaged on the way.
+webcpp.example musig_network.cpp : <library>/third_party//secp256k1 ;
+
+# The wallet's aggregate key as a Taproot internal key: tweaked by its BIP 341
+# TapTweak before any nonce, the signature verifies under the output key only.
+webcpp.example musig_taproot.cpp : <library>/third_party//secp256k1 ;
+
+# A donation page's one reusable address: a donor pays it, the recipient scans
+# the transaction, finds the payment and spends it; a second payment to the
+# address shares no output key with the first (BIP 352's silent payments).
+webcpp.example silent_payment.cpp : <library>/third_party//secp256k1 ;
+
 # A wallet's key pair, its secret sealed at rest and restored.
 webcpp.example wallet_key.cpp : <library>/third_party//secp256k1 <library>/webcpp/crypto//gcm-default ;
 

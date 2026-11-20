@@ -1,0 +1,6 @@
+each device sends its public nonce: 66 bytes
+the coordinator sends the aggregate nonce: 66 bytes
+each device sends its partial signature: 32 bytes
+both partial signatures parse and verify
+a part with one byte flipped is refused: the signature does not verify or is not a valid encoding
+the aggregate signature verifies as one BIP 340 signature: 64 bytes

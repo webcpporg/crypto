@@ -12,6 +12,8 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/timing.hpp>
+
 #include <boost/hash2/digest.hpp>
 
 #include <cstddef>
@@ -26,7 +28,8 @@ namespace webcpp::crypto {
  * Every byte is read, and no branch or index depends on one: the XOR of each pair is
  * accumulated with OR in a volatile local, read once after the loop, and reduced to one bit
  * without a branch, as BearSSL's tag check does. Sizes are public: spans of different sizes
- * compare unequal without reading their contents.
+ * compare unequal without reading their contents. On 64-bit ARM the comparison runs with DIT
+ * set where the CPU has it, and leaves the thread's DIT as it found it.
  *
  * @param first_operand The first sequence, a tag or a MAC.
  * @param second_operand The second.
@@ -34,6 +37,7 @@ namespace webcpp::crypto {
  */
 [[nodiscard]] inline bool equal(std::span<std::uint8_t const> first_operand,
                                 std::span<std::uint8_t const> second_operand) noexcept {
+    detail::timing_guard const timing;
     if (first_operand.size() != second_operand.size()) {
         return false;
     }
@@ -62,6 +66,7 @@ namespace webcpp::crypto {
 template <std::size_t N>
 [[nodiscard]] bool equal(boost::hash2::digest<N> const& first_operand,
                          boost::hash2::digest<N> const& second_operand) noexcept {
+    detail::timing_guard const timing;
     return equal(std::span<std::uint8_t const>(first_operand.data(), N),
                  std::span<std::uint8_t const>(second_operand.data(), N));
 }

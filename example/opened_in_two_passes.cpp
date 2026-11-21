@@ -31,8 +31,8 @@ using aead_type = crypto::ciphers::aes256_gcm;
 
 namespace {
 
-constexpr std::size_t file_size = std::size_t{1} << 20U;   // 1 MiB
-constexpr std::size_t piece_size = std::size_t{1} << 16U;  // 64 KiB
+constexpr std::size_t file_size = std::size_t{1} << 20U;        // 1 MiB
+constexpr std::size_t file_piece_size = std::size_t{1} << 16U;  // 64 KiB
 
 // Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
 // store: crypto wipes its own copies of keys this way, and the program wipes its own.
@@ -58,8 +58,9 @@ boost::system::result<aead_type::result_type> seal_file(aead_type& aead,
     if (auto const begun = aead.begin_seal(iv, {}); !begun) {
         return begun.error();
     }
-    for (std::size_t at = 0; at < plain.size(); at += piece_size) {
-        auto const piece = std::span(plain).subspan(at, (std::min)(piece_size, plain.size() - at));
+    for (std::size_t at = 0; at < plain.size(); at += file_piece_size) {
+        auto const piece =
+            std::span(plain).subspan(at, (std::min)(file_piece_size, plain.size() - at));
         if (auto const updated = aead.update(piece); !updated) {
             return updated.error();
         }
@@ -75,7 +76,7 @@ boost::system::result<aead_type::result_type> seal_file(aead_type& aead,
 boost::system::result<void> open_file(aead_type& aead, std::span<std::uint8_t const> iv,
                                       std::span<std::uint8_t const> tag, std::istream& file,
                                       std::ostream& plain) {
-    std::vector<std::uint8_t> piece(piece_size);
+    std::vector<std::uint8_t> piece(file_piece_size);
     // The first pass reads every piece, and writes none.
     if (auto const begun = aead.begin_open(iv, {}); !begun) {
         return begun.error();

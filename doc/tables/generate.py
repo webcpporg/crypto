@@ -1036,7 +1036,8 @@ def figure(value: float) -> str:
 def speed_of(data: Data, family: str, performance: Data) -> str:
     """A comparison table's speed: per operation the family's measurements per target and
     backend, the median of doc/performance.json to three significant figures, dated and named by
-    its machine, said to be under load where the machine was, linked to the page that holds the
+    its machine, said to be under load where the machine was and provisional where the data is
+    marked so (bench/collect.py --provisional), linked to the page that holds the
     spread; not measured yet where it holds none. A backend crypto.json does not list is a
     fault."""
     cases = [case for case in performance.get('cases', []) if case['family'] == family]
@@ -1067,7 +1068,8 @@ def speed_of(data: Data, family: str, performance: Data) -> str:
     loads = performance.get('load_average_before_after', [])
     loaded = ', under load: read the spread' if loads and 'cores' in machine and max(
         load[0] for load in loads) > machine['cores'] / 2 else ''
-    return (f'{"; ".join(parts)} ({performance["date"]}, {machine["cpu"]}{loaded}; '
+    provisional = ', provisional' if performance.get('provisional') else ''
+    return (f'{"; ".join(parts)} ({performance["date"]}, {machine["cpu"]}{loaded}{provisional}; '
             '<<crypto-performance>>)')
 
 

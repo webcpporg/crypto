@@ -526,8 +526,10 @@ struct p_curve_engine<families::p256, backends::bearssl> {
         // BearSSL multiplies in place: the copy becomes d * Q, uncompressed, and is wiped after.
         std::array<std::uint8_t, 65> shared{};
         std::ranges::copy(peer, shared.begin());
-        // BearSSL's verdict folds in its own check of the scalar's range, so a constant-time
-        // checker holds it secret; whether a valid point and a valid scalar multiply is public.
+        // BearSSL's verdict: on br_ec_p256_m62, the point's decoding, its own check of the
+        // scalar's range and whether the product is the point at infinity, so a constant-time
+        // checker holds it secret; on br_ec_p256_m31, the decoding alone. Whether a valid point
+        // and a valid scalar multiply is public.
         // Not const: the branch reads it again after the mark (detail/declassify.hpp's tip).
         // NOLINTNEXTLINE(misc-const-correctness): see above
         std::uint32_t multiplied =

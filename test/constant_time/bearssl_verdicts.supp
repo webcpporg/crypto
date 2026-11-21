@@ -8,9 +8,14 @@
 # in a function webcpp calls with a secret, where webcpp cannot mark the verdict public as it
 # does in its engines; BearSSL is used unchanged. The entry is a conditional jump whose innermost
 # frame is that function, and the function's body branches on nothing else that is secret
-# (BearSSL at webcpp's pin, the lines given). MemorySanitizer needs none: it counts these
-# verdicts initialised, each a constant-time reduction to the top bit of a 32-bit word
-# (msan_test.cpp says why).
+# (BearSSL at webcpp's pin, the lines given). MemorySanitizer needs none: it approximates a
+# subtraction's shadow by its operands' without the carry (msan_test.cpp's head comment), and
+# each of these verdicts is the top bit of a word computed from BearSSL's 31-bit limbs, whose top
+# bit is a defined 0, so the verdict comes out initialised.
+#
+# An entry covers every conditional jump in its function's own body, not only the lines named:
+# a moved BearSSL pin re-reads br_ecdsa_i31_sign_raw for a new branch on a secret, and the lane
+# builds BearSSL without link-time optimisation, which would inline a callee's jumps into it.
 
 # ec/ecdsa_i31_sign_raw.c, P-256's ECDSA (curves::p256::keypair::sign_ecdsa): whether the scalar
 # decodes below n and is not zero (lines 89 and 92), which webcpp has checked before, and RFC

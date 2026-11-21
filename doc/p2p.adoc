@@ -241,12 +241,16 @@ keys from it with HKDF.
 *The problem.* A program in {cpp} joins peers that run in browsers, whose
 cryptography is WebCrypto: the {cpp} side must sign what a browser verifies,
 verify what it signs, and agree on a session key with it. WebCrypto has ECDSA
-and ECDH on NIST's P-256, which is what such peers use: Trystero 0.27.0, a
-browser library for peer-to-peer rooms, signs its handshakes with ECDSA on
-P-256 and SHA-256, makes every signature low S when it signs and refuses one
-that is not when it reads
+and ECDH on NIST's P-256
+(link:https://www.w3.org/TR/WebCryptoAPI/[W3C Web Cryptography API]), which
+is what such peers use: Trystero 0.27.0, a browser library for peer-to-peer
+rooms, signs its handshakes with ECDSA on P-256 and SHA-256, makes every
+signature low S when it signs
 (link:https://github.com/dmotz/trystero/blob/0.27.0/packages/core/src/crypto.ts[Trystero
-0.27.0's crypto.ts]), and derives its pairwise keys from ECDH's 256 bits
+0.27.0's crypto.ts]) and refuses one that is not when it reads, before it
+verifies
+(link:https://github.com/dmotz/trystero/blob/8d3f57ef42c3d622840eec479784c99deeeb2d05/packages/core/src/identity.ts#L355[Trystero
+0.27.0, packages/core/src/identity.ts, lines 355 and 374]), and derives its pairwise keys from ECDH's 256 bits
 through HKDF with SHA-256
 (link:https://github.com/dmotz/trystero/blob/8d3f57ef42c3d622840eec479784c99deeeb2d05/packages/core/src/crypto.ts#L303-L328[Trystero
 0.27.0, packages/core/src/crypto.ts, lines 303 to 328]).

@@ -33,8 +33,8 @@
 |none: a block cipher takes no nonce, and equal blocks give equal ciphertext
 
 |Speed, with and without hardware support
-|seal of 16 KiB, 256-bit key: native, BearSSL 115 µs, OpenSSL 2.6 µs; wasip2, BearSSL 134 µs, OpenSSL 129 µs; wasip3, BearSSL 130 µs, OpenSSL 122 µs; emscripten, BearSSL 150 µs (2026-11-21, Apple M5 Max, under load: read the spread; <<crypto-performance>>)
-|encryption of one 16-byte block, 256-bit key: native, OpenSSL 0.0624 µs, ctaes 0.473 µs; wasip2, OpenSSL 0.0991 µs, ctaes 0.504 µs; wasip3, OpenSSL 0.0961 µs, ctaes 0.451 µs; emscripten, ctaes 0.45 µs (2026-11-21, Apple M5 Max, under load: read the spread; <<crypto-performance>>)
+|seal of 16 KiB, 256-bit key: native, BearSSL 115 µs, OpenSSL 2.6 µs; wasip2, BearSSL 134 µs, OpenSSL 129 µs; wasip3, BearSSL 130 µs, OpenSSL 122 µs; emscripten, BearSSL 150 µs (2026-11-21, Apple M5 Max, under load: read the spread, provisional; <<crypto-performance>>)
+|encryption of one 16-byte block, 256-bit key: native, OpenSSL 0.0624 µs, ctaes 0.473 µs; wasip2, OpenSSL 0.0991 µs, ctaes 0.504 µs; wasip3, OpenSSL 0.0961 µs, ctaes 0.451 µs; emscripten, ctaes 0.45 µs (2026-11-21, Apple M5 Max, under load: read the spread, provisional; <<crypto-performance>>)
 
 |Constant time, by design
 |BearSSL and OpenSSL with assembly: yes (link:https://www.bearssl.org/constanttime.html[BearSSL, constant-time crypto]; link:https://github.com/openssl/openssl/tree/master/crypto/aes/asm[OpenSSL's AES assembly for ARMv8 and x86-64]); OpenSSL no-asm (MSVC, wasip2, wasip3): no (link:https://github.com/openssl/openssl/blob/master/INSTALL.md[OpenSSL's INSTALL.md, no-asm])
@@ -92,9 +92,9 @@
 |not resistant to a repeated nonce, but 24 random bytes never repeat in practice (link:https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha[draft-irtf-cfrg-xchacha, XChaCha20-Poly1305])
 
 |Speed, with and without hardware support
-|seal of 16 KiB, 256-bit key: native, BearSSL 27.2 µs, OpenSSL 9.04 µs, libsodium 26.7 µs; wasip2, BearSSL 64.9 µs, OpenSSL 45.8 µs, libsodium 34.6 µs; wasip3, BearSSL 70.5 µs, OpenSSL 46.3 µs, libsodium 35.1 µs; emscripten, BearSSL 52.5 µs, libsodium 30.3 µs (2026-11-21, Apple M5 Max, under load: read the spread; <<crypto-performance>>)
-|seal of 16 KiB, 256-bit key: native, libsodium 25.7 µs; wasip2, libsodium 34.5 µs; wasip3, libsodium 52.5 µs; emscripten, libsodium 30.5 µs (2026-11-21, Apple M5 Max, under load: read the spread; <<crypto-performance>>)
-|seal of 16 KiB, 256-bit key: native, libsodium 26.7 µs; wasip2, libsodium 36.3 µs; wasip3, libsodium 41.5 µs; emscripten, libsodium 30 µs (2026-11-21, Apple M5 Max, under load: read the spread; <<crypto-performance>>)
+|seal of 16 KiB, 256-bit key: native, BearSSL 27.2 µs, OpenSSL 9.04 µs, libsodium 26.7 µs; wasip2, BearSSL 64.9 µs, OpenSSL 45.8 µs, libsodium 34.6 µs; wasip3, BearSSL 70.5 µs, OpenSSL 46.3 µs, libsodium 35.1 µs; emscripten, BearSSL 52.5 µs, libsodium 30.3 µs (2026-11-21, Apple M5 Max, under load: read the spread, provisional; <<crypto-performance>>)
+|seal of 16 KiB, 256-bit key: native, libsodium 25.7 µs; wasip2, libsodium 34.5 µs; wasip3, libsodium 52.5 µs; emscripten, libsodium 30.5 µs (2026-11-21, Apple M5 Max, under load: read the spread, provisional; <<crypto-performance>>)
+|seal of 16 KiB, 256-bit key: native, libsodium 26.7 µs; wasip2, libsodium 36.3 µs; wasip3, libsodium 41.5 µs; emscripten, libsodium 30 µs (2026-11-21, Apple M5 Max, under load: read the spread, provisional; <<crypto-performance>>)
 
 |Constant time, by design
 |libsodium, BearSSL and OpenSSL: yes, additions, XORs and rotations with no table indexed by a secret (link:https://www.rfc-editor.org/rfc/rfc8439#section-2.1[RFC 8439, section 2.1: ChaCha's quarter round, additions, XORs and rotations of 32-bit words]; link:https://doc.libsodium.org/secret-key_cryptography/aead[libsodium's documentation, AEAD constructions: ChaCha20 and timing attacks])

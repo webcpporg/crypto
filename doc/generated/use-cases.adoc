@@ -243,9 +243,10 @@
 `+/webcpp/crypto//x25519-default+`
 |<<crypto-everyday-files,[.keep]`+file_share.cpp+`>>
 
-|Use P-256 (passkeys, JWT's ES256)
-|None in this version: secp256k1, Ed25519 and X25519 keys and signatures do not interoperate with this curve
-|none
-|none
-|<<crypto-curves>>
+|Signatures and key agreement a browser's WebCrypto verifies and derives (P-256 with SHA-256), webcpp::trystero's handshakes
+|In `+curves::p256+`: `+keypair::make+`, `+keypair::generate+`, `+keypair::public_key+`, `+keypair::secret_scalar+`, `+public_key::make+`
+|BearSSL
+|`+/webcpp/crypto//crypto+` +
+`+/webcpp/crypto//p256-default+`
+|<<crypto-p256-keys,[.keep]`+p256_keys.cpp+`>>
 |===

@@ -95,4 +95,9 @@
 |BIP 352 silent payments
 |`+/third_party//secp256k1+` on every target
 |<<crypto-jamfile-cases,`+secp256k1_silent_payments_default+`>>
+
+|`+/webcpp/crypto//p256-default+`
+|P-256
+|`+/third_party//bearssl+` on every target
+|<<crypto-jamfile-cases,`+p256_default+`>>
 |===

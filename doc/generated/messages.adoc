@@ -199,6 +199,18 @@ The fix: Name `+/webcpp/crypto//openssl+`, which builds OpenSSL 3.5.9; without b
 
 The fix: On WASI the default is BearSSL: add `+/webcpp/crypto//gcm-default+`, which links `+/third_party//bearssl+` there, or, with OpenSSL linked, name it in the type, as in `+gcm<aes256<backends::openssl>>+`.
 
+|`+p256_default_not_linked+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: P-256's default backend on this target is BearSSL, which is not linked, and the one backend that has it there. Add /webcpp/crypto//p256-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//p256-default ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
+
+The fix: Add `+/webcpp/crypto//p256-default+`, which links `+/third_party//bearssl+` on every target.
+
+|`+p256_on_sodium+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: sodium has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten).+`
+
+The fix: Leave the backend out, as in `+curves::p256::keypair+`, or name `+backends::bearssl+`, and add `+/third_party//bearssl+`.
+
 |`+pem_default_not_linked+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: PEM's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//pem-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//pem-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
@@ -788,6 +800,34 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: /webcpp/crypto//openssl is named in a build for Emscripten, where webcpp does not build OpenSSL.+`
 
+`+p256_default_not_linked_on_emscripten+`:: A program for Emscripten that makes a P-256 key pair on its default, BearSSL, and links none. The fix: As `+p256_default_not_linked+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/p256_default_not_linked_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: P-256's default backend on this target is BearSSL, which is not linked, and the one backend that has it there. Add /webcpp/crypto//p256-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//p256-default ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
+
+`+p256_on_sodium_on_emscripten+`:: A program for Emscripten that names libsodium, which has no P-256, in a P-256 key pair's type. The fix: As `+p256_on_sodium+`.
++
+Its Jamfile:
++
+[listing]
+----
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/p256_on_sodium_on_emscripten/Jamfile[tag=jamfile]
+----
++
+On each target, the build's output contains:
++
+* emscripten:
+** `+webcpp::crypto: sodium has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten).+`
+
 `+pem_default_not_linked_on_emscripten+`:: A program for Emscripten that armours DER as PEM on its default, libsodium, and links none. The fix: As `+pem_default_not_linked+`.
 +
 Its Jamfile:
@@ -1005,6 +1045,14 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+openssl_old+`
 |the compile
 |Name `+/webcpp/crypto//openssl+`, which builds OpenSSL 3.5.9; without b2, put OpenSSL 3's `+include/+` first.
+
+|`+p256_default_not_linked+`
+|the compile
+|Add `+/webcpp/crypto//p256-default+`, which links `+/third_party//bearssl+` on every target.
+
+|`+p256_on_sodium+`
+|the compile
+|Leave the backend out, as in `+curves::p256::keypair+`, or name `+backends::bearssl+`, and add `+/third_party//bearssl+`.
 
 |`+pem_default_not_linked+`
 |the compile

@@ -1,0 +1,7 @@
+public key 04, then x and y
+x          60fed4ba255a9d31c961eb74c6356d68c049b8923b61fa6ce669622e60f29fb6
+y          7903fe1008b8bc99a41ae9e95628bc64f2f1b20c2d7e9f5177a3c294d4462299
+reloaded   same key
+peer key   valid
+tampered   refused: the public key is not a point of the curve
+generated  a fresh key pair

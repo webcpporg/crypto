@@ -162,6 +162,24 @@ The lane sizes measured on 2026-11-19, at variant=release: native, clang-21 on D
 |+1,318,313 B, gzip +1,147,745 B
 |+1,320,113 B, gzip +1,148,250 B
 |+215,607 B, gzip +77,908 B
+
+|P-256 on BearSSL: ECDSA signature of a 32-byte SHA-256 digest
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|P-256 on BearSSL: ECDSA verification of a 32-byte SHA-256 digest
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
+
+|P-256 on BearSSL: x coordinate of the ECDH shared point with a peer's public key
+|not measured yet
+|not measured yet
+|not measured yet
+|not measured yet
 |===
 
 OpenSSL: its cells differ by a few bytes whatever the operation: each fetches its algorithm by name from OpenSSL's default provider (link:https://docs.openssl.org/3.5/man7/crypto/[OpenSSL 3.5's crypto(7), algorithm fetching]), and a static link brings the provider's algorithms with it, not the operation's alone.

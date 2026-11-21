@@ -136,4 +136,10 @@
 |libsecp256k1
 |the only backend (link:https://github.com/bitcoin-core/secp256k1#readme[libsecp256k1's README])
 |`+secp256k1_silent_payments+`, `+default_backend_none_linked+`
+
+|P-256
+|native, wasip2, wasip3, emscripten
+|BearSSL
+|the one backend of the P-curves on all four targets, constant time by design and allocating nothing (link:https://www.bearssl.org/[BearSSL, its home page]); OpenSSL and Botan join in increments 8 and 7
+|`+p256_keys_bearssl+`, `+default_backend_none_linked+`
 |===

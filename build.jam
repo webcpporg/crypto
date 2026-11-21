@@ -4,7 +4,7 @@
 # accompanying file LICENSE_1_0.txt or copy at
 # https://www.boost.org/LICENSE_1_0.txt)
 
-# crypto: authenticated encryption, randomness, secp256k1, Ed25519 and X25519
+# crypto: authenticated encryption, randomness, secp256k1, Ed25519, X25519 and P-256
 # over C backends.
 # A program names /webcpp/crypto//crypto and the library of each backend it
 # uses, /third_party//<backend> (third_party/Jamfile), or, for OpenSSL,
@@ -243,4 +243,15 @@ rule secp256k1_silent_payments-default-linked ( properties * )
     }
 }
 alias secp256k1_silent_payments-default : : : : <conditional>@secp256k1_silent_payments-default-linked ;
+rule p256-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/third_party//bearssl ;
+        case wasip2 : return <library>/third_party//bearssl ;
+        case wasip3 : return <library>/third_party//bearssl ;
+        case emscripten : return <library>/third_party//bearssl ;
+    }
+}
+alias p256-default : : : : <conditional>@p256-default-linked ;
 # generate.py: end the defaults' aliases

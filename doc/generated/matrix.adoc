@@ -225,6 +225,21 @@
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_silent_payments+`
+
+|`+curves::p256::keypair+`
+|BearSSL
+|native, wasip2, wasip3, emscripten
+|`+p256_keys_bearssl+`, `+allocation_bearssl+`
+
+|`+curves::p256::keypair+`
+|libsodium
+|refused at compile time
+|`+p256_on_sodium+`
+
+|`+curves::p256::public_key+`
+|BearSSL
+|native, wasip2, wasip3, emscripten
+|`+p256_keys_bearssl+`, `+allocation_bearssl+`
 |===
 
 The same, by target: the backends each operation runs on.
@@ -442,4 +457,16 @@ The same, by target: the backends each operation runs on.
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
+
+|`+curves::p256::keypair+`
+|BearSSL
+|BearSSL
+|BearSSL
+|BearSSL
+
+|`+curves::p256::public_key+`
+|BearSSL
+|BearSSL
+|BearSSL
+|BearSSL
 |===

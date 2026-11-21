@@ -6,8 +6,8 @@
 
 /**
  The backend BearSSL: BearSSL's own C code, built from its sources by
- `/third_party//bearssl`. It serves `ciphers::gcm<aes128/192/256<backends::bearssl>>` and
- `ciphers::chacha20_poly1305<backends::bearssl>`, and has no block cipher.
+ `/third_party//bearssl`. It serves `ciphers::gcm<aes128/192/256<backends::bearssl>>`,
+ `ciphers::chacha20_poly1305<backends::bearssl>` and `curves::p256`, and has no block cipher.
 
  @see "The backends", in the guide.
 */
@@ -28,6 +28,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
+#include <webcpp/crypto/detail/p_curves.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -401,6 +402,111 @@ struct aead_engine<families::chacha20_poly1305, backends::bearssl> {
      * @param engine_state Any state.
      */
     static void reset(state& engine_state) noexcept { wipe_object(engine_state.key); }
+};
+
+/**
+ * BearSSL's P-256 code for this target: natively the 64-bit multiplications of br_ec_p256_m62
+ * where BearSSL has them (__int128, or MSVC's _umul128), else br_ec_p256_m31; on WebAssembly
+ * br_ec_p256_m31 always, since wasm32's 128-bit product is a compiler-rt call whose timing nobody
+ * states (design D36). Each is constant time (BearSSL's documentation).
+ *
+ * @return The implementation of the curve's arithmetic.
+ */
+[[nodiscard]] inline br_ec_impl const* bearssl_p256() noexcept {
+#ifndef WEBCPP_CRYPTO_WEBASSEMBLY
+    if (br_ec_impl const* wide = br_ec_p256_m62_get()) {
+        return wide;
+    }
+#endif
+    return &br_ec_p256_m31;
+}
+
+/** A P-256 key pair's state on BearSSL: the scalar and the point, in the object. */
+template <>
+struct p_curve_state<families::p256, backends::bearssl> {
+    /** The secret scalar d, big-endian. */
+    std::array<std::uint8_t, 32> scalar{};
+    /** The public point d * G, SEC 1's uncompressed form. */
+    std::array<std::uint8_t, 65> point{};
+};
+
+/**
+ * P-256 on BearSSL: the point of a key pair computed once by `mulgen`, and a public point checked
+ * by BearSSL's decoding. BearSSL allocates nothing; its curve code never fails on a valid input.
+ */
+template <>
+struct p_curve_engine<families::p256, backends::bearssl> {
+    /** The state. */
+    using state = p_curve_state<families::p256, backends::bearssl>;
+
+    /**
+     * Keeps the scalar and computes its public point.
+     *
+     * @param keyed An empty state.
+     * @param scalar 32 bytes, 0 < d < n (the family's header has checked them).
+     * @return Nothing; `backend_failure`, which a valid scalar cannot cause.
+     */
+    [[nodiscard]] static boost::system::result<void> make(
+        state& keyed, std::span<std::uint8_t const, 32> scalar) noexcept {
+        WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
+        read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
+        std::ranges::copy(scalar, keyed.scalar.begin());
+        if (bearssl_p256()->mulgen(keyed.point.data(), keyed.scalar.data(), keyed.scalar.size(),
+                                   BR_EC_secp256r1) != keyed.point.size()) {
+            reset(keyed);
+            return error::backend_failure;
+        }
+        return {};
+    }
+
+    /**
+     * Whether an uncompressed point is on the curve, its coordinates below p.
+     *
+     * @param point 65 bytes, whose first byte is 04 (the family's header has checked it).
+     * @return Whether BearSSL decodes it.
+     */
+    [[nodiscard]] static bool valid_point(std::span<std::uint8_t const, 65> point) noexcept {
+        WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
+        read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
+        // BearSSL decodes, and so checks, a point only to multiply it: by 1 it comes back as it
+        // was, re-encoded, when its coordinates are below p and on the curve (design D36).
+        std::array<std::uint8_t, 65> decoded{};
+        std::ranges::copy(point, decoded.begin());
+        constexpr std::array<std::uint8_t, 1> one{1};
+        return bearssl_p256()->mul(decoded.data(), decoded.size(), one.data(), one.size(),
+                                   BR_EC_secp256r1) == 1 &&
+               std::ranges::equal(decoded, point);
+    }
+
+    /**
+     * Copies the public point; no BearSSL call.
+     *
+     * @param keyed A keyed state.
+     * @param output 65 bytes.
+     */
+    static void public_point(state const& keyed, std::span<std::uint8_t, 65> output) noexcept {
+        std::ranges::copy(keyed.point, output.begin());
+    }
+
+    /**
+     * Copies the secret scalar; no BearSSL call.
+     *
+     * @param keyed A keyed state.
+     * @param output 32 bytes, a `secret<32>`'s.
+     */
+    static void scalar(state const& keyed, std::span<std::uint8_t, 32> output) noexcept {
+        std::ranges::copy(keyed.scalar, output.begin());
+    }
+
+    /**
+     * Wipes the scalar and the point; the state is empty.
+     *
+     * @param keyed Any state.
+     */
+    static void reset(state& keyed) noexcept {
+        wipe_object(keyed.scalar);
+        wipe_object(keyed.point);
+    }
 };
 
 /**

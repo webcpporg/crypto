@@ -185,6 +185,14 @@ struct default_backend_of<families::secp256k1_silent_payments> {
     /** `backends::secp256k1`. */
     using type = backends::secp256k1;
 };
+/** Defined where BearSSL is the default of P-256. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_P256_BEARSSL 1
+/** The default of P-256 on native, wasip2, wasip3, emscripten: BearSSL. */
+template <>
+struct default_backend_of<families::p256> {
+    /** `backends::bearssl`. */
+    using type = backends::bearssl;
+};
 // clang-format on
 
 /**

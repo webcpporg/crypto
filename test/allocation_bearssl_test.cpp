@@ -5,18 +5,21 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // On BearSSL nothing allocates (spec section 3.2): make, seal, open, the incremental seal,
-// equal and random_device's fill, and ChaCha20-Poly1305's make, seal, open (good and failed)
-// and move make no call of operator new, nor of the C library's
+// equal and random_device's fill, ChaCha20-Poly1305's make, seal, open (good and failed)
+// and move, and P-256's key pair make and generate and public key make (of a point and of
+// coordinates) make no call of operator new, nor of the C library's
 // allocator where the target lets a program count it; a control proves the counter moves.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
+#include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: a test
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/counting.hpp"
 #include "support/gcm_checks.hpp"
+#include "support/p256_data.hpp"
 
 #include <boost/core/lightweight_test.hpp>
 
@@ -25,6 +28,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <span>
 #include <utility>
 
 int main() {
@@ -67,6 +71,16 @@ int main() {
         BOOST_TEST(sealer->open(iv, iv, data, forged).error() ==
                    crypto::error::authentication_failed);
         chacha const moved = std::move(*sealer);
+        namespace p256 = crypto::curves::p256;
+        namespace data = webcpp::test::p256;
+        using keypair = p256::basic_keypair<crypto::backends::bearssl>;
+        using public_key = p256::basic_public_key<crypto::backends::bearssl>;
+        auto const pair = keypair::make(data::rfc6979_scalar);
+        BOOST_TEST(pair.has_value());
+        BOOST_TEST(keypair::generate().has_value());
+        std::span<std::uint8_t const, 65> const point(data::rfc6979_public);
+        BOOST_TEST(public_key::make(point).has_value());
+        BOOST_TEST(public_key::make(point.subspan<1, 32>(), point.subspan<33, 32>()).has_value());
     }
     BOOST_TEST_EQ(webcpp::test::allocations(), before);
     return webcpp::test::exit_status(boost::report_errors());

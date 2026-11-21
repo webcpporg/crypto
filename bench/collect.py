@@ -240,12 +240,14 @@ def program_line(target, command, output, shape):
         sys.exit(f"collect.py: {target} {' '.join(command)} printed a line that is not JSON "
                  f"({error}): {lines[-1]!r}")
     found = wrong(line, shape, "line")
-    if found is not None:
-        printed = lines[-1] if lines else ""
-        sys.exit(f"collect.py: {target} {' '.join(command)} printed {printed!r}, which is not "
-                 f"the form collect.py reads: {found} is wrong; build bench/Jamfile's program "
-                 "again from this tree")
-    return line
+    # Each shape is an object's, so wrong finds nothing only in a dict; the isinstance states
+    # that to the type checker, and the line comes back a dict, never None.
+    if found is None and isinstance(line, dict):
+        return line
+    printed = lines[-1] if lines else ""
+    sys.exit(f"collect.py: {target} {' '.join(command)} printed {printed!r}, which is not "
+             f"the form collect.py reads: {found} is wrong; build bench/Jamfile's program "
+             "again from this tree")
 
 
 def run(target, command):

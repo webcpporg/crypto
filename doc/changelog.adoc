@@ -16,7 +16,7 @@ of every version are on webcpp's index page.
 === Unreleased
 
 // tag::unreleased[]
-* Added crypto, C-backed primitives setting arm64's DIT per call: ciphers, curves, randomness, fixed-value errors in webcpp.crypto, `+[[nodiscard]]+` results, and WEBCPP_CRYPTO_HAS_THREADS, defined natively and with Emscripten's -pthread unless WEBCPP_CRYPTO_NO_THREADS is.
+* Added crypto, C-backed primitives setting DIT on arm64 macOS and Linux: ciphers, curves, randomness, fixed-value errors in webcpp.crypto, `+[[nodiscard]]+` results, WEBCPP_CRYPTO_HAS_THREADS, defined natively and with Emscripten's -pthread unless WEBCPP_CRYPTO_NO_THREADS is.
 * Added equal, random_device, pem (PEM on libsodium), ciphers::aes128, aes192 and aes256, the AES block cipher, and ciphers::gcm, aes128_gcm and aes256_gcm: AES-GCM in place, incremental seal, failed opens zeroing data.
 * Added supports_v with its family tags, the capability table per target, default_backend_t and /webcpp/crypto//<family>-default per family and target (secp256k1's modules among them), and refusals naming their Jamfile line.
 * Added backends::bearssl (AES-GCM alone, allocating nothing), backends::openssl via /webcpp/crypto//openssl natively and on WASI (allocating at make only, or natively in openssl_memory_resource with WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE), and backends::ctaes (block cipher alone).

@@ -106,7 +106,8 @@ outside the measured calls, which would measure something a program does not
 get. The lane's `dudect_planted` shows that DIT does not hide a leak: X25519's
 `agree` after an early-exit scan of its secret key, the scan run inside the
 library's own guard as a public operation's code would be, which dudect must
-find.
+find: |t| 66.72 and 65.53 against the threshold 10 (2026-11-21 UTC, two runs,
+an Apple M5 Max, a release build).
 
 One measurement is an open finding, listed under the table with its numbers:
 libsodium's X25519 `agree` under wasmtime, on wasip2. Its cause is measured:

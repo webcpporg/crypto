@@ -220,7 +220,14 @@ shared point's x coordinate, 256 bits
 operations]), so a program and a browser that hash it the same way derive the
 same keys. The peer's key is a `public_key`, validated when it was made, so
 `ecdh_x` never sees a point off the curve; it refuses a moved-from key pair
-with `invalid_state`.
+with `invalid_state`. The `secret<32>` and webcpp's own copy of the point are
+wiped, but BearSSL's multiplication leaves the values it computes from the
+scalar in its stack frame, as its signing does (<<crypto-p256-keys>>, its
+pitfalls;
+link:https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ec_p256_m62.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l1251[BearSSL's
+ec_p256_m62.c, from line 1251], natively, and
+link:https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ec_p256_m31.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l1116[ec_p256_m31.c,
+from line 1116], on WebAssembly).
 
 The x coordinate is not a key. A Diffie-Hellman value is not uniformly random
 (link:https://www.rfc-editor.org/rfc/rfc5869#section-3.3[RFC 5869, section
@@ -235,8 +242,8 @@ which webcpp::hash provides, and with the salt and the info the protocol names:
 include::{examples}/p256_ecdh.cpp[tag=derive,indent=0]
 ----
 
-crypto offers no hashed form, as secp256k1's `ecdh` is
-(<<crypto-secp256k1-ecdh>>): no browser computes one, and the derivation, its
+Unlike secp256k1, whose `ecdh` hashes the point (<<crypto-secp256k1-ecdh>>),
+P-256 offers no hashed form: no browser computes one, and the derivation, its
 hash, its salt and its info belong to the protocol, not to the primitive. A
 program that hashed the point some other way would agree with no WebCrypto
 peer.

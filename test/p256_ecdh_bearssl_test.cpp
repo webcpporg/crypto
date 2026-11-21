@@ -63,9 +63,11 @@ std::uint64_t random_seed() {
 #endif
 }
 
-// A key pair from the generator: a scalar make refuses (0, or not below n) is drawn again.
+// A key pair from the generator: a scalar make refuses (0, or not below n, about once in 2^32)
+// is drawn again, 16 times at most; a make that keeps failing fails the test, which goes on with
+// RFC 6979's key rather than hang.
 keypair draw(std::mt19937_64& generator) {
-    for (;;) {
+    for (int attempt = 0; attempt < 16; ++attempt) {
         scalar drawn{};
         std::ranges::generate(drawn,
                               [&generator] { return static_cast<std::uint8_t>(generator()); });
@@ -75,6 +77,8 @@ keypair draw(std::mt19937_64& generator) {
         }
         BOOST_TEST(made.error() == error::invalid_secret_key);
     }
+    BOOST_ERROR("draw: keypair::make refused 16 drawn scalars");
+    return *keypair::make(data::rfc6979_scalar);
 }
 
 // a + b mod n, for a and b below n, big-endian bytes: the sum is below 2n, so one subtraction of
@@ -319,9 +323,14 @@ void ecpoint_case(json::value const& t, counts& seen) {
     auto const point = test::from_hex(str(t.at("public")));
     auto const derived = derive(test::from_hex(str(t.at("private"))), point);
     if (verdict == "invalid") {
-        ++seen.invalid;
+        // Every invalid case of the file is a defect of its point: refused by public_key::make,
+        // never by BearSSL's multiplication.
         if (derived.has_value()) {
             report(t, "invalid case derived a shared x");
+        } else if (derived.error() != error::invalid_public_key) {
+            report(t, "invalid case refused with another error than invalid_public_key");
+        } else {
+            ++seen.invalid;
         }
         return;
     }

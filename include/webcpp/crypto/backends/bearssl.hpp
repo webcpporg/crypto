@@ -433,8 +433,7 @@ struct p_curve_state<families::p256, backends::bearssl> {
 /**
  * P-256 on BearSSL: the point of a key pair computed once by `mulgen`, a public point checked
  * by BearSSL's decoding, ECDSA with RFC 6979's nonce and its DER conversions, ECDH's raw x
- * coordinate. BearSSL allocates
- * nothing; its curve code never fails on a valid input.
+ * coordinate. BearSSL allocates nothing; its curve code never fails on a valid input.
  */
 template <>
 struct p_curve_engine<families::p256, backends::bearssl> {

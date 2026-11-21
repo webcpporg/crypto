@@ -122,7 +122,7 @@ std::vector<std::byte> lent(std::size_t size) {
 // curves/secp256k1.hpp.
 // ---------------------------------------------------------------------------------------------
 
-/*
+/**
  * basic_keypair::make, a secret of the wrong size included, generate, and public_key's two
  * operators.
  */

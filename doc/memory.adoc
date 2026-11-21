@@ -16,9 +16,9 @@ key pair. Every buffer is the caller's.
 
 * *Nothing allocates per message, on any backend:* `seal`, `open`,
 `begin_seal`, `update`, `result`, `begin_open`, `authenticate`, `verify`,
-`end_open`, `encrypt`, `decrypt` (the block cipher's and the incremental open's), `fill`, the signatures
-(hedged and recoverable too), `ecdh`, `ecdh_x`, `ecdh_point`, the verifications,
-`recover`, `parse_public_key`, `serialize_public_key`, the tweaks and negations,
+`end_open`, `encrypt`, `decrypt` (the block cipher's and the incremental
+open's), `fill`, the signatures (hedged and recoverable too), `ecdh`, `ecdh_x`,
+`ecdh_point`, the verifications, `recover`, `parse_public_key`, `serialize_public_key`, the tweaks and negations,
 `pubkey_combine` (in a `workspace` the caller lends), the SPKI and PKCS#8
 encoders and decoders (`decode_pkcs8` makes a key pair, whose context is the one
 allocation above), and `ellswift_*`, MuSig2's functions and silent payments'

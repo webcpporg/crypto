@@ -356,18 +356,35 @@ void pkcs8_refusals(keypair const& pair) {
     BOOST_TEST_EQ(without_public_key.size(), 67U);
     refused_pkcs8("no public key", without_public_key);
     // [0] parameters inside ECPrivateKey, the form `openssl ec` writes outside PKCS#8.
-    refused_pkcs8("[0] parameters", pkcs8_of(0, p256_oid(), with({.parameters = true})));
-    refused_pkcs8("another key's public key",
-                  pkcs8_of(0, p256_oid(), with({.point = point_of(*other)})));
-    refused_pkcs8("compressed public key",
-                  pkcs8_of(0, p256_oid(), with({.point = compressed(point)})));
-    refused_pkcs8("zero scalar", pkcs8_of(0, p256_oid(), with({.scalar = bytes(32)})));
+    refused_pkcs8("[0] parameters",
+                  pkcs8_of(0, p256_oid(),
+                           with({.version = 1, .scalar = {}, .parameters = true, .point = {}})));
     refused_pkcs8(
-        "scalar n",
-        pkcs8_of(0, p256_oid(), with({.scalar = bytes(data::order.begin(), data::order.end())})));
+        "another key's public key",
+        pkcs8_of(
+            0, p256_oid(),
+            with({.version = 1, .scalar = {}, .parameters = false, .point = point_of(*other)})));
+    refused_pkcs8(
+        "compressed public key",
+        pkcs8_of(
+            0, p256_oid(),
+            with({.version = 1, .scalar = {}, .parameters = false, .point = compressed(point)})));
+    refused_pkcs8(
+        "zero scalar",
+        pkcs8_of(0, p256_oid(),
+                 with({.version = 1, .scalar = bytes(32), .parameters = false, .point = {}})));
+    refused_pkcs8("scalar n", pkcs8_of(0, p256_oid(),
+                                       with({
+                                           .version = 1,
+                                           .scalar = bytes(data::order.begin(), data::order.end()),
+                                           .parameters = false,
+                                           .point = {},
+                                       })));
     // 02 01 01 in place of 02 01 00: OneAsymmetricKey's version 2.
     refused_pkcs8("version 1", pkcs8_of(1, p256_oid(), with({})));
-    refused_pkcs8("ECPrivateKey version 0", pkcs8_of(0, p256_oid(), with({.version = 0})));
+    refused_pkcs8("ECPrivateKey version 0",
+                  pkcs8_of(0, p256_oid(),
+                           with({.version = 0, .scalar = {}, .parameters = false, .point = {}})));
     // The outer length, 135, takes the long form 81 87; the longer 82 00 87 is not DER.
     refused_pkcs8("long-form length",
                   cat({{0x30, 0x82, 0x00, 0x87}, bytes(good.begin() + 3, good.end())}));
@@ -472,20 +489,25 @@ std::string str(json::value const& v) {
 // The flags of an acceptable case that decode_spki may refuse, each with its reason. Every case
 // that carries one of the explicit-parameter flags also carries UnnamedCurve.
 std::map<std::string, std::string_view, std::less<>> const& listed_flags() {
+    constexpr std::string_view compressed_point =
+        "a compressed point: BearSSL decodes uncompressed points alone, D36";
+    constexpr std::string_view not_der =
+        "not the one DER encoding encode_spki writes: the strict rule refuses it, D30";
+    constexpr std::string_view unnamed =
+        "explicit curve parameters, not secp256r1's OID: re-encoding gives other bytes, D30";
+    constexpr std::string_view parameter =
+        "explicit curve parameters, with UnnamedCurve: refused as it, D30";
     static std::map<std::string, std::string_view, std::less<>> const listed{
-        {"CompressedPublic", "a compressed point: BearSSL decodes uncompressed points alone, D36"},
-        {"CompressedPoint", "a compressed point: BearSSL decodes uncompressed points alone, D36"},
-        {"InvalidAsn",
-         "not the one DER encoding encode_spki writes: the strict rule refuses it, D30"},
-        {"UnnamedCurve",
-         "explicit curve parameters, not secp256r1's OID: re-encoding gives other bytes, D30"},
-        {"UnusedParam", "explicit curve parameters, with UnnamedCurve: refused as it, D30"},
-        {"WrongOrder", "explicit curve parameters, with UnnamedCurve: refused as it, D30"},
-        {"ModifiedGenerator", "explicit curve parameters, with UnnamedCurve: refused as it, D30"},
-        {"ModifiedCofactor", "explicit curve parameters, with UnnamedCurve: refused as it, D30"},
-        {"NoCofactor", "explicit curve parameters, with UnnamedCurve: refused as it, D30"},
-        {"ModifiedCurveParameter",
-         "explicit curve parameters, with UnnamedCurve: refused as it, D30"},
+        {"CompressedPublic", compressed_point},
+        {"CompressedPoint", compressed_point},
+        {"InvalidAsn", not_der},
+        {"UnnamedCurve", unnamed},
+        {"UnusedParam", parameter},
+        {"WrongOrder", parameter},
+        {"ModifiedGenerator", parameter},
+        {"ModifiedCofactor", parameter},
+        {"NoCofactor", parameter},
+        {"ModifiedCurveParameter", parameter},
     };
     return listed;
 }

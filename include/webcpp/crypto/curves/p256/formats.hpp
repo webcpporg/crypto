@@ -44,7 +44,8 @@ namespace webcpp::crypto::detail {
  */
 inline constexpr std::array<std::uint8_t, 26> p256_spki_prefix{
     0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01,
-    0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00};
+    0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03, 0x42, 0x00,
+};
 
 /**
  * PKCS#8 before the scalar: version 0, the AlgorithmIdentifier as the SPKI's, and an OCTET STRING
@@ -54,7 +55,8 @@ inline constexpr std::array<std::uint8_t, 26> p256_spki_prefix{
 inline constexpr std::array<std::uint8_t, 36> p256_pkcs8_prefix{
     0x30, 0x81, 0x87, 0x02, 0x01, 0x00, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86,
     0x48, 0xce, 0x3d, 0x02, 0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d,
-    0x03, 0x01, 0x07, 0x04, 0x6d, 0x30, 0x6b, 0x02, 0x01, 0x01, 0x04, 0x20};
+    0x03, 0x01, 0x07, 0x04, 0x6d, 0x30, 0x6b, 0x02, 0x01, 0x01, 0x04, 0x20,
+};
 
 /** PKCS#8 between the scalar and the uncompressed public point: ECPrivateKey's [1] BIT STRING. */
 inline constexpr std::array<std::uint8_t, 5> p256_pkcs8_infix{0xa1, 0x44, 0x03, 0x42, 0x00};
@@ -152,9 +154,9 @@ template <class Backend>
         return scalar.error();
     }
     auto cursor = std::ranges::copy(detail::p256_pkcs8_prefix, output_bytes.begin()).out;
-    cursor = std::ranges::copy(scalar->bytes(), cursor).out;
+    cursor = std::ranges::copy(scalar.unsafe_value().bytes(), cursor).out;
     cursor = std::ranges::copy(detail::p256_pkcs8_infix, cursor).out;
-    std::ranges::copy(public_point->uncompressed(), cursor);
+    std::ranges::copy(public_point.unsafe_value().uncompressed(), cursor);
     return max_pkcs8_size;
 }
 
@@ -191,14 +193,14 @@ template <class Backend = default_backend_t<families::p256>>
         }
         return made_pair.error();
     }
-    auto const public_point = made_pair->public_key();
+    auto const public_point = made_pair.unsafe_value().public_key();
     if (!public_point) {
         return public_point.error();
     }
     // The point is d * G, computed from the secret; whether the input's is the same is public.
     // Not const: the branch reads it again after the mark (detail/declassify.hpp's tip).
     // NOLINTNEXTLINE(misc-const-correctness): see above
-    bool is_same = equal(public_point->uncompressed(), pkcs8_bytes.subspan(point_at));
+    bool is_same = equal(public_point.unsafe_value().uncompressed(), pkcs8_bytes.subspan(point_at));
     WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&is_same, sizeof is_same);
     if (!is_same) {
         return error::invalid_encoding;

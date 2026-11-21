@@ -29,7 +29,8 @@ In {cpp}, a program names a backend by including its header,
 `<webcpp/crypto/backends/<name>.hpp>`, and using its tag type,
 `backends::<name>`, as a template argument:
 `ciphers::gcm<ciphers::aes256<backends::bearssl>>`. The default backend needs no
-include of its own: `<webcpp/crypto/ciphers/aes256_gcm.hpp>` brings it when it is
+include of its own: `<webcpp/crypto/ciphers/aes256_gcm.hpp>` brings AES-GCM's,
+and `<webcpp/crypto/ciphers/aes_block.hpp>` the block cipher's, when it is
 linked.
 
 [#crypto-jamfile-default]

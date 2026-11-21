@@ -8,6 +8,7 @@
 // ctaes the block cipher's: OpenSSL is never a default on WebAssembly (design D32, D3).
 
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
+#include <webcpp/crypto/ciphers/aes_block.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>

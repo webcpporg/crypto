@@ -8,11 +8,11 @@
  The AES block cipher, `aes128`, `aes192` and `aes256`: a building block, not encryption
  by itself. A program that encrypts messages uses `gcm`.
 
- `aes128<>`, `aes192<>` and `aes256<>` name the block cipher's default backend, whose header it
- includes when the program links it: natively OpenSSL, on wasip2, wasip3 and Emscripten ctaes,
- whatever else the program links (`default_backend_t<families::aes_block>`). A program that uses
- them without linking the default stops where it calls them, with the Jamfile line that links it
- and the type that names another backend, as `aes256<backends::ctaes>`.
+ `aes128<>`, `aes192<>` and `aes256<>` name the block cipher's default backend: natively OpenSSL,
+ on wasip2, wasip3 and Emscripten ctaes (`default_backend_t<families::aes_block>`). This header
+ includes no backend: `ciphers/aes_block.hpp` includes the default's, and a program that names
+ another backend includes that backend's header, as `backends/ctaes.hpp` for
+ `aes256<backends::ctaes>`.
 
  @see "The block cipher", in the guide.
 */
@@ -343,12 +343,5 @@ private:
 };
 
 }  // namespace webcpp::crypto::ciphers
-
-// The default's header, once the classes it specialises are declared.
-#if defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_OPENSSL) && defined(WEBCPP_CRYPTO_HAS_OPENSSL)
-#include <webcpp/crypto/backends/openssl.hpp>
-#elif defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_CTAES) && defined(WEBCPP_CRYPTO_HAS_CTAES)
-#include <webcpp/crypto/backends/ctaes.hpp>
-#endif
 
 #endif  // WEBCPP_CRYPTO_CIPHERS_AES_HPP

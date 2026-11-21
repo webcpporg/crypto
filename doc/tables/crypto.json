@@ -254,7 +254,7 @@
             "functions": ["make", "encrypt", "decrypt"],
             "namespace": "ciphers",
             "api": "ciphers::aes128, aes192, aes256",
-            "header": "<webcpp/crypto/ciphers/aes.hpp>",
+            "header": "<webcpp/crypto/ciphers/aes.hpp>, <webcpp/crypto/ciphers/aes_block.hpp>",
             "what": "The AES block cipher on whole 16-byte blocks: a building block, not encryption of data.",
             "section": "crypto-block",
             "default": "`aes128<>`, `aes192<>` and `aes256<>` name the default backend; `gcm<aes256<>>` names AES-GCM's.",

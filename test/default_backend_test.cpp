@@ -42,13 +42,13 @@ static_assert(crypto::detail::supported<families::gcm, crypto::tags::aes256_gcm,
 using block_expected = backends::ctaes;
 #if !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_CTAES) || \
     defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_OPENSSL)
-#error "aes.hpp is told to include another header than ctaes's"
+#error "aes_block.hpp is told to include another header than ctaes's"
 #endif
 #else
 using block_expected = backends::openssl;
 #if !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_OPENSSL) || \
     defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_CTAES)
-#error "aes.hpp is told to include another header than OpenSSL's"
+#error "aes_block.hpp is told to include another header than OpenSSL's"
 #endif
 #endif
 static_assert(std::is_same_v<crypto::default_backend_t<families::aes_block>, block_expected>);

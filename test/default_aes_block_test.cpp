@@ -10,8 +10,8 @@
 // WebAssembly. test/Jamfile links both families' defaults through their aliases, so that on
 // WebAssembly ctaes and BearSSL are linked side by side.
 
-#include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
+#include <webcpp/crypto/ciphers/aes_block.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>

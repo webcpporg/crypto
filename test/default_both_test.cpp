@@ -8,6 +8,7 @@
 // too, and the block cipher's (design D3).
 
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
+#include <webcpp/crypto/ciphers/aes_block.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>

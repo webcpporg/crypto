@@ -50,8 +50,10 @@ webcpp.headers-alone crypto : ../include : crypto/backends/openssl.hpp
     <library>/third_party//ctaes <library>/third_party//secp256k1
     <library>/third_party//sodium
   : native wasip2 wasip3 ;
-# The backend ctaes's header alone, with ctaes linked, on every target.
-webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp
+# The backend ctaes's header and the block cipher's default's, with ctaes
+# linked, on every target.
+webcpp.headers-alone crypto : ../include
+  : crypto/ciphers/aes_block.hpp crypto/backends/ctaes.hpp
   : <library>/third_party//ctaes ;
 # The backend libsodium's header alone, and Ed25519's, X25519's, their key
 # formats', crypto_kx's, the boxes' and the sealed boxes' with it, with

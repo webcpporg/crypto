@@ -8,7 +8,8 @@
  Every header of webcpp::crypto that needs no backend, the header of each backend the build links
  with what it alone holds (libsecp256k1's secp256k1; libsodium's Ed25519 and X25519 with their key
  formats, `crypto_kx`, boxes and sealed boxes), `ciphers/aes256_gcm.hpp`, whose `aes128_gcm` and
- `aes256_gcm` name AES-GCM's default backend, and `ciphers/chacha20_poly1305.hpp`,
+ `aes256_gcm` name AES-GCM's default backend, `ciphers/aes_block.hpp`, whose `aes256<>` names the
+ block cipher's, and `ciphers/chacha20_poly1305.hpp`,
  `ciphers/secretbox.hpp` and `pem.hpp`, whose AEADs and PEM name libsodium: a program that does
  not link the default names another in the type, as
  `ciphers::gcm<ciphers::aes256<backends::openssl>>` on WebAssembly or
@@ -23,6 +24,7 @@
 #include <webcpp/crypto/ciphers/aead.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
+#include <webcpp/crypto/ciphers/aes_block.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/ciphers/secretbox.hpp>

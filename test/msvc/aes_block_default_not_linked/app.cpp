@@ -9,7 +9,7 @@
 // MSVC the compile fails. The text is checked on clang, in
 // test/messages/aes_block_default_not_linked.
 
-#include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/aes_block.hpp>
 
 #include <array>
 #include <cstdint>

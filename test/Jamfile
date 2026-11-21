@@ -408,9 +408,9 @@ crypto-run p256_openssl_oracle : p256_openssl_oracle_test.cpp
 # node's WebCrypto as an outside oracle of P-256 on Emscripten (EM_ASYNC_JS
 # under the JSPI link, as oracle_25519): 200 seeded cases each of ECDSA with
 # SHA-256 both ways, ECDH's 256 bits, and exportKey's spki, pkcs8 and raw equal
-# to ours byte for byte; it prints `oracle ok 800`. p256_webcrypto_oracle_corrupted
-# flips one signature and one shared x and passes only when WebCrypto disagrees
-# on exactly those two checks.
+# to ours byte for byte; it prints `oracle ok 800`. Its corrupted twin flips
+# one signature and one shared x and passes only when WebCrypto disagrees on
+# exactly those two checks.
 crypto-run p256_webcrypto_oracle : p256_webcrypto_oracle_test.cpp
   : <library>/third_party//bearssl <linkflags>-sJSPI : emscripten ;
 crypto-run p256_webcrypto_oracle_corrupted : p256_webcrypto_oracle_test.cpp

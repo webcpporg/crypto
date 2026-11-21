@@ -37,10 +37,11 @@ EVP_SIGNATURE-ECDSA]), and gives the same signature; each side verifies the
 other's; its ECDH gives the same x; its SPKI and its PKCS#8 are the bytes the
 encoders write, and it reads theirs as the same key. node's WebCrypto, on
 Emscripten (`p256_webcrypto_oracle`, the ECDSA and ECDH that Trystero's peers
-run): it verifies `sign_ecdsa`'s signature and its low-S form, its own
+run): it verifies the signature of `sign_ecdsa` and its low-S form, its own
 signatures verify with `verify_ecdsa`, whatever their S, its `deriveBits` gives
-`ecdh_x`'s bytes, and its `exportKey` of the keys it imported gives
-`encode_spki`'s, `encode_pkcs8`'s and `uncompressed()`'s bytes, byte for byte.
+the bytes of `ecdh_x`, and its `exportKey` of the keys it imported gives the
+bytes of `encode_spki`, of `encode_pkcs8` and of `uncompressed()`, byte for
+byte.
 `p256_webcrypto_oracle_corrupted` flips one bit of one signature and of one
 shared x, and passes only when WebCrypto refuses exactly those two.
 

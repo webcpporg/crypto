@@ -59,7 +59,7 @@ boost::system::result<aead_type::result_type> seal_file(aead_type& aead,
         return begun.error();
     }
     for (std::size_t at = 0; at < plain.size(); at += piece_size) {
-        auto const piece = std::span(plain).subspan(at, piece_size);
+        auto const piece = std::span(plain).subspan(at, (std::min)(piece_size, plain.size() - at));
         if (auto const updated = aead.update(piece); !updated) {
             return updated.error();
         }
@@ -93,7 +93,9 @@ boost::system::result<void> open_file(aead_type& aead, std::span<std::uint8_t co
     }
     std::printf("tag verified\n");
 
-    // The second pass reads the same bytes again, and decrypts them.
+    // The second pass reads the same bytes again, and decrypts them. When decrypt or end_open
+    // fails, the plaintext written so far is to be discarded: the file changed between the
+    // passes, or the backend failed, and those bytes are not the authenticated message.
     file.clear();
     file.seekg(0);
     std::size_t decrypted = 0;

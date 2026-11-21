@@ -468,6 +468,9 @@ void expect_source_refuses(Aead& source, std::span<std::uint8_t const> iv) {
     BOOST_TEST(source.begin_seal(iv, {}).error() == crypto::error::invalid_state);
     BOOST_TEST(source.begin_open(iv, {}).error() == crypto::error::invalid_state);
     BOOST_TEST(source.authenticate(data).error() == crypto::error::invalid_state);
+    BOOST_TEST(source.verify(data).error() == crypto::error::invalid_state);
+    BOOST_TEST(source.decrypt(data).error() == crypto::error::invalid_state);
+    BOOST_TEST(source.end_open().error() == crypto::error::invalid_state);
 }
 
 /** The machine's wrong calls, each followed by a fresh message. */

@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <span>
+#include <string>
 
 namespace p256 = webcpp::crypto::curves::p256;
 
@@ -71,8 +72,8 @@ int main() {
     std::array<std::uint8_t, p256::public_key_size> tampered = exported;
     tampered.back() ^= 0x01U;
     auto const forged = p256::public_key::make(tampered);
-    std::printf("tampered   %s: %s\n", forged ? "valid" : "refused",
-                forged ? "" : forged.error().message().c_str());
+    std::string const reason = forged ? std::string() : forged.error().message();
+    std::printf("tampered   %s: %s\n", forged ? "valid" : "refused", reason.c_str());
 
     // A real program draws its key pair from the system's generator.
     auto const fresh = p256::keypair::generate();

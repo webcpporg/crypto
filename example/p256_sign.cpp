@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <span>
+#include <string>
 #include <string_view>
 
 namespace p256 = webcpp::crypto::curves::p256;
@@ -100,7 +101,8 @@ int main() {
         webcpp::hash::digest_of<webcpp::hash::digests::sha2_256>(other_digest, bytes_of("test"));
     auto const other =
         other_hashed ? p256::verify_ecdsa(*signature, other_digest, *public_key) : other_hashed;
-    std::printf("other text %s\n", other ? "verified" : other.error().message().c_str());
+    std::string const outcome = other ? std::string("verified") : other.error().message();
+    std::printf("other text %s\n", outcome.c_str());
     return 0;
 }
 

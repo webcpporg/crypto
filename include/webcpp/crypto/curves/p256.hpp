@@ -315,9 +315,10 @@ private:
 using keypair = basic_keypair<>;
 
 /**
- * Verifies an ECDSA signature of a SHA-256 digest with a public key. A high S and a low S are both
- * accepted, as FIPS 186-5 and WebCrypto accept them; a protocol that requires low S calls
- * `check_low_s` too.
+ * Verifies an ECDSA signature of a SHA-256 digest with a public key.
+ *
+ * A high S and a low S are both accepted, as FIPS 186-5 and WebCrypto accept them; a protocol that
+ * requires low S calls `check_low_s` too.
  *
  * @tparam Backend The key's backend, which verifies.
  * @param signature 64 bytes, r then s (IEEE P1363, WebCrypto's form); `from_der` reads DER.
@@ -400,8 +401,10 @@ template <class Backend = default_backend_t<families::p256>>
 
 /**
  * The low-S form of a signature: s replaced by n - s when s is above (n - 1) / 2, returned
- * unchanged otherwise. Both forms verify; a protocol that requires low S normalizes what it
- * signs. Arithmetic on public bytes, with no backend.
+ * unchanged otherwise.
+ *
+ * Both forms verify; a protocol that requires low S normalizes what it signs. Arithmetic on public
+ * bytes, with no backend.
  *
  * @param signature 64 bytes, r then s.
  * @return 64 bytes, r then s, with s at most (n - 1) / 2; `invalid_signature` when r or s is 0 or
@@ -424,8 +427,10 @@ normalize_ecdsa(std::span<std::uint8_t const, signature_size> signature) noexcep
 
 /**
  * Checks that a signature is in its low-S form, s at most (n - 1) / 2, as a protocol that
- * requires low S checks what it receives. Arithmetic on public bytes, with no backend; it does
- * not verify the signature (`verify_ecdsa` does).
+ * requires low S checks what it receives.
+ *
+ * Arithmetic on public bytes, with no backend; it does not verify the signature (`verify_ecdsa`
+ * does).
  *
  * @param signature 64 bytes, r then s.
  * @return Nothing; `invalid_signature` when s is above (n - 1) / 2, and when r or s is 0 or not

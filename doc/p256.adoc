@@ -99,16 +99,14 @@ takes; a key a tool sends compressed is decompressed by that tool first.
 
 ECDSA signs a *digest*, not a message: the program hashes the message with
 SHA-256, then `keypair::sign_ecdsa(digest)` signs those 32 bytes, as
-WebCrypto's `sign({name: "ECDSA", hash: "SHA-256"}, ...)` hashes and signs in one
+WebCrypto's `+sign({name: "ECDSA", hash: "SHA-256"}, ...)+` hashes and signs in one
 call (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]) and passkeys' ES256 does
 (link:https://www.w3.org/TR/webauthn-2/#sctn-alg-identifier[W3C Web
 Authentication]):
 
 [source,cpp]
 ----
-std::array<std::uint8_t, 32> digest{};
-auto hashed = webcpp::hash::digest_of<webcpp::hash::digests::sha2_256>(digest, message);
-auto signature = key.sign_ecdsa(digest);  // 64 bytes: r, then s
+include::{examples}/p256_sign.cpp[tag=sign,indent=0]
 ----
 
 The nonce is RFC 6979's (link:https://www.rfc-editor.org/rfc/rfc6979[RFC
@@ -172,8 +170,8 @@ include::{examples}/p256_sign.expected[]
 *Pitfalls.*
 
 * A protocol that requires low S and forgets `normalize_ecdsa` fails about one
-signature in two: `sign_ecdsa`'s S is high half the time, and the peer's
-`check_low_s` refuses those. The tests that sign a fixed message may pass
+signature in two: the S of `sign_ecdsa` is high half the time, and
+`check_low_s` on the peer's side refuses those. The tests that sign a fixed message may pass
 every time, the signature being the same; a program sees it at the first
 handshake whose S is high. Normalize every signature such a protocol sends,
 and check every one it receives.

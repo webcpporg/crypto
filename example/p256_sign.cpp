@@ -37,16 +37,10 @@ void print(char const* name, std::span<std::uint8_t const> bytes) {
     std::printf("\n");
 }
 
-// What is signed is a SHA-256 digest, as WebCrypto's ECDSA with SHA-256 hashes the message.
-std::array<std::uint8_t, p256::digest_size> digest_of(std::string_view text) {
-    std::array<std::uint8_t, p256::digest_size> digest{};
+// A text's bytes, the message.
+std::span<std::uint8_t const> bytes_of(std::string_view text) {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast): a text's bytes
-    auto const* const bytes = reinterpret_cast<std::uint8_t const*>(text.data());
-    std::span<std::uint8_t const> const message(bytes, text.size());
-    if (!webcpp::hash::digest_of<webcpp::hash::digests::sha2_256>(digest, message)) {
-        digest.fill(0);
-    }
-    return digest;
+    return {reinterpret_cast<std::uint8_t const*>(text.data()), text.size()};
 }
 
 }  // namespace
@@ -64,10 +58,14 @@ int main() {
         std::printf("failed\n");
         return 1;
     }
-    auto const digest = digest_of("sample");
-
+    // tag::sign[]
+    // What is signed is the message's SHA-256 digest, as WebCrypto's ECDSA with SHA-256 signs.
+    std::array<std::uint8_t, p256::digest_size> digest{};
+    auto const hashed =
+        webcpp::hash::digest_of<webcpp::hash::digests::sha2_256>(digest, bytes_of("sample"));
     // RFC 6979's nonce: no random number, the same signature for the same key and digest.
-    auto const signature = key->sign_ecdsa(digest);
+    auto const signature = hashed ? key->sign_ecdsa(digest) : hashed.error();
+    // end::sign[]
     if (!signature) {
         std::printf("failed\n");
         return 1;
@@ -97,7 +95,11 @@ int main() {
     bool const both = p256::verify_ecdsa(*signature, digest, *public_key) && decoded &&
                       p256::verify_ecdsa(*decoded, digest, *public_key);
     std::printf("verified   %s\n", both ? "both forms" : "FAILED");
-    auto const other = p256::verify_ecdsa(*signature, digest_of("test"), *public_key);
+    std::array<std::uint8_t, p256::digest_size> other_digest{};
+    auto const other_hashed =
+        webcpp::hash::digest_of<webcpp::hash::digests::sha2_256>(other_digest, bytes_of("test"));
+    auto const other =
+        other_hashed ? p256::verify_ecdsa(*signature, other_digest, *public_key) : other_hashed;
     std::printf("other text %s\n", other ? "verified" : other.error().message().c_str());
     return 0;
 }

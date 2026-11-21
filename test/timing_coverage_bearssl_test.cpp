@@ -18,7 +18,8 @@
 // - P-256, curves::p256: basic_keypair::make, generate, sign_ecdsa, ecdh_x;
 //   basic_public_key::make (both); verify_ecdsa, to_der, from_der; decode_spki, decode_pkcs8; not
 //   guarded (no BearSSL call): public_key, secret_scalar, uncompressed, encode_spki, encode_pkcs8,
-//   basic_keypair's move constructor and move assignment, and normalize_ecdsa and check_low_s, which test/timing_test.cpp calls without a backend.
+//   basic_keypair's move constructor and move assignment, and normalize_ecdsa and check_low_s,
+//   which test/timing_test.cpp calls without a backend.
 
 #include "support/timing_seam.hpp"
 
@@ -113,10 +114,11 @@ void cover_p256_keys() {
     auto target = keypair::make(data::rfc6979_scalar);
     auto source = keypair::make(data::rfc6979_scalar);
     if (BOOST_TEST(target.has_value()) && BOOST_TEST(source.has_value())) {
-        webcpp::test::uncovered("p256::basic_keypair move assignment on bearssl", [&target, &source] {
-            *target = std::move(*source);
-            BOOST_TEST(target->public_key().has_value());
-        });
+        webcpp::test::uncovered("p256::basic_keypair move assignment on bearssl",
+                                [&target, &source] {
+                                    *target = std::move(*source);
+                                    BOOST_TEST(target->public_key().has_value());
+                                });
     }
 }
 

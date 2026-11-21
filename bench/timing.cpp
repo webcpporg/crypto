@@ -13,13 +13,15 @@
 // guard entered with DIT already set (it reads DIT and leaves it; the program sets DIT for that
 // part with the same `msr` as the guard, and clears it after), five runs of each, interleaved, and
 // prints one JSON line: `{"dit": true|false, "clear": <ns>, "set": <ns>, ...}`, each cost the
-// median of its runs minus the empty loop's, in nanoseconds per guard, then the iterations, the
-// runs, the target and the compiler. "dit" says whether the guard sets DIT here (a target it
-// covers, on a CPU that has it); where it does not, the guard executes no instruction and both
-// costs are the loop's noise. Run with no argument, it is the correctness test: the same
-// measurement at 10^3 iterations, whose line must have that form, whose "dit" must be what the
-// library reads, and after each part of which the thread's DIT must be clear again. A measurement
-// never fails on its time; bench/collect.py --timing runs it and writes doc/performance.adoc.
+// median of its runs minus the empty loop's median, in nanoseconds per guard, then each part's
+// fastest and slowest run (minus the same median), the iterations, the runs, the target and the
+// compiler. "dit" says whether the guard sets DIT here (a target it covers, on a CPU that has it);
+// where it does not, the guard executes no instruction and both costs are the loop's noise. Both
+// modes fail when the process starts with DIT set, or when the thread's DIT is not as the guard
+// must leave it after a part. Run with no argument, it is the correctness test: the same
+// measurement at 10^3 iterations, whose line must also have that form, and whose "dit" must be
+// what the library reads. A measurement never fails on its time; bench/collect.py --timing runs
+// it and writes doc/performance.adoc.
 
 #include <webcpp/crypto/detail/timing.hpp>
 
@@ -96,15 +98,27 @@ double nanoseconds_per_iteration(std::uint64_t iterations, Body body) {
     return elapsed.count() / static_cast<double>(iterations);
 }
 
-double median(std::array<double, runs> values) {
+// A part's runs, each less the empty loop's median: their median, fastest and slowest.
+struct summary {
+    double median = 0;
+    double fastest = 0;
+    double slowest = 0;
+};
+
+summary summarise(std::array<double, runs> values, double loop) {
     std::ranges::sort(values);
-    return values[runs / 2];
+    return {
+        .median = values[runs / 2] - loop,
+        .fastest = values.front() - loop,
+        .slowest = values.back() - loop,
+    };
 }
 
-// What one measurement gives: the guard's two costs, and whether DIT was clear after each part.
+// What one measurement gives: the guard's two costs, and whether DIT was as the guard must leave
+// it before and after each part.
 struct result {
-    double clear = 0;
-    double set = 0;
+    summary clear;
+    summary set;
     bool restored = true;
 };
 
@@ -112,7 +126,8 @@ result measure(std::uint64_t iterations) {
     std::array<double, runs> empty{};
     std::array<double, runs> clear{};
     std::array<double, runs> set{};
-    bool restored = true;
+    // A process that starts with DIT set would measure the set part twice.
+    bool restored = !detail::dit_is_set();
     // Written by every iteration of every part, so that no loop is removed or merged.
     std::uint64_t volatile sink = 0;
     for (std::size_t run = 0; run < runs; ++run) {
@@ -131,19 +146,21 @@ result measure(std::uint64_t iterations) {
         force_dit(false);
         restored = restored && !detail::dit_is_set();
     }
-    double const loop = median(empty);
-    return {.clear = median(clear) - loop, .set = median(set) - loop, .restored = restored};
+    double const loop = summarise(empty, 0).median;
+    return {.clear = summarise(clear, loop), .set = summarise(set, loop), .restored = restored};
 }
 
 // Writes the JSON line of a measurement into line; the number of characters, or -1.
 int format(std::span<char> line, result const& measured, std::uint64_t iterations) {
-    return std::snprintf(line.data(), line.size(),
-                         R"({"dit": %s, "clear": %.3f, "set": %.3f, "iterations": %llu, )"
-                         R"("runs": %zu, "target": "%.*s", "compiler": "%.*s"})",
-                         guard_sets_dit() ? "true" : "false", measured.clear, measured.set,
-                         static_cast<unsigned long long>(iterations), runs,
-                         static_cast<int>(target.size()), target.data(),
-                         static_cast<int>(compiler.size()), compiler.data());
+    return std::snprintf(
+        line.data(), line.size(),
+        R"({"dit": %s, "clear": %.3f, "set": %.3f, "clear_fastest": %.3f, )"
+        R"("clear_slowest": %.3f, "set_fastest": %.3f, "set_slowest": %.3f, )"
+        R"("iterations": %llu, "runs": %zu, "target": "%.*s", "compiler": "%.*s"})",
+        guard_sets_dit() ? "true" : "false", measured.clear.median, measured.set.median,
+        measured.clear.fastest, measured.clear.slowest, measured.set.fastest, measured.set.slowest,
+        static_cast<unsigned long long>(iterations), runs, static_cast<int>(target.size()),
+        target.data(), static_cast<int>(compiler.size()), compiler.data());
 }
 
 // Skips prefix at the start of text, or returns null when text does not start with it.
@@ -170,7 +187,7 @@ bool well_formed(char const* line) {
     char const* rest =
         skip(line, guard_sets_dit() ? R"({"dit": true, "clear": )" : R"({"dit": false, "clear": )");
     rest = number(skip(number(rest, clear), R"(, "set": )"), set);
-    return skip(rest, R"(, "iterations": )") != nullptr;
+    return skip(rest, R"(, "clear_fastest": )") != nullptr;
 }
 
 int usage() {
@@ -195,8 +212,12 @@ int main(int argument_count, char** arguments) {
         return 1;
     }
     std::printf("%s\n", line.data());
+    if (!measured.restored) {
+        static_cast<void>(std::fprintf(
+            stderr, "timing: the thread's DIT was set at the start or not restored by a guard\n"));
+    }
     if (measuring) {
-        return 0;
+        return measured.restored ? 0 : 1;
     }
     bool const formed = well_formed(line.data());
     std::printf("form %s\nstate restored %s\n", formed ? "ok" : "FAILED",

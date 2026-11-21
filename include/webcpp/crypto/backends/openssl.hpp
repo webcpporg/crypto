@@ -537,10 +537,13 @@ struct gcm_engine<backends::openssl, KeySize> {
         target_state.context = std::exchange(source_state.context, nullptr);
     }
 
-    // EVP_CIPHER_CTX_free cleanses the expanded key before it frees.
+    // EVP_CIPHER_CTX_free cleanses the expanded key before it frees. The pointer is then
+    // zeroed by wipe_object: a plain store of null is dead in a destructor, and GCC's -O3
+    // drops it.
     /** Frees the context. */
     static void reset(state& engine_state) noexcept {
-        EVP_CIPHER_CTX_free(std::exchange(engine_state.context, nullptr));
+        EVP_CIPHER_CTX_free(engine_state.context);
+        wipe_object(engine_state);
     }
 };
 
@@ -649,10 +652,12 @@ struct aead_engine<families::chacha20_poly1305, backends::openssl> {
         target_state.context = std::exchange(source_state.context, nullptr);
     }
 
-    // EVP_CIPHER_CTX_free cleanses the key before it frees.
+    // EVP_CIPHER_CTX_free cleanses the key before it frees. The pointer is then zeroed by
+    // wipe_object, as GCM's is.
     /** Frees the context. */
     static void reset(state& engine_state) noexcept {
-        EVP_CIPHER_CTX_free(std::exchange(engine_state.context, nullptr));
+        EVP_CIPHER_CTX_free(engine_state.context);
+        wipe_object(engine_state);
     }
 };
 
@@ -711,10 +716,11 @@ struct block_engine<backends::openssl, KeySize> {
         target_state.decrypting = std::exchange(source_state.decrypting, nullptr);
     }
 
-    /** Frees both contexts. */
+    /** Frees both contexts, then zeroes the pointers by wipe_object, as GCM's are. */
     static void reset(state& engine_state) noexcept {
-        EVP_CIPHER_CTX_free(std::exchange(engine_state.encrypting, nullptr));
-        EVP_CIPHER_CTX_free(std::exchange(engine_state.decrypting, nullptr));
+        EVP_CIPHER_CTX_free(engine_state.encrypting);
+        EVP_CIPHER_CTX_free(engine_state.decrypting);
+        wipe_object(engine_state);
     }
 };
 

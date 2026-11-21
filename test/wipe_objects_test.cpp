@@ -70,10 +70,16 @@ struct region {
 };
 
 // Whether any byte of the region is not zero, read through a volatile pointer so that the read
-// is neither merged with a store nor dropped.
+// is neither merged with a store nor dropped. The pointer is itself read back from a volatile
+// object, so that the optimiser cannot tell which storage it reads: after a destructor, GCC
+// takes the bytes of the destroyed object for indeterminate (its end-of-lifetime clobber, which
+// -Wuninitialized reports at -O3) and could fold the read. The stores the destructor made, or
+// dropped, are what the read finds.
 template <class T>
 bool any_set(slot<T> const& storage, region where) {
-    auto const* const bytes = reinterpret_cast<unsigned char const volatile*>(storage.bytes.data());
+    auto const* const volatile opaque =
+        reinterpret_cast<unsigned char const volatile*>(storage.bytes.data());
+    unsigned char const volatile* const bytes = opaque;
     for (std::size_t i = where.offset; i < where.offset + where.size; ++i) {
         if (bytes[i] != 0) {
             return true;

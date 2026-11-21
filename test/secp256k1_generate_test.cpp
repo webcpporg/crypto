@@ -44,14 +44,17 @@ public:
     std::size_t size = 0;
 
 private:
-    void* do_allocate(std::size_t bytes, std::size_t) override {
+    void* do_allocate(std::size_t bytes, std::size_t /*alignment*/) override {
         ++allocated;
         size = bytes;
         BOOST_TEST(bytes <= buffer_.size());
         return buffer_.data();
     }
 
-    void do_deallocate(void*, std::size_t, std::size_t) override { ++deallocated; }
+    void do_deallocate(void* /*pointer*/, std::size_t /*bytes*/,
+                       std::size_t /*alignment*/) override {
+        ++deallocated;
+    }
 
     [[nodiscard]] bool do_is_equal(std::pmr::memory_resource const& other) const noexcept override {
         return this == &other;

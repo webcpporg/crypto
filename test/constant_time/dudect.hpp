@@ -175,7 +175,7 @@ inline double printed(double t) {
 inline t_statistic largest_t(std::vector<double> const& timings, std::vector<int> const& classes) {
     std::vector<double> sorted = timings;
     std::ranges::sort(sorted);
-    t_statistic largest{0, -1, sorted.back(), {}};
+    t_statistic largest{.t = 0, .crop = -1, .limit_ns = sorted.back(), .classes = {}};
     for (int k = -1; k < 100; ++k) {
         double const keep = k < 0 ? 1.0 : 1.0 - std::pow(0.5, 10.0 * (k + 1) / 100.0);
         double const limit =
@@ -190,11 +190,16 @@ inline t_statistic largest_t(std::vector<double> const& timings, std::vector<int
         if (!std::isfinite(t) || (k >= 0 && !(t > largest.t))) {
             continue;
         }
-        largest = {t,
-                   k,
-                   limit,
-                   {{{static_cast<std::size_t>(m[0].n), m[0].mean},
-                     {static_cast<std::size_t>(m[1].n), m[1].mean}}}};
+        largest = {
+            .t = t,
+            .crop = k,
+            .limit_ns = limit,
+            .classes =
+                {
+                    class_summary{.count = static_cast<std::size_t>(m[0].n), .mean_ns = m[0].mean},
+                    class_summary{.count = static_cast<std::size_t>(m[1].n), .mean_ns = m[1].mean},
+                },
+        };
     }
     return largest;
 }
@@ -302,6 +307,13 @@ t_statistic twice(std::size_t count, Prepare&& prepare, Run&& run) {
 
 /** A buffer a case measures, named in its addresses line. */
 struct address {
+    /**
+     * Names a buffer, as `{"data", data.data()}` does in a case's list.
+     * @param name Its name in the line, as `data` or `object`.
+     * @param buffer Where it is.
+     */
+    constexpr address(char const* name, void const* buffer) noexcept : label(name), where(buffer) {}
+
     /** Its name in the line, as `data` or `object`. */
     char const* label;
     /** Where it is. */
@@ -325,27 +337,29 @@ inline std::string case_lines(char const* name, t_statistic const& result, bool 
                               std::initializer_list<address> buffers) {
     std::array<char, 512> line{};
     double const t = printed(result.t);
-    std::snprintf(line.data(), line.size(), "dudect case=%s t=%.2f threshold=10 judged=%s\n", name,
-                  t, judged_case ? "yes" : "no");
+    static_cast<void>(std::snprintf(line.data(), line.size(),
+                                    "dudect case=%s t=%.2f threshold=10 judged=%s\n", name, t,
+                                    judged_case ? "yes" : "no"));
     std::string text = line.data();
     if (!(t >= 10)) {
         return text;
     }
-    std::snprintf(line.data(), line.size(),
-                  "dudect evidence case=%s crop=%d limit_ns=%.2f class0_n=%zu class0_mean_ns=%.2f "
-                  "class1_n=%zu class1_mean_ns=%.2f\n",
-                  name, result.crop, result.limit_ns, result.classes[0].count,
-                  result.classes[0].mean_ns, result.classes[1].count, result.classes[1].mean_ns);
+    static_cast<void>(std::snprintf(
+        line.data(), line.size(),
+        "dudect evidence case=%s crop=%d limit_ns=%.2f class0_n=%zu class0_mean_ns=%.2f "
+        "class1_n=%zu class1_mean_ns=%.2f\n",
+        name, result.crop, result.limit_ns, result.classes[0].count, result.classes[0].mean_ns,
+        result.classes[1].count, result.classes[1].mean_ns));
     text += line.data();
     text += "dudect addresses case=";
     text += name;
     for (address const& buffer : buffers) {
-        std::snprintf(
+        static_cast<void>(std::snprintf(
             line.data(), line.size(), " %s=0x%03x", buffer.label,
-            static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(buffer.where) & 0xFFFU));
+            static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(buffer.where) & 0xFFFU)));
         text += line.data();
     }
-    text += "\n";
+    text += '\n';
     return text;
 }
 
@@ -358,8 +372,8 @@ inline std::string case_lines(char const* name, t_statistic const& result, bool 
  */
 inline void report_case(char const* name, t_statistic const& result, bool judged_case,
                         std::initializer_list<address> buffers) {
-    std::fputs(case_lines(name, result, judged_case, buffers).c_str(), stdout);
-    std::fflush(stdout);
+    static_cast<void>(std::fputs(case_lines(name, result, judged_case, buffers).c_str(), stdout));
+    static_cast<void>(std::fflush(stdout));
 }
 
 /**
@@ -417,16 +431,15 @@ inline cpu_identity printable(cpu_identity identity) {
  * @return The identity, `printable`.
  */
 inline cpu_identity parse_cpuinfo(std::string_view text) {
-    std::array<std::pair<char const*, std::string>, 6> fields{{{"model name", {}},
-                                                               {"microcode", {}},
-                                                               {"CPU implementer", {}},
-                                                               {"CPU part", {}},
-                                                               {"CPU variant", {}},
-                                                               {"CPU revision", {}}}};
+    using field = std::pair<char const*, std::string>;
+    std::array<field, 6> fields{
+        field{"model name", {}}, field{"microcode", {}},   field{"CPU implementer", {}},
+        field{"CPU part", {}},   field{"CPU variant", {}}, field{"CPU revision", {}},
+    };
     constexpr std::string_view blank = " \t\r";
     while (!text.empty()) {
         auto const end = text.find('\n');
-        std::string_view line = text.substr(0, end);
+        std::string_view const line = text.substr(0, end);
         text = end == std::string_view::npos ? std::string_view{} : text.substr(end + 1);
         auto const colon = line.find(':');
         if (colon == std::string_view::npos) {
@@ -468,21 +481,14 @@ inline cpu_identity parse_cpuinfo(std::string_view text) {
 }
 
 /**
- * Prints, once per program, the machine a measurement ran on: `dudect machine cpu="<model>"
- * microcode=<value> clock_resolution_ns=<x>`. The model and the microcode are /proc/cpuinfo's
- * (`parse_cpuinfo`) on Linux, `machdep.cpu.brand_string` on macOS with the microcode
- * `unavailable`, and `unavailable` elsewhere, WebAssembly included, as where the system does not
- * tell them; the resolution is `clock_resolution_ns`'s, with two decimals, or `below_resolution`
- * when it measured none.
+ * The CPU a measurement runs on: /proc/cpuinfo's model and microcode (`parse_cpuinfo`) on Linux,
+ * `machdep.cpu.brand_string` on macOS with the microcode `unavailable`, and `unavailable`
+ * elsewhere, WebAssembly included, as where the system does not tell them.
+ * @return The identity, `printable`.
  */
-inline void report_machine() {
-    static bool printed_once = false;
-    if (printed_once) {
-        return;
-    }
-    printed_once = true;
+inline cpu_identity machine_identity() {
     cpu_identity identity;
-#if defined(__linux__)
+#ifdef __linux__
     if (std::FILE* const file = std::fopen("/proc/cpuinfo", "r")) {
         std::string text;
         std::array<char, 4096> buffer{};
@@ -490,7 +496,7 @@ inline void report_machine() {
         while ((read = std::fread(buffer.data(), 1, buffer.size(), file)) > 0) {
             text.append(buffer.data(), read);
         }
-        std::fclose(file);
+        static_cast<void>(std::fclose(file));
         identity = parse_cpuinfo(text);
     }
 #elif defined(__APPLE__)
@@ -503,16 +509,31 @@ inline void report_machine() {
     }
     identity = printable(identity);
 #endif
+    return identity;
+}
+
+/**
+ * Prints, once per program, the machine a measurement ran on: `dudect machine cpu="<model>"
+ * microcode=<value> clock_resolution_ns=<x>`, the CPU's `machine_identity`; the resolution is
+ * `clock_resolution_ns`'s, with two decimals, or `below_resolution` when it measured none.
+ */
+inline void report_machine() {
+    static bool printed_once = false;
+    if (printed_once) {
+        return;
+    }
+    printed_once = true;
+    cpu_identity const identity = machine_identity();
     double const resolution = clock_resolution_ns();
     std::array<char, 32> written{};
     if (resolution > 0) {
-        std::snprintf(written.data(), written.size(), "%.2f", resolution);
+        static_cast<void>(std::snprintf(written.data(), written.size(), "%.2f", resolution));
     } else {
-        std::snprintf(written.data(), written.size(), "below_resolution");
+        static_cast<void>(std::snprintf(written.data(), written.size(), "below_resolution"));
     }
     std::printf("dudect machine cpu=\"%s\" microcode=%s clock_resolution_ns=%s\n",
                 identity.cpu.c_str(), identity.microcode.c_str(), written.data());
-    std::fflush(stdout);
+    static_cast<void>(std::fflush(stdout));
 }
 
 /** The case a program measures: every one, or the one `--case` names. */
@@ -539,7 +560,7 @@ struct case_selection {
  * @return The selection; empty, after a line on stderr that lists the cases (`unknown case <x>;
  * the cases: <names>` for a name not among them), when the arguments are neither.
  */
-inline std::optional<case_selection> select_case(int argc, char** argv,
+inline std::optional<case_selection> select_case(int argc, char const* const* argv,
                                                  std::initializer_list<char const*> names) {
     std::string list;
     for (char const* const name : names) {
@@ -555,11 +576,12 @@ inline std::optional<case_selection> select_case(int argc, char** argv,
                 return case_selection{name};
             }
         }
-        std::fprintf(stderr, "unknown case %s; the cases: %s\n", argv[2], list.c_str());
+        static_cast<void>(
+            std::fprintf(stderr, "unknown case %s; the cases: %s\n", argv[2], list.c_str()));
         return std::nullopt;
     }
-    std::fprintf(stderr, "usage: %s [--case <name>]; the cases: %s\n",
-                 argc > 0 ? argv[0] : "dudect", list.c_str());
+    static_cast<void>(std::fprintf(stderr, "usage: %s [--case <name>]; the cases: %s\n",
+                                   argc > 0 ? argv[0] : "dudect", list.c_str()));
     return std::nullopt;
 }
 
@@ -582,8 +604,9 @@ public:
                 std::initializer_list<address> buffers, char const* note = "") {
         report_case(name, result, judged_case, buffers);
         std::array<char, 128> value{};
-        std::snprintf(value.data(), value.size(), "%s%s %.2f%s", human_.empty() ? "" : ", ", label,
-                      printed(result.t), note);
+        static_cast<void>(std::snprintf(value.data(), value.size(), "%s%s %.2f%s",
+                                        human_.empty() ? "" : ", ", label, printed(result.t),
+                                        note));
         human_ += value.data();
         passes_ = passes_ && (!judged_case || printed(result.t) < 10);
     }

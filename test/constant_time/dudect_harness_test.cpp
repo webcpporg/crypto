@@ -80,7 +80,9 @@ void choose_control() {
         fixed[i] = static_cast<std::uint8_t>(0xA0U + i);
     }
     for (int which = 0; which < 2; ++which) {
+        // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
         std::mt19937_64 control(7);
+        // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
         std::mt19937_64 plain(7);
         std::array<std::uint8_t, 24> input{};
         test::choose<true>(which, control, fixed, input);
@@ -90,6 +92,7 @@ void choose_control() {
         BOOST_TEST_EQ(control(), plain());
     }
     // Without the control, class 1 writes the drawn bytes.
+    // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 plain(7);
     std::array<std::uint8_t, 24> input{};
     test::choose(1, plain, fixed, input);
@@ -122,10 +125,22 @@ void select_case() {
 
 /** Every decision reads |t| as printed: 9.996 prints 10.00, with its evidence, and fails. */
 void printed_boundary() {
+    test::class_summary const small_class{.count = 3, .mean_ns = 40.0};
+    test::class_summary const larger_class{.count = 4, .mean_ns = 41.0};
     BOOST_TEST_EQ(test::printed(9.996), 10.0);
     BOOST_TEST_EQ(test::printed(9.994), 9.99);
-    test::t_statistic const just_above{9.996, 2, 50.0, {{{3, 40.0}, {4, 41.0}}}};
-    test::t_statistic const just_below{9.994, 2, 50.0, {{{3, 40.0}, {4, 41.0}}}};
+    test::t_statistic const just_above{
+        .t = 9.996,
+        .crop = 2,
+        .limit_ns = 50.0,
+        .classes = {small_class, larger_class},
+    };
+    test::t_statistic const just_below{
+        .t = 9.994,
+        .crop = 2,
+        .limit_ns = 50.0,
+        .classes = {small_class, larger_class},
+    };
     BOOST_TEST_EQ(test::case_lines("x", just_above, true, {}),
                   "dudect case=x t=10.00 threshold=10 judged=yes\n"
                   "dudect evidence case=x crop=2 limit_ns=50.00 class0_n=3 class0_mean_ns=40.00 "
@@ -162,8 +177,20 @@ void cpuinfo() {
 
 /** The lines' exact text, which the CI's judge parses. */
 void report_case_format([[maybe_unused]] char const* program) {
-    test::t_statistic const high{12.3456, 4, 101.5, {{{10, 100.0}, {12, 101.0}}}};
-    test::t_statistic const low{3.0, -1, 200.0, {{{10, 100.0}, {12, 101.0}}}};
+    test::class_summary const first{.count = 10, .mean_ns = 100.0};
+    test::class_summary const second{.count = 12, .mean_ns = 101.0};
+    test::t_statistic const high{
+        .t = 12.3456,
+        .crop = 4,
+        .limit_ns = 101.5,
+        .classes = {first, second},
+    };
+    test::t_statistic const low{
+        .t = 3.0,
+        .crop = -1,
+        .limit_ns = 200.0,
+        .classes = {first, second},
+    };
     std::string const high_lines =
         "dudect case=equal t=12.35 threshold=10 judged=yes\n"
         "dudect evidence case=equal crop=4 limit_ns=101.50 class0_n=10 class0_mean_ns=100.00 "
@@ -187,11 +214,11 @@ void report_case_format([[maybe_unused]] char const* program) {
     // directory, so there no file can stand in for stdout: case_lines above is the text. The
     // file is named after the program, in its build directory, so that no other run shares it.
     std::string const path = std::string(program) + ".stdout";
-    std::fflush(stdout);
+    static_cast<void>(std::fflush(stdout));
     if (BOOST_TEST(std::freopen(path.c_str(), "w", stdout) != nullptr)) {
         test::report_case("equal", high, true, {{"a", where}});
         test::report_case("equal", low, true, {{"a", where}});
-        std::fflush(stdout);
+        static_cast<void>(std::fflush(stdout));
         std::string written;
         if (std::FILE* const file = std::fopen(path.c_str(), "r")) {
             std::array<char, 512> buffer{};
@@ -199,7 +226,7 @@ void report_case_format([[maybe_unused]] char const* program) {
             while ((read = std::fread(buffer.data(), 1, buffer.size(), file)) > 0) {
                 written.append(buffer.data(), read);
             }
-            std::fclose(file);
+            static_cast<void>(std::fclose(file));
         }
         // Nothing is printed to stdout after this: the test's report goes to stderr.
 #ifdef _WIN32
@@ -207,7 +234,7 @@ void report_case_format([[maybe_unused]] char const* program) {
 #else
         static_cast<void>(std::freopen("/dev/null", "w", stdout));
 #endif
-        std::remove(path.c_str());
+        static_cast<void>(std::remove(path.c_str()));
         BOOST_TEST_EQ(written, high_lines + "dudect case=equal t=3.00 threshold=10 judged=yes\n");
     }
 #endif
@@ -215,6 +242,7 @@ void report_case_format([[maybe_unused]] char const* program) {
 
 }  // namespace
 
+// NOLINTNEXTLINE(misc-const-correctness): main's arguments have the type the standard gives them
 int main(int argc, char** argv) {
     largest_t_whole_set();
     choose_control();

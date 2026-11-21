@@ -86,7 +86,7 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
     std::copy(right.data(), right.data() + right.size(), nearly_right.begin());
     nearly_right[15] ^= 1U;
     std::array<std::uint8_t, 16> tag{};
-    auto const measure_open = [&]<bool Control>() {
+    auto const measure_open = [&]<bool Control> {
         return test::twice(
             count,
             [&](int which, auto& generator) {
@@ -110,10 +110,18 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
 
 }  // namespace
 
+// NOLINTNEXTLINE(misc-const-correctness): main's arguments have the type the standard gives them
 int main(int argc, char** argv) {
     auto const selection = test::select_case(argc, argv,
-                                             {"gcm_seal", "gcm_open", "chacha_seal", "chacha_open",
-                                              "ctaes_encrypt", "equal", "chacha_open_aa"});
+                                             {
+                                                 "gcm_seal",
+                                                 "gcm_open",
+                                                 "chacha_seal",
+                                                 "chacha_open",
+                                                 "ctaes_encrypt",
+                                                 "equal",
+                                                 "chacha_open_aa",
+                                             });
     if (!selection) {
         return 2;
     }

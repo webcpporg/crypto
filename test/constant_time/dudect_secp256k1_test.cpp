@@ -72,6 +72,7 @@ void measure_ecdh_x(test::case_results& results, char const* name, char const* l
 
 }  // namespace
 
+// NOLINTNEXTLINE(misc-const-correctness): main's arguments have the type the standard gives them
 int main(int argc, char** argv) {
     auto const selection = test::select_case(argc, argv, {"ecdh_x", "ecdh_x_aa"});
     if (!selection) {

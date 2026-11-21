@@ -80,6 +80,7 @@ test::t_statistic measure_agree(bool judged_case, std::array<std::uint8_t, 32>& 
 
 }  // namespace
 
+// NOLINTNEXTLINE(misc-const-correctness): main's arguments have the type the standard gives them
 int main(int argc, char** argv) {
 #ifdef WEBCPP_TEST_CRYPTO_PLANTED_LEAK
     auto const selection = test::select_case(argc, argv, {"x25519_agree"});

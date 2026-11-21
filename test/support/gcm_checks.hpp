@@ -517,23 +517,32 @@ void expect_fresh_open(Aead& made, std::span<std::uint8_t const> iv, gcm_case co
     BOOST_TEST(all_zero(data));
 }
 
+/** Begins an open and authenticates the data: the first pass, before its tag is verified. */
+template <class Aead>
+void begin_authenticated(Aead& made, std::span<std::uint8_t const> iv,
+                         std::span<std::uint8_t const> data) {
+    BOOST_TEST(made.begin_open(iv, {}).has_value());
+    BOOST_TEST(made.authenticate(data).has_value());
+}
+
+/** Begins an open, authenticates the data and verifies its tag: the second pass is next. */
+template <class Aead>
+void begin_verified(Aead& made, std::span<std::uint8_t const> iv,
+                    std::span<std::uint8_t const> data, std::span<std::uint8_t const> tag) {
+    begin_authenticated(made, iv, data);
+    BOOST_TEST(made.verify(tag).has_value());
+}
+
 /**
- * The incremental open's machine: each call outside its phase is refused, ends an open in
- * progress, and is followed by a fresh open.
+ * The incremental open's machine before its second pass: without a message each call only
+ * answers, and a second begin_open, end_open before verify, or a seal's call ends the first
+ * pass; each is followed by a fresh open.
  */
 template <class Aead>
-void check_machine_open_calls(Aead& made, std::span<std::uint8_t const> iv,
-                              gcm_case const& one_block) {
+void check_machine_first_pass_calls(Aead& made, std::span<std::uint8_t const> iv,
+                                    gcm_case const& one_block) {
     auto data = from_hex(one_block.ciphertext);
     auto const tag = from_hex(one_block.tag);
-    auto const authenticated = [&] {
-        BOOST_TEST(made.begin_open(iv, {}).has_value());
-        BOOST_TEST(made.authenticate(data).has_value());
-    };
-    auto const verified = [&] {
-        authenticated();
-        BOOST_TEST(made.verify(tag).has_value());
-    };
     // Without a message, each call only answers.
     BOOST_TEST(made.authenticate(data).error() == crypto::error::invalid_state);
     BOOST_TEST(made.verify(tag).error() == crypto::error::invalid_state);
@@ -541,42 +550,62 @@ void check_machine_open_calls(Aead& made, std::span<std::uint8_t const> iv,
     BOOST_TEST(made.end_open().error() == crypto::error::invalid_state);
     expect_fresh_open(made, iv, one_block);
     // A second begin_open, and end_open before verify, end the first pass.
-    authenticated();
+    begin_authenticated(made, iv, data);
     BOOST_TEST(made.begin_open(iv, {}).error() == crypto::error::invalid_state);
     BOOST_TEST(made.verify(tag).error() == crypto::error::invalid_state);
     expect_fresh_open(made, iv, one_block);
-    authenticated();
+    begin_authenticated(made, iv, data);
     BOOST_TEST(made.end_open().error() == crypto::error::invalid_state);
     BOOST_TEST(made.verify(tag).error() == crypto::error::invalid_state);
     expect_fresh_open(made, iv, one_block);
-    // authenticate, verify, begin_open, begin_seal, update and result in the second pass end
-    // it.
-    verified();
+    // The seal's calls in the first pass end it as well.
+    begin_authenticated(made, iv, data);
+    BOOST_TEST(made.result().error() == crypto::error::invalid_state);
+    BOOST_TEST(made.verify(tag).error() == crypto::error::invalid_state);
+    expect_fresh_message(made, iv, one_block);
+}
+
+/**
+ * The incremental open's machine in its second pass: authenticate, verify, begin_open,
+ * begin_seal, update and result end it, and each is followed by a fresh open.
+ */
+template <class Aead>
+void check_machine_second_pass_calls(Aead& made, std::span<std::uint8_t const> iv,
+                                     gcm_case const& one_block) {
+    auto data = from_hex(one_block.ciphertext);
+    auto const tag = from_hex(one_block.tag);
+    begin_verified(made, iv, data, tag);
     BOOST_TEST(made.authenticate(data).error() == crypto::error::invalid_state);
     BOOST_TEST(made.decrypt(data).error() == crypto::error::invalid_state);
     expect_fresh_open(made, iv, one_block);
-    verified();
+    begin_verified(made, iv, data, tag);
     BOOST_TEST(made.verify(tag).error() == crypto::error::invalid_state);
     BOOST_TEST(made.end_open().error() == crypto::error::invalid_state);
     expect_fresh_open(made, iv, one_block);
-    verified();
+    begin_verified(made, iv, data, tag);
     BOOST_TEST(made.begin_open(iv, {}).error() == crypto::error::invalid_state);
     BOOST_TEST(made.decrypt(data).error() == crypto::error::invalid_state);
     expect_fresh_open(made, iv, one_block);
-    verified();
+    begin_verified(made, iv, data, tag);
     BOOST_TEST(made.begin_seal(iv, {}).error() == crypto::error::invalid_state);
     BOOST_TEST(made.result().error() == crypto::error::invalid_state);
     BOOST_TEST(made.decrypt(data).error() == crypto::error::invalid_state);
     expect_fresh_open(made, iv, one_block);
-    verified();
+    begin_verified(made, iv, data, tag);
     BOOST_TEST(made.update(data).error() == crypto::error::invalid_state);
     BOOST_TEST(made.decrypt(data).error() == crypto::error::invalid_state);
     expect_fresh_open(made, iv, one_block);
-    // The seal's calls in the first pass end it as well.
-    authenticated();
-    BOOST_TEST(made.result().error() == crypto::error::invalid_state);
-    BOOST_TEST(made.verify(tag).error() == crypto::error::invalid_state);
-    expect_fresh_message(made, iv, one_block);
+}
+
+/**
+ * The incremental open's machine: each call outside its phase is refused, ends an open in
+ * progress, and is followed by a fresh open.
+ */
+template <class Aead>
+void check_machine_open_calls(Aead& made, std::span<std::uint8_t const> iv,
+                              gcm_case const& one_block) {
+    check_machine_first_pass_calls(made, iv, one_block);
+    check_machine_second_pass_calls(made, iv, one_block);
 }
 
 /** A move abandons the message on both sides, and leaves the source refusing every call. */
@@ -714,9 +743,13 @@ void incremental_open_pieces(gcm_cases cases = gcm_spec_cases) {
             if (!BOOST_TEST(tag.has_value())) {
                 return;
             }
-            for (std::size_t const piece :
-                 {std::size_t{1}, std::size_t{7}, std::size_t{16}, std::size_t{17},
-                  (std::max)(plaintext.size(), std::size_t{1})}) {
+            for (std::size_t const piece : {
+                     std::size_t{1},
+                     std::size_t{7},
+                     std::size_t{16},
+                     std::size_t{17},
+                     (std::max)(plaintext.size(), std::size_t{1}),
+                 }) {
                 auto const opened =
                     open_in_two_passes(*made, iv, additional_data, ciphertext, *tag, piece);
                 BOOST_TEST(opened == plaintext);
@@ -827,42 +860,112 @@ void incremental_open_shorter_second_pass(gcm_cases cases = gcm_spec_cases) {
     });
 }
 
+/**
+ * The incremental open's length guard: a piece longer than a message may be is refused by its
+ * size before a byte of it is read, and ends the message.
+ */
+template <class Aead>
+void incremental_open_too_long([[maybe_unused]] Aead& made,
+                               [[maybe_unused]] std::span<std::uint8_t const> iv,
+                               [[maybe_unused]] std::span<std::uint8_t const> tag) {
+#if !defined(__wasi__) && !defined(__EMSCRIPTEN__)
+    if constexpr (sizeof(std::size_t) == 8) {
+        // Faults on any access: refused by its size before a byte is read.
+        auto const huge = reserved(static_cast<std::size_t>(Aead::max_message_size) + 1);
+        if (BOOST_TEST(!huge.empty()) && BOOST_TEST(made.begin_open(iv, {}).has_value())) {
+            BOOST_TEST(made.authenticate(huge).error() == crypto::error::message_too_long);
+            BOOST_TEST(made.verify(tag).error() == crypto::error::invalid_state);
+        }
+    }
+#endif
+}
+
+/** The guards of the incremental open on a made gcm: the IV, the tag, the state and the length. */
+template <class Aead>
+void incremental_open_guards_of(Aead& made, gcm_case const& c) {
+    auto const iv = from_hex(c.iv);
+    auto const ciphertext = from_hex(c.ciphertext);
+    auto const tag = from_hex(c.tag);
+    std::array<std::uint8_t, 129> const long_iv{};
+    BOOST_TEST(made.begin_open({}, {}).error() == crypto::error::invalid_iv_size);
+    BOOST_TEST(made.begin_open(long_iv, {}).error() == crypto::error::invalid_iv_size);
+    BOOST_TEST(made.authenticate(ciphertext).error() == crypto::error::invalid_state);
+    BOOST_TEST(made.begin_open(iv, {}).has_value());
+    BOOST_TEST(made.authenticate(ciphertext).has_value());
+    BOOST_TEST(made.verify(std::span(tag).first(15)).error() == crypto::error::invalid_tag_size);
+    BOOST_TEST(made.verify(tag).error() == crypto::error::invalid_state);  // it ended
+    incremental_open_too_long(made, iv, tag);
+    auto const opened = open_in_two_passes(made, iv, {}, ciphertext, tag, 16);
+    BOOST_TEST_EQ(to_hex(opened), c.plaintext);
+}
+
 /** The guards of the incremental open: the IV, the tag, the state and the length. */
 template <class Backend>
 void incremental_open_guards(gcm_cases cases = gcm_spec_cases) {
     auto const& c = cases[13];
     with_gcm<Backend>(from_hex(c.key), [&](auto made) {
-        if (!BOOST_TEST(made.has_value())) {
-            return;
+        if (BOOST_TEST(made.has_value())) {
+            incremental_open_guards_of(*made, c);
         }
-        auto const iv = from_hex(c.iv);
-        auto const ciphertext = from_hex(c.ciphertext);
-        auto const tag = from_hex(c.tag);
-        std::array<std::uint8_t, 129> const long_iv{};
-        BOOST_TEST(made->begin_open({}, {}).error() == crypto::error::invalid_iv_size);
-        BOOST_TEST(made->begin_open(long_iv, {}).error() == crypto::error::invalid_iv_size);
-        BOOST_TEST(made->authenticate(ciphertext).error() == crypto::error::invalid_state);
-        BOOST_TEST(made->begin_open(iv, {}).has_value());
-        BOOST_TEST(made->authenticate(ciphertext).has_value());
-        BOOST_TEST(made->verify(std::span(tag).first(15)).error() ==
-                   crypto::error::invalid_tag_size);
-        BOOST_TEST(made->verify(tag).error() == crypto::error::invalid_state);  // it ended
-#if !defined(__wasi__) && !defined(__EMSCRIPTEN__)
-        if constexpr (sizeof(std::size_t) == 8) {
-            using checked_aead = std::remove_cvref_t<decltype(*made)>;
-            // Faults on any access: refused by its size before a byte is read.
-            auto const huge =
-                reserved(static_cast<std::size_t>(checked_aead::max_message_size) + 1);
-            if (BOOST_TEST(!huge.empty()) && BOOST_TEST(made->begin_open(iv, {}).has_value())) {
-                BOOST_TEST(made->authenticate(huge).error() == crypto::error::message_too_long);
-                BOOST_TEST(made->verify(tag).error() == crypto::error::invalid_state);
-            }
-        }
-#endif
-        auto data = ciphertext;
-        auto const opened = open_in_two_passes(*made, iv, {}, data, tag, 16);
-        BOOST_TEST_EQ(to_hex(opened), c.plaintext);
     });
+}
+
+/** A one-shot seal or open during an incremental open is refused, and leaves the open going. */
+template <class Aead>
+void incremental_open_beside_one_shot(Aead& made, gcm_case const& c) {
+    auto const iv = from_hex(c.iv);
+    auto const tag = from_hex(c.tag);
+    std::array<std::uint8_t, 16> other{};
+    other.fill(9);
+    auto const untouched = other;
+    auto data = from_hex(c.ciphertext);
+    BOOST_TEST(made.begin_open(iv, {}).has_value());
+    BOOST_TEST(made.authenticate(data).has_value());
+    BOOST_TEST(made.seal(iv, {}, other).error() == crypto::error::invalid_state);
+    BOOST_TEST(made.open(iv, {}, other, tag).error() == crypto::error::invalid_state);
+    BOOST_TEST(made.verify(tag).has_value());
+    BOOST_TEST(made.seal(iv, {}, other).error() == crypto::error::invalid_state);
+    BOOST_TEST(made.open(iv, {}, other, tag).error() == crypto::error::invalid_state);
+    BOOST_TEST(other == untouched);
+    BOOST_TEST(made.decrypt(data).has_value());
+    BOOST_TEST(made.end_open().has_value());
+    BOOST_TEST_EQ(to_hex(data), c.plaintext);
+}
+
+/**
+ * The incremental seal's calls during an open: begin_seal, update and result are refused and end
+ * it; begin_open during a seal ends the seal. A fresh open follows.
+ */
+template <class Aead>
+void incremental_open_beside_seal(Aead& made, gcm_case const& c) {
+    auto const iv = from_hex(c.iv);
+    auto const ciphertext = from_hex(c.ciphertext);
+    auto const tag = from_hex(c.tag);
+    std::array<std::uint8_t, 16> other{};
+    other.fill(9);
+    auto const untouched = other;
+
+    // begin_seal ends it.
+    BOOST_TEST(made.begin_open(iv, {}).has_value());
+    BOOST_TEST(made.begin_seal(iv, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST(made.authenticate(ciphertext).error() == crypto::error::invalid_state);
+
+    // update and result are refused, and end it.
+    BOOST_TEST(made.begin_open(iv, {}).has_value());
+    BOOST_TEST(made.update(other).error() == crypto::error::invalid_state);
+    BOOST_TEST(other == untouched);
+    BOOST_TEST(made.authenticate(ciphertext).error() == crypto::error::invalid_state);
+    BOOST_TEST(made.begin_open(iv, {}).has_value());
+    BOOST_TEST(made.result().error() == crypto::error::invalid_state);
+    BOOST_TEST(made.authenticate(ciphertext).error() == crypto::error::invalid_state);
+
+    // begin_open during a seal ends the seal.
+    BOOST_TEST(made.begin_seal(iv, {}).has_value());
+    BOOST_TEST(made.begin_open(iv, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST(made.result().error() == crypto::error::invalid_state);
+
+    auto const opened = open_in_two_passes(made, iv, {}, ciphertext, tag, 7);
+    BOOST_TEST_EQ(to_hex(opened), c.plaintext);
 }
 
 /** Other calls during an open, and an open begun during a seal. */
@@ -870,51 +973,10 @@ template <class Backend>
 void incremental_open_interleaved(gcm_cases cases = gcm_spec_cases) {
     auto const& c = cases[13];
     with_gcm<Backend>(from_hex(c.key), [&](auto made) {
-        if (!BOOST_TEST(made.has_value())) {
-            return;
+        if (BOOST_TEST(made.has_value())) {
+            incremental_open_beside_one_shot(*made, c);
+            incremental_open_beside_seal(*made, c);
         }
-        auto const iv = from_hex(c.iv);
-        auto const ciphertext = from_hex(c.ciphertext);
-        auto const tag = from_hex(c.tag);
-        std::array<std::uint8_t, 16> other{};
-        other.fill(9);
-        auto const untouched = other;
-
-        // A one-shot seal or open leaves the open going.
-        auto data = ciphertext;
-        BOOST_TEST(made->begin_open(iv, {}).has_value());
-        BOOST_TEST(made->authenticate(data).has_value());
-        BOOST_TEST(made->seal(iv, {}, other).error() == crypto::error::invalid_state);
-        BOOST_TEST(made->open(iv, {}, other, tag).error() == crypto::error::invalid_state);
-        BOOST_TEST(made->verify(tag).has_value());
-        BOOST_TEST(made->seal(iv, {}, other).error() == crypto::error::invalid_state);
-        BOOST_TEST(made->open(iv, {}, other, tag).error() == crypto::error::invalid_state);
-        BOOST_TEST(other == untouched);
-        BOOST_TEST(made->decrypt(data).has_value());
-        BOOST_TEST(made->end_open().has_value());
-        BOOST_TEST_EQ(to_hex(data), c.plaintext);
-
-        // begin_seal ends it.
-        BOOST_TEST(made->begin_open(iv, {}).has_value());
-        BOOST_TEST(made->begin_seal(iv, {}).error() == crypto::error::invalid_state);
-        BOOST_TEST(made->authenticate(ciphertext).error() == crypto::error::invalid_state);
-
-        // update and result are refused, and end it.
-        BOOST_TEST(made->begin_open(iv, {}).has_value());
-        BOOST_TEST(made->update(other).error() == crypto::error::invalid_state);
-        BOOST_TEST(other == untouched);
-        BOOST_TEST(made->authenticate(ciphertext).error() == crypto::error::invalid_state);
-        BOOST_TEST(made->begin_open(iv, {}).has_value());
-        BOOST_TEST(made->result().error() == crypto::error::invalid_state);
-        BOOST_TEST(made->authenticate(ciphertext).error() == crypto::error::invalid_state);
-
-        // begin_open during a seal ends the seal.
-        BOOST_TEST(made->begin_seal(iv, {}).has_value());
-        BOOST_TEST(made->begin_open(iv, {}).error() == crypto::error::invalid_state);
-        BOOST_TEST(made->result().error() == crypto::error::invalid_state);
-
-        auto const opened = open_in_two_passes(*made, iv, {}, ciphertext, tag, 7);
-        BOOST_TEST_EQ(to_hex(opened), c.plaintext);
     });
 }
 

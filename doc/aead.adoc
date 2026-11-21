@@ -34,7 +34,9 @@ in place and returns its 16-byte tag, a `boost::hash2::digest<16>`;
 * `open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)` checks the
 tag and decrypts `data_bytes` in place;
 * `begin_seal(iv_bytes, additional_data_bytes)`, `update(data_bytes)` and
-`result()` seal a message in pieces.
+`result()` seal a message in pieces;
+* `begin_open`, `authenticate`, `verify`, `decrypt` and `end_open` open a
+message in pieces, in two passes (<<crypto-gcm-incremental-open>>).
 
 include::generated/backends-gcm.adoc[]
 

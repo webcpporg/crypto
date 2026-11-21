@@ -26,14 +26,16 @@ random value to use: the operation that needed one fails.
 |1 |`invalid_key_size` |A key of another size than the algorithm's `key_size`, or a secret key not
 of 32 bytes.
 |2 |`invalid_iv_size` |A GCM IV that is empty or longer than 128 bytes.
-|3 |`invalid_tag_size` |A tag given to `open` that is not of 16 bytes.
-|4 |`invalid_input_size` |Data given to a block cipher that is not a whole number of blocks, or a
-DER output shorter than `max_der_size`.
+|3 |`invalid_tag_size` |A tag given to `open` or `verify` that is not of 16 bytes.
+|4 |`invalid_input_size` |Data given to a block cipher that is not a whole number of blocks, a
+DER output shorter than `max_der_size`, or the incremental open's `decrypt` past the
+authenticated length and `end_open` short of it.
 |5 |`message_too_long` |A message or additional data longer than the algorithm allows.
 |6 |`authentication_failed` |The tag does not match: the message or its additional data changed, or
 the key differs.
-|7 |`invalid_state` |An object moved from, or the incremental seal called out of order.
-|8 |`entropy_unavailable` |The system's or the browser's generator failed.
+|7 |`invalid_state` |An object moved from, or the incremental seal or open called out of order.
+|8 |`entropy_unavailable` |The system's or the browser's generator failed, or secp256k1's `generate`
+drew four times and none was a secret key.
 |9 |`invalid_secret_key` |A secret key or a tweak that is zero or not below the group order, or a
 tweak that gives no valid key.
 |10 |`invalid_public_key` |A public key of the wrong size, with a prefix other than 02 or 03 (33

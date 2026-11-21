@@ -9,12 +9,14 @@
 
 An audio worklet, a game loop or an embedded device must not allocate on its
 hot path, or must allocate only from its own arena. crypto's own code allocates
-one thing: a secp256k1 key pair's signing context, once, in `keypair::make`,
+one thing: a secp256k1 key pair's signing context, once, in `keypair::make`
+and in `generate`, which allocates through `make`,
 from the `std::pmr::memory_resource` the program passes, which must outlive the
 key pair. Every buffer is the caller's.
 
 * *Nothing allocates per message, on any backend:* `seal`, `open`,
-`begin_seal`, `update`, `result`, `encrypt`, `decrypt`, `fill`, the signatures
+`begin_seal`, `update`, `result`, `begin_open`, `authenticate`, `verify`,
+`end_open`, `encrypt`, `decrypt` (the block cipher's and the incremental open's), `fill`, the signatures
 (hedged and recoverable too), `ecdh`, `ecdh_x`, `ecdh_point`, the verifications,
 `recover`, `parse_public_key`, `serialize_public_key`, the tweaks and negations,
 `pubkey_combine` (in a `workspace` the caller lends), the SPKI and PKCS#8

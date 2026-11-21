@@ -44,9 +44,9 @@ those of crypto's operations among them (`sign`, `box`, `box2`, `box7`,
 PEM's engine calls), compared with its `.exp`. The own lane `constant-time`
 checks constant time (<<crypto-backends-constant-time>>): natively, Valgrind
 and clang's MemorySanitizer on Linux and dudect's statistics on Linux and
-macOS, and dudect's under wasmtime on wasip2, whose |t| a runner GitHub hosts
-prints and warns at 10, and a script judges by two of three fresh runs
-(<<crypto-backends-constant-time>> says why); the
+macOS, and dudect's under wasmtime on wasip2, where on a runner GitHub hosts each |t| is printed and warned about at 10,
+and a case over 10 is measured again in two fresh processes, failing when two of
+the three values exceed 10 (<<crypto-backends-constant-time>> says why); the
 native lane's command with `libs/crypto/test/constant_time//constant-time` in
 place of the two directories.
 

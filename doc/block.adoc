@@ -33,6 +33,9 @@ cipher's default, OpenSSL natively and ctaes on WebAssembly
 (<<crypto-backends-defaults>>), and `<webcpp/crypto/ciphers/aes.hpp>` includes
 the default's header when the program links it; `aes256_gcm` and
 `gcm<aes256<>>` name AES-GCM's.
+`aes256<>` is no longer the type `aes256<backends::openssl>`: natively
+`aes256_gcm` is `gcm<aes256<>>`, not `gcm<aes256<backends::openssl>>` (the same
+backend), and a function taking one does not accept the other.
 A program that wants ctaes natively names `aes256<backends::ctaes>` and
 includes `<webcpp/crypto/backends/ctaes.hpp>`.
 ctaes is a constant-time bitsliced AES, the one Bitcoin Core ships

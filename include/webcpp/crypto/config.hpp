@@ -223,7 +223,8 @@ struct sodium;
  The default backend of whichever family takes it: a name only, of no library, which each family
  resolves to its own default on the target (`default_backend_t<Family>`).
 
- `aes256<>` names the AES block cipher's default with it, and `gcm<aes256<>>` AES-GCM's.
+ `aes128`, `aes192` and `aes256` take it: `aes256<>` names the AES block cipher's default with it,
+ and `gcm<aes256<>>` AES-GCM's. Any other use is refused as an unknown backend.
 */
 struct family_default;
 

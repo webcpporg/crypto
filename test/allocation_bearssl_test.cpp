@@ -56,6 +56,13 @@ int main() {
         BOOST_TEST(made->begin_seal(iv, {}).has_value());
         BOOST_TEST(made->update(data).has_value());
         BOOST_TEST(made->result().has_value());
+        auto const open_tag = made->seal(iv, {}, data);
+        BOOST_TEST(open_tag.has_value());
+        BOOST_TEST(made->begin_open(iv, {}).has_value());
+        BOOST_TEST(made->authenticate(data).has_value());
+        BOOST_TEST(made->verify(*open_tag).has_value());
+        BOOST_TEST(made->decrypt(data).has_value());
+        BOOST_TEST(made->end_open().has_value());
         BOOST_TEST(crypto::equal(*tag, *tag));
         using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::bearssl>;
         auto sealer = chacha::make(key);

@@ -34,8 +34,8 @@ THRESHOLD = 10.0
 # Longer than the 1800 s that the launcher bounds a wasip2 run by, so that its bound fires first.
 RUN_TIMEOUT_SECONDS = 2400
 CASE_LINE = re.compile(r'^dudect case=(\S+) t=([0-9.]+) threshold=10 judged=(yes|no)$')
-# Printed and never judged: the planted program passes by finding a leak, the harness test's
-# values are made up.
+# Printed and never judged: the planted program passes by finding a leak; the harness test's
+# values are deterministic and made up, and b2 itself judges them.
 NOT_MEASURING = ('dudect_planted', 'dudect_harness')
 
 

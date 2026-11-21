@@ -287,8 +287,8 @@ t_statistic measure(std::uint64_t seed, std::size_t count, Prepare&& prepare, Ru
  * @param count The number of measurements of each run.
  * @param prepare Sets up the class's input, unmeasured.
  * @param run The operation measured.
- * @return The first run's statistic when its |t| is below 10, else that of the run with the
- * smaller |t|.
+ * @return The first run's statistic when its |t|, as printed, is below 10, else that of the run
+ * with the smaller |t|.
  */
 template <class Prepare, class Run>
 t_statistic twice(std::size_t count, Prepare&& prepare, Run&& run) {
@@ -628,9 +628,11 @@ t_statistic measure_case(bool judged_case, std::size_t count, Prepare&& prepare,
  * class-blind preparation of `choose`, one run of 24 read |t| 69.8 on ChaCha20-Poly1305's open,
  * on both seeds, where the 23 others read below 4.4 (an AMD EPYC 7763, idle); through the
  * earlier copy, a measured call that does nothing read up to 117 with every processor busy. A
- * verdict there would pass or fail with the machine drawn, so it prints its |t| and passes;
- * Valgrind's memcheck and MemorySanitizer, which do not measure time, are judged there. dudect
- * is judged wherever else the lane runs, natively and on wasip2, on a machine of one's own;
+ * verdict there would pass or fail with the machine drawn, so the program prints its |t| and
+ * passes, and the CI's judge (dudect_judge.py) decides: it measures a case over 10 again in two
+ * fresh processes and fails when two of the three values are 10 or more. Valgrind's memcheck and
+ * MemorySanitizer, which do not measure time, are judged there. dudect is judged by the program
+ * wherever else the lane runs, natively and on wasip2, on a machine of one's own;
  * dudect_planted is judged everywhere, as it shows that the measurement still finds a leak of a
  * few nanoseconds on the machine it ran on.
  */
@@ -648,7 +650,9 @@ inline constexpr bool judged = true;
  */
 inline int verdict(bool passes) noexcept {
     if (!judged) {
-        std::printf("printed, not judged: a runner GitHub hosts (dudect.hpp, judged)\n");
+        std::printf(
+            "printed here; the CI's judge (dudect_judge.py) measures a case over 10 again on a "
+            "hosted runner\n");
         return 0;
     }
     return passes ? 0 : 1;

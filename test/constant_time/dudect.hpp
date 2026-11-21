@@ -18,11 +18,19 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
+#include <initializer_list>
+#include <optional>
 #include <random>
+#include <string>
 #include <vector>
 
 #ifdef _MSC_VER
 #include <intrin.h>
+#endif
+
+#ifdef __APPLE__
+#include <sys/sysctl.h>
 #endif
 
 namespace webcpp::test {
@@ -121,16 +129,39 @@ inline double welch(moments const& a, moments const& b) {
     return denominator == 0 ? 0 : (a.mean - b.mean) / denominator;
 }
 
+/** One class's count and mean at a cropping. */
+struct class_summary {
+    /** The number of its timings kept. */
+    std::size_t count;
+    /** Their mean, in nanoseconds. */
+    double mean_ns;
+};
+
+/** The largest |t| of a set of timings, with what gave it. */
+struct t_statistic {
+    /** The largest |t| over the whole set and dudect's 100 croppings. */
+    double t;
+    /** The cropping that gave it: -1 for the whole set, else 0 to 99. */
+    int crop;
+    /** The largest timing that cropping kept, in nanoseconds. */
+    double limit_ns;
+    /** Each class's count and mean at that cropping. */
+    std::array<class_summary, 2> classes;
+};
+
 /**
- * The largest |t| over the whole set and dudect's 100 croppings.
- * @param timings The measurements.
+ * The largest |t| over the whole set and dudect's 100 croppings, each of which keeps the timings
+ * at or below a percentile, with the cropping that gave it and each class's count and mean there.
+ * A cropping that leaves a class empty has no t and is skipped; of equal values the first, the
+ * whole set before the croppings, is kept.
+ * @param timings The measurements, at least one.
  * @param classes The class, 0 or 1, of each.
- * @return The largest |t|.
+ * @return The largest |t| and what gave it.
  */
-inline double largest_t(std::vector<double> const& timings, std::vector<int> const& classes) {
+inline t_statistic largest_t(std::vector<double> const& timings, std::vector<int> const& classes) {
     std::vector<double> sorted = timings;
     std::ranges::sort(sorted);
-    double largest = 0;
+    t_statistic largest{0, -1, sorted.back(), {}};
     for (int k = -1; k < 100; ++k) {
         double const keep = k < 0 ? 1.0 : 1.0 - std::pow(0.5, 10.0 * (k + 1) / 100.0);
         double const limit =
@@ -141,7 +172,15 @@ inline double largest_t(std::vector<double> const& timings, std::vector<int> con
                 m[static_cast<std::size_t>(classes[i])].push(timings[i]);
             }
         }
-        largest = (std::max)(largest, std::fabs(welch(m[0], m[1])));
+        double const t = std::fabs(welch(m[0], m[1]));
+        if (!std::isfinite(t) || (k >= 0 && !(t > largest.t))) {
+            continue;
+        }
+        largest = {t,
+                   k,
+                   limit,
+                   {{{static_cast<std::size_t>(m[0].n), m[0].mean},
+                     {static_cast<std::size_t>(m[1].n), m[1].mean}}}};
     }
     return largest;
 }
@@ -163,17 +202,29 @@ inline double largest_t(std::vector<double> const& timings, std::vector<int> con
  * a choice the optimiser made of `which == 0 ? 0 : drawn` split the copy into a store of
  * constants and a store of drawn bytes (measured natively on an Apple M5, 2026-11-18: |t| 16 to
  * 18 on equal and 9 to 26 on open with the split, below 3 for both without it).
+ * With `Control`, the A/A control: the bytes are drawn, then overwritten with `fixed`, and blended
+ * through the same volatile mask, so that both classes write the fixed value with the same
+ * instructions as a case's and the generator advances as it does; its |t| shows what the
+ * measurement on that machine finds where nothing differs.
+ * @tparam Control Whether both classes write `fixed`.
  * @param which The class, 0 or 1.
  * @param generator The seeded generator.
  * @param fixed The class 0 input.
  * @param input Where the input of the class is written.
  */
-template <std::size_t Size, class Generator>
+template <bool Control = false, std::size_t Size, class Generator>
 void choose(int which, Generator& generator, std::array<std::uint8_t, Size> const& fixed,
             std::array<std::uint8_t, Size>& input) {
     std::array<std::uint8_t, Size> drawn{};
     for (auto& byte : drawn) {
         byte = static_cast<std::uint8_t>(generator());
+    }
+    if constexpr (Control) {
+        // Read through a volatile, so that the compiler cannot know the two sources of the blend
+        // below equal and fold it into a copy: the control blends as every case does.
+        for (std::size_t index = 0; index < Size; ++index) {
+            drawn[index] = static_cast<std::uint8_t const volatile&>(fixed[index]);
+        }
     }
     std::uint8_t volatile const chosen = which == 0 ? 0xFFU : 0x00U;
     unsigned const keep = chosen;
@@ -192,10 +243,10 @@ void choose(int which, Generator& generator, std::array<std::uint8_t, Size> cons
  * @param count The number of measurements.
  * @param prepare Sets up the class's input, unmeasured.
  * @param run The operation measured.
- * @return The largest |t|.
+ * @return The largest |t|, with what gave it.
  */
 template <class Prepare, class Run>
-double measure(std::uint64_t seed, std::size_t count, Prepare&& prepare, Run&& run) {
+t_statistic measure(std::uint64_t seed, std::size_t count, Prepare&& prepare, Run&& run) {
     std::mt19937_64 generator(seed);
     std::vector<double> timings;
     std::vector<int> classes;
@@ -221,13 +272,260 @@ double measure(std::uint64_t seed, std::size_t count, Prepare&& prepare, Run&& r
  * @param count The number of measurements of each run.
  * @param prepare Sets up the class's input, unmeasured.
  * @param run The operation measured.
- * @return The first run's |t| below 10, else the smaller of the two runs'.
+ * @return The first run's statistic when its |t| is below 10, else that of the run with the
+ * smaller |t|.
  */
 template <class Prepare, class Run>
-double twice(std::size_t count, Prepare&& prepare, Run&& run) {
-    double const first = measure(20261011, count, prepare, run);
-    return first < 10 ? first : (std::min)(first, measure(20261012, count, prepare, run));
+t_statistic twice(std::size_t count, Prepare&& prepare, Run&& run) {
+    t_statistic const first = measure(20261011, count, prepare, run);
+    if (first.t < 10) {
+        return first;
+    }
+    t_statistic const second = measure(20261012, count, prepare, run);
+    return second.t < first.t ? second : first;
 }
+
+/** A buffer a case measures, named in its addresses line. */
+struct address {
+    /** Its name in the line, as `data` or `object`. */
+    char const* label;
+    /** Where it is. */
+    void const* where;
+};
+
+/**
+ * The lines of a case, which the CI's judge reads (design D6 of the change api-gaps): `dudect
+ * case=<name> t=<|t|> threshold=10 judged=<yes|no>`, and, when |t| is at least 10, `dudect
+ * evidence case=<name> crop=<k> limit_ns=<x> class0_n=<n> class0_mean_ns=<x> class1_n=<n>
+ * class1_mean_ns=<x>`, the cropping that gave |t| and each class there, and `dudect addresses
+ * case=<name> <label>=0x<low 12 bits> ...`, where the measured buffers lie within their page,
+ * three hexadecimal digits each. Every value has two decimals.
+ * @param name The case's name, as `--case` takes it.
+ * @param result Its statistic.
+ * @param judged_case Whether its |t| counts in the program's verdict.
+ * @param buffers The buffers it measures: its input, its output and its object.
+ * @return The lines, each ending with a newline.
+ */
+inline std::string case_lines(char const* name, t_statistic const& result, bool judged_case,
+                              std::initializer_list<address> buffers) {
+    std::array<char, 512> line{};
+    std::snprintf(line.data(), line.size(), "dudect case=%s t=%.2f threshold=10 judged=%s\n", name,
+                  result.t, judged_case ? "yes" : "no");
+    std::string text = line.data();
+    if (!(result.t >= 10)) {
+        return text;
+    }
+    std::snprintf(line.data(), line.size(),
+                  "dudect evidence case=%s crop=%d limit_ns=%.2f class0_n=%zu class0_mean_ns=%.2f "
+                  "class1_n=%zu class1_mean_ns=%.2f\n",
+                  name, result.crop, result.limit_ns, result.classes[0].count,
+                  result.classes[0].mean_ns, result.classes[1].count, result.classes[1].mean_ns);
+    text += line.data();
+    text += "dudect addresses case=";
+    text += name;
+    for (address const& buffer : buffers) {
+        std::snprintf(
+            line.data(), line.size(), " %s=0x%03x", buffer.label,
+            static_cast<unsigned>(reinterpret_cast<std::uintptr_t>(buffer.where) & 0xFFFU));
+        text += line.data();
+    }
+    text += "\n";
+    return text;
+}
+
+/**
+ * Prints a case's lines (`case_lines`) to stdout, and flushes them.
+ * @param name The case's name, as `--case` takes it.
+ * @param result Its statistic.
+ * @param judged_case Whether its |t| counts in the program's verdict.
+ * @param buffers The buffers it measures: its input, its output and its object.
+ */
+inline void report_case(char const* name, t_statistic const& result, bool judged_case,
+                        std::initializer_list<address> buffers) {
+    std::fputs(case_lines(name, result, judged_case, buffers).c_str(), stdout);
+    std::fflush(stdout);
+}
+
+/**
+ * The smallest nonzero difference of 10,000 pairs of `steady_clock::now()` read back to back,
+ * each read fenced by `serialise`.
+ * @return The clock's resolution in nanoseconds, 0 when every pair read the same time.
+ */
+inline double clock_resolution_ns() {
+    double smallest = 0;
+    for (int pair = 0; pair < 10'000; ++pair) {
+        serialise();
+        auto const first = std::chrono::steady_clock::now();
+        serialise();
+        auto const second = std::chrono::steady_clock::now();
+        serialise();
+        double const difference = std::chrono::duration<double, std::nano>(second - first).count();
+        if (difference > 0 && (smallest == 0 || difference < smallest)) {
+            smallest = difference;
+        }
+    }
+    return smallest;
+}
+
+/**
+ * Prints, once per program, the machine a measurement ran on: `dudect machine cpu="<model>"
+ * microcode=<value> clock_resolution_ns=<x>`. The model and the microcode are /proc/cpuinfo's
+ * first `model name` and `microcode` on Linux, `machdep.cpu.brand_string` on macOS with the
+ * microcode `unavailable`, and `unavailable` elsewhere, WebAssembly included, as where the
+ * system does not tell them; the resolution is `clock_resolution_ns`'s, with two decimals, or
+ * `below_resolution` when it measured none.
+ */
+inline void report_machine() {
+    static bool printed = false;
+    if (printed) {
+        return;
+    }
+    printed = true;
+    std::string cpu = "unavailable";
+    std::string microcode = "unavailable";
+#if defined(__linux__)
+    if (std::FILE* const file = std::fopen("/proc/cpuinfo", "r")) {
+        bool cpu_found = false;
+        bool microcode_found = false;
+        std::array<char, 512> line{};
+        while ((!cpu_found || !microcode_found) &&
+               std::fgets(line.data(), static_cast<int>(line.size()), file) != nullptr) {
+            std::string const text = line.data();
+            auto const colon = text.find(':');
+            if (colon == std::string::npos) {
+                continue;
+            }
+            auto const key_end = text.find_last_not_of(" \t", colon == 0 ? 0 : colon - 1);
+            std::string const key = key_end == std::string::npos ? "" : text.substr(0, key_end + 1);
+            auto const value_start = text.find_first_not_of(" \t", colon + 1);
+            auto const value_end = text.find_last_not_of(" \t\r\n");
+            std::string const value = value_start == std::string::npos || value_end < value_start
+                                          ? ""
+                                          : text.substr(value_start, value_end - value_start + 1);
+            if (key == "model name" && !cpu_found && !value.empty()) {
+                cpu = value;
+                cpu_found = true;
+            } else if (key == "microcode" && !microcode_found && !value.empty()) {
+                microcode = value;
+                microcode_found = true;
+            }
+        }
+        std::fclose(file);
+    }
+#elif defined(__APPLE__)
+    std::array<char, 256> brand{};
+    std::size_t size = brand.size();
+    if (sysctlbyname("machdep.cpu.brand_string", brand.data(), &size, nullptr, 0) == 0 &&
+        brand[0] != '\0') {
+        brand.back() = '\0';
+        cpu = brand.data();
+    }
+#endif
+    // The line quotes the model: a quote in it would end the value early.
+    std::ranges::replace(cpu, '"', '\'');
+    for (char& character : microcode) {
+        if (character == ' ' || character == '"') {
+            character = '_';
+        }
+    }
+    double const resolution = clock_resolution_ns();
+    std::array<char, 32> written{};
+    if (resolution > 0) {
+        std::snprintf(written.data(), written.size(), "%.2f", resolution);
+    } else {
+        std::snprintf(written.data(), written.size(), "below_resolution");
+    }
+    std::printf("dudect machine cpu=\"%s\" microcode=%s clock_resolution_ns=%s\n", cpu.c_str(),
+                microcode.c_str(), written.data());
+    std::fflush(stdout);
+}
+
+/** The case a program measures: every one, or the one `--case` names. */
+struct case_selection {
+    /** The one case to measure, or none for every case. */
+    char const* only = nullptr;
+
+    /**
+     * Whether a case is measured.
+     * @param name The case's name.
+     * @return true when no case was named or this one was.
+     */
+    [[nodiscard]] bool runs(char const* name) const {
+        return only == nullptr || std::strcmp(only, name) == 0;
+    }
+};
+
+/**
+ * Reads a dudect program's arguments: none, to measure every case, or `--case <name>`, to measure
+ * that case alone, so that the CI measures a case again in a fresh process.
+ * @param argc main's argc.
+ * @param argv main's argv.
+ * @param names The program's cases.
+ * @return The selection; empty, after a line on stderr that lists the cases (`unknown case <x>;
+ * the cases: <names>` for a name not among them), when the arguments are neither.
+ */
+inline std::optional<case_selection> select_case(int argc, char** argv,
+                                                 std::initializer_list<char const*> names) {
+    std::string list;
+    for (char const* const name : names) {
+        list += list.empty() ? "" : ", ";
+        list += name;
+    }
+    if (argc <= 1) {
+        return case_selection{};
+    }
+    if (argc == 3 && std::strcmp(argv[1], "--case") == 0) {
+        for (char const* const name : names) {
+            if (std::strcmp(argv[2], name) == 0) {
+                return case_selection{name};
+            }
+        }
+        std::fprintf(stderr, "unknown case %s; the cases: %s\n", argv[2], list.c_str());
+        return std::nullopt;
+    }
+    std::fprintf(stderr, "usage: %s [--case <name>]; the cases: %s\n",
+                 argc > 0 ? argv[0] : "dudect", list.c_str());
+    return std::nullopt;
+}
+
+/**
+ * The cases a program measured: each one's lines printed as it is recorded, the human line that
+ * lists them, and whether every judged one passes.
+ */
+class case_results {
+public:
+    /**
+     * Prints a case's lines (`report_case`) and adds it to the human line and to the verdict.
+     * @param name The case's name, as `--case` takes it.
+     * @param label Its name in the human line.
+     * @param result Its statistic.
+     * @param judged_case Whether its |t| counts in the verdict.
+     * @param buffers The buffers it measures: its input, its output and its object.
+     * @param note Printed after its value in the human line.
+     */
+    void record(char const* name, char const* label, t_statistic const& result, bool judged_case,
+                std::initializer_list<address> buffers, char const* note = "") {
+        report_case(name, result, judged_case, buffers);
+        std::array<char, 128> value{};
+        std::snprintf(value.data(), value.size(), "%s%s %.2f%s", human_.empty() ? "" : ", ", label,
+                      result.t, note);
+        human_ += value.data();
+        passes_ = passes_ && (!judged_case || result.t < 10);
+    }
+
+    /** Prints the human line: `|t| <label> <value>, ... (threshold 10)`. */
+    void print() const { std::printf("|t| %s (threshold 10)\n", human_.c_str()); }
+
+    /**
+     * Whether every judged case's |t| is below the threshold.
+     * @return true when they all are.
+     */
+    [[nodiscard]] bool passes() const { return passes_; }
+
+private:
+    std::string human_;
+    bool passes_ = true;
+};
 
 /**
  * Whether this build's verdict is judged: false where the lane's Jamfile defines

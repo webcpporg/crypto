@@ -34,12 +34,14 @@ the same way, such as another program on libsecp256k1's default; `ecdh_x`
 gives the raw x coordinate that Nostr's encrypted messages
 (link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44]) take.
 
-A `keypair` is made from a 32-byte secret key with `make(secret)`, which
-allocates its signing context in the `std::pmr::memory_resource` it is given,
-and randomises it from `random_device`; crypto's own code allocates nothing
-else (<<crypto-memory>>). The namespace's functions, by header:
+A `keypair` is made from a 32-byte secret key with `make(secret)`, or
+generated with `generate()`, which draws the secret key from `random_device`
+and draws again, at most four times in all, for 32 bytes that are not one.
+Either allocates its signing context in the `std::pmr::memory_resource` it is
+given, and randomises it from `random_device`; crypto's own code allocates
+nothing else (<<crypto-memory>>). The namespace's functions, by header:
 
-* `<webcpp/crypto/curves/secp256k1.hpp>`: the key pair's `make`, its public
+* `<webcpp/crypto/curves/secp256k1.hpp>`: the key pair's `make` and `generate`, its public
 keys (`xonly_public_key`, `public_key`, `public_key_uncompressed`), its
 signatures (`sign_schnorr`, `sign_ecdsa`, hedged or not, and
 `sign_recoverable`), its ECDH (`ecdh`, `ecdh_x`, `ecdh_point`) and its tweak

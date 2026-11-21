@@ -274,6 +274,9 @@ crypto-run secp256k1_musig : secp256k1_musig_test.cpp
 # the test seam is a whole-program define.
 crypto-run secp256k1_musig_entropy : secp256k1_musig_entropy_test.cpp
   : <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
+# generate with a planted source: a redraw, four refusals, a failing source, the resource.
+crypto-run secp256k1_generate : secp256k1_generate_test.cpp
+  : <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
 # BIP 352's vectors as libsecp256k1's test reads them, its vectors.h compiled in
 # C with warnings off, as libsecp256k1's own sources are (the C++ test keeps
 # every warning).

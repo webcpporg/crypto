@@ -122,7 +122,8 @@ std::vector<std::byte> lent(std::size_t size) {
 // curves/secp256k1.hpp.
 // ---------------------------------------------------------------------------------------------
 
-/** basic_keypair::make, a secret of the wrong size included, and public_key's two operators. */
+/** basic_keypair::make, a secret of the wrong size included, generate, and public_key's two
+ * operators. */
 void cover_make_and_compare() {
     auto const secret_key = secret_bytes(0x11);
     covered("secp256k1::basic_keypair::make on secp256k1",
@@ -131,6 +132,10 @@ void cover_make_and_compare() {
         BOOST_TEST(secp::keypair::make(std::span(secret_key).first(31)).error() ==
                    crypto::error::invalid_key_size);
     });
+    // The system's source answers here; the refused draws are secp256k1_generate's, the program
+    // built with the test seam.
+    covered("secp256k1::basic_keypair::generate on secp256k1", "basic_keypair::generate",
+            [&] { BOOST_TEST(secp::keypair::generate().has_value()); });
     auto const alice = public_of(keypair_of(0x11));
     auto const bob = public_of(keypair_of(0x12));
     covered("secp256k1::public_key::operator== on secp256k1",

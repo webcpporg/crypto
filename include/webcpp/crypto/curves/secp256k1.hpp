@@ -24,7 +24,7 @@
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/random_device.hpp>  // lint-world: the context's randomisation, its purpose
+#include <webcpp/crypto/random_device.hpp>  // lint-world: the context's randomisation and generate()'s key
 #include <webcpp/crypto/secret.hpp>
 
 #include <boost/system/result.hpp>
@@ -597,6 +597,37 @@ public:
         }
         made_object.keyed_ = true;
         return made_object;
+    }
+
+    /**
+     * Generates a key pair from the system's source: draws a 32-byte secret key from
+     * `random_device` and makes the key pair from it, drawing again when the 32 bytes are not a
+     * secret key (zero or not below the group order, which happens with a probability near
+     * 2^-128), at most four draws in all.
+     *
+     * @param memory_resource The resource of the signing context, the one allocation; it must
+     * outlive the key pair.
+     * @return The key pair; `entropy_unavailable` when the system's generator fails, there is
+     * none, or four draws were not a secret key; `backend_failure` as `make` returns it.
+     */
+    [[nodiscard]] static boost::system::result<basic_keypair> generate(
+        std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource()) {
+        detail::timing_guard const timing;
+        for (int draw = 0; draw < 4; ++draw) {
+            secret<32> secret_key;
+            auto const drawn =
+                random_device().fill(secret_key.writable());  // lint-world: the secret key
+            if (!drawn) {
+                // The generator's not_supported (an Emscripten audio worklet) is the same
+                // failure for a key pair: one error to handle.
+                return error::entropy_unavailable;
+            }
+            auto made = make(secret_key.bytes(), memory_resource);
+            if (made || made.error() != error::invalid_secret_key) {
+                return made;
+            }
+        }
+        return error::entropy_unavailable;
     }
 
     /**

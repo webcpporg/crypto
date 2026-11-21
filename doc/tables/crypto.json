@@ -286,13 +286,13 @@
         {
             "id": "keypair",
             "family": "secp256k1",
-            "functions": ["make", "xonly_public_key", "public_key", "public_key_uncompressed", "sign_schnorr", "sign_ecdsa", "sign_recoverable", "ecdh", "ecdh_x", "ecdh_point", "tweak_xonly"],
+            "functions": ["make", "generate", "xonly_public_key", "public_key", "public_key_uncompressed", "sign_schnorr", "sign_ecdsa", "sign_recoverable", "ecdh", "ecdh_x", "ecdh_point", "tweak_xonly"],
             "namespace": "curves",
             "api": "curves::secp256k1::keypair",
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
             "what": "A secp256k1 key pair: BIP 340 Schnorr and ECDSA signatures, hedged and recoverable too, ECDH in three forms and the x-only tweak.",
             "section": "crypto-secp256k1",
-            "backends": {"secp256k1": {"tests": ["secp256k1", "secp256k1_bip340", "secp256k1_xonly_tweak", "secp256k1_ecdh", "secp256k1_recovery"]}}
+            "backends": {"secp256k1": {"tests": ["secp256k1", "secp256k1_generate", "secp256k1_bip340", "secp256k1_xonly_tweak", "secp256k1_ecdh", "secp256k1_recovery"]}}
         },
         {
             "id": "verify",

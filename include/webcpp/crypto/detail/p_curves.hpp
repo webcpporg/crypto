@@ -84,6 +84,66 @@ template <std::size_t N>
 }
 
 /**
+ * Whether an ECDSA signature r || s has 0 < r < n and 0 < s < n, each checked by
+ * `p_curve_scalar_valid`: a signature is public, the same check serves.
+ *
+ * @tparam Curve The curve's family tag.
+ * @param signature r then s, big-endian, each of the curve's scalar size.
+ * @return Whether both are in range.
+ */
+template <class Curve>
+[[nodiscard]] bool p_curve_signature_in_range(
+    std::span<std::uint8_t const, 2 * p_curve_traits<Curve>::scalar_size> signature) noexcept {
+    constexpr std::size_t size = p_curve_traits<Curve>::scalar_size;
+    bool const r_valid =
+        p_curve_scalar_valid(signature.template first<size>(), p_curve_traits<Curve>::order);
+    bool const s_valid =
+        p_curve_scalar_valid(signature.template last<size>(), p_curve_traits<Curve>::order);
+    return r_valid && s_valid;
+}
+
+/**
+ * Whether an ECDSA signature's s, already checked 0 < s < n, is low: s <= (n - 1) / 2, the borrow
+ * of (n - 1) / 2 - s over every byte, the same arithmetic as `p_curve_scalar_valid`'s. A
+ * signature is public: the verdict is not declassified, it was never secret.
+ *
+ * @tparam Curve The curve's family tag.
+ * @param s The signature's s, big-endian.
+ * @return Whether s is at most half the group order.
+ */
+template <class Curve>
+[[nodiscard]] bool p_curve_low_s(
+    std::span<std::uint8_t const, p_curve_traits<Curve>::scalar_size> s) noexcept {
+    constexpr auto const& half = p_curve_traits<Curve>::half_order;
+    unsigned borrow = 0;
+    for (std::size_t i = s.size(); i-- > 0;) {
+        borrow = ((static_cast<unsigned>(half[i]) - s[i] - borrow) >> 8U) & 1U;
+    }
+    return borrow == 0;
+}
+
+/**
+ * n - s, the other s of the same signature, for an s already checked 0 < s < n, so that the
+ * result is in that range too: the borrow arithmetic of `p_curve_scalar_valid`, over every byte.
+ *
+ * @tparam Curve The curve's family tag.
+ * @param s The signature's s, big-endian.
+ * @param output n - s, big-endian; it may not overlap `s`.
+ */
+template <class Curve>
+void p_curve_negate_scalar(
+    std::span<std::uint8_t const, p_curve_traits<Curve>::scalar_size> s,
+    std::span<std::uint8_t, p_curve_traits<Curve>::scalar_size> output) noexcept {
+    constexpr auto const& order = p_curve_traits<Curve>::order;
+    unsigned borrow = 0;
+    for (std::size_t i = s.size(); i-- > 0;) {
+        unsigned const difference = static_cast<unsigned>(order[i]) - s[i] - borrow;
+        output[i] = static_cast<std::uint8_t>(difference);
+        borrow = (difference >> 8U) & 1U;
+    }
+}
+
+/**
  * What a P-curve key pair stores on a backend whose header does not specialise it: nothing, since
  * its engine refuses the backend where the family is called.
  */

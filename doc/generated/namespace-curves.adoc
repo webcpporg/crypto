@@ -15,7 +15,7 @@
 |BIP 340 Schnorr and ECDSA signatures, recoverable signatures, ECDH in three forms, tweaks, ElligatorSwift, MuSig2, silent payments, SPKI and PKCS#8
 |Ed25519 signatures, and Ed25519ph over SHA-512 for a message given in pieces; the X25519 secret key of a key pair
 |Key agreement (Diffie-Hellman on Curve25519): two parties who exchanged public keys share a 32-byte secret; `kx_keypair`, libsodium's `crypto_kx`, gives a client and a server a session key for each direction
-|Key pairs made from a 32-byte scalar or drawn from `random_device`, and public keys validated once, as SEC 1's uncompressed point or two coordinates
+|Key pairs made from a 32-byte scalar or drawn from `random_device`, public keys validated once, as SEC 1's uncompressed point or two coordinates, and ECDSA over a SHA-256 digest with RFC 6979's nonce, raw and DER, and low S checked or normalized
 
 |Security level
 |about 128 bits (link:https://www.secg.org/sec2-v2.pdf[SEC 2, Recommended Elliptic Curve Domain Parameters])
@@ -33,7 +33,7 @@
 |64 bytes, MuSig2's aggregate too (link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327, MuSig2 for BIP340-compatible multi-signatures]); 65 bytes recoverable; ECDSA in DER up to 72
 |64 bytes
 |none: no signatures
-|none yet: ECDSA comes next
+|ECDSA: 64 bytes, r and s (link:https://standards.ieee.org/ieee/1363/2049/[IEEE 1363-2000, Standard Specifications for Public-Key Cryptography: a signature as the two integers r and s, each at the order's length]); in DER up to 72 (link:https://www.rfc-editor.org/rfc/rfc3279#section-2.2.3[RFC 3279, section 2.2.3: an ECDSA signature in X.509, the DER of a SEQUENCE of the INTEGERs r and s])
 
 |Speed
 |BIP340 signature of a 32-byte message: native, libsecp256k1 9.02 µs; wasip2, libsecp256k1 53.9 µs; wasip3, libsecp256k1 65.9 µs; emscripten, libsecp256k1 63.9 µs (2026-11-20, Apple M5 Max, under load: read the spread; <<crypto-performance>>)
@@ -51,7 +51,7 @@
 |link:https://www.secg.org/sec2-v2.pdf[SEC 2, Recommended Elliptic Curve Domain Parameters], link:https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki[BIP 340, Schnorr signatures for secp256k1], link:https://www.rfc-editor.org/rfc/rfc6979[RFC 6979, deterministic ECDSA nonces], link:https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki[BIP 324, version 2 P2P encrypted transport protocol], link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327, MuSig2 for BIP340-compatible multi-signatures], link:https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki[BIP 352, Silent Payments]
 |link:https://www.rfc-editor.org/rfc/rfc8032[RFC 8032, the Edwards-curve Digital Signature Algorithm (EdDSA)], link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5, the Digital Signature Standard]
 |link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748, Elliptic Curves for Security (X25519 and X448)]
-|link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5, the Digital Signature Standard], link:https://www.secg.org/sec2-v2.pdf[SEC 2, Recommended Elliptic Curve Domain Parameters], link:https://www.secg.org/sec1-v2.pdf[SEC 1 version 2, Elliptic Curve Cryptography, sections 2.3.3 and 2.3.4: a point's encodings]
+|link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5, the Digital Signature Standard], link:https://www.secg.org/sec2-v2.pdf[SEC 2, Recommended Elliptic Curve Domain Parameters], link:https://www.secg.org/sec1-v2.pdf[SEC 1 version 2, Elliptic Curve Cryptography, sections 2.3.3 and 2.3.4: a point's encodings], link:https://www.rfc-editor.org/rfc/rfc6979[RFC 6979, deterministic ECDSA nonces]
 
 |Ecosystems that require it
 |Bitcoin (link:https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki[BIP 340, Schnorr signatures for secp256k1]), Ethereum (link:https://ethereum.github.io/yellowpaper/paper.pdf[The Ethereum yellow paper, appendix F: ECDSA on secp256k1]), Nostr (link:https://github.com/nostr-protocol/nips/blob/master/01.md[Nostr NIP-01, events signed with BIP 340 on secp256k1])

@@ -243,10 +243,17 @@
 `+/webcpp/crypto//x25519-default+`
 |<<crypto-everyday-files,[.keep]`+file_share.cpp+`>>
 
-|Signatures and key agreement a browser's WebCrypto verifies and derives (P-256 with SHA-256), webcpp::trystero's handshakes
+|Make and keep a P-256 key pair, and import a browser's public key (WebCrypto's raw form), as webcpp::trystero's peers do
 |In `+curves::p256+`: `+keypair::make+`, `+keypair::generate+`, `+keypair::public_key+`, `+keypair::secret_scalar+`, `+public_key::make+`
 |BearSSL
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//p256-default+`
 |<<crypto-p256-keys,[.keep]`+p256_keys.cpp+`>>
+
+|Sign what a browser's WebCrypto verifies and verify what it signs (ECDSA on P-256 with SHA-256), low S where a protocol requires it, as webcpp::trystero's handshakes
+|In `+curves::p256+`: `+keypair::sign_ecdsa+`, `+verify_ecdsa+`, `+normalize_ecdsa+`, `+check_low_s+`; `+to_der+`, `+from_der+` for X.509
+|BearSSL
+|`+/webcpp/crypto//crypto+` +
+`+/webcpp/crypto//p256-default+`
+|<<crypto-p256-ecdsa,[.keep]`+p256_sign.cpp+`>>
 |===

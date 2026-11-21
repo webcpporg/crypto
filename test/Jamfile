@@ -377,6 +377,14 @@ crypto-run default_both_wasm : default_both_wasm_test.cpp
 # optimised, every call inlined, as ed25519_wipe_sodium's.
 crypto-run p256_keys_bearssl : p256_keys_bearssl_test.cpp
   : <library>/third_party//bearssl $(OPTIMISED) <inlining>full ;
+# P-256 ECDSA on BearSSL: RFC 6979's signatures, verification of both forms
+# and its refusals, low S checked and normalized, DER both ways and its strict
+# decoder.
+crypto-run p256_ecdsa_bearssl : p256_ecdsa_bearssl_test.cpp : <library>/third_party//bearssl ;
+# Wycheproof's P-256 SHA-256 ECDSA vectors, raw (IEEE P1363) and DER.
+crypto-run p256_wycheproof_bearssl : p256_wycheproof_bearssl_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
 # The backend ctaes: the AES block cipher alone, on every target; FIPS-197 only
 # (ruling R5).
 crypto-run aes_ctaes : aes_ctaes_test.cpp : <library>/third_party//ctaes ;

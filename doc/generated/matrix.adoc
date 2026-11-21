@@ -240,6 +240,16 @@
 |BearSSL
 |native, wasip2, wasip3, emscripten
 |`+p256_keys_bearssl+`, `+allocation_bearssl+`
+
+|`+curves::p256::keypair::sign_ecdsa+`, `+verify_ecdsa+`, `+to_der+`, `+from_der+`, `+normalize_ecdsa+`, `+check_low_s+`
+|BearSSL
+|native, wasip2, wasip3, emscripten
+|`+p256_ecdsa_bearssl+`, `+p256_wycheproof_bearssl+`, `+allocation_bearssl+`
+
+|`+curves::p256::keypair::sign_ecdsa+`, `+verify_ecdsa+`, `+to_der+`, `+from_der+`, `+normalize_ecdsa+`, `+check_low_s+`
+|libsodium
+|refused at compile time
+|`+p256_on_sodium+`
 |===
 
 The same, by target: the backends each operation runs on.
@@ -465,6 +475,12 @@ The same, by target: the backends each operation runs on.
 |BearSSL
 
 |`+curves::p256::public_key+`
+|BearSSL
+|BearSSL
+|BearSSL
+|BearSSL
+
+|`+curves::p256::keypair::sign_ecdsa+`, `+verify_ecdsa+`, `+to_der+`, `+from_der+`, `+normalize_ecdsa+`, `+check_low_s+`
 |BearSSL
 |BearSSL
 |BearSSL

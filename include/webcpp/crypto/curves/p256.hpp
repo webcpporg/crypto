@@ -6,7 +6,9 @@
 
 /**
  P-256, NIST's curve of FIPS 186-5 (secp256r1): a key pair made from its 32-byte scalar or drawn
- from the system's generator, and a public key validated once, as SEC 1's uncompressed point.
+ from the system's generator, and a public key validated once, as SEC 1's uncompressed point;
+ ECDSA over a SHA-256 digest with RFC 6979's nonce, its raw and DER forms, and low S as two
+ functions, one that normalizes and one that checks.
 
  The family's default backend, BearSSL on every target, is included when the program links it;
  a program that uses the family without linking it stops where it calls it, with the Jamfile
@@ -278,6 +280,30 @@ public:
         return scalar;
     }
 
+    /**
+     * Signs a SHA-256 digest with ECDSA, RFC 6979's deterministic nonce (no random number is
+     * drawn: the same key and digest give the same signature), S as the computation gives it,
+     * high or low (`normalize_ecdsa` gives the low form).
+     *
+     * @param digest The 32-byte SHA-256 digest of the message, as WebCrypto's ECDSA with SHA-256
+     * hashes it.
+     * @return 64 bytes, r then s (IEEE P1363, WebCrypto's form); `invalid_state` moved from;
+     * `backend_failure`, which a valid key pair cannot cause.
+     */
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, signature_size>> sign_ecdsa(
+        std::span<std::uint8_t const, digest_size> digest) const noexcept {
+        detail::timing_guard const timing;
+        if (!keyed_) {
+            return error::invalid_state;
+        }
+        std::array<std::uint8_t, signature_size> signature{};
+        auto const signed_digest = engine::sign(state_, digest, signature);
+        if (!signed_digest) {
+            return signed_digest.error();
+        }
+        return signature;
+    }
+
 private:
     basic_keypair() noexcept = default;
 
@@ -287,6 +313,132 @@ private:
 
 /** The key pair on the default backend. */
 using keypair = basic_keypair<>;
+
+/**
+ * Verifies an ECDSA signature of a SHA-256 digest with a public key. A high S and a low S are both
+ * accepted, as FIPS 186-5 and WebCrypto accept them; a protocol that requires low S calls
+ * `check_low_s` too.
+ *
+ * @tparam Backend The key's backend, which verifies.
+ * @param signature 64 bytes, r then s (IEEE P1363, WebCrypto's form); `from_der` reads DER.
+ * @param digest The 32-byte SHA-256 digest of the message.
+ * @param key The signer's public key.
+ * @return Nothing; `invalid_signature` for an r or an s that is 0 or not below n, refused before
+ * the backend, and for a signature that does not verify. A digest whose value modulo n is 0 (32
+ * zero bytes, or n itself), which no SHA-256 of a message gives in practice, is refused too:
+ * BearSSL's verification refuses a zero multiplier.
+ */
+template <class Backend>
+[[nodiscard]] boost::system::result<void> verify_ecdsa(
+    std::span<std::uint8_t const, signature_size> signature,
+    std::span<std::uint8_t const, digest_size> digest,
+    basic_public_key<Backend> const& key) noexcept {
+    detail::timing_guard const timing;
+    using engine = detail::p_curve_engine<families::p256, Backend>;
+    if (!detail::p_curve_signature_in_range<families::p256>(signature)) {
+        return error::invalid_signature;
+    }
+    if (!engine::verify(detail::p_curve_access::point(key), digest, signature)) {
+        return error::invalid_signature;
+    }
+    return {};
+}
+
+/**
+ * Encodes a signature as strict DER, the ECDSA-Sig-Value SEQUENCE of two INTEGERs that X.509
+ * and OpenSSL carry.
+ *
+ * @tparam Backend The backend that encodes; by default the family's.
+ * @param signature 64 bytes, r then s.
+ * @param output At least `max_der_size` bytes, whatever this signature's length; nothing is
+ * written on an error.
+ * @return The number of bytes written, 8 to `max_der_size`; `invalid_input_size` when `output`
+ * is shorter than `max_der_size`; `invalid_signature` when r or s is 0 or not below n.
+ */
+template <class Backend = default_backend_t<families::p256>>
+[[nodiscard]] boost::system::result<std::size_t> to_der(
+    std::span<std::uint8_t const, signature_size> signature,
+    std::span<std::uint8_t> output) noexcept {
+    detail::timing_guard const timing;
+    using engine = detail::p_curve_engine<families::p256, Backend>;
+    if (output.size() < max_der_size) {
+        return error::invalid_input_size;
+    }
+    if (!detail::p_curve_signature_in_range<families::p256>(signature)) {
+        return error::invalid_signature;
+    }
+    std::array<std::uint8_t, max_der_size> der{};
+    std::size_t const length = engine::to_der(signature, der);
+    std::ranges::copy(std::span<std::uint8_t const>(der).first(length), output.begin());
+    return length;
+}
+
+/**
+ * Decodes a strict DER signature to its raw form: only the encoding `to_der` writes is accepted.
+ *
+ * @tparam Backend The backend that decodes; by default the family's.
+ * @param der_signature The encoding, exactly: nothing may follow it.
+ * @return 64 bytes, r then s; `invalid_signature` for anything that is not strict DER (a needless
+ * zero byte, a long length where a short one holds it, a negative integer, bytes after it,
+ * nothing), and for an r or an s that is 0 or not below n.
+ */
+template <class Backend = default_backend_t<families::p256>>
+[[nodiscard]] boost::system::result<std::array<std::uint8_t, signature_size>> from_der(
+    std::span<std::uint8_t const> der_signature) noexcept {
+    detail::timing_guard const timing;
+    using engine = detail::p_curve_engine<families::p256, Backend>;
+    if (der_signature.empty()) {
+        return error::invalid_signature;
+    }
+    std::array<std::uint8_t, signature_size> signature{};
+    if (!engine::from_der(der_signature, signature) ||
+        !detail::p_curve_signature_in_range<families::p256>(signature)) {
+        return error::invalid_signature;
+    }
+    return signature;
+}
+
+/**
+ * The low-S form of a signature: s replaced by n - s when s is above (n - 1) / 2, returned
+ * unchanged otherwise. Both forms verify; a protocol that requires low S normalizes what it
+ * signs. Arithmetic on public bytes, with no backend.
+ *
+ * @param signature 64 bytes, r then s.
+ * @return 64 bytes, r then s, with s at most (n - 1) / 2; `invalid_signature` when r or s is 0 or
+ * not below n.
+ */
+[[nodiscard]] inline boost::system::result<std::array<std::uint8_t, signature_size>>
+normalize_ecdsa(std::span<std::uint8_t const, signature_size> signature) noexcept {
+    if (!detail::p_curve_signature_in_range<families::p256>(signature)) {
+        return error::invalid_signature;
+    }
+    std::array<std::uint8_t, signature_size> normalized{};
+    std::ranges::copy(signature, normalized.begin());
+    auto const s = signature.last<coordinate_size>();
+    if (!detail::p_curve_low_s<families::p256>(s)) {
+        detail::p_curve_negate_scalar<families::p256>(
+            s, std::span(normalized).last<coordinate_size>());
+    }
+    return normalized;
+}
+
+/**
+ * Checks that a signature is in its low-S form, s at most (n - 1) / 2, as a protocol that
+ * requires low S checks what it receives. Arithmetic on public bytes, with no backend; it does
+ * not verify the signature (`verify_ecdsa` does).
+ *
+ * @param signature 64 bytes, r then s.
+ * @return Nothing; `invalid_signature` when s is above (n - 1) / 2, and when r or s is 0 or not
+ * below n.
+ */
+[[nodiscard]] inline boost::system::result<void> check_low_s(
+    std::span<std::uint8_t const, signature_size> signature) noexcept {
+    if (!detail::p_curve_signature_in_range<families::p256>(signature) ||
+        !detail::p_curve_low_s<families::p256>(signature.last<coordinate_size>())) {
+        return error::invalid_signature;
+    }
+    return {};
+}
 
 }  // namespace webcpp::crypto::curves::p256
 
@@ -311,6 +463,30 @@ struct p_curve_engine<families::p256, Backend> {
     /** Never called; fails closed. */
     template <class... Arguments>
     [[nodiscard]] static bool valid_point(Arguments&&... /*arguments*/) noexcept {
+        return false;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> sign(Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static bool verify(Arguments&&... /*arguments*/) noexcept {
+        return false;
+    }
+
+    /** Never called; fails closed: nothing written. */
+    template <class... Arguments>
+    [[nodiscard]] static std::size_t to_der(Arguments&&... /*arguments*/) noexcept {
+        return 0;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static bool from_der(Arguments&&... /*arguments*/) noexcept {
         return false;
     }
 

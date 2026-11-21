@@ -119,6 +119,9 @@ webcpp.example ed25519_sign.cpp : <library>/webcpp/crypto//ed25519-default ;
 # public key exported and imported as a peer's, a tampered point refused, and a
 # key pair drawn from the system's generator.
 webcpp.example p256_keys.cpp : <library>/webcpp/crypto//p256-default ;
+# The guide's P-256 ECDSA program: RFC 6979's signature of "sample", its low-S
+# form and its DER, both forms verified and another digest refused.
+webcpp.example p256_sign.cpp : <library>/webcpp/crypto//p256-default ;
 
 # The guide's X25519 program: RFC 7748's Alice and Bob, the agreement of two
 # Ed25519 key pairs through their X25519 forms, and a peer of low order

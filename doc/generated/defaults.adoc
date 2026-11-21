@@ -141,5 +141,5 @@
 |native, wasip2, wasip3, emscripten
 |BearSSL
 |the one backend of the P-curves on all four targets, constant time by design and allocating nothing (link:https://www.bearssl.org/[BearSSL, its home page]); OpenSSL and Botan join in increments 8 and 7
-|`+p256_keys_bearssl+`, `+default_backend_none_linked+`
+|`+p256_keys_bearssl+`, `+p256_ecdsa_bearssl+`, `+default_backend_none_linked+`
 |===

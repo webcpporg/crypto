@@ -4,8 +4,8 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// The P-256 constants the P-256 tests share, each with its source: RFC 6979's key, the group
-// order n and (n - 1) / 2, and the field prime p.
+// The P-256 constants the P-256 tests share, each with its source: RFC 6979's key and its two
+// SHA-256 signatures, the group order n and (n - 1) / 2, and the field prime p.
 
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_P256_DATA_HPP
 #define WEBCPP_TEST_CRYPTO_SUPPORT_P256_DATA_HPP
@@ -24,6 +24,18 @@ inline constexpr auto rfc6979_scalar =
 inline constexpr auto rfc6979_public = hex<65>(
     "0460fed4ba255a9d31c961eb74c6356d68c049b8923b61fa6ce669622e60f29fb6"
     "7903fe1008b8bc99a41ae9e95628bc64f2f1b20c2d7e9f5177a3c294d4462299");
+// RFC 6979, section A.2.5, P-256 with SHA-256, message "sample": S is high.
+inline constexpr auto rfc6979_sample = hex<64>(
+    "efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf3716"
+    "f7cb1c942d657c41d436c7a1b6e29f65f3e900dbb9aff4064dc4ab2f843acda8");
+// n - s of the case above: its low-S form.
+inline constexpr auto rfc6979_sample_low_s = hex<64>(
+    "efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf3716"
+    "0834e36ad29a83bf2bc9385e491d6099c8fdf9d1ed67aa7ea5f51f93782857a9");
+// RFC 6979, section A.2.5, P-256 with SHA-256, message "test": S is low.
+inline constexpr auto rfc6979_test = hex<64>(
+    "f1abb023518351cd71d881567b1ea663ed3efcf6c5132b354f28d3b0b7d38367"
+    "019f4113742a2b14bd25926b49c649155f267e60d3814b4c0cc84250e46f0083");
 // FIPS 186-5 / SEC 2: the group order n, and (n - 1) / 2, the largest low S.
 inline constexpr auto order =
     hex<32>("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551");

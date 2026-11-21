@@ -93,3 +93,99 @@ begin, which is why SEC 1 has a peer's public key validated before it is used
 `invalid_public_key`: BearSSL decodes uncompressed points alone. WebCrypto's
 raw export is uncompressed, so a browser's key arrives in the form `make`
 takes; a key a tool sends compressed is decompressed by that tool first.
+
+[#crypto-p256-ecdsa]
+==== ECDSA
+
+ECDSA signs a *digest*, not a message: the program hashes the message with
+SHA-256, then `keypair::sign_ecdsa(digest)` signs those 32 bytes, as
+WebCrypto's `sign({name: "ECDSA", hash: "SHA-256"}, ...)` hashes and signs in one
+call (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]) and passkeys' ES256 does
+(link:https://www.w3.org/TR/webauthn-2/#sctn-alg-identifier[W3C Web
+Authentication]):
+
+[source,cpp]
+----
+std::array<std::uint8_t, 32> digest{};
+auto hashed = webcpp::hash::digest_of<webcpp::hash::digests::sha2_256>(digest, message);
+auto signature = key.sign_ecdsa(digest);  // 64 bytes: r, then s
+----
+
+The nonce is RFC 6979's (link:https://www.rfc-editor.org/rfc/rfc6979[RFC
+6979]): derived from the secret key and the digest, so signing draws no random
+number, a weak generator cannot leak the key, and the same key and digest give
+the same signature. Every verifier accepts it, WebCrypto's and OpenSSL's
+included: a verifier cannot tell how a nonce was made, and the signature is an
+ordinary ECDSA signature (link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS
+186-5]). `verify_ecdsa(signature, digest, public_key)` succeeds or returns
+`invalid_signature`, also for an r or an s that is 0 or not below the group
+order n, refused before BearSSL sees it.
+
+A signature has two forms. The *raw* form, 64 bytes, r then s at 32 bytes each
+(link:https://standards.ieee.org/ieee/1363/2049/[IEEE 1363]), is the one
+`sign_ecdsa` and `verify_ecdsa` take: what WebCrypto signs and verifies
+(link:https://www.w3.org/TR/WebCryptoAPI/[W3C]) and what a JSON Web Token's
+ES256 carries (link:https://www.rfc-editor.org/rfc/rfc7518#section-3.4[RFC
+7518, section 3.4]). *DER*, a SEQUENCE of two INTEGERs of 8 to 72 bytes, is the
+form of X.509 certificates and OpenSSL
+(link:https://www.rfc-editor.org/rfc/rfc3279#section-2.2.3[RFC 3279, section
+2.2.3]): `to_der(signature, output)` writes it into at least `max_der_size`
+bytes and returns its length, and `from_der(bytes)` reads it back, accepting
+strict DER only, the encoding `to_der` writes, and refusing anything else with
+`invalid_signature`.
+
+include::generated/backends-p256_ecdsa.adoc[]
+
+*Low S.* If (r, s) is a valid signature, (r, n - s) is a valid signature of the
+same digest too: anyone can turn one into the other without the key. That is
+*malleability*, harmless for most programs, since both say the same signer
+signed the same digest, but a protocol that names a message by its signature's
+bytes sees two names for one message. FIPS 186-5 and WebCrypto accept both
+forms (link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5];
+link:https://www.w3.org/TR/WebCryptoAPI/[W3C]), and so does `verify_ecdsa`;
+`sign_ecdsa` returns S as RFC 6979 computes it, high or low. Some protocols
+accept only the *low-S* form, s at most (n - 1) / 2: Bitcoin's
+(link:https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki[BIP 146])
+and Trystero's, which normalizes what it signs and refuses a high S in what it
+reads
+(link:https://github.com/dmotz/trystero/blob/0.27.0/packages/core/src/crypto.ts[Trystero
+0.27.0]). Such a policy has two halves, and crypto offers each:
+`normalize_ecdsa(signature)` returns the low-S form, the same signature when S
+is already low, before the signature is sent; `check_low_s(signature)` returns
+`invalid_signature` for a high S, before the signature received is verified.
+Neither calls BearSSL: both are arithmetic on public bytes.
+
+*Example.* RFC 6979's key signs the SHA-256 of "sample", which gives the RFC's
+own signature, whose S is high; its low-S form, its DER, both forms verified,
+and another message's digest refused:
+
+[source,cpp]
+----
+include::{examples}/p256_sign.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/p256_sign.expected[]
+----
+
+*Pitfalls.*
+
+* A protocol that requires low S and forgets `normalize_ecdsa` fails about one
+signature in two: `sign_ecdsa`'s S is high half the time, and the peer's
+`check_low_s` refuses those. The tests that sign a fixed message may pass
+every time, the signature being the same; a program sees it at the first
+handshake whose S is high. Normalize every signature such a protocol sends,
+and check every one it receives.
+* `check_low_s` does not verify: a forged signature can have a low S. Check low
+S, then verify, and accept the signature only when both succeed.
+* Signing a message instead of its digest does not compile: `sign_ecdsa` takes
+exactly 32 bytes. A digest of another hash than SHA-256, or a message cut to 32
+bytes, signs, and no WebCrypto peer verifies it, since WebCrypto's ECDSA with
+SHA-256 hashes what it verifies with SHA-256 itself.
+* A passkey's ES256 is ECDSA on P-256 with SHA-256, and its assertion's
+signature arrives in DER
+(link:https://www.w3.org/TR/webauthn-2/#sctn-signature-attestation-types[W3C
+Web Authentication, section 6.5.5]): `from_der`, then `verify_ecdsa` of the
+SHA-256 of what the authenticator signed. Reading the COSE key and building
+those signed bytes are WebAuthn's, and stay outside crypto.

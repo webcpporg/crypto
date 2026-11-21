@@ -431,8 +431,9 @@ struct p_curve_state<families::p256, backends::bearssl> {
 };
 
 /**
- * P-256 on BearSSL: the point of a key pair computed once by `mulgen`, and a public point checked
- * by BearSSL's decoding. BearSSL allocates nothing; its curve code never fails on a valid input.
+ * P-256 on BearSSL: the point of a key pair computed once by `mulgen`, a public point checked
+ * by BearSSL's decoding, ECDSA with RFC 6979's nonce and its DER conversions. BearSSL allocates
+ * nothing; its curve code never fails on a valid input.
  */
 template <>
 struct p_curve_engine<families::p256, backends::bearssl> {
@@ -476,6 +477,121 @@ struct p_curve_engine<families::p256, backends::bearssl> {
         return bearssl_p256()->mul(decoded.data(), decoded.size(), one.data(), one.size(),
                                    BR_EC_secp256r1) == 1 &&
                std::ranges::equal(decoded, point);
+    }
+
+    /**
+     * Signs a digest with ECDSA and RFC 6979's nonce, S as BearSSL computes it (design D36).
+     *
+     * @param keyed A keyed state.
+     * @param digest The 32-byte SHA-256 digest.
+     * @param output 64 bytes, r then s.
+     * @return Nothing; `backend_failure`, which a valid key cannot cause.
+     */
+    [[nodiscard]] static boost::system::result<void> sign(
+        state const& keyed, std::span<std::uint8_t const, 32> digest,
+        std::span<std::uint8_t, 64> output) noexcept {
+        WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
+        read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
+        // BearSSL's struct is not const-correct: it only reads the scalar.
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast): see above
+        auto* const scalar = const_cast<unsigned char*>(keyed.scalar.data());
+        br_ec_private_key const key{
+            .curve = BR_EC_secp256r1,
+            .x = scalar,
+            .xlen = keyed.scalar.size(),
+        };
+        // RFC 6979's nonce, from HMAC-DRBG over SHA-256: br_sha256_vtable is the hash of the
+        // nonce's derivation, which RFC 6979 makes the digest's own. No random number is drawn.
+        if (br_ecdsa_i31_sign_raw(bearssl_p256(), &br_sha256_vtable, digest.data(), &key,
+                                  output.data()) != output.size()) {
+            return error::backend_failure;
+        }
+        return {};
+    }
+
+    /**
+     * Verifies an ECDSA signature; a high S is accepted (design D36).
+     *
+     * @param point The public key's uncompressed point, valid.
+     * @param digest The 32-byte SHA-256 digest.
+     * @param signature 64 bytes, r then s, each in range (the family's header has checked them).
+     * @return Whether the signature verifies.
+     */
+    [[nodiscard]] static bool verify(std::span<std::uint8_t const, 65> point,
+                                     std::span<std::uint8_t const, 32> digest,
+                                     std::span<std::uint8_t const, 64> signature) noexcept {
+        WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
+        read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
+        // BearSSL's struct holds a pointer to non-const bytes, which it only reads: a copy keeps
+        // the key's own bytes const without a cast.
+        std::array<std::uint8_t, 65> key_point{};
+        std::ranges::copy(point, key_point.begin());
+        br_ec_public_key const key{
+            .curve = BR_EC_secp256r1,
+            .q = key_point.data(),
+            .qlen = key_point.size(),
+        };
+        return br_ecdsa_i31_vrfy_raw(bearssl_p256(), digest.data(), digest.size(), &key,
+                                     signature.data(), signature.size()) == 1;
+    }
+
+    /**
+     * Encodes a signature as strict DER.
+     *
+     * @param signature 64 bytes, r then s, each in range (the family's header has checked them).
+     * @param output 72 bytes, room for the longest encoding.
+     * @return The encoding's length, at most 72: 2 + 2 * (2 + 33).
+     */
+    [[nodiscard]] static std::size_t to_der(std::span<std::uint8_t const, 64> signature,
+                                            std::span<std::uint8_t, 72> output) noexcept {
+        WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
+        read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
+        // In place, and "by no more than 9 bytes" larger (bearssl_ec.h): room for 64 + 9.
+        std::array<std::uint8_t, 64 + 9> work{};
+        std::ranges::copy(signature, work.begin());
+        std::size_t const length = br_ecdsa_raw_to_asn1(work.data(), signature.size());
+        std::ranges::copy(std::span<std::uint8_t const>(work).first(length), output.begin());
+        return length;
+    }
+
+    /**
+     * Decodes a strict DER signature: BearSSL's decoder, then the re-encoding compared with the
+     * input, since BearSSL accepts a few forms strict DER refuses.
+     *
+     * @param der The encoding, not empty.
+     * @param output 64 bytes, r then s, padded to 32 bytes each; the caller keeps them only on
+     * success and checks their range.
+     * @return Whether the input is strict DER of two integers of at most 32 bytes.
+     */
+    [[nodiscard]] static bool from_der(std::span<std::uint8_t const> der,
+                                       std::span<std::uint8_t, 64> output) noexcept {
+        WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
+        read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
+        constexpr std::size_t longest = 72;
+        if (der.size() > longest) {
+            return false;
+        }
+        // In place, and up to twice the source's length (bearssl_ec.h): room for 2 * 72.
+        std::array<std::uint8_t, 2 * longest> work{};
+        std::ranges::copy(der, work.begin());
+        // BearSSL strips the integers' leading zeros and writes r and s at the longer one's
+        // length (ecdsa_atr.c), so a raw form shorter than 64 bytes is padded back to 32 each.
+        std::size_t const raw_size = br_ecdsa_asn1_to_raw(work.data(), der.size());
+        std::size_t const half = raw_size / 2;
+        if (raw_size == 0 || half > 32) {
+            return false;
+        }
+        std::array<std::uint8_t, 64 + 9> raw{};
+        std::ranges::copy(std::span<std::uint8_t const>(work).first(half),
+                          raw.begin() + (32 - half));
+        std::ranges::copy(std::span<std::uint8_t const>(work).subspan(half, half),
+                          raw.begin() + (64 - half));
+        std::ranges::copy(std::span<std::uint8_t const>(raw).first<64>(), output.begin());
+        // BearSSL's decoder accepts a long SEQUENCE length, needless zero bytes and a negative
+        // integer; strict DER is what re-encodes to the same bytes (design D12).
+        std::size_t const length = br_ecdsa_raw_to_asn1(raw.data(), 64);
+        return length == der.size() &&
+               std::ranges::equal(std::span<std::uint8_t const>(raw).first(length), der);
     }
 
     /**

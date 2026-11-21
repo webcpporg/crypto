@@ -9,8 +9,6 @@
 
 #include <webcpp/crypto/config.hpp>
 
-#include <source_location>
-
 /*
  * timing_guard sets 64-bit ARM's DIT (Data Independent Timing) bit, PSTATE.DIT, for the scope of
  * one public operation and restores the thread's state after it. With DIT set, the instructions
@@ -35,16 +33,18 @@
 #endif
 
 /*
- * WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED(where) runs first in timing_guard's constructor, on every
- * target, with the std::source_location of the guard's declaration, whose function_name() is the
- * function that holds it. Nothing in a program's build; a test defines it before its first
- * include to record the guards a call enters and the function of the first, the outermost
+ * WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED(where), the seam, is defined by a test alone, before its
+ * first include, to record the guards a call enters and the function of the first, the outermost
  * (test/support/timing_seam.hpp), so that a public function that forgets its guard fails on every
- * lane, also where DIT does not apply and also when it calls another guarded function.
+ * lane, also where DIT does not apply and also when it calls another guarded function. Then
+ * timing_guard's constructor takes the std::source_location of the guard's declaration, whose
+ * function_name() is the function that holds it, and runs the seam with it first, on every
+ * target. Nothing in a program's build: without the seam the constructor takes no argument, so
+ * that no function's name or header's path reaches a program, whether the constructor is
+ * inlined or not.
  */
-#ifndef WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED
-/** Marks the entry into a timing_guard declared at `where`: nothing in a program's build. */
-#define WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED(where) static_cast<void>(where)
+#ifdef WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED
+#include <source_location>
 #endif
 
 namespace webcpp::crypto::detail {
@@ -54,11 +54,15 @@ namespace webcpp::crypto::detail {
 inline constexpr std::uint64_t dit_bit = std::uint64_t{1} << 24U;
 
 /**
- * Writes the DIT register, then waits with `isb` until the write takes effect.
+ * Writes the DIT register, then executes `isb`.
  *
  * The register is named by its encoding (op0 3, op1 3, CRn 4, CRm 2, op2 5), which every
- * assembler takes, with or without an architecture flag. The `isb` is the barrier Apple asks for
- * after the write, so that the instructions after it run under the new state.
+ * assembler takes, with or without an architecture flag. Apple's "Writing ARM64 code for Apple
+ * platforms" ("Enable DIT for constant-time cryptographic operations") asks for a speculation
+ * barrier after turning DIT on, so that the timing of the instructions after it reflects the new
+ * state: `sb` where the CPU has FEAT_SB, else `dsb nsh` then `isb sy`; it asks for none after
+ * turning DIT off. The `isb` here, after both writes, is not that barrier: which barrier each
+ * write needs is measured in the final measurement pass of the change data-independent-timing.
  *
  * @param value `dit_bit` to set DIT, 0 to clear it.
  */
@@ -127,21 +131,20 @@ inline void write_dit(std::uint64_t value) noexcept {
  */
 class timing_guard {
 public:
+#ifdef WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED
     /**
-     * Sets DIT where the CPU has it and it is clear.
+     * Runs the seam, then sets DIT where the CPU has it and it is clear: a test's build alone.
      *
-     * @param where Where the guard is declared, the default: the seam's argument alone, which a
-     * program's build discards.
+     * @param where Where the guard is declared, the default: the seam's argument alone.
      */
     explicit timing_guard(std::source_location where = std::source_location::current()) noexcept {
         WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED(where);
-#ifdef WEBCPP_CRYPTO_DETAIL_TIMING_COVERED
-        if (cpu_has_dit() && !dit_is_set()) {
-            write_dit(dit_bit);
-            armed_ = true;
-        }
-#endif
+        enter();
     }
+#else
+    /** Sets DIT where the CPU has it and it is clear. */
+    timing_guard() noexcept { enter(); }
+#endif
 
     /** Clears DIT when this guard set it. */
     ~timing_guard() {
@@ -165,6 +168,16 @@ public:
     timing_guard& operator=(timing_guard&&) = delete;
 
 private:
+    /** Sets DIT where the CPU has it and it is clear, and remembers to clear it. */
+    void enter() noexcept {
+#ifdef WEBCPP_CRYPTO_DETAIL_TIMING_COVERED
+        if (cpu_has_dit() && !dit_is_set()) {
+            write_dit(dit_bit);
+            armed_ = true;
+        }
+#endif
+    }
+
 #ifdef WEBCPP_CRYPTO_DETAIL_TIMING_COVERED
     /** Whether this guard set DIT, and so clears it. */
     bool armed_ = false;

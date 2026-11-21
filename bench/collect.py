@@ -31,10 +31,18 @@ doc/tables/crypto.json states for its family (the size matrix's), or the cell is
 never fails this script: only a program that does not run, or a cell it does not know, does.
 `--render-only` rewrites the page from the data.
 
-`--provisional` marks the data's figures as provisional, measured on a shared, loaded machine and
-to be measured again in a final pass on a quiet one: the data keeps `"provisional": true` and the
-page says so above both tables. With `--render-only` it marks the data as it is, numbers unchanged;
-a measurement without it clears the mark.
+`--provisional` marks figures as provisional, measured on a shared, loaded machine and to be
+measured again in a final pass on a quiet one. Each part has its own mark: the throughput's is the
+data's `"provisional": true`, the guard's is `"provisional": true` in its "timing_guard", and each
+table's NOTE renders from its own. A measurement marks, with `--provisional`, or clears, without
+it, the mark of the part it measured alone (`--exe` the throughput's, `--timing` the guard's), and
+keeps the other part's as it was. With `--render-only` it marks both parts the data holds, numbers
+unchanged.
+
+Data that is not what this script writes (not a JSON object, a key missing or of another type, a
+family, backend or target the page does not know), and a program's line that is not the form this
+script reads (an older bench/timing.cpp's, without the fastest and slowest runs, among them), are
+refused with a message naming what is wrong, before the page is written.
 
 The timing guard's cost (detail::timing_guard, which every public operation holds and which sets
 64-bit ARM's DIT where the CPU has it) is `timing --measure`'s one line: whether the guard sets DIT
@@ -151,6 +159,97 @@ def machine():
     }
 
 
+# The shapes of the data and of the programs' lines: a key's type, the shape of a nested object, a
+# one-element list for a list of that shape, or a function that says whether a value is right. A
+# key of OPTIONAL may be missing.
+NUMBER = (int, float)
+
+
+def load_pair(value):
+    """Whether value is the load averages before and after: two lists of numbers, neither empty."""
+    return (isinstance(value, list) and len(value) == 2 and
+            all(isinstance(loads, list) and loads and
+                all(isinstance(x, NUMBER) and not isinstance(x, bool) for x in loads)
+                for loads in value))
+
+
+MACHINE_SHAPE = {"cpu": str, "architecture": str, "cores": (int, type(None)),
+                 "memory_gib": int, "os": str, "wasmtime": str, "node": str}
+CASE_SHAPE = {"family": str, "backend": str, "target": str, "operation": str, "compiler": str,
+              "median_us": NUMBER, "min_us": NUMBER, "max_us": NUMBER}
+DATA_SHAPE = {"date": str, "machine": MACHINE_SHAPE, "load_average_before_after": load_pair,
+              "build": str, "cases": [CASE_SHAPE],
+              "amd64_asm": {"rows": [str], "status": str, "reason": str}}
+TIMING_SHAPE = {"date": str, "machine": MACHINE_SHAPE, "load_average_before_after": load_pair,
+                "build": str, "target": str, "compiler": str, "iterations": int, "runs": int,
+                "dit": bool, "clear_ns": NUMBER, "set_ns": NUMBER}
+# Recorded since the guard's spread was: data measured before it lacks them, and the page says
+# "not recorded".
+TIMING_OPTIONAL = {"clear_fastest_ns": NUMBER, "clear_slowest_ns": NUMBER,
+                   "set_fastest_ns": NUMBER, "set_slowest_ns": NUMBER, "provisional": bool}
+# bench/timing.cpp's line, every key since the guard's spread is recorded.
+TIMING_LINE_SHAPE = {"target": str, "compiler": str, "iterations": int, "runs": int, "dit": bool,
+                     "clear": NUMBER, "clear_fastest": NUMBER, "clear_slowest": NUMBER,
+                     "set": NUMBER, "set_fastest": NUMBER, "set_slowest": NUMBER}
+# bench/throughput.cpp's line.
+THROUGHPUT_LINE_SHAPE = {"operation": str, "compiler": str, "repetitions": int,
+                         "median_us": NUMBER, "runs_us": [NUMBER]}
+
+
+def wrong(value, shape, where, optional=None):
+    """The first place in value that shape requires and value lacks or holds otherwise, named as
+    a path from where; None when value has the shape."""
+    if callable(shape) and not isinstance(shape, type):
+        return None if shape(value) else where
+    if isinstance(shape, dict):
+        if not isinstance(value, dict):
+            return f"{where} (not an object)"
+        for key, inner in shape.items():
+            if key not in value:
+                return f"{where}.{key} (missing)"
+            found = wrong(value[key], inner, f"{where}.{key}")
+            if found is not None:
+                return found
+        for key, inner in (optional or {}).items():
+            if key in value and value[key] is not None:
+                found = wrong(value[key], inner, f"{where}.{key}")
+                if found is not None:
+                    return found
+        return None
+    if isinstance(shape, list):
+        if not isinstance(value, list) or not value:
+            return f"{where} (not a list, or empty)"
+        for index, item in enumerate(value):
+            found = wrong(item, shape[0], f"{where}[{index}]")
+            if found is not None:
+                return found
+        return None
+    types = shape if isinstance(shape, tuple) else (shape,)
+    if isinstance(value, bool) and bool not in types:
+        return where
+    return None if isinstance(value, types) else where
+
+
+def program_line(target, command, output, shape):
+    """The last line of a program's output, read as JSON of shape; exits naming the program and
+    what is wrong when it is not."""
+    lines = output.strip().splitlines()
+    try:
+        line = json.loads(lines[-1]) if lines else None
+    except ValueError as error:
+        sys.exit(f"collect.py: {target} {' '.join(command)} printed a line that is not JSON "
+                 f"({error}): {lines[-1]!r}")
+    found = wrong(line, shape, "line")
+    # Each shape is an object's, so wrong finds nothing only in a dict; the isinstance states
+    # that to the type checker, and the line comes back a dict, never None.
+    if found is None and isinstance(line, dict):
+        return line
+    printed = lines[-1] if lines else ""
+    sys.exit(f"collect.py: {target} {' '.join(command)} printed {printed!r}, which is not "
+             f"the form collect.py reads: {found or 'line (not an object)'} is wrong; build "
+             "bench/Jamfile's program again from this tree")
+
+
 def run(target, command):
     done = subprocess.run(LAUNCHERS[target] + command, capture_output=True, text=True,
                           check=False)
@@ -181,8 +280,9 @@ def measure(exes, invocations):
     loads = [os.getloadavg()]
     for _ in range(invocations):
         for (target, family, backend), case in cases.items():
-            line = run(target, [case["exe"], family, backend, "--runs", "5"]).strip()
-            case["results"].append(json.loads(line.splitlines()[-1]))
+            command = [case["exe"], family, backend, "--runs", "5"]
+            case["results"].append(program_line(target, command, run(target, command),
+                                                THROUGHPUT_LINE_SHAPE))
     loads.append(os.getloadavg())
     out = []
     for (target, family, backend), case in cases.items():
@@ -223,9 +323,9 @@ def measure_timing(exe):
     """The guard's cost, timing --measure's line, natively, with when, where and under what load
     it was measured."""
     loads = [os.getloadavg()]
-    line = run("native", [exe, "--measure"]).strip()
+    output = run("native", [exe, "--measure"])
     loads.append(os.getloadavg())
-    result = json.loads(line.splitlines()[-1])
+    result = program_line("native", [exe, "--measure"], output, TIMING_LINE_SHAPE)
     return {
         "measurement": "the nanoseconds detail::timing_guard adds to a call, bench/timing.cpp",
         "date": utc_today(),
@@ -246,7 +346,7 @@ def measure_timing(exe):
     }
 
 
-# What the page says of provisional figures (--provisional).
+# What the page says above a table whose figures are provisional (--provisional).
 PROVISIONAL = (
     "NOTE: these figures are provisional. They were measured on a shared machine under load "
     "(the load averages above), and are measured again in a final measurement pass on a quiet "
@@ -320,7 +420,7 @@ def render_timing(data, timing, titles, backends):
         f"{fmt_load(load[1])} after, on {machine_info['cores']} cores.",
         "",
     ]
-    if data.get("provisional"):
+    if timing.get("provisional"):
         lines += [PROVISIONAL, ""]
     if loaded(timing):
         lines += [
@@ -448,22 +548,46 @@ def render(data, page):
         f.write("\n".join(lines))
 
 
+def check_shape(path, data):
+    """Exits naming the first thing in data that is not what this script writes: a key missing or
+    of another type, or a family, backend or target the page does not know."""
+    found = wrong(data, DATA_SHAPE, "data")
+    if found is None and data.get("timing_guard") is not None:
+        found = wrong(data["timing_guard"], TIMING_SHAPE, "data.timing_guard", TIMING_OPTIONAL)
+    if found is None and not isinstance(data.get("provisional", False), bool):
+        found = "data.provisional"
+    if found is None:
+        table = crypto_json()
+        known = {"family": {family["name"] for family in table["families"]},
+                 "backend": set(table["backends"]), "target": set(TARGETS)}
+        found = next((f"data.cases[{index}].{key} ({case[key]!r} is not one of crypto.json's)"
+                      for index, case in enumerate(data["cases"])
+                      for key, names in known.items() if case[key] not in names), None)
+    if found is not None:
+        sys.exit(f"collect.py: {path} is not the data collect.py writes: {found} is wrong; "
+                 "measure it again with --exe")
+
+
 def read_release_data(path):
-    """The data at path; exits when it cannot be read, or when it, or its guard's measurement, was
-    not built at BUILD."""
+    """The data at path; exits when it cannot be read, is not the data this script writes, or
+    when it, or its guard's measurement, was not built at BUILD."""
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, ValueError) as error:
         sys.exit(f"collect.py: {path} cannot be read ({error}); --timing alone and --render-only "
                  "read the data that --exe wrote")
+    if not isinstance(data, dict):
+        sys.exit(f"collect.py: {path} is not the data collect.py writes: not a JSON object; "
+                 "measure it again with --exe")
     if data.get("build") != BUILD:
         sys.exit(f"collect.py: {path} was measured with build {data.get('build')}, not "
                  f"{BUILD}: {RELEASE_ONLY}")
     timing = data.get("timing_guard")
-    if timing is not None and timing.get("build") != BUILD:
+    if isinstance(timing, dict) and timing.get("build") != BUILD:
         sys.exit(f"collect.py: {path}'s timing guard was measured with build "
                  f"{timing.get('build')}, not {BUILD}: {RELEASE_ONLY}")
+    check_shape(path, data)
     return data
 
 
@@ -484,13 +608,21 @@ def main():
                         help="bench/Jamfile's timing at variant=release, run natively")
     parser.add_argument("--render-only", action="store_true")
     parser.add_argument("--provisional", action="store_true",
-                        help="mark the figures as measured under load, to be measured again")
+                        help="mark the figures of the part measured (--exe: the throughput, "
+                             "--timing: the guard) as measured under load, to be measured again; "
+                             "without it, a measurement clears its part's mark and keeps the "
+                             "other's; with --render-only, mark both parts the data holds, "
+                             "numbers unchanged")
     args = parser.parse_args()
     if args.render_only:
         data = read_release_data(args.data)
-        if args.provisional and not data.get("provisional"):
-            data["provisional"] = True
-            write_data(args.data, data)
+        if args.provisional:
+            parts = [data] + ([data["timing_guard"]] if data.get("timing_guard") else [])
+            unmarked = [part for part in parts if not part.get("provisional")]
+            for part in unmarked:
+                part["provisional"] = True
+            if unmarked:
+                write_data(args.data, data)
     else:
         exes = dict(item.split("=", 1) for item in args.exe)
         unknown = sorted(set(exes) - set(TARGETS))
@@ -503,17 +635,18 @@ def main():
         if exes:
             data = measure(exes, args.invocations)
             if args.timing is None and Path(args.data).exists():
-                # The guard's cost is kept until it is measured again.
+                # The guard's cost is kept until it is measured again, with its own mark.
                 kept = read_release_data(args.data).get("timing_guard")
                 if kept is not None:
                     data["timing_guard"] = kept
+            if args.provisional:
+                data["provisional"] = True
         else:
             data = read_release_data(args.data)
         if args.timing is not None:
             data["timing_guard"] = measure_timing(args.timing)
-        data.pop("provisional", None)
-        if args.provisional:
-            data["provisional"] = True
+            if args.provisional:
+                data["timing_guard"]["provisional"] = True
         write_data(args.data, data)
     render(data, args.page)
 

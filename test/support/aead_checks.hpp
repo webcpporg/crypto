@@ -384,23 +384,34 @@ void check_aead_tampering(aead_case const& c) {
         data[i] ^= 1U;
         expect_aead_tampered<Calls>(*made, iv, additional_data, data, tag);
     }
-    for (std::size_t i = 0; i < tag.size(); ++i) {
-        auto data = ciphertext;
+    // The tag, the additional data and the IV are each copied once, and each byte of the copy
+    // is changed, then changed back.
+    {
         auto bad = tag;
-        bad[i] ^= 0x80U;
-        expect_aead_tampered<Calls>(*made, iv, additional_data, data, bad);
+        for (std::size_t i = 0; i < bad.size(); ++i) {
+            auto data = ciphertext;
+            bad[i] ^= 0x80U;
+            expect_aead_tampered<Calls>(*made, iv, additional_data, data, bad);
+            bad[i] ^= 0x80U;
+        }
     }
-    for (std::size_t i = 0; i < additional_data.size(); ++i) {
-        auto data = ciphertext;
+    {
         auto bad = additional_data;
-        bad[i] ^= 2U;
-        expect_aead_tampered<Calls>(*made, iv, bad, data, tag);
+        for (std::size_t i = 0; i < bad.size(); ++i) {
+            auto data = ciphertext;
+            bad[i] ^= 2U;
+            expect_aead_tampered<Calls>(*made, iv, bad, data, tag);
+            bad[i] ^= 2U;
+        }
     }
-    for (std::size_t i = 0; i < iv.size(); ++i) {
-        auto data = ciphertext;
+    {
         auto bad = iv;
-        bad[i] ^= 4U;
-        expect_aead_tampered<Calls>(*made, bad, additional_data, data, tag);
+        for (std::size_t i = 0; i < bad.size(); ++i) {
+            auto data = ciphertext;
+            bad[i] ^= 4U;
+            expect_aead_tampered<Calls>(*made, bad, additional_data, data, tag);
+            bad[i] ^= 4U;
+        }
     }
     {
         auto data = ciphertext;

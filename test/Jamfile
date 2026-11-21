@@ -115,6 +115,13 @@ crypto-run hex : hex_test.cpp ;
 crypto-run timing : timing_test.cpp ;
 crypto-run timing_threads : timing_test.cpp
   : <threading>multi <define>WEBCPP_TEST_TIMING_THREADS : native ;
+# Without the seam, the guard takes no argument, on every target; natively, at
+# release, a program that calls equal reads its own executable and finds
+# neither equal's name nor equal.hpp's path, which a guard's source_location
+# would keep where its constructor is not inlined (clang on arm64).
+crypto-run timing_unseamed : timing_unseamed_test.cpp ;
+webcpp.run timing_unseamed_release : timing_unseamed_test.cpp
+  : <variant>release <define>WEBCPP_TEST_TIMING_READ_SELF : native ;
 # A public operation on a stand-in backend runs it with DIT set, and a call
 # refused before the backend still enters the guard and restores the state.
 crypto-run timing_mock : timing_mock_test.cpp ;

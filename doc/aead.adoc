@@ -100,9 +100,11 @@ fails the same way everywhere.
 * *In place, the tag apart.* `data_bytes` is both input and output, so no
 buffer is copied; the tag is separate, so that a wire format that appends it
 or sends it apart is a matter of the caller's spans.
-* *A failed `open` zeroes `data_bytes`.* Every backend decrypts and checks the
+* *A failure zeroes `data_bytes`.* Every backend decrypts and checks the
 tag in one pass; when the tag does not match, crypto zeroes the whole of
-`data_bytes`, so that no unauthenticated plaintext is left. A caller who
+`data_bytes`, so that no unauthenticated plaintext is left. A `seal` or
+`update` that fails in the backend zeroes its data too, so that no message
+without a tag can be sent. A caller who
 needs the ciphertext after a failure keeps a copy. A guard's refusal
 (`invalid_state`, `invalid_iv_size`, `invalid_tag_size`, `message_too_long`)
 comes before any work and leaves `data_bytes` untouched. Whether the tag

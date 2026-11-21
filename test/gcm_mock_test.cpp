@@ -16,10 +16,12 @@
 
 #include "support/gcm_checks.hpp"
 #include "support/mock_backend.hpp"
+#include "support/reserved.hpp"
 
 #include <boost/core/lightweight_test.hpp>
 #include <boost/system/errc.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 
@@ -73,9 +75,21 @@ void check_one_shot_failures(webcpp::test::gcm_cases cases) {
         *knob = failed;
         auto const abandons = mock_control.abandons;
         std::array<std::uint8_t, 16> data{};
+        data.fill(0x5A);
         BOOST_TEST(made->seal(iv, {}, data).error() == failed);
+        BOOST_TEST(webcpp::test::all_zero(data));
         webcpp::test::mock_clear();
         BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
+    }
+    // A guard refuses before the engine fails: the seal's data is untouched.
+    {
+        mock_control.start = failed;
+        std::array<std::uint8_t, 129> const long_iv{};
+        std::array<std::uint8_t, 16> data{};
+        data.fill(0x5A);
+        BOOST_TEST(made->seal(long_iv, {}, data).error() == crypto::error::invalid_iv_size);
+        BOOST_TEST(std::ranges::all_of(data, [](std::uint8_t byte) { return byte == 0x5A; }));
+        webcpp::test::mock_clear();
     }
     for (auto* knob : {&mock_control.start, &mock_control.run, &mock_control.check}) {
         *knob = failed;
@@ -129,7 +143,10 @@ void check_incremental_failures(webcpp::test::gcm_cases cases) {
     abandons = mock_control.abandons;
     BOOST_TEST(made->begin_seal(iv, {}).has_value());
     mock_control.run = failed;
+    data.fill(0x5A);
     BOOST_TEST(made->update(data).error() == failed);
+    BOOST_TEST(webcpp::test::all_zero(data));
+    data.fill(0);
     webcpp::test::mock_clear();
     BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
     BOOST_TEST(made->update(data).error() == crypto::error::invalid_state);
@@ -142,6 +159,17 @@ void check_incremental_failures(webcpp::test::gcm_cases cases) {
     webcpp::test::mock_clear();
     BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
     BOOST_TEST(made->result().error() == crypto::error::invalid_state);
+
+    // An update refused for its size ends the message and leaves its piece untouched (the
+    // reserved piece faults on any access, so a wipe would end the program).
+    if constexpr (sizeof(std::size_t) == 8) {
+        auto const huge =
+            webcpp::test::reserved(static_cast<std::size_t>(aead::max_message_size) + 1);
+        if (BOOST_TEST(!huge.empty()) && BOOST_TEST(made->begin_seal(iv, {}).has_value())) {
+            BOOST_TEST(made->update(huge).error() == crypto::error::message_too_long);
+            BOOST_TEST(made->result().error() == crypto::error::invalid_state);
+        }
+    }
 
     // A refused begin_seal during a message abandons it through the engine as well.
     abandons = mock_control.abandons;

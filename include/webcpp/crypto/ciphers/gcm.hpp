@@ -218,6 +218,9 @@ public:
      * The IV and the additional data are read before the first byte of `data_bytes` is written, so
      * they may lie in `data_bytes`.
      *
+     * When the backend fails, `data_bytes` is zeroed, as a failed open's is; a guard's refusal
+     * leaves it untouched.
+     *
      * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key; 12 recommended.
      * @param additional_data_bytes Authenticated, not encrypted.
      * @param data_bytes The message.
@@ -238,7 +241,9 @@ public:
         result_type tag_bytes{};
         auto const tag_result = run_result ? engine::tag(state_, tag_bytes) : run_result;
         if (!tag_result) {
-            // Nothing of the failed message stays in the context, as after an incremental one.
+            // A message without a tag is not to be sent: data is zeroed, and nothing of the
+            // failed message stays in the context, as after an incremental one.
+            detail::wipe(data_bytes.data(), data_bytes.size());
             engine::abandon(state_);
             return tag_result.error();
         }
@@ -324,6 +329,9 @@ public:
     /**
      * Encrypts the next piece of the message in place.
      *
+     * When the backend fails, the piece is zeroed and the message ends; a refusal of the
+     * piece's size leaves it untouched.
+     *
      * @param data_bytes The piece, of any size, empty included.
      * @return Nothing; `invalid_state` without a message; `message_too_long` when the pieces
      * pass `max_message_size`, which ends the message; `backend_failure`, which ends it.
@@ -339,6 +347,7 @@ public:
         }
         auto const run_result = engine::run(state_, data_bytes);
         if (!run_result) {
+            detail::wipe(data_bytes.data(), data_bytes.size());
             abandon();
             return run_result.error();
         }

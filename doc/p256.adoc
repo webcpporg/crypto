@@ -195,3 +195,80 @@ signature arrives in DER
 Web Authentication, section 6.5.5]): `from_der`, then `verify_ecdsa` of the
 SHA-256 of what the authenticator signed. Reading the COSE key and building
 those signed bytes are WebAuthn's, and stay outside crypto.
+
+[#crypto-p256-ecdh]
+==== ECDH
+
+Two peers that have exchanged public keys, a program and a browser for
+instance, agree on a secret that nobody who saw only the public keys can
+compute, and key their encryption with it: that is elliptic-curve
+Diffie-Hellman, ECDH (link:https://www.secg.org/sec1-v2.pdf[SEC 1, section
+3.3.1]). Each side multiplies the other's public point by its own scalar, and
+both arrive at the same point, d~A~ times d~B~ times the generator.
+`keypair::ecdh_x(peer)` returns that point's x coordinate, 32 bytes big-endian,
+as a `secret<32>`, which wipes itself:
+
+[source,cpp]
+----
+include::{examples}/p256_ecdh.cpp[tag=agree,indent=0]
+----
+
+The raw x is exactly what a browser's WebCrypto gives:
+`+deriveBits({name: "ECDH", public: peerKey}, privateKey, 256)+` returns the
+shared point's x coordinate, 256 bits
+(link:https://www.w3.org/TR/WebCryptoAPI/#ecdh-operations[W3C, ECDH's
+operations]), so a program and a browser that hash it the same way derive the
+same keys. The peer's key is a `public_key`, validated when it was made, so
+`ecdh_x` never sees a point off the curve; it refuses a moved-from key pair
+with `invalid_state`.
+
+The x coordinate is not a key. A Diffie-Hellman value is not uniformly random
+(link:https://www.rfc-editor.org/rfc/rfc5869#section-3.3[RFC 5869, section
+3.3]): it is always below the field prime and always the x of a point of the
+curve, which not every 32-byte value is, so its 256 bits hold less than 256
+bits of entropy. A protocol hashes it into its keys, with a key derivation
+function such as HKDF (link:https://www.rfc-editor.org/rfc/rfc5869[RFC 5869]),
+which webcpp::hash provides, and with the salt and the info the protocol names:
+
+[source,cpp]
+----
+include::{examples}/p256_ecdh.cpp[tag=derive,indent=0]
+----
+
+crypto offers no hashed form, as secp256k1's `ecdh` is
+(<<crypto-secp256k1-ecdh>>): no browser computes one, and the derivation, its
+hash, its salt and its info belong to the protocol, not to the primitive. A
+program that hashed the point some other way would agree with no WebCrypto
+peer.
+
+include::generated/backends-p256_ecdh.adoc[]
+
+*Example.* Two key pairs made from fixed scalars agree on the shared x, and
+HKDF-SHA-256 derives a 32-byte key from it; the values match OpenSSL's for the
+same two scalars:
+
+[source,cpp]
+----
+include::{examples}/p256_ecdh.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/p256_ecdh.expected[]
+----
+
+*Pitfalls.*
+
+* Using the x coordinate as an AES key directly. Its bits are not uniform, so
+the key is weaker than 256 bits, and it is the same key in every protocol and
+every session that uses the same two key pairs that way: a key that leaks from
+one leaks from all of them. Hash it with HKDF and the protocol's own info into
+one key per purpose.
+* Two sides must derive the same way. A program that hashes the x with another
+salt, info or hash than its browser peer derives another key, and every message
+fails to open with nothing pointing at the cause: read the protocol's
+derivation, byte for byte.
+* A `deriveBits` length below 256 in the browser gives the first bits of the x
+alone (link:https://www.w3.org/TR/WebCryptoAPI/#ecdh-operations[W3C, ECDH's
+operations]); the program then takes the same leading bytes of what `ecdh_x`
+returns, or the two sides hash different inputs.

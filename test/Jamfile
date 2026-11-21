@@ -385,6 +385,11 @@ crypto-run p256_ecdsa_bearssl : p256_ecdsa_bearssl_test.cpp : <library>/third_pa
 crypto-run p256_wycheproof_bearssl : p256_wycheproof_bearssl_test.cpp
   : <library>/third_party//bearssl <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;
+# P-256 ECDH on BearSSL, the raw x: two sides agree, the algebra's fixed points,
+# Wycheproof's ECDH vectors on points, a moved-from key pair.
+crypto-run p256_ecdh_bearssl : p256_ecdh_bearssl_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
 # The backend ctaes: the AES block cipher alone, on every target; FIPS-197 only
 # (ruling R5).
 crypto-run aes_ctaes : aes_ctaes_test.cpp : <library>/third_party//ctaes ;

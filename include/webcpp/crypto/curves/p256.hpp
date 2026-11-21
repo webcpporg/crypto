@@ -8,7 +8,8 @@
  P-256, NIST's curve of FIPS 186-5 (secp256r1): a key pair made from its 32-byte scalar or drawn
  from the system's generator, and a public key validated once, as SEC 1's uncompressed point;
  ECDSA over a SHA-256 digest with RFC 6979's nonce, its raw and DER forms, and low S as two
- functions, one that normalizes and one that checks.
+ functions, one that normalizes and one that checks; ECDH's shared point's raw x coordinate, as
+ WebCrypto's `deriveBits` gives it.
 
  The family's default backend, BearSSL on every target, is included when the program links it;
  a program that uses the family without linking it stops where it calls it, with the Jamfile
@@ -304,6 +305,32 @@ public:
         return signature;
     }
 
+    /**
+     * ECDH with a peer's public key: the x coordinate of the shared point d * Q, raw, as
+     * WebCrypto's `deriveBits` with ECDH on P-256 gives its 256 bits.
+     *
+     * The x coordinate is not a key: its bits are not uniform. A protocol hashes it into its keys,
+     * with HKDF for instance; the derivation, its salt and its info are the protocol's.
+     *
+     * @param peer The peer's public key, validated when it was made.
+     * @return 32 secret bytes, big-endian; `invalid_state` moved from; `backend_failure`, which a
+     * valid key pair and a valid public key cannot cause.
+     */
+    [[nodiscard]] boost::system::result<secret<coordinate_size>> ecdh_x(
+        basic_public_key<Backend> const& peer) const noexcept {
+        detail::timing_guard const timing;
+        if (!keyed_) {
+            return error::invalid_state;
+        }
+        secret<coordinate_size> shared;
+        auto const derived =
+            engine::ecdh_x(state_, detail::p_curve_access::point(peer), shared.writable());
+        if (!derived) {
+            return derived.error();
+        }
+        return shared;
+    }
+
 private:
     basic_keypair() noexcept = default;
 
@@ -474,6 +501,12 @@ struct p_curve_engine<families::p256, Backend> {
     /** Never called; fails closed. */
     template <class... Arguments>
     [[nodiscard]] static boost::system::result<void> sign(Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> ecdh_x(Arguments&&... /*arguments*/) noexcept {
         return error::backend_failure;
     }
 

@@ -432,7 +432,8 @@ struct p_curve_state<families::p256, backends::bearssl> {
 
 /**
  * P-256 on BearSSL: the point of a key pair computed once by `mulgen`, a public point checked
- * by BearSSL's decoding, ECDSA with RFC 6979's nonce and its DER conversions. BearSSL allocates
+ * by BearSSL's decoding, ECDSA with RFC 6979's nonce and its DER conversions, ECDH's raw x
+ * coordinate. BearSSL allocates
  * nothing; its curve code never fails on a valid input.
  */
 template <>
@@ -506,6 +507,38 @@ struct p_curve_engine<families::p256, backends::bearssl> {
                                   output.data()) != output.size()) {
             return error::backend_failure;
         }
+        return {};
+    }
+
+    /**
+     * ECDH: the peer's point multiplied by the scalar, and the product's x coordinate.
+     *
+     * @param keyed A keyed state.
+     * @param peer The peer's uncompressed point, valid (its public key was made by BearSSL's
+     * decoding).
+     * @param output 32 bytes, a `secret<32>`'s.
+     * @return Nothing; `backend_failure`, which a valid point and a scalar in range cannot cause.
+     */
+    [[nodiscard]] static boost::system::result<void> ecdh_x(
+        state const& keyed, std::span<std::uint8_t const, 65> peer,
+        std::span<std::uint8_t, 32> output) noexcept {
+        WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
+        read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
+        // BearSSL multiplies in place: the copy becomes d * Q, uncompressed, and is wiped after.
+        std::array<std::uint8_t, 65> shared{};
+        std::ranges::copy(peer, shared.begin());
+        std::uint32_t const multiplied =
+            bearssl_p256()->mul(shared.data(), shared.size(), keyed.scalar.data(),
+                                keyed.scalar.size(), BR_EC_secp256r1);
+        if (multiplied != 1) {
+            wipe_object(shared);
+            return error::backend_failure;  // a validated point and a scalar in range never fail
+        }
+        std::size_t x_size = 0;
+        std::size_t const x_offset = bearssl_p256()->xoff(BR_EC_secp256r1, &x_size);
+        std::ranges::copy(std::span<std::uint8_t const>(shared).subspan(x_offset, x_size),
+                          output.begin());
+        wipe_object(shared);
         return {};
     }
 

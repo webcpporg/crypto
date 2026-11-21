@@ -15,10 +15,10 @@
 // - AES-GCM, gcm<aes128>, gcm<aes192> and gcm<aes256>: make, the move constructor and move
 //   assignment (ruling R3), seal, open, begin_seal, update, result.
 // - ChaCha20-Poly1305, aead: make, seal, open.
-// - P-256, curves::p256: basic_keypair::make, generate, sign_ecdsa; basic_public_key::make
-//   (both); verify_ecdsa, to_der, from_der; not guarded (no BearSSL call): public_key,
-//   secret_scalar, uncompressed, and normalize_ecdsa and check_low_s, which test/timing_test.cpp
-//   calls without a backend.
+// - P-256, curves::p256: basic_keypair::make, generate, sign_ecdsa, ecdh_x;
+//   basic_public_key::make (both); verify_ecdsa, to_der, from_der; not guarded (no BearSSL call):
+//   public_key, secret_scalar, uncompressed, and normalize_ecdsa and check_low_s, which
+//   test/timing_test.cpp calls without a backend.
 
 #include "support/timing_seam.hpp"
 
@@ -173,11 +173,33 @@ void cover_p256_ecdsa() {
     });
 }
 
+// P-256's ECDH: the shared x of RFC 6979's key with its own public key, and the same call on a
+// moved-from key pair, refused with invalid_state before BearSSL, inside its own guard.
+void cover_p256_ecdh() {
+    namespace p256 = crypto::curves::p256;
+    namespace data = webcpp::test::p256;
+    using keypair = p256::basic_keypair<bearssl>;
+    using public_key = p256::basic_public_key<bearssl>;
+    auto made = keypair::make(data::rfc6979_scalar);
+    auto const peer = public_key::make(data::rfc6979_public);
+    if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(peer.has_value())) {
+        return;
+    }
+    webcpp::test::covered("p256::basic_keypair::ecdh_x on bearssl",
+                          [&made, &peer] { BOOST_TEST(made->ecdh_x(*peer).has_value()); });
+    keypair const taken = std::move(*made);
+    webcpp::test::covered("p256::basic_keypair::ecdh_x moved from on bearssl", [&made, &peer] {
+        // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): tested
+        BOOST_TEST(made->ecdh_x(*peer).error() == crypto::error::invalid_state);
+    });
+}
+
 }  // namespace
 
 int main() {
     cover_ciphers();
     cover_p256_keys();
     cover_p256_ecdsa();
+    cover_p256_ecdh();
     return webcpp::test::exit_status(boost::report_errors());
 }

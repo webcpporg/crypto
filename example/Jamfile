@@ -122,6 +122,9 @@ webcpp.example p256_keys.cpp : <library>/webcpp/crypto//p256-default ;
 # The guide's P-256 ECDSA program: RFC 6979's signature of "sample", its low-S
 # form and its DER, both forms verified and another digest refused.
 webcpp.example p256_sign.cpp : <library>/webcpp/crypto//p256-default ;
+# The guide's P-256 ECDH program: two key pairs from fixed scalars agree on the
+# shared x coordinate, then HKDF-SHA-256 derives a key from it.
+webcpp.example p256_ecdh.cpp : <library>/webcpp/crypto//p256-default ;
 
 # The guide's X25519 program: RFC 7748's Alice and Bob, the agreement of two
 # Ed25519 key pairs through their X25519 forms, and a peer of low order

@@ -230,6 +230,8 @@ void moved_from() {
     BOOST_TEST(a.secret_scalar().error() == error::invalid_state);
     BOOST_TEST(a.sign_ecdsa(std::array<std::uint8_t, p256::digest_size>{}).error() ==
                error::invalid_state);
+    auto const peer = b.public_key();
+    BOOST_TEST(peer.has_value() && a.ecdh_x(*peer).error() == error::invalid_state);
     // NOLINTEND(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
     auto const point = b.public_key();
     if (BOOST_TEST(point.has_value())) {

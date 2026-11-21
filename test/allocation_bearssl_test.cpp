@@ -35,7 +35,7 @@
 namespace {
 
 // P-256's functions, each called once: the key pair's make and generate, the public key's two
-// make, and ECDSA's six.
+// make, ECDSA's six and ECDH's ecdh_x.
 void p256_calls() {
     namespace crypto = webcpp::crypto;
     namespace p256 = crypto::curves::p256;
@@ -65,6 +65,7 @@ void p256_calls() {
     }
     BOOST_TEST(p256::normalize_ecdsa(*signature).has_value());
     BOOST_TEST(p256::check_low_s(data::rfc6979_test).has_value());
+    BOOST_TEST(pair->ecdh_x(*key).has_value());
 }
 
 }  // namespace

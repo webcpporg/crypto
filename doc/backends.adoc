@@ -135,9 +135,10 @@ library's own guard as a public operation's code would be, which dudect must
 find: |t| 66.72 and 65.53 against the threshold 10 (2026-11-21 UTC, two runs,
 an Apple M5 Max, a release build). BearSSL's P-256, its `sign_ecdsa` and its `ecdh_x`
 timed against the key pair's scalar, a fixed one against random ones, read |t|
-2.24 and 2.19 natively and 1.36 and 1.85 under wasmtime on wasip2 against the
-same threshold (2026-11-21 UTC, one run each, the same machine shared and
-loaded, a release build).
+2.24 to 2.29 and 1.84 to 2.19 natively and 1.36 to 2.51 and 1.85 to 2.08 under
+wasmtime on wasip2 against the same threshold (2026-11-21 UTC, two runs each,
+the lane's among them, on the same machine shared and loaded, a release
+build).
 
 One measurement is an open finding, listed under the table with its numbers:
 libsodium's X25519 `agree` under wasmtime, on wasip2. Its cause is measured:

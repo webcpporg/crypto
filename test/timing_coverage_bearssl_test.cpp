@@ -39,6 +39,7 @@
 #include <array>
 #include <cstdint>
 #include <span>
+#include <utility>
 
 namespace {
 
@@ -102,8 +103,25 @@ void cover_p256_keys() {
                             [&key] { BOOST_TEST(key->uncompressed() == data::rfc6979_public); });
 }
 
+// P-256's sign_ecdsa on a moved-from key pair: refused with invalid_state before BearSSL, inside
+// its own guard.
+void cover_p256_sign_moved_from(std::span<std::uint8_t const, 32> digest) {
+    namespace p256 = crypto::curves::p256;
+    namespace data = webcpp::test::p256;
+    using keypair = p256::basic_keypair<bearssl>;
+    auto source = keypair::make(data::rfc6979_scalar);
+    if (BOOST_TEST(source.has_value())) {
+        keypair const taken = std::move(*source);
+        webcpp::test::covered(
+            "p256::basic_keypair::sign_ecdsa moved from on bearssl", [&source, &digest] {
+                // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): tested
+                BOOST_TEST(source->sign_ecdsa(digest).error() == crypto::error::invalid_state);
+            });
+    }
+}
+
 // P-256's ECDSA: the signature, its verification, and DER both ways, each refused once before
-// BearSSL (an r of 0, a short buffer, an empty DER).
+// BearSSL (a moved-from key pair, an r of 0, a short buffer, an empty DER).
 void cover_p256_ecdsa() {
     namespace p256 = crypto::curves::p256;
     namespace data = webcpp::test::p256;
@@ -124,6 +142,7 @@ void cover_p256_ecdsa() {
         auto const signature = made->sign_ecdsa(digest);
         BOOST_TEST(signature.has_value() && *signature == data::rfc6979_test);
     });
+    cover_p256_sign_moved_from(digest);
     webcpp::test::covered("p256::verify_ecdsa on bearssl", [&key, &digest] {
         BOOST_TEST(p256::verify_ecdsa(data::rfc6979_test, digest, *key).has_value());
     });

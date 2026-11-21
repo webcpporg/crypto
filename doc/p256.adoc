@@ -80,7 +80,12 @@ include::{examples}/p256_keys.expected[]
 
 * A scalar stored outside a `secret<32>` outlives the key pair: the key pair
 and the `secret<32>` that `secret_scalar` returns wipe their bytes, but a copy in a string, a log or
-a file stays where it was written. Keep the scalar in the `secret<32>` until it
+a file stays where it was written. What webcpp wipes is what it owns: BearSSL's
+own signing keeps the scalar, the nonce and the state that derives the nonce in
+its stack frame and returns without zeroing them
+(link:https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ecdsa_i31_sign_raw.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l45[BearSSL's
+ecdsa_i31_sign_raw.c, lines 45 to 51 and 115 to 135]), where a later call
+overwrites them; nothing in webcpp can reach that frame. Keep the scalar in the `secret<32>` until it
 is encrypted or written to the key store, and never print it.
 * A peer's key is made into a `public_key` once, where it arrives, and kept:
 made again for every message, it costs a point check each time, and code that
@@ -97,7 +102,10 @@ takes; a key a tool sends compressed is decompressed by that tool first.
 [#crypto-p256-ecdsa]
 ==== ECDSA
 
-ECDSA signs a *digest*, not a message: the program hashes the message with
+ECDSA signs bytes so that anyone who holds the public key, a browser's
+WebCrypto included, can check who signed them and that nothing changed: a
+handshake, a token, a record a peer sends on. It signs a *digest*, not a
+message: the program hashes the message with
 SHA-256, then `keypair::sign_ecdsa(digest)` signs those 32 bytes, as
 WebCrypto's `+sign({name: "ECDSA", hash: "SHA-256"}, ...)+` hashes and signs in one
 call (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]) and passkeys' ES256 does
@@ -124,7 +132,7 @@ A signature has two forms. The *raw* form, 64 bytes, r then s at 32 bytes each
 `sign_ecdsa` and `verify_ecdsa` take: what WebCrypto signs and verifies
 (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]) and what a JSON Web Token's
 ES256 carries (link:https://www.rfc-editor.org/rfc/rfc7518#section-3.4[RFC
-7518, section 3.4]). *DER*, a SEQUENCE of two INTEGERs of 8 to 72 bytes, is the
+7518, section 3.4]). *DER*, 8 to 72 bytes: a SEQUENCE of two INTEGERs, is the
 form of X.509 certificates and OpenSSL
 (link:https://www.rfc-editor.org/rfc/rfc3279#section-2.2.3[RFC 3279, section
 2.2.3]): `to_der(signature, output)` writes it into at least `max_der_size`

@@ -7,7 +7,8 @@
 // P-256 ECDSA on BearSSL: RFC 6979's two SHA-256 signatures byte for byte, the same on every
 // signing; verification of both forms of a signature and every refusal (a bit of the digest, of
 // r or of s, another key, r or s 0 or n), and the digests 0 modulo n that BearSSL refuses; low S,
-// checked and normalized, at its boundary and over 1,000 signatures of random digests; DER both
+// checked and normalized, at its boundary and over 1,000 signatures of random digests under a
+// key, both drawn from a printed seed that a define replays; DER both
 // ways against encodings written by hand, the short buffer, the strict decoder's refusals and
 // integers shorter than 32 bytes.
 
@@ -117,23 +118,30 @@ void verify_both_forms() {
         return p256::verify_ecdsa(value, hash, *key).error() == error::invalid_signature;
     };
     BOOST_TEST(refused(data::rfc6979_test, sample));
-    auto flipped_digest = test;
-    flipped_digest[7] ^= 0x10U;
-    BOOST_TEST(refused(data::rfc6979_test, flipped_digest));
-    auto flipped_r = data::rfc6979_test;
-    flipped_r[3] ^= 0x01U;
-    BOOST_TEST(refused(flipped_r, test));
-    auto flipped_s = data::rfc6979_test;
-    flipped_s[60] ^= 0x80U;
-    BOOST_TEST(refused(flipped_s, test));
+    BOOST_TEST(refused(data::rfc6979_sample, test));
 
     auto const other = keypair::generate();
-    if (BOOST_TEST(other.has_value())) {
-        auto const other_key = other->public_key();
-        if (BOOST_TEST(other_key.has_value())) {
-            BOOST_TEST(p256::verify_ecdsa(data::rfc6979_test, test, *other_key).error() ==
-                       error::invalid_signature);
-        }
+    auto const other_key = other ? other->public_key() : other.error();
+    if (!BOOST_TEST(other_key.has_value())) {
+        return;
+    }
+    // Each signature, the RFC's high S, its low-S form and the low "test" one: one bit of the
+    // digest, of r or of s flipped, and another key, each refused.
+    for (auto const& [value, hash] : {
+             std::pair{data::rfc6979_sample, sample},
+             std::pair{data::rfc6979_sample_low_s, sample},
+             std::pair{data::rfc6979_test, test},
+         }) {
+        auto flipped_digest = hash;
+        flipped_digest[7] ^= 0x10U;
+        BOOST_TEST(refused(value, flipped_digest));
+        auto flipped_r = value;
+        flipped_r[3] ^= 0x01U;
+        BOOST_TEST(refused(flipped_r, hash));
+        auto flipped_s = value;
+        flipped_s[60] ^= 0x80U;
+        BOOST_TEST(refused(flipped_s, hash));
+        BOOST_TEST(p256::verify_ecdsa(value, hash, *other_key).error() == error::invalid_signature);
     }
 
     std::array<std::uint8_t, 32> const zero{};
@@ -195,23 +203,42 @@ void low_s() {
     }
 }
 
+// The seed of low_s_random: drawn on each run and printed; a run is replayed by building with
+// the printed value, define=WEBCPP_TEST_P256_SEED=<seed> on b2's command line, with -a or a
+// build directory of its own, since a define alone does not make b2 build the test again.
+std::uint64_t random_seed() {
+#ifdef WEBCPP_TEST_P256_SEED
+    return WEBCPP_TEST_P256_SEED;
+#else
+    return std::random_device{}();
+#endif
+}
+
 void low_s_random() {
-    auto const key = keypair::generate();
-    if (!BOOST_TEST(key.has_value())) {
-        return;
+    std::uint64_t const seed = random_seed();
+    std::cout << "low_s_random: seed " << seed << " (replay: define=WEBCPP_TEST_P256_SEED=" << seed
+              << ")\n";
+    std::mt19937_64 generator(seed);
+    auto const draw = [&generator](std::span<std::uint8_t> bytes) {
+        std::ranges::generate(bytes,
+                              [&generator] { return static_cast<std::uint8_t>(generator()); });
+    };
+    // The key is drawn from the seed too, so that the seed replays the whole run.
+    std::array<std::uint8_t, 32> scalar{};
+    draw(scalar);
+    auto key = keypair::make(scalar);
+    while (!key) {
+        draw(scalar);
+        key = keypair::make(scalar);
     }
     auto const verifier = key->public_key();
     if (!BOOST_TEST(verifier.has_value())) {
         return;
     }
-    std::uint64_t const seed = std::random_device{}();
-    std::cout << "low_s_random: seed " << seed << '\n';
-    std::mt19937_64 generator(seed);
     int high = 0;
     for (int i = 0; i < 1000; ++i) {
         digest hash{};
-        std::ranges::generate(hash,
-                              [&generator] { return static_cast<std::uint8_t>(generator()); });
+        draw(hash);
         auto const signed_hash = key->sign_ecdsa(hash);
         if (!BOOST_TEST(signed_hash.has_value())) {
             return;

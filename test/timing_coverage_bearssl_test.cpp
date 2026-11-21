@@ -16,9 +16,9 @@
 //   assignment (ruling R3), seal, open, begin_seal, update, result.
 // - ChaCha20-Poly1305, aead: make, seal, open.
 // - P-256, curves::p256: basic_keypair::make, generate, sign_ecdsa, ecdh_x;
-//   basic_public_key::make (both); verify_ecdsa, to_der, from_der; not guarded (no BearSSL call):
-//   public_key, secret_scalar, uncompressed, and normalize_ecdsa and check_low_s, which
-//   test/timing_test.cpp calls without a backend.
+//   basic_public_key::make (both); verify_ecdsa, to_der, from_der; decode_spki, decode_pkcs8; not
+//   guarded (no BearSSL call): public_key, secret_scalar, uncompressed, encode_spki, encode_pkcs8,
+//   and normalize_ecdsa and check_low_s, which test/timing_test.cpp calls without a backend.
 
 #include "support/timing_seam.hpp"
 
@@ -27,6 +27,7 @@
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
+#include <webcpp/crypto/curves/p256/formats.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -194,6 +195,41 @@ void cover_p256_ecdh() {
     });
 }
 
+// P-256's formats: the decoders, with an encoding each and one refused before BearSSL, inside
+// their own guards (make's, which they call, is entered after theirs); the encoders copy what the
+// key and the key pair hold and enter no guard.
+void cover_p256_formats() {
+    namespace p256 = crypto::curves::p256;
+    namespace data = webcpp::test::p256;
+    using keypair = p256::basic_keypair<bearssl>;
+    auto const made = keypair::make(data::rfc6979_scalar);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    auto const key = made->public_key();
+    if (!BOOST_TEST(key.has_value())) {
+        return;
+    }
+    std::array<std::uint8_t, p256::max_spki_size> spki{};
+    std::array<std::uint8_t, p256::max_pkcs8_size> pkcs8{};
+    webcpp::test::uncovered("p256::encode_spki on bearssl",
+                            [&] { BOOST_TEST(p256::encode_spki(*key, spki).has_value()); });
+    webcpp::test::uncovered("p256::encode_pkcs8 on bearssl",
+                            [&] { BOOST_TEST(p256::encode_pkcs8(*made, pkcs8).has_value()); });
+    webcpp::test::covered("p256::decode_spki on bearssl",
+                          [&] { BOOST_TEST(p256::decode_spki<bearssl>(spki).has_value()); });
+    webcpp::test::covered("p256::decode_spki of a short encoding on bearssl", [&] {
+        BOOST_TEST(p256::decode_spki<bearssl>(std::span(spki).first(1)).error() ==
+                   crypto::error::invalid_encoding);
+    });
+    webcpp::test::covered("p256::decode_pkcs8 on bearssl",
+                          [&] { BOOST_TEST(p256::decode_pkcs8<bearssl>(pkcs8).has_value()); });
+    webcpp::test::covered("p256::decode_pkcs8 of a short encoding on bearssl", [&] {
+        BOOST_TEST(p256::decode_pkcs8<bearssl>(std::span(pkcs8).first(1)).error() ==
+                   crypto::error::invalid_encoding);
+    });
+}
+
 }  // namespace
 
 int main() {
@@ -201,5 +237,6 @@ int main() {
     cover_p256_keys();
     cover_p256_ecdsa();
     cover_p256_ecdh();
+    cover_p256_formats();
     return webcpp::test::exit_status(boost::report_errors());
 }

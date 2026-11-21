@@ -33,6 +33,23 @@ tests compare every byte with OpenSSL's natively and on WASI
 (`formats_25519_openssl_oracle`) and with node's WebCrypto on Emscripten
 (`formats_25519_webcrypto_oracle`), 200 keys per curve each.
 
+For P-256, RFC 5480's SPKI and a PKCS#8 holding RFC 5915's ECPrivateKey are
+fixed layouts too (link:https://www.rfc-editor.org/rfc/rfc5480[RFC 5480];
+link:https://www.rfc-editor.org/rfc/rfc5915[RFC 5915]), on BearSSL:
+`<webcpp/crypto/curves/p256/formats.hpp>` gives `encode_spki`, `decode_spki`,
+`encode_pkcs8` and `decode_pkcs8` in `webcpp::crypto::curves::p256`: an SPKI of 91 bytes with the uncompressed
+point, WebCrypto's `exportKey("spki")` form
+(link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations-export-key[W3C,
+ECDSA's export]), and a PKCS#8 of 138 bytes with the public key and without
+the curve inside the ECPrivateKey, OpenSSL's form
+(link:https://docs.openssl.org/master/man7/EVP_PKEY-EC/[OpenSSL's EVP_PKEY-EC])
+and BearSSL's, which WebCrypto's `importKey("pkcs8")` reads
+(link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations-import-key[W3C,
+ECDSA's import]). A compressed point, explicit curve parameters and a PKCS#8
+that carries the curve inside its ECPrivateKey, the form the W3C text gives
+WebCrypto's `exportKey("pkcs8")`, are refused; `pem` armours both
+(<<crypto-p256-formats>>).
+
 `<webcpp/crypto/curves/ed25519/formats.hpp>` gives, in
 `webcpp::crypto::curves::ed25519`, `encode_spki(public_key, out)`,
 `decode_spki(spki)`, `encode_pkcs8(keypair, out)` and `decode_pkcs8(pkcs8)`,

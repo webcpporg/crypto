@@ -41,6 +41,7 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
 # BearSSL linked, on every target.
 webcpp.headers-alone crypto : ../include
   : crypto/ciphers/aes256_gcm.hpp crypto/backends/bearssl.hpp crypto/curves/p256.hpp
+    crypto/curves/p256/formats.hpp
   : <library>/third_party//bearssl ;
 # The backend OpenSSL's header, with OpenSSL linked; BearSSL,
 # ctaes, libsecp256k1 and libsodium are linked too, so that every public
@@ -390,6 +391,12 @@ crypto-run p256_wycheproof_bearssl : p256_wycheproof_bearssl_test.cpp
 crypto-run p256_ecdh_bearssl : p256_ecdh_bearssl_test.cpp
   : <library>/third_party//bearssl <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;
+# P-256's SPKI and PKCS#8 on BearSSL, by fixed layouts: round trips, BearSSL's
+# own PKCS#8 encoder as an oracle of the layout, the strict decoders' refusals,
+# Wycheproof's ECDH SPKIs, and PEM around both on libsodium.
+crypto-run p256_formats_bearssl : p256_formats_bearssl_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium
+    <library>/third_party//wycheproof <library>/webcpp//boost_json ;
 # The backend ctaes: the AES block cipher alone, on every target; FIPS-197 only
 # (ruling R5).
 crypto-run aes_ctaes : aes_ctaes_test.cpp : <library>/third_party//ctaes ;

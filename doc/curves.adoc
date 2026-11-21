@@ -66,12 +66,13 @@ key to it (link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748];
 (<<crypto-kx>>). The fourth is P-256, NIST's curve of FIPS 186-5, the curve of
 browsers' WebCrypto, of passkeys and of TLS certificates, on BearSSL: key pairs
 made from a scalar or drawn, public keys validated once, ECDSA with RFC
-6979's nonce, raw and DER, with low S as two functions, and ECDH's raw x
-coordinate, as WebCrypto's `deriveBits` gives it
-(link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5];
-<<crypto-p256>>, <<crypto-p256-ecdsa>>, <<crypto-p256-ecdh>>). A program chooses a curve for compatibility: a signature on
+6979's nonce, raw and DER, with low S as two functions, ECDH's raw x
+coordinate, as WebCrypto's `deriveBits` gives it, and its keys as SPKI and
+PKCS#8 (link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5];
+<<crypto-p256>>, <<crypto-p256-ecdsa>>, <<crypto-p256-ecdh>>,
+<<crypto-p256-formats>>). A program chooses a curve for compatibility: a signature on
 one curve is checked only with that curve, and a browser's peer needs P-256.
-Ed25519's and X25519's keys leave a program, and enter it, in the standard forms OpenSSL
-and WebCrypto use, SPKI and PKCS#8, as DER or PEM text (<<crypto-key-formats>>).
+Ed25519's, X25519's and P-256's keys leave a program, and enter it, in the standard forms
+OpenSSL and WebCrypto use, SPKI and PKCS#8, as DER or PEM text (<<crypto-key-formats>>).
 
 include::generated/namespace-curves.adoc[]

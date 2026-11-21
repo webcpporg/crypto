@@ -129,7 +129,7 @@
 |`+pem::armour+`, `+pem::unarmour+`
 |libsodium
 |native, wasip2, wasip3, emscripten
-|`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+allocation_sodium+`
+|`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+allocation_sodium+`, `+p256_formats_bearssl+`
 
 |`+curves::x25519::kx_keypair+`
 |libsodium
@@ -257,6 +257,16 @@
 |`+p256_ecdh_bearssl+`, `+allocation_bearssl+`
 
 |`+curves::p256::keypair::ecdh_x+`
+|libsodium
+|refused at compile time
+|`+p256_on_sodium+`
+
+|`+curves::p256::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|BearSSL
+|native, wasip2, wasip3, emscripten
+|`+p256_formats_bearssl+`, `+allocation_bearssl+`
+
+|`+curves::p256::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
 |libsodium
 |refused at compile time
 |`+p256_on_sodium+`
@@ -497,6 +507,12 @@ The same, by target: the backends each operation runs on.
 |BearSSL
 
 |`+curves::p256::keypair::ecdh_x+`
+|BearSSL
+|BearSSL
+|BearSSL
+|BearSSL
+
+|`+curves::p256::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
 |BearSSL
 |BearSSL
 |BearSSL

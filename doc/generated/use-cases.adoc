@@ -263,4 +263,12 @@
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//p256-default+`
 |<<crypto-p256-ecdh,[.keep]`+p256_ecdh.cpp+`>>
+
+|Export or import a P-256 key in the forms OpenSSL and WebCrypto's spki and pkcs8 use (SPKI, PKCS#8), as DER or PEM text
+|In `+curves::p256+`: `+encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`; `+webcpp::crypto::pem::armour+`, `+unarmour+`
+|BearSSL, libsodium for PEM
+|`+/webcpp/crypto//crypto+` +
+`+/webcpp/crypto//p256-default+` +
+`+/webcpp/crypto//pem-default+`
+|<<crypto-p256-formats,[.keep]`+p256_key_formats.cpp+`>>
 |===

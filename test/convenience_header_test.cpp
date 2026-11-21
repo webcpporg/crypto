@@ -30,6 +30,8 @@ static_assert(std::is_same_v<webcpp::crypto::curves::p256::keypair::backend_type
                              webcpp::crypto::backends::bearssl>);
 static_assert(webcpp::crypto::supports_v<webcpp::crypto::curves::p256::keypair,
                                          webcpp::crypto::backends::bearssl>);
+// curves/p256/formats.hpp is included with it.
+static_assert(webcpp::crypto::curves::p256::max_pkcs8_size == 138);
 
 int main() {
     std::array<std::uint8_t, 16> const zero{};

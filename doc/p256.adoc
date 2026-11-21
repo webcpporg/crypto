@@ -279,3 +279,106 @@ derivation, byte for byte.
 alone (link:https://www.w3.org/TR/WebCryptoAPI/#ecdh-operations[W3C, ECDH's
 operations]); the program then takes the same leading bytes of what `ecdh_x`
 returns, or the two sides hash different inputs.
+
+[#crypto-p256-formats]
+==== Keys in files: SPKI, PKCS#8 and PEM
+
+A key that leaves the program for another one, a browser's WebCrypto, OpenSSL's
+command line, a server's configuration file, travels in a standard form that
+names its algorithm and its curve. A public key is an *SPKI*,
+SubjectPublicKeyInfo (link:https://www.rfc-editor.org/rfc/rfc5480[RFC 5480]);
+a key pair is a *PKCS#8* (link:https://www.rfc-editor.org/rfc/rfc5208[RFC
+5208]), which for an elliptic curve holds RFC 5915's ECPrivateKey: the scalar,
+and optionally the curve and the public key
+(link:https://www.rfc-editor.org/rfc/rfc5915[RFC 5915]). These are what
+WebCrypto's `exportKey("spki")` and `exportKey("pkcs8")` produce and its
+`importKey` reads (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]).
+
+On P-256 each has one layout, fixed bytes around the key's own:
+
+* `encode_spki(public_key, output)` writes 91 bytes: 26 that name
+id-ecPublicKey and secp256r1 and open the BIT STRING, then the 65-byte
+uncompressed point. That is the SPKI WebCrypto exports, the named curve and the
+uncompressed form
+(link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations-export-key[W3C,
+ECDSA's export]); `decode_spki(bytes)` reads it back into a `public_key`, its
+point checked as `public_key::make` checks it.
+* `encode_pkcs8(keypair, output)` writes 138 bytes: version 0, the same
+algorithm, and an ECPrivateKey of version 1 with the scalar and the
+uncompressed public key, without the curve inside it. That is the form OpenSSL
+writes for a key in its default uncompressed form
+(link:https://docs.openssl.org/master/man7/EVP_PKEY-EC/[OpenSSL's EVP_PKEY-EC]),
+and BearSSL's own encoder, `br_encode_ec_pkcs8_der`, writes the same bytes,
+which the tests compare; `decode_pkcs8(bytes)` reads it into a key pair, made
+as `keypair::make` makes one.
+
+`max_spki_size` and `max_pkcs8_size`, 91 and 138, size the caller's buffers.
+The encoders copy what the key and the key pair hold, call no BearSSL code,
+and refuse a short buffer with `invalid_input_size` and a moved-from key pair
+with `invalid_state`, writing nothing then.
+
+The decoders are strict (design D30): they accept exactly the bytes the
+encoders write, and refuse anything else with `invalid_encoding`. The point
+must be on the curve, the scalar between 1 and n - 1, and the public key inside
+a PKCS#8 the scalar's own: `decode_pkcs8` makes the key pair and compares its
+point with the one the file carries. Refused, too: another curve, a compressed
+point (BearSSL decodes uncompressed points alone), explicit curve parameters in
+place of the curve's name, a PKCS#8 without its public key, a length in BER's
+long form where DER has the short one, a byte left over. Against Wycheproof's
+612 P-256 ECDH cases whose peer key is an SPKI, the 330 valid ones decode and
+agree on the shared x, the 52 invalid ones are refused, and the 230 acceptable
+ones are refused, each for a form the rule refuses: a compressed point (1),
+ASN.1 that is not the one DER encoding (222), or explicit parameters (7)
+(link:https://github.com/C2SP/wycheproof[Wycheproof]).
+
+PEM is the DER as base64 text between `-----BEGIN PUBLIC KEY-----` or
+`-----BEGIN PRIVATE KEY-----` and its `-----END` line
+(link:https://www.rfc-editor.org/rfc/rfc7468[RFC 7468]). `pem::armour` and
+`pem::unarmour` (`<webcpp/crypto/pem.hpp>`, <<crypto-key-formats>>) write and
+read it around these functions' bytes, with the labels `pem::public_key_label`
+and `pem::private_key_label`, as strictly as the decoders read DER. PEM runs on
+libsodium, whose base64 takes a time that does not depend on the bytes: a
+program that writes or reads PEM links `/webcpp/crypto//pem-default` beside
+`/webcpp/crypto//p256-default`.
+
+include::generated/backends-p256_formats.adoc[]
+
+*Example.* RFC 6979's key: its public key written as PEM SPKI, printed and read
+back; its key pair written as PEM PKCS#8, kept in a `secret<N>` and never
+printed, and read back:
+
+[source,cpp]
+----
+include::{examples}/p256_key_formats.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/p256_key_formats.expected[]
+----
+
+*Pitfalls.*
+
+* The W3C text has a PKCS#8 that WebCrypto exports carry the curve inside its
+ECPrivateKey too, as `[0] parameters`
+(link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations-export-key[W3C,
+ECDSA's export]): 150 bytes, which `decode_pkcs8` refuses like any other
+encoding than its own. WebCrypto's `importKey("pkcs8")` reads the 138 bytes
+`encode_pkcs8` writes, the parameters being optional there
+(link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations-import-key[W3C,
+ECDSA's import]), and OpenSSL's `openssl pkey` rewrites a 150-byte file into
+the 138-byte form, PKCS#8 being what it writes by default
+(link:https://docs.openssl.org/master/man1/openssl-pkey/[OpenSSL's pkey]).
+* `-----BEGIN EC PRIVATE KEY-----`, what `openssl ec` writes, is not PKCS#8: it
+is RFC 5915's ECPrivateKey alone, with the curve's parameters
+(link:https://www.rfc-editor.org/rfc/rfc5915[RFC 5915]), and `pem::unarmour`
+refuses its label. `openssl pkey` turns it into a PKCS#8
+(link:https://docs.openssl.org/master/man1/openssl-pkey/[OpenSSL's pkey]).
+* A lenient parser lets a file say two things at once: RFC 5915 makes the
+public key optional inside ECPrivateKey, so a PKCS#8 can carry a public key
+that is not its scalar's, and a program that shows or checks that key, rather
+than the one the scalar gives, trusts the wrong key. `decode_pkcs8` refuses
+such a file.
+* The PKCS#8, as DER or as PEM, is the secret key in clear: base64 is an
+encoding, not encryption. Keep it in a `secret<N>`, as the example does, and
+seal it before it is written anywhere (<<crypto-wallets>>).

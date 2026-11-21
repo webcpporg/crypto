@@ -124,6 +124,7 @@
         "bip324": ["BIP 324, version 2 P2P encrypted transport protocol", "https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki"],
         "elligatorswift": ["Chavez-Saab, Rodríguez-Henríquez and Tibouchi, SwiftEC: Shallue-van de Woestijne Indifferentiable Function to Elliptic Curves, 2022", "https://eprint.iacr.org/2022/759"],
         "openssl-evp-pkey-ec": ["OpenSSL's EVP_PKEY-EC: an EC key's point form and its encodings", "https://docs.openssl.org/master/man7/EVP_PKEY-EC/"],
+        "openssl-pkey": ["OpenSSL's pkey command: a private key written in PKCS#8 by default", "https://docs.openssl.org/master/man1/openssl-pkey/"],
         "musig2": ["Nick, Ruffing and Seurin, MuSig2: Simple Two-Round Schnorr Multi-Signatures, CRYPTO 2021", "https://eprint.iacr.org/2020/1261"],
         "bip352": ["BIP 352, Silent Payments", "https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki"],
         "libsecp256k1-silentpayments": ["libsecp256k1's silent payments header at webcpp's pin: the smallest outpoint, the outputs to keep, the labels to create", "https://github.com/bitcoin-core/secp256k1/blob/6e2c8bc4ecdc6e71dbe7a368f360d8d453ce435d/include/secp256k1_silentpayments.h"],
@@ -456,7 +457,7 @@
             "header": "<webcpp/crypto/pem.hpp>",
             "what": "PEM (RFC 7468): DER as base64 between `-----BEGIN <label>-----` and `-----END <label>-----`, lines of 64 characters and line feeds, as OpenSSL writes it; read strictly, so that any other text is `invalid_encoding`.",
             "section": "crypto-key-formats",
-            "backends": {"sodium": {"tests": ["formats_25519_sodium", "formats_25519_openssl_oracle", "allocation_sodium"]}}
+            "backends": {"sodium": {"tests": ["formats_25519_sodium", "formats_25519_openssl_oracle", "allocation_sodium", "p256_formats_bearssl"]}}
         },
         {
             "id": "kx_keypair",
@@ -708,6 +709,21 @@
             "section": "crypto-p256-ecdh",
             "backends": {
                 "bearssl": {"tests": ["p256_ecdh_bearssl", "allocation_bearssl"]},
+                "sodium": {"refused": "p256_on_sodium"}
+            }
+        },
+        {
+            "id": "p256_formats",
+            "family": "p256",
+            "free": true,
+            "functions": ["encode_spki", "decode_spki", "encode_pkcs8", "decode_pkcs8"],
+            "namespace": "curves",
+            "api": "curves::p256::encode_spki, decode_spki, encode_pkcs8, decode_pkcs8",
+            "header": "<webcpp/crypto/curves/p256/formats.hpp>",
+            "what": "A public key's SPKI (RFC 5480, the uncompressed point, 91 bytes) and a key pair's PKCS#8 (RFC 5915's ECPrivateKey with its public key and no parameters, 138 bytes), by fixed layouts, decoded strictly: any other bytes are `invalid_encoding`; `pem::armour` makes either PEM text.",
+            "section": "crypto-p256-formats",
+            "backends": {
+                "bearssl": {"tests": ["p256_formats_bearssl", "allocation_bearssl"]},
                 "sodium": {"refused": "p256_on_sodium"}
             }
         }
@@ -1171,7 +1187,8 @@
         {"need": "Share a file with someone known only by a public key, as a file-sharing app does", "namespace": "webcpp::crypto", "api": "`ciphers::secretbox<>` for the file under a key drawn for it, `hybrid::sealed_box::seal` for that key", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default /webcpp/crypto//sealed_box-default /webcpp/crypto//x25519-default", "example": "file_share", "section": "crypto-everyday-files"},
         {"need": "Make and keep a P-256 key pair, and import a browser's public key (WebCrypto's raw form), as webcpp::trystero's peers do", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::make`, `keypair::generate`, `keypair::public_key`, `keypair::secret_scalar`, `public_key::make`", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_keys", "section": "crypto-p256-keys"},
         {"need": "Sign what a browser's WebCrypto verifies and verify what it signs (ECDSA on P-256 with SHA-256), low S where a protocol requires it, as webcpp::trystero's handshakes", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::sign_ecdsa`, `verify_ecdsa`, `normalize_ecdsa`, `check_low_s`; `to_der`, `from_der` for X.509", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_sign", "section": "crypto-p256-ecdsa"},
-        {"need": "Agree on a key with a browser's WebCrypto (ECDH on P-256, deriveBits), then derive the session's keys with HKDF", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::ecdh_x`; `webcpp::hash::hkdf` for the keys", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_ecdh", "section": "crypto-p256-ecdh"}
+        {"need": "Agree on a key with a browser's WebCrypto (ECDH on P-256, deriveBits), then derive the session's keys with HKDF", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::ecdh_x`; `webcpp::hash::hkdf` for the keys", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_ecdh", "section": "crypto-p256-ecdh"},
+        {"need": "Export or import a P-256 key in the forms OpenSSL and WebCrypto's spki and pkcs8 use (SPKI, PKCS#8), as DER or PEM text", "namespace": "webcpp::crypto::curves::p256", "api": "`encode_spki`, `decode_spki`, `encode_pkcs8`, `decode_pkcs8`; `webcpp::crypto::pem::armour`, `unarmour`", "backend": "BearSSL, libsodium for PEM", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default /webcpp/crypto//pem-default", "example": "p256_key_formats", "section": "crypto-p256-formats"}
     ],
     "fixtures": {
         "web": "A web application: AES-256-GCM on BearSSL, the default on WebAssembly.",

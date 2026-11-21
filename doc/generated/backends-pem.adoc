@@ -16,7 +16,7 @@ The backends of `+pem::armour+`, `+pem::unarmour+`, from the test programs that 
 |libsodium
 |`+/third_party//sodium+`
 |`+<webcpp/crypto/backends/sodium.hpp>+`
-|native, wasip2, wasip3, emscripten (tested by `+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+allocation_sodium+`)
+|native, wasip2, wasip3, emscripten (tested by `+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+allocation_sodium+`, `+p256_formats_bearssl+`)
 |===
 
 A call that names no backend takes the family's default on each target, whatever the program links, as <<crypto-backends-defaults>> gives it with its reasons and tests:

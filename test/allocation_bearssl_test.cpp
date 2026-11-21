@@ -7,13 +7,15 @@
 // On BearSSL nothing allocates (spec section 3.2): make, seal, open, the incremental seal,
 // equal and random_device's fill, ChaCha20-Poly1305's make, seal, open (good and failed)
 // and move, and P-256's key pair make and generate, public key make (of a point and of
-// coordinates), sign_ecdsa, verify_ecdsa, to_der, from_der, normalize_ecdsa and check_low_s
-// make no call of operator new, nor of the C library's
-// allocator where the target lets a program count it; a control proves the counter moves.
+// coordinates), sign_ecdsa, verify_ecdsa, to_der, from_der, normalize_ecdsa, check_low_s,
+// ecdh_x, encode_spki, decode_spki, encode_pkcs8 and decode_pkcs8 make no call of operator new,
+// nor of the C library's allocator where the target lets a program count it; a control proves the
+// counter moves.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
+#include <webcpp/crypto/curves/p256/formats.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: a test
 #include <webcpp/test/exit_status.hpp>
@@ -35,7 +37,7 @@
 namespace {
 
 // P-256's functions, each called once: the key pair's make and generate, the public key's two
-// make, ECDSA's six and ECDH's ecdh_x.
+// make, ECDSA's six, ECDH's ecdh_x and the formats' four.
 void p256_calls() {
     namespace crypto = webcpp::crypto;
     namespace p256 = crypto::curves::p256;
@@ -66,6 +68,12 @@ void p256_calls() {
     BOOST_TEST(p256::normalize_ecdsa(*signature).has_value());
     BOOST_TEST(p256::check_low_s(data::rfc6979_test).has_value());
     BOOST_TEST(pair->ecdh_x(*key).has_value());
+    std::array<std::uint8_t, p256::max_spki_size> spki{};
+    std::array<std::uint8_t, p256::max_pkcs8_size> pkcs8{};
+    BOOST_TEST(p256::encode_spki(*key, spki).has_value());
+    BOOST_TEST(p256::decode_spki<crypto::backends::bearssl>(spki).has_value());
+    BOOST_TEST(p256::encode_pkcs8(*pair, pkcs8).has_value());
+    BOOST_TEST(p256::decode_pkcs8<crypto::backends::bearssl>(pkcs8).has_value());
 }
 
 }  // namespace

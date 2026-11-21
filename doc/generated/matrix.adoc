@@ -229,7 +229,7 @@
 |`+curves::p256::keypair+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
-|`+p256_keys_bearssl+`, `+allocation_bearssl+`
+|`+p256_keys_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`
 
 |`+curves::p256::keypair+`
 |libsodium
@@ -244,7 +244,7 @@
 |`+curves::p256::keypair::sign_ecdsa; verify_ecdsa+`, `+to_der+`, `+from_der+`, `+normalize_ecdsa+`, `+check_low_s+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
-|`+p256_ecdsa_bearssl+`, `+p256_wycheproof_bearssl+`, `+allocation_bearssl+`
+|`+p256_ecdsa_bearssl+`, `+p256_wycheproof_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`
 
 |`+curves::p256::keypair::sign_ecdsa; verify_ecdsa+`, `+to_der+`, `+from_der+`, `+normalize_ecdsa+`, `+check_low_s+`
 |libsodium
@@ -254,7 +254,7 @@
 |`+curves::p256::keypair::ecdh_x+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
-|`+p256_ecdh_bearssl+`, `+allocation_bearssl+`
+|`+p256_ecdh_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`
 
 |`+curves::p256::keypair::ecdh_x+`
 |libsodium
@@ -264,7 +264,7 @@
 |`+curves::p256::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
-|`+p256_formats_bearssl+`, `+allocation_bearssl+`
+|`+p256_formats_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`
 
 |`+curves::p256::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
 |libsodium

@@ -16,7 +16,7 @@ The backends of `+curves::p256::keypair+`, from the test programs that run it:
 |BearSSL
 |`+/third_party//bearssl+`
 |`+<webcpp/crypto/backends/bearssl.hpp>+`
-|native, wasip2, wasip3, emscripten (tested by `+p256_keys_bearssl+`, `+allocation_bearssl+`)
+|native, wasip2, wasip3, emscripten (tested by `+p256_keys_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`)
 
 |libsodium
 |`+/third_party//sodium+`

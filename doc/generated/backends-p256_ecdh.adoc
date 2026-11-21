@@ -16,7 +16,7 @@ The backends of `+curves::p256::keypair::ecdh_x+`, from the test programs that r
 |BearSSL
 |`+/third_party//bearssl+`
 |`+<webcpp/crypto/backends/bearssl.hpp>+`
-|native, wasip2, wasip3, emscripten (tested by `+p256_ecdh_bearssl+`, `+allocation_bearssl+`)
+|native, wasip2, wasip3, emscripten (tested by `+p256_ecdh_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`)
 
 |libsodium
 |`+/third_party//sodium+`

@@ -29,6 +29,21 @@ constant time by design and allocating nothing
 multiplications where the compiler has them, and the 32-bit code on WebAssembly,
 whose 128-bit product is a library call whose timing nobody states.
 
+Two implementations outside webcpp check it, on 200 cases each from a seed the
+test prints. OpenSSL, natively and on WASI (`p256_openssl_oracle`): it signs
+the same digest with RFC 6979's nonce, which its `nonce-type` parameter selects
+(link:https://docs.openssl.org/3.5/man7/EVP_SIGNATURE-ECDSA/[OpenSSL's
+EVP_SIGNATURE-ECDSA]), and gives the same signature; each side verifies the
+other's; its ECDH gives the same x; its SPKI and its PKCS#8 are the bytes the
+encoders write, and it reads theirs as the same key. node's WebCrypto, on
+Emscripten (`p256_webcrypto_oracle`, the ECDSA and ECDH that Trystero's peers
+run): it verifies `sign_ecdsa`'s signature and its low-S form, its own
+signatures verify with `verify_ecdsa`, whatever their S, its `deriveBits` gives
+`ecdh_x`'s bytes, and its `exportKey` of the keys it imported gives
+`encode_spki`'s, `encode_pkcs8`'s and `uncompressed()`'s bytes, byte for byte.
+`p256_webcrypto_oracle_corrupted` flips one bit of one signature and of one
+shared x, and passes only when WebCrypto refuses exactly those two.
+
 [#crypto-p256-keys]
 ==== Key pairs and public keys
 
@@ -370,8 +385,12 @@ include::{examples}/p256_key_formats.expected[]
 inside its ECPrivateKey, as `[0] parameters`
 (link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations-export-key[W3C,
 ECDSA's export]): 150 bytes, which `decode_pkcs8` refuses like any other
-encoding than its own. WebCrypto's `importKey("pkcs8")` reads the 138 bytes
-`encode_pkcs8` writes, the parameters being optional there
+encoding than its own. node's WebCrypto does not: its `exportKey("pkcs8")`
+writes the 138 bytes `encode_pkcs8` writes, which `p256_webcrypto_oracle`
+compares byte for byte, and so does OpenSSL's PrivateKeyInfo encoder; a
+WebCrypto that followed the text would write the 150. WebCrypto's
+`importKey("pkcs8")` reads the 138 bytes `encode_pkcs8` writes, the parameters
+being optional there
 (link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations-import-key[W3C,
 ECDSA's import]), and OpenSSL's `openssl pkey` rewrites a 150-byte file into
 the 138-byte form, PKCS#8 being what it writes by default

@@ -69,6 +69,11 @@ and 200 X25519 agreements, each derived again to the same public key and
 shared secret (`oracle_25519`, which prints `oracle ok 400`).
 `oracle_25519_corrupted` flips one signature and one shared secret, and
 passes only when WebCrypto disagrees on exactly those two.
+P-256 the same way, 200 cases of ECDSA with SHA-256 both ways, ECDH and the
+keys' `spki`, `pkcs8` and `raw` exports (`p256_webcrypto_oracle`, `oracle ok
+800`, and its corrupted twin); and against OpenSSL natively and on WASI, 200
+cases each of RFC 6979 signatures, ECDH and SPKI and PKCS#8
+(`p256_openssl_oracle`, `oracle ok 600`) (<<crypto-p256>>).
 * *The backends against each other,* on random keys, IVs, additional data and
 messages of every size around a block's: BearSSL and OpenSSL seal the same
 bytes with AES-GCM and each opens what the other sealed, with BearSSL on its

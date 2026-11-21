@@ -16,7 +16,7 @@ The backends of `+curves::p256::keypair::sign_ecdsa; verify_ecdsa+`, `+to_der+`,
 |BearSSL
 |`+/third_party//bearssl+`
 |`+<webcpp/crypto/backends/bearssl.hpp>+`
-|native, wasip2, wasip3, emscripten (tested by `+p256_ecdsa_bearssl+`, `+p256_wycheproof_bearssl+`, `+allocation_bearssl+`)
+|native, wasip2, wasip3, emscripten (tested by `+p256_ecdsa_bearssl+`, `+p256_wycheproof_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`)
 
 |libsodium
 |`+/third_party//sodium+`

@@ -397,6 +397,25 @@ crypto-run p256_ecdh_bearssl : p256_ecdh_bearssl_test.cpp
 crypto-run p256_formats_bearssl : p256_formats_bearssl_test.cpp
   : <library>/third_party//bearssl <library>/third_party//sodium
     <library>/third_party//wycheproof <library>/webcpp//boost_json ;
+# OpenSSL as an outside oracle of P-256 on native, wasip2 and wasip3 (linked in
+# the test alone), from a printed seed, 200 cases each: its RFC 6979 signature
+# of a digest equals ours and each side verifies the other's; its ECDH equals
+# ecdh_x; its SPKI and PrivateKeyInfo decode and encode again to its bytes, and
+# ours load in it to the same key. It prints `oracle ok 600`.
+crypto-run p256_openssl_oracle : p256_openssl_oracle_test.cpp
+  : <library>/webcpp/crypto//openssl <library>/third_party//bearssl
+  : native wasip2 wasip3 ;
+# node's WebCrypto as an outside oracle of P-256 on Emscripten (EM_ASYNC_JS
+# under the JSPI link, as oracle_25519): 200 seeded cases each of ECDSA with
+# SHA-256 both ways, ECDH's 256 bits, and exportKey's spki, pkcs8 and raw equal
+# to ours byte for byte; it prints `oracle ok 800`. p256_webcrypto_oracle_corrupted
+# flips one signature and one shared x and passes only when WebCrypto disagrees
+# on exactly those two checks.
+crypto-run p256_webcrypto_oracle : p256_webcrypto_oracle_test.cpp
+  : <library>/third_party//bearssl <linkflags>-sJSPI : emscripten ;
+crypto-run p256_webcrypto_oracle_corrupted : p256_webcrypto_oracle_test.cpp
+  : <library>/third_party//bearssl <linkflags>-sJSPI
+    <define>WEBCPP_TEST_CRYPTO_ORACLE_CORRUPTED : emscripten ;
 # The backend ctaes: the AES block cipher alone, on every target; FIPS-197 only
 # (ruling R5).
 crypto-run aes_ctaes : aes_ctaes_test.cpp : <library>/third_party//ctaes ;

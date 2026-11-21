@@ -670,7 +670,7 @@
             "what": "A P-256 key pair: made from its 32-byte scalar, refused unless 0 < d < n, or drawn from `random_device`; its validated public key and its scalar, a `secret<32>`.",
             "section": "crypto-p256-keys",
             "backends": {
-                "bearssl": {"tests": ["p256_keys_bearssl", "allocation_bearssl"]},
+                "bearssl": {"tests": ["p256_keys_bearssl", "p256_openssl_oracle", "p256_webcrypto_oracle", "allocation_bearssl"]},
                 "sodium": {"refused": "p256_on_sodium"}
             }
         },
@@ -696,7 +696,7 @@
             "what": "ECDSA over a SHA-256 digest with RFC 6979's nonce, r and s as 64 bytes, verified whatever its S; strict DER both ways; low S as two functions, `normalize_ecdsa` and `check_low_s`, for a protocol that requires it.",
             "section": "crypto-p256-ecdsa",
             "backends": {
-                "bearssl": {"tests": ["p256_ecdsa_bearssl", "p256_wycheproof_bearssl", "allocation_bearssl"]},
+                "bearssl": {"tests": ["p256_ecdsa_bearssl", "p256_wycheproof_bearssl", "p256_openssl_oracle", "p256_webcrypto_oracle", "allocation_bearssl"]},
                 "sodium": {"refused": "p256_on_sodium"}
             }
         },
@@ -710,7 +710,7 @@
             "what": "ECDH with a validated public key: the shared point's raw x coordinate, 32 bytes in a `secret<32>`, as WebCrypto's `deriveBits` gives it; a protocol hashes it into its keys.",
             "section": "crypto-p256-ecdh",
             "backends": {
-                "bearssl": {"tests": ["p256_ecdh_bearssl", "allocation_bearssl"]},
+                "bearssl": {"tests": ["p256_ecdh_bearssl", "p256_openssl_oracle", "p256_webcrypto_oracle", "allocation_bearssl"]},
                 "sodium": {"refused": "p256_on_sodium"}
             }
         },
@@ -725,7 +725,7 @@
             "what": "A public key's SPKI (RFC 5480, the uncompressed point, 91 bytes) and a key pair's PKCS#8 (RFC 5915's ECPrivateKey with its public key and no parameters, 138 bytes), by fixed layouts, decoded strictly: any other bytes are `invalid_encoding`; `pem::armour` makes either PEM text.",
             "section": "crypto-p256-formats",
             "backends": {
-                "bearssl": {"tests": ["p256_formats_bearssl", "allocation_bearssl"]},
+                "bearssl": {"tests": ["p256_formats_bearssl", "p256_openssl_oracle", "p256_webcrypto_oracle", "allocation_bearssl"]},
                 "sodium": {"refused": "p256_on_sodium"}
             }
         }

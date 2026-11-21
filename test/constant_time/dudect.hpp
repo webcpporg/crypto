@@ -9,6 +9,8 @@
 #ifndef WEBCPP_TEST_CRYPTO_DUDECT_HPP
 #define WEBCPP_TEST_CRYPTO_DUDECT_HPP
 
+#include <webcpp/crypto/detail/timing.hpp>
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -21,11 +23,6 @@
 
 #ifdef _MSC_VER
 #include <intrin.h>
-#endif
-#if defined(__aarch64__) && defined(__APPLE__)
-#include <sys/sysctl.h>
-#elif defined(__aarch64__) && defined(__linux__)
-#include <sys/auxv.h>
 #endif
 
 namespace webcpp::test {
@@ -51,111 +48,39 @@ inline void serialise() noexcept {
 #endif
 }
 
-/** What a dudect program finds of arm64's DIT (Data Independent Timing) bit, PSTATE.DIT. */
-enum class timing_mode : std::uint8_t {
-    /** Neither macOS nor Linux on arm64: x86, WebAssembly (where the engine decides), and arm64
-       systems the harness does not cover, MSVC on ARM64 among them, which it measures without
-       DIT. */
-    not_applicable,
-    /** An arm64 CPU without DIT. */
-    no_dit,
-    /** DIT is set for this thread. */
-    set,
-    /** The CPU has DIT and it is not set: the timings would not be those of constant-time code. */
-    unset,
-    /** macOS on arm64, where the CPU's features could not be read: whether it has DIT is not
-       known, and the run is not measured without it. */
-    unreadable,
-};
-
-/** Whether the CPU has DIT, as the system reports it. */
-enum class dit_support : std::uint8_t {
-    /** The CPU has DIT. */
-    present,
-    /** The CPU has no DIT. */
-    absent,
-    /** macOS on arm64, `hw.optional.arm.FEAT_DIT` could not be read. */
-    unreadable,
-    /** Neither macOS nor Linux on arm64: the harness does not read it. */
-    not_applicable,
-};
-
 /**
- * Whether the CPU has DIT: `hw.optional.arm.FEAT_DIT` on macOS, `HWCAP_DIT` on Linux, both on
- * arm64.
- * @return `present`, `absent`, `unreadable` where macOS's read fails, or `not_applicable`
- * elsewhere.
+ * Prints, in one line, what the program finds of 64-bit ARM's DIT (Data Independent Timing) bit,
+ * PSTATE.DIT, and whether the measurements may go on. The harness never sets DIT: the library sets
+ * it in each public call (detail::timing_guard), and the lane measures that, what a program gets.
+ * Where the CPU has DIT, it must be clear on this thread outside the library's calls, or the
+ * timings would be those of a DIT the program set itself, not the library's. Without DIT,
+ * X25519's agreement on libsodium with an all-zero secret key ran about one nanosecond faster in
+ * 15 microseconds than with random keys (measured natively on an Apple M5 Max: |t| 6.7 to 14.5
+ * against the threshold 10 on 2026-11-19, 4.3 to 7.8 on 2026-11-20); with the library's guard
+ * alone, 1.8 to 2.8 (2026-11-20).
+ * @return false where the CPU has DIT and it is already set on this thread, so that the program
+ * fails rather than measure it; true otherwise: where the CPU has DIT and it is clear, where the
+ * CPU has none, and where the library's guard does not apply (not macOS or Linux on arm64: x86,
+ * WebAssembly, where the engine decides, and Windows on ARM64).
  */
-inline dit_support cpu_dit() noexcept {
-#if defined(__aarch64__) && defined(__APPLE__)
-    int has = 0;
-    std::size_t size = sizeof has;
-    if (sysctlbyname("hw.optional.arm.FEAT_DIT", &has, &size, nullptr, 0) != 0) {
-        return dit_support::unreadable;
+inline bool report_data_independent_timing() noexcept {
+#ifdef WEBCPP_CRYPTO_DETAIL_TIMING_COVERED
+    if (!crypto::detail::cpu_has_dit()) {
+        std::printf("DIT (data-independent timing): not on this CPU\n");
+        return true;
     }
-    return has != 0 ? dit_support::present : dit_support::absent;
-#elif defined(__aarch64__) && defined(__linux__)
-    constexpr unsigned long hwcap_dit = 1UL << 24U;  // HWCAP_DIT, asm/hwcap.h
-    return (getauxval(AT_HWCAP) & hwcap_dit) != 0 ? dit_support::present : dit_support::absent;
+    bool const set = crypto::detail::dit_is_set();
+    std::printf(
+        "DIT (data-independent timing): the CPU has it; the library sets it in each call, the "
+        "harness does not (%s)\n",
+        set ? "set on this thread outside the calls: not measured"
+            : "clear on this thread outside the calls");
+    return !set;
 #else
-    return dit_support::not_applicable;
-#endif
-}
-
-/**
- * Sets DIT for this thread where the CPU has it, on macOS and Linux on arm64, then reads it
- * back. With DIT set, the instructions Arm lists take a time independent of their data; Apple
- * requires it of constant-time code on Apple silicon, and none of the C libraries the lane
- * measures sets it. Without it, X25519's agreement on libsodium with an all-zero secret key ran
- * about one nanosecond faster in 15 microseconds than with random keys (measured natively on an
- * Apple M5 Max, 2026-11-19: |t| 6.7 to 14.5 against the threshold 10 without DIT, 1 to 3.5 with
- * it). The register is named by its encoding (op0 3, op1 3, CRn 4, CRm 2, op2 5), which every
- * assembler takes, with or without an architecture flag. The `isb` after the write is the
- * barrier Apple asks for, so that the code after it runs under the new state.
- * @return `set`; `unset` when the CPU has DIT and it did not take; `no_dit`, `unreadable` or
- * `not_applicable` as cpu_dit finds the CPU.
- */
-inline timing_mode data_independent_timing() noexcept {
-    switch (cpu_dit()) {
-        case dit_support::present: break;
-        case dit_support::absent: return timing_mode::no_dit;
-        case dit_support::unreadable: return timing_mode::unreadable;
-        case dit_support::not_applicable: return timing_mode::not_applicable;
-    }
-#ifdef __aarch64__
-    std::uint64_t state = std::uint64_t{1} << 24U;
-    __asm__ volatile("msr s3_3_c4_c2_5, %0\n\tisb" : : "r"(state) : "memory");
-    __asm__ volatile("mrs %0, s3_3_c4_c2_5" : "=r"(state));
-    return ((state >> 24U) & 1U) != 0 ? timing_mode::set : timing_mode::unset;
-#else
-    return timing_mode::not_applicable;
-#endif
-}
-
-/**
- * Sets DIT where the CPU has it (data_independent_timing), and prints what it found.
- * @return false when the CPU has DIT and it is not set, or when macOS on arm64 could not read
- * whether the CPU has it, so that the program fails rather than measure without it; true
- * otherwise, where there is no DIT to set (an arm64 CPU without it, or not macOS or Linux on
- * arm64, which the harness does not cover).
- */
-inline bool enter_data_independent_timing() noexcept {
-    switch (data_independent_timing()) {
-        case timing_mode::set: std::printf("DIT (data-independent timing): set\n"); return true;
-        case timing_mode::unset:
-            std::printf("DIT (data-independent timing): the CPU has it and it is not set\n");
-            return false;
-        case timing_mode::unreadable:
-            std::printf("DIT (data-independent timing): the CPU's features could not be read\n");
-            return false;
-        case timing_mode::no_dit:
-            std::printf("DIT (data-independent timing): not on this CPU\n");
-            return true;
-        case timing_mode::not_applicable: break;
-    }
     std::printf(
         "DIT (data-independent timing): not applicable here (not macOS or Linux on arm64)\n");
     return true;
+#endif
 }
 
 /** Online mean and variance of one class, Welford's. */

@@ -24,7 +24,7 @@
 #include <optional>
 
 int main() {
-    if (!webcpp::test::enter_data_independent_timing()) {
+    if (!webcpp::test::report_data_independent_timing()) {
         return 1;
     }
     namespace crypto = webcpp::crypto;
@@ -49,7 +49,11 @@ int main() {
         [&] {
 #ifdef WEBCPP_TEST_CRYPTO_PLANTED_LEAK
             // The planted leak: four early-exit scans of the secret key, 128 reads for the
-            // all-zero key and about four for a random one, some tens of nanoseconds.
+            // all-zero key and about four for a random one, some tens of nanoseconds. They run
+            // inside the library's own guard, as a public operation's code would, so that DIT is
+            // set over them where the CPU has it and the lane shows it does not hide a leak of
+            // that size; the agreement's own guard then finds DIT set and leaves it so.
+            webcpp::crypto::detail::timing_guard const timing;
             for (int scan = 0; scan < 4; ++scan) {
                 for (auto const& byte : secret_key) {
                     if (*static_cast<std::uint8_t const volatile*>(&byte) != 0) {

@@ -86,7 +86,7 @@ seal_and_open measure_aead() {
 }  // namespace
 
 int main() {
-    if (!webcpp::test::enter_data_independent_timing()) {
+    if (!webcpp::test::report_data_independent_timing()) {
         return 1;
     }
     namespace crypto = webcpp::crypto;

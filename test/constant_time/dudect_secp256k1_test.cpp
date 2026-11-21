@@ -24,7 +24,7 @@
 #include <utility>
 
 int main() {
-    if (!webcpp::test::enter_data_independent_timing()) {
+    if (!webcpp::test::report_data_independent_timing()) {
         return 1;
     }
     namespace secp256k1 = webcpp::crypto::curves::secp256k1;

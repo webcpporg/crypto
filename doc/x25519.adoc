@@ -72,18 +72,17 @@ them against keys it already trusts.
 secret key: `agree` refuses it, and a program never replaces the refusal with
 a secret of its own choosing.
 * On Apple silicon (and other 64-bit ARM CPUs with DIT, data-independent
-timing), neither webcpp nor libsodium sets DIT, and without it `agree` took a
-time that depends on the secret key: about one nanosecond less for the all-zero
-key, enough for dudect to tell it apart (<<crypto-backends-constant-time>>).
-The lane's dudect sets DIT itself on macOS and Linux on arm64 only, and
-measures without it elsewhere. A program sets DIT around its secret
-operations, as Apple describes
-(link:https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms#Enable-DIT-for-constant-time-cryptographic-operations[Apple, enable DIT for constant-time cryptographic operations];
-`timingsafe_enable_if_supported` from macOS 15.2).
+timing), libsodium's `agree` takes a time that depends on the secret key when
+DIT is clear: about one nanosecond less for the all-zero key, enough for dudect
+to tell it apart (<<crypto-backends-constant-time>>). libsodium does not set
+DIT; webcpp sets it around every call on 64-bit ARM under macOS, iOS, Linux and
+Android where the CPU has it, and restores the thread's state after it, so a
+program does nothing there; on Windows on ARM64 it sets nothing
+(<<crypto-backends-dit>>).
 * On WebAssembly, timing is an open finding: under wasmtime, on wasip2, dudect
 times `agree` against its secret key above the lane's threshold, where every
-native build passes (with DIT set on macOS and Linux on arm64, as the lane
-runs it). The cause is measured: Apple silicon's DIT, which wasmtime does not
+native build passes (with the DIT webcpp sets on 64-bit ARM). The cause is
+measured: Apple silicon's DIT, which wasmtime does not
 set; with DIT set in wasmtime's thread, as an experiment, the case passes.
 The measurement, with its numbers, is in <<crypto-backends-constant-time>> and
 in the curves' comparison table (<<crypto-curves>>); a program that agrees

@@ -5,11 +5,14 @@
 # https://www.boost.org/LICENSE_1_0.txt)
 
 # The throughput of each family's fixed operation per backend (throughput.cpp,
-# bench/operations.hpp). throughput_check is the correctness test of the
-# measured program, run in every lane of test/ (test/Jamfile builds this
-# project): each operation checked once, never timed. The measurement itself
-# is made by hand by collect.py, which runs the program built here at
-# variant=release and writes doc/performance.adoc; no lane measures it.
+# bench/operations.hpp), and the cost of the timing guard every operation runs
+# in (timing.cpp). throughput_check and timing_check are the correctness tests
+# of the measured programs, run in every lane of test/ (test/Jamfile builds
+# this project): each operation checked once, never timed, and the guard's
+# measurement run at 10^3 iterations, its line's form and the thread's DIT
+# checked. The measurements themselves are made by hand by collect.py, which
+# runs the programs built here at variant=release and writes
+# doc/performance.adoc; no lane measures them.
 
 project : requirements <library>/webcpp/crypto//crypto ;
 
@@ -36,3 +39,11 @@ webcpp.run throughput_check : throughput.cpp : $(.requirements) ;
 # run by hand (doc/performance.adoc); no lane measures it.
 exe throughput : throughput.cpp : $(.requirements) <variant>release ;
 explicit throughput ;
+
+# The guard's cost needs no backend: detail/timing.hpp alone.
+webcpp.run timing_check : timing.cpp ;
+
+# The same program at variant=release, the one collect.py --timing measures,
+# built and run by hand (doc/performance.adoc); no lane measures it.
+exe timing : timing.cpp : <variant>release ;
+explicit timing ;

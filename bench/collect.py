@@ -5,19 +5,22 @@
 # accompanying file LICENSE_1_0.txt or copy at
 # https://www.boost.org/LICENSE_1_0.txt)
 
-"""Measures bench/throughput.cpp on each target and renders its data, after webcpp::hash's.
+"""Measures bench/throughput.cpp on each target and bench/timing.cpp natively, and renders their
+data, after webcpp::hash's.
 
     collect.py --exe native=<path> --exe wasip2=<path> ... --invocations 5 \\
+        --timing <path> \\
         --data libs/crypto/doc/performance.json --page libs/crypto/doc/performance.adoc
 
 Run from the superproject's root (the launchers' paths, tools/boost/asio-wasip2/run.sh and its
-wasip3 twin, are relative to it), with the program bench/Jamfile builds at variant=release,
-`b2 libs/crypto/bench//throughput` on each target; --data and --page are relative to the same
-root.
+wasip3 twin, are relative to it), with the programs bench/Jamfile builds at variant=release,
+`b2 libs/crypto/bench//throughput` on each target and `b2 libs/crypto/bench//timing` natively;
+--data and --page are relative to the same root. `--timing` alone, without `--exe`, measures the
+guard again and keeps the data's throughput.
 
 The page is built only from release builds: a program whose build directory, b2's
 bench/<toolset>/<variant>/..., is not variant=release, or does not say, is refused before anything
-runs, and `--render-only` refuses data whose build is not BUILD.
+runs, and `--render-only` refuses data whose build, or whose guard's build, is not BUILD.
 
 Each cell (a family on a backend, on a target) is run INVOCATIONS times, round-robin over the
 cells so that a change of load on a shared machine falls on all of them alike; each invocation
@@ -27,6 +30,13 @@ slowest single run. The operation each cell's program reports must be the one
 doc/tables/crypto.json states for its family (the size matrix's), or the cell is refused. A time
 never fails this script: only a program that does not run, or a cell it does not know, does.
 `--render-only` rewrites the page from the data.
+
+The timing guard's cost (detail::timing_guard, which every public operation holds and which sets
+64-bit ARM's DIT where the CPU has it) is `timing --measure`'s one line: whether the guard sets DIT
+on this machine, and the nanoseconds a guard adds to a call entered from a thread whose DIT is
+clear and from one where it is already set, each the median of five runs of 10^7 guards minus an
+empty loop's. The data keeps it under "timing_guard" with the date, the machine and the load; the
+page renders it as a paragraph and a two-row table under the throughput.
 
 libsodium's x86-64 assembly (HAVE_AMD64_ASM, design D7) is recorded beside the table as not
 measured yet, with its reason, until an x86-64 machine runs a scratch build of it by hand.
@@ -77,7 +87,8 @@ def variant_of(exe):
 
 
 def check_release(exes):
-    """Exits naming each program not built at variant=release, before anything runs."""
+    """Exits naming each program not built at variant=release, before anything runs; exes maps
+    a target, or "timing" for the guard's program, to its path."""
     others = []
     for target, exe in exes.items():
         variant = variant_of(exe)
@@ -197,6 +208,29 @@ def measure(exes, invocations):
     }
 
 
+def measure_timing(exe):
+    """The guard's cost, timing --measure's line, natively, with when, where and under what load
+    it was measured."""
+    loads = [os.getloadavg()]
+    line = run("native", [exe, "--measure"]).strip()
+    loads.append(os.getloadavg())
+    result = json.loads(line.splitlines()[-1])
+    return {
+        "measurement": "the nanoseconds detail::timing_guard adds to a call, bench/timing.cpp",
+        "date": datetime.date.today().isoformat(),
+        "machine": machine(),
+        "load_average_before_after": [list(loads[0]), list(loads[1])],
+        "build": BUILD,
+        "target": result["target"],
+        "compiler": result["compiler"],
+        "iterations": result["iterations"],
+        "runs": result["runs"],
+        "dit": result["dit"],
+        "clear_ns": result["clear"],
+        "set_ns": result["set"],
+    }
+
+
 # When the page warns that the machine was loaded: a shared machine shows in the spread before a
 # single core is short, so the threshold is half the cores.
 LOADED_RULE = "the larger of the two 1-minute load averages exceeds half the core count"
@@ -212,6 +246,11 @@ def fmt_load(load):
     return "/".join(f"{x:.0f}" for x in load)
 
 
+def fmt_ns(value):
+    """Nanoseconds as the page shows them: one decimal."""
+    return f"{value:.1f}"
+
+
 def fmt_us(value):
     """Microseconds as the page shows them: two decimals, or three significant digits below 1."""
     return f"{value:,.2f}" if value >= 1 else f"{value:.3g}"
@@ -222,6 +261,72 @@ def per_second(case):
     if case["operation"].startswith("seal of 16 KiB"):
         return f"{16 / 1024 / (case['median_us'] / 1e6):,.0f} MiB/s"
     return f"{1e6 / case['median_us']:,.0f} operations/s"
+
+
+def render_timing(data, timing, titles, backends):
+    """The guard's paragraph and table, from the data's "timing_guard", or the line saying it is
+    not measured yet."""
+    lines = [
+        "[#crypto-performance-timing]",
+        "==== The timing guard's cost",
+        "",
+        "Every public operation runs inside `detail::timing_guard`, which on 64-bit ARM under",
+        "macOS, iOS, Linux and Android, where the CPU has FEAT_DIT, sets DIT (data-independent",
+        "timing) for the call and restores the thread's state after it",
+        "(<<crypto-backends-constant-time>>): one `mrs`, and where DIT was clear, two `msr`",
+        "each followed by an `isb`. Elsewhere (x86, WebAssembly, Windows on ARM64) it executes",
+        "no instruction.",
+        "",
+    ]
+    if timing is None:
+        return lines + ["Not measured yet.", ""]
+    machine_info = timing["machine"]
+    sets = ("The guard sets DIT on this machine." if timing["dit"] else
+            "The guard does not set DIT on this machine (no FEAT_DIT, or a target it does not "
+            "cover): both rows are the loop's noise.")
+    load = timing["load_average_before_after"]
+    lines += [
+        f"Measured natively on {timing['date']} on {machine_info['cpu']}",
+        f"({machine_info['architecture']}), {machine_info['os']}, built with {timing['build']}",
+        f"by {timing['compiler']} (bench/timing.cpp): each row is the median of",
+        f"{timing['runs']} runs of {timing['iterations']:,} guards around a store, minus the",
+        f"median of the same loop without the guard, in nanoseconds per call. {sets}",
+        f"The machine's 1, 5 and 15 minute load averages were {fmt_load(load[0])} before and",
+        f"{fmt_load(load[1])} after, on {machine_info['cores']} cores.",
+        "",
+    ]
+    if loaded(timing):
+        lines += [
+            "WARNING: the machine was shared and loaded while this was measured (rule: "
+            + LOADED_RULE + ").",
+            "",
+        ]
+    lines += [
+        '[cols="2,4,1",options="header"]',
+        "|===",
+        "| The thread's DIT on entry | What the guard does | Cost (ns per call)",
+        "",
+        "| clear, as a program that sets nothing has it",
+        "| reads DIT, sets it, and clears it on the way out",
+        f"| {fmt_ns(timing['clear_ns'])}",
+        "",
+        "| already set, by the program or by an outer guard",
+        "| reads DIT and leaves it set",
+        f"| {fmt_ns(timing['set_ns'])}",
+        "|===",
+        "",
+    ]
+    native = [c for c in data["cases"] if c["target"] == "native"]
+    if native:
+        shortest = min(native, key=lambda c: c["median_us"])
+        lines += [
+            "For scale, the shortest operation of the table above natively,",
+            f"{titles[shortest['family']]} ({shortest['operation']}) on",
+            f"{backends[shortest['backend']]}, takes {fmt_ns(shortest['median_us'] * 1000)} ns,",
+            "its guard included.",
+            "",
+        ]
+    return lines
 
 
 def render(data, page):
@@ -304,8 +409,23 @@ def render(data, page):
         + data["amd64_asm"]["reason"],
         "",
     ]
+    lines += render_timing(data, data.get("timing_guard"), titles, backends)
     with open(page, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
+
+
+def read_release_data(path):
+    """The data at path; exits when it, or its guard's measurement, was not built at BUILD."""
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    if data.get("build") != BUILD:
+        sys.exit(f"collect.py: {path} was measured with build {data.get('build')}, not "
+                 f"{BUILD}: {RELEASE_ONLY}")
+    timing = data.get("timing_guard")
+    if timing is not None and timing.get("build") != BUILD:
+        sys.exit(f"collect.py: {path}'s timing guard was measured with build "
+                 f"{timing.get('build')}, not {BUILD}: {RELEASE_ONLY}")
+    return data
 
 
 def main():
@@ -314,22 +434,32 @@ def main():
     parser.add_argument("--invocations", type=int, default=5)
     parser.add_argument("--data", required=True)
     parser.add_argument("--page", required=True)
+    parser.add_argument("--timing", metavar="PATH",
+                        help="bench/Jamfile's timing at variant=release, run natively")
     parser.add_argument("--render-only", action="store_true")
     args = parser.parse_args()
     if args.render_only:
-        with open(args.data, encoding="utf-8") as f:
-            data = json.load(f)
-        if data.get("build") != BUILD:
-            sys.exit(f"collect.py: {args.data} was measured with build {data.get('build')}, not "
-                     f"{BUILD}: {RELEASE_ONLY}")
+        data = read_release_data(args.data)
     else:
         exes = dict(item.split("=", 1) for item in args.exe)
         unknown = sorted(set(exes) - set(TARGETS))
         if unknown:
             sys.exit(f"collect.py: no target {', '.join(unknown)}; the targets are "
                      f"{', '.join(TARGETS)}")
-        check_release(exes)
-        data = measure(exes, args.invocations)
+        if not exes and args.timing is None:
+            sys.exit("collect.py: nothing to measure: give --exe, --timing or --render-only")
+        check_release({**exes, **({"timing": args.timing} if args.timing else {})})
+        if exes:
+            data = measure(exes, args.invocations)
+            if args.timing is None and Path(args.data).exists():
+                # The guard's cost is kept until it is measured again.
+                kept = read_release_data(args.data).get("timing_guard")
+                if kept is not None:
+                    data["timing_guard"] = kept
+        else:
+            data = read_release_data(args.data)
+        if args.timing is not None:
+            data["timing_guard"] = measure_timing(args.timing)
         with open(args.data, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
             f.write("\n")

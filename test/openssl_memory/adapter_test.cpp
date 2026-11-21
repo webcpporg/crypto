@@ -6,9 +6,11 @@
 
 // The adapter's C functions, called directly (spec section 3.7): 0 bytes and a size whose
 // header overflows give null without asking the resource; a block is aligned as malloc's;
-// realloc grows, shrinks, frees at 0 and, when the resource fails, returns null and
-// leaves the old block valid; a resource that throws (with exceptions) or returns null
-// (without) is a null for OpenSSL.
+// realloc grows, shrinks, frees at 0 and, with exceptions, when the resource throws, returns
+// null and leaves the old block valid; a resource that throws is a null for OpenSSL. A
+// resource never returns null, which allocate is declared never to do (doc/memory.adoc):
+// without exceptions one that cannot allocate ends the process, so there is no failure for
+// the adapter to see, and that part runs with exceptions only.
 
 #include <webcpp/crypto/backends/openssl.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -31,7 +33,9 @@ class test_resource final : public std::pmr::memory_resource {
 public:
     std::size_t allocations = 0;
     std::size_t live = 0;
+#ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
     bool failing = false;
+#endif
     // Every deallocate whose (pointer, size, alignment) is not what do_allocate gave out.
     std::size_t mismatches = 0;
     // The size and alignment of the latest successful allocate.
@@ -48,13 +52,11 @@ private:
     std::vector<record> records_;
 
     void* do_allocate(std::size_t size, std::size_t alignment) override {
+#ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
         if (failing) {
-#ifdef WEBCPP_CRYPTO_NO_EXCEPTIONS
-            return nullptr;
-#else
             boost::throw_exception(std::bad_alloc());
-#endif
         }
+#endif
         ++allocations;
         ++live;
         last_size = size;
@@ -93,6 +95,22 @@ test_resource& the_resource() noexcept {
     return *resource;
 }
 
+#ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+/**
+ * A resource that throws: malloc and realloc give null, and the old block stays valid.
+ *
+ * @param shrunk A block of 4 bytes, "0123".
+ */
+void check_throwing_resource(void* shrunk) {
+    auto& resource = the_resource();
+    resource.failing = true;
+    BOOST_TEST(webcpp_crypto_openssl_malloc(8, __FILE__, __LINE__) == nullptr);
+    BOOST_TEST(webcpp_crypto_openssl_realloc(shrunk, 64, __FILE__, __LINE__) == nullptr);
+    BOOST_TEST(std::memcmp(shrunk, "0123", 4) == 0);  // the old block is still valid
+    resource.failing = false;
+}
+#endif
+
 }  // namespace
 
 std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept {
@@ -101,7 +119,7 @@ std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept {
 
 int main() {
     namespace detail = webcpp::crypto::detail;
-    auto& resource = the_resource();
+    auto const& resource = the_resource();
     BOOST_TEST(webcpp_crypto_openssl_malloc(0, __FILE__, __LINE__) == nullptr);
     BOOST_TEST(webcpp_crypto_openssl_malloc((std::numeric_limits<std::size_t>::max)() - 3, __FILE__,
                                             __LINE__) == nullptr);
@@ -123,11 +141,9 @@ int main() {
     BOOST_TEST_EQ(resource.last_size, detail::openssl_block_alignment + 4);
     BOOST_TEST_EQ(resource.mismatches, 0U);  // the 1000-byte block went back with its size
 
-    resource.failing = true;
-    BOOST_TEST(webcpp_crypto_openssl_malloc(8, __FILE__, __LINE__) == nullptr);
-    BOOST_TEST(webcpp_crypto_openssl_realloc(shrunk, 64, __FILE__, __LINE__) == nullptr);
-    BOOST_TEST(std::memcmp(shrunk, "0123", 4) == 0);  // the old block is still valid
-    resource.failing = false;
+#ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+    check_throwing_resource(shrunk);
+#endif
 
     BOOST_TEST(webcpp_crypto_openssl_realloc(shrunk, 0, __FILE__, __LINE__) == nullptr);
     BOOST_TEST_EQ(resource.live, 0U);

@@ -11,10 +11,11 @@
 // exit check: main returns 3, and when OpenSSL's cleanup has given every block back after
 // main, the resource writes its line and ends the process with 0. Its destructor, which
 // must never run, writes a line and ends it with 4 (C7); a table with no free slot left
-// writes a line and ends it with 6. The C library's counter is the interposer's
-// (interpose_*.cpp, picked by the Jamfile per target-os). Beside them: OpenSSL's error
-// queue drained and an entry of the test's raised in it, and another party's memory
-// functions, which a test installs as a library other than webcpp would.
+// writes a line and ends it with 6; an armed failure without exceptions writes a line and
+// ends it with 7, since a resource never returns null (doc/memory.adoc). The C library's
+// counter is the interposer's (interpose_*.cpp, picked by the Jamfile per target-os).
+// Beside them: OpenSSL's error queue drained and an entry of the test's raised in it, and
+// another party's memory functions, which a test installs as a library other than webcpp would.
 // Each program includes this header once: it defines openssl_memory_resource().
 
 #ifndef WEBCPP_TEST_CRYPTO_OPENSSL_MEMORY_SUPPORT_HPP
@@ -111,8 +112,10 @@ public:
     bool foreign_free() const { return foreign_.load(); }
 
     /**
-     * Makes an allocation fail, as Task 15's resource fails: by throwing `std::bad_alloc`, or by
-     * returning null without exceptions.
+     * Makes an allocation fail, as a resource fails: by throwing `std::bad_alloc`; without
+     * exceptions, by ending the process with 7, since `allocate` is declared never to return
+     * null and a null would be written through in a release build. The failing tests therefore
+     * run with exceptions only.
      *
      * @param after The allocations that still succeed before the one that fails.
      */
@@ -181,7 +184,9 @@ private:
     void* do_allocate(std::size_t size, std::size_t alignment) override {
         if (fail_after_.load() != 0 && fail_after_.fetch_sub(1) == 1) {
 #ifdef WEBCPP_CRYPTO_NO_EXCEPTIONS
-            return nullptr;
+            write_out(
+                "the resource cannot allocate, and without exceptions that ends the process\n");
+            end(7);
 #else
             boost::throw_exception(std::bad_alloc());
 #endif

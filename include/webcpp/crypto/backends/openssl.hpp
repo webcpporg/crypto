@@ -88,6 +88,11 @@ namespace webcpp::crypto {
  * On Windows a thread that used OpenSSL keeps its blocks in the resource until the process ends
  * unless it calls `OPENSSL_thread_stop()` before it ends.
  *
+ * A resource that cannot allocate fails as the standard has `do_allocate` fail, by throwing,
+ * never by returning null: libc++ and libstdc++ declare `allocate` never to return null, so an
+ * optimiser removes any check of its result. With exceptions the adapter gives OpenSSL null for
+ * what it throws; without them such a resource ends the process, as `std::pmr`'s own do.
+ *
  * @return The program's resource.
  * @see "OpenSSL's allocations in your own memory resource", in the guide.
  */
@@ -117,7 +122,8 @@ extern "C" {
  * that holds its size.
  *
  * @param size The bytes OpenSSL asks for; 0, or a size whose header overflows, gives null.
- * @return The block, or null, which OpenSSL takes as a failure.
+ * @return The block, or null, which OpenSSL takes as a failure: for those sizes, and with
+ * exceptions for a resource that throws.
  */
 inline void* webcpp_crypto_openssl_malloc(std::size_t size, char const* /*file*/,
                                           int /*line*/) noexcept {
@@ -129,11 +135,9 @@ inline void* webcpp_crypto_openssl_malloc(std::size_t size, char const* /*file*/
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
     try {
 #endif
+        // Never null: a resource fails by throwing (openssl_memory_resource()).
         void* const block =
             webcpp::crypto::openssl_memory_resource().allocate(header + size, header);
-        if (block == nullptr) {
-            return nullptr;
-        }
         std::memcpy(block, &size, sizeof size);
         return static_cast<unsigned char*>(block) + header;
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS

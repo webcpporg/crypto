@@ -7,7 +7,8 @@
 # OpenSSL's memory functions under WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE (spec
 # sections 3.7 and 8.5): each test is a program of its own, since OpenSSL's
 # functions are the process's and cannot be put back once allocated through;
-# each runs with exceptions on and off, on native programs only.
+# each runs with exceptions on and off, on native programs only, but for the
+# failing resource, which runs with exceptions alone.
 project : requirements <library>/webcpp/crypto//openssl ;
 
 import webcpp ;
@@ -42,8 +43,13 @@ memory-run fresh_install : fresh_install_test.cpp : $(.counter) ;
 memory-run forgotten : forgotten_test.cpp : $(.counter) ;
 memory-run replaced : replaced_test.cpp : $(.counter) ;
 memory-run second_install : second_install_test.cpp : $(.counter) ;
-memory-run fail_second : fail_second_test.cpp : $(.counter) ;
-memory-run fail_init : fail_init_test.cpp : $(.counter) ;
+# A resource fails by throwing, never by returning null, which allocate is
+# declared never to do: without exceptions it ends the process, so OpenSSL sees
+# no failure, and these two run with exceptions only (doc/memory.adoc).
+webcpp.run fail_second : fail_second_test.cpp
+  : $(.counter) <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;
+webcpp.run fail_init : fail_init_test.cpp
+  : $(.counter) <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;
 # The same program on an OpenSSL built with threads (MSVC's only build): the
 # failure is not run there, since OpenSSL re-enters its own initialisation.
 memory-run fail_init_threads : fail_init_test.cpp : $(.counter) <threading>multi ;

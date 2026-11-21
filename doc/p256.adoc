@@ -218,7 +218,14 @@ The raw x is exactly what a browser's WebCrypto gives:
 shared point's x coordinate, 256 bits
 (link:https://www.w3.org/TR/WebCryptoAPI/#ecdh-operations[W3C, ECDH's
 operations]), so a program and a browser that hash it the same way derive the
-same keys. The peer's key is a `public_key`, validated when it was made, so
+same keys. Trystero 0.27.0 derives its pairwise keys so: its
+`derivePairwiseAesKey` takes 256 bits from WebCrypto's ECDH `deriveBits` and
+keys HKDF with SHA-256 with them
+(link:https://github.com/dmotz/trystero/blob/8d3f57ef42c3d622840eec479784c99deeeb2d05/packages/core/src/crypto.ts#L303-L328[Trystero
+0.27.0, commit 8d3f57e, packages/core/src/crypto.ts, lines 303 to 328]), and
+its scale manager generates an ECDH P-256 key pair
+(link:https://github.com/dmotz/trystero/blob/8d3f57ef42c3d622840eec479784c99deeeb2d05/packages/core/src/scale/manager.ts#L306[packages/core/src/scale/manager.ts,
+line 306]). The peer's key is a `public_key`, validated when it was made, so
 `ecdh_x` never sees a point off the curve; it refuses a moved-from key pair
 with `invalid_state`. The `secret<32>` and webcpp's own copy of the point are
 wiped, but BearSSL's multiplication leaves the values it computes from the

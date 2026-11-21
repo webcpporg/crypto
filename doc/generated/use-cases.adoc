@@ -257,7 +257,7 @@
 `+/webcpp/crypto//p256-default+`
 |<<crypto-p256-ecdsa,[.keep]`+p256_sign.cpp+`>>
 
-|Agree on a key with a browser's WebCrypto (ECDH on P-256, deriveBits), then derive the session's keys with HKDF
+|Agree on a key with a browser's WebCrypto (ECDH on P-256, deriveBits), then derive the session's keys with HKDF, as Trystero 0.27.0's pairwise keys are derived
 |In `+curves::p256+`: `+keypair::ecdh_x+`; `+webcpp::hash::hkdf+` for the keys
 |BearSSL
 |`+/webcpp/crypto//crypto+` +

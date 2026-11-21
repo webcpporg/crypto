@@ -70,10 +70,16 @@ struct region {
 };
 
 // Whether any byte of the region is not zero, read through a volatile pointer so that the read
-// is neither merged with a store nor dropped.
+// is neither merged with a store nor dropped. The pointer is itself read back from a volatile
+// object, so that the optimiser cannot tell which storage it reads: after a destructor, GCC
+// takes the bytes of the destroyed object for indeterminate (its end-of-lifetime clobber, which
+// -Wuninitialized reports at -O3) and could fold the read. The stores the destructor made, or
+// dropped, are what the read finds.
 template <class T>
 bool any_set(slot<T> const& storage, region where) {
-    auto const* const bytes = reinterpret_cast<unsigned char const volatile*>(storage.bytes.data());
+    auto const* const volatile opaque =
+        reinterpret_cast<unsigned char const volatile*>(storage.bytes.data());
+    unsigned char const volatile* const bytes = opaque;
     for (std::size_t i = where.offset; i < where.offset + where.size; ++i) {
         if (bytes[i] != 0) {
             return true;
@@ -230,8 +236,10 @@ int main() {
         {.offset = 0, .size = sizeof(crypto::detail::block_state<crypto::backends::ctaes, 32>)});
 #elif defined(WEBCPP_TEST_WIPE_SECP256K1)
     // After the context's pointer and the resource's, the key pair of libsecp256k1, which holds
-    // the secret key; the context's pointer is nulled but the resource's stays, so the layout
-    // is part of what this checks (a wrong offset fails the zero reads).
+    // the secret key. The context's pointer is not secret: release() stores null to it, a store
+    // an optimiser may drop at the end of an object's life, which is why the region starts
+    // after it. The resource's pointer stays too, so the layout is part of what this checks (a
+    // wrong offset fails the zero reads).
     using type = crypto::curves::secp256k1::keypair;
     static_assert(sizeof(type) >= (2 * sizeof(void*)) + sizeof(secp256k1_keypair));
     check_wiped<type>({.offset = 2 * sizeof(void*), .size = sizeof(secp256k1_keypair)});

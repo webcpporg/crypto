@@ -12,7 +12,10 @@ hot path, or must allocate only from its own arena. crypto's own code allocates
 one thing: a secp256k1 key pair's signing context, once, in `keypair::make`
 and in `generate`, which allocates through `make`,
 from the `std::pmr::memory_resource` the program passes, which must outlive the
-key pair. Every buffer is the caller's.
+key pair. A resource that cannot allocate throws, as the standard has it, and
+`make` lets the exception through; without exceptions such a resource ends the
+process. It never returns null (<<crypto-memory-openssl>> says why). Every
+buffer is the caller's.
 
 * *Nothing allocates per message, on any backend:* `seal`, `open`,
 `begin_seal`, `update`, `result`, `begin_open`, `authenticate`, `verify`,
@@ -185,9 +188,14 @@ prints how many blocks stay; with threads, as `fail_init_threads`, it prints how
 many blocks the first `make` took instead. After the initialisation, `make`
 gives `not_enough_memory` or `backend_failure`. `seal` and `open` allocate
 nothing. A resource of a fixed size needs room for the first `make`, whose
-allocations the test `allocation_openssl` prints on each run. Without
-exceptions, a resource that throws ends the process; one that returns null
-reports the failure.
+allocations the test `allocation_openssl` prints on each run. A resource
+reports that it cannot allocate as the standard has `do_allocate` report it,
+by throwing, `std::bad_alloc` or another exception, which the adapter turns
+into OpenSSL's null. It never returns null: libc++ and libstdc++ declare
+`allocate` never to return null, so the optimiser removes any check of its
+result, and a null is written through in a release build. Without
+exceptions, a resource that cannot allocate ends the process, as `std::pmr`'s
+own resources do, and the failures above are not reached.
 * *Two allocations stay outside the resource,* because no hook of OpenSSL's
 reaches them: the C library's `FILE` and its buffer while OpenSSL reads its
 configuration file at initialisation (one or two blocks, by C library, freed

@@ -88,6 +88,11 @@ namespace webcpp::crypto {
  * On Windows a thread that used OpenSSL keeps its blocks in the resource until the process ends
  * unless it calls `OPENSSL_thread_stop()` before it ends.
  *
+ * A resource that cannot allocate fails as the standard has `do_allocate` fail, by throwing,
+ * never by returning null: libc++ and libstdc++ declare `allocate` never to return null, so an
+ * optimiser removes any check of its result. With exceptions the adapter gives OpenSSL null for
+ * what it throws; without them such a resource ends the process, as `std::pmr`'s own do.
+ *
  * @return The program's resource.
  * @see "OpenSSL's allocations in your own memory resource", in the guide.
  */
@@ -117,7 +122,8 @@ extern "C" {
  * that holds its size.
  *
  * @param size The bytes OpenSSL asks for; 0, or a size whose header overflows, gives null.
- * @return The block, or null, which OpenSSL takes as a failure.
+ * @return The block, or null, which OpenSSL takes as a failure: for those sizes, and with
+ * exceptions for a resource that throws.
  */
 inline void* webcpp_crypto_openssl_malloc(std::size_t size, char const* /*file*/,
                                           int /*line*/) noexcept {
@@ -129,11 +135,9 @@ inline void* webcpp_crypto_openssl_malloc(std::size_t size, char const* /*file*/
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
     try {
 #endif
+        // Never null: a resource fails by throwing (openssl_memory_resource()).
         void* const block =
             webcpp::crypto::openssl_memory_resource().allocate(header + size, header);
-        if (block == nullptr) {
-            return nullptr;
-        }
         std::memcpy(block, &size, sizeof size);
         return static_cast<unsigned char*>(block) + header;
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
@@ -533,10 +537,13 @@ struct gcm_engine<backends::openssl, KeySize> {
         target_state.context = std::exchange(source_state.context, nullptr);
     }
 
-    // EVP_CIPHER_CTX_free cleanses the expanded key before it frees.
+    // EVP_CIPHER_CTX_free cleanses the expanded key before it frees. The pointer is then
+    // zeroed by wipe_object: a plain store of null is dead at the end of an object's life, and
+    // any optimiser may drop it (GCC 15 at -O3 does).
     /** Frees the context. */
     static void reset(state& engine_state) noexcept {
-        EVP_CIPHER_CTX_free(std::exchange(engine_state.context, nullptr));
+        EVP_CIPHER_CTX_free(engine_state.context);
+        wipe_object(engine_state);
     }
 };
 
@@ -645,10 +652,12 @@ struct aead_engine<families::chacha20_poly1305, backends::openssl> {
         target_state.context = std::exchange(source_state.context, nullptr);
     }
 
-    // EVP_CIPHER_CTX_free cleanses the key before it frees.
+    // EVP_CIPHER_CTX_free cleanses the key before it frees. The pointer is then zeroed by
+    // wipe_object, as GCM's is.
     /** Frees the context. */
     static void reset(state& engine_state) noexcept {
-        EVP_CIPHER_CTX_free(std::exchange(engine_state.context, nullptr));
+        EVP_CIPHER_CTX_free(engine_state.context);
+        wipe_object(engine_state);
     }
 };
 
@@ -707,10 +716,11 @@ struct block_engine<backends::openssl, KeySize> {
         target_state.decrypting = std::exchange(source_state.decrypting, nullptr);
     }
 
-    /** Frees both contexts. */
+    /** Frees both contexts, then zeroes the pointers by wipe_object, as GCM's are. */
     static void reset(state& engine_state) noexcept {
-        EVP_CIPHER_CTX_free(std::exchange(engine_state.encrypting, nullptr));
-        EVP_CIPHER_CTX_free(std::exchange(engine_state.decrypting, nullptr));
+        EVP_CIPHER_CTX_free(engine_state.encrypting);
+        EVP_CIPHER_CTX_free(engine_state.decrypting);
+        wipe_object(engine_state);
     }
 };
 

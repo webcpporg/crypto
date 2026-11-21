@@ -30,8 +30,9 @@ BearSSL exports AES only inside its modes, with no single-block class, so
 cipher, but its `make` does not compile, and a `static_assert` says which
 backends to use (<<crypto-jamfile-messages>>). `aes256<>` names the block
 cipher's default, OpenSSL natively and ctaes on WebAssembly
-(<<crypto-backends-defaults>>), whose header `<webcpp/crypto/ciphers/aes.hpp>`
-brings when it is linked; `aes256_gcm` and `gcm<aes256<>>` name AES-GCM's.
+(<<crypto-backends-defaults>>), and `<webcpp/crypto/ciphers/aes.hpp>` includes
+the default's header when the program links it; `aes256_gcm` and
+`gcm<aes256<>>` name AES-GCM's.
 A program that wants ctaes natively names `aes256<backends::ctaes>` and
 includes `<webcpp/crypto/backends/ctaes.hpp>`.
 ctaes is a constant-time bitsliced AES, the one Bitcoin Core ships

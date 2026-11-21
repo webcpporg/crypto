@@ -30,7 +30,11 @@ multiplications where the compiler has them, and the 32-bit code on WebAssembly,
 whose 128-bit product is a library call whose timing nobody states.
 The constant-time lane runs its key pair's making, signing, ECDH and PKCS#8's
 decoding under memcheck and MemorySanitizer, and times its signing and its ECDH
-with dudect (<<crypto-backends-constant-time>>); its programs' sizes and its
+with dudect (<<crypto-backends-constant-time>>). On 2026-11-21, in an arm64
+Linux container (Valgrind 3.22, clang 18), both checkers found upstream
+BearSSL's signing branching on its nonce's bit length; webcpp's BearSSL carries
+a one-commit fix (<<crypto-backends-bearssl-fix>>), and under it they find
+nothing. Its programs' sizes and its
 three operations' times are in <<crypto-backends-sizes>> and
 <<crypto-performance>>.
 

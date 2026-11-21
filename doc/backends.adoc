@@ -61,6 +61,28 @@ below times the 64-bit code natively and the 32-bit code under wasmtime. ECDSA
 is BearSSL's `br_ecdsa_i31_sign_raw` and `br_ecdsa_i31_vrfy_raw` on every
 target, over the curve code chosen.
 
+[#crypto-backends-bearssl-fix]
+webcpp's BearSSL is upstream's commit `7bea48e` with one fix of webcpp's, on
+the branch `webcpp` of its mirror
+(link:https://github.com/webcpporg/bearssl/commit/32381d6e787a32cbb7a687246349200d78b8ff7c[webcpporg/bearssl
+32381d6]). Upstream's ECDSA signing reads RFC 6979's nonce through
+`br_ecdsa_i31_bits2int`
+(link:https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ecdsa_i31_bits.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l44[ecdsa_i31_bits.c,
+lines 44 and 45]): `br_i31_decode` writes the nonce's actual bit length into
+the integer's header, and `br_i31_rshift` then runs its loop and its last
+store over the words that length needs, 8 rather than 9 for a P-256 nonce
+below 2^248^, one signature in about 256. A signature's time then tells whether
+its nonce is short, the leak a lattice turns into the key from enough timed
+signatures
+(link:https://minerva.crocs.fi.muni.cz/[Minerva, CVE-2019-15809]).
+The fix sets the header back to the order's length before the shift, which
+then runs over every word: the words above the nonce are zero, so the nonce is
+unchanged. The constant-time lane below found the leak on 2026-11-21 under
+memcheck and MemorySanitizer; dudect, which would see one measurement in about
+256 differ by a few instructions, did not. The 15-bit copy, which webcpp does
+not call, has the same fix. Each move of BearSSL's pin carries the commit
+until upstream has it.
+
 A program has one copy of each library: libsecp256k1's tables and OpenSSL's
 state are global symbols, so webcpp's build is never linked with another copy.
 
@@ -139,6 +161,15 @@ timed against the key pair's scalar, a fixed one against random ones, read |t|
 wasmtime on wasip2 against the same threshold (2026-11-21 UTC, two runs each,
 the lane's among them, on the same machine shared and loaded, a release
 build).
+
+memcheck and MemorySanitizer last ran the lane on 2026-11-21 UTC with the
+command the CI runs it with, in an arm64 Linux container (Ubuntu 24.04, the
+image `linux-lint:arm64` of webcpp's Linux lint, Valgrind 3.22, clang 18), on
+an Apple M5 Max. Every path above passed under both, P-256's with webcpp's fix
+to BearSSL (<<crypto-backends-bearssl-fix>>); the run before, without it, both
+reported the nonce's leak. Each planted program failed where it must, and the
+lane's dudect programs passed there too: P-256's `sign_ecdsa` |t| 1.91 and
+`ecdh_x` 1.96, with `dudect_planted` at 34.89.
 
 One measurement is an open finding, listed under the table with its numbers:
 libsodium's X25519 `agree` under wasmtime, on wasip2. Its cause is measured:

@@ -343,19 +343,19 @@ On each target, the build's output contains:
 +
 * native, macOS:
 ** `+Undefined symbols for architecture+`
-** `+_webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+** `+_webcpp_crypto_bearssl_32381d6_getentropy__add_third_party_bearssl_to_your_link+`
 * native, Linux:
-** `+webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
-** `pass:[undefined reference to &#96;webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link']`
+** `+webcpp_crypto_bearssl_32381d6_getentropy__add_third_party_bearssl_to_your_link+`
+** `pass:[undefined reference to &#96;webcpp_crypto_bearssl_32381d6_getentropy__add_third_party_bearssl_to_your_link']`
 * wasip2:
 ** `+wasm-ld: error:+`
-** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+** `+undefined symbol: webcpp_crypto_bearssl_32381d6_getentropy__add_third_party_bearssl_to_your_link+`
 * wasip3:
 ** `+wasm-ld: error:+`
-** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+** `+undefined symbol: webcpp_crypto_bearssl_32381d6_getentropy__add_third_party_bearssl_to_your_link+`
 * emscripten:
 ** `+wasm-ld: error:+`
-** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+** `+undefined symbol: webcpp_crypto_bearssl_32381d6_getentropy__add_third_party_bearssl_to_your_link+`
 ** `pass:[em++: error:]`
 
 `+canary_other_commit+`:: A BearSSL of another commit than the headers'. The fix: Build the library at the commit of webcpp's submodule, or link it through b2.
@@ -399,19 +399,19 @@ On each target, the build's output contains:
 +
 * native, macOS:
 ** `+Undefined symbols for architecture+`
-** `+_webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link+`
+** `+_webcpp_crypto_bearssl_32381d6_sysrng__add_third_party_bearssl_to_your_link+`
 * native, Linux:
-** `+webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link+`
-** `pass:[undefined reference to &#96;webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link']`
+** `+webcpp_crypto_bearssl_32381d6_sysrng__add_third_party_bearssl_to_your_link+`
+** `pass:[undefined reference to &#96;webcpp_crypto_bearssl_32381d6_sysrng__add_third_party_bearssl_to_your_link']`
 * wasip2:
 ** `+wasm-ld: error:+`
-** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link+`
+** `+undefined symbol: webcpp_crypto_bearssl_32381d6_sysrng__add_third_party_bearssl_to_your_link+`
 * wasip3:
 ** `+wasm-ld: error:+`
-** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link+`
+** `+undefined symbol: webcpp_crypto_bearssl_32381d6_sysrng__add_third_party_bearssl_to_your_link+`
 * emscripten:
 ** `+wasm-ld: error:+`
-** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_sysrng__add_third_party_bearssl_to_your_link+`
+** `+undefined symbol: webcpp_crypto_bearssl_32381d6_sysrng__add_third_party_bearssl_to_your_link+`
 ** `pass:[em++: error:]`
 
 `+canary_secp256k1_missing+`:: libsecp256k1's headers used without its library. The fix: Link `+/third_party//secp256k1+`.
@@ -511,19 +511,19 @@ On each target, the build's output contains:
 +
 * native, macOS:
 ** `+Undefined symbols for architecture+`
-** `+_webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+** `+_webcpp_crypto_bearssl_32381d6_getentropy__add_third_party_bearssl_to_your_link+`
 * native, Linux:
-** `+webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
-** `pass:[undefined reference to &#96;webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link']`
+** `+webcpp_crypto_bearssl_32381d6_getentropy__add_third_party_bearssl_to_your_link+`
+** `pass:[undefined reference to &#96;webcpp_crypto_bearssl_32381d6_getentropy__add_third_party_bearssl_to_your_link']`
 * wasip2:
 ** `+wasm-ld: error:+`
-** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+** `+undefined symbol: webcpp_crypto_bearssl_32381d6_getentropy__add_third_party_bearssl_to_your_link+`
 * wasip3:
 ** `+wasm-ld: error:+`
-** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+** `+undefined symbol: webcpp_crypto_bearssl_32381d6_getentropy__add_third_party_bearssl_to_your_link+`
 * emscripten:
 ** `+wasm-ld: error:+`
-** `+undefined symbol: webcpp_crypto_bearssl_7bea48e_getentropy__add_third_party_bearssl_to_your_link+`
+** `+undefined symbol: webcpp_crypto_bearssl_32381d6_getentropy__add_third_party_bearssl_to_your_link+`
 ** `pass:[em++: error:]`
 
 `+chacha_default_not_linked_on_emscripten+`:: A program for Emscripten that calls the three ChaCha20-Poly1305 AEADs on their default, libsodium, and links none. The fix: As `+chacha_default_not_linked+`.

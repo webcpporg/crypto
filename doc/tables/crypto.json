@@ -42,6 +42,9 @@
         "bearssl": ["BearSSL, its home page", "https://www.bearssl.org/"],
         "webauthn": ["W3C Web Authentication, its algorithm identifiers: ES256 is ECDSA on P-256 with SHA-256", "https://www.w3.org/TR/webauthn-2/#sctn-alg-identifier"],
         "webauthn-signatures": ["W3C Web Authentication, section 6.5.5: an ES256 assertion's signature is DER, RFC 3279's Ecdsa-Sig-Value", "https://www.w3.org/TR/webauthn-2/#sctn-signature-attestation-types"],
+        "bearssl-bits2int": ["BearSSL's ecdsa_i31_bits.c at upstream 7bea48e, lines 44 and 45: the nonce decoded with its actual bit length in the integer's header, then shifted over the words that length needs", "https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ecdsa_i31_bits.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l44"],
+        "bearssl-nonce-fix": ["webcpporg/bearssl, commit 32381d6 on its branch webcpp: the header set back to the order's length before the shift, in ecdsa_i31_bits.c and ecdsa_i15_bits.c", "https://github.com/webcpporg/bearssl/commit/32381d6e787a32cbb7a687246349200d78b8ff7c"],
+        "minerva": ["Minerva: the leak of an ECDSA nonce's bit length through timing, and the lattice that recovers the key (CVE-2019-15809)", "https://minerva.crocs.fi.muni.cz/"],
         "bearssl-ecdsa-stack": ["BearSSL's ecdsa_i31_sign_raw.c at webcpp's pin, lines 45 to 51 and 115 to 135: the scalar, the nonce and the HMAC-DRBG state in the function's stack frame, never zeroed", "https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ecdsa_i31_sign_raw.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l45"],
         "ieee1363": ["IEEE 1363-2000, Standard Specifications for Public-Key Cryptography: a signature as the two integers r and s, each at the order's length", "https://standards.ieee.org/ieee/1363/2049/"],
         "rfc3279": ["RFC 3279, section 2.2.3: an ECDSA signature in X.509, the DER of a SEQUENCE of the INTEGERs r and s", "https://www.rfc-editor.org/rfc/rfc3279#section-2.2.3"],
@@ -140,11 +143,11 @@
             "jamfile": "/third_party//bearssl",
             "targets": ["native", "wasip2", "wasip3", "emscripten"],
             "header": "<webcpp/crypto/backends/bearssl.hpp>",
-            "library": "BearSSL, commit 7bea48e5 of the mirror webcpporg/bearssl, built from source",
+            "library": "BearSSL, upstream commit 7bea48e5 and one fix of webcpp's, commit 32381d6e of the mirror webcpporg/bearssl's branch webcpp, built from source",
             "licence": "MIT",
             "own_api": "`<bearssl.h>`, all of it",
             "allocation": "none: the key schedule and GCM's state live inside the object",
-            "constant_time": "by design: `aes_ct64` and `ghash_ctmul64`, or AES-NI and PCLMUL where the CPU has them; on a 32-bit host a 64-bit multiplication may not be constant time, which BearSSL documents",
+            "constant_time": "by design: `aes_ct64` and `ghash_ctmul64`, or AES-NI and PCLMUL where the CPU has them; on a 32-bit host a 64-bit multiplication may not be constant time, which BearSSL documents; ECDSA signing with webcpp's fix, since upstream's decoding of the RFC 6979 nonce branches on its bit length ({bearssl-bits2int}; {minerva}; the fix: {bearssl-nonce-fix})",
             "constant_time_sources": ["bearssl-ct", "bearssl-ctmul"]
         },
         "openssl": {
@@ -1070,7 +1073,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "bearssl", "tests": ["p256_keys_bearssl", "p256_ecdsa_bearssl", "p256_ecdh_bearssl", "default_backend_none_linked"], "why": "the one backend of the P-curves on all four targets, constant time by design and allocating nothing ({bearssl}); OpenSSL and Botan join in increments 8 and 7"}
             ],
             "backends": {
-                "bearssl": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}, "lane_note": {"memcheck": "the key pair's making, `sign_ecdsa` then `normalize_ecdsa` and `check_low_s` on the fresh signature, `ecdh_x` and `decode_pkcs8`; BearSSL's own branches on its signing's verdicts listed in `bearssl_verdicts.supp`", "msan": "the same paths as memcheck's", "dudect": "`sign_ecdsa` and `ecdh_x`, each against the key pair's scalar"}}
+                "bearssl": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}, "lane_note": {"memcheck": "the key pair's making, `sign_ecdsa` then `normalize_ecdsa` and `check_low_s` on the fresh signature, `ecdh_x` and `decode_pkcs8`; BearSSL's own branches on its signing's verdicts listed in `bearssl_verdicts.supp`; nothing found with webcpp's fix to BearSSL's decoding of the nonce, whose leak of the nonce's bit length this checker found on 2026-11-21 (Valgrind 3.22, arm64 Linux)", "msan": "the same paths as memcheck's; found the same leak, nothing after the fix (clang 18, arm64 Linux, 2026-11-21)", "dudect": "`sign_ecdsa` and `ecdh_x`, each against the key pair's scalar"}}
             }
         }
     ],

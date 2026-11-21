@@ -54,7 +54,7 @@ The library behind each, and what it costs a program:
 |Backend |Library |Licence |Its own API, reachable |Allocation
 
 |BearSSL
-|BearSSL, commit 7bea48e5 of the mirror webcpporg/bearssl, built from source
+|BearSSL, upstream commit 7bea48e5 and one fix of webcpp's, commit 32381d6e of the mirror webcpporg/bearssl's branch webcpp, built from source
 |MIT
 |`+<bearssl.h>+`, all of it
 |none: the key schedule and GCM's state live inside the object

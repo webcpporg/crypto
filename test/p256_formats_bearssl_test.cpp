@@ -380,7 +380,7 @@ void pkcs8_refusals(keypair const& pair) {
                                            .parameters = false,
                                            .point = {},
                                        })));
-    // 02 01 01 in place of 02 01 00: OneAsymmetricKey's version 2.
+    // 02 01 01 in place of 02 01 00: PKCS#8 version 1.
     refused_pkcs8("version 1", pkcs8_of(1, p256_oid(), with({})));
     refused_pkcs8("ECPrivateKey version 0",
                   pkcs8_of(0, p256_oid(),

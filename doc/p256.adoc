@@ -359,8 +359,8 @@ include::{examples}/p256_key_formats.expected[]
 
 *Pitfalls.*
 
-* The W3C text has a PKCS#8 that WebCrypto exports carry the curve inside its
-ECPrivateKey too, as `[0] parameters`
+* The W3C text says a PKCS#8 that WebCrypto exports also carries the curve
+inside its ECPrivateKey, as `[0] parameters`
 (link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations-export-key[W3C,
 ECDSA's export]): 150 bytes, which `decode_pkcs8` refuses like any other
 encoding than its own. WebCrypto's `importKey("pkcs8")` reads the 138 bytes

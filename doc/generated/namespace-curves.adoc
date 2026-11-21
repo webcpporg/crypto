@@ -15,7 +15,7 @@
 |BIP 340 Schnorr and ECDSA signatures, recoverable signatures, ECDH in three forms, tweaks, ElligatorSwift, MuSig2, silent payments, SPKI and PKCS#8
 |Ed25519 signatures, and Ed25519ph over SHA-512 for a message given in pieces; the X25519 secret key of a key pair
 |Key agreement (Diffie-Hellman on Curve25519): two parties who exchanged public keys share a 32-byte secret; `kx_keypair`, libsodium's `crypto_kx`, gives a client and a server a session key for each direction
-|Key pairs made from a 32-byte scalar or drawn from `random_device`, public keys validated once, as SEC 1's uncompressed point or two coordinates, ECDSA over a SHA-256 digest with RFC 6979's nonce, raw and DER, and low S checked or normalized, and ECDH's raw x coordinate
+|Key pairs made from a 32-byte scalar or drawn from `random_device`, public keys validated once, as SEC 1's uncompressed point or two coordinates, ECDSA over a SHA-256 digest with RFC 6979's nonce, raw and DER, and low S checked or normalized, ECDH's raw x coordinate, SPKI and PKCS#8
 
 |Security level
 |about 128 bits (link:https://www.secg.org/sec2-v2.pdf[SEC 2, Recommended Elliptic Curve Domain Parameters])
@@ -27,7 +27,7 @@
 |secret 32 bytes; public 33 bytes compressed, 65 bytes uncompressed (link:https://www.secg.org/sec1-v2.pdf[SEC 1 version 2, Elliptic Curve Cryptography, sections 2.3.3 and 2.3.4: a point's encodings]), 32 bytes x-only, 64 bytes as ElligatorSwift (link:https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki[BIP 324, version 2 P2P encrypted transport protocol]); SPKI 56 or 88 bytes (link:https://www.rfc-editor.org/rfc/rfc5480[RFC 5480, Elliptic Curve Cryptography Subject Public Key Information]), PKCS#8 135 bytes (link:https://www.rfc-editor.org/rfc/rfc5208[RFC 5208, PKCS #8: Private-Key Information Syntax], link:https://www.rfc-editor.org/rfc/rfc5915[RFC 5915, Elliptic Curve Private Key Structure])
 |secret 32 bytes (the seed); public 32 bytes
 |secret 32 bytes; public 32 bytes
-|secret 32 bytes (the scalar); public 65 bytes uncompressed (link:https://www.secg.org/sec1-v2.pdf[SEC 1 version 2, Elliptic Curve Cryptography, sections 2.3.3 and 2.3.4: a point's encodings])
+|secret 32 bytes (the scalar); public 65 bytes uncompressed (link:https://www.secg.org/sec1-v2.pdf[SEC 1 version 2, Elliptic Curve Cryptography, sections 2.3.3 and 2.3.4: a point's encodings]); SPKI 91 bytes (link:https://www.rfc-editor.org/rfc/rfc5480[RFC 5480, Elliptic Curve Cryptography Subject Public Key Information]), PKCS#8 138 bytes (link:https://www.rfc-editor.org/rfc/rfc5208[RFC 5208, PKCS #8: Private-Key Information Syntax], link:https://www.rfc-editor.org/rfc/rfc5915[RFC 5915, Elliptic Curve Private Key Structure])
 
 |Signature sizes
 |64 bytes, MuSig2's aggregate too (link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327, MuSig2 for BIP340-compatible multi-signatures]); 65 bytes recoverable; ECDSA in DER up to 72

@@ -23,6 +23,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -172,6 +173,7 @@ struct algorithm {
      */
     [[nodiscard]] static boost::system::result<std::size_t> armour(
         std::string_view label, std::span<std::uint8_t const> der, std::span<char> out) noexcept {
+        detail::timing_guard const timing;
         if (!detail::pem_label_allowed(label)) {
             return error::invalid_encoding;
         }
@@ -220,6 +222,7 @@ struct algorithm {
      */
     [[nodiscard]] static boost::system::result<std::size_t> unarmour(
         std::string_view label, std::string_view text, std::span<std::uint8_t> out) noexcept {
+        detail::timing_guard const timing;
         if (!detail::pem_label_allowed(label)) {
             return error::invalid_encoding;
         }
@@ -340,6 +343,7 @@ template <class Backend = default_backend_t<families::pem>>
 [[nodiscard]] boost::system::result<std::size_t> armour(std::string_view label,
                                                         std::span<std::uint8_t const> der,
                                                         std::span<char> out) noexcept {
+    detail::timing_guard const timing;
     return algorithm<Backend>::armour(label, der, out);
 }
 
@@ -356,6 +360,7 @@ template <class Backend = default_backend_t<families::pem>>
 [[nodiscard]] boost::system::result<std::size_t> unarmour(std::string_view label,
                                                           std::string_view text,
                                                           std::span<std::uint8_t> out) noexcept {
+    detail::timing_guard const timing;
     return algorithm<Backend>::unarmour(label, text, out);
 }
 

@@ -18,6 +18,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <boost/system/result.hpp>
@@ -150,6 +151,7 @@ public:
      */
     [[nodiscard]] boost::system::result<void> encrypt(
         std::span<std::uint8_t> block_bytes) noexcept {
+        detail::timing_guard const timing;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -168,6 +170,7 @@ public:
      */
     [[nodiscard]] boost::system::result<void> decrypt(
         std::span<std::uint8_t> block_bytes) noexcept {
+        detail::timing_guard const timing;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -229,6 +232,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<aes128> make(
         std::span<std::uint8_t const> key_bytes) noexcept {
+        detail::timing_guard const timing;
         return detail::basic_aes<16, Backend>::template make_as<aes128>(key_bytes);
     }
 
@@ -254,6 +258,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<aes192> make(
         std::span<std::uint8_t const> key_bytes) noexcept {
+        detail::timing_guard const timing;
         return detail::basic_aes<24, Backend>::template make_as<aes192>(key_bytes);
     }
 
@@ -279,6 +284,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<aes256> make(
         std::span<std::uint8_t const> key_bytes) noexcept {
+        detail::timing_guard const timing;
         return detail::basic_aes<32, Backend>::template make_as<aes256>(key_bytes);
     }
 

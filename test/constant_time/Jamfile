@@ -216,8 +216,10 @@ webcpp.run secp256k1_ctime_msan : $(SECP256K1_CTIME)
     <variant>release <debug-symbols>on <conditional>@clang-on-linux : native ;
 
 # dudect's statistics on BearSSL, ctaes and equal, on libsodium's X25519 and
-# Ed25519, and on libsecp256k1's ecdh_x, natively and under wasmtime; under DIT
-# on macOS and Linux on arm64 only (dudect.hpp), without it elsewhere. On a
+# Ed25519, and on libsecp256k1's ecdh_x, natively and under wasmtime. The
+# programs never set DIT: they measure what a program gets, the library's own
+# guard, which sets DIT in each call on macOS and Linux on arm64 where the CPU
+# has it, and fail if it is already set outside the calls (dudect.hpp). On a
 # runner GitHub hosts, a virtual machine shared with other tenants whose
 # processor changes from run to run, each |t| is printed and not judged:
 # there it moved with what the measurement cannot control (dudect.hpp,
@@ -238,9 +240,9 @@ webcpp.run dudect_sodium : dudect_sodium_test.cpp
 # The planted leak under dudect: X25519's agreement with an early-exit scan of
 # its secret key before it, a few nanoseconds longer for the all-zero key; the
 # program builds and runs only this case, not Ed25519's signing. It passes only
-# when dudect finds the leak, natively, under DIT where the harness sets it
-# (macOS and Linux on arm64 only, where the CPU has it), so that the lane shows
-# DIT does not hide a leak of that size.
+# when dudect finds the leak, natively. The scan runs inside the library's own
+# guard, under DIT where the guard sets it (macOS and Linux on arm64, where the
+# CPU has it), so that the lane shows DIT does not hide a leak of that size.
 webcpp.run dudect_planted : dudect_planted_test.cpp
   : <library>/third_party//sodium <variant>release
     <define>WEBCPP_TEST_CRYPTO_PLANTED_LEAK : native ;

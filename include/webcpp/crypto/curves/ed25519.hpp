@@ -23,6 +23,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: random_device draws generate()'s seed
 #include <webcpp/crypto/secret.hpp>
@@ -110,6 +111,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<basic_keypair> make(
         std::span<std::uint8_t const> seed) noexcept {
+        detail::timing_guard const timing;
         if (seed.size() != seed_size) {
             return error::invalid_key_size;
         }
@@ -129,6 +131,7 @@ public:
      * none; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<basic_keypair> generate() noexcept {
+        detail::timing_guard const timing;
         secret<seed_size> seed;
         auto const drawn = random_device().fill(seed.writable());  // lint-world: the seed
         if (!drawn) {
@@ -179,6 +182,7 @@ public:
      * @return 32 bytes; `invalid_state` moved from.
      */
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> public_key() const noexcept {
+        detail::timing_guard const timing;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -195,6 +199,7 @@ public:
      */
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
         std::span<std::uint8_t const> message) const noexcept {
+        detail::timing_guard const timing;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -213,6 +218,7 @@ public:
      * @return 32 secret bytes; `invalid_state`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<secret<32>> x25519_secret() const noexcept {
+        detail::timing_guard const timing;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -254,6 +260,7 @@ template <class Policy = strict, class Backend = default_backend_t<families::ed2
 [[nodiscard]] boost::system::result<void> verify(std::span<std::uint8_t const> public_key,
                                                  std::span<std::uint8_t const> message,
                                                  std::span<std::uint8_t const> signature) noexcept {
+    detail::timing_guard const timing;
     static_assert(std::is_same_v<Policy, strict>,
                   "webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.");
     if (public_key.size() != 32) {
@@ -279,6 +286,7 @@ template <class Policy = strict, class Backend = default_backend_t<families::ed2
 template <class Backend = default_backend_t<families::ed25519>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> to_x25519_public(
     std::span<std::uint8_t const> ed25519_public_key) noexcept {
+    detail::timing_guard const timing;
     if (ed25519_public_key.size() != 32) {
         return error::invalid_public_key;
     }
@@ -332,6 +340,7 @@ public:
      * @return The signer, ready for the message's pieces; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<ph> begin() noexcept {
+        detail::timing_guard const timing;
         ph begun;
         auto const started = engine::begin(begun.state_);
         if (!started) {
@@ -382,6 +391,7 @@ public:
      * @return Nothing; `invalid_state` once the message is signed or verified, or moved from.
      */
     [[nodiscard]] boost::system::result<void> update(std::span<std::uint8_t const> piece) noexcept {
+        detail::timing_guard const timing;
         if (!begun_) {
             return error::invalid_state;
         }
@@ -398,6 +408,7 @@ public:
      */
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
         basic_keypair<Backend> const& key) noexcept {
+        detail::timing_guard const timing;
         if (!begun_ || !key.keyed_) {
             return error::invalid_state;
         }
@@ -421,6 +432,7 @@ public:
     [[nodiscard]] boost::system::result<void> verify(
         std::span<std::uint8_t const> public_key,
         std::span<std::uint8_t const> signature) noexcept {
+        detail::timing_guard const timing;
         if (!begun_) {
             return error::invalid_state;
         }

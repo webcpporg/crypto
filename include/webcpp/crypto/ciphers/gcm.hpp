@@ -17,6 +17,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/limits.hpp>
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 
@@ -151,6 +152,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<gcm> make(
         std::span<std::uint8_t const> key_bytes) noexcept {
+        detail::timing_guard const timing;
         if (key_bytes.size() != key_size) {
             return error::invalid_key_size;
         }
@@ -172,6 +174,7 @@ public:
      * @param moved_source The source, empty afterwards.
      */
     gcm(gcm&& moved_source) noexcept : keyed_(std::exchange(moved_source.keyed_, false)) {
+        detail::timing_guard const timing;
         if (keyed_) {
             moved_source.abandon_message();
             engine::move(state_, moved_source.state_);
@@ -187,6 +190,7 @@ public:
      * @return This object.
      */
     gcm& operator=(gcm&& moved_source) noexcept {
+        detail::timing_guard const timing;
         if (this != &moved_source) {
             engine::reset(state_);
             keyed_ = std::exchange(moved_source.keyed_, false);
@@ -223,6 +227,7 @@ public:
     [[nodiscard]] boost::system::result<result_type> seal(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::span<std::uint8_t> data_bytes) noexcept {
+        detail::timing_guard const timing;
         auto const guard_result =
             guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_size);
         if (!guard_result) {
@@ -258,6 +263,7 @@ public:
     [[nodiscard]] boost::system::result<void> open(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes) noexcept {
+        detail::timing_guard const timing;
         auto const guard_result =
             guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_bytes.size());
         if (!guard_result) {
@@ -293,6 +299,7 @@ public:
     [[nodiscard]] boost::system::result<void> begin_seal(
         std::span<std::uint8_t const> iv_bytes,
         std::span<std::uint8_t const> additional_data_bytes) noexcept {
+        detail::timing_guard const timing;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -322,6 +329,7 @@ public:
      * pass `max_message_size`, which ends the message; `backend_failure`, which ends it.
      */
     [[nodiscard]] boost::system::result<void> update(std::span<std::uint8_t> data_bytes) noexcept {
+        detail::timing_guard const timing;
         if (!keyed_ || !in_message_) {
             return error::invalid_state;
         }
@@ -345,6 +353,7 @@ public:
      * too.
      */
     [[nodiscard]] boost::system::result<result_type> result() noexcept {
+        detail::timing_guard const timing;
         if (!keyed_ || !in_message_) {
             return error::invalid_state;
         }

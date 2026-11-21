@@ -21,6 +21,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the context's randomisation, its purpose
@@ -485,6 +486,7 @@ public:
      */
     [[nodiscard]] friend bool operator==(public_key const& left_key,
                                          public_key const& right_key) noexcept {
+        detail::timing_guard const timing;
         return compare(left_key, right_key) == 0;
     }
 
@@ -497,6 +499,7 @@ public:
      */
     [[nodiscard]] friend std::strong_ordering operator<=>(public_key const& left_key,
                                                           public_key const& right_key) noexcept {
+        detail::timing_guard const timing;
         return compare(left_key, right_key) <=> 0;
     }
 
@@ -565,6 +568,7 @@ public:
     [[nodiscard]] static boost::system::result<basic_keypair> make(
         std::span<std::uint8_t const> secret_bytes,
         std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource()) {
+        detail::timing_guard const timing;
         if (secret_bytes.size() != 32) {
             return error::invalid_key_size;
         }
@@ -641,6 +645,7 @@ public:
      */
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> xonly_public_key()
         const noexcept {
+        detail::timing_guard const timing;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -658,6 +663,7 @@ public:
      * @return 33 bytes; `invalid_state` moved from.
      */
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 33>> public_key() const noexcept {
+        detail::timing_guard const timing;
         return encoded_public_key<33>(webcpp::crypto::detail::secp256k1_compressed);
     }
 
@@ -668,6 +674,7 @@ public:
      */
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 65>> public_key_uncompressed()
         const noexcept {
+        detail::timing_guard const timing;
         return encoded_public_key<65>(webcpp::crypto::detail::secp256k1_uncompressed);
     }
 
@@ -681,6 +688,7 @@ public:
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign_schnorr(
         std::span<std::uint8_t const> message_bytes,
         std::span<std::uint8_t const, 32> aux_random_bytes) const noexcept {
+        detail::timing_guard const timing;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -706,6 +714,7 @@ public:
      */
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign_ecdsa(
         std::span<std::uint8_t const, 32> message_hash) const noexcept {
+        detail::timing_guard const timing;
         return signed_ecdsa(message_hash, nullptr);
     }
 
@@ -721,6 +730,7 @@ public:
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign_ecdsa(
         std::span<std::uint8_t const, 32> message_hash,
         std::span<std::uint8_t const, 32> extra_entropy) const noexcept {
+        detail::timing_guard const timing;
         webcpp::crypto::detail::secp256k1_secret nonce_data;
         std::ranges::copy(extra_entropy, nonce_data.bytes.begin());
         return signed_ecdsa(message_hash, nonce_data.bytes.data());
@@ -735,6 +745,7 @@ public:
      */
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, recoverable_signature_size>>
     sign_recoverable(std::span<std::uint8_t const, 32> message_hash) const noexcept {
+        detail::timing_guard const timing;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -764,6 +775,7 @@ public:
      */
     [[nodiscard]] boost::system::result<secret<32>> ecdh(
         std::span<std::uint8_t const> public_key_bytes) const noexcept {
+        detail::timing_guard const timing;
         return agree<32>(public_key_bytes, nullptr);
     }
 
@@ -779,6 +791,7 @@ public:
      */
     [[nodiscard]] boost::system::result<secret<32>> ecdh_x(
         std::span<std::uint8_t const> public_key_bytes) const noexcept {
+        detail::timing_guard const timing;
         return agree<32>(public_key_bytes,
                          webcpp::crypto::detail::webcpp_crypto_detail_secp256k1_copy_x);
     }
@@ -791,6 +804,7 @@ public:
      */
     [[nodiscard]] boost::system::result<secret<65>> ecdh_point(
         std::span<std::uint8_t const> public_key_bytes) const noexcept {
+        detail::timing_guard const timing;
         return agree<65>(public_key_bytes,
                          webcpp::crypto::detail::webcpp_crypto_detail_secp256k1_copy_point);
     }
@@ -811,6 +825,7 @@ public:
      */
     [[nodiscard]] boost::system::result<void> tweak_xonly(
         std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
+        detail::timing_guard const timing;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -984,6 +999,7 @@ namespace webcpp::crypto::curves::secp256k1 {
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> parse_public_key(
     std::span<std::uint8_t const> encoded_key) noexcept {
+    detail::timing_guard const timing;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -1008,6 +1024,7 @@ template <point_form Form = point_form::compressed,
           class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] std::array<std::uint8_t, point_size<Form>> serialize_public_key(
     public_key const& parsed_key) noexcept {
+    detail::timing_guard const timing;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -1038,6 +1055,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> recover(
     std::span<std::uint8_t const, recoverable_signature_size> recoverable_signature,
     std::span<std::uint8_t const, 32> message_hash) noexcept {
+    detail::timing_guard const timing;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // libsecp256k1 checks the id with ARG_CHECK, whose callback aborts: refused first here.
@@ -1073,6 +1091,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<void> verify_schnorr(
     std::span<std::uint8_t const, 64> signature_bytes, std::span<std::uint8_t const> message_bytes,
     std::span<std::uint8_t const, 32> xonly_key_bytes) noexcept {
+    detail::timing_guard const timing;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -1103,6 +1122,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
     std::span<std::uint8_t const, 64> signature_bytes,
     std::span<std::uint8_t const, 32> message_hash,
     std::span<std::uint8_t const> public_key_bytes) noexcept {
+    detail::timing_guard const timing;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -1135,6 +1155,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::size_t> to_der(
     std::span<std::uint8_t const, 64> compact_signature,
     std::span<std::uint8_t> output_bytes) noexcept {
+    detail::timing_guard const timing;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     if (output_bytes.size() < max_der_size) {
         return error::invalid_input_size;
@@ -1166,6 +1187,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> from_der(
     std::span<std::uint8_t const> der_signature) noexcept {
+    detail::timing_guard const timing;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     if (der_signature.empty()) {
         return error::invalid_signature;
@@ -1197,6 +1219,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> normalize_ecdsa(
     std::span<std::uint8_t const, 64> compact_signature) noexcept {
+    detail::timing_guard const timing;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -1228,6 +1251,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<tweaked_xonly_key> tweak_xonly(
     std::span<std::uint8_t const, 32> xonly_key_bytes,
     std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
+    detail::timing_guard const timing;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();

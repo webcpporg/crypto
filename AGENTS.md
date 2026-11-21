@@ -32,14 +32,20 @@ specific to crypto.
   same commit (`fixes` for each message, `fixtures` for each fixture, `lane` for the constant-time
   lane's paths); the generator names what is missing.
 - `generate.py --sizes <json>...` reads the own lane `sizes` (built at `variant=release`) into
-  `doc/tables/sizes.json`; `doc/performance.json` is `bench/collect.py`'s, release builds only.
-  Nothing that states a size or a speed is typed by hand.
+  `doc/tables/sizes.json`; `doc/performance.json` is `bench/collect.py`'s, release builds only,
+  the throughput (`--exe`) and the timing guard's cost (`--timing`, natively). Nothing that states
+  a size or a speed is typed by hand.
 
 ## Cautions
 
 - An algorithm type does every guard; a backend's header supplies only the six traits of
   `detail/engines.hpp` (`block_state`, `block_engine`, `gcm_state`, `gcm_engine`, `aead_state`,
   `aead_engine`) and, for the curves and `hybrid`, the functions of its own header.
+- A new public function that calls a backend holds `detail::timing_guard` as its
+  first statement (it sets arm64's DIT for the call, `detail/timing.hpp`) and joins the coverage
+  test of its backend, `test/timing_coverage_<backend>_test.cpp`, which checks through the seam
+  that each call entered its own guard. A function that only copies or encodes bytes, with no
+  backend call, holds none.
 - A test of a backend is a `.cpp` of its own per backend, never a define that changes the backend
   of one source (spec section 4.3's pitfall).
 - Every C library is unchanged upstream code. A moved pin is a change of its own

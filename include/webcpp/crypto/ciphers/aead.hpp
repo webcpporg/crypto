@@ -19,6 +19,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/limits.hpp>
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 
@@ -314,6 +315,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<aead> make(
         std::span<std::uint8_t const> key_bytes) noexcept {
+        detail::timing_guard const timing;
         if (key_bytes.size() != key_size) {
             return error::invalid_key_size;
         }
@@ -389,6 +391,7 @@ public:
     [[nodiscard]] boost::system::result<result_type> seal(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::span<std::uint8_t> data_bytes) noexcept {
+        detail::timing_guard const timing;
         auto const guard_result =
             guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_size);
         if (!guard_result) {
@@ -423,6 +426,7 @@ public:
     [[nodiscard]] boost::system::result<void> open(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes) noexcept {
+        detail::timing_guard const timing;
         auto const guard_result =
             guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_bytes.size());
         if (!guard_result) {

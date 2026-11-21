@@ -20,6 +20,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 
@@ -87,6 +88,7 @@ struct basic_sealed_box {
     [[nodiscard]] static boost::system::result<void> seal(
         std::span<std::uint8_t const> recipient_public_key, std::span<std::uint8_t const> message,
         std::span<std::uint8_t> out) noexcept {
+        detail::timing_guard const timing;
         if (out.size() < overhead || out.size() - overhead != message.size()) {
             return error::invalid_input_size;
         }
@@ -122,6 +124,7 @@ struct basic_sealed_box {
         std::span<std::uint8_t const> recipient_public_key,
         std::span<std::uint8_t const> recipient_secret_key, std::span<std::uint8_t const> sealed,
         std::span<std::uint8_t> out) noexcept {
+        detail::timing_guard const timing;
         if (sealed.size() < overhead || out.size() != sealed.size() - overhead) {
             return error::invalid_input_size;
         }

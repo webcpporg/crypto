@@ -6,7 +6,8 @@
 #
 # Valgrind's suppressions for valgrind.mjs: BearSSL's own branches on a verdict, public by design,
 # in a function webcpp calls with a secret, where webcpp cannot mark the verdict public as it
-# does in its engines; BearSSL is used unchanged. The entry is a conditional jump whose innermost
+# does in its engines; BearSSL is upstream 7bea48e plus the one fix 32381d6, in code that these
+# functions do not touch. The entry is a conditional jump whose innermost
 # frame is that function, and the function's body branches on nothing else that is secret
 # (BearSSL at webcpp's pin, the lines given). MemorySanitizer needs none: it approximates a
 # subtraction's shadow by its operands' without the carry (msan_test.cpp's head comment), and

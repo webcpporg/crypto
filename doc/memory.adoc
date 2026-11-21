@@ -189,11 +189,11 @@ nothing. A resource of a fixed size needs room for the first `make`, whose
 allocations the test `allocation_openssl` prints on each run. A resource
 reports that it cannot allocate as the standard has `do_allocate` report it,
 by throwing, `std::bad_alloc` or another exception, which the adapter turns
-into OpenSSL's null. It never returns null: libc++ and libstdc++ declare
-`allocate` never to return null, so the optimiser removes any check of its
-result, and a null is written through in a release build. Without
-exceptions, a resource that cannot allocate ends the process, as `std::pmr`'s
-own resources do, and the failures above are not reached.
+into OpenSSL's null. It never returns null: the standard libraries of LLVM and
+GNU declare `allocate` never to return null, so the optimiser removes any check
+of its result, and a null is written through in a release build. Without
+exceptions, a resource that cannot allocate ends the process, as the resources
+of `std::pmr` do, and the failures above are not reached.
 * *Two allocations stay outside the resource,* because no hook of OpenSSL's
 reaches them: the C library's `FILE` and its buffer while OpenSSL reads its
 configuration file at initialisation (one or two blocks, by C library, freed

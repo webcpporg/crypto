@@ -8,6 +8,12 @@
  The AES block cipher, `aes128`, `aes192` and `aes256`: a building block, not encryption
  by itself. A program that encrypts messages uses `gcm`.
 
+ `aes128<>`, `aes192<>` and `aes256<>` name the block cipher's default backend, whose header it
+ includes when the program links it: natively OpenSSL, on wasip2, wasip3 and Emscripten ctaes,
+ whatever else the program links (`default_backend_t<families::aes_block>`). A program that uses
+ them without linking the default stops where it calls them, with the Jamfile line that links it
+ and the type that names another backend, as `aes256<backends::ctaes>`.
+
  @see "The block cipher", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_CIPHERS_AES_HPP
@@ -30,6 +36,40 @@
 #include <utility>
 
 namespace webcpp::crypto::detail {
+
+/**
+ * The backend a type names for the family `Family`: `Backend` itself, but where it is the tag
+ * `backends::family_default`, which the specialisation resolves.
+ *
+ * @tparam Backend A backend tag of `backends`, or `backends::family_default`.
+ * @tparam Family A family tag of `families`.
+ */
+template <class Backend, class Family>
+struct resolved_backend {
+    /** `Backend`. */
+    using type = Backend;
+};
+
+/**
+ * The tag `backends::family_default` for the family `Family`: the family's default on the
+ * target, so that `aes256<>` is the block cipher's default and `gcm<aes256<>>` AES-GCM's.
+ *
+ * @tparam Family A family tag of `families` that has a default.
+ */
+template <class Family>
+struct resolved_backend<backends::family_default, Family> {
+    /** `default_backend_t<Family>`. */
+    using type = default_backend_t<Family>;
+};
+
+/**
+ * The backend a type names for the family `Family` (see @ref resolved_backend).
+ *
+ * @tparam Backend A backend tag of `backends`, or `backends::family_default`.
+ * @tparam Family A family tag of `families`.
+ */
+template <class Backend, class Family>
+using resolved_backend_t = resolved_backend<Backend, Family>::type;
 
 /**
  * What the AES block cipher stores on a backend whose header does not specialise it: nothing,
@@ -83,16 +123,25 @@ struct block_engine {
  * and `aes256` are the named forms.
  *
  * @tparam KeySize 16, 24 or 32.
- * @tparam Backend A backend tag of `backends`.
+ * @tparam Backend A backend tag of `backends`, or `backends::family_default` for the block
+ * cipher's default.
  */
 template <std::size_t KeySize, class Backend>
 class basic_aes {
-    using state_type = block_state<Backend, KeySize>;
-    using engine = block_engine<Backend, KeySize>;
+public:
+    /** The backend: the one the type names, or, for `backends::family_default`, the default. */
+    using backend_type = resolved_backend_t<Backend, families::aes_block>;
+    /**
+     * The backend as the type names it, `backends::family_default` included, which `gcm`
+     * resolves to AES-GCM's own default.
+     */
+    using named_backend_type = Backend;
+
+private:
+    using state_type = block_state<backend_type, KeySize>;
+    using engine = block_engine<backend_type, KeySize>;
 
 public:
-    /** The backend. */
-    using backend_type = Backend;
     /** The family of the capability table, `families::aes_block`, which `supports_v` reads. */
     using family_type = families::aes_block;
     /** The algorithm of the capability table: `tags::aes128`, `tags::aes192` or `tags::aes256`. */
@@ -218,10 +267,10 @@ namespace webcpp::crypto::ciphers {
 /**
  * AES-128, the block cipher, on a backend that exports it: ctaes, OpenSSL.
  *
- * @tparam Backend The backend; the default is the AEADs' (`default_backend`), which on
- * WebAssembly is BearSSL and has none: name `aes128<backends::ctaes>` there.
+ * @tparam Backend The backend; by default the block cipher's own, OpenSSL natively and ctaes on
+ * WebAssembly.
  */
-template <class Backend = default_backend>
+template <class Backend = backends::family_default>
 class aes128 : public detail::basic_aes<16, Backend> {
 public:
     /**
@@ -244,10 +293,10 @@ private:
 /**
  * AES-192, the block cipher, on a backend that exports it: ctaes, OpenSSL.
  *
- * @tparam Backend The backend; the default is the AEADs' (`default_backend`), which on
- * WebAssembly is BearSSL and has none: name `aes192<backends::ctaes>` there.
+ * @tparam Backend The backend; by default the block cipher's own, OpenSSL natively and ctaes on
+ * WebAssembly.
  */
-template <class Backend = default_backend>
+template <class Backend = backends::family_default>
 class aes192 : public detail::basic_aes<24, Backend> {
 public:
     /**
@@ -270,10 +319,10 @@ private:
 /**
  * AES-256, the block cipher, on a backend that exports it: ctaes, OpenSSL.
  *
- * @tparam Backend The backend; the default is the AEADs' (`default_backend`), which on
- * WebAssembly is BearSSL and has none: name `aes256<backends::ctaes>` there.
+ * @tparam Backend The backend; by default the block cipher's own, OpenSSL natively and ctaes on
+ * WebAssembly.
  */
-template <class Backend = default_backend>
+template <class Backend = backends::family_default>
 class aes256 : public detail::basic_aes<32, Backend> {
 public:
     /**
@@ -294,5 +343,12 @@ private:
 };
 
 }  // namespace webcpp::crypto::ciphers
+
+// The default's header, once the classes it specialises are declared.
+#if defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_OPENSSL) && defined(WEBCPP_CRYPTO_HAS_OPENSSL)
+#include <webcpp/crypto/backends/openssl.hpp>
+#elif defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_CTAES) && defined(WEBCPP_CRYPTO_HAS_CTAES)
+#include <webcpp/crypto/backends/ctaes.hpp>
+#endif
 
 #endif  // WEBCPP_CRYPTO_CIPHERS_AES_HPP

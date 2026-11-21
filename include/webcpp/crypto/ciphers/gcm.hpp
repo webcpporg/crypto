@@ -14,6 +14,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/limits.hpp>
@@ -100,8 +101,11 @@ struct gcm_engine {
 namespace webcpp::crypto::ciphers {
 
 /**
- * AES-GCM (NIST SP 800-38D) with the key size of `Cipher`, on the backend of `Cipher`, which
+ * AES-GCM (NIST SP 800-38D) with the key size of `Cipher`, on the backend `Cipher` names, which
  * must export GCM over its own AES: BearSSL or OpenSSL.
+ *
+ * A cipher that names no backend, as `aes256<>`, gives AES-GCM's default
+ * (`default_backend_t<families::gcm>`), not the block cipher's.
  *
  * An object holds a key and the state of one message: it is used by one thread at a time,
  * and it is not shareable. An IV is never reused under one key, and with random IVs, or IVs
@@ -115,14 +119,14 @@ namespace webcpp::crypto::ciphers {
  */
 template <class Cipher>
 class gcm {
-    using backend = Cipher::backend_type;
+    using backend = detail::resolved_backend_t<typename Cipher::named_backend_type, families::gcm>;
     using state_type = detail::gcm_state<backend, Cipher::key_size>;
     using engine = detail::gcm_engine<backend, Cipher::key_size>;
 
 public:
     /** The block cipher. */
     using cipher_type = Cipher;
-    /** The backend. */
+    /** The backend: the one `Cipher` names, or, where it names none, AES-GCM's default. */
     using backend_type = backend;
     /** The family of the capability table, `families::gcm`, which `supports_v` reads. */
     using family_type = families::gcm;

@@ -1297,10 +1297,85 @@ def test_llms_gives_no_default_where_the_family_has_none(_: Path) -> None:
     data = small_table()
     data['families'][0]['default'] = [{'targets': EVERY_TARGET, 'backend': None, 'tests': [],
                                        'why': 'none'}]
-    operation = {'family': 'ed25519', 'default_of': 'ed25519',
-                 'default': '`x<>` names AES-GCM\'s default.'}
+    operation = {'family': 'ed25519', 'default': '`x<>` names the default.'}
     assert generate.llms_default(data, operation) == (
-        ' Default: none on native, wasip2, wasip3, emscripten; `x<>` names AES-GCM\'s default.')
+        ' Default: none on native, wasip2, wasip3, emscripten.')
+
+
+def block_and_gcm() -> generate.Data:
+    """A table of AES-GCM and the AES block cipher it is built on, each with its own default:
+    OpenSSL natively for both, then BearSSL for AES-GCM and ctaes for the block cipher on
+    WebAssembly."""
+    def backend(title: str, name: str, jamfile: str) -> generate.Data:
+        return {'title': title, 'jamfile': jamfile, 'without_b2': f'link {title}',
+                'header': f'<webcpp/crypto/backends/{name}.hpp>', 'targets': EVERY_TARGET}
+    wasm = ['wasip2', 'wasip3', 'emscripten']
+    def family(name: str, title: str, wasm_backend: str, shown: str) -> generate.Data:
+        return {'name': name, 'title': title, 'group': 'ciphers', 'since': '0.1',
+                'header': '<webcpp/crypto/ciphers/aes.hpp>', 'shown': shown,
+                'names': [{'name': shown, 'title': title,
+                           'type': f'ciphers::{shown}<{{backend}}>'}],
+                'default': [{'targets': ['native'], 'backend': 'openssl', 'tests': ['t'],
+                             'why': 'w'},
+                            {'targets': wasm, 'backend': wasm_backend, 'tests': ['t'],
+                             'why': 'w'}],
+                'backends': {'openssl': {'targets': 'all'}, wasm_backend: {'targets': 'all'}}}
+    return {
+        'targets': EVERY_TARGET, 'sources': {},
+        'compilers': {'clang': 'Clang', 'gcc': 'GCC', 'msvc': 'MSVC'},
+        'backends': {'bearssl': backend('BearSSL', 'bearssl', '/third_party//bearssl'),
+                     'openssl': backend('OpenSSL', 'openssl', '/webcpp/crypto//openssl'),
+                     'ctaes': backend('ctaes', 'ctaes', '/third_party//ctaes')},
+        'operations': [
+            {'id': 'gcm', 'family': 'gcm', 'api': 'ciphers::gcm',
+             'default': '`aes256_gcm` names the default backend.',
+             'backends': {'openssl': {'tests': ['t']}, 'bearssl': {'tests': ['t']}}},
+            {'id': 'aes_block', 'family': 'aes_block', 'api': 'ciphers::aes256',
+             'default': '`aes256<>` names the default backend.',
+             'backends': {'openssl': {'tests': ['t']}, 'ctaes': {'tests': ['t']}}}],
+        'families': [family('gcm', 'AES-GCM', 'bearssl', 'aes256_gcm'),
+                     family('aes_block', 'AES block cipher', 'ctaes', 'aes256')]}
+
+
+def test_a_cipher_has_its_own_default_apart_from_the_mode_built_on_it(_: Path) -> None:
+    # The AES block cipher's default differs on WebAssembly from AES-GCM's (design D3): each
+    # family's header, alias, refusal and page gives its own, never the other's.
+    data = block_and_gcm()
+    declared = {'t': EVERY_TARGET}
+    generate.check_families(data, declared)
+    header = generate.defaults_header(data)
+    assert ('#elif defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || '
+            'defined(WEBCPP_TARGET_EMSCRIPTEN)\n'
+            '/** Defined where ctaes is the default of AES block cipher. */\n'
+            '#define WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_CTAES 1\n') in header, header
+    assert '#define WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_OPENSSL 1\n' in header, header
+    assert '#define WEBCPP_CRYPTO_DETAIL_DEFAULT_GCM_BEARSSL 1\n' in header, header
+    # AES-GCM's version 0.1 name is its own: the block cipher's aes256<> no longer takes it.
+    assert ' * The default backend of AES-GCM, version 0.1\'s name, which `aes128_gcm` and\n' in (
+        header), header
+    assert ('`aes256_gcm` take: natively OpenSSL, on WebAssembly BearSSL.\n *\n'
+            ' * The AES block cipher has a default of its own,\n'
+            ' * `default_backend_t<families::aes_block>`, which `aes256<>` names.\n') in (
+        header), header
+    aliases = generate.default_aliases(data)
+    assert ('rule aes_block-default-linked ( properties * )\n{\n'
+            '    switch [ webcpp-target.target-of $(properties) ]\n    {\n'
+            '        case native : return <library>/webcpp/crypto//openssl ;\n'
+            '        case wasip2 : return <library>/third_party//ctaes ;\n') in aliases, aliases
+    assert 'case wasip2 : return <library>/third_party//bearssl ;' in aliases, aliases
+    text = generate.needs(data, data['families'][1], 'wasip2', 'ctaes')
+    assert text.startswith('webcpp::crypto: AES block cipher\'s default backend on this target '
+                           'is ctaes, which is not linked. Add /webcpp/crypto//aes_block-default'
+                           ), text
+    assert 'as in ciphers::aes256<backends::openssl>.' in text, text
+    matrix = generate.Matrix(data, declared, {})
+    page = generate.api_backends(data, matrix, data['operations'][1])
+    assert ('`+aes256<>+` names the default backend. The default per target, whatever the '
+            'program links,') in page, page
+    assert '|wasip2, wasip3, emscripten\n|ctaes\n' in page, page
+    assert 'BearSSL\n' not in page.split('reasons and tests:', 1)[1], page
+    assert generate.llms_default(data, data['operations'][1]) == (
+        ' Default: OpenSSL on native; ctaes on wasip2, wasip3, emscripten.')
 
 
 def test_a_namespace_table_is_split_into_its_parts(_: Path) -> None:
@@ -1388,6 +1463,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_lane_note_of_one_checker_is_written_beside_that_checker_alone,
     test_a_lane_note_of_a_checker_the_lane_does_not_run_is_a_fault,
     test_llms_gives_no_default_where_the_family_has_none,
+    test_a_cipher_has_its_own_default_apart_from_the_mode_built_on_it,
     test_a_namespace_table_is_split_into_its_parts,
 ]
 

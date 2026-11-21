@@ -251,14 +251,13 @@
         {
             "id": "aes_block",
             "family": "aes_block",
-            "default_of": "gcm",
             "functions": ["make", "encrypt", "decrypt"],
             "namespace": "ciphers",
             "api": "ciphers::aes128, aes192, aes256",
             "header": "<webcpp/crypto/ciphers/aes.hpp>",
             "what": "The AES block cipher on whole 16-byte blocks: a building block, not encryption of data.",
             "section": "crypto-block",
-            "default": "`aes256<>` takes AES-GCM's default backend as its argument; where that is BearSSL, its `make` does not compile, and the program names `aes256<backends::ctaes>`.",
+            "default": "`aes128<>`, `aes192<>` and `aes256<>` name the default backend; `gcm<aes256<>>` names AES-GCM's.",
             "backends": {
                 "openssl": {"tests": ["aes_openssl", "agreement_aes"]},
                 "ctaes": {"tests": ["aes_ctaes", "agreement_aes"]},
@@ -680,13 +679,16 @@
             "since": "0.1",
             "measured": "encryption of one 16-byte block, 256-bit key",
             "header": "<webcpp/crypto/ciphers/aes.hpp>",
+            "shown": "aes256",
             "names": [
                 {"name": "aes128", "title": "AES-128", "type": "ciphers::aes128<{backend}>"},
                 {"name": "aes192", "title": "AES-192", "type": "ciphers::aes192<{backend}>"},
                 {"name": "aes256", "title": "AES-256", "type": "ciphers::aes256<{backend}>"}
             ],
             "default": [
-                {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": null, "tests": ["default_backend_none_linked", "default_selection_bearssl"], "why": "a raw block cipher is a building block a program chooses deliberately, naming its backend; `aes256<>` takes AES-GCM's default as its argument, and its `make` does not compile where that is BearSSL"}
+                {"targets": ["native"], "compilers": ["clang", "gcc"], "backend": "openssl", "tests": ["default_aes_block", "default_backend_all_linked"], "why": "OpenSSL's assembly uses the CPU's AES instructions on x86-64 and ARMv8 ({openssl-armv8}); ctaes is bitsliced, constant time and several times slower. OpenSSL whatever the program links: a program that links ctaes alone names `aes256<backends::ctaes>`"},
+                {"targets": ["native"], "compilers": ["msvc"], "backend": "openssl", "tests": ["default_aes_block"], "why": "the same rule as with Clang and GCC, but here OpenSSL is built no-asm: table-based AES, no AES-NI, not constant time ({openssl-install}); where timing attacks matter, link ctaes and name `aes256<backends::ctaes>`"},
+                {"targets": ["wasip2", "wasip3", "emscripten"], "backend": "ctaes", "tests": ["default_aes_block", "default_bearssl"], "why": "constant time by design ({ctaes}), where OpenSSL is built no-asm and its AES is table-based ({openssl-install}), and webcpp does not build OpenSSL for Emscripten"}
             ],
             "backends": {
                 "openssl": {"targets": "all"},
@@ -985,7 +987,7 @@
         {"title": "Secrets come from random_device", "section": "crypto-entropy", "text": "keys, IVs and tokens are drawn from `random_device`, never `std::mt19937` or `rand` ({cwe338})."},
         {"title": "Never reuse a nonce under one ChaCha20-Poly1305 key", "section": "crypto-chacha", "text": "two messages under one key and one nonce reveal the XOR of their plaintexts and let an attacker forge tags ({rfc8439-nonce}). `xchacha20_poly1305` and the secret boxes: draw 24 bytes at random per message. `chacha20_poly1305`: number the 12-byte nonces with a counter that never repeats, a restart included, or draw them at random for at most 2^32 messages per key, AES-GCM's bound for random 12-byte IVs ({sp800-38d}). `chacha20_poly1305_original`: a counter only, its 8 bytes are too short to draw."},
         {"title": "A shared secret is not a key", "section": "crypto-x25519", "text": "derive keys from X25519's shared secret and both public keys with a KDF such as webcpp::hash's HKDF, never use its bytes as a cipher's key ({rfc7748-kdf}); `kx_keypair` and the boxes do this themselves."},
-        {"title": "The default on MSVC is not constant time", "section": "crypto-backends-defaults", "text": "natively the default is OpenSSL, which MSVC builds no-asm, table-based ({openssl-install}); where timing attacks matter, link BearSSL and name `gcm<aes256<backends::bearssl>>`."}
+        {"title": "The default on MSVC is not constant time", "section": "crypto-backends-defaults", "text": "natively the default is OpenSSL, which MSVC builds no-asm, table-based ({openssl-install}); where timing attacks matter, link BearSSL and name `gcm<aes256<backends::bearssl>>`, and for the block cipher link ctaes and name `aes256<backends::ctaes>`."}
     ],
     "outcome_sections": {
         "all": "every target",
@@ -1094,6 +1096,7 @@
         "both_bearssl_named": "Both backends linked, and BearSSL named in the type where the default is OpenSSL.",
         "block": "The AES block cipher on ctaes: the FIPS 197 block encrypted and decrypted again.",
         "encrypt_and_sign": "Two backends in one program on every target: AES-256-GCM on its default, through `/webcpp/crypto//gcm-default`, and a BIP 340 signature.",
+        "aes_block_default": "FIPS 197's AES-256 block encrypted and decrypted again on the block cipher's default on every target, with the one line `/webcpp/crypto//aes_block-default`, which links OpenSSL natively and ctaes on WebAssembly.",
         "gcm_default": "AES-256-GCM on its default on every target, with the one line `/webcpp/crypto//gcm-default`, which links OpenSSL natively and BearSSL on WebAssembly; the same program as `web`.",
         "openssl_linked": "OpenSSL, built from source, named in the type: natively and on WASI.",
         "secp256k1_default": "BIP 340's first test vector, signed and verified on secp256k1's default on every target, with the one line `/webcpp/crypto//secp256k1-default`, which links libsecp256k1.",
@@ -1154,6 +1157,8 @@
     },
     "fixes": {
         "gcm_default_openssl_not_linked": "Natively the default is OpenSSL: add `/webcpp/crypto//gcm-default`, which links `/webcpp/crypto//openssl` there, or name BearSSL in the type, as in `gcm<aes256<backends::bearssl>>`.",
+        "aes_block_default_not_linked": "Natively the block cipher's default is OpenSSL: add `/webcpp/crypto//aes_block-default`, which links `/webcpp/crypto//openssl` there, or name ctaes in the type, as in `aes256<backends::ctaes>`.",
+        "aes_block_default_not_linked_wasm": "On WASI the block cipher's default is ctaes: add `/webcpp/crypto//aes_block-default`, which links `/third_party//ctaes` there, or, with OpenSSL linked, name it in the type, as in `aes256<backends::openssl>`.",
         "no_backend_wasm": "On WASI the default is BearSSL: add `/webcpp/crypto//gcm-default`, which links `/third_party//bearssl` there, or, with OpenSSL linked, name it in the type, as in `gcm<aes256<backends::openssl>>`.",
         "bearssl_not_linked": "Add `/third_party//bearssl`.",
         "openssl_only_on_wasi": "On WASI the default is BearSSL: add `/webcpp/crypto//gcm-default`, which links `/third_party//bearssl` there, or, with OpenSSL linked, name it in the type, as in `gcm<aes256<backends::openssl>>`.",

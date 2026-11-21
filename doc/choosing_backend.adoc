@@ -33,8 +33,10 @@ constant time, and a program that timing attacks threaten names
 default it does not link stops where it calls it, with the Jamfile line that
 links it and the type that names another backend
 (<<crypto-jamfile-messages>>).
-AES-GCM's default applies to `aes128_gcm`, `aes256_gcm` and `aes256<>`; the
-AES block cipher has none of its own, and libsecp256k1 is the only backend of
+AES-GCM's default applies to `aes128_gcm`, `aes256_gcm` and `gcm<aes256<>>`;
+the AES block cipher has one of its own, which `aes256<>` names: OpenSSL
+natively, whose assembly uses the CPU's AES instructions, and ctaes on
+WebAssembly, constant time by design. libsecp256k1 is the only backend of
 secp256k1. The three ChaCha20-Poly1305 AEADs' default is libsodium on every
 target; RFC 8439's form also runs on BearSSL, on every target, and on OpenSSL,
 natively and on WASI, each named in the type. Every other family of this

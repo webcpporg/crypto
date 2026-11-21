@@ -4,7 +4,8 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Natively, with OpenSSL and BearSSL linked, OpenSSL is the default (design D32), on MSVC too.
+// Natively, with OpenSSL and BearSSL linked, OpenSSL is AES-GCM's default (design D32), on MSVC
+// too, and the block cipher's (design D3).
 
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/test/exit_status.hpp>

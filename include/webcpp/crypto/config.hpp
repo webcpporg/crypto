@@ -219,6 +219,13 @@ struct ctaes;
 struct secp256k1;
 /** libsodium 1.0.22, built from its sources by `/third_party//sodium`. */
 struct sodium;
+/**
+ The default backend of whichever family takes it: a name only, of no library, which each family
+ resolves to its own default on the target (`default_backend_t<Family>`).
+
+ `aes256<>` names the AES block cipher's default with it, and `gcm<aes256<>>` AES-GCM's.
+*/
+struct family_default;
 
 }  // namespace webcpp::crypto::backends
 

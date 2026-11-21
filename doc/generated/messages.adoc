@@ -19,6 +19,18 @@ At compile time, checked word for word by the message tests of `test/messages` w
 
 The fix: Name one of the three ChaCha20-Poly1305 families or the two secret boxes'; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`.
 
+|`+aes_block_default_not_linked+`
+|native
+|`+webcpp::crypto: AES block cipher's default backend on this target is OpenSSL, which is not linked. Add /webcpp/crypto//aes_block-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//aes_block-default ; or name another backend in the type, as in ciphers::aes256<backends::ctaes>. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten). (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)+`
+
+The fix: Natively the block cipher's default is OpenSSL: add `+/webcpp/crypto//aes_block-default+`, which links `+/webcpp/crypto//openssl+` there, or name ctaes in the type, as in `+aes256<backends::ctaes>+`.
+
+|`+aes_block_default_not_linked_wasm+`
+|wasip2, wasip3
+|`+webcpp::crypto: AES block cipher's default backend on this target is ctaes, which is not linked. Add /webcpp/crypto//aes_block-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//aes_block-default ; or name another backend in the type, as in ciphers::aes256<backends::openssl>. The backends that have it: openssl (native, wasip2, wasip3), ctaes (native, wasip2, wasip3, emscripten). (without b2: define WEBCPP_CRYPTO_HAS_CTAES=1 and link ctaes.c with webcpp's src/canary_ctaes.c)+`
+
+The fix: On WASI the block cipher's default is ctaes: add `+/webcpp/crypto//aes_block-default+`, which links `+/third_party//ctaes+` there, or, with OpenSSL linked, name it in the type, as in `+aes256<backends::openssl>+`.
+
 |`+aes_on_bearssl+`
 |native, wasip2
 |`+webcpp::crypto: ciphers::aes256<backends::bearssl>: BearSSL exports AES only inside its modes, with no block cipher. Name a backend that exports it, as in ciphers::aes256<backends::ctaes> or ciphers::aes256<backends::openssl>, and add its library to the program's Jamfile.+`
@@ -853,6 +865,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+aead_not_a_family+`
 |the compile
 |Name one of the three ChaCha20-Poly1305 families or the two secret boxes'; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`.
+
+|`+aes_block_default_not_linked+`
+|the compile
+|Natively the block cipher's default is OpenSSL: add `+/webcpp/crypto//aes_block-default+`, which links `+/webcpp/crypto//openssl+` there, or name ctaes in the type, as in `+aes256<backends::ctaes>+`.
 
 |`+aes_on_bearssl+`
 |the compile

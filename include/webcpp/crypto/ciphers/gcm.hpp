@@ -107,6 +107,10 @@ namespace webcpp::crypto::ciphers {
  * and it is not shareable. An IV is never reused under one key, and with random IVs, or IVs
  * other than 12 bytes, a key seals at most 2^32 messages (NIST SP 800-38D section 8.3).
  *
+ * The incremental open reads the ciphertext twice: `authenticate` every piece, `verify` the
+ * tag, then `decrypt` the same pieces; no plaintext reaches the caller before the tag matched.
+ * The second pass must read the bytes the first read.
+ *
  * @tparam Cipher `aes128<B>`, `aes192<B>` or `aes256<B>`.
  */
 template <class Cipher>
@@ -308,7 +312,7 @@ public:
         if (!keyed_) {
             return error::invalid_state;
         }
-        if (in_message_) {
+        if (phase_ != phase::none) {
             abandon();
             return error::invalid_state;
         }
@@ -321,7 +325,7 @@ public:
             engine::abandon(state_);
             return start_result.error();
         }
-        in_message_ = true;
+        phase_ = phase::sealing;
         message_bytes_ = 0;
         return {};
     }
@@ -333,13 +337,15 @@ public:
      * piece's size leaves it untouched.
      *
      * @param data_bytes The piece, of any size, empty included.
-     * @return Nothing; `invalid_state` without a message; `message_too_long` when the pieces
-     * pass `max_message_size`, which ends the message; `backend_failure`, which ends it.
+     * @return Nothing; `invalid_state` without a seal, which ends an open in progress;
+     * `message_too_long` when the pieces pass `max_message_size`, which ends the message;
+     * `backend_failure`, which ends it.
      */
     [[nodiscard]] boost::system::result<void> update(std::span<std::uint8_t> data_bytes) noexcept {
         detail::timing_guard const timing;
-        if (!keyed_ || !in_message_) {
-            return error::invalid_state;
+        auto const phase_result = require_phase(phase::sealing);
+        if (!phase_result) {
+            return phase_result.error();
         }
         if (detail::exceeds(data_bytes.size(), max_message_size - message_bytes_)) {
             abandon();
@@ -358,13 +364,14 @@ public:
     /**
      * Ends the message with its tag.
      *
-     * @return The tag; `invalid_state` without a message; `backend_failure`, which ends it
-     * too.
+     * @return The tag; `invalid_state` without a seal, which ends an open in progress;
+     * `backend_failure`, which ends the seal too.
      */
     [[nodiscard]] boost::system::result<result_type> result() noexcept {
         detail::timing_guard const timing;
-        if (!keyed_ || !in_message_) {
-            return error::invalid_state;
+        auto const phase_result = require_phase(phase::sealing);
+        if (!phase_result) {
+            return phase_result.error();
         }
         result_type tag_bytes{};
         auto const tag_result = engine::tag(state_, tag_bytes);
@@ -376,8 +383,204 @@ public:
         return tag_bytes;
     }
 
+    /**
+     * Begins an incremental open: the IV and the whole additional data first, both read before
+     * this returns, the IV kept for the second pass.
+     *
+     * The open takes two passes over the ciphertext: `authenticate` reads every piece, `verify`
+     * checks the tag, and only then `decrypt` turns the same pieces into plaintext, which
+     * `end_open` ends. Any error of these calls ends the message.
+     *
+     * @param iv_bytes The IV of the seal, 1 to `max_iv_size` bytes.
+     * @param additional_data_bytes The additional data of the seal.
+     * @return Nothing; `invalid_state` moved from or with a message in progress, which ends
+     * it; `invalid_iv_size`; `message_too_long`; `backend_failure`.
+     */
+    [[nodiscard]] boost::system::result<void> begin_open(
+        std::span<std::uint8_t const> iv_bytes,
+        std::span<std::uint8_t const> additional_data_bytes) noexcept {
+        detail::timing_guard const timing;
+        if (!keyed_) {
+            return error::invalid_state;
+        }
+        if (phase_ != phase::none) {
+            abandon();
+            return error::invalid_state;
+        }
+        auto const guard_result = guard_message(iv_bytes, additional_data_bytes, 0, tag_size);
+        if (!guard_result) {
+            return guard_result.error();
+        }
+        std::ranges::copy(iv_bytes, iv_.begin());
+        iv_size_ = iv_bytes.size();
+        auto const start_result = engine::start(state_, false, iv_bytes, additional_data_bytes);
+        if (!start_result) {
+            engine::abandon(state_);
+            end_message();
+            return start_result.error();
+        }
+        phase_ = phase::authenticating;
+        message_bytes_ = 0;
+        decrypted_bytes_ = 0;
+        return {};
+    }
+
+    /**
+     * The first pass: authenticates the next piece of the ciphertext, which is read and never
+     * written.
+     *
+     * The piece is decrypted in blocks of 256 bytes into a buffer of this call, which is wiped
+     * after each block: no plaintext leaves it.
+     *
+     * @param ciphertext_piece The piece, of any size, empty included.
+     * @return Nothing; `invalid_state` outside the first pass, which ends a message in
+     * progress; `message_too_long` when the pieces pass `max_message_size`, which ends the
+     * message; `backend_failure`, which ends it.
+     */
+    [[nodiscard]] boost::system::result<void> authenticate(
+        std::span<std::uint8_t const> ciphertext_piece) noexcept {
+        detail::timing_guard const timing;
+        auto const phase_result = require_phase(phase::authenticating);
+        if (!phase_result) {
+            return phase_result.error();
+        }
+        if (detail::exceeds(ciphertext_piece.size(), max_message_size - message_bytes_)) {
+            abandon();
+            return error::message_too_long;
+        }
+        std::array<std::uint8_t, scratch_size> scratch{};
+        for (std::size_t piece_start = 0; piece_start < ciphertext_piece.size();
+             piece_start += scratch_size) {
+            std::size_t const block_size =
+                (std::min)(scratch_size, ciphertext_piece.size() - piece_start);
+            std::copy_n(ciphertext_piece.data() + piece_start, block_size, scratch.data());
+            auto const run_result = engine::run(state_, std::span(scratch).first(block_size));
+            detail::wipe(scratch.data(), block_size);
+            if (!run_result) {
+                abandon();
+                return run_result.error();
+            }
+        }
+        message_bytes_ += ciphertext_piece.size();
+        return {};
+    }
+
+    /**
+     * Ends the first pass: checks the tag of the pieces authenticated, and on a match begins
+     * the second pass.
+     *
+     * @param tag_bytes The seal's tag, 16 bytes.
+     * @return Nothing; `invalid_state` outside the first pass, which ends a message in
+     * progress; `invalid_tag_size`, `authentication_failed` and `backend_failure`, each of
+     * which ends the message.
+     */
+    [[nodiscard]] boost::system::result<void> verify(
+        std::span<std::uint8_t const> tag_bytes) noexcept {
+        detail::timing_guard const timing;
+        auto const phase_result = require_phase(phase::authenticating);
+        if (!phase_result) {
+            return phase_result.error();
+        }
+        if (tag_bytes.size() != tag_size) {
+            abandon();
+            return error::invalid_tag_size;
+        }
+        std::array<std::uint8_t, tag_size> expected_tag{};
+        std::ranges::copy(tag_bytes, expected_tag.begin());
+        auto const check_result = engine::check(state_, expected_tag);
+        if (!check_result) {
+            abandon();
+            return check_result.error();
+        }
+        // GCM's keystream depends on the key and the IV alone: the second pass needs no
+        // additional data, and the tag the engine computes in it is never read.
+        engine::abandon(state_);
+        auto const start_result = engine::start(state_, false, std::span(iv_).first(iv_size_), {});
+        if (!start_result) {
+            abandon();
+            return start_result.error();
+        }
+        phase_ = phase::decrypting;
+        decrypted_bytes_ = 0;
+        return {};
+    }
+
+    /**
+     * The second pass: decrypts the next piece in place, the bytes `authenticate` read in the
+     * same place of the message.
+     *
+     * When the backend fails, the piece is zeroed and the message ends; a refusal of the
+     * piece's size leaves it untouched.
+     *
+     * @param data_piece The piece: ciphertext before, plaintext after.
+     * @return Nothing; `invalid_state` before `verify` matched, which ends a message in
+     * progress; `invalid_input_size` when the pieces pass the bytes authenticated, which ends
+     * the message; `backend_failure`, which ends it.
+     */
+    [[nodiscard]] boost::system::result<void> decrypt(std::span<std::uint8_t> data_piece) noexcept {
+        detail::timing_guard const timing;
+        auto const phase_result = require_phase(phase::decrypting);
+        if (!phase_result) {
+            return phase_result.error();
+        }
+        if (data_piece.size() > message_bytes_ - decrypted_bytes_) {
+            abandon();
+            return error::invalid_input_size;
+        }
+        auto const run_result = engine::run(state_, data_piece);
+        if (!run_result) {
+            detail::wipe(data_piece.data(), data_piece.size());
+            abandon();
+            return run_result.error();
+        }
+        decrypted_bytes_ += data_piece.size();
+        return {};
+    }
+
+    /**
+     * Ends the open, whose message's state is wiped.
+     *
+     * @return Nothing; `invalid_state` outside the second pass, which ends a message in
+     * progress; `invalid_input_size` when fewer bytes were decrypted than authenticated,
+     * which ends the message too.
+     */
+    [[nodiscard]] boost::system::result<void> end_open() noexcept {
+        detail::timing_guard const timing;
+        auto const phase_result = require_phase(phase::decrypting);
+        if (!phase_result) {
+            return phase_result.error();
+        }
+        bool const whole = decrypted_bytes_ == message_bytes_;
+        abandon();
+        if (!whole) {
+            return error::invalid_input_size;
+        }
+        return {};
+    }
+
 private:
+    // The phases of the incremental message: none, the seal, the open's first and second pass.
+    enum class phase : std::uint8_t { none, sealing, authenticating, decrypting };
+
+    // The bytes authenticate decrypts at once into its own buffer.
+    static constexpr std::size_t scratch_size = 256;
+
     gcm() noexcept = default;
+
+    // A call of the incremental machine in `expected`: outside it, `invalid_state`, which ends
+    // a message in another phase.
+    [[nodiscard]] boost::system::result<void> require_phase(phase expected) noexcept {
+        if (!keyed_) {
+            return error::invalid_state;
+        }
+        if (phase_ != expected) {
+            if (phase_ != phase::none) {
+                abandon();
+            }
+            return error::invalid_state;
+        }
+        return {};
+    }
 
     // The message's state is wiped by the engine, the key kept; no message is in progress.
     void abandon() noexcept {
@@ -389,7 +592,7 @@ private:
     // backend whose move copies its context whole (OpenSSL's) carries none of it into the
     // destination.
     void abandon_message() noexcept {
-        if (in_message_) {
+        if (phase_ != phase::none) {
             abandon();
         }
     }
@@ -399,7 +602,7 @@ private:
     [[nodiscard]] boost::system::result<void> guard_message(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::size_t byte_count, std::size_t tag_bytes) const noexcept {
-        if (!keyed_ || in_message_) {
+        if (!keyed_ || phase_ != phase::none) {
             return error::invalid_state;
         }
         if (iv_bytes.empty() || iv_bytes.size() > max_iv_size) {
@@ -415,15 +618,25 @@ private:
         return {};
     }
 
+    // No message is in progress; the kept IV is wiped and the counters zeroed.
     void end_message() noexcept {
-        in_message_ = false;
+        phase_ = phase::none;
+        detail::wipe(iv_.data(), iv_.size());
+        iv_size_ = 0;
         message_bytes_ = 0;
+        decrypted_bytes_ = 0;
     }
 
     state_type state_{};
     bool keyed_ = false;
-    bool in_message_ = false;
+    phase phase_ = phase::none;
+    // The open's IV, kept for its second pass.
+    std::array<std::uint8_t, max_iv_size> iv_{};
+    std::size_t iv_size_ = 0;
+    // The bytes sealed, or authenticated by the open's first pass.
     std::uint64_t message_bytes_ = 0;
+    // The bytes decrypted by the open's second pass.
+    std::uint64_t decrypted_bytes_ = 0;
 };
 
 }  // namespace webcpp::crypto::ciphers

@@ -268,11 +268,12 @@
         {
             "id": "gcm",
             "family": "gcm",
-            "functions": ["make", "seal", "open", "begin_seal", "update", "result"],
+            "functions": ["make", "seal", "open", "begin_seal", "update", "result", "begin_open",
+                          "authenticate", "verify", "decrypt", "end_open"],
             "namespace": "ciphers",
             "api": "ciphers::gcm, aes128_gcm, aes256_gcm",
             "header": "<webcpp/crypto/ciphers/gcm.hpp>, <webcpp/crypto/ciphers/aes256_gcm.hpp>",
-            "what": "AES-GCM, authenticated encryption in place with an incremental seal.",
+            "what": "AES-GCM, authenticated encryption in place with an incremental seal and an incremental open in two passes.",
             "section": "crypto-gcm",
             "default": "`aes128_gcm` and `aes256_gcm` name the default backend.",
             "backends": {

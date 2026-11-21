@@ -566,7 +566,7 @@ void labelled_round_trip() {
                crypto::error::invalid_point);
     // A label whose point is the spend key negated: the sum is the point at infinity.
     sp::label opposite = *other;
-    opposite.point = secp::serialize_public_key(secp::pubkey_negate(spend_key));
+    opposite.point = secp::serialize_public_key(secp::pubkey_negate(spend_key).value());
     BOOST_TEST(sp::create_labeled_spend_key(spend_key, opposite).error() ==
                crypto::error::invalid_public_key);
 }
@@ -695,7 +695,7 @@ void summary_refusals(refusal_keys& keys) {
     BOOST_TEST(all_zero(keys.space));
     std::array<secp::public_key, 2> const opposite{
         public_of(keys.sender),
-        secp::pubkey_negate(public_of(keys.sender)),
+        secp::pubkey_negate(public_of(keys.sender)).value(),
     };
     BOOST_TEST(sp::make_prevouts_summary(keys.outpoint, {}, opposite,
                                          keys.fresh(sp::summary_workspace_size(0, 2)))

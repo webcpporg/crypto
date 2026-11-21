@@ -319,7 +319,8 @@ keys, each function a call of libsecp256k1:
 32-byte tweak, modulo the group order, returned as a `secret<32>`;
 `pubkey_tweak_add` and `pubkey_tweak_mul`: P + tG and tP, the public keys of
 those two secrets;
-* `seckey_negate` and `pubkey_negate`: the negation of either, n - d and -P;
+* `seckey_negate` and `pubkey_negate`: the negation of either, n - d and -P,
+each a `result` like the other tweaks;
 * `pubkey_combine`: the sum of public keys, the public key of the sum of their
 secrets. libsecp256k1 takes an array of pointers to the keys, which crypto
 builds in a `workspace` the caller lends, of `combine_workspace_size(n)` bytes,

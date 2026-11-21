@@ -809,7 +809,7 @@ void cover_tweaks() {
             [&] { BOOST_TEST(secp::pubkey_tweak_add(keys[0], tweak).has_value()); });
     covered("secp256k1::pubkey_tweak_mul on secp256k1",
             [&] { BOOST_TEST(secp::pubkey_tweak_mul(keys[0], tweak).has_value()); });
-    std::optional<secp::public_key> negated;
+    boost::system::result<secp::public_key> negated = crypto::error::backend_failure;
     covered("secp256k1::pubkey_negate on secp256k1",
             [&] { negated = secp::pubkey_negate(keys[0]); });
     BOOST_TEST((negated && !(*negated == keys[0])));

@@ -246,7 +246,10 @@ int main() {
         none("seckey_negate", [&] { return secp::seckey_negate(secret); });
         none("pubkey_tweak_add", [&] { return secp::pubkey_tweak_add(*parsed, message); });
         none("pubkey_tweak_mul", [&] { return secp::pubkey_tweak_mul(*parsed, message); });
-        none("pubkey_negate", [&] { return secp::pubkey_negate(*parsed) != *parsed; });
+        none("pubkey_negate", [&] {
+            auto const negated = secp::pubkey_negate(*parsed);
+            return negated && *negated != *parsed;
+        });
         alignas(std::max_align_t) std::array<std::byte, secp::combine_workspace_size(2)> space{};
         std::array<secp::public_key, 2> const pair{*parsed, *parsed};
         none("pubkey_combine", [&] { return secp::pubkey_combine(pair, space); });

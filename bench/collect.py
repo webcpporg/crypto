@@ -31,12 +31,18 @@ doc/tables/crypto.json states for its family (the size matrix's), or the cell is
 never fails this script: only a program that does not run, or a cell it does not know, does.
 `--render-only` rewrites the page from the data.
 
+`--provisional` marks the data's figures as provisional, measured on a shared, loaded machine and
+to be measured again in a final pass on a quiet one: the data keeps `"provisional": true` and the
+page says so above both tables. With `--render-only` it marks the data as it is, numbers unchanged;
+a measurement without it clears the mark.
+
 The timing guard's cost (detail::timing_guard, which every public operation holds and which sets
 64-bit ARM's DIT where the CPU has it) is `timing --measure`'s one line: whether the guard sets DIT
 on this machine, and the nanoseconds a guard adds to a call entered from a thread whose DIT is
 clear and from one where it is already set, each the median of five runs of 10^7 guards minus an
-empty loop's. The data keeps it under "timing_guard" with the date, the machine and the load; the
-page renders it as a paragraph and a two-row table under the throughput.
+empty loop's, with the fastest and slowest run. The data keeps it under "timing_guard" with the
+date, the machine and the load; the page renders it as a paragraph and a two-row table under the
+throughput. Every date is UTC's, as the constant-time lane's are.
 
 libsodium's x86-64 assembly (HAVE_AMD64_ASM, design D7) is recorded beside the table as not
 measured yet, with its reason, until an x86-64 machine runs a scratch build of it by hand.
@@ -104,6 +110,11 @@ def check_release(exes):
 def crypto_json():
     with open(CRYPTO_JSON, encoding="utf-8") as f:
         return json.load(f)
+
+
+def utc_today():
+    """Today's date in UTC, the date every measurement of crypto's states."""
+    return datetime.datetime.now(datetime.timezone.utc).date().isoformat()
 
 
 def median(values):
@@ -199,7 +210,7 @@ def measure(exes, invocations):
     return {
         "measurement": "each family's fixed operation per backend and target, "
                        "bench/operations.hpp",
-        "date": datetime.date.today().isoformat(),
+        "date": utc_today(),
         "machine": machine(),
         "load_average_before_after": [list(loads[0]), list(loads[1])],
         "build": BUILD,
@@ -217,7 +228,7 @@ def measure_timing(exe):
     result = json.loads(line.splitlines()[-1])
     return {
         "measurement": "the nanoseconds detail::timing_guard adds to a call, bench/timing.cpp",
-        "date": datetime.date.today().isoformat(),
+        "date": utc_today(),
         "machine": machine(),
         "load_average_before_after": [list(loads[0]), list(loads[1])],
         "build": BUILD,
@@ -227,8 +238,20 @@ def measure_timing(exe):
         "runs": result["runs"],
         "dit": result["dit"],
         "clear_ns": result["clear"],
+        "clear_fastest_ns": result["clear_fastest"],
+        "clear_slowest_ns": result["clear_slowest"],
         "set_ns": result["set"],
+        "set_fastest_ns": result["set_fastest"],
+        "set_slowest_ns": result["set_slowest"],
     }
+
+
+# What the page says of provisional figures (--provisional).
+PROVISIONAL = (
+    "NOTE: these figures are provisional. They were measured on a shared machine under load "
+    "(the load averages above), and are measured again in a final measurement pass on a quiet "
+    "machine, once the work in progress has merged; read them as an upper bound."
+)
 
 
 # When the page warns that the machine was loaded: a shared machine shows in the spread before a
@@ -247,8 +270,9 @@ def fmt_load(load):
 
 
 def fmt_ns(value):
-    """Nanoseconds as the page shows them: one decimal."""
-    return f"{value:.1f}"
+    """Nanoseconds as the page shows them: one decimal; "not recorded" for a figure the data,
+    measured before it was recorded, does not hold."""
+    return "not recorded" if value is None else f"{value:.1f}"
 
 
 def fmt_us(value):
@@ -273,7 +297,7 @@ def render_timing(data, timing, titles, backends):
         "Every public operation runs inside `detail::timing_guard`, which on 64-bit ARM under",
         "macOS, iOS, Linux and Android, where the CPU has FEAT_DIT, sets DIT (data-independent",
         "timing) for the call and restores the thread's state after it",
-        "(<<crypto-backends-constant-time>>): one `mrs`, and where DIT was clear, two `msr`",
+        "(<<crypto-backends-dit>>): one `mrs`, and where DIT was clear, two `msr`",
         "each followed by an `isb`. Elsewhere (x86, WebAssembly, Windows on ARM64) it executes",
         "no instruction.",
         "",
@@ -289,12 +313,15 @@ def render_timing(data, timing, titles, backends):
         f"Measured natively on {timing['date']} on {machine_info['cpu']}",
         f"({machine_info['architecture']}), {machine_info['os']}, built with {timing['build']}",
         f"by {timing['compiler']} (bench/timing.cpp): each row is the median of",
-        f"{timing['runs']} runs of {timing['iterations']:,} guards around a store, minus the",
-        f"median of the same loop without the guard, in nanoseconds per call. {sets}",
+        f"{timing['runs']} runs of {timing['iterations']:,} guards around a store, with the",
+        "fastest and slowest run beside it, each minus the median of the same loop without the",
+        f"guard, in nanoseconds per call. {sets}",
         f"The machine's 1, 5 and 15 minute load averages were {fmt_load(load[0])} before and",
         f"{fmt_load(load[1])} after, on {machine_info['cores']} cores.",
         "",
     ]
+    if data.get("provisional"):
+        lines += [PROVISIONAL, ""]
     if loaded(timing):
         lines += [
             "WARNING: the machine was shared and loaded while this was measured (rule: "
@@ -302,17 +329,22 @@ def render_timing(data, timing, titles, backends):
             "",
         ]
     lines += [
-        '[cols="2,4,1",options="header"]',
+        '[cols="2,4,1,1,1",options="header"]',
         "|===",
-        "| The thread's DIT on entry | What the guard does | Cost (ns per call)",
+        "| The thread's DIT on entry | What the guard does | Median (ns) | Fastest (ns) "
+        "| Slowest (ns)",
         "",
         "| clear, as a program that sets nothing has it",
         "| reads DIT, sets it, and clears it on the way out",
         f"| {fmt_ns(timing['clear_ns'])}",
+        f"| {fmt_ns(timing.get('clear_fastest_ns'))}",
+        f"| {fmt_ns(timing.get('clear_slowest_ns'))}",
         "",
         "| already set, by the program or by an outer guard",
         "| reads DIT and leaves it set",
         f"| {fmt_ns(timing['set_ns'])}",
+        f"| {fmt_ns(timing.get('set_fastest_ns'))}",
+        f"| {fmt_ns(timing.get('set_slowest_ns'))}",
         "|===",
         "",
     ]
@@ -369,6 +401,8 @@ def render(data, page):
         f"{fmt_load(load[1])} after, on {machine_info['cores']} cores.",
         "",
     ]
+    if data.get("provisional"):
+        lines += [PROVISIONAL, ""]
     if loaded(data):
         lines += [
             "WARNING: the machine was shared and loaded while this was measured (rule: "
@@ -415,9 +449,14 @@ def render(data, page):
 
 
 def read_release_data(path):
-    """The data at path; exits when it, or its guard's measurement, was not built at BUILD."""
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+    """The data at path; exits when it cannot be read, or when it, or its guard's measurement, was
+    not built at BUILD."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError) as error:
+        sys.exit(f"collect.py: {path} cannot be read ({error}); --timing alone and --render-only "
+                 "read the data that --exe wrote")
     if data.get("build") != BUILD:
         sys.exit(f"collect.py: {path} was measured with build {data.get('build')}, not "
                  f"{BUILD}: {RELEASE_ONLY}")
@@ -426,6 +465,13 @@ def read_release_data(path):
         sys.exit(f"collect.py: {path}'s timing guard was measured with build "
                  f"{timing.get('build')}, not {BUILD}: {RELEASE_ONLY}")
     return data
+
+
+def write_data(path, data):
+    """Writes data to path as the committed file has it."""
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
 
 
 def main():
@@ -437,9 +483,14 @@ def main():
     parser.add_argument("--timing", metavar="PATH",
                         help="bench/Jamfile's timing at variant=release, run natively")
     parser.add_argument("--render-only", action="store_true")
+    parser.add_argument("--provisional", action="store_true",
+                        help="mark the figures as measured under load, to be measured again")
     args = parser.parse_args()
     if args.render_only:
         data = read_release_data(args.data)
+        if args.provisional and not data.get("provisional"):
+            data["provisional"] = True
+            write_data(args.data, data)
     else:
         exes = dict(item.split("=", 1) for item in args.exe)
         unknown = sorted(set(exes) - set(TARGETS))
@@ -460,9 +511,10 @@ def main():
             data = read_release_data(args.data)
         if args.timing is not None:
             data["timing_guard"] = measure_timing(args.timing)
-        with open(args.data, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-            f.write("\n")
+        data.pop("provisional", None)
+        if args.provisional:
+            data["provisional"] = True
+        write_data(args.data, data)
     render(data, args.page)
 
 

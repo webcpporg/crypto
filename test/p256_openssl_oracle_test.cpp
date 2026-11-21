@@ -17,7 +17,9 @@
 //   ecdh_x.
 // - Formats: OpenSSL's i2d_PUBKEY and its PrivateKeyInfo (an OSSL_ENCODER, DER) decode with
 //   decode_spki and decode_pkcs8 and encode again to the same bytes; encode_spki's and
-//   encode_pkcs8's bytes load in OpenSSL (d2i_PUBKEY, d2i_AutoPrivateKey) to the same key.
+//   encode_pkcs8's bytes load in OpenSSL (d2i_PUBKEY, d2i_AutoPrivateKey) to the same key, its
+//   public point by EVP_PKEY_eq and its scalar compared on its own, since EVP_PKEY_eq compares the
+//   public components alone.
 //
 // A case agrees when every check of it holds. The program prints `oracle ok <n>`, the cases that
 // agree, and passes when n is 600 and OpenSSL's error queue is empty at the end.
@@ -25,6 +27,8 @@
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
+#include <webcpp/crypto/equal.hpp>
+#include <webcpp/crypto/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -42,6 +46,7 @@
 #include <openssl/params.h>
 #include <openssl/x509.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -276,6 +281,26 @@ pkey_ptr openssl_read_pkcs8(std::span<std::uint8_t const> pkcs8) {
     return at == pkcs8.data() + pkcs8.size() ? std::move(key) : pkey_ptr{};
 }
 
+/**
+ * The scalar OpenSSL holds in a key, as 32 big-endian bytes in a `secret`: `EVP_PKEY_eq` compares
+ * public components alone, so the scalar a PKCS#8 loads is compared on its own. OpenSSL's copy is
+ * a BIGNUM freed with BN_clear_free.
+ */
+webcpp::crypto::secret<p256::secret_key_size> openssl_scalar(EVP_PKEY const* key) {
+    webcpp::crypto::secret<p256::secret_key_size> scalar;
+    BIGNUM* number = nullptr;
+    if (EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_PRIV_KEY, &number) != 1) {
+        return scalar;
+    }
+    std::unique_ptr<BIGNUM, bn_free> const owned{number};
+    auto const out = scalar.writable();
+    if (BN_bn2binpad(owned.get(), out.data(), static_cast<int>(out.size())) !=
+        static_cast<int>(out.size())) {
+        std::ranges::fill(out, std::uint8_t{0});
+    }
+    return scalar;
+}
+
 template <std::size_t N>
 bytes bytes_of(std::array<std::uint8_t, N> const& array) {
     return {array.begin(), array.end()};
@@ -373,9 +398,12 @@ bool formats_case(std::mt19937_64& generator, std::size_t index) {
     // Ours load in OpenSSL to the same key.
     pkey_ptr const from_spki = openssl_read_spki(spki);
     pkey_ptr const from_pkcs8 = openssl_read_pkcs8(pkcs8);
+    auto const loaded_scalar = from_pkcs8 ? openssl_scalar(from_pkcs8.get())
+                                          : webcpp::crypto::secret<p256::secret_key_size>{};
     bool const openssl_reads_ours =
         BOOST_TEST(from_spki && EVP_PKEY_eq(from_spki.get(), key.get()) == 1) &&
-        BOOST_TEST(from_pkcs8 && EVP_PKEY_eq(from_pkcs8.get(), key.get()) == 1);
+        BOOST_TEST(from_pkcs8 && EVP_PKEY_eq(from_pkcs8.get(), key.get()) == 1) &&
+        BOOST_TEST(webcpp::crypto::equal(loaded_scalar.bytes(), scalar));
     bool const agrees = spki_round_trip && pkcs8_round_trip && openssl_reads_ours;
     if (!agrees) {
         static_cast<void>(std::fprintf(stderr, "formats case %zu: OpenSSL disagrees: scalar %s\n",

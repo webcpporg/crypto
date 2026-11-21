@@ -126,6 +126,7 @@
         "bip324": ["BIP 324, version 2 P2P encrypted transport protocol", "https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki"],
         "elligatorswift": ["Chavez-Saab, Rodríguez-Henríquez and Tibouchi, SwiftEC: Shallue-van de Woestijne Indifferentiable Function to Elliptic Curves, 2022", "https://eprint.iacr.org/2022/759"],
         "openssl-evp-pkey-ec": ["OpenSSL's EVP_PKEY-EC: an EC key's point form and its encodings", "https://docs.openssl.org/master/man7/EVP_PKEY-EC/"],
+        "openssl-ecdsa-signature": ["OpenSSL 3.5's EVP_SIGNATURE-ECDSA: the nonce-type parameter, 1 for RFC 6979's deterministic nonce", "https://docs.openssl.org/3.5/man7/EVP_SIGNATURE-ECDSA/"],
         "openssl-pkey": ["OpenSSL's pkey command: a private key written in PKCS#8 by default", "https://docs.openssl.org/master/man1/openssl-pkey/"],
         "musig2": ["Nick, Ruffing and Seurin, MuSig2: Simple Two-Round Schnorr Multi-Signatures, CRYPTO 2021", "https://eprint.iacr.org/2020/1261"],
         "bip352": ["BIP 352, Silent Payments", "https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki"],
@@ -683,7 +684,7 @@
             "header": "<webcpp/crypto/curves/p256.hpp>",
             "what": "A validated P-256 public key, made from SEC 1's 65-byte uncompressed point or from its two coordinates; a point off the curve, a coordinate not below p or another form is `invalid_public_key`.",
             "section": "crypto-p256-keys",
-            "backends": {"bearssl": {"tests": ["p256_keys_bearssl", "allocation_bearssl"]}}
+            "backends": {"bearssl": {"tests": ["p256_keys_bearssl", "p256_openssl_oracle", "p256_webcrypto_oracle", "allocation_bearssl"]}}
         },
         {
             "id": "p256_ecdsa",

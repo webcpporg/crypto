@@ -107,7 +107,7 @@ template <class Backend>
  * @param spki_bytes The SPKI, exactly: nothing may follow it.
  * @return The key; `invalid_encoding` for any other bytes: another curve, a compressed point,
  * explicit curve parameters, a long form where DER has the short one, a point off the curve or a
- * coordinate not below p; `backend_failure` as `make` reports it.
+ * coordinate not below p.
  */
 template <class Backend = default_backend_t<families::p256>>
 [[nodiscard]] boost::system::result<basic_public_key<Backend>> decode_spki(

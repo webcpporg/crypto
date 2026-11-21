@@ -528,6 +528,10 @@ struct counts {
     int acceptable_refused = 0;
     /** The listed refusals by flag (a case counts under each of its flags). */
     std::map<std::string, int, std::less<>> by_flag;
+    /** The listed refusals by the one reason chosen for each case, as the page states them. */
+    int refused_compressed = 0;
+    int refused_not_der = 0;
+    int refused_explicit_parameters = 0;
 };
 
 // A case's private key as 32 bytes: Wycheproof writes it as an ASN.1 integer's bytes, which may
@@ -587,6 +591,13 @@ void listed_refusal(json::value const& t, counts& seen) {
         return;
     }
     ++seen.acceptable_refused;
+    if (reason.starts_with("a compressed point")) {
+        ++seen.refused_compressed;
+    } else if (reason.starts_with("not the one DER")) {
+        ++seen.refused_not_der;
+    } else {
+        ++seen.refused_explicit_parameters;
+    }
     std::cout << "ecdh_secp256r1_test tcId " << t.at("tcId").to_number<std::int64_t>()
               << " acceptable (" << flags << "), refused by decode_spki: " << reason << '\n';
 }
@@ -665,6 +676,10 @@ void wycheproof_spki() {
     // that is not DER's one, or explicit curve parameters.
     BOOST_TEST_EQ(seen.acceptable_agreed, 0);
     BOOST_TEST_EQ(seen.acceptable_refused, 230);
+    // The page's breakdown of those 230, by the reason chosen for each case.
+    BOOST_TEST_EQ(seen.refused_compressed, 1);
+    BOOST_TEST_EQ(seen.refused_not_der, 222);
+    BOOST_TEST_EQ(seen.refused_explicit_parameters, 7);
 }
 #endif
 

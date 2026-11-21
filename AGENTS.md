@@ -53,7 +53,8 @@ specific to crypto.
   form `(q | -q) >> 31`), so the public point and `ecdh_x` are checked traced by memcheck alone.
 - A test of a backend is a `.cpp` of its own per backend, never a define that changes the backend
   of one source (spec section 4.3's pitfall).
-- Every C library is unchanged upstream code. A moved pin is a change of its own
-  (CODING-GUIDELINES.md chapter 5, rule 12).
+- Every C library is upstream code, unchanged except where CODING-GUIDELINES.md chapter 5 rule 1
+  allows a security fix on the mirror's `webcpp` branch (BearSSL: 32381d6, ECDSA's nonce
+  decoding); a moved pin carries that commit. A moved pin is a change of its own (rule 12).
 - X25519's constant time on wasip2 is an open finding (the page's constant-time table): do not
   describe it as a pass.

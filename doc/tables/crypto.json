@@ -687,7 +687,10 @@
             "header": "<webcpp/crypto/curves/p256.hpp>",
             "what": "A validated P-256 public key, made from SEC 1's 65-byte uncompressed point or from its two coordinates; a point off the curve, a coordinate not below p or another form is `invalid_public_key`.",
             "section": "crypto-p256-keys",
-            "backends": {"bearssl": {"tests": ["p256_keys_bearssl", "p256_openssl_oracle", "p256_webcrypto_oracle", "allocation_bearssl"]}}
+            "backends": {
+                "bearssl": {"tests": ["p256_keys_bearssl", "p256_openssl_oracle", "p256_webcrypto_oracle", "allocation_bearssl"]},
+                "sodium": {"refused": "p256_on_sodium"}
+            }
         },
         {
             "id": "p256_ecdsa",

@@ -246,8 +246,8 @@ def program_line(target, command, output, shape):
         return line
     printed = lines[-1] if lines else ""
     sys.exit(f"collect.py: {target} {' '.join(command)} printed {printed!r}, which is not "
-             f"the form collect.py reads: {found} is wrong; build bench/Jamfile's program "
-             "again from this tree")
+             f"the form collect.py reads: {found or 'line (not an object)'} is wrong; build "
+             "bench/Jamfile's program again from this tree")
 
 
 def run(target, command):

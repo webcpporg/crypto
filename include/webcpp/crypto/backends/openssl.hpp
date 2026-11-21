@@ -538,8 +538,8 @@ struct gcm_engine<backends::openssl, KeySize> {
     }
 
     // EVP_CIPHER_CTX_free cleanses the expanded key before it frees. The pointer is then
-    // zeroed by wipe_object: a plain store of null is dead in a destructor, and GCC's -O3
-    // drops it.
+    // zeroed by wipe_object: a plain store of null is dead at the end of an object's life, and
+    // any optimiser may drop it (GCC 15 at -O3 does).
     /** Frees the context. */
     static void reset(state& engine_state) noexcept {
         EVP_CIPHER_CTX_free(engine_state.context);

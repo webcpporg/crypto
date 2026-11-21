@@ -236,8 +236,10 @@ int main() {
         {.offset = 0, .size = sizeof(crypto::detail::block_state<crypto::backends::ctaes, 32>)});
 #elif defined(WEBCPP_TEST_WIPE_SECP256K1)
     // After the context's pointer and the resource's, the key pair of libsecp256k1, which holds
-    // the secret key; the context's pointer is nulled but the resource's stays, so the layout
-    // is part of what this checks (a wrong offset fails the zero reads).
+    // the secret key. The context's pointer is not secret: release() stores null to it, a store
+    // an optimiser may drop at the end of an object's life, which is why the region starts
+    // after it. The resource's pointer stays too, so the layout is part of what this checks (a
+    // wrong offset fails the zero reads).
     using type = crypto::curves::secp256k1::keypair;
     static_assert(sizeof(type) >= (2 * sizeof(void*)) + sizeof(secp256k1_keypair));
     check_wiped<type>({.offset = 2 * sizeof(void*), .size = sizeof(secp256k1_keypair)});

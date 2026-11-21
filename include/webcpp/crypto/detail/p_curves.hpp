@@ -99,8 +99,9 @@ struct p_curve_engine;
 
 /**
  * The one door into a P-curve's opaque types (a public key, whose default constructor is
- * private): the family's functions make one through it and write its point before they return
- * it. It hands out nothing a caller of crypto could not already do.
+ * private), for the family's own functions alone: they make one through it and write its point
+ * before they return it. A key made through it is not validated: only a point a key pair
+ * computed or the backend checked may be written into it.
  */
 struct p_curve_access {
     /**

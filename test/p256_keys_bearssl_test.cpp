@@ -189,6 +189,13 @@ void public_key_refusals() {
     auto x_is_p = data::rfc6979_public;
     std::ranges::copy(data::field_prime, x_is_p.begin() + 1);
     BOOST_TEST(refused(x_is_p));
+    // A coordinate not below p of a point on the curve: (0, y0) and (x1, 1) are on it, and
+    // accepted; written with x + p and y + p, the same points are refused, the curve's equation
+    // alone would not refuse them.
+    BOOST_TEST(!refused(data::point_x_zero));
+    BOOST_TEST(refused(data::point_x_zero_plus_p));
+    BOOST_TEST(!refused(data::point_y_one));
+    BOOST_TEST(refused(data::point_y_one_plus_p));
     std::array<std::uint8_t, 65> zeros{};
     BOOST_TEST(refused(zeros));
     // 04 and zeros: (0, 0) is not on the curve, the identity has no affine form.
@@ -198,6 +205,16 @@ void public_key_refusals() {
     std::span<std::uint8_t const, 65> const off(off_curve);
     BOOST_TEST(public_key::make(off.subspan<1, 32>(), off.subspan<33, 32>()).error() ==
                error::invalid_public_key);
+}
+
+void backend_choice() {
+    // Design D36: natively m62 where BearSSL has it, else m31; on WebAssembly m31 always.
+#ifdef WEBCPP_CRYPTO_WEBASSEMBLY
+    BOOST_TEST(crypto::detail::bearssl_p256() == &br_ec_p256_m31);
+#else
+    br_ec_impl const* const wide = br_ec_p256_m62_get();
+    BOOST_TEST(crypto::detail::bearssl_p256() == (wide != nullptr ? wide : &br_ec_p256_m31));
+#endif
 }
 
 void moved_from() {
@@ -285,6 +302,7 @@ int main() {
     generate_makes_distinct_valid_keys();
     public_key_from_point_and_coordinates();
     public_key_refusals();
+    backend_choice();
     moved_from();
     wipe();
     traits();

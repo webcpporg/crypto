@@ -32,6 +32,21 @@ inline constexpr auto half_order =
 // FIPS 186-5 / SEC 2: the field prime p, which no coordinate reaches.
 inline constexpr auto field_prime =
     hex<32>("ffffffff00000001000000000000000000000000ffffffffffffffffffffffff");
+// Points on the curve, computed on 2026-11-21 from FIPS 186-5's b with p = 3 mod 4: (0, y0),
+// y0 = b^((p + 1) / 4), and (x1, 1), x1 a root of x^3 - 3x + b - 1; each checked against the
+// curve's equation. Then the same points with x + p and with y + p, which fit in 32 bytes.
+inline constexpr auto point_x_zero = hex<65>(
+    "040000000000000000000000000000000000000000000000000000000000000000"
+    "66485c780e2f83d72433bd5d84a06bb6541c2af31dae871728bf856a174f93f4");
+inline constexpr auto point_x_zero_plus_p = hex<65>(
+    "04ffffffff00000001000000000000000000000000ffffffffffffffffffffffff"
+    "66485c780e2f83d72433bd5d84a06bb6541c2af31dae871728bf856a174f93f4");
+inline constexpr auto point_y_one = hex<65>(
+    "048d0177ebab9c6e9e10db6dd095dbac0d6375e8a97b70f611875d877f0069d2c7"
+    "0000000000000000000000000000000000000000000000000000000000000001");
+inline constexpr auto point_y_one_plus_p = hex<65>(
+    "048d0177ebab9c6e9e10db6dd095dbac0d6375e8a97b70f611875d877f0069d2c7"
+    "ffffffff00000001000000000000000000000001000000000000000000000000");
 
 }  // namespace webcpp::test::p256
 

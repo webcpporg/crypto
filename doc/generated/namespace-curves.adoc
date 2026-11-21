@@ -49,9 +49,9 @@
 
 |Standards
 |link:https://www.secg.org/sec2-v2.pdf[SEC 2, Recommended Elliptic Curve Domain Parameters], link:https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki[BIP 340, Schnorr signatures for secp256k1], link:https://www.rfc-editor.org/rfc/rfc6979[RFC 6979, deterministic ECDSA nonces], link:https://github.com/bitcoin/bips/blob/master/bip-0324.mediawiki[BIP 324, version 2 P2P encrypted transport protocol], link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327, MuSig2 for BIP340-compatible multi-signatures], link:https://github.com/bitcoin/bips/blob/master/bip-0352.mediawiki[BIP 352, Silent Payments]
-|link:https://www.rfc-editor.org/rfc/rfc8032[RFC 8032, the Edwards-curve Digital Signature Algorithm (EdDSA)], link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5, the Digital Signature Standard, which adds EdDSA]
+|link:https://www.rfc-editor.org/rfc/rfc8032[RFC 8032, the Edwards-curve Digital Signature Algorithm (EdDSA)], link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5, the Digital Signature Standard]
 |link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748, Elliptic Curves for Security (X25519 and X448)]
-|link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5, the Digital Signature Standard, which adds EdDSA], link:https://www.secg.org/sec2-v2.pdf[SEC 2, Recommended Elliptic Curve Domain Parameters], link:https://www.secg.org/sec1-v2.pdf[SEC 1 version 2, Elliptic Curve Cryptography, sections 2.3.3 and 2.3.4: a point's encodings]
+|link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5, the Digital Signature Standard], link:https://www.secg.org/sec2-v2.pdf[SEC 2, Recommended Elliptic Curve Domain Parameters], link:https://www.secg.org/sec1-v2.pdf[SEC 1 version 2, Elliptic Curve Cryptography, sections 2.3.3 and 2.3.4: a point's encodings]
 
 |Ecosystems that require it
 |Bitcoin (link:https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki[BIP 340, Schnorr signatures for secp256k1]), Ethereum (link:https://ethereum.github.io/yellowpaper/paper.pdf[The Ethereum yellow paper, appendix F: ECDSA on secp256k1]), Nostr (link:https://github.com/nostr-protocol/nips/blob/master/01.md[Nostr NIP-01, events signed with BIP 340 on secp256k1])

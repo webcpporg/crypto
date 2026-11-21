@@ -79,14 +79,15 @@ include::{examples}/p256_keys.expected[]
 *Pitfalls.*
 
 * A scalar stored outside a `secret<32>` outlives the key pair: the key pair
-and `secret_scalar`'s result wipe their bytes, but a copy in a string, a log or
+and the `secret<32>` that `secret_scalar` returns wipe their bytes, but a copy in a string, a log or
 a file stays where it was written. Keep the scalar in the `secret<32>` until it
 is encrypted or written to the key store, and never print it.
 * A peer's key is made into a `public_key` once, where it arrives, and kept:
 made again for every message, it costs a point check each time, and code that
 keeps the bytes instead may skip the check on some path. The check matters: a
 point off the curve, combined with a secret key, is how invalid-curve attacks
-begin (link:https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman[Wikipedia]).
+begin, which is why SEC 1 has a peer's public key validated before it is used
+(link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 3.2.2]).
 * The compressed form, 33 bytes that start with 02 or 03
 (link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 2.3.3]), is refused with
 `invalid_public_key`: BearSSL decodes uncompressed points alone. WebCrypto's

@@ -29,15 +29,18 @@ In {cpp}, a program names a backend by including its header,
 `<webcpp/crypto/backends/<name>.hpp>`, and using its tag type,
 `backends::<name>`, as a template argument:
 `ciphers::gcm<ciphers::aes256<backends::bearssl>>`. The default backend needs no
-include of its own: `<webcpp/crypto/ciphers/aes256_gcm.hpp>` brings it when it is
+include of its own: `<webcpp/crypto/ciphers/aes256_gcm.hpp>` brings AES-GCM's,
+and `<webcpp/crypto/ciphers/aes_block.hpp>` the block cipher's, when it is
 linked.
 
 [#crypto-jamfile-default]
 === The default backend, and choosing another
 
-`aes128_gcm`, `aes256_gcm` and `aes256<>` name AES-GCM's default backend:
+`aes128_gcm`, `aes256_gcm` and `gcm<aes256<>>` name AES-GCM's default backend:
 natively OpenSSL, on WebAssembly BearSSL, whatever else the program links
-(<<crypto-backends-defaults>>). A program that wants another backend names it
+(<<crypto-backends-defaults>>); `aes256<>` names the block cipher's, natively
+OpenSSL and on WebAssembly ctaes, which `/webcpp/crypto//aes_block-default`
+links. A program that wants another backend names it
 in the type, as `ciphers::gcm<ciphers::aes256<backends::bearssl>>`, and links
 it; no define chooses a default. A native program that links BearSSL alone and
 uses `aes256_gcm` stops where it calls it, with the line that links its

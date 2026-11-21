@@ -63,6 +63,8 @@
                                         WEBCPP_CRYPTO_DETAIL_SECP256K1_CONFIGURATION))
 #endif
 
+// src/canary_secp256k1.c defines the canary with a constant; this is its declaration.
+// NOLINTNEXTLINE(bugprone-dynamic-static-initializers): a declaration, never initialised here
 extern "C" const char WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY;
 
 namespace webcpp::crypto::backends {

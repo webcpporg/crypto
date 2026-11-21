@@ -37,20 +37,24 @@ enum class error : int {
     invalid_key_size = 1,
     /** A GCM IV that is empty or longer than 128 bytes. */
     invalid_iv_size = 2,
-    /** A tag given to `open` that is not of 16 bytes. */
+    /** A tag given to `open` or `verify` that is not of 16 bytes. */
     invalid_tag_size = 3,
     /**
      * A buffer or data of a size the function does not accept: data for a block cipher that is
-     * not a whole number of blocks, or an output shorter than the function needs.
+     * not a whole number of blocks, an output shorter than the function needs, or the incremental
+     * open's `decrypt` past the authenticated length and `end_open` short of it.
      */
     invalid_input_size = 4,
     /** A message or additional data longer than the algorithm allows. */
     message_too_long = 5,
     /** The tag does not match: the message or its additional data changed, or the key differs. */
     authentication_failed = 6,
-    /** An object moved from, or the incremental seal called out of order. */
+    /** An object moved from, or the incremental seal or open called out of order. */
     invalid_state = 7,
-    /** The system's or the browser's generator failed. */
+    /**
+     * The system's or the browser's generator failed, or secp256k1's `generate` drew four times
+     * and none was a secret key.
+     */
     entropy_unavailable = 8,
     /** A secret scalar, a secret key or a tweak, that is zero or not below the group order. */
     invalid_secret_key = 9,

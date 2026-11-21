@@ -208,22 +208,27 @@ template <class Backend = default_backend_t<families::secp256k1>>
 }
 
 /**
- * The negation -P of a public key (`secp256k1_ec_pubkey_negate`), which never fails.
+ * The negation -P of a public key (`secp256k1_ec_pubkey_negate`).
  *
  * @tparam Backend The backend, `backends::secp256k1`.
  * @param parsed_key The key P.
- * @return -P, the public key of the negated secret key.
+ * @return -P, the public key of the negated secret key; `backend_failure` should libsecp256k1
+ * refuse a parsed key, which v0.8.0 does not.
  */
 template <class Backend = default_backend_t<families::secp256k1>>
-[[nodiscard]] public_key pubkey_negate(public_key const& parsed_key) noexcept {
+[[nodiscard]] boost::system::result<public_key> pubkey_negate(
+    public_key const& parsed_key) noexcept {
     detail::timing_guard const timing;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     public_key negated_key = parsed_key;
-    // A valid point always negates: libsecp256k1 returns 1.
-    static_cast<void>(secp256k1_ec_pubkey_negate(
-        secp256k1_context_static, &webcpp::crypto::detail::secp256k1_access::point(negated_key)));
+    // A valid point always negates: libsecp256k1 returns 1 (v0.8.0), which the check keeps honest.
+    if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_ec_pubkey_negate(
+            secp256k1_context_static,
+            &webcpp::crypto::detail::secp256k1_access::point(negated_key)))) {
+        return error::backend_failure;
+    }
     return negated_key;
 }
 

@@ -78,6 +78,23 @@ void schnorr() {
                crypto::error::invalid_public_key);
 }
 
+// A key pair generated from the system's source signs and verifies as one made from a secret.
+void generated() {
+    auto const key = secp::keypair::generate();
+    if (!BOOST_TEST(key.has_value())) {
+        return;
+    }
+    std::array<std::uint8_t, 32> message{};
+    message.fill(0x29);
+    std::array<std::uint8_t, 32> const aux{};
+    auto const signature = key->sign_schnorr(message, aux);
+    auto const public_key = key->xonly_public_key();
+    BOOST_TEST(signature && public_key);
+    BOOST_TEST(secp::verify_schnorr(*signature, message, *public_key).has_value());
+    auto const other = secp::keypair::generate();
+    BOOST_TEST(other.has_value() && !(*other->xonly_public_key() == *public_key));
+}
+
 void ecdsa() {
     auto const key = from_byte(0x24);
     std::array<std::uint8_t, 32> hash{};
@@ -182,6 +199,7 @@ void moved_from() {
 
 int main() {
     schnorr();
+    generated();
     ecdsa();
     ecdh();
     make_errors();

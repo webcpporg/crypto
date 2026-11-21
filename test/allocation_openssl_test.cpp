@@ -98,6 +98,12 @@ int main() {
     bool const begun = made->begin_seal(iv, {}).has_value();
     bool const updated = made->update(data).has_value();
     bool const resulted = made->result().has_value();
+    // The two-pass open; verify restarts the OpenSSL context with EVP_CipherInit_ex.
+    auto const open_tag = made->seal(iv, {}, data);
+    bool const two_pass = open_tag.has_value() && made->begin_open(iv, {}).has_value() &&
+                          made->authenticate(data).has_value() &&
+                          made->verify(*open_tag).has_value() && made->decrypt(data).has_value() &&
+                          made->end_open().has_value();
     bool const encrypted = second->encrypt(block).has_value();
     bool const decrypted = second->decrypt(block).has_value();
     auto const chacha_tag = chacha->seal(iv, iv, data);
@@ -112,6 +118,7 @@ int main() {
     BOOST_TEST(begun);
     BOOST_TEST(updated);
     BOOST_TEST(resulted);
+    BOOST_TEST(two_pass);
     BOOST_TEST(encrypted);
     BOOST_TEST(decrypted);
     BOOST_TEST(chacha_sealed);

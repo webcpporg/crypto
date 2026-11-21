@@ -29,7 +29,7 @@ The backends of `+ciphers::aes128+`, `+aes192+`, `+aes256+`, from the test progr
 |native, wasip2, wasip3, emscripten (tested by `+aes_ctaes+`, `+agreement_aes+`)
 |===
 
-`+aes256<>+` takes AES-GCM's default backend as its argument; where that is BearSSL, its `+make+` does not compile, and the program names `+aes256<backends::ctaes>+`. The default per target, whatever the program links, as <<crypto-backends-defaults>> gives it with its reasons and tests:
+`+aes128<>+`, `+aes192<>+` and `+aes256<>+` name the default backend; `+gcm<aes256<>>+` names AES-GCM's. The default per target, whatever the program links, as <<crypto-backends-defaults>> gives it with its reasons and tests:
 
 [cols="1,1",options="header"]
 |===
@@ -41,9 +41,6 @@ The backends of `+ciphers::aes128+`, `+aes192+`, `+aes256+`, from the test progr
 |native, MSVC
 |OpenSSL
 
-|wasip2, wasip3
-|BearSSL
-
-|emscripten
-|BearSSL
+|wasip2, wasip3, emscripten
+|ctaes
 |===

@@ -41,8 +41,8 @@
 |ctaes: yes (link:https://github.com/bitcoin/bitcoin/tree/master/src/crypto/ctaes[ctaes, constant-time AES]); OpenSSL with assembly: yes (link:https://github.com/openssl/openssl/tree/master/crypto/aes/asm[OpenSSL's AES assembly for ARMv8 and x86-64]); OpenSSL no-asm: no (link:https://github.com/openssl/openssl/blob/master/crypto/aes/aes_core.c[OpenSSL's crypto/aes/aes_core.c, OPENSSL_AES_CONST_TIME])
 
 |Constant time, measured
-|BearSSL: native, Valgrind's memcheck (Linux), MemorySanitizer (Linux, clang) and dudect (judged off the runners GitHub hosts), nothing found; wasip2, dudect (judged off the runners GitHub hosts), nothing found; not measured yet on wasip3, emscripten. OpenSSL (seal alone: its open branches on the verdict inside OpenSSL): native, Valgrind's memcheck (Linux), nothing found; not measured yet on wasip2, wasip3 (<<crypto-backends-constant-time>>)
-|OpenSSL: not measured yet. ctaes: native, Valgrind's memcheck (Linux), MemorySanitizer (Linux, clang) and dudect (judged off the runners GitHub hosts), nothing found; wasip2, dudect (judged off the runners GitHub hosts), nothing found; not measured yet on wasip3, emscripten (<<crypto-backends-constant-time>>)
+|BearSSL: native, Valgrind's memcheck (Linux), MemorySanitizer (Linux, clang) and dudect (judged; on a runner GitHub hosts, by two of three runs), nothing found; wasip2, dudect (judged; on a runner GitHub hosts, by two of three runs), nothing found; not measured yet on wasip3, emscripten. OpenSSL (seal alone: its open branches on the verdict inside OpenSSL): native, Valgrind's memcheck (Linux), nothing found; not measured yet on wasip2, wasip3 (<<crypto-backends-constant-time>>)
+|OpenSSL: not measured yet. ctaes: native, Valgrind's memcheck (Linux), MemorySanitizer (Linux, clang) and dudect (judged; on a runner GitHub hosts, by two of three runs), nothing found; wasip2, dudect (judged; on a runner GitHub hosts, by two of three runs), nothing found; not measured yet on wasip3, emscripten (<<crypto-backends-constant-time>>)
 
 |Standards
 |link:https://csrc.nist.gov/pubs/sp/800/38/d/final[NIST SP 800-38D, GCM and GMAC]
@@ -102,7 +102,7 @@
 |libsodium: yes (link:https://doc.libsodium.org/secret-key_cryptography/aead[libsodium's documentation, AEAD constructions: ChaCha20 and timing attacks])
 
 |Constant time, measured
-|libsodium: native, Valgrind's memcheck (Linux) and MemorySanitizer (Linux, clang), nothing found; not measured yet on wasip2, wasip3, emscripten. BearSSL: native, Valgrind's memcheck (Linux), MemorySanitizer (Linux, clang) and dudect (judged off the runners GitHub hosts), nothing found; wasip2, dudect (judged off the runners GitHub hosts), nothing found; not measured yet on wasip3, emscripten. OpenSSL (seal alone: its open branches on the verdict inside OpenSSL): native, Valgrind's memcheck (Linux), nothing found; not measured yet on wasip2, wasip3 (<<crypto-backends-constant-time>>)
+|libsodium: native, Valgrind's memcheck (Linux) and MemorySanitizer (Linux, clang), nothing found; not measured yet on wasip2, wasip3, emscripten. BearSSL: native, Valgrind's memcheck (Linux), MemorySanitizer (Linux, clang) and dudect (judged; on a runner GitHub hosts, by two of three runs), nothing found; wasip2, dudect (judged; on a runner GitHub hosts, by two of three runs), nothing found; not measured yet on wasip3, emscripten. OpenSSL (seal alone: its open branches on the verdict inside OpenSSL): native, Valgrind's memcheck (Linux), nothing found; not measured yet on wasip2, wasip3 (<<crypto-backends-constant-time>>)
 |libsodium: native, Valgrind's memcheck (Linux) and MemorySanitizer (Linux, clang), nothing found; not measured yet on wasip2, wasip3, emscripten (<<crypto-backends-constant-time>>)
 |libsodium: native, Valgrind's memcheck (Linux) and MemorySanitizer (Linux, clang), nothing found; not measured yet on wasip2, wasip3, emscripten (<<crypto-backends-constant-time>>)
 

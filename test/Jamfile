@@ -50,8 +50,10 @@ webcpp.headers-alone crypto : ../include : crypto/backends/openssl.hpp
     <library>/third_party//ctaes <library>/third_party//secp256k1
     <library>/third_party//sodium
   : native wasip2 wasip3 ;
-# The backend ctaes's header alone, with ctaes linked, on every target.
-webcpp.headers-alone crypto : ../include : crypto/backends/ctaes.hpp
+# The backend ctaes's header and the block cipher's default's, with ctaes
+# linked, on every target.
+webcpp.headers-alone crypto : ../include
+  : crypto/ciphers/aes_block.hpp crypto/backends/ctaes.hpp
   : <library>/third_party//ctaes ;
 # The backend libsodium's header alone, and Ed25519's, X25519's, their key
 # formats', crypto_kx's, the boxes' and the sealed boxes' with it, with
@@ -214,10 +216,11 @@ webcpp.compile default_backend_former_defines : default_backend_test.cpp
   : <define>WEBCPP_CRYPTO_HAS_BEARSSL=1 <define>WEBCPP_CRYPTO_PROFILE_FASTEST
     <define>WEBCPP_PROFILE_SMALLEST <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_GCM_BEARSSL ;
 
-# aes128_gcm, aes256_gcm and aes256<> name AES-GCM's default backend, OpenSSL
-# natively and BearSSL on WebAssembly, whatever is linked: checked against
-# stand-ins for the backends' headers (support/fake_backends), which the test
-# includes first, under the real headers' guards.
+# aes128_gcm, aes256_gcm and gcm<aes256<>> name AES-GCM's default backend,
+# OpenSSL natively and BearSSL on WebAssembly, and aes256<> the block cipher's,
+# OpenSSL natively and ctaes on WebAssembly, whatever is linked: checked
+# against stand-ins for the backends' headers (support/fake_backends), which
+# the test includes first, under the real headers' guards.
 webcpp.compile default_selection_both : default_selection_test.cpp
   : <define>WEBCPP_CRYPTO_HAS_OPENSSL=1 <define>WEBCPP_CRYPTO_HAS_BEARSSL=1
   : native wasip2 wasip3 ;
@@ -279,6 +282,10 @@ crypto-run secp256k1_musig : secp256k1_musig_test.cpp
 # MuSig2's nonce with the system's source failing: a program of its own, since
 # the test seam is a whole-program define.
 crypto-run secp256k1_musig_entropy : secp256k1_musig_entropy_test.cpp
+  : <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
+# generate with a planted source: a redraw, four refusals, a failing source,
+# the resource.
+crypto-run secp256k1_generate : secp256k1_generate_test.cpp
   : <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
 # BIP 352's vectors as libsecp256k1's test reads them, its vectors.h compiled in
 # C with warnings off, as libsecp256k1's own sources are (the C++ test keeps
@@ -372,7 +379,13 @@ crypto-run default_bearssl : default_bearssl_test.cpp
   : <library>/third_party//bearssl : wasip2 wasip3 emscripten ;
 crypto-run default_both_wasm : default_both_wasm_test.cpp
   : <library>/third_party//bearssl <library>/webcpp/crypto//openssl
+    <library>/third_party//ctaes
     : wasip2 wasip3 ;
+# The AES block cipher's default apart from AES-GCM's (design D3): aes256<> on
+# OpenSSL natively and on ctaes on WebAssembly, aes256_gcm on OpenSSL natively
+# and on BearSSL on WebAssembly, each linked through its family's alias.
+crypto-run default_aes_block : default_aes_block_test.cpp
+  : <library>/webcpp/crypto//aes_block-default <library>/webcpp/crypto//gcm-default ;
 
 # The backend ctaes: the AES block cipher alone, on every target; FIPS-197 only
 # (ruling R5).
@@ -588,6 +601,9 @@ webcpp.compile doc_encrypt_and_sign
 webcpp.compile doc_gcm_default_app
   : ../../../tools/test/fixtures/crypto_jamfiles/gcm_default/app.cpp
   : <library>/webcpp/crypto//gcm-default ;
+webcpp.compile doc_aes_block_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/aes_block_default/app.cpp
+  : <library>/webcpp/crypto//aes_block-default ;
 webcpp.compile doc_secp256k1_default_app
   : ../../../tools/test/fixtures/crypto_jamfiles/secp256k1_default/app.cpp
   : <library>/webcpp/crypto//secp256k1-default ;

@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // gcm on OpenSSL: the GCM specification's cases, the guards, tampering, moved-from
-// objects, aliasing spans and the incremental seal (support/gcm_checks.hpp), and the
+// objects, aliasing spans, the incremental seal and open (support/gcm_checks.hpp), and the
 // engine's abandon, which leaves nothing of the abandoned message in the context.
 
 #include <webcpp/crypto/backends/openssl.hpp>
@@ -76,6 +76,7 @@ int main() {
     webcpp::test::check_incremental<openssl>();
     webcpp::test::check_machine<openssl>();
     webcpp::test::check_one_shot_during_message<openssl>();
+    webcpp::test::check_incremental_open<openssl>();
     check_abandon_forgets_the_message();
     return webcpp::test::exit_status(boost::report_errors());
 }

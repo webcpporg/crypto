@@ -67,6 +67,17 @@ rule gcm-default-linked ( properties * )
     }
 }
 alias gcm-default : : : : <conditional>@gcm-default-linked ;
+rule aes_block-default-linked ( properties * )
+{
+    switch [ webcpp-target.target-of $(properties) ]
+    {
+        case native : return <library>/webcpp/crypto//openssl ;
+        case wasip2 : return <library>/third_party//ctaes ;
+        case wasip3 : return <library>/third_party//ctaes ;
+        case emscripten : return <library>/third_party//ctaes ;
+    }
+}
+alias aes_block-default : : : : <conditional>@aes_block-default-linked ;
 rule secp256k1-default-linked ( properties * )
 {
     switch [ webcpp-target.target-of $(properties) ]

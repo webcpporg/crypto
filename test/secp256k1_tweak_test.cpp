@@ -65,7 +65,7 @@ static_assert(
                                                    std::declval<scalar const&>())),
                    boost::system::result<secp::public_key>>);
 static_assert(std::is_same_v<decltype(secp::pubkey_negate(std::declval<secp::public_key const&>())),
-                             secp::public_key>);
+                             boost::system::result<secp::public_key>>);
 static_assert(std::is_same_v<secp::workspace, std::span<std::byte>>);
 static_assert(secp::combine_workspace_size(2) ==
               (2 * sizeof(secp256k1_pubkey const*)) + alignof(std::max_align_t));
@@ -205,21 +205,22 @@ void identity_round(scalar const& d, scalar const& t, secp::workspace space) {
     std::array<secp::public_key, 2> const pair{p_d, p_t};
     auto const combined = secp::pubkey_combine(pair, space);
     BOOST_TEST(all_zero(space));
-    if (!BOOST_TEST(sum && product && negated && p_sum && p_product && combined)) {
+    if (!BOOST_TEST(sum && product && negated && p_sum && p_product && p_negated && combined)) {
         return;
     }
     BOOST_TEST(*p_sum == public_of(sum->bytes()));
     BOOST_TEST(*p_product == public_of(product->bytes()));
-    BOOST_TEST(p_negated == public_of(negated->bytes()));
-    BOOST_TEST(p_negated != p_d);
-    BOOST_TEST(secp::pubkey_negate(p_negated) == p_d);
+    BOOST_TEST(*p_negated == public_of(negated->bytes()));
+    BOOST_TEST(*p_negated != p_d);
+    auto const p_twice = secp::pubkey_negate(*p_negated);
+    BOOST_TEST(p_twice.has_value() && *p_twice == p_d);
     BOOST_TEST(*combined == *p_sum);
     // -(-d) holds d's bytes; each step bound to a name (secret's views are lvalue-only).
     auto const twice = secp::seckey_negate(negated->bytes());
     BOOST_TEST(twice && std::ranges::equal(twice->bytes(), d));
 
     secrets_against_c_api(d, t, *sum, *product, *negated);
-    keys_against_c_api(p_d, p_t, t, {*p_sum, *p_product, p_negated, *combined});
+    keys_against_c_api(p_d, p_t, t, {*p_sum, *p_product, *p_negated, *combined});
 }
 
 void identities() {
@@ -360,7 +361,11 @@ void refusals() {
 
     // P + (-P) is the point at infinity.
     alignas(std::max_align_t) std::array<std::byte, secp::combine_workspace_size(2)> space{};
-    std::array<secp::public_key, 2> const opposite{p_d, secp::pubkey_negate(p_d)};
+    auto const p_opposite = secp::pubkey_negate(p_d);
+    if (!BOOST_TEST(p_opposite.has_value())) {
+        return;
+    }
+    std::array<secp::public_key, 2> const opposite{p_d, *p_opposite};
     refused("pubkey_combine(P, -P)", secp::pubkey_combine(opposite, space),
             crypto::error::invalid_public_key);
     BOOST_TEST(all_zero(space));

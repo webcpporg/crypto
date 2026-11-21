@@ -190,81 +190,109 @@ bytes bytes_of(std::array<std::uint8_t, N> const& array) {
     return {array.begin(), array.end()};
 }
 
-/** One case: its four checks into `found`. */
-void one_case(std::mt19937_64& rng, std::size_t index, tally& found) {
-    auto const scalar = drawn_scalar(rng);
-    auto const peer_scalar = drawn_scalar(rng);
-    // The first message is empty; the others cross SHA-256's block of 64 bytes.
-    bytes const message = index == 0 ? bytes{} : random_bytes(rng, 1, 300);
-    auto const pair = p256::keypair::make(scalar);
-    auto const peer = p256::keypair::make(peer_scalar);
-    BOOST_TEST(pair.has_value());
-    BOOST_TEST(peer.has_value());
-    if (!pair || !peer) {
-        return;
-    }
-    auto const public_key = pair->public_key();
-    auto const peer_public_key = peer->public_key();
-    auto const digest = sha256(message);
-    auto signature = pair->sign_ecdsa(digest);
-    auto const shared = public_key && peer_public_key ? pair->ecdh_x(*peer_public_key)
-                                                      : webcpp::crypto::error::backend_failure;
+/** What WebCrypto gave for one case. */
+struct oracle_answer {
+    int ran = -1;
+    int verified = 0;
+    std::array<std::uint8_t, p256::signature_size> signature{};
+    std::array<std::uint8_t, p256::coordinate_size> shared{};
+    std::array<std::uint8_t, p256::max_pkcs8_size> ecdsa_pkcs8{};
+    std::array<std::uint8_t, p256::max_pkcs8_size> ecdh_pkcs8{};
+    std::array<std::uint8_t, p256::max_spki_size> spki{};
+    std::array<std::uint8_t, p256::public_key_size> raw{};
+    std::array<int, 4> sizes{};
+};
+
+/** Our side of one case, as WebCrypto is asked about it and as its answer is judged. */
+struct our_case {
+    bytes message;
+    std::array<std::uint8_t, p256::digest_size> digest{};
+    std::array<std::uint8_t, p256::signature_size> signature{};
+    std::array<std::uint8_t, p256::signature_size> normalized{};
+    bytes shared_x;
     std::array<std::uint8_t, p256::max_spki_size> spki{};
     std::array<std::uint8_t, p256::max_pkcs8_size> pkcs8{};
-    BOOST_TEST(public_key && p256::encode_spki(*public_key, spki).has_value());
-    BOOST_TEST(p256::encode_pkcs8(*pair, pkcs8).has_value());
-    if (!BOOST_TEST(signature.has_value()) || !BOOST_TEST(shared.has_value())) {
-        return;
-    }
-    BOOST_TEST(p256::verify_ecdsa(*signature, digest, *public_key).has_value());
-    if (corrupted && index == corrupted_signature) {
-        (*signature)[5] ^= 0x01U;
-    }
-    auto const normalized = p256::normalize_ecdsa(*signature);
-    BOOST_TEST(normalized.has_value());
-    auto const ours_x = shared->bytes();
-    bytes expected_x(ours_x.begin(), ours_x.end());
-    if (corrupted && index == corrupted_ecdh) {
-        expected_x[7] ^= 0x01U;
-    }
-    auto const point = public_key->uncompressed();
-    auto const peer_point = peer_public_key->uncompressed();
+    std::array<std::uint8_t, p256::public_key_size> point{};
+    std::array<std::uint8_t, p256::public_key_size> peer_point{};
+};
 
-    std::array<std::uint8_t, p256::signature_size> oracle_signature{};
-    std::array<std::uint8_t, p256::coordinate_size> oracle_shared{};
-    std::array<std::uint8_t, p256::max_pkcs8_size> oracle_ecdsa_pkcs8{};
-    std::array<std::uint8_t, p256::max_pkcs8_size> oracle_ecdh_pkcs8{};
-    std::array<std::uint8_t, p256::max_spki_size> oracle_spki{};
-    std::array<std::uint8_t, p256::public_key_size> oracle_raw{};
-    std::array<int, 4> sizes{};
-    int verified = 0;
-    int const ran = subtle_p256(
-        pkcs8.data(), point.data(), peer_point.data(), message.data(), message.size(),
-        signature->data(), normalized ? normalized->data() : signature->data(),
-        oracle_signature.data(), oracle_shared.data(), oracle_ecdsa_pkcs8.data(),
-        oracle_ecdh_pkcs8.data(), oracle_spki.data(), oracle_raw.data(), sizes.data(), &verified);
-    BOOST_TEST_EQ(ran, 0);
+/** WebCrypto's answer to our side of a case. */
+oracle_answer ask(our_case const& ours) {
+    oracle_answer answer;
+    answer.ran = subtle_p256(
+        ours.pkcs8.data(), ours.point.data(), ours.peer_point.data(), ours.message.data(),
+        ours.message.size(), ours.signature.data(), ours.normalized.data(), answer.signature.data(),
+        answer.shared.data(), answer.ecdsa_pkcs8.data(), answer.ecdh_pkcs8.data(),
+        answer.spki.data(), answer.raw.data(), answer.sizes.data(), &answer.verified);
+    BOOST_TEST_EQ(answer.ran, 0);
+    return answer;
+}
 
-    found.check(ran == 0 && verified == 1, "WebCrypto verifies ours", index);
+/** The four checks of one case into `found`. */
+void judge(our_case const& ours, oracle_answer const& answer, p256::public_key const& public_key,
+           std::size_t index, tally& found) {
+    bool const ran = answer.ran == 0;
+    found.check(ran && answer.verified == 1, "WebCrypto verifies ours", index);
     bool const we_verify =
-        ran == 0 && p256::verify_ecdsa(oracle_signature, digest, *public_key).has_value();
+        ran && p256::verify_ecdsa(answer.signature, ours.digest, public_key).has_value();
     found.check(we_verify, "we verify WebCrypto's", index);
-    if (ran == 0 && p256::check_low_s(oracle_signature)) {
+    if (ran && p256::check_low_s(answer.signature)) {
         ++found.low_s;
     }
-    found.check(ran == 0 && bytes_of(oracle_shared) == expected_x, "ECDH", index);
-    bool const same_formats = ran == 0 && sizes == std::array<int, 4>{138, 138, 91, 65} &&
-                              oracle_ecdsa_pkcs8 == pkcs8 && oracle_ecdh_pkcs8 == pkcs8 &&
-                              oracle_spki == spki && oracle_raw == point;
+    found.check(ran && bytes_of(answer.shared) == ours.shared_x, "ECDH", index);
+    bool const same_formats = ran && answer.sizes == std::array<int, 4>{138, 138, 91, 65} &&
+                              answer.ecdsa_pkcs8 == ours.pkcs8 && answer.ecdh_pkcs8 == ours.pkcs8 &&
+                              answer.spki == ours.spki && answer.raw == ours.point;
     if (!same_formats) {
         std::printf(
             "case %zu: sizes %d %d %d %d\n ours pkcs8 %s\n ECDSA pkcs8 %s\n ECDH pkcs8 %s\n"
             " ours spki %s\n their spki %s\n",
-            index, sizes[0], sizes[1], sizes[2], sizes[3], test::to_hex(pkcs8).c_str(),
-            test::to_hex(oracle_ecdsa_pkcs8).c_str(), test::to_hex(oracle_ecdh_pkcs8).c_str(),
-            test::to_hex(spki).c_str(), test::to_hex(oracle_spki).c_str());
+            index, answer.sizes[0], answer.sizes[1], answer.sizes[2], answer.sizes[3],
+            test::to_hex(ours.pkcs8).c_str(), test::to_hex(answer.ecdsa_pkcs8).c_str(),
+            test::to_hex(answer.ecdh_pkcs8).c_str(), test::to_hex(ours.spki).c_str(),
+            test::to_hex(answer.spki).c_str());
     }
     found.check(same_formats, "formats", index);
+}
+
+/** One case: its four checks into `found`. */
+void one_case(std::mt19937_64& rng, std::size_t index, tally& found) {
+    auto const scalar = drawn_scalar(rng);
+    auto const peer_scalar = drawn_scalar(rng);
+    our_case ours;
+    // The first message is empty; the others cross SHA-256's block of 64 bytes.
+    ours.message = index == 0 ? bytes{} : random_bytes(rng, 1, 300);
+    auto const pair = p256::keypair::make(scalar);
+    auto const peer = p256::keypair::make(peer_scalar);
+    auto const public_key = pair ? pair->public_key() : webcpp::crypto::error::backend_failure;
+    auto const peer_public_key = peer ? peer->public_key() : webcpp::crypto::error::backend_failure;
+    if (!BOOST_TEST(public_key.has_value()) || !BOOST_TEST(peer_public_key.has_value())) {
+        return;
+    }
+    ours.digest = sha256(ours.message);
+    auto const signature = pair->sign_ecdsa(ours.digest);
+    auto const shared = pair->ecdh_x(*peer_public_key);
+    BOOST_TEST(p256::encode_spki(*public_key, ours.spki).has_value());
+    BOOST_TEST(p256::encode_pkcs8(*pair, ours.pkcs8).has_value());
+    if (!BOOST_TEST(signature.has_value()) || !BOOST_TEST(shared.has_value())) {
+        return;
+    }
+    BOOST_TEST(p256::verify_ecdsa(*signature, ours.digest, *public_key).has_value());
+    ours.signature = *signature;
+    if (corrupted && index == corrupted_signature) {
+        ours.signature[5] ^= 0x01U;
+    }
+    auto const normalized = p256::normalize_ecdsa(ours.signature);
+    BOOST_TEST(normalized.has_value());
+    ours.normalized = normalized ? *normalized : ours.signature;
+    auto const x = shared->bytes();
+    ours.shared_x.assign(x.begin(), x.end());
+    if (corrupted && index == corrupted_ecdh) {
+        ours.shared_x[7] ^= 0x01U;
+    }
+    ours.point = public_key->uncompressed();
+    ours.peer_point = peer_public_key->uncompressed();
+    judge(ours, ask(ours), *public_key, index, found);
 }
 
 }  // namespace

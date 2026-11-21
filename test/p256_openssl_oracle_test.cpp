@@ -98,6 +98,10 @@ struct openssl_free {
     void operator()(unsigned char* data) const noexcept { OPENSSL_free(data); }
 };
 
+// OpenSSL's selection of a key's private and public parts, for fromdata and the encoder.
+// NOLINTNEXTLINE(bugprone-signed-bitwise): OpenSSL's selection macro ORs signed flags
+constexpr int keypair_selection = EVP_PKEY_KEYPAIR;
+
 using pkey_ptr = std::unique_ptr<EVP_PKEY, pkey_free>;
 using pkey_ctx_ptr = std::unique_ptr<EVP_PKEY_CTX, pkey_ctx_free>;
 
@@ -163,14 +167,14 @@ pkey_ptr openssl_key(std::span<std::uint8_t const, p256::secret_key_size> scalar
     pkey_ctx_ptr const context{EVP_PKEY_CTX_new_from_name(nullptr, "EC", nullptr)};
     EVP_PKEY* key = nullptr;
     if (!params || !context || EVP_PKEY_fromdata_init(context.get()) != 1 ||
-        EVP_PKEY_fromdata(context.get(), &key, EVP_PKEY_KEYPAIR, params.get()) != 1) {
+        EVP_PKEY_fromdata(context.get(), &key, keypair_selection, params.get()) != 1) {
         return {};
     }
     return pkey_ptr{key};
 }
 
 /** OpenSSL's uncompressed public point of a key. */
-bytes openssl_point(EVP_PKEY* key) {
+bytes openssl_point(EVP_PKEY const* key) {
     bytes point(p256::public_key_size);
     std::size_t size = 0;
     if (EVP_PKEY_get_octet_string_param(key, OSSL_PKEY_PARAM_PUB_KEY, point.data(), point.size(),
@@ -185,10 +189,10 @@ bytes openssl_point(EVP_PKEY* key) {
 bytes openssl_sign(EVP_PKEY* key, std::span<std::uint8_t const, p256::digest_size> digest) {
     pkey_ctx_ptr const context{EVP_PKEY_CTX_new_from_pkey(nullptr, key, nullptr)};
     unsigned int nonce_type = 1;
-    char digest_name[] = "SHA256";
+    std::array<char, 7> digest_name{"SHA256"};
     std::array<OSSL_PARAM, 3> const params{
         OSSL_PARAM_construct_uint(OSSL_SIGNATURE_PARAM_NONCE_TYPE, &nonce_type),
-        OSSL_PARAM_construct_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, digest_name, 0),
+        OSSL_PARAM_construct_utf8_string(OSSL_SIGNATURE_PARAM_DIGEST, digest_name.data(), 0),
         OSSL_PARAM_construct_end(),
     };
     std::size_t size = 0;
@@ -231,7 +235,7 @@ bytes openssl_derive(EVP_PKEY* key, EVP_PKEY* peer) {
 }
 
 /** OpenSSL's SPKI of a key, i2d_PUBKEY. */
-bytes openssl_spki(EVP_PKEY* key) {
+bytes openssl_spki(EVP_PKEY const* key) {
     int const size = i2d_PUBKEY(key, nullptr);
     if (size <= 0) {
         return {};
@@ -245,9 +249,9 @@ bytes openssl_spki(EVP_PKEY* key) {
 }
 
 /** OpenSSL's PKCS#8 of a key, its encoder's DER PrivateKeyInfo. */
-bytes openssl_pkcs8(EVP_PKEY* key) {
+bytes openssl_pkcs8(EVP_PKEY const* key) {
     std::unique_ptr<OSSL_ENCODER_CTX, encoder_free> const encoder{
-        OSSL_ENCODER_CTX_new_for_pkey(key, EVP_PKEY_KEYPAIR, "DER", "PrivateKeyInfo", nullptr)};
+        OSSL_ENCODER_CTX_new_for_pkey(key, keypair_selection, "DER", "PrivateKeyInfo", nullptr)};
     unsigned char* data = nullptr;
     std::size_t size = 0;
     if (!encoder || OSSL_ENCODER_CTX_get_num_encoders(encoder.get()) == 0 ||

@@ -615,9 +615,9 @@ struct p_curve_engine<families::p256, backends::bearssl> {
         }
         std::array<std::uint8_t, 64 + 9> raw{};
         std::ranges::copy(std::span<std::uint8_t const>(work).first(half),
-                          raw.begin() + (32 - half));
+                          raw.begin() + static_cast<std::ptrdiff_t>(32 - half));
         std::ranges::copy(std::span<std::uint8_t const>(work).subspan(half, half),
-                          raw.begin() + (64 - half));
+                          raw.begin() + static_cast<std::ptrdiff_t>(64 - half));
         std::ranges::copy(std::span<std::uint8_t const>(raw).first<64>(), output.begin());
         // BearSSL's decoder accepts a long SEQUENCE length, needless zero bytes and a negative
         // integer; strict DER is what re-encodes to the same bytes (design D12).

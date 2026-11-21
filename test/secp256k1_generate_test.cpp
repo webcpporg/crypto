@@ -90,12 +90,27 @@ void generate_redraws() {
     }
 }
 
+void generate_zero_redraws() {
+    script = {0x00, 0x01, 0x07};  // zero is not a secret key, the secret key, the context's seed
+    calls = 0;
+    auto const generated = secp::keypair::generate();
+    BOOST_TEST_EQ(calls, 3U);
+    std::array<std::uint8_t, 32> expected_secret{};
+    expected_secret.fill(0x01);
+    script = {0x07};
+    calls = 0;
+    auto const expected = secp::keypair::make(expected_secret);
+    if (BOOST_TEST(generated.has_value()) && BOOST_TEST(expected.has_value())) {
+        BOOST_TEST(*generated->xonly_public_key() == *expected->xonly_public_key());
+    }
+}
+
 void generate_four_refusals() {
-    script = {0xFF, 0xFF, 0xFF, 0xFF};
+    script.assign(secp::keypair::max_draws, 0xFF);
     calls = 0;
     auto const generated = secp::keypair::generate();
     BOOST_TEST(!generated && generated.error() == crypto::error::entropy_unavailable);
-    BOOST_TEST_EQ(calls, 4U);
+    BOOST_TEST_EQ(calls, static_cast<std::size_t>(secp::keypair::max_draws));
 }
 
 void generate_source_fails() {
@@ -126,6 +141,7 @@ void generate_resource() {
 
 int main() {
     generate_redraws();
+    generate_zero_redraws();
     generate_four_refusals();
     generate_source_fails();
     generate_resource();

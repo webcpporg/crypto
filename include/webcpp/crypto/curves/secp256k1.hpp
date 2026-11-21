@@ -550,6 +550,8 @@ public:
     using family_type = families::secp256k1;
     /** The algorithm of the capability table: the family's own tag, its one algorithm. */
     using name_type = families::secp256k1;
+    /** The most draws `generate` makes: 32 bytes that are not a secret key are drawn again. */
+    static constexpr int max_draws = 4;
 
     /**
      * Makes a key pair from a secret key.
@@ -603,7 +605,7 @@ public:
      * Generates a key pair from the system's source: draws a 32-byte secret key from
      * `random_device` and makes the key pair from it, drawing again when the 32 bytes are not a
      * secret key (zero or not below the group order, which happens with a probability near
-     * 2^-128), at most four draws in all.
+     * 2^-128), at most `max_draws` (four) draws in all.
      *
      * @param memory_resource The resource of the signing context, the one allocation; it must
      * outlive the key pair.
@@ -613,7 +615,7 @@ public:
     [[nodiscard]] static boost::system::result<basic_keypair> generate(
         std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource()) {
         detail::timing_guard const timing;
-        for (int draw = 0; draw < 4; ++draw) {
+        for (int draw = 0; draw < max_draws; ++draw) {
             secret<32> secret_key;
             auto const drawn =
                 random_device().fill(secret_key.writable());  // lint-world: the secret key

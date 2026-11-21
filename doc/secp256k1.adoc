@@ -41,14 +41,15 @@ Either allocates its signing context in the `std::pmr::memory_resource` it is
 given, and randomises it from `random_device`; crypto's own code allocates
 nothing else (<<crypto-memory>>). The namespace's functions, by header:
 
-* `<webcpp/crypto/curves/secp256k1.hpp>`: the key pair's `make` and `generate`, its public
-keys (`xonly_public_key`, `public_key`, `public_key_uncompressed`), its
-signatures (`sign_schnorr`, `sign_ecdsa`, hedged or not, and
-`sign_recoverable`), its ECDH (`ecdh`, `ecdh_x`, `ecdh_point`) and its tweak
-in place (`tweak_xonly`); `verify_schnorr` and `verify_ecdsa`, which check a
-signature with a public key alone; `recover`, which finds the key of a
-recoverable signature (<<crypto-secp256k1-recovery>>); `parse_public_key`
-and `serialize_public_key`, which read and write a `public_key`
+* `<webcpp/crypto/curves/secp256k1.hpp>`: the key pair's `make` and
+`generate`, its public keys (`xonly_public_key`, `public_key`,
+`public_key_uncompressed`), its signatures (`sign_schnorr`, `sign_ecdsa`,
+hedged or not, and `sign_recoverable`), its ECDH (`ecdh`, `ecdh_x`,
+`ecdh_point`) and its tweak in place (`tweak_xonly`); `verify_schnorr` and
+`verify_ecdsa`, which check a signature with a public key alone; `recover`,
+which finds the key of a recoverable signature
+(<<crypto-secp256k1-recovery>>); `parse_public_key` and
+`serialize_public_key`, which read and write a `public_key`
 (<<crypto-secp256k1-keys>>); `to_der`, `from_der` (strict DER) and
 `normalize_ecdsa`, ECDSA's DER and low-S forms; and `tweak_xonly`, the tweak
 of an x-only public key;

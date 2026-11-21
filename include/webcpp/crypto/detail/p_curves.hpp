@@ -104,8 +104,11 @@ template <class Curve>
 
 /**
  * Whether an ECDSA signature's s, already checked 0 < s < n, is low: s <= (n - 1) / 2, the borrow
- * of (n - 1) / 2 - s over every byte, the same arithmetic as `p_curve_scalar_valid`'s. A
- * signature is public: the verdict is not declassified, it was never secret.
+ * of (n - 1) / 2 - s over every byte, the same arithmetic as `p_curve_scalar_valid`'s. The
+ * verdict alone is declassified: a signature is public once it is made, but one fresh from
+ * `sign_ecdsa` is computed from the secret scalar, and a constant-time checker (memcheck,
+ * MemorySanitizer) still holds it secret where `normalize_ecdsa` or `check_low_s` branches on
+ * this verdict.
  *
  * @tparam Curve The curve's family tag.
  * @param s The signature's s, big-endian.
@@ -119,7 +122,12 @@ template <class Curve>
     for (std::size_t i = s.size(); i-- > 0;) {
         borrow = ((static_cast<unsigned>(half[i]) - s[i] - borrow) >> 8U) & 1U;
     }
-    return borrow == 0;
+    // Not const: the comparison below must read the variable again after the declassifying
+    // client request, whose memory clobber reaches a mutable object only.
+    // NOLINTNEXTLINE(misc-const-correctness): see above
+    unsigned high = borrow;
+    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&high, sizeof high);
+    return high == 0;
 }
 
 /**

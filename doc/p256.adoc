@@ -28,6 +28,11 @@ constant time by design and allocating nothing
 (link:https://www.bearssl.org/[BearSSL]). Natively it runs BearSSL's 64-bit
 multiplications where the compiler has them, and the 32-bit code on WebAssembly,
 whose 128-bit product is a library call whose timing nobody states.
+The constant-time lane runs its key pair's making, signing, ECDH and PKCS#8's
+decoding under memcheck and MemorySanitizer, and times its signing and its ECDH
+with dudect (<<crypto-backends-constant-time>>); its programs' sizes and its
+three operations' times are in <<crypto-backends-sizes>> and
+<<crypto-performance>>.
 
 Two implementations outside webcpp check it, on 200 cases each from a seed the
 test prints. OpenSSL, natively and on WASI (`p256_openssl_oracle`): it signs

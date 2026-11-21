@@ -271,4 +271,11 @@
 `+/webcpp/crypto//p256-default+` +
 `+/webcpp/crypto//pem-default+`
 |<<crypto-p256-formats,[.keep]`+p256_key_formats.cpp+`>>
+
+|Sign a peer-to-peer handshake a browser's WebCrypto verifies, low S, check the peer's, and derive the session key from ECDH (Trystero's protocol is webcpp::trystero's)
+|In `+curves::p256+`: `+keypair::sign_ecdsa+`, `+normalize_ecdsa+`, `+check_low_s+`, `+verify_ecdsa+`, `+keypair::ecdh_x+`; `+webcpp::hash::hkdf+` for the key
+|BearSSL
+|`+/webcpp/crypto//crypto+` +
+`+/webcpp/crypto//p256-default+`
+|<<crypto-p2p-handshake,[.keep]`+p256_handshake.cpp+`>>
 |===

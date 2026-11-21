@@ -234,3 +234,87 @@ first, and name the right party: a side that passes them in its own order
 computes another secret, and the connection fails with nothing pointing at the
 cause. Never use the secret as a key by itself: BIP 324 derives its session's
 keys from it with HKDF.
+
+[#crypto-p2p-handshake]
+=== Signed handshakes a browser verifies
+
+*The problem.* A program in {cpp} joins peers that run in browsers, whose
+cryptography is WebCrypto: the {cpp} side must sign what a browser verifies,
+verify what it signs, and agree on a session key with it. WebCrypto has ECDSA
+and ECDH on NIST's P-256, which is what such peers use: Trystero 0.27.0, a
+browser library for peer-to-peer rooms, signs its handshakes with ECDSA on
+P-256 and SHA-256, makes every signature low S when it signs and refuses one
+that is not when it reads
+(link:https://github.com/dmotz/trystero/blob/0.27.0/packages/core/src/crypto.ts[Trystero
+0.27.0's crypto.ts]), and derives its pairwise keys from ECDH's 256 bits
+through HKDF with SHA-256
+(link:https://github.com/dmotz/trystero/blob/8d3f57ef42c3d622840eec479784c99deeeb2d05/packages/core/src/crypto.ts#L303-L328[Trystero
+0.27.0, packages/core/src/crypto.ts, lines 303 to 328]).
+
+*The idea.* Each peer keeps a long-lived identity, a P-256 key pair stored as
+its 32-byte scalar and made again from it (<<crypto-p256-keys>>), and draws a
+fresh key pair for each session. It sends both public keys raw, the 65 bytes
+of WebCrypto's `exportKey("raw")`, and the receiver makes each a `public_key`,
+which checks the point once. Both sides hash the handshake's bytes with SHA-256
+and each signs the digest with its identity, as WebCrypto's ECDSA with SHA-256
+signs (<<crypto-p256-ecdsa>>). A signature has two forms, s and n - s, and
+both verify; a protocol that requires one form, low S, makes each signature
+low S with `normalize_ecdsa`, and its receiver refuses the other form with
+`check_low_s` before it verifies. The session key comes from ECDH's x of the
+two session key pairs, which is not a key by itself, through HKDF
+(<<crypto-p256-ecdh>>; link:https://www.rfc-editor.org/rfc/rfc5869[RFC 5869]).
+The example builds this from the calls of the three P-256 examples; what is
+signed, when, and the low-S rule are a protocol's, and Trystero's protocol is
+webcpp::trystero's, which lives there, not in this library.
+
+A peer whose identity was kept as its scalar:
+
+[source,cpp]
+----
+include::{examples}/p256_handshake.cpp[tag=identity]
+----
+
+The handshake's digest, and its signature, low S:
+
+[source,cpp]
+----
+include::{examples}/p256_handshake.cpp[tag=transcript]
+----
+
+[source,cpp]
+----
+include::{examples}/p256_handshake.cpp[tag=sign,indent=0]
+----
+
+The receiver's check, low S first, and the session key:
+
+[source,cpp]
+----
+include::{examples}/p256_handshake.cpp[tag=receive,indent=0]
+----
+
+[source,cpp]
+----
+include::{examples}/p256_handshake.cpp[tag=session,indent=0]
+----
+
+The two peers' run, and a signature sent without `normalize_ecdsa`, whose S
+came out high, refused though it would verify:
+
+[listing]
+----
+include::{examples}/p256_handshake.expected[]
+----
+
+*Mistakes to avoid.* Sending a signature as `sign_ecdsa` gives it to a peer
+that requires low S: about half of them come out high, so the handshake fails
+for half the sessions, with nothing pointing at the cause; normalize what is
+signed. Checking low S only after the signature verifies, or not at all: the
+form of a signature is a second, valid signature anyone can make from the
+first, and a protocol that names messages by their signature then sees one
+message twice. Using the identity key for ECDH, or keeping the session key
+pair: a stolen identity key then opens every past session, while a session key
+pair wiped after the handshake gives forward secrecy (<<crypto-p2p-session>>).
+Trusting the identity key a peer sends: the signature proves that the sender
+holds that key, not that it is the peer the program meant; the program checks
+the key against the one it expects.

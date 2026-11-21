@@ -18,8 +18,11 @@
 # around libsecp256k1: the key pair's making, signatures and x-only tweak,
 # ECDH in three forms, the secret key's tweaks, PKCS#8, ElligatorSwift,
 # MuSig2's nonce and partial signature, and silent payments' outputs, label
-# and scan. Both checkers run the same paths, paths.hpp, memcheck OpenSSL's
-# besides.
+# and scan, and BearSSL's P-256: the key pair's making, ECDSA with its low-S
+# normalisation and check, ECDH's x and PKCS#8's decoding. Both checkers run
+# the same paths, paths.hpp, memcheck OpenSSL's besides. BearSSL's own
+# branches on a verdict in its ECDSA signing are listed in
+# bearssl_verdicts.supp, as libsodium's are in sodium_verdicts.supp.
 #
 # A later family adds its cases to paths.hpp, which both checkers run, as
 # libsodium's and libsecp256k1's are there: its secrets marked, its verdicts
@@ -76,6 +79,12 @@ webcpp.drive ctgrind : ctgrind_test.cpp : $(CTGRIND) : valgrind.mjs : : native ;
 webcpp.drive ctgrind_planted : ctgrind_planted_test.cpp
   : $(CTGRIND) <define>WEBCPP_TEST_CRYPTO_PLANTED_LEAK
   : valgrind.mjs : --expect-leak : native ;
+# The planted early exit in a copy of P-256's scalar check, run before every
+# path: memcheck must report it there. The same source, its own define.
+webcpp.drive ctgrind_planted_scalar : ctgrind_planted_test.cpp
+  : $(CTGRIND) <define>WEBCPP_TEST_CRYPTO_PLANTED_SCALAR_CHECK
+  <location-prefix>ctgrind_planted_scalar
+  : valgrind.mjs : --expect-leak --in planted_scalar_valid : native ;
 # equal compiles in the user's translation unit, so it is checked at both
 # optimisations of spec section 2.6: ctgrind is <variant>release, which is
 # <optimization>speed in b2, and ctgrind_space the other, a program of its
@@ -196,6 +205,12 @@ webcpp.run msan : msan_test.cpp : $(MSAN) : native ;
 # report of it, never on any other failure.
 webcpp.drive msan_planted : msan_planted_test.cpp
   : $(MSAN) <define>WEBCPP_TEST_CRYPTO_PLANTED_LEAK : msan_report.mjs : : native ;
+# The planted early exit in a copy of P-256's scalar check, run before every
+# path: passes only on MemorySanitizer's report whose first frame is that copy.
+webcpp.drive msan_planted_scalar : msan_planted_test.cpp
+  : $(MSAN) <define>WEBCPP_TEST_CRYPTO_PLANTED_SCALAR_CHECK
+  <location-prefix>msan_planted_scalar
+  : msan_report.mjs : --in planted_scalar_valid : native ;
 
 # libsecp256k1's own constant-time test, src/ctime_tests.c, unchanged, with
 # the library's sources compiled into the program as its CMake builds them
@@ -251,7 +266,8 @@ webcpp.run dudect_planted : dudect_planted_test.cpp
 webcpp.run dudect_secp256k1 : dudect_secp256k1_test.cpp
   : <library>/third_party//secp256k1 $(DUDECT) : native wasip2 ;
 
-webcpp.lane constant-time : ctgrind ctgrind_planted ctgrind_space msan
-    msan_planted secp256k1_ctime secp256k1_ctime_msan dudect_bearssl
-    dudect_sodium dudect_planted dudect_secp256k1
+webcpp.lane constant-time : ctgrind ctgrind_planted ctgrind_planted_scalar
+    ctgrind_space msan msan_planted msan_planted_scalar secp256k1_ctime
+    secp256k1_ctime_msan dudect_bearssl dudect_sodium dudect_planted
+    dudect_secp256k1
   : native wasip2 ;

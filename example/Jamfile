@@ -130,6 +130,11 @@ webcpp.example p256_ecdh.cpp : <library>/webcpp/crypto//p256-default ;
 # libsodium.
 webcpp.example p256_key_formats.cpp : <library>/webcpp/crypto//p256-default
   <library>/webcpp/crypto//pem-default ;
+# The guide's signed handshake on P-256 (doc/p2p.adoc): two peers' identities
+# kept as scalars, the handshake's SHA-256 signed low S and checked low S first,
+# a signature not normalized refused, and the session key from ECDH's x
+# through HKDF-SHA-256.
+webcpp.example p256_handshake.cpp : <library>/webcpp/crypto//p256-default ;
 
 # The guide's X25519 program: RFC 7748's Alice and Bob, the agreement of two
 # Ed25519 key pairs through their X25519 forms, and a peer of low order

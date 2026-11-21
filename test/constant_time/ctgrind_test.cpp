@@ -73,7 +73,9 @@ struct memcheck {
     }
 };
 
-/** make, seal and open of BearSSL with the key, the data and the tag secret. */
+/**
+ * make, seal and open of BearSSL with the key, the data and the tag secret.
+ */
 int bearssl_seal_and_open() {
     std::array<std::uint8_t, 32> key{};
     std::array<std::uint8_t, 12> const iv{};
@@ -122,6 +124,11 @@ int openssl_seal(char const* what) {
 }  // namespace
 
 int main() {
+#ifdef WEBCPP_TEST_CRYPTO_PLANTED_SCALAR_CHECK
+    // The planted early exit in a copy of P-256's scalar check (paths.hpp), first: memcheck
+    // must report it there, in that copy (valgrind.mjs --in), whatever the paths after it do.
+    static_cast<void>(webcpp::test::constant_time::planted_scalar_check<memcheck>());
+#endif
     namespace ciphers = crypto::ciphers;
     int const failures =
         webcpp::test::constant_time::common_paths<memcheck>() + bearssl_seal_and_open() +

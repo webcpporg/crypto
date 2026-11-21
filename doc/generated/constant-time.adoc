@@ -13,8 +13,8 @@
 
 |BearSSL
 |by design: `+aes_ct64+` and `+ghash_ctmul64+`, or AES-NI and PCLMUL where the CPU has them; on a 32-bit host a 64-bit multiplication may not be constant time, which BearSSL documents; link:https://www.bearssl.org/constanttime.html[BearSSL, constant-time crypto]; link:https://www.bearssl.org/ctmul.html[BearSSL, constant-time multiplications]
-|Valgrind's memcheck (Linux): AES-GCM, ChaCha20-Poly1305; MemorySanitizer (Linux, clang): AES-GCM, ChaCha20-Poly1305; dudect (judged off the runners GitHub hosts): AES-GCM, ChaCha20-Poly1305
-|dudect (judged off the runners GitHub hosts): AES-GCM, ChaCha20-Poly1305
+|Valgrind's memcheck (Linux): AES-GCM, ChaCha20-Poly1305, P-256 (the key pair's making, `+sign_ecdsa+` then `+normalize_ecdsa+` and `+check_low_s+` on the fresh signature, `+ecdh_x+` and `+decode_pkcs8+`; BearSSL's own branches on its signing's verdicts listed in `+bearssl_verdicts.supp+`); MemorySanitizer (Linux, clang): AES-GCM, ChaCha20-Poly1305, P-256 (the same paths as memcheck's); dudect (judged off the runners GitHub hosts): AES-GCM, ChaCha20-Poly1305, P-256 (`+sign_ecdsa+` and `+ecdh_x+`, each against the key pair's scalar)
+|dudect (judged off the runners GitHub hosts): AES-GCM, ChaCha20-Poly1305, P-256 (`+sign_ecdsa+` and `+ecdh_x+`, each against the key pair's scalar)
 |not measured yet
 |not measured yet
 

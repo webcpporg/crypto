@@ -35,6 +35,8 @@
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/curves/p256.hpp>
+#include <webcpp/crypto/curves/p256/formats.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
 #include <webcpp/crypto/curves/secp256k1/formats.hpp>
@@ -44,6 +46,7 @@
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/curves/x25519/kx.hpp>
 #include <webcpp/crypto/detail/bytes.hpp>
+#include <webcpp/crypto/detail/p_curves.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/hybrid/box.hpp>
 #include <webcpp/crypto/hybrid/sealed_box.hpp>
@@ -607,6 +610,180 @@ int secp256k1_silent_payments() {
                  "secp256k1's scan_outputs, its workspace");
 }
 
+/** BearSSL's P-256 key pair, the type every P-256 path below makes. */
+using p256_pair = crypto::curves::p256::basic_keypair<crypto::backends::bearssl>;
+
+/** A P-256 key pair made from 32 bytes of `value`, its scalar secret. */
+template <class Checker>
+boost::system::result<p256_pair> p256_secret_pair(std::uint8_t value) {
+    std::array<std::uint8_t, 32> scalar{};
+    scalar.fill(value);
+    Checker::mark_secret(scalar);
+    return p256_pair::make(scalar);
+}
+
+/** A P-256 key pair made from 32 public bytes of `value`: a peer's. */
+inline boost::system::result<p256_pair> p256_public_pair(std::uint8_t value) {
+    std::array<std::uint8_t, 32> scalar{};
+    scalar.fill(value);
+    return p256_pair::make(scalar);
+}
+
+/**
+ * P-256's key pair on BearSSL, made with its scalar secret: the range check before BearSSL
+ * declassifies its verdict alone, so whether the key pair exists is public and is all the test
+ * branches on; the kept scalar is traced, and the public point, d * G, where the shadow follows
+ * a subtraction's carry (BearSSL's window lookup selects public points with masks of the form
+ * (q | -q) >> 31, which MemorySanitizer counts initialised).
+ */
+template <class Checker>
+int bearssl_p256_make() {
+    auto const pair = p256_secret_pair<Checker>(0x42);
+    // Not const: the mark changes the object in the checker's shadow, so it is read again.
+    bool made = pair.has_value();  // NOLINT(misc-const-correctness)
+    Checker::verdict(made);
+    if (!made) {
+        return check(false, "P-256's make on BearSSL");
+    }
+    auto const point = pair->public_key();
+    auto const kept = pair->secret_scalar();
+    bool const point_traced = point.has_value() && (!Checker::exact_subtraction ||
+                                                    carries_mark<Checker>(point->uncompressed()));
+    return check(point_traced && kept.has_value() && carries_mark<Checker>(kept->bytes()),
+                 "P-256's make on BearSSL");
+}
+
+/**
+ * P-256's ECDSA on BearSSL: a public digest signed with a secret scalar, the signature traced
+ * (its s is the scalar's multiple), then made low S and checked low S as a protocol that
+ * requires it does with a signature it has just made. BearSSL's own branches on its verdicts,
+ * the scalar's decoding and the nonce's retry, are its function's (bearssl_verdicts.supp);
+ * `normalize_ecdsa` and `check_low_s` branch only on verdicts the library declassifies, a
+ * signature being public once it is made (`detail::p_curve_low_s`).
+ */
+template <class Checker>
+int bearssl_p256_sign() {
+    namespace p256 = crypto::curves::p256;
+    auto const pair = p256_secret_pair<Checker>(0x42);
+    if (!pair) {
+        return check(false, "P-256's key pair for signing on BearSSL");
+    }
+    std::array<std::uint8_t, p256::digest_size> digest{};
+    digest.fill(0x17);
+    auto const signature = pair->sign_ecdsa(digest);
+    if (!signature) {
+        return check(false, "P-256's sign_ecdsa on BearSSL");
+    }
+    int const failures =
+        check(carries_mark<Checker>(*signature), "P-256's sign_ecdsa on BearSSL, traced");
+    auto const low = p256::normalize_ecdsa(*signature);
+    // Not const: the mark changes the object in the checker's shadow, so it is read again.
+    // NOLINTNEXTLINE(misc-const-correctness): see above
+    bool low_verdict = low.has_value() && p256::check_low_s(*low).has_value();
+    Checker::verdict(low_verdict);
+    return failures + check(low_verdict, "P-256's normalize_ecdsa and check_low_s");
+}
+
+/**
+ * P-256's ECDH on BearSSL: the key pair's scalar secret, the peer's public key public. BearSSL's
+ * verdict, which folds in its check of the scalar, is declassified in the engine. The shared x is
+ * traced where the shadow follows a subtraction's carry: BearSSL selects the window's public
+ * multiples of the peer's point with masks of the form (q | -q) >> 31.
+ */
+template <class Checker>
+int bearssl_p256_ecdh() {
+    auto const pair = p256_secret_pair<Checker>(0x42);
+    auto const peer = p256_public_pair(0x24);
+    if (!pair || !peer) {
+        return check(false, "P-256's key pairs for ECDH on BearSSL");
+    }
+    auto const peer_key = peer->public_key();
+    if (!peer_key) {
+        return check(false, "P-256's peer key on BearSSL");
+    }
+    auto const shared = pair->ecdh_x(*peer_key);
+    return check(shared.has_value() &&
+                     (!Checker::exact_subtraction || carries_mark<Checker>(shared->bytes())),
+                 "P-256's ecdh_x on BearSSL");
+}
+
+/**
+ * P-256's PKCS#8 on BearSSL: a peer's encoding, public, whose scalar's bytes are then marked
+ * secret, decoded; the range check's verdict and the re-encoding's comparison of the public
+ * point are declassified where the library branches on them, and the decoded key pair's scalar
+ * is traced.
+ */
+template <class Checker>
+int bearssl_p256_pkcs8() {
+    namespace p256 = crypto::curves::p256;
+    auto const pair = p256_public_pair(0x42);
+    if (!pair) {
+        return check(false, "P-256's key pair for PKCS#8 on BearSSL");
+    }
+    std::array<std::uint8_t, p256::max_pkcs8_size> encoded{};
+    if (!p256::encode_pkcs8(*pair, encoded)) {
+        return check(false, "P-256's encode_pkcs8 on BearSSL");
+    }
+    Checker::mark_secret(std::span<std::uint8_t>(encoded).subspan(
+        crypto::detail::p256_pkcs8_prefix.size(), p256::secret_key_size));
+    auto const decoded = p256::decode_pkcs8<crypto::backends::bearssl>(encoded);
+    if (!decoded) {
+        return check(false, "P-256's decode_pkcs8 on BearSSL");
+    }
+    auto const kept = decoded->secret_scalar();
+    return check(kept.has_value() && carries_mark<Checker>(kept->bytes()),
+                 "P-256's decode_pkcs8 on BearSSL");
+}
+
+/** Every P-256 path above, on the checker: the number of failed checks. */
+template <class Checker>
+int bearssl_p256_paths() {
+    return bearssl_p256_make<Checker>() + bearssl_p256_sign<Checker>() +
+           bearssl_p256_ecdh<Checker>() + bearssl_p256_pkcs8<Checker>();
+}
+
+#ifdef WEBCPP_TEST_CRYPTO_PLANTED_SCALAR_CHECK
+/**
+ * The planted leak of the P-256 paths: `detail::p_curve_scalar_valid` copied with an early return
+ * on the first byte where the scalar and the bound differ, a branch on a secret byte that each
+ * checker must report. Compiled only into the planted programs, ctgrind_planted_scalar and
+ * msan_planted_scalar, which run it before every path and whose drivers require the report to
+ * name it.
+ *
+ * @param value The secret scalar.
+ * @param bound The group order.
+ * @return Whether 0 < value < bound.
+ */
+template <std::size_t N>
+bool planted_scalar_valid(std::span<std::uint8_t const, N> value,
+                          std::array<std::uint8_t, N> const& bound) {
+    unsigned nonzero = 0;
+    for (std::uint8_t const byte : value) {
+        nonzero |= byte;
+    }
+    for (std::size_t i = 0; i < N; ++i) {
+        if (value[i] != bound[i]) {  // the planted leak: an early exit on a secret byte
+            return nonzero != 0 && value[i] < bound[i];
+        }
+    }
+    return false;
+}
+
+/** The planted scalar check, run on a secret scalar: the checker must report its branch. */
+template <class Checker>
+int planted_scalar_check() {
+    std::array<std::uint8_t, 32> scalar{};
+    scalar.fill(0x42);
+    Checker::mark_secret(scalar);
+    // Not const: the mark changes the object in the checker's shadow, so it is read again.
+    bool valid = planted_scalar_valid(  // NOLINT(misc-const-correctness)
+        std::span<std::uint8_t const, 32>(scalar),
+        crypto::detail::p_curve_traits<crypto::families::p256>::order);
+    Checker::mark_public(bytes_of(valid));
+    return check(valid, "the planted scalar check");
+}
+#endif
+
 /** Every secp256k1 path above, on the checker: the number of failed checks. */
 template <class Checker>
 int secp256k1_paths() {
@@ -640,7 +817,8 @@ int common_paths() {
            sodium_box<Checker,
                       crypto::hybrid::basic_box<crypto::families::box_xchacha20poly1305, sodium>>(
                "box_xchacha20poly1305 on libsodium") +
-           sodium_sealed_box<Checker>() + sodium_kx<Checker>() + secp256k1_paths<Checker>();
+           sodium_sealed_box<Checker>() + sodium_kx<Checker>() + secp256k1_paths<Checker>() +
+           bearssl_p256_paths<Checker>();
 }
 
 }  // namespace webcpp::test::constant_time

@@ -168,9 +168,13 @@ int main() {
     std::cout << "the C library's allocations counted: " << webcpp::test::c_allocations_counted
               << "\n";
     // The control: one operator new moves the counter. A call of the function, not a
-    // new-expression, whose allocation the optimizer may elide ([expr.new]), as -O3 does.
+    // new-expression, whose allocation the optimizer may elide ([expr.new]), as -O3 does. The
+    // block passes through a volatile, as counting_test's do: GCC 15 at -O3 inlines the
+    // replaced operator delete, whose std::free it then pairs with the operator new it cannot
+    // see into (-Wmismatched-new-delete), though the replaced new allocates with malloc.
     std::size_t const control = webcpp::test::allocations();
-    ::operator delete(::operator new(sizeof(int)));
+    void* volatile const control_block = ::operator new(sizeof(int));
+    ::operator delete(control_block);
     BOOST_TEST(webcpp::test::allocations() > control);
 
     counting_resource resource;

@@ -35,23 +35,26 @@ using crypto::backends::sodium;
 
 // An agreement and a signature take 15 to 50 microseconds, natively and under wasmtime (Apple
 // M5, 2026-11-18), hundreds of times an AES block: half of the 2,000,000 measurements of
-// dudect_test.cpp keeps both runs of each, with the key pairs made, within wasmtime's 600
-// seconds.
+// dudect_test.cpp. Under wasmtime the three cases took 4 minutes of CPU and 21 minutes of wall
+// time on a heavily loaded Apple M5 Max (2026-11-21), past run.sh's default bound of 600
+// seconds: the CI gives crypto's constant-time lane WEBCPP_WASIP2_TEST_TIMEOUT=1800, and a local
+// wasip2 run of the lane may need the same variable.
 constexpr std::size_t count = 1'000'000;
 
 /**
  * Times X25519's agreement against its secret key: all zero, against random ones, or, with
- * `Control`, all zero for both classes.
+ * `Control`, all zero for both classes; twice when judged, once when not (`measure_case`).
+ * @param judged_case Whether its |t| counts in the verdict.
  * @param secret_key Where each measurement's secret key is written.
  * @param peer The peer's public key.
  * @return The statistic.
  */
 template <bool Control>
-test::t_statistic measure_agree(std::array<std::uint8_t, 32>& secret_key,
+test::t_statistic measure_agree(bool judged_case, std::array<std::uint8_t, 32>& secret_key,
                                 std::array<std::uint8_t, 32> const& peer) {
     std::array<std::uint8_t, 32> const zero{};
-    return test::twice(
-        count,
+    return test::measure_case(
+        judged_case, count,
         [&](int which, auto& generator) {
             test::choose<Control>(which, generator, zero, secret_key);
         },
@@ -99,12 +102,13 @@ int main(int argc, char** argv) {
 #ifdef WEBCPP_TEST_CRYPTO_PLANTED_LEAK
     // The planted build measures only the agreement: it passes only when dudect finds the planted
     // leak there.
-    auto const agree_t = measure_agree<false>(secret_key, peer);
+    auto const agree_t = measure_agree<false>(true, secret_key, peer);
     test::report_case("x25519_agree", agree_t, true,
                       {{"secret_key", secret_key.data()}, {"peer", peer.data()}});
-    std::printf("|t| X25519 agreement %.2f (threshold 10)\n", agree_t.t);
-    std::printf("planted leak %s\n", agree_t.t >= 10 ? "found" : "not found");
-    return agree_t.t >= 10 ? 0 : 1;
+    std::printf("|t| X25519 agreement %.2f (threshold 10)\n", test::printed(agree_t.t));
+    bool const found = test::printed(agree_t.t) >= 10;
+    std::printf("planted leak %s\n", found ? "found" : "not found");
+    return found ? 0 : 1;
 #else
 #ifdef __wasip2__
     // X25519's agreement under wasmtime is an open finding, measured and printed but left out of
@@ -114,7 +118,8 @@ int main(int argc, char** argv) {
     // silicon's DIT, which wasmtime does not set and which the WebAssembly cannot set (with DIT
     // set in wasmtime's main thread, an experiment, |t| 1.5 to 2.1). Another WASI target is judged,
     // so that a run of the lane there shows its own value as a failure rather than skip it. Its
-    // A/A control, both classes the same key, is judged here as everywhere.
+    // A/A control, both classes the same key, is judged here as everywhere. Unjudged, the
+    // agreement is measured once (measure_case): a second run would change no verdict.
     bool const agree_judged = false;
     char const* const agree_note = " (wasip2: printed, not judged; an open finding)";
 #else
@@ -123,9 +128,9 @@ int main(int argc, char** argv) {
 #endif
     test::case_results results;
     if (selection->runs("x25519_agree")) {
-        results.record("x25519_agree", "X25519 agreement", measure_agree<false>(secret_key, peer),
-                       agree_judged, {{"secret_key", secret_key.data()}, {"peer", peer.data()}},
-                       agree_note);
+        results.record("x25519_agree", "X25519 agreement",
+                       measure_agree<false>(agree_judged, secret_key, peer), agree_judged,
+                       {{"secret_key", secret_key.data()}, {"peer", peer.data()}}, agree_note);
     }
 
     if (selection->runs("ed25519_sign")) {
@@ -147,7 +152,7 @@ int main(int argc, char** argv) {
 
     if (selection->runs("x25519_agree_aa")) {
         results.record("x25519_agree_aa", "X25519 agreement A/A",
-                       measure_agree<true>(secret_key, peer), true,
+                       measure_agree<true>(true, secret_key, peer), true,
                        {{"secret_key", secret_key.data()}, {"peer", peer.data()}});
     }
 

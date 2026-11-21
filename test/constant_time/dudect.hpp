@@ -23,6 +23,8 @@
 #include <optional>
 #include <random>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #ifdef _MSC_VER
@@ -150,6 +152,18 @@ struct t_statistic {
 };
 
 /**
+ * A |t| as the lines print it, rounded to two decimals: every decision reads this value (the
+ * evidence's condition, a case's pass, `twice`'s second run, the planted leak's verdict), so that
+ * a |t| of 9.996 prints 10.00, with its evidence, and fails as 10.00 does, and the CI's judge,
+ * which reads the printed value, agrees with the program.
+ * @param t The |t|.
+ * @return It rounded to two decimals.
+ */
+inline double printed(double t) {
+    return std::round(t * 100) / 100;
+}
+
+/**
  * The largest |t| over the whole set and dudect's 100 croppings, each of which keeps the timings
  * at or below a percentile, with the cropping that gave it and each class's count and mean there.
  * A cropping that leaves a class empty has no t and is skipped; of equal values the first, the
@@ -268,7 +282,8 @@ t_statistic measure(std::uint64_t seed, std::size_t count, Prepare&& prepare, Ru
 }
 
 /**
- * The largest |t| of a first run, and of a second with another seed when the first exceeds 10.
+ * The largest |t| of a first run, and of a second with another seed when the first, as printed,
+ * is at least 10.
  * @param count The number of measurements of each run.
  * @param prepare Sets up the class's input, unmeasured.
  * @param run The operation measured.
@@ -278,7 +293,7 @@ t_statistic measure(std::uint64_t seed, std::size_t count, Prepare&& prepare, Ru
 template <class Prepare, class Run>
 t_statistic twice(std::size_t count, Prepare&& prepare, Run&& run) {
     t_statistic const first = measure(20261011, count, prepare, run);
-    if (first.t < 10) {
+    if (printed(first.t) < 10) {
         return first;
     }
     t_statistic const second = measure(20261012, count, prepare, run);
@@ -309,10 +324,11 @@ struct address {
 inline std::string case_lines(char const* name, t_statistic const& result, bool judged_case,
                               std::initializer_list<address> buffers) {
     std::array<char, 512> line{};
+    double const t = printed(result.t);
     std::snprintf(line.data(), line.size(), "dudect case=%s t=%.2f threshold=10 judged=%s\n", name,
-                  result.t, judged_case ? "yes" : "no");
+                  t, judged_case ? "yes" : "no");
     std::string text = line.data();
-    if (!(result.t >= 10)) {
+    if (!(t >= 10)) {
         return text;
     }
     std::snprintf(line.data(), line.size(),
@@ -367,50 +383,115 @@ inline double clock_resolution_ns() {
     return smallest;
 }
 
+/** What the machine line says of the CPU. */
+struct cpu_identity {
+    /** The model, with no double quote in it. */
+    std::string cpu = "unavailable";
+    /** The microcode's version, with no space or double quote in it. */
+    std::string microcode = "unavailable";
+};
+
+/**
+ * Makes a CPU's identity fit the machine line: a double quote in the model becomes a single one,
+ * so that the quoted value does not end early, and a space or double quote in the microcode an
+ * underscore.
+ * @param identity The identity as the system gave it.
+ * @return The identity to print.
+ */
+inline cpu_identity printable(cpu_identity identity) {
+    std::ranges::replace(identity.cpu, '"', '\'');
+    for (char& character : identity.microcode) {
+        if (character == ' ' || character == '"') {
+            character = '_';
+        }
+    }
+    return identity;
+}
+
+/**
+ * Reads the CPU's identity from the text of Linux's /proc/cpuinfo: the first `model name` and
+ * `microcode` (x86); where there is no `model name` (arm64), the first `CPU implementer`, `CPU
+ * part`, `CPU variant` and `CPU revision`, as `arm64 implementer=<x> part=<x> variant=<x>
+ * revision=<x>` with the fields found. What the text does not hold stays `unavailable`.
+ * @param text The file's text.
+ * @return The identity, `printable`.
+ */
+inline cpu_identity parse_cpuinfo(std::string_view text) {
+    std::array<std::pair<char const*, std::string>, 6> fields{{{"model name", {}},
+                                                               {"microcode", {}},
+                                                               {"CPU implementer", {}},
+                                                               {"CPU part", {}},
+                                                               {"CPU variant", {}},
+                                                               {"CPU revision", {}}}};
+    constexpr std::string_view blank = " \t\r";
+    while (!text.empty()) {
+        auto const end = text.find('\n');
+        std::string_view line = text.substr(0, end);
+        text = end == std::string_view::npos ? std::string_view{} : text.substr(end + 1);
+        auto const colon = line.find(':');
+        if (colon == std::string_view::npos) {
+            continue;
+        }
+        std::string_view key = line.substr(0, colon);
+        std::string_view value = line.substr(colon + 1);
+        auto const key_end = key.find_last_not_of(blank);
+        key = key_end == std::string_view::npos ? std::string_view{} : key.substr(0, key_end + 1);
+        auto const value_start = value.find_first_not_of(blank);
+        value =
+            value_start == std::string_view::npos ? std::string_view{} : value.substr(value_start);
+        value = value.substr(0, value.find_last_not_of(blank) + 1);
+        for (auto& [name, found] : fields) {
+            if (key == name && found.empty()) {
+                found = value;
+            }
+        }
+    }
+    cpu_identity identity;
+    if (!fields[0].second.empty()) {
+        identity.cpu = fields[0].second;
+    } else if (!fields[2].second.empty()) {
+        identity.cpu = "arm64";
+        constexpr std::array<char const*, 4> labels{"implementer", "part", "variant", "revision"};
+        for (std::size_t index = 0; index < labels.size(); ++index) {
+            if (!fields[index + 2].second.empty()) {
+                identity.cpu += ' ';
+                identity.cpu += labels[index];
+                identity.cpu += '=';
+                identity.cpu += fields[index + 2].second;
+            }
+        }
+    }
+    if (!fields[1].second.empty()) {
+        identity.microcode = fields[1].second;
+    }
+    return printable(identity);
+}
+
 /**
  * Prints, once per program, the machine a measurement ran on: `dudect machine cpu="<model>"
  * microcode=<value> clock_resolution_ns=<x>`. The model and the microcode are /proc/cpuinfo's
- * first `model name` and `microcode` on Linux, `machdep.cpu.brand_string` on macOS with the
- * microcode `unavailable`, and `unavailable` elsewhere, WebAssembly included, as where the
- * system does not tell them; the resolution is `clock_resolution_ns`'s, with two decimals, or
- * `below_resolution` when it measured none.
+ * (`parse_cpuinfo`) on Linux, `machdep.cpu.brand_string` on macOS with the microcode
+ * `unavailable`, and `unavailable` elsewhere, WebAssembly included, as where the system does not
+ * tell them; the resolution is `clock_resolution_ns`'s, with two decimals, or `below_resolution`
+ * when it measured none.
  */
 inline void report_machine() {
-    static bool printed = false;
-    if (printed) {
+    static bool printed_once = false;
+    if (printed_once) {
         return;
     }
-    printed = true;
-    std::string cpu = "unavailable";
-    std::string microcode = "unavailable";
+    printed_once = true;
+    cpu_identity identity;
 #if defined(__linux__)
     if (std::FILE* const file = std::fopen("/proc/cpuinfo", "r")) {
-        bool cpu_found = false;
-        bool microcode_found = false;
-        std::array<char, 512> line{};
-        while ((!cpu_found || !microcode_found) &&
-               std::fgets(line.data(), static_cast<int>(line.size()), file) != nullptr) {
-            std::string const text = line.data();
-            auto const colon = text.find(':');
-            if (colon == std::string::npos) {
-                continue;
-            }
-            auto const key_end = text.find_last_not_of(" \t", colon == 0 ? 0 : colon - 1);
-            std::string const key = key_end == std::string::npos ? "" : text.substr(0, key_end + 1);
-            auto const value_start = text.find_first_not_of(" \t", colon + 1);
-            auto const value_end = text.find_last_not_of(" \t\r\n");
-            std::string const value = value_start == std::string::npos || value_end < value_start
-                                          ? ""
-                                          : text.substr(value_start, value_end - value_start + 1);
-            if (key == "model name" && !cpu_found && !value.empty()) {
-                cpu = value;
-                cpu_found = true;
-            } else if (key == "microcode" && !microcode_found && !value.empty()) {
-                microcode = value;
-                microcode_found = true;
-            }
+        std::string text;
+        std::array<char, 4096> buffer{};
+        std::size_t read = 0;
+        while ((read = std::fread(buffer.data(), 1, buffer.size(), file)) > 0) {
+            text.append(buffer.data(), read);
         }
         std::fclose(file);
+        identity = parse_cpuinfo(text);
     }
 #elif defined(__APPLE__)
     std::array<char, 256> brand{};
@@ -418,16 +499,10 @@ inline void report_machine() {
     if (sysctlbyname("machdep.cpu.brand_string", brand.data(), &size, nullptr, 0) == 0 &&
         brand[0] != '\0') {
         brand.back() = '\0';
-        cpu = brand.data();
+        identity.cpu = brand.data();
     }
+    identity = printable(identity);
 #endif
-    // The line quotes the model: a quote in it would end the value early.
-    std::ranges::replace(cpu, '"', '\'');
-    for (char& character : microcode) {
-        if (character == ' ' || character == '"') {
-            character = '_';
-        }
-    }
     double const resolution = clock_resolution_ns();
     std::array<char, 32> written{};
     if (resolution > 0) {
@@ -435,8 +510,8 @@ inline void report_machine() {
     } else {
         std::snprintf(written.data(), written.size(), "below_resolution");
     }
-    std::printf("dudect machine cpu=\"%s\" microcode=%s clock_resolution_ns=%s\n", cpu.c_str(),
-                microcode.c_str(), written.data());
+    std::printf("dudect machine cpu=\"%s\" microcode=%s clock_resolution_ns=%s\n",
+                identity.cpu.c_str(), identity.microcode.c_str(), written.data());
     std::fflush(stdout);
 }
 
@@ -508,9 +583,9 @@ public:
         report_case(name, result, judged_case, buffers);
         std::array<char, 128> value{};
         std::snprintf(value.data(), value.size(), "%s%s %.2f%s", human_.empty() ? "" : ", ", label,
-                      result.t, note);
+                      printed(result.t), note);
         human_ += value.data();
-        passes_ = passes_ && (!judged_case || result.t < 10);
+        passes_ = passes_ && (!judged_case || printed(result.t) < 10);
     }
 
     /** Prints the human line: `|t| <label> <value>, ... (threshold 10)`. */
@@ -526,6 +601,23 @@ private:
     std::string human_;
     bool passes_ = true;
 };
+
+/**
+ * The statistic of a case: `twice`'s for a judged case; for a case printed and not judged, one
+ * run's. The second run of `twice` only decides whether a high first value fails the program, and
+ * an unjudged case fails nothing, so its second run would cost the time of a whole case (under
+ * wasmtime, X25519's agreement reads above 10 on every run, an open finding, and its second run
+ * is minutes) and change no verdict.
+ * @param judged_case Whether the case's |t| counts in the verdict.
+ * @param count The number of measurements of each run.
+ * @param prepare Sets up the class's input, unmeasured.
+ * @param run The operation measured.
+ * @return The statistic.
+ */
+template <class Prepare, class Run>
+t_statistic measure_case(bool judged_case, std::size_t count, Prepare&& prepare, Run&& run) {
+    return judged_case ? twice(count, prepare, run) : measure(20261011, count, prepare, run);
+}
 
 /**
  * Whether this build's verdict is judged: false where the lane's Jamfile defines

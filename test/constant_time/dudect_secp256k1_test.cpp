@@ -32,8 +32,11 @@ namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 using keypair = secp256k1::basic_keypair<webcpp::crypto::backends::secp256k1>;
 
 // A measurement, the key pair's making and the agreement, takes about 42 microseconds natively
-// and 220 under wasmtime (Apple M5, 2026-11-18): 500,000 measurements keep both runs within
-// wasmtime's 600 seconds.
+// and 220 under wasmtime (Apple M5, 2026-11-18): 500,000 per run. Under wasmtime the two cases
+// took 6.6 minutes of CPU and 35 minutes of wall time on a heavily loaded Apple M5 Max
+// (2026-11-21), past run.sh's default bound of 600 seconds: the CI gives crypto's constant-time
+// lane WEBCPP_WASIP2_TEST_TIMEOUT=1800, and a local wasip2 run of the lane may need the same
+// variable.
 constexpr std::size_t count = 500'000;
 
 /**

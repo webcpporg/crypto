@@ -120,8 +120,48 @@ void select_case() {
     BOOST_TEST(!test::select_case(2, missing.data(), {"seal", "equal"}).has_value());
 }
 
+/** Every decision reads |t| as printed: 9.996 prints 10.00, with its evidence, and fails. */
+void printed_boundary() {
+    BOOST_TEST_EQ(test::printed(9.996), 10.0);
+    BOOST_TEST_EQ(test::printed(9.994), 9.99);
+    test::t_statistic const just_above{9.996, 2, 50.0, {{{3, 40.0}, {4, 41.0}}}};
+    test::t_statistic const just_below{9.994, 2, 50.0, {{{3, 40.0}, {4, 41.0}}}};
+    BOOST_TEST_EQ(test::case_lines("x", just_above, true, {}),
+                  "dudect case=x t=10.00 threshold=10 judged=yes\n"
+                  "dudect evidence case=x crop=2 limit_ns=50.00 class0_n=3 class0_mean_ns=40.00 "
+                  "class1_n=4 class1_mean_ns=41.00\n"
+                  "dudect addresses case=x\n");
+    BOOST_TEST_EQ(test::case_lines("x", just_below, true, {}),
+                  "dudect case=x t=9.99 threshold=10 judged=yes\n");
+    test::case_results failing;
+    failing.record("x", "x", just_above, true, {});
+    BOOST_TEST(!failing.passes());
+    test::case_results passing;
+    passing.record("x", "x", just_below, true, {});
+    passing.record("y", "y", just_above, false, {});
+    BOOST_TEST(passing.passes());
+}
+
+/** /proc/cpuinfo's text: x86's model name and microcode, arm64's identification fields. */
+void cpuinfo() {
+    auto const x86 = test::parse_cpuinfo(
+        "processor\t: 0\nvendor_id\t: GenuineIntel\nmodel name\t: Intel(R) Xeon(R) \"6975P-C\"\n"
+        "microcode\t: 0x10003a2 \n\nprocessor\t: 1\nmodel name\t: second\nmicrocode\t: 0x0\n");
+    BOOST_TEST_EQ(x86.cpu, "Intel(R) Xeon(R) '6975P-C'");
+    BOOST_TEST_EQ(x86.microcode, "0x10003a2");
+    auto const arm64 = test::parse_cpuinfo(
+        "processor\t: 0\nBogoMIPS\t: 2000.00\nFeatures\t: fp asimd\nCPU implementer\t: 0x41\n"
+        "CPU architecture: 8\nCPU variant\t: 0x1\nCPU part\t: 0xd4f\nCPU revision\t: 1\n\n"
+        "processor\t: 1\nCPU implementer\t: 0x61\nCPU part\t: 0x000\n");
+    BOOST_TEST_EQ(arm64.cpu, "arm64 implementer=0x41 part=0xd4f variant=0x1 revision=1");
+    BOOST_TEST_EQ(arm64.microcode, "unavailable");
+    auto const none = test::parse_cpuinfo("");
+    BOOST_TEST_EQ(none.cpu, "unavailable");
+    BOOST_TEST_EQ(none.microcode, "unavailable");
+}
+
 /** The lines' exact text, which the CI's judge parses. */
-void report_case_format() {
+void report_case_format([[maybe_unused]] char const* program) {
     test::t_statistic const high{12.3456, 4, 101.5, {{{10, 100.0}, {12, 101.0}}}};
     test::t_statistic const low{3.0, -1, 200.0, {{{10, 100.0}, {12, 101.0}}}};
     std::string const high_lines =
@@ -144,8 +184,9 @@ void report_case_format() {
 
 #ifndef __wasi__
     // report_case writes the same lines to stdout. Under wasmtime the lane preopens no
-    // directory, so there no file can stand in for stdout: case_lines above is the text.
-    std::string const path = "dudect_harness_test.stdout";
+    // directory, so there no file can stand in for stdout: case_lines above is the text. The
+    // file is named after the program, in its build directory, so that no other run shares it.
+    std::string const path = std::string(program) + ".stdout";
     std::fflush(stdout);
     if (BOOST_TEST(std::freopen(path.c_str(), "w", stdout) != nullptr)) {
         test::report_case("equal", high, true, {{"a", where}});
@@ -174,10 +215,13 @@ void report_case_format() {
 
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
     largest_t_whole_set();
     choose_control();
     select_case();
-    report_case_format();
+    printed_boundary();
+    cpuinfo();
+    // Last: it leaves stdout on the null device.
+    report_case_format(argc > 0 ? argv[0] : "dudect_harness");
     return test::exit_status(boost::report_errors());
 }

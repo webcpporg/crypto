@@ -602,8 +602,8 @@ public:
     }
 
     /**
-     * Generates a key pair from the system's source: draws a 32-byte secret key from
-     * `random_device` and makes the key pair from it, drawing again when the 32 bytes are not a
+     * Generates a key pair from the system's source: draws a 32-byte secret key from the system's
+     * generator and makes the key pair from it, drawing again when the 32 bytes are not a
      * secret key (zero or not below the group order, which happens with a probability near
      * 2^-128), at most `max_draws` (four) draws in all.
      *

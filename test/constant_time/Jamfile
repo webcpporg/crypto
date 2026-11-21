@@ -225,9 +225,9 @@ webcpp.run secp256k1_ctime_msan : $(SECP256K1_CTIME)
 # not judge it: there it moved with what the measurement cannot control
 # (dudect.hpp, judged), so the CI's dudect_judge.py warns at 10 and measures
 # a case over 10 again in two fresh processes, failing when two of the three
-# are 10 or more. dudect_planted is judged everywhere. Under wasmtime dudect_sodium
-# and dudect_secp256k1 run for minutes, near or past run.sh's default bound of
-# 600 seconds on a loaded machine: the CI gives this lane
+# are 10 or more. dudect_planted is judged everywhere. Under wasmtime
+# dudect_sodium and dudect_secp256k1 run for minutes, near or past run.sh's
+# default bound of 600 seconds on a loaded machine: the CI gives this lane
 # WEBCPP_WASIP2_TEST_TIMEOUT=1800, and a local wasip2 run of the lane may need
 # the same variable.
 DUDECT = <variant>release ;

@@ -37,8 +37,8 @@ webcpp.example store_token.cpp : <library>/webcpp/crypto//gcm-default ;
 # The incremental seal, and records bound to their numbers.
 webcpp.example sealed_records.cpp : <library>/webcpp/crypto//gcm-default ;
 
-# A file of 1 MiB opened in two passes of 64 KiB pieces: every piece authenticated
-# and the tag verified before any is decrypted.
+# A file of 1 MiB opened in two passes of 64 KiB pieces: every piece
+# authenticated and the tag verified before any is decrypted.
 webcpp.example opened_in_two_passes.cpp : <library>/webcpp/crypto//gcm-default ;
 
 # An order id turned into an opaque reference with the raw AES block cipher.

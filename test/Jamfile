@@ -35,7 +35,7 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
   crypto/detail/async_access.hpp crypto/detail/timing.hpp crypto/ciphers/aead.hpp
   crypto/ciphers/chacha20_poly1305.hpp crypto/ciphers/secretbox.hpp crypto/pem.hpp
-  crypto/detail/p_curves.hpp ;
+  crypto/detail/p_curves.hpp crypto/signing.hpp ;
 # detail/heavy.hpp compiles alone only with webcpp::asio, which it includes
 # where the build has threads; async.hpp, which includes it, only with
 # webcpp::asio on every target.
@@ -148,6 +148,9 @@ webcpp.compile-diagnostic heavy_refusal_forgotten : heavy_refusal_forgotten_test
 
 crypto-run error : error_test.cpp ;
 crypto-run equal : equal_test.cpp ;
+# signing.hpp's tags, prehashed, the input checks and the concepts, over
+# stand-in key types; the catch-all verify; sha256_of.
+crypto-run signing : signing_test.cpp ;
 # The tests' hex readers: hex<N> at compile time, from_hex and to_hex at run
 # time.
 crypto-run hex : hex_test.cpp ;

@@ -55,3 +55,4 @@ build-project p256_default_not_linked ;
 build-project p256_on_sodium ;
 build-project aes_block_default_not_linked ;
 build-project aes_block_default_not_linked_wasm ;
+build-project prehashed_dynamic ;

@@ -87,18 +87,15 @@
 #include <webcpp/crypto/detail/heavy.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/secret.hpp>
-
-#include <webcpp/hash/algorithms.hpp>  // webcpp::hash::sha2_256, P-256's ECDSA's hash
+#include <webcpp/crypto/signing.hpp>
 
 #include <webcpp/asio/append.hpp>
 #include <webcpp/asio/async_result.hpp>
 #include <webcpp/asio/post.hpp>
 
-#include <boost/hash2/digest.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/system/result.hpp>
 
-#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <span>
@@ -119,15 +116,6 @@ template <class Family>
 using default_async_backend_t = default_backend_t<Family>;
 
 namespace detail {
-
-/**
- * Whether `Backend` completes by itself, asynchronously: no backend yet; part B's
- * `backends::browser` alone will, through @ref async_engine.
- *
- * @tparam Backend A backend.
- */
-template <class Backend>
-inline constexpr bool asynchronous_backend_v = false;
 
 /**
  * The operations of a backend that completes by itself: part B specialises it for
@@ -254,29 +242,6 @@ inline constexpr bool is_p256_keypair_v<curves::p256::basic_keypair<Backend>> = 
 template <class Type>
 inline constexpr bool is_webcrypto_keypair_v =
     is_ed25519_keypair_v<Type> || is_p256_keypair_v<Type>;
-
-/**
- * The digest P-256's ECDSA signs and verifies: SHA-256 of the message (webcpp::hash's
- * `sha2_256`, Boost.Hash2's), as WebCrypto's ECDSA with SHA-256 hashes it.
- *
- * @param message Public bytes, of any size.
- * @return The 32-byte digest.
- */
-[[nodiscard]] inline std::array<std::uint8_t, curves::p256::digest_size> p256_digest(
-    std::span<std::uint8_t const> message) noexcept {
-    ::webcpp::hash::sha2_256 hasher;
-    hasher.update(message.data(), message.size());
-    static_assert(std::is_same_v<::webcpp::hash::sha2_256::result_type,
-                                 boost::hash2::digest<curves::p256::digest_size>>);
-    auto const hashed = hasher.result();
-    std::array<std::uint8_t, curves::p256::digest_size> digest{};
-    std::copy_n(hashed.data(), digest.size(), digest.begin());
-    return digest;
-}
-
-/** False for every type, so that a refusal's `static_assert` fires only when it is reached. */
-template <class Type>
-inline constexpr bool refused_v = false;
 
 }  // namespace detail
 
@@ -487,7 +452,7 @@ auto async_sign(Executor const& executor, Keypair const& key_pair,
                                                        std::forward<CompletionToken>(token));
         } else if constexpr (detail::is_p256_keypair_v<Keypair>) {
             return detail::complete_by_post(executor, token, [&key_pair, message]() noexcept {
-                return key_pair.sign_ecdsa(detail::p256_digest(message));
+                return key_pair.sign_ecdsa(detail::sha256_of(message));
             });
         } else {
             return detail::complete_by_post(executor, token, [&key_pair, message]() noexcept {
@@ -572,7 +537,7 @@ auto async_verify(Executor const& executor,
                     return error::invalid_signature;
                 }
                 return curves::p256::verify_ecdsa(signature.first<curves::p256::signature_size>(),
-                                                  detail::p256_digest(message), public_key);
+                                                  detail::sha256_of(message), public_key);
             });
     }
 }

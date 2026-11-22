@@ -207,18 +207,24 @@
 #endif
 // clang-format on
 
+// The backends' tags. webcpp::hash has tags of the same names in webcpp::hash::backends, and a
+// program that uses both libraries (signing.hpp's SHA-256 is webcpp::hash's) sees both:
+// clang-tidy's bugprone-forward-declaration-namespace then takes a tag this translation unit does
+// not use for a declaration in the wrong namespace. Each library names its own backends on
+// purpose, so the tags hash shares are exempt: bearssl, openssl and sodium, as hash's config.hpp
+// exempts its own.
 namespace webcpp::crypto::backends {
 
 /** BearSSL, built from its sources by `/third_party//bearssl`. */
-struct bearssl;
+struct bearssl;  // NOLINT(bugprone-forward-declaration-namespace)
 /** OpenSSL 3.5, built from its pinned sources, named by `/webcpp/crypto//openssl`. */
-struct openssl;
+struct openssl;  // NOLINT(bugprone-forward-declaration-namespace)
 /** ctaes as Bitcoin Core ships it, built from its source by `/third_party//ctaes`. */
 struct ctaes;
 /** libsecp256k1, built from its sources by `/third_party//secp256k1`. */
 struct secp256k1;
 /** libsodium 1.0.22, built from its sources by `/third_party//sodium`. */
-struct sodium;
+struct sodium;  // NOLINT(bugprone-forward-declaration-namespace)
 /**
  The default backend of whichever family takes it: a name only, of no library, which each family
  resolves to its own default on the target (`default_backend_t<Family>`).

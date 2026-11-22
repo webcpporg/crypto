@@ -1392,6 +1392,7 @@
         "async_seal_xchacha": "Call the AEAD's own `seal`: only AES-GCM has `async_seal`.",
         "async_open_xchacha": "Call the AEAD's own `open`: only AES-GCM has `async_open`.",
         "async_sign_secp256k1": "Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `async_sign`.",
+        "prehashed_dynamic": "Give `crypto::prehashed` a digest of a fixed size: a `std::array<std::uint8_t, 32>`, a `std::span<std::uint8_t const, 32>` or a `boost::hash2::digest<32>`.",
         "heavy_without_threads_on_emscripten": "As `heavy_without_threads`: on Emscripten, add `<threading>multi`.",
         "chacha_on_ctaes_on_emscripten": "As `chacha_on_ctaes`.",
         "aead_not_a_family_on_emscripten": "As `aead_not_a_family`.",

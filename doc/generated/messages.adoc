@@ -253,6 +253,12 @@ The fix: Leave the backend out, as in `+curves::p256::keypair+`, or name `+backe
 
 The fix: Add `+/webcpp/crypto//pem-default+`, which links `+/third_party//sodium+` on every target.
 
+|`+prehashed_dynamic+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto::prehashed takes a digest of a fixed size: a std::array<std::uint8_t, N> or a std::span<std::uint8_t const, N>.+`
+
+The fix: Give `+crypto::prehashed+` a digest of a fixed size: a `+std::array<std::uint8_t, 32>+`, a `+std::span<std::uint8_t const, 32>+` or a `+boost::hash2::digest<32>+`.
+
 |`+secp256k1_not_linked+`
 |native, wasip2
 |`+webcpp::crypto: <webcpp/crypto/curves/secp256k1.hpp> needs libsecp256k1, which is not linked. In the program's Jamfile, add /third_party//secp256k1 beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_SECP256K1=1 and link libsecp256k1 built with webcpp's src/canary_secp256k1.c)+`

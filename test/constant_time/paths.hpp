@@ -200,7 +200,7 @@ int ctaes_block() {
     return check(ok && carries_mark<Checker>(block), "ctaes");
 }
 
-/** Ed25519 on libsodium: make and sign with the seed secret. */
+/** Ed25519 on libsodium: make and sign with the seed secret; the kept seed is traced. */
 template <class Checker>
 int sodium_ed25519() {
     std::array<std::uint8_t, 32> seed{};
@@ -209,8 +209,11 @@ int sodium_ed25519() {
     Checker::mark_secret(seed);
     auto const pair = crypto::curves::ed25519::basic_keypair<sodium>::make(seed);
     auto const signature = pair->sign(crypto::eddsa, message);
+    auto const kept = pair->secret();
     return check(signature.has_value() && carries_mark<Checker>(*signature),
-                 "Ed25519 on libsodium");
+                 "Ed25519 on libsodium") +
+           check(kept.has_value() && carries_mark<Checker>(kept->bytes()),
+                 "Ed25519's secret on libsodium");
 }
 
 /**
@@ -653,7 +656,7 @@ int bearssl_p256_make() {
         return check(false, "P-256's make on BearSSL");
     }
     auto const point = pair->public_key();
-    auto const kept = pair->secret_scalar();
+    auto const kept = pair->secret();
     bool const point_traced = point.has_value() && (!Checker::exact_subtraction ||
                                                     carries_mark<Checker>(point->uncompressed()));
     return check(point_traced && kept.has_value() && carries_mark<Checker>(kept->bytes()),
@@ -709,10 +712,10 @@ int bearssl_p256_ecdh() {
     if (!peer_key) {
         return check(false, "P-256's peer key on BearSSL");
     }
-    auto const shared = pair->ecdh_x(*peer_key);
+    auto const shared = pair->agree(*peer_key);
     return check(shared.has_value() &&
                      (!Checker::exact_subtraction || carries_mark<Checker>(shared->bytes())),
-                 "P-256's ecdh_x on BearSSL");
+                 "P-256's agree on BearSSL");
 }
 
 /**
@@ -738,7 +741,7 @@ int bearssl_p256_pkcs8() {
     if (!decoded) {
         return check(false, "P-256's decode_pkcs8 on BearSSL");
     }
-    auto const kept = decoded->secret_scalar();
+    auto const kept = decoded->secret();
     return check(kept.has_value() && carries_mark<Checker>(kept->bytes()),
                  "P-256's decode_pkcs8 on BearSSL");
 }

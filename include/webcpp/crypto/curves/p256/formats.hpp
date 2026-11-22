@@ -152,7 +152,7 @@ template <class Backend>
     if (output_bytes.size() < max_pkcs8_size) {
         return error::invalid_input_size;
     }
-    auto const scalar = key_pair.secret_scalar();
+    auto const scalar = key_pair.secret();
     if (!scalar) {
         return scalar.error();
     }

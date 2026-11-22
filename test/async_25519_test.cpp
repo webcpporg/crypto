@@ -12,9 +12,8 @@
 //   named and its policy given, and with the defaults; each completion arrives after the
 //   initiating call returned.
 // - async_verify_changed: a changed byte of the signature or of the message completes with
-//   invalid_signature, a signature of 63 bytes too, and the arguments in the order before the
-//   signature came first (key, message, signature); a public key of 31 bytes with
-//   invalid_public_key.
+//   invalid_signature, a signature of 63 bytes too, and the key's bytes where the signature goes,
+//   as the order before the signature came first (key, message, signature) put them.
 // - async_generate: async_generate gives a key pair whose signature verifies, on the default
 //   backend and on libsodium named.
 // - async_make_refused: a seed of 31 bytes completes with invalid_key_size and an empty key pair,
@@ -151,6 +150,13 @@ constexpr auto rfc8032_cases = std::to_array<rfc8032_case>({
 });
 // clang-format on
 
+/** The public key of a case's hex, 32 bytes. */
+ed25519::public_key key_of(std::string_view hex) {
+    auto const made = ed25519::public_key::make(test::from_hex(hex));
+    BOOST_TEST(made.has_value());
+    return *made;
+}
+
 /** Whether every byte of `bytes` is zero. */
 template <class Bytes>
 bool all_zero(Bytes const& bytes) {
@@ -160,7 +166,7 @@ bool all_zero(Bytes const& bytes) {
 void async_rfc8032(asio::io_context& context) {
     for (auto const& tested : rfc8032_cases) {
         auto const seed = test::from_hex(tested.secret_key);
-        auto const public_key = test::from_hex(tested.public_key);
+        auto const public_key = key_of(tested.public_key);
         auto const message = test::from_hex(tested.message);
         auto const expected = test::from_hex(tested.signature);
 
@@ -204,10 +210,10 @@ void async_rfc8032(asio::io_context& context) {
 
 void async_verify_changed(asio::io_context& context) {
     auto const& tested = rfc8032_cases[2];
-    auto const public_key = test::from_hex(tested.public_key);
+    auto const public_key = key_of(tested.public_key);
     auto message = test::from_hex(tested.message);
     auto signature = test::from_hex(tested.signature);
-    auto const verify = [&](std::span<std::uint8_t const> key,
+    auto const verify = [&](ed25519::public_key const& key,
                             std::span<std::uint8_t const> signed_bytes) {
         return complete_code(context, [&](auto const& executor, auto&& token) {
             return crypto::async_verify(executor, crypto::eddsa, signed_bytes, message, key,
@@ -225,9 +231,7 @@ void async_verify_changed(asio::io_context& context) {
     BOOST_TEST(verify(public_key, std::span(signature).first(63)) ==
                crypto::error::invalid_signature);
     // The order before the signature came first: the 32-byte key where the signature goes.
-    BOOST_TEST(verify(signature, public_key) == crypto::error::invalid_signature);
-    BOOST_TEST(verify(std::span(public_key).first(31), signature) ==
-               crypto::error::invalid_public_key);
+    BOOST_TEST(verify(public_key, public_key.bytes()) == crypto::error::invalid_signature);
 }
 
 template <class Keypair>
@@ -389,7 +393,7 @@ void async_coroutine(asio::io_context& context) {
             auto const executor = co_await asio::this_coro::executor;
             auto const& tested = rfc8032_cases[1];
             auto const seed = test::from_hex(tested.secret_key);
-            auto const public_key = test::from_hex(tested.public_key);
+            auto const public_key = key_of(tested.public_key);
             auto const message = test::from_hex(tested.message);
             auto made_code_result = co_await crypto::async_make<keypair>(
                 executor, seed, asio::as_tuple(asio::use_awaitable));

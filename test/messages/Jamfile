@@ -68,3 +68,4 @@ build-project sign_schnorr_prehashed ;
 build-project sign_secp256k1_eddsa ;
 build-project sign_secp256k1_not_a_scheme ;
 build-project verify_ecdsa_bytes_key ;
+build-project verify_eddsa_bytes_key ;

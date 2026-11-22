@@ -17,7 +17,7 @@
 //   this program computes. Whether WebCrypto's S is low (is_low_s) is counted and printed, not
 //   required: WebCrypto's S is either.
 // - ECDH: WebCrypto imports the first scalar's encode_pkcs8 ("pkcs8", ECDH P-256) and the peer's
-//   uncompressed point ("raw") and derives 256 bits, which equal ecdh_x. One check.
+//   uncompressed point ("raw") and derives 256 bits, which equal agree's. One check.
 // - Formats: WebCrypto's exportKey of the keys it imported, "pkcs8" of both private keys, "spki"
 //   and "raw" of the ECDSA public key, equal encode_pkcs8's, encode_spki's and uncompressed()'s
 //   bytes, byte for byte. One check.
@@ -296,7 +296,7 @@ void one_case(std::mt19937_64& rng, std::size_t index, tally& found) {
     }
     ours.digest = sha256(ours.message);
     auto const signature = pair->sign(crypto::ecdsa_sha256, ours.message);
-    auto const shared = pair->ecdh_x(*peer_public_key);
+    auto const shared = pair->agree(*peer_public_key);
     BOOST_TEST(p256::encode_spki(*public_key, ours.spki).has_value());
     BOOST_TEST(p256::encode_pkcs8(*pair, ours.pkcs8).has_value());
     if (!BOOST_TEST(signature.has_value()) || !BOOST_TEST(shared.has_value())) {

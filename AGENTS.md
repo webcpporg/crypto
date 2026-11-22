@@ -50,7 +50,7 @@ specific to crypto.
 - The constant-time lane's P-256 paths (`test/constant_time/paths.hpp`): BearSSL's ECDSA signing
   branches on its own verdicts, listed for memcheck in `bearssl_verdicts.supp`, which a later
   P-curve's signing joins; MemorySanitizer counts BearSSL's window selections public (masks of the
-  form `(q | -q) >> 31`), so the public point and `ecdh_x` are checked traced by memcheck alone.
+  form `(q | -q) >> 31`), so the public point and `agree` are checked traced by memcheck alone.
 - A test of a backend is a `.cpp` of its own per backend, never a define that changes the backend
   of one source (spec section 4.3's pitfall).
 - Every C library is upstream code, unchanged except where CODING-GUIDELINES.md chapter 5 rule 1

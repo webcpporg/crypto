@@ -84,8 +84,9 @@ void rfc8032_ph() {
     BOOST_TEST(other.verify(expected, public_key).error() == crypto::error::invalid_signature);
 
     // Ed25519ph's signature is not Ed25519's of the same message.
-    BOOST_TEST(crypto::verify(crypto::eddsa, expected, abc, public_key).error() ==
-               crypto::error::invalid_signature);
+    auto const typed_key = ed25519::public_key::make(public_key);
+    BOOST_TEST(typed_key && crypto::verify(crypto::eddsa, expected, abc, *typed_key).error() ==
+                                crypto::error::invalid_signature);
 
     // The arguments in the other order, (public_key, signature): the 32-byte key stands where
     // the signature goes and is refused as a signature.

@@ -35,7 +35,7 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
   crypto/detail/async_access.hpp crypto/detail/timing.hpp crypto/ciphers/aead.hpp
   crypto/ciphers/chacha20_poly1305.hpp crypto/ciphers/secretbox.hpp crypto/pem.hpp
-  crypto/detail/p_curves.hpp crypto/signing.hpp ;
+  crypto/detail/p_curves.hpp crypto/signing.hpp crypto/keypair.hpp ;
 # detail/heavy.hpp compiles alone only with webcpp::asio, which it includes
 # where the build has threads; async.hpp, which includes it, only with
 # webcpp::asio on every target.
@@ -166,8 +166,13 @@ crypto-run equal : equal_test.cpp ;
 # signing.hpp's tags, prehashed, the input checks and the concepts, over
 # stand-in key types; the catch-all verify; sha256_of.
 crypto-run signing : signing_test.cpp ;
-# Every curve's crypto::verify in one program: a 32-byte key is Ed25519's under
-# eddsa and BIP340's under schnorr, with no ambiguity.
+# The key pair contract, crypto::keypair: Ed25519's and P-256's key pairs meet
+# it, stand-ins that lack a member do not.
+crypto-run keypair : keypair_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium ;
+# Every curve's crypto::verify in one program: a 32-byte key is BIP340's under
+# schnorr and no key under eddsa, which takes Ed25519's typed key, with no
+# ambiguity.
 crypto-run signing_curves : signing_curves_test.cpp
   : <library>/third_party//bearssl <library>/third_party//sodium
     <library>/third_party//secp256k1 ;
@@ -486,7 +491,7 @@ crypto-run p256_formats_bearssl : p256_formats_bearssl_test.cpp
 # OpenSSL as an outside oracle of P-256 on native, wasip2 and wasip3 (linked in
 # the test alone), from a printed seed, 200 cases each: its RFC 6979 signature
 # of a digest equals ours and each side verifies the other's; its ECDH equals
-# ecdh_x; its SPKI and PrivateKeyInfo decode and encode again to its bytes, and
+# agree's; its SPKI and PrivateKeyInfo decode and encode again to its bytes, and
 # ours load in it to the same key. It prints `oracle ok 600`.
 crypto-run p256_openssl_oracle : p256_openssl_oracle_test.cpp
   : <library>/webcpp/crypto//openssl <library>/third_party//bearssl

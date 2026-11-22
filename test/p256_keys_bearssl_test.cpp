@@ -10,8 +10,8 @@
 // its coordinates, and every refusal of a point (sizes, prefixes, the compressed form, off the
 // curve, a coordinate not below p, the identity's encodings); a moved-from key pair; the key
 // pair's storage zero once moved from and once destroyed, read at -O2 with every call inlined
-// (the Jamfile's requirements), as ed25519_wipe_sodium_test.cpp reads Ed25519's; and the types'
-// traits.
+// (the Jamfile's requirements), as ed25519_wipe_sodium_test.cpp reads Ed25519's; the types'
+// traits, the key pair contract included; and secret()'s scalar, which makes the same key pair.
 
 #include <cstddef>
 
@@ -29,6 +29,8 @@ std::size_t engine_calls = 0;
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/keypair.hpp>
+#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/crypto/supports.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -99,7 +101,7 @@ void make_from_rfc6979_scalar() {
     if (BOOST_TEST(point.has_value())) {
         BOOST_TEST(point->uncompressed() == data::rfc6979_public);
     }
-    auto const scalar = made->secret_scalar();
+    auto const scalar = made->secret();
     if (BOOST_TEST(scalar.has_value())) {
         BOOST_TEST(std::ranges::equal(scalar->bytes(), data::rfc6979_scalar));
     }
@@ -138,8 +140,8 @@ void generate_makes_distinct_valid_keys() {
     if (!BOOST_TEST(first.has_value()) || !BOOST_TEST(second.has_value())) {
         return;
     }
-    auto const first_scalar = first->secret_scalar();
-    auto const second_scalar = second->secret_scalar();
+    auto const first_scalar = first->secret();
+    auto const second_scalar = second->secret();
     if (BOOST_TEST(first_scalar.has_value()) && BOOST_TEST(second_scalar.has_value())) {
         BOOST_TEST(!std::ranges::equal(first_scalar->bytes(), second_scalar->bytes()));
     }
@@ -228,19 +230,19 @@ void moved_from() {
     // NOLINTBEGIN(bugprone-use-after-move,clang-analyzer-cplusplus.Move): the moved-from state
     // is what is tested.
     BOOST_TEST(a.public_key().error() == error::invalid_state);
-    BOOST_TEST(a.secret_scalar().error() == error::invalid_state);
+    BOOST_TEST(a.secret().error() == error::invalid_state);
     std::array<std::uint8_t, p256::digest_size> const digest{};
     BOOST_TEST(a.sign(crypto::ecdsa_sha256, digest).error() == error::invalid_state);
     BOOST_TEST(a.sign(crypto::ecdsa_sha256, crypto::prehashed{digest}).error() ==
                error::invalid_state);
     auto const peer = b.public_key();
-    BOOST_TEST(peer.has_value() && a.ecdh_x(*peer).error() == error::invalid_state);
+    BOOST_TEST(peer.has_value() && a.agree(*peer).error() == error::invalid_state);
     // NOLINTEND(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
     auto const point = b.public_key();
     if (BOOST_TEST(point.has_value())) {
         BOOST_TEST(point->uncompressed() == data::rfc6979_public);
     }
-    auto const scalar = b.secret_scalar();
+    auto const scalar = b.secret();
     if (BOOST_TEST(scalar.has_value())) {
         BOOST_TEST(std::ranges::equal(scalar->bytes(), data::rfc6979_scalar));
     }
@@ -296,8 +298,36 @@ void traits() {
     static_assert(p256::secret_key_size == 32 && p256::coordinate_size == 32 &&
                   p256::public_key_size == 65 && p256::digest_size == 32 &&
                   p256::signature_size == 64 && p256::max_der_size == 72);
-    static_assert(std::is_same_v<decltype(std::declval<keypair const&>().secret_scalar()),
+    static_assert(std::is_same_v<decltype(std::declval<keypair const&>().secret()),
                                  boost::system::result<crypto::secret<32>>>);
+    static_assert(crypto::keypair<keypair>);
+    static_assert(std::is_same_v<keypair::public_key_type, public_key>);
+    static_assert(keypair::secret_key_size == 32);
+}
+
+// secret() gives the scalar back, which makes the same key pair: of the same public point, and
+// whose signatures the first one's public key verifies.
+void secret_round_trip() {
+    auto const first = keypair::generate();
+    if (!BOOST_TEST(first.has_value())) {
+        return;
+    }
+    auto const exported = first->secret();
+    if (!BOOST_TEST(exported.has_value())) {
+        return;
+    }
+    auto const again = keypair::make(exported->bytes());
+    if (!BOOST_TEST(again.has_value())) {
+        return;
+    }
+    auto const first_point = first->public_key();
+    auto const again_point = again->public_key();
+    BOOST_TEST(first_point && again_point &&
+               first_point->uncompressed() == again_point->uncompressed());
+    std::array<std::uint8_t, 3> const message{'a', 'b', 'c'};
+    auto const signature = again->sign(crypto::ecdsa_sha256, message);
+    BOOST_TEST(signature && first_point &&
+               crypto::verify(crypto::ecdsa_sha256, *signature, message, *first_point).has_value());
 }
 
 }  // namespace
@@ -313,5 +343,6 @@ int main() {
     moved_from();
     wipe();
     traits();
+    secret_round_trip();
     return webcpp::test::exit_status(boost::report_errors());
 }

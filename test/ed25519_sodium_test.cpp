@@ -7,15 +7,19 @@
 // Ed25519 on libsodium: RFC 8032 section 7.1's tests 1, 2, 3 and SHA(abc), each key pair made
 // from the RFC's secret key, its public key and signature the RFC's, signed with
 // sign(crypto::eddsa, message) and accepted by crypto::verify(crypto::eddsa, signature, message,
-// public_key), its policy and backend deduced and named; the empty message; the arguments of the
-// order before it (key, message, signature) refused as a signature; speccheck's small-order key
-// refused under strict; the guards (a seed of 31 bytes, a moved-from key pair, a signature changed
-// in one bit, keys and signatures of other sizes); generate() under the planted entropy source of
-// the test seam WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY, failing and answering; and x25519_secret(),
-// whose public key is crypto_sign_ed25519_pk_to_curve25519's of the Ed25519 public key.
+// public_key), the key pair's typed public key or one made from the RFC's bytes, its policy and
+// backend deduced and named; secret() gives the seed back, which makes the same key pair;
+// public_key::make checks the size alone; the empty message; the arguments of the order before
+// it (key, message, signature) refused as a signature; speccheck's small-order key refused under
+// strict; the guards (a seed of 31 bytes, a moved-from key pair, a signature changed in one bit,
+// keys and signatures of other sizes); generate() under the planted entropy source of the test
+// seam WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY, failing and answering; and x25519_secret(), whose
+// public key is crypto_sign_ed25519_pk_to_curve25519's of the Ed25519 public key.
 
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/keypair.hpp>
+#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -114,10 +118,12 @@ void rfc8032() {
             continue;
         }
         auto const public_key = key->public_key();
-        BOOST_TEST(public_key && std::ranges::equal(*public_key, expected_public_key));
+        BOOST_TEST(public_key && std::ranges::equal(public_key->bytes(), expected_public_key));
+        auto const expected_key = ed25519::public_key::make(expected_public_key);
+        BOOST_TEST(expected_key && public_key && *expected_key == *public_key);
         auto const signature = key->sign(crypto::eddsa, message);
         BOOST_TEST(signature && std::ranges::equal(*signature, expected_signature));
-        if (!signature || !public_key) {
+        if (!signature || !public_key || !expected_key) {
             continue;
         }
         // The default policy, and strict named, on the default backend and on libsodium named:
@@ -126,8 +132,8 @@ void rfc8032() {
         BOOST_TEST((crypto::verify<crypto::backends::sodium>(crypto::eddsa, *signature, message,
                                                              *public_key, ed25519::strict)
                         .has_value()));
-        BOOST_TEST(crypto::verify(crypto::eddsa, expected_signature, message, expected_public_key)
-                       .has_value());
+        BOOST_TEST(
+            crypto::verify(crypto::eddsa, expected_signature, message, *expected_key).has_value());
     }
 }
 
@@ -154,6 +160,7 @@ void guards() {
     // NOLINTBEGIN(bugprone-use-after-move,clang-analyzer-cplusplus.Move): the moved-from state
     // is what is tested
     BOOST_TEST(source.public_key().error() == crypto::error::invalid_state);
+    BOOST_TEST(source.secret().error() == crypto::error::invalid_state);
     BOOST_TEST(source.sign(crypto::eddsa, message).error() == crypto::error::invalid_state);
     BOOST_TEST(source.x25519_secret().error() == crypto::error::invalid_state);
     // NOLINTEND(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
@@ -168,7 +175,7 @@ void guards() {
         target = std::move(*other);
         auto const first = target.public_key();
         BOOST_TEST(first &&
-                   std::ranges::equal(*first, test::from_hex(rfc8032_cases[0].public_key)));
+                   std::ranges::equal(first->bytes(), test::from_hex(rfc8032_cases[0].public_key)));
         // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): tested
         BOOST_TEST(other->public_key().error() == crypto::error::invalid_state);
     }
@@ -177,7 +184,12 @@ void guards() {
 void refusals() {
     auto const message = test::from_hex(rfc8032_cases[1].message);
     // A signature changed in one bit, of R or of S, and a message changed in one bit.
-    auto const public_key = test::from_hex(rfc8032_cases[1].public_key);
+    auto const made_key = ed25519::public_key::make(test::from_hex(rfc8032_cases[1].public_key));
+    BOOST_TEST(made_key.has_value());
+    if (!made_key) {
+        return;
+    }
+    auto const& public_key = *made_key;
     auto const good = test::from_hex(rfc8032_cases[1].signature);
     for (std::size_t const index :
          {std::size_t{0}, std::size_t{31}, std::size_t{32}, std::size_t{63}}) {
@@ -191,10 +203,7 @@ void refusals() {
     BOOST_TEST(crypto::verify(crypto::eddsa, good, changed_message, public_key).error() ==
                crypto::error::invalid_signature);
 
-    // A public key or a signature of another size.
-    BOOST_TEST(
-        crypto::verify(crypto::eddsa, good, message, std::span(public_key).first(31)).error() ==
-        crypto::error::invalid_public_key);
+    // A signature of another size.
     BOOST_TEST(
         crypto::verify(crypto::eddsa, std::span(good).first(63), message, public_key).error() ==
         crypto::error::invalid_signature);
@@ -205,16 +214,66 @@ void refusals() {
 }
 
 // The arguments of the order before crypto::verify, (key, message, signature), given to it: the
-// 32-byte key stands where the signature goes and is refused as a signature, never verified.
+// signature's 64 bytes are no key, so the call does not compile (the catch-all, a message test);
+// the 32-byte key's bytes where the signature goes are refused as a signature, never verified.
 void old_order_fails_closed() {
     auto const message = test::from_hex(rfc8032_cases[1].message);
-    std::array<std::uint8_t, 32> public_key{};
-    std::ranges::copy(test::from_hex(rfc8032_cases[1].public_key), public_key.begin());
+    std::array<std::uint8_t, 32> key_bytes{};
+    std::ranges::copy(test::from_hex(rfc8032_cases[1].public_key), key_bytes.begin());
     std::array<std::uint8_t, 64> signature{};
     std::ranges::copy(test::from_hex(rfc8032_cases[1].signature), signature.begin());
-    BOOST_TEST(crypto::verify(crypto::eddsa, signature, message, public_key).has_value());
-    auto const swapped = crypto::verify(crypto::eddsa, public_key, message, signature);
+    static_assert(!crypto::detail::has_verifier_v<crypto::eddsa_t, std::array<std::uint8_t, 64>>);
+    auto const public_key = ed25519::public_key::make(key_bytes);
+    BOOST_TEST(public_key.has_value());
+    if (!public_key) {
+        return;
+    }
+    BOOST_TEST(crypto::verify(crypto::eddsa, signature, message, *public_key).has_value());
+    auto const swapped = crypto::verify(crypto::eddsa, key_bytes, message, *public_key);
     BOOST_TEST(swapped.has_error() && swapped.error() == crypto::error::invalid_signature);
+}
+
+// The public key holds 32 bytes, checked for their size alone (design R16): another size is
+// invalid_public_key; a key of small order is made, and strict verification refuses it.
+void public_keys() {
+    auto const bytes = test::from_hex(rfc8032_cases[1].public_key);
+    auto const made = ed25519::public_key::make(bytes);
+    BOOST_TEST(made && std::ranges::equal(made->bytes(), bytes));
+    auto const short_key = ed25519::public_key::make(std::span(bytes).first(31));
+    BOOST_TEST(short_key.has_error() && short_key.error() == crypto::error::invalid_public_key);
+    std::vector<std::uint8_t> long_bytes(bytes);
+    long_bytes.push_back(0);
+    auto const long_key = ed25519::public_key::make(long_bytes);
+    BOOST_TEST(long_key.has_error() && long_key.error() == crypto::error::invalid_public_key);
+    auto const empty_key = ed25519::public_key::make(std::span<std::uint8_t const>{});
+    BOOST_TEST(empty_key.has_error() && empty_key.error() == crypto::error::invalid_public_key);
+    auto const other = ed25519::public_key::make(test::from_hex(rfc8032_cases[0].public_key));
+    BOOST_TEST(made && other && !(*made == *other) && *made != *other);
+}
+
+// secret() gives the seed back, which makes the same key pair, of the same public key and
+// signatures; a moved-from key pair has none.
+void secret_round_trip() {
+    for (auto const& tested : rfc8032_cases) {
+        auto const seed = test::from_hex(tested.secret_key);
+        auto const key = ed25519::keypair::make(seed);
+        BOOST_TEST(key.has_value());
+        if (!key) {
+            continue;
+        }
+        auto const exported = key->secret();
+        static_assert(std::is_same_v<std::remove_cvref_t<decltype(*exported)>,
+                                     crypto::secret<ed25519::keypair::secret_key_size>>);
+        BOOST_TEST(exported && std::ranges::equal(exported->bytes(), seed));
+        if (!exported) {
+            continue;
+        }
+        auto const again = ed25519::keypair::make(exported->bytes());
+        BOOST_TEST(again && *again->public_key() == *key->public_key());
+        auto const message = test::from_hex(tested.message);
+        BOOST_TEST(again &&
+                   *again->sign(crypto::eddsa, message) == *key->sign(crypto::eddsa, message));
+    }
 }
 
 // The empty message is a message: signed and verified, its signature RFC 8032's test 1, and
@@ -251,8 +310,14 @@ void small_order_key() {
     auto const signature = test::from_hex(
         "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a"
         "0000000000000000000000000000000000000000000000000000000000000000");
+    // Made, since the size is right: the policy judges the point.
+    auto const key = ed25519::public_key::make(public_key);
+    BOOST_TEST(key.has_value());
+    if (!key) {
+        return;
+    }
     auto const refused = crypto::verify<crypto::backends::sodium>(crypto::eddsa, signature, message,
-                                                                  public_key, ed25519::strict);
+                                                                  *key, ed25519::strict);
     BOOST_TEST(refused.has_error() && refused.error() == crypto::error::invalid_signature);
 }
 
@@ -319,21 +384,28 @@ int main() {
     static_assert(std::is_same_v<ed25519::keypair::family_type, crypto::families::ed25519>);
     static_assert(std::is_same_v<ed25519::keypair::name_type, crypto::families::ed25519>);
     static_assert(ed25519::keypair::seed_size == 32 && ed25519::keypair::public_key_size == 32 &&
-                  ed25519::keypair::signature_size == 64);
+                  ed25519::keypair::signature_size == 64 &&
+                  ed25519::keypair::secret_key_size == 32);
+    static_assert(crypto::keypair<ed25519::keypair>);
+    static_assert(std::is_same_v<ed25519::keypair::public_key_type, ed25519::public_key>);
+    static_assert(ed25519::public_key::size == 32);
+    static_assert(std::is_nothrow_copy_constructible_v<ed25519::public_key>);
+    static_assert(!std::is_default_constructible_v<ed25519::public_key>);
     static_assert(!std::is_copy_constructible_v<ed25519::keypair> &&
                   !std::is_copy_assignable_v<ed25519::keypair>);
     static_assert(std::is_nothrow_move_constructible_v<ed25519::keypair> &&
                   std::is_nothrow_move_assignable_v<ed25519::keypair>);
     // An Ed25519 key pair signs a message with eddsa, never a digest, nor with another scheme;
-    // its 32 bytes verify eddsa.
+    // its typed public key verifies eddsa, and bytes do not (design R17).
     static_assert(crypto::can_sign<ed25519::keypair, crypto::eddsa_t, std::array<std::uint8_t, 3>>);
     static_assert(!crypto::can_sign<ed25519::keypair, crypto::eddsa_t, crypto::prehashed<32>>);
     static_assert(
         !crypto::can_sign<ed25519::keypair, crypto::ecdsa_sha256_t, std::array<std::uint8_t, 3>>);
-    static_assert(crypto::can_verify<crypto::eddsa_t, std::vector<std::uint8_t>,
-                                     std::array<std::uint8_t, 32>>);
     static_assert(
-        !crypto::can_verify<crypto::eddsa_t, crypto::prehashed<32>, std::array<std::uint8_t, 32>>);
+        crypto::can_verify<crypto::eddsa_t, std::vector<std::uint8_t>, ed25519::public_key>);
+    static_assert(!crypto::can_verify<crypto::eddsa_t, crypto::prehashed<32>, ed25519::public_key>);
+    static_assert(!crypto::can_verify<crypto::eddsa_t, std::vector<std::uint8_t>,
+                                      std::array<std::uint8_t, 32>>);
     // Bytes never sign, whatever their size, and a key pair is no public key: it verifies
     // nothing, its public key does.
     static_assert(!crypto::can_sign<std::array<std::uint8_t, 32>, crypto::eddsa_t,
@@ -345,20 +417,24 @@ int main() {
     static_assert(
         crypto::can_sign<ed25519::keypair const&, crypto::eddsa_t, std::span<std::uint8_t const>>);
     static_assert(crypto::can_verify<crypto::eddsa_t, std::span<std::uint8_t const>,
-                                     std::array<std::uint8_t, 32> const&>);
-    // Bytes verify eddsa through Ed25519's crypto::verify, so the catch-all steps aside; with
-    // another scheme bytes are no key, and the catch-all refuses them.
-    static_assert(crypto::detail::has_verifier_v<crypto::eddsa_t, std::array<std::uint8_t, 32>>);
-    static_assert(crypto::detail::has_verifier_v<crypto::eddsa_t, std::vector<std::uint8_t>>);
+                                     ed25519::public_key const&>);
+    // The typed key verifies eddsa through Ed25519's crypto::verify, so the catch-all steps aside;
+    // bytes are no key under any scheme, and the catch-all refuses them.
+    static_assert(crypto::detail::has_verifier_v<crypto::eddsa_t, ed25519::public_key>);
+    static_assert(!crypto::detail::has_verifier_v<crypto::eddsa_t, std::array<std::uint8_t, 32>>);
+    static_assert(!crypto::detail::has_verifier_v<crypto::eddsa_t, std::vector<std::uint8_t>>);
     static_assert(
         !crypto::detail::has_verifier_v<crypto::ecdsa_sha256_t, std::array<std::uint8_t, 32>>);
     static_assert(std::is_void_v<crypto::detail::key_backend<std::array<std::uint8_t, 32>>::type>);
+    static_assert(std::is_void_v<crypto::detail::key_backend<ed25519::public_key>::type>);
     static_assert(std::is_same_v<crypto::detail::key_backend<ed25519::keypair>::type,
                                  crypto::backends::sodium>);
     rfc8032();
     guards();
     refusals();
     old_order_fails_closed();
+    public_keys();
+    secret_round_trip();
     empty_message();
     small_order_key();
     generated();

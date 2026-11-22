@@ -26,6 +26,7 @@
 #include <string_view>
 
 namespace crypto = webcpp::crypto;
+namespace ed25519 = webcpp::crypto::curves::ed25519;
 namespace test = webcpp::test;
 namespace json = boost::json;
 
@@ -50,13 +51,19 @@ int main() {
     int accepted = 0;
     int refused = 0;
     for (auto const& group : document.at("testGroups").as_array()) {
-        auto const public_key = test::from_hex(text_of(group.at("publicKey").at("pk")));
+        // Every group's key is 32 bytes: made, whatever its point (design R16).
+        auto const public_key =
+            ed25519::public_key::make(test::from_hex(text_of(group.at("publicKey").at("pk"))));
+        BOOST_TEST(public_key.has_value());
+        if (!public_key) {
+            continue;
+        }
         for (auto const& tested : group.at("tests").as_array()) {
             ++total;
             auto const message = test::from_hex(text_of(tested.at("msg")));
             auto const signature = test::from_hex(text_of(tested.at("sig")));
             auto const verdict = text_of(tested.at("result"));
-            auto const verified = crypto::verify(crypto::eddsa, signature, message, public_key);
+            auto const verified = crypto::verify(crypto::eddsa, signature, message, *public_key);
             auto label = "tcId " + std::to_string(tested.at("tcId").to_number<std::int64_t>());
             if (verdict == "valid") {
                 ++accepted;

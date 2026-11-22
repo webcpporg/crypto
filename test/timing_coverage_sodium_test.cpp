@@ -17,7 +17,8 @@
 //   seal, open.
 // - Both boxes, basic_box: make, seal, open. The sealed box, basic_sealed_box: seal, open.
 // - PEM: algorithm::armour, algorithm::unarmour, and the free armour and unarmour, which forward.
-// - Ed25519, basic_keypair: make, generate, public_key, sign, x25519_secret; the free verify and
+// - Ed25519, basic_keypair: make, generate, public_key, secret, sign, x25519_secret; the free
+// verify and
 //   to_x25519_public. Ed25519ph, ph: begin, update, sign, verify. Its formats: decode_spki,
 //   decode_pkcs8 (the encoders call no backend and hold no guard, ruling R4).
 // - Ed25519's asynchronous functions: async_make, async_generate, async_sign, async_verify.
@@ -220,7 +221,8 @@ void cover_pem() {
 
 /**
  * Ed25519's key pair: `make`, a seed of the wrong size included, `generate` (the system's
- * entropy), and `public_key`, `sign` and `x25519_secret`, each of a moved-from key pair too.
+ * entropy), and `public_key`, `secret`, `sign` and `x25519_secret`, each of a moved-from key pair
+ * too.
  */
 void cover_ed25519_keypair() {
     using keypair = crypto::curves::ed25519::basic_keypair<sodium>;
@@ -240,6 +242,8 @@ void cover_ed25519_keypair() {
     }
     covered("ed25519::basic_keypair::public_key on sodium",
             [&] { BOOST_TEST(made->public_key().has_value()); });
+    covered("ed25519::basic_keypair::secret on sodium",
+            [&] { BOOST_TEST(made->secret().has_value()); });
     covered("ed25519::basic_keypair::sign on sodium",
             [&] { BOOST_TEST(made->sign(crypto::eddsa, message).has_value()); });
     covered("ed25519::basic_keypair::x25519_secret on sodium",
@@ -248,6 +252,10 @@ void cover_ed25519_keypair() {
     covered("ed25519::basic_keypair::public_key moved from on sodium", [&] {
         // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
         BOOST_TEST(made->public_key().error() == crypto::error::invalid_state);
+    });
+    covered("ed25519::basic_keypair::secret moved from on sodium", [&] {
+        // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
+        BOOST_TEST(made->secret().error() == crypto::error::invalid_state);
     });
     covered("ed25519::basic_keypair::sign moved from on sodium", [&] {
         // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
@@ -260,8 +268,8 @@ void cover_ed25519_keypair() {
 }
 
 /**
- * Ed25519's `crypto::verify` and `to_x25519_public`, a key and a signature of the wrong size
- * included.
+ * Ed25519's `crypto::verify`, a signature of the wrong size included, and `to_x25519_public`, a
+ * key of the wrong size included.
  */
 void cover_ed25519_free() {
     namespace ed25519 = crypto::curves::ed25519;
@@ -280,20 +288,16 @@ void cover_ed25519_free() {
             crypto::verify<sodium>(crypto::eddsa, *signature, message, *public_key, ed25519::strict)
                 .has_value()));
     });
-    covered("ed25519 crypto::verify with a short key on sodium", "crypto::verify", [&] {
-        BOOST_TEST((crypto::verify<sodium>(crypto::eddsa, *signature, message,
-                                           std::span(*public_key).first(31), ed25519::strict)
-                        .error() == crypto::error::invalid_public_key));
-    });
     covered("ed25519 crypto::verify with a short signature on sodium", "crypto::verify", [&] {
         BOOST_TEST((crypto::verify<sodium>(crypto::eddsa, std::span(*signature).first(63), message,
                                            *public_key, ed25519::strict)
                         .error() == crypto::error::invalid_signature));
     });
+    auto const key_bytes = public_key->bytes();
     covered("ed25519::to_x25519_public on sodium",
-            [&] { BOOST_TEST(ed25519::to_x25519_public<sodium>(*public_key).has_value()); });
+            [&] { BOOST_TEST(ed25519::to_x25519_public<sodium>(key_bytes).has_value()); });
     covered("ed25519::to_x25519_public with a short key on sodium", [&] {
-        BOOST_TEST(ed25519::to_x25519_public<sodium>(std::span(*public_key).first(31)).error() ==
+        BOOST_TEST(ed25519::to_x25519_public<sodium>(std::span(key_bytes).first(31)).error() ==
                    crypto::error::invalid_public_key);
     });
 }
@@ -325,7 +329,7 @@ void cover_ed25519ph() {
         }
     });
     covered("ed25519::ph::verify on sodium",
-            [&] { BOOST_TEST(verifier->verify(signature, *public_key).has_value()); });
+            [&] { BOOST_TEST(verifier->verify(signature, public_key->bytes()).has_value()); });
 }
 
 /**

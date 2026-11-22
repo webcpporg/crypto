@@ -476,7 +476,7 @@ template <class Scheme, class Signature, class Input, class PublicKey>
     [[maybe_unused]] Input const& input, [[maybe_unused]] PublicKey const& public_key) noexcept {
     static_assert(detail::refused_v<Scheme>,
                   "webcpp::crypto: verify: this public key does not go with this scheme: "
-                  "crypto::eddsa takes Ed25519's 32 bytes, crypto::ecdsa_sha256 a "
+                  "crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a "
                   "curves::p256::basic_public_key or a curves::secp256k1::public_key, "
                   "crypto::schnorr a 32-byte x-only key.");
     return {};

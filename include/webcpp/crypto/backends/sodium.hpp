@@ -415,6 +415,12 @@ struct ed25519_engine<families::ed25519, backends::sodium> {
         static_cast<void>(crypto_sign_ed25519_sk_to_pk(out.data(), keyed.secret_key.data()));
     }
 
+    /** The seed, the secret key's first half, `crypto_sign_ed25519_sk_to_seed`. */
+    static void seed(state const& keyed, std::span<std::uint8_t, 32> out) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        static_cast<void>(crypto_sign_ed25519_sk_to_seed(out.data(), keyed.secret_key.data()));
+    }
+
     /**
      * Signs a message, `crypto_sign_ed25519_detached`.
      *

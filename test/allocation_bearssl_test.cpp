@@ -8,7 +8,7 @@
 // equal and random_device's fill, ChaCha20-Poly1305's make, seal, open (good and failed)
 // and move, and P-256's key pair make and generate, public key make (of a point and of
 // coordinates), sign(ecdsa_sha256, ...) and crypto::verify of a message and of a digest, to_der,
-// from_der, normalize_low_s, is_low_s, ecdh_x, encode_spki, decode_spki, encode_pkcs8 and
+// from_der, normalize_low_s, is_low_s, agree, encode_spki, decode_spki, encode_pkcs8 and
 // decode_pkcs8 make no call of operator new, nor of the C library's allocator where the target lets
 // a program count it; a control proves the counter moves.
 
@@ -38,7 +38,7 @@
 namespace {
 
 // P-256's functions, each called once: the key pair's make and generate, the public key's two
-// make, ECDSA's eight (sign and verify each of a message and of a digest), ECDH's ecdh_x and the
+// make, ECDSA's eight (sign and verify each of a message and of a digest), ECDH's agree and the
 // formats' four.
 void p256_calls() {
     namespace crypto = webcpp::crypto;
@@ -73,7 +73,7 @@ void p256_calls() {
     }
     BOOST_TEST(p256::normalize_low_s(*signature).has_value());
     BOOST_TEST(p256::is_low_s(data::rfc6979_test));
-    BOOST_TEST(pair->ecdh_x(*key).has_value());
+    BOOST_TEST(pair->agree(*key).has_value());
     std::array<std::uint8_t, p256::max_spki_size> spki{};
     std::array<std::uint8_t, p256::max_pkcs8_size> pkcs8{};
     BOOST_TEST(p256::encode_spki(*key, spki).has_value());

@@ -75,15 +75,15 @@ The fix: Call the key pair's own signing function: secp256k1 is not in WebCrypto
 
 |`+async_verify_named_backend+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_verify takes crypto::eddsa with Ed25519's 32-byte key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
+|`+webcpp::crypto: async_verify takes crypto::eddsa with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
 
 The fix: As `+async_verify_wrong_key+`: naming the backend does not add a scheme; call `+crypto::verify+` for `+crypto::schnorr+` and secp256k1's keys.
 
 |`+async_verify_wrong_key+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_verify takes crypto::eddsa with Ed25519's 32-byte key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
+|`+webcpp::crypto: async_verify takes crypto::eddsa with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
 
-The fix: Call `+crypto::verify+` for a key the asynchronous family lacks (secp256k1's, Schnorr's x-only key): `+async_verify+` has Ed25519's 32-byte key with `+crypto::eddsa+` and a `+curves::p256::basic_public_key+` with `+crypto::ecdsa_sha256+`.
+The fix: Call `+crypto::verify+` for a key the asynchronous family lacks (secp256k1's, Schnorr's x-only key): `+async_verify+` has a `+curves::ed25519::public_key+` with `+crypto::eddsa+` and a `+curves::p256::basic_public_key+` with `+crypto::ecdsa_sha256+`.
 
 |`+bearssl_not_linked+`
 |native, wasip2
@@ -357,9 +357,15 @@ The fix: Add `+/third_party//sodium+`.
 
 |`+verify_ecdsa_bytes_key+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes Ed25519's 32 bytes, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a 32-byte x-only key.+`
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a 32-byte x-only key.+`
 
 The fix: Give `+crypto::ecdsa_sha256+` the public key as a parsed object, `+curves::secp256k1::parse_public_key(bytes)+` or `+curves::p256::public_key::make(bytes)+`: bytes never choose the curve.
+
+|`+verify_eddsa_bytes_key+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a 32-byte x-only key.+`
+
+The fix: Give `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::make(bytes)+` for a key received as bytes.
 
 |`+x25519_default_not_linked+`
 |native, wasip2, wasip3

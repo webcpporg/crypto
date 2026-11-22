@@ -146,8 +146,9 @@ void converted(std::string_view seed) {
         return;
     }
     auto const derived = x25519::public_key(secret_key->bytes());
-    auto const converted_key = ed25519::to_x25519_public(*ed25519_public);
-    auto const named = ed25519::to_x25519_public<crypto::backends::sodium>(*ed25519_public);
+    auto const ed25519_bytes = ed25519_public->bytes();
+    auto const converted_key = ed25519::to_x25519_public(ed25519_bytes);
+    auto const named = ed25519::to_x25519_public<crypto::backends::sodium>(ed25519_bytes);
     BOOST_TEST(derived.has_value());
     BOOST_TEST(converted_key.has_value());
     BOOST_TEST(named.has_value());

@@ -186,7 +186,7 @@ void rfc8410_keys() {
     auto const public_key = ed25519::decode_spki(spki);
     BOOST_TEST(public_key.has_value());
     if (public_key) {
-        BOOST_TEST(bytes_of(*public_key) == test::from_hex(rfc8410_public_key));
+        BOOST_TEST(bytes_of(public_key->bytes()) == test::from_hex(rfc8410_public_key));
         std::array<std::uint8_t, ed25519::max_spki_size> encoded{};
         auto const written = ed25519::encode_spki(*public_key, encoded);
         BOOST_TEST(written.has_value() && *written == ed25519::max_spki_size);
@@ -204,7 +204,7 @@ void rfc8410_keys() {
     if (key) {
         auto const its_public = key->public_key();
         BOOST_TEST(its_public.has_value() &&
-                   bytes_of(*its_public) == test::from_hex(rfc8410_public_key));
+                   bytes_of(its_public->bytes()) == test::from_hex(rfc8410_public_key));
         std::array<std::uint8_t, ed25519::max_pkcs8_size> encoded{};
         auto const written = ed25519::encode_pkcs8(*key, encoded);
         BOOST_TEST(written.has_value() && *written == ed25519::max_pkcs8_size);
@@ -224,7 +224,7 @@ void layouts() {
     }
     std::string const key_hex = test::to_hex(key);
     std::array<std::uint8_t, 48> out{};
-    auto written = ed25519::encode_spki(key, out);
+    auto written = ed25519::encode_spki(*ed25519::public_key::make(key), out);
     BOOST_TEST(written.has_value() && *written == 44);
     BOOST_TEST_EQ(test::to_hex(std::span(out).first(44)), "302a300506032b6570032100" + key_hex);
     written = x25519::encode_spki(key, out);
@@ -313,7 +313,7 @@ void malformed_der() {
     std::array<std::uint8_t, 44> x_spki{};
     std::array<std::uint8_t, 48> x_pkcs8{};
     std::array<std::uint8_t, 48> ed_pkcs8{};
-    BOOST_TEST(ed25519::encode_spki(key, ed_spki).has_value());
+    BOOST_TEST(ed25519::encode_spki(*ed25519::public_key::make(key), ed_spki).has_value());
     BOOST_TEST(x25519::encode_spki(key, x_spki).has_value());
     BOOST_TEST(x25519::encode_pkcs8(key, x_pkcs8).has_value());
     auto const pair = ed25519::keypair::make(key);
@@ -372,7 +372,7 @@ void malformed_der() {
     version2[4] = 0x01;
     std::array<std::uint8_t, 32> public_key{};
     if (pair && pair->public_key()) {
-        public_key = *pair->public_key();
+        public_key = pair->public_key()->bytes();
     }
     version2.insert(version2.end(), {0x81, 0x21, 0x00});
     version2.insert(version2.end(), public_key.begin(), public_key.end());
@@ -471,7 +471,7 @@ void outputs_too_small() {
     key.fill(7);
     std::array<std::uint8_t, 43> short_out{};
     short_out.fill(untouched);
-    auto written = ed25519::encode_spki(key, short_out);
+    auto written = ed25519::encode_spki(*ed25519::public_key::make(key), short_out);
     BOOST_TEST(!written && written.error() == crypto::error::invalid_input_size);
     written = x25519::encode_spki(key, short_out);
     BOOST_TEST(!written && written.error() == crypto::error::invalid_input_size);
@@ -493,12 +493,12 @@ void outputs_too_small() {
 void keys_refused() {
     std::array<std::uint8_t, 32> key{};
     key.fill(7);
-    // Keys of another size.
+    // Keys of another size: an Ed25519 key is not made of 31 bytes, so its SPKI is never written.
     std::array<std::uint8_t, 48> out{};
     out.fill(untouched);
-    auto written = ed25519::encode_spki(std::span(key).first(31), out);
-    BOOST_TEST(!written && written.error() == crypto::error::invalid_public_key);
-    written = x25519::encode_spki(std::span(key).first(31), out);
+    auto const short_key = ed25519::public_key::make(std::span(key).first(31));
+    BOOST_TEST(!short_key && short_key.error() == crypto::error::invalid_public_key);
+    auto written = x25519::encode_spki(std::span(key).first(31), out);
     BOOST_TEST(!written && written.error() == crypto::error::invalid_public_key);
     written = x25519::encode_pkcs8(std::span(key).first(31), out);
     BOOST_TEST(!written && written.error() == crypto::error::invalid_key_size);

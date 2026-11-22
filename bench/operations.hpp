@@ -518,7 +518,7 @@ private:
     std::array<std::uint8_t, curves::p256::signature_size> signature_{};
 };
 
-// The x coordinate of the ECDH shared point of a P-256 key pair and a peer's public key.
+// The x coordinate of the ECDH shared point of a P-256 key pair and a peer's public key, agree.
 template <class Backend>
 class p256_ecdh_x {
 public:
@@ -535,14 +535,14 @@ public:
           peer_public_(take(peer_.public_key(), "public_key")) {}
 
     std::uint8_t run() {
-        auto const shared = take(key_.ecdh_x(peer_public_), "ecdh_x");
+        auto const shared = take(key_.agree(peer_public_), "agree");
         return shared.bytes()[0];
     }
 
     bool check() {
         auto const own_public = take(key_.public_key(), "public_key");
-        auto const shared = take(key_.ecdh_x(peer_public_), "ecdh_x");
-        auto const peer_shared = take(peer_.ecdh_x(own_public), "ecdh_x");
+        auto const shared = take(key_.agree(peer_public_), "agree");
+        auto const peer_shared = take(peer_.agree(own_public), "agree");
         return std::ranges::equal(shared.bytes(), peer_shared.bytes());
     }
 

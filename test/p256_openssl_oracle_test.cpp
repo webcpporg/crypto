@@ -16,7 +16,7 @@
 //   S; OpenSSL verifies to_der of ours, and crypto::verify accepts OpenSSL's as it signed it,
 //   high S or low.
 // - ECDH: two random key pairs; EVP_PKEY_derive of the first with the second's public key equals
-//   ecdh_x.
+//   agree.
 // - Formats: OpenSSL's i2d_PUBKEY and its PrivateKeyInfo (an OSSL_ENCODER, DER) decode with
 //   decode_spki and decode_pkcs8 and encode again to the same bytes; encode_spki's and
 //   encode_pkcs8's bytes load in OpenSSL (d2i_PUBKEY, d2i_AutoPrivateKey) to the same key, its
@@ -356,7 +356,7 @@ bool ecdh_case(std::mt19937_64& generator, std::size_t index) {
     auto const pair = p256::keypair::make(scalar);
     auto const peer = p256::keypair::make(peer_scalar);
     auto const peer_public_key = peer ? peer->public_key() : webcpp::crypto::error::backend_failure;
-    auto const shared = pair && peer_public_key ? pair->ecdh_x(*peer_public_key)
+    auto const shared = pair && peer_public_key ? pair->agree(*peer_public_key)
                                                 : webcpp::crypto::error::backend_failure;
     pkey_ptr const key = openssl_key(scalar);
     pkey_ptr const peer_key = openssl_key(peer_scalar);

@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Two P-256 key pairs, made from fixed scalars, agree on the shared point's raw x coordinate with
-// ecdh_x, the 256 bits WebCrypto's deriveBits gives with ECDH on P-256; then HKDF-SHA-256 of that
+// agree, the 256 bits WebCrypto's deriveBits gives with ECDH on P-256; then HKDF-SHA-256 of that
 // x, with webcpp::hash, derives the 32-byte key a protocol would encrypt with. The x coordinate is
 // not a key: the derivation, its salt and its info are the protocol's.
 //
@@ -81,8 +81,8 @@ int main() {
     }
     // tag::agree[]
     // Each side combines its key pair with the other's public key: the same x, a secret<32>.
-    auto const alice_x = alice->ecdh_x(*bob_public);
-    auto const bob_x = bob->ecdh_x(*alice_public);
+    auto const alice_x = alice->agree(*bob_public);
+    auto const bob_x = bob->agree(*alice_public);
     // end::agree[]
     if (!alice_x || !bob_x || !crypto::equal(alice_x->bytes(), bob_x->bytes())) {
         std::printf("failed\n");

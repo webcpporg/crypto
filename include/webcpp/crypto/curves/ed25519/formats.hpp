@@ -100,22 +100,20 @@ inline constexpr std::size_t max_pkcs8_size = 48;
  * Writes a public key's SPKI (RFC 8410) into `out`.
  *
  * @tparam Backend The backend; by default the family's.
- * @param public_key 32 bytes.
+ * @param key The public key.
  * @param out At least `max_spki_size` bytes.
- * @return The bytes written, 44; `invalid_public_key` for a key of another size;
- * `invalid_input_size` for an `out` too small. Nothing is written on a refusal.
+ * @return The bytes written, 44; `invalid_input_size` for an `out` too small. Nothing is written
+ * on a refusal.
  */
 template <class Backend = default_backend_t<families::ed25519>>
-[[nodiscard]] boost::system::result<std::size_t> encode_spki(
-    std::span<std::uint8_t const> public_key, std::span<std::uint8_t> out) noexcept {
-    if (public_key.size() != 32) {
-        return error::invalid_public_key;
-    }
+[[nodiscard]] boost::system::result<std::size_t> encode_spki(public_key const& key,
+                                                             std::span<std::uint8_t> out) noexcept {
     if (out.size() < max_spki_size) {
         return error::invalid_input_size;
     }
+    auto const key_bytes = key.bytes();
     detail::ed25519_formats_engine<families::ed25519, Backend>::encode_spki(
-        public_key.first<32>(), out.first<max_spki_size>());
+        std::span<std::uint8_t const, public_key::size>(key_bytes), out.first<max_spki_size>());
     return max_spki_size;
 }
 
@@ -123,26 +121,27 @@ template <class Backend = default_backend_t<families::ed25519>>
  * The public key of an SPKI, refused unless it is exactly RFC 8410's form: the 12 bytes of
  * Ed25519's prefix, then the key, and nothing after.
  *
- * The key's point is not checked here: `verify` refuses a key that is not one.
+ * The key's point is not checked here, as `public_key::make` does not check it: `crypto::verify`
+ * refuses a key that is not one.
  *
  * @tparam Backend The backend; by default the family's.
  * @param spki The DER.
- * @return 32 bytes; `invalid_encoding`.
+ * @return The public key; `invalid_encoding`.
  */
 template <class Backend = default_backend_t<families::ed25519>>
-[[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> decode_spki(
+[[nodiscard]] boost::system::result<public_key> decode_spki(
     std::span<std::uint8_t const> spki) noexcept {
     detail::timing_guard const timing;
     if (spki.size() != max_spki_size) {
         return error::invalid_encoding;
     }
-    std::array<std::uint8_t, 32> public_key{};
+    std::array<std::uint8_t, public_key::size> key_bytes{};
     auto const decoded = detail::ed25519_formats_engine<families::ed25519, Backend>::decode_spki(
-        spki.first<max_spki_size>(), public_key);
+        spki.first<max_spki_size>(), key_bytes);
     if (!decoded) {
         return decoded.error();
     }
-    return public_key;
+    return public_key::make(key_bytes);
 }
 
 /**

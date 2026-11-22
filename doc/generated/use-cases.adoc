@@ -260,7 +260,7 @@
 |<<crypto-everyday-files,[.keep]`+file_share.cpp+`>>
 
 |Make and keep a P-256 key pair, and import a browser's public key (WebCrypto's raw form), as webcpp::trystero's peers do
-|In `+curves::p256+`: `+keypair::make+`, `+keypair::generate+`, `+keypair::public_key+`, `+keypair::secret_scalar+`, `+public_key::make+`
+|In `+curves::p256+`: `+keypair::make+`, `+keypair::generate+`, `+keypair::public_key+`, `+keypair::secret+`, `+public_key::make+`
 |BearSSL
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//p256-default+`
@@ -274,7 +274,7 @@
 |<<crypto-p256-ecdsa,[.keep]`+p256_sign.cpp+`>>
 
 |Agree on a key with a browser's WebCrypto (ECDH on P-256, deriveBits), then derive the session's keys with HKDF, as Trystero 0.27.0's pairwise keys are derived
-|In `+curves::p256+`: `+keypair::ecdh_x+`; `+webcpp::hash::hkdf+` for the keys
+|In `+curves::p256+`: `+keypair::agree+`; `+webcpp::hash::hkdf+` for the keys
 |BearSSL
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//p256-default+`
@@ -289,7 +289,7 @@
 |<<crypto-p256-formats,[.keep]`+p256_key_formats.cpp+`>>
 
 |Sign a peer-to-peer handshake a browser's WebCrypto verifies, low S, check the peer's, and derive the session key from ECDH (Trystero's protocol is webcpp::trystero's)
-|In `+curves::p256+`: `+keypair::sign(crypto::ecdsa_sha256, crypto::prehashed{digest})+`, `+is_low_s+`, `+crypto::verify+`, `+keypair::ecdh_x+`; `+webcpp::hash::hkdf+` for the key
+|In `+curves::p256+`: `+keypair::sign(crypto::ecdsa_sha256, crypto::prehashed{digest})+`, `+is_low_s+`, `+crypto::verify+`, `+keypair::agree+`; `+webcpp::hash::hkdf+` for the key
 |BearSSL
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//p256-default+`

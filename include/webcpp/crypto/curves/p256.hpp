@@ -5,13 +5,14 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 /**
- P-256, NIST's curve of FIPS 186-5 (secp256r1): a key pair made from its 32-byte scalar or drawn
- from the system's generator, and a public key validated once, as SEC 1's uncompressed point;
+ P-256, NIST's curve of FIPS 186-5 (secp256r1): a key pair made from its 32-byte scalar, which
+ `secret()` gives back, or drawn from the system's generator, and a public key validated once, as
+ SEC 1's uncompressed point;
  ECDSA over SHA-256 with RFC 6979's nonce, `key.sign(crypto::ecdsa_sha256, input)` and
  `crypto::verify(crypto::ecdsa_sha256, signature, input, public_key)`, the input a message, hashed
  inside, or `crypto::prehashed{digest}`: signing gives low S, verification accepts high and low S;
  the signature's raw and DER forms, and low S as two functions, `normalize_low_s` and `is_low_s`;
- ECDH's shared point's raw x coordinate, as WebCrypto's `deriveBits` gives it.
+ ECDH's `agree`, the shared point's raw x coordinate, as WebCrypto's `deriveBits` gives it.
 
  The family's default backend, BearSSL on every target, is included when the program links it;
  a program that uses the family without linking it stops where it calls it, with the Jamfile
@@ -30,6 +31,7 @@
 #include <webcpp/crypto/detail/p_curves.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: random_device draws generate()'s scalar
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
@@ -174,14 +176,15 @@ public:
     using name_type = families::p256;
     /** The backend. */
     using backend_type = Backend;
-    /** The size of the secret scalar. */
+    /** The public key's type, which `crypto::verify` and `agree` take. */
+    using public_key_type = basic_public_key<Backend>;
+    /** The size of the secret scalar, which `make` takes and `secret()` gives. */
     static constexpr std::size_t secret_key_size = p256::secret_key_size;
     /** The size of the public key, SEC 1's uncompressed point. */
     static constexpr std::size_t public_key_size = p256::public_key_size;
 
     /**
-     * Makes a key pair from its secret scalar, as a program that kept `secret_scalar` loads it
-     * again.
+     * Makes a key pair from its secret scalar, as a program that kept `secret()` loads it again.
      *
      * @param secret_scalar 32 bytes, big-endian, not zero and below the group order n.
      * @return The key pair; `invalid_key_size`; `invalid_secret_key` for a scalar 0 or not below
@@ -215,7 +218,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<basic_keypair> generate() noexcept {
         detail::timing_guard const timing;
-        secret<secret_key_size> scalar;
+        crypto::secret<secret_key_size> scalar;
         random_device device;  // lint-world: the scalar
         do {
             if (!device.fill(scalar.writable())) {
@@ -280,11 +283,11 @@ public:
      *
      * @return 32 secret bytes, big-endian; `invalid_state` moved from.
      */
-    [[nodiscard]] boost::system::result<secret<secret_key_size>> secret_scalar() const noexcept {
+    [[nodiscard]] boost::system::result<crypto::secret<secret_key_size>> secret() const noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
-        secret<secret_key_size> scalar;
+        crypto::secret<secret_key_size> scalar;
         engine::scalar(state_, scalar.writable());
         return scalar;
     }
@@ -339,13 +342,13 @@ public:
      * @return 32 secret bytes, big-endian; `invalid_state` moved from; `backend_failure`, which a
      * valid key pair and a valid public key cannot cause.
      */
-    [[nodiscard]] boost::system::result<secret<coordinate_size>> ecdh_x(
+    [[nodiscard]] boost::system::result<crypto::secret<coordinate_size>> agree(
         basic_public_key<Backend> const& peer) const noexcept {
         detail::timing_guard const timing;
         if (!keyed_) {
             return error::invalid_state;
         }
-        secret<coordinate_size> shared;
+        crypto::secret<coordinate_size> shared;
         auto const derived =
             engine::ecdh_x(state_, detail::p_curve_access::point(peer), shared.writable());
         if (!derived) {
@@ -665,6 +668,12 @@ struct p_curve_engine<families::p256, Backend> {
 // Its header specialises it for this header, wherever it was first included.
 #if defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_P256_BEARSSL) && defined(WEBCPP_CRYPTO_HAS_BEARSSL)
 #include <webcpp/crypto/backends/bearssl.hpp>
+
+// The key pair contract (design D8), on the family's default backend.
+static_assert(
+    ::webcpp::crypto::keypair<
+        ::webcpp::crypto::curves::p256::basic_keypair<::webcpp::crypto::backends::bearssl>>,
+    "webcpp::crypto: P-256's key pair meets crypto::keypair.");
 #endif
 
 #endif  // WEBCPP_CRYPTO_CURVES_P256_HPP

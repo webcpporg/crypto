@@ -177,17 +177,18 @@ bool ed25519_case(std::mt19937_64& rng, std::size_t index) {
     std::array<std::uint8_t, 32> oracle_public_key{};
     std::array<std::uint8_t, 64> oracle_signature{};
     int verified = 0;
-    int const ran = subtle_ed25519(key_seed.data(), public_key->data(), message.data(),
+    auto const public_key_bytes = public_key->bytes();
+    int const ran = subtle_ed25519(key_seed.data(), public_key_bytes.data(), message.data(),
                                    message.size(), signature->data(), oracle_public_key.data(),
                                    oracle_signature.data(), &verified);
     BOOST_TEST_EQ(ran, 0);
-    bool const agrees = ran == 0 && verified == 1 && oracle_public_key == *public_key &&
+    bool const agrees = ran == 0 && verified == 1 && oracle_public_key == public_key_bytes &&
                         oracle_signature == *signature;
     if (!agrees) {
         std::printf(
             "Ed25519 case %zu: WebCrypto disagrees (verified %d, public key %s, "
             "signature %s)\n",
-            index, verified, oracle_public_key == *public_key ? "equal" : "differs",
+            index, verified, oracle_public_key == public_key_bytes ? "equal" : "differs",
             oracle_signature == *signature ? "equal" : "differs");
     }
     return agrees;

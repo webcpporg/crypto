@@ -4,8 +4,8 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// The size of P-256's ecdh_x on BearSSL: bench/operations.hpp's p256_ecdh_x, once
-// (test/sizes/Jamfile).
+// The size of P-256's agree, the operation ecdh_x, on BearSSL: bench/operations.hpp's p256_ecdh_x,
+// once (test/sizes/Jamfile).
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 

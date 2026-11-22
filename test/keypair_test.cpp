@@ -1,0 +1,189 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+// The key pair contract, crypto::keypair (design D8): Ed25519's and P-256's key pairs meet it, on
+// libsodium and BearSSL; a stand-in that has every member meets it, and stand-ins that lack one
+// member each, or whose curve declares no scheme, or a scheme they do not sign, do not.
+
+#include <webcpp/crypto/backends/bearssl.hpp>
+#include <webcpp/crypto/backends/sodium.hpp>
+#include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/curves/p256.hpp>
+#include <webcpp/crypto/keypair.hpp>
+#include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/signing.hpp>
+#include <webcpp/test/exit_status.hpp>
+
+#include <boost/core/lightweight_test.hpp>
+#include <boost/system/result.hpp>
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+#include <type_traits>
+
+namespace crypto = webcpp::crypto;
+
+namespace {
+
+// A public key, for the stand-ins.
+struct stand_in_public_key {};
+
+// Every member of the contract, and ECDSA over SHA-256 declared and signed.
+struct complete_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<complete_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<complete_keypair> generate() noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+};
+
+// Every member but secret().
+struct no_secret_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<no_secret_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<no_secret_keypair> generate() noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+};
+
+// A secret() of a size other than secret_key_size.
+struct wrong_secret_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<wrong_secret_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<wrong_secret_keypair> generate() noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<64>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+};
+
+// A public_key() that gives bytes, not public_key_type.
+struct byte_public_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<byte_public_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<byte_public_keypair> generate() noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+};
+
+// No generate().
+struct no_generate_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<no_generate_keypair> make(std::span<std::uint8_t const>) noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+};
+
+// Every member, but its curve declares no scheme for it.
+struct no_scheme_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<no_scheme_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<no_scheme_keypair> generate() noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+};
+
+// Its curve declares schnorr too, which it does not sign.
+struct unsigned_scheme_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<unsigned_scheme_keypair> make(
+        std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<unsigned_scheme_keypair> generate() noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+};
+
+}  // namespace
+
+namespace webcpp::crypto::detail {
+
+template <>
+inline constexpr bool signs_with_v<complete_keypair, ecdsa_sha256_t> = true;
+template <>
+inline constexpr bool signs_with_v<no_secret_keypair, ecdsa_sha256_t> = true;
+template <>
+inline constexpr bool signs_with_v<wrong_secret_keypair, ecdsa_sha256_t> = true;
+template <>
+inline constexpr bool signs_with_v<byte_public_keypair, ecdsa_sha256_t> = true;
+template <>
+inline constexpr bool signs_with_v<no_generate_keypair, ecdsa_sha256_t> = true;
+template <>
+inline constexpr bool signs_with_v<unsigned_scheme_keypair, ecdsa_sha256_t> = true;
+template <>
+inline constexpr bool signs_with_v<unsigned_scheme_keypair, schnorr_t> = true;
+
+}  // namespace webcpp::crypto::detail
+
+// The stand-ins.
+static_assert(crypto::keypair<complete_keypair>);
+static_assert(!crypto::keypair<no_secret_keypair>);
+static_assert(!crypto::keypair<wrong_secret_keypair>);
+static_assert(!crypto::keypair<byte_public_keypair>);
+static_assert(!crypto::keypair<no_generate_keypair>);
+static_assert(!crypto::keypair<no_scheme_keypair>);
+static_assert(!crypto::keypair<unsigned_scheme_keypair>);
+static_assert(!crypto::keypair<stand_in_public_key>);
+static_assert(!crypto::keypair<int>);
+
+// The curves' key pairs, on each backend this test links.
+static_assert(crypto::keypair<crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>>);
+static_assert(crypto::keypair<crypto::curves::p256::basic_keypair<crypto::backends::bearssl>>);
+static_assert(std::is_same_v<crypto::curves::ed25519::keypair::public_key_type,
+                             crypto::curves::ed25519::public_key>);
+static_assert(std::is_same_v<crypto::curves::p256::keypair::public_key_type,
+                             crypto::curves::p256::public_key>);
+static_assert(crypto::curves::ed25519::keypair::secret_key_size == 32);
+static_assert(crypto::curves::p256::keypair::secret_key_size == 32);
+// A public key is not a key pair.
+static_assert(!crypto::keypair<crypto::curves::ed25519::public_key>);
+static_assert(!crypto::keypair<crypto::curves::p256::public_key>);
+
+namespace {
+
+// Each curve's key pair, used through the contract alone: the key pair made again from its
+// secret() signs what the first one's public key verifies.
+template <crypto::keypair Keypair, class Scheme>
+void round_trip(Scheme scheme) {
+    auto const key = Keypair::generate();
+    BOOST_TEST(key.has_value());
+    auto const exported = key->secret();
+    BOOST_TEST(exported.has_value());
+    auto const again = Keypair::make(exported->bytes());
+    BOOST_TEST(again.has_value());
+    std::array<std::uint8_t, 3> const message{'a', 'b', 'c'};
+    auto const signature = again->sign(scheme, message);
+    BOOST_TEST(signature.has_value());
+    BOOST_TEST(crypto::verify(scheme, *signature, message, *key->public_key()).has_value());
+}
+
+}  // namespace
+
+int main() {
+    round_trip<crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>>(crypto::eddsa);
+    round_trip<crypto::curves::p256::basic_keypair<crypto::backends::bearssl>>(
+        crypto::ecdsa_sha256);
+    return webcpp::test::exit_status(boost::report_errors());
+}

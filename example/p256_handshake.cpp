@@ -193,7 +193,7 @@ struct peer {
         if (!other_key) {
             return other_key.error();
         }
-        auto const x = session.ecdh_x(*other_key);
+        auto const x = session.agree(*other_key);
         if (!x) {
             return x.error();
         }
@@ -213,7 +213,7 @@ struct peer {
 // A peer whose identity was kept as its 32-byte scalar: the key pair is made again from it.
 boost::system::result<peer> peer_from(std::uint8_t identity_fill, std::uint8_t session_fill) {
     auto const first = from_byte(identity_fill);
-    auto const kept = first ? first->secret_scalar() : first.error();
+    auto const kept = first ? first->secret() : first.error();
     if (!kept) {
         return kept.error();
     }

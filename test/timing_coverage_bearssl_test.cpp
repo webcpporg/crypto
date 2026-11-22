@@ -17,9 +17,9 @@
 //   async_make, async_seal and async_open.
 // - ChaCha20-Poly1305, aead: make, seal, open.
 // - P-256, curves::p256: basic_keypair::make, generate, sign (ecdsa_sha256, of a message and of
-//   a digest), ecdh_x; basic_public_key::make (both); crypto::verify (ecdsa_sha256, of a message
+//   a digest), agree; basic_public_key::make (both); crypto::verify (ecdsa_sha256, of a message
 //   and of a digest), to_der, from_der; decode_spki, decode_pkcs8; not guarded (no BearSSL call):
-//   public_key, secret_scalar, uncompressed, encode_spki, encode_pkcs8, basic_keypair's move
+//   public_key, secret, uncompressed, encode_spki, encode_pkcs8, basic_keypair's move
 //   constructor and move assignment, and normalize_low_s and is_low_s,
 //   which test/timing_test.cpp calls without a backend; and the asynchronous async_make,
 //   async_generate, async_sign and async_verify (ecdsa_sha256, of a message and of a digest) and
@@ -109,8 +109,8 @@ void cover_p256_keys() {
     }
     webcpp::test::uncovered("p256::basic_keypair::public_key on bearssl",
                             [&made] { BOOST_TEST(made->public_key().has_value()); });
-    webcpp::test::uncovered("p256::basic_keypair::secret_scalar on bearssl",
-                            [&made] { BOOST_TEST(made->secret_scalar().has_value()); });
+    webcpp::test::uncovered("p256::basic_keypair::secret on bearssl",
+                            [&made] { BOOST_TEST(made->secret().has_value()); });
     auto const key = made->public_key();
     if (!BOOST_TEST(key.has_value())) {
         return;
@@ -259,12 +259,12 @@ void cover_p256_ecdh() {
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(peer.has_value())) {
         return;
     }
-    webcpp::test::covered("p256::basic_keypair::ecdh_x on bearssl",
-                          [&made, &peer] { BOOST_TEST(made->ecdh_x(*peer).has_value()); });
+    webcpp::test::covered("p256::basic_keypair::agree on bearssl",
+                          [&made, &peer] { BOOST_TEST(made->agree(*peer).has_value()); });
     keypair const taken = std::move(*made);
-    webcpp::test::covered("p256::basic_keypair::ecdh_x moved from on bearssl", [&made, &peer] {
+    webcpp::test::covered("p256::basic_keypair::agree moved from on bearssl", [&made, &peer] {
         // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): tested
-        BOOST_TEST(made->ecdh_x(*peer).error() == crypto::error::invalid_state);
+        BOOST_TEST(made->agree(*peer).error() == crypto::error::invalid_state);
     });
 }
 

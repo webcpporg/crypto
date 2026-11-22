@@ -138,7 +138,7 @@ void types() {
         return;
     }
     // The output is a secret<32>, which wipes itself.
-    static_assert(std::is_same_v<decltype(a->ecdh_x(*peer)),
+    static_assert(std::is_same_v<decltype(a->agree(*peer)),
                                  boost::system::result<webcpp::crypto::secret<32>>>);
 }
 
@@ -152,8 +152,8 @@ void agreement(std::mt19937_64& generator) {
         if (!BOOST_TEST(a_public.has_value()) || !BOOST_TEST(b_public.has_value())) {
             return;
         }
-        auto const x_a = a.ecdh_x(*b_public);
-        auto const x_b = b.ecdh_x(*a_public);
+        auto const x_a = a.agree(*b_public);
+        auto const x_b = b.agree(*a_public);
         if (!BOOST_TEST(x_a.has_value()) || !BOOST_TEST(x_b.has_value())) {
             return;
         }
@@ -186,8 +186,8 @@ void fixed_points(scalar const& d, public_key const& two_g) {
     if (!BOOST_TEST(own.has_value())) {
         return;
     }
-    auto const x_own = a->ecdh_x(*own);
-    auto const x_doubled = a->ecdh_x(two_g);
+    auto const x_own = a->agree(*own);
+    auto const x_doubled = a->agree(two_g);
     if (!BOOST_TEST(x_own.has_value()) || !BOOST_TEST(x_doubled.has_value())) {
         return;
     }
@@ -208,7 +208,7 @@ void own_key(std::mt19937_64& generator) {
     }
     fixed_points(data::rfc6979_scalar, *two_g);
     for (int i = 0; i < 8; ++i) {
-        auto const secret = draw(generator).secret_scalar();
+        auto const secret = draw(generator).secret();
         if (BOOST_TEST(secret.has_value())) {
             scalar d{};
             std::ranges::copy(secret->bytes(), d.begin());
@@ -229,8 +229,8 @@ void moved_from() {
     if (!BOOST_TEST(peer.has_value())) {
         return;
     }
-    BOOST_TEST(made->ecdh_x(*peer).error() == error::invalid_state);
-    BOOST_TEST(taken.ecdh_x(*peer).has_value());
+    BOOST_TEST(made->agree(*peer).error() == error::invalid_state);
+    BOOST_TEST(taken.agree(*peer).has_value());
 }
 
 // NOLINTEND(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
@@ -282,7 +282,7 @@ std::vector<std::uint8_t> scalar_bytes(std::vector<std::uint8_t> const& integer)
 }
 
 // The case's own ECDH, or the error of the step that refused it: keypair::make, public_key::make
-// or ecdh_x.
+// or agree.
 boost::system::result<crypto::secret<32>> derive(std::vector<std::uint8_t> const& integer,
                                                  std::vector<std::uint8_t> const& point) {
     auto const padded = scalar_bytes(integer);
@@ -297,7 +297,7 @@ boost::system::result<crypto::secret<32>> derive(std::vector<std::uint8_t> const
     if (!peer) {
         return peer.error();
     }
-    return pair->ecdh_x(*peer);
+    return pair->agree(*peer);
 }
 
 // Reports a case that went wrong, by its number.

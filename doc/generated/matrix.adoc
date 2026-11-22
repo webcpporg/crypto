@@ -116,6 +116,16 @@
 |native, wasip2, wasip3, emscripten
 |`+ed25519_sodium+`, `+oracle_25519+`
 
+|`+curves::ed25519::public_key+`
+|BearSSL
+|refused at compile time
+|`+ed25519_on_bearssl+`
+
+|`+curves::ed25519::public_key+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+ed25519_sodium+`, `+oracle_25519+`
+
 |`+crypto::verify+`
 |libsodium
 |native, wasip2, wasip3, emscripten
@@ -281,12 +291,12 @@
 |refused at compile time
 |`+p256_on_sodium+`
 
-|`+curves::p256::keypair::ecdh_x+`
+|`+curves::p256::keypair::agree+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
 |`+p256_ecdh_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`
 
-|`+curves::p256::keypair::ecdh_x+`
+|`+curves::p256::keypair::agree+`
 |libsodium
 |refused at compile time
 |`+p256_on_sodium+`
@@ -393,6 +403,12 @@ The same, by target: the backends each operation runs on.
 |none
 
 |`+curves::ed25519::keypair+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::ed25519::public_key+`
 |libsodium
 |libsodium
 |libsodium
@@ -560,7 +576,7 @@ The same, by target: the backends each operation runs on.
 |BearSSL
 |BearSSL
 
-|`+curves::p256::keypair::ecdh_x+`
+|`+curves::p256::keypair::agree+`
 |BearSSL
 |BearSSL
 |BearSSL

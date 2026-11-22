@@ -58,7 +58,7 @@ bool sign_whole() {
     if (!public_key || !signature) {
         return false;
     }
-    print("public key", *public_key);
+    print("public key", public_key->bytes());
     print("signature ", *signature);
     // The verifier holds the public key, the message and the signature; nothing secret.
     return crypto::verify(crypto::eddsa, *signature, message, *public_key).has_value();
@@ -85,11 +85,11 @@ bool sign_in_pieces() {
     if (!public_key || !signature) {
         return false;
     }
-    print("public key", *public_key);
+    print("public key", public_key->bytes());
     print("signature ", *signature);
     auto verifying = signer::begin();
     return verifying && verifying->update(first) && verifying->update(second) &&
-           verifying->verify(*signature, *public_key).has_value();
+           verifying->verify(*signature, public_key->bytes()).has_value();
 }
 
 }  // namespace

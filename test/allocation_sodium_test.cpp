@@ -115,11 +115,14 @@ void expect_no_allocation_ed25519() {
         auto verifier = ph::begin();
         BOOST_TEST(verifier.has_value());
         BOOST_TEST(verifier->update(message).has_value());
-        BOOST_TEST(verifier->verify(*ph_signature, *public_key).has_value());
+        BOOST_TEST(verifier->verify(*ph_signature, public_key->bytes()).has_value());
         auto const x25519_secret = made->x25519_secret();
         BOOST_TEST(x25519_secret.has_value());
-        BOOST_TEST(crypto::curves::ed25519::to_x25519_public<crypto::backends::sodium>(*public_key)
-                       .has_value());
+        auto const exported = made->secret();
+        BOOST_TEST(exported.has_value());
+        BOOST_TEST(
+            crypto::curves::ed25519::to_x25519_public<crypto::backends::sodium>(public_key->bytes())
+                .has_value());
         keypair const moved = std::move(*made);
     }
     BOOST_TEST_EQ(webcpp::test::allocations(), before);
@@ -230,7 +233,9 @@ void expect_no_allocation_formats() {
         BOOST_TEST(ed25519::encode_pkcs8(*pair, pkcs8).has_value());
         BOOST_TEST(ed25519::decode_pkcs8<crypto::backends::sodium>(pkcs8).has_value());
         std::array<std::uint8_t, ed25519::max_spki_size> spki{};
-        BOOST_TEST(ed25519::encode_spki<crypto::backends::sodium>(key, spki).has_value());
+        auto const public_key = pair->public_key();
+        BOOST_TEST(public_key.has_value());
+        BOOST_TEST(ed25519::encode_spki<crypto::backends::sodium>(*public_key, spki).has_value());
         BOOST_TEST(ed25519::decode_spki<crypto::backends::sodium>(spki).has_value());
         BOOST_TEST(x25519::encode_pkcs8<crypto::backends::sodium>(key, pkcs8).has_value());
         BOOST_TEST(x25519::decode_pkcs8<crypto::backends::sodium>(pkcs8).has_value());

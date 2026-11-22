@@ -382,10 +382,11 @@ struct async_completion_counter {
 };
 
 /**
- * gcm's asynchronous functions, `async_make`, `async_seal` and `async_open`, each called with
- * valid input and with input refused before the backend, an `io_context` run after each call so
- * that its completion is delivered. The first guard each enters is its own (the synchronous call
- * it makes holds another, which runs second).
+ * gcm's asynchronous functions, `async_make`, `async_seal` and `async_open`, free and member, each
+ * called with valid input and with input refused before the backend, an `io_context` run after
+ * each call so that its completion is delivered. The first guard each enters is its own (the
+ * member a free one calls, and the synchronous call the member makes, hold others, which run
+ * after).
  *
  * @tparam Gcm `gcm<aes128<Backend>>`, `gcm<aes192<Backend>>` or `gcm<aes256<Backend>>`.
  * @param family The algorithm's name, `aes128_gcm` or `aes256_gcm`.
@@ -418,6 +419,14 @@ void cover_async_gcm(std::string const& family, std::string const& backend) {
         crypto::async_make<Gcm>(executor, std::span(key).first(Gcm::key_size - 1), counted);
         deliver();
     });
+    covered(family + "::async_make, the member," + on, "gcm::async_make", [&] {
+        Gcm::async_make(executor, key, counted);
+        deliver();
+    });
+    covered(family + "::async_make, the member, with a short key" + on, "gcm::async_make", [&] {
+        Gcm::async_make(executor, std::span(key).first(Gcm::key_size - 1), counted);
+        deliver();
+    });
     auto made = Gcm::make(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
@@ -442,15 +451,34 @@ void cover_async_gcm(std::string const& family, std::string const& backend) {
                            std::span(kept.data(), kept.size()), counted);
         deliver();
     });
-    BOOST_TEST_EQ(completions, 6);
+    covered(family + "::async_seal, the member," + on, "gcm::async_seal", [&] {
+        made->async_seal(executor, message.iv, message.additional_data, message.data, keeping);
+        deliver();
+    });
+    covered(family + "::async_open, the member," + on, "gcm::async_open", [&] {
+        made->async_open(executor, message.iv, message.additional_data, message.data,
+                         std::span(kept.data(), kept.size()), counted);
+        deliver();
+    });
+    covered(family + "::async_seal, the member, with an empty IV" + on, "gcm::async_seal", [&] {
+        made->async_seal(executor, {}, message.additional_data, message.data, counted);
+        deliver();
+    });
+    covered(family + "::async_open, the member, with an empty IV" + on, "gcm::async_open", [&] {
+        made->async_open(executor, {}, message.additional_data, message.data,
+                         std::span(kept.data(), kept.size()), counted);
+        deliver();
+    });
+    BOOST_TEST_EQ(completions, 12);
 }
 
 /**
  * Ed25519's asynchronous functions, `async_make`, `async_generate`, `async_sign` and
- * `async_verify` (both overloads, without and with the policy), each called with valid input and
- * with input refused before the backend (a seed of 31 bytes, a signature of 63, a moved-from key
- * pair), an `io_context` run after each call so that its completion is delivered. The first guard
- * each enters is its own (the synchronous call it makes holds another, which runs second).
+ * `async_verify` (both overloads, without and with the policy), free and member, each called with
+ * valid input and with input refused before the backend (a seed of 31 bytes, a signature of 63, a
+ * moved-from key pair), an `io_context` run after each call so that its completion is delivered.
+ * The first guard each enters is its own (the member a free one calls, and the synchronous call
+ * the member makes, hold others, which run after).
  *
  * @tparam Keypair `curves::ed25519::basic_keypair<Backend>`.
  * @param backend The backend's name.
@@ -490,6 +518,18 @@ void cover_async_ed25519(std::string const& backend) {
         crypto::async_generate<Keypair>(executor, counted);
         deliver();
     });
+    covered("ed25519::basic_keypair::async_make" + on, [&] {
+        Keypair::async_make(executor, seed, counted);
+        deliver();
+    });
+    covered("ed25519::basic_keypair::async_make with a short seed" + on, [&] {
+        Keypair::async_make(executor, std::span(seed).first(Keypair::seed_size - 1), counted);
+        deliver();
+    });
+    covered("ed25519::basic_keypair::async_generate" + on, [&] {
+        Keypair::async_generate(executor, counted);
+        deliver();
+    });
     auto made = Keypair::make(seed);
     if (!BOOST_TEST(made.has_value())) {
         return;
@@ -517,13 +557,36 @@ void cover_async_ed25519(std::string const& backend) {
                                            message, *public_key, counted);
         deliver();
     });
+    covered("ed25519::basic_keypair::async_sign" + on, [&] {
+        made->async_sign(executor, crypto::eddsa, message, counted);
+        deliver();
+    });
+    covered("ed25519::public_key::async_verify" + on, [&] {
+        public_key->async_verify(executor, crypto::eddsa, kept, message, counted);
+        deliver();
+    });
+    covered("ed25519::public_key::async_verify with its policy" + on, [&] {
+        public_key->template async_verify<backend_type>(executor, crypto::eddsa, kept, message,
+                                                        crypto::curves::ed25519::strict, counted);
+        deliver();
+    });
+    covered("ed25519::public_key::async_verify with a short signature" + on, [&] {
+        public_key->async_verify(executor, crypto::eddsa, std::span(kept).first(63), message,
+                                 counted);
+        deliver();
+    });
     [[maybe_unused]] Keypair const taken(std::move(*made));
     covered("ed25519::async_sign moved from" + on, "crypto::async_sign", [&] {
         // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
         crypto::async_sign(executor, *made, crypto::eddsa, message, counted);
         deliver();
     });
-    BOOST_TEST_EQ(completions, 8);
+    covered("ed25519::basic_keypair::async_sign moved from" + on, [&] {
+        // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
+        made->async_sign(executor, crypto::eddsa, message, counted);
+        deliver();
+    });
+    BOOST_TEST_EQ(completions, 16);
 }
 
 /**

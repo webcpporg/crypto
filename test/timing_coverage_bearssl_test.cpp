@@ -14,7 +14,8 @@
 // What it covers, by family; a family BearSSL gains adds its line and its checks:
 // - AES-GCM, gcm<aes128>, gcm<aes192> and gcm<aes256>: make, the move constructor and move
 //   assignment (ruling R3), seal, open, begin_seal, update, result, and the asynchronous
-//   async_make, async_seal and async_open; the free crypto::make, crypto::seal and crypto::open.
+//   async_make, async_seal and async_open, free and member; the free crypto::make, crypto::seal
+//   and crypto::open.
 // - ChaCha20-Poly1305, aead: make, seal, open; the free crypto::make, crypto::seal and
 //   crypto::open.
 // - P-256, curves::p256: basic_keypair::make, generate, sign (ecdsa_sha256, of a message and of
@@ -27,7 +28,9 @@
 //   assignment, and normalize_low_s and is_low_s, which test/timing_test.cpp calls without a
 //   backend; and the asynchronous async_make, async_generate, async_sign and async_verify
 //   (ecdsa_sha256, of a message and of a digest) and async_agree, all but async_generate (which
-//   takes no input) also refused once before BearSSL.
+//   takes no input) also refused once before BearSSL, both free and as the members
+//   basic_keypair::async_make, async_generate, async_sign, async_agree and
+//   basic_public_key::async_verify, which the free ones call.
 
 #include "support/timing_seam.hpp"
 
@@ -430,6 +433,18 @@ void cover_async_p256() {
         crypto::async_generate<keypair>(executor, counted);
         deliver();
     });
+    webcpp::test::covered("p256::basic_keypair::async_make on bearssl", [&] {
+        keypair::async_make(executor, data::rfc6979_scalar, counted);
+        deliver();
+    });
+    webcpp::test::covered("p256::basic_keypair::async_make with a short scalar on bearssl", [&] {
+        keypair::async_make(executor, std::span(data::rfc6979_scalar).first(31), counted);
+        deliver();
+    });
+    webcpp::test::covered("p256::basic_keypair::async_generate on bearssl", [&] {
+        keypair::async_generate(executor, counted);
+        deliver();
+    });
     auto made = keypair::make(data::rfc6979_scalar);
     auto const key = public_key::make(data::rfc6979_public);
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(key.has_value())) {
@@ -462,6 +477,33 @@ void cover_async_p256() {
         crypto::async_agree(executor, *made, *key, counted);
         deliver();
     });
+    webcpp::test::covered("p256::basic_keypair::async_sign on bearssl", [&] {
+        made->async_sign(executor, crypto::ecdsa_sha256, message, counted);
+        deliver();
+    });
+    webcpp::test::covered("p256::basic_keypair::async_sign of a digest on bearssl", [&] {
+        made->async_sign(executor, crypto::ecdsa_sha256, crypto::prehashed{p256_test_digest},
+                         counted);
+        deliver();
+    });
+    webcpp::test::covered("p256::basic_public_key::async_verify on bearssl", [&] {
+        key->async_verify(executor, crypto::ecdsa_sha256, kept, message, counted);
+        deliver();
+    });
+    webcpp::test::covered("p256::basic_public_key::async_verify of a digest on bearssl", [&] {
+        key->async_verify(executor, crypto::ecdsa_sha256, data::rfc6979_test,
+                          crypto::prehashed{p256_test_digest}, counted);
+        deliver();
+    });
+    webcpp::test::covered("p256::basic_public_key::async_verify of 63 bytes on bearssl", [&] {
+        key->async_verify(executor, crypto::ecdsa_sha256, std::span(kept).first(63), message,
+                          counted);
+        deliver();
+    });
+    webcpp::test::covered("p256::basic_keypair::async_agree on bearssl", [&] {
+        made->async_agree(executor, *key, counted);
+        deliver();
+    });
     [[maybe_unused]] keypair const taken(std::move(*made));
     webcpp::test::covered("p256::async_sign moved from on bearssl", "crypto::async_sign", [&] {
         // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): tested
@@ -473,7 +515,17 @@ void cover_async_p256() {
         crypto::async_agree(executor, *made, *key, counted);
         deliver();
     });
-    BOOST_TEST_EQ(completions, 11);
+    webcpp::test::covered("p256::basic_keypair::async_sign moved from on bearssl", [&] {
+        // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): tested
+        made->async_sign(executor, crypto::ecdsa_sha256, message, counted);
+        deliver();
+    });
+    webcpp::test::covered("p256::basic_keypair::async_agree moved from on bearssl", [&] {
+        // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): tested
+        made->async_agree(executor, *key, counted);
+        deliver();
+    });
+    BOOST_TEST_EQ(completions, 22);
 }
 
 }  // namespace

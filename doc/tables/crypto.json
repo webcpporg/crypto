@@ -1434,6 +1434,7 @@
         "agree_asynchronous_backend": "Call `async_agree` on a backend that completes by itself: its synchronous forms cannot wait for it.",
         "seal_asynchronous_backend": "Call `async_seal` on a backend that completes by itself: its synchronous forms cannot wait for it.",
         "open_asynchronous_backend": "Call `async_open` on a backend that completes by itself: its synchronous forms cannot wait for it.",
+        "async_member_without_async_hpp": "Include `<webcpp/crypto/async.hpp>`, which defines the asynchronous members, and add `<library>/webcpp/asio//asio` to the program's Jamfile.",
         "sign_p256_digest_48": "Give `crypto::ecdsa_sha256` SHA-256's 32-byte digest, `crypto::prehashed{digest}` of a `std::array<std::uint8_t, 32>`, or the message itself, which it hashes.",
         "heavy_without_threads_on_emscripten": "As `heavy_without_threads`: on Emscripten, add `<threading>multi`.",
         "chacha_on_ctaes_on_emscripten": "As `chacha_on_ctaes`.",

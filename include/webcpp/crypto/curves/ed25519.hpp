@@ -212,6 +212,68 @@ public:
     }
 
     /**
+     * Verifies an Ed25519 signature with this key, asynchronously, strictly: `verify` run when the
+     * operation is initiated, its result posted to `executor`; the member form of
+     * `crypto::async_verify<Backend>(executor, crypto::eddsa, signature, message, key, token)`,
+     * which calls it.
+     *
+     * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
+     * "deduced return type used before it is defined".
+     *
+     * @tparam Backend The backend; by default the family's.
+     * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+     * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
+     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
+     * `crypto::prehashed` marker, or anything else, stops the build.
+     * @tparam CompletionToken Any completion token for the signature `token` states.
+     * @param executor The executor the completion is posted to.
+     * @param scheme `crypto::eddsa`.
+     * @param signature 64 bytes, the caller's until the completion.
+     * @param message The signed bytes, the caller's until the completion.
+     * @param token The completion token, of signature `void(boost::system::error_code)`:
+     * `invalid_signature` for a signature of another size, and for one that does not verify;
+     * `backend_failure`.
+     * @return What the completion token's `async_result` gives.
+     */
+    template <class Backend = default_backend_t<families::ed25519>, class Executor, class Scheme,
+              class Input, class CompletionToken>
+    auto async_verify(Executor const& executor, Scheme scheme,
+                      std::span<std::uint8_t const> signature, Input const& message,
+                      CompletionToken&& token) const;
+
+    /**
+     * Verifies an Ed25519 signature with this key under the verification policy given,
+     * asynchronously: as the overload without it, with `verify`'s policy before the token.
+     *
+     * The policy is a policy tag, never deduced from another argument, so that a completion token
+     * is never read as one.
+     *
+     * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
+     * "deduced return type used before it is defined".
+     *
+     * @tparam Backend The backend; by default the family's.
+     * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+     * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
+     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`.
+     * @tparam CompletionToken Any completion token for the signature `token` states.
+     * @param executor The executor the completion is posted to.
+     * @param scheme `crypto::eddsa`.
+     * @param signature 64 bytes.
+     * @param message The signed bytes.
+     * @param policy `curves::ed25519::strict`, the only policy declared.
+     * @param token The completion token, of signature `void(boost::system::error_code)`, as the
+     * overload without a policy completes.
+     * @return What the completion token's `async_result` gives.
+     */
+    template <class Backend = default_backend_t<families::ed25519>, class Executor, class Scheme,
+              class Input, class CompletionToken>
+    auto async_verify(Executor const& executor, Scheme scheme,
+                      std::span<std::uint8_t const> signature, Input const& message,
+                      strict_t policy, CompletionToken&& token) const;
+
+    /**
      * Whether two keys are the same bytes.
      *
      * @param other The other key.
@@ -317,6 +379,47 @@ public:
     }
 
     /**
+     * Makes a key pair from a seed, asynchronously: `make` run when the operation is initiated,
+     * its result posted to `executor`; the member form of
+     * `crypto::async_make<basic_keypair>(executor, seed, token)`, which calls it.
+     *
+     * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
+     * "deduced return type used before it is defined".
+     *
+     * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+     * @tparam CompletionToken Any completion token for the signature `token` states.
+     * @param executor The executor the completion is posted to.
+     * @param seed 32 bytes, the caller's until the completion.
+     * @param token The completion token, of signature `void(boost::system::error_code,
+     * basic_keypair)`; on an error the key pair is empty, and every member refuses with
+     * `invalid_state` (`invalid_key_size`, `backend_failure`).
+     * @return What the completion token's `async_result` gives.
+     */
+    template <class Executor, class CompletionToken>
+    static auto async_make(Executor const& executor, std::span<std::uint8_t const> seed,
+                           CompletionToken&& token);
+
+    /**
+     * Makes a key pair from a fresh seed, asynchronously: `generate` run when the operation is
+     * initiated, its result posted to `executor`; the member form of
+     * `crypto::async_generate<basic_keypair>(executor, token)`, which calls it.
+     *
+     * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile.
+     *
+     * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+     * @tparam CompletionToken Any completion token for the signature `token` states.
+     * @param executor The executor the completion is posted to.
+     * @param token The completion token, of signature `void(boost::system::error_code,
+     * basic_keypair)`; on an error the key pair is empty (`entropy_unavailable`,
+     * `backend_failure`).
+     * @return What the completion token's `async_result` gives.
+     */
+    template <class Executor, class CompletionToken>
+    static auto async_generate(Executor const& executor, CompletionToken&& token);
+
+    /**
      * Moves the key pair; the source is wiped and empty.
      *
      * @param other The key pair moved from.
@@ -414,6 +517,34 @@ public:
             return error::backend_failure;
         }
     }
+
+    /**
+     * Signs a message with Ed25519, asynchronously: `sign` run when the operation is initiated,
+     * its result posted to `executor`; the member form of
+     * `crypto::async_sign(executor, key_pair, scheme, message, token)`, which calls it.
+     *
+     * The scheme and the input are checked as `crypto::can_sign` checks them, before anything
+     * else. The key pair and the message's bytes are the caller's until the completion.
+     *
+     * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
+     * "deduced return type used before it is defined".
+     *
+     * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+     * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
+     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
+     * `crypto::prehashed` marker, or anything else, stops the build.
+     * @tparam CompletionToken Any completion token for the signature `token` states.
+     * @param executor The executor the completion is posted to.
+     * @param scheme `crypto::eddsa`.
+     * @param message Any bytes.
+     * @param token The completion token, of signature `void(boost::system::error_code,
+     * std::array<std::uint8_t, 64>)`; on an error 64 zeros (`invalid_state`, `backend_failure`).
+     * @return What the completion token's `async_result` gives.
+     */
+    template <class Executor, class Scheme, class Input, class CompletionToken>
+    auto async_sign(Executor const& executor, Scheme scheme, Input const& message,
+                    CompletionToken&& token) const;
 
     /**
      * The X25519 secret key of this key pair, RFC 7748's form of the clamped first half of the

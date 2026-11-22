@@ -55,6 +55,12 @@ The fix: Give `+agree+` the peer's typed public key of the key pair's own curve 
 
 The fix: Call the synchronous `+make+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
 
+|`+async_member_without_async_hpp+`
+|native, wasip2, wasip3
+|`+with deduced return type cannot be used before it is defined+`
+
+The fix: Include `+<webcpp/crypto/async.hpp>+`, which defines the asynchronous members, and add `+<library>/webcpp/asio//asio+` to the program's Jamfile.
+
 |`+async_open_xchacha+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: async_open takes AES-GCM, the AEAD WebCrypto has: call open for the others.+`

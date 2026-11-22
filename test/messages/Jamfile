@@ -83,3 +83,4 @@ build-project seal_asynchronous_backend ;
 build-project open_asynchronous_backend ;
 build-project verify_member_ed25519_ecdsa ;
 build-project verify_member_secp256k1_recoverable ;
+build-project async_member_without_async_hpp ;

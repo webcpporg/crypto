@@ -23,7 +23,9 @@
 //   crypto::generate and crypto::sign, which enter their own guard before the member's. Ed25519ph,
 //   ph: begin, update, sign, verify. Its formats: decode_spki, decode_pkcs8 (the encoders call no
 //   backend and hold no guard, ruling R4; nor do public_key::make and bytes).
-// - Ed25519's asynchronous functions: async_make, async_generate, async_sign, async_verify.
+// - Ed25519's asynchronous functions: async_make, async_generate, async_sign, async_verify, free
+//   and as the members basic_keypair::async_make, async_generate, async_sign and
+//   public_key::async_verify, which the free ones call.
 // - X25519, algorithm: public_key, agree; the free public_key and agree, which forward, and
 //   the asynchronous async_agree. Its formats: decode_spki, decode_pkcs8.
 // - crypto_kx, kx_keypair: make, generate, client_session_keys, server_session_keys.

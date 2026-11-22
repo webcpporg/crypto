@@ -44,6 +44,15 @@
    cancellation rules (`detail/heavy.hpp`). They exist only where the build has threads
    (`WEBCPP_CRYPTO_HAS_THREADS`); elsewhere each name refuses at compile time.
 
+ Each cheap function has its member form (design D9): `K::async_make(executor, bytes, token)`,
+ `K::async_generate(executor, token)`, `key_pair.async_sign(executor, scheme, input, token)`,
+ `key_pair.async_agree(executor, peer, token)` (P-256), `public_key.async_verify(executor, scheme,
+ signature, input[, policy], token)` and AES-GCM's `aead.async_seal` and `aead.async_open`. The
+ classes declare them and this header defines them, so that a curve's or a cipher's header never
+ includes Asio; the free function calls the member, which runs the synchronous member, so that the
+ four forms of an operation share their guards, refusals and errors. X25519's `async_agree` has no
+ member: X25519 has no key pair class.
+
  The default backend of each is the synchronous function's, `default_async_backend_t<Family>`,
  `default_backend_t<Family>` on every target, Emscripten included: the browser's backend is used
  only where a type names it, so that one program gives the same bytes on every target.
@@ -155,7 +164,8 @@ namespace detail {
  * (a key pair, a public key, an AEAD), which, with the bytes the views hold, are the caller's
  * until the completion, as the public functions say.
  * The signatures of the completions are the public functions'. The function's guard
- * (`detail::timing_guard`) is held by the public function before it calls the engine.
+ * (`detail::timing_guard`) is held by the public function (the member, and the free function that
+ * calls it) before it calls the engine.
  *
  * @tparam Backend `backends::browser`.
  */
@@ -319,10 +329,91 @@ template <class Input>
 }
 
 /**
- * Ed25519's `async_verify` once its guard is held, for both public overloads: the engine of a
- * backend that completes by itself, or `crypto::verify` run when the operation is initiated.
+ * The initiation of `async_make` once its guard is held, for the free function and the member:
+ * the engine of a backend that completes by itself, or `Algorithm::make` run when the operation is
+ * initiated.
+ *
+ * @tparam Algorithm AES-GCM or a key pair of an algorithm WebCrypto has.
+ * @param executor The executor the completion is posted to.
+ * @param key_bytes The key's bytes.
+ * @param token The completion token.
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Algorithm, class Executor, class CompletionToken>
+auto initiate_make(Executor const& executor, std::span<std::uint8_t const> key_bytes,
+                   CompletionToken&& token) {
+    using backend = Algorithm::backend_type;
+    if constexpr (asynchronous_backend_v<backend>) {
+        return async_engine<backend>::template make<Algorithm>(
+            executor, key_bytes, std::forward<CompletionToken>(token));
+    } else {
+        return complete_by_post(executor, token,
+                                [key_bytes]() noexcept { return Algorithm::make(key_bytes); });
+    }
+}
+
+/**
+ * The initiation of `async_generate` once its guard is held, for the free function and the
+ * member: the engine of a backend that completes by itself, or `Keypair::generate` run when the
+ * operation is initiated.
+ *
+ * @tparam Keypair A key pair of an algorithm WebCrypto has.
+ * @param executor The executor the completion is posted to.
+ * @param token The completion token.
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Keypair, class Executor, class CompletionToken>
+auto initiate_generate(Executor const& executor, CompletionToken&& token) {
+    using backend = Keypair::backend_type;
+    if constexpr (asynchronous_backend_v<backend>) {
+        return async_engine<backend>::template generate<Keypair>(
+            executor, std::forward<CompletionToken>(token));
+    } else {
+        return complete_by_post(executor, token, []() noexcept { return Keypair::generate(); });
+    }
+}
+
+/**
+ * The initiation of `async_sign` once its guard is held, for the free function and the member:
+ * the key pair, the scheme and the input checked as `crypto::can_sign` checks them, then the
+ * engine of a backend that completes by itself, or `key_pair.sign` run when the operation is
+ * initiated.
+ *
+ * @tparam Keypair An Ed25519 or a P-256 key pair.
+ * @param executor The executor the completion is posted to.
+ * @param key_pair The key pair, the caller's until the completion.
+ * @param scheme The scheme.
+ * @param input The message or the marker.
+ * @param token The completion token.
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Keypair, class Executor, class Scheme, class Input, class CompletionToken>
+auto initiate_sign(Executor const& executor, Keypair const& key_pair, Scheme scheme,
+                   Input const& input, CompletionToken&& token) {
+    if constexpr (!can_sign<Keypair, Scheme, Input>) {
+        refuse_async_sign<Keypair, Scheme, Input>();
+    } else {
+        using backend = Keypair::backend_type;
+        if constexpr (asynchronous_backend_v<backend>) {
+            return async_engine<backend>::sign(executor, key_pair, scheme, kept_input(input),
+                                               std::forward<CompletionToken>(token));
+        } else {
+            return complete_by_post(executor, token,
+                                    [&key_pair, scheme, kept = kept_input(input)]() noexcept {
+                                        return key_pair.sign(scheme, kept);
+                                    });
+        }
+    }
+}
+
+/**
+ * Ed25519's `async_verify` once its guard is held, for the free functions and the members, with
+ * and without the policy: the scheme and the input checked as `crypto::can_verify` checks them,
+ * then the engine of a backend that completes by itself, or the key's `verify` run when the
+ * operation is initiated.
  *
  * @tparam Backend The backend.
+ * @tparam Scheme `eddsa_t`; another scheme stops the build.
  * @param executor The executor the completion is posted to.
  * @param signature The signature.
  * @param message The message.
@@ -331,23 +422,26 @@ template <class Input>
  * @param token The completion token.
  * @return What the completion token's `async_result` gives.
  */
-template <class Backend, class Executor, class Input, class CompletionToken>
-auto async_verify_ed25519(Executor const& executor, std::span<std::uint8_t const> signature,
-                          Input const& message, curves::ed25519::public_key const& public_key,
-                          [[maybe_unused]] curves::ed25519::strict_t policy,
-                          CompletionToken&& token) {
-    if constexpr (!can_verify<eddsa_t, Input, curves::ed25519::public_key>) {
+template <class Backend, class Scheme, class Executor, class Input, class CompletionToken>
+auto initiate_verify_ed25519(Executor const& executor, std::span<std::uint8_t const> signature,
+                             Input const& message, curves::ed25519::public_key const& public_key,
+                             [[maybe_unused]] curves::ed25519::strict_t policy,
+                             CompletionToken&& token) {
+    if constexpr (!std::is_same_v<Scheme, eddsa_t>) {
+        static_assert(refused_v<Scheme>,
+                      "webcpp::crypto: an Ed25519 public key verifies crypto::eddsa.");
+    } else if constexpr (!can_verify<eddsa_t, Input, curves::ed25519::public_key>) {
         check_input<eddsa_t, Input, Backend>();
     } else if constexpr (asynchronous_backend_v<Backend>) {
         return async_engine<Backend>::verify(executor, eddsa, signature, kept_input(message),
                                              public_key, policy,
                                              std::forward<CompletionToken>(token));
     } else {
-        return complete_by_post(
-            executor, token, [signature, kept = kept_input(message), public_key]() noexcept {
-                return ::webcpp::crypto::verify<Backend>(eddsa, signature, kept, public_key,
-                                                         curves::ed25519::strict);
-            });
+        return complete_by_post(executor, token,
+                                [signature, kept = kept_input(message), public_key]() noexcept {
+                                    return public_key.template verify<Backend>(
+                                        eddsa, signature, kept, curves::ed25519::strict);
+                                });
     }
 }
 
@@ -358,6 +452,8 @@ auto async_verify_ed25519(Executor const& executor, std::span<std::uint8_t const
  * asynchronously:
  * `Algorithm::make(key_bytes)` run when the operation is initiated, its result posted to
  * `executor`.
+ *
+ * The free form of `Algorithm::async_make(executor, key_bytes, token)`, which it calls.
  *
  * The key is read before the call returns on a synchronous backend,
  * later on the browser's: it is the caller's until the completion.
@@ -386,14 +482,7 @@ auto async_make(Executor const& executor, std::span<std::uint8_t const> key_byte
                       "webcpp::crypto: async_make takes AES-GCM or a key pair of an algorithm "
                       "WebCrypto has (Ed25519, P-256): call the synchronous make for the others.");
     } else {
-        using backend = Algorithm::backend_type;
-        if constexpr (detail::asynchronous_backend_v<backend>) {
-            return detail::async_engine<backend>::template make<Algorithm>(
-                executor, key_bytes, std::forward<CompletionToken>(token));
-        } else {
-            return detail::complete_by_post(
-                executor, token, [key_bytes]() noexcept { return Algorithm::make(key_bytes); });
-        }
+        return Algorithm::async_make(executor, key_bytes, std::forward<CompletionToken>(token));
     }
 }
 
@@ -401,6 +490,8 @@ auto async_make(Executor const& executor, std::span<std::uint8_t const> key_byte
  * Makes an Ed25519 or a P-256 key pair from a fresh seed or scalar, asynchronously:
  * `Keypair::generate()` run when the operation is initiated (the system's generator is drawn from
  * then), its result posted to `executor`.
+ *
+ * The free form of `Keypair::async_generate(executor, token)`, which it calls.
  *
  * @tparam Keypair A `curves::ed25519::basic_keypair<Backend>`, by default the family's
  * `curves::ed25519::keypair`, or a `curves::p256::basic_keypair<Backend>`; the other key pairs
@@ -421,20 +512,16 @@ auto async_generate(Executor const& executor, CompletionToken&& token) {
                       "webcpp::crypto: async_generate takes a key pair of an algorithm WebCrypto "
                       "has (Ed25519, P-256): call the synchronous generate for the others.");
     } else {
-        using backend = Keypair::backend_type;
-        if constexpr (detail::asynchronous_backend_v<backend>) {
-            return detail::async_engine<backend>::template generate<Keypair>(
-                executor, std::forward<CompletionToken>(token));
-        } else {
-            return detail::complete_by_post(executor, token,
-                                            []() noexcept { return Keypair::generate(); });
-        }
+        return Keypair::async_generate(executor, std::forward<CompletionToken>(token));
     }
 }
 
 /**
  * Seals a message in place, asynchronously: `aead.seal` run when the operation is initiated, its
  * result posted to `executor`.
+ *
+ * The free form of `aead.async_seal(executor, iv_bytes, additional_data_bytes, data_bytes,
+ * token)`, which it calls.
  *
  * `aead` and the spans are the caller's until the completion: a synchronous backend reads and
  * writes them before the call returns, the browser's later. `data_bytes` holds the ciphertext at
@@ -463,23 +550,17 @@ auto async_seal(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
                       "webcpp::crypto: async_seal takes AES-GCM, the AEAD WebCrypto has: call seal "
                       "for the others.");
     } else {
-        using backend = Gcm::backend_type;
-        if constexpr (detail::asynchronous_backend_v<backend>) {
-            return detail::async_engine<backend>::seal(executor, aead, iv_bytes,
-                                                       additional_data_bytes, data_bytes,
-                                                       std::forward<CompletionToken>(token));
-        } else {
-            return detail::complete_by_post(
-                executor, token, [&aead, iv_bytes, additional_data_bytes, data_bytes]() noexcept {
-                    return aead.seal(iv_bytes, additional_data_bytes, data_bytes);
-                });
-        }
+        return aead.async_seal(executor, iv_bytes, additional_data_bytes, data_bytes,
+                               std::forward<CompletionToken>(token));
     }
 }
 
 /**
  * Opens a message in place, asynchronously: `aead.open` run when the operation is initiated, its
  * result posted to `executor`.
+ *
+ * The free form of `aead.async_open(executor, iv_bytes, additional_data_bytes, data_bytes,
+ * tag_bytes, token)`, which it calls.
  *
  * `aead` and the spans are the caller's until the completion. `data_bytes` holds the plaintext at
  * a successful completion; a wrong tag (`authentication_failed`) or a backend's failure zeroes
@@ -508,24 +589,16 @@ auto async_open(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
                       "webcpp::crypto: async_open takes AES-GCM, the AEAD WebCrypto has: call open "
                       "for the others.");
     } else {
-        using backend = Gcm::backend_type;
-        if constexpr (detail::asynchronous_backend_v<backend>) {
-            return detail::async_engine<backend>::open(executor, aead, iv_bytes,
-                                                       additional_data_bytes, data_bytes, tag_bytes,
-                                                       std::forward<CompletionToken>(token));
-        } else {
-            return detail::complete_by_post(
-                executor, token,
-                [&aead, iv_bytes, additional_data_bytes, data_bytes, tag_bytes]() noexcept {
-                    return aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
-                });
-        }
+        return aead.async_open(executor, iv_bytes, additional_data_bytes, data_bytes, tag_bytes,
+                               std::forward<CompletionToken>(token));
     }
 }
 
 /**
  * Signs with an Ed25519 or a P-256 key pair, asynchronously: `key_pair.sign(scheme, input)` run
  * when the operation is initiated, its result posted to `executor`.
+ *
+ * The free form of `key_pair.async_sign(executor, scheme, input, token)`, which it calls.
  *
  * Ed25519 signs the message with `crypto::eddsa`; P-256 signs with `crypto::ecdsa_sha256` the
  * message, which it hashes with SHA-256, as WebCrypto's ECDSA with SHA-256 signs, or
@@ -563,20 +636,8 @@ auto async_sign(Executor const& executor, Keypair const& key_pair, Scheme scheme
             detail::refused_v<Keypair>,
             "webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has "
             "(Ed25519, P-256): call the key pair's synchronous signing function for the others.");
-    } else if constexpr (!can_sign<Keypair, Scheme, Input>) {
-        detail::refuse_async_sign<Keypair, Scheme, Input>();
     } else {
-        using backend = Keypair::backend_type;
-        if constexpr (detail::asynchronous_backend_v<backend>) {
-            return detail::async_engine<backend>::sign(executor, key_pair, scheme,
-                                                       detail::kept_input(input),
-                                                       std::forward<CompletionToken>(token));
-        } else {
-            return detail::complete_by_post(
-                executor, token, [&key_pair, scheme, kept = detail::kept_input(input)]() noexcept {
-                    return key_pair.sign(scheme, kept);
-                });
-        }
+        return key_pair.async_sign(executor, scheme, input, std::forward<CompletionToken>(token));
     }
 }
 
@@ -584,6 +645,9 @@ auto async_sign(Executor const& executor, Keypair const& key_pair, Scheme scheme
  * Verifies an Ed25519 signature (RFC 8032's pure Ed25519), asynchronously, strictly:
  * `crypto::verify<Backend>(crypto::eddsa, signature, message, public_key)` run when the operation
  * is initiated, its result posted to `executor`.
+ *
+ * The free form of `public_key.async_verify<Backend>(executor, crypto::eddsa, signature, message,
+ * token)`, which it calls, and which runs the key's `verify`, with the same work.
  *
  * The input is checked as `crypto::can_verify` checks it, before anything else: a marker stops
  * the build (Ed25519 signs the message itself). The signature's and the message's bytes are the
@@ -609,9 +673,8 @@ auto async_verify(Executor const& executor, [[maybe_unused]] eddsa_t scheme,
                   std::span<std::uint8_t const> signature, Input const& message,
                   curves::ed25519::public_key const& public_key, CompletionToken&& token) {
     detail::timing_guard const timing;
-    return detail::async_verify_ed25519<Backend>(executor, signature, message, public_key,
-                                                 curves::ed25519::strict,
-                                                 std::forward<CompletionToken>(token));
+    return public_key.template async_verify<Backend>(executor, scheme, signature, message,
+                                                     std::forward<CompletionToken>(token));
 }
 
 /**
@@ -642,15 +705,19 @@ auto async_verify(Executor const& executor, [[maybe_unused]] eddsa_t scheme,
                   curves::ed25519::public_key const& public_key, curves::ed25519::strict_t policy,
                   CompletionToken&& token) {
     detail::timing_guard const timing;
-    return detail::async_verify_ed25519<Backend>(executor, signature, message, public_key, policy,
-                                                 std::forward<CompletionToken>(token));
+    return public_key.template async_verify<Backend>(executor, scheme, signature, message, policy,
+                                                     std::forward<CompletionToken>(token));
 }
 
 /**
  * Verifies a P-256 ECDSA signature over SHA-256, asynchronously:
  * `crypto::verify(crypto::ecdsa_sha256, signature, input, public_key)` run when the operation is
- * initiated, its result posted to `executor`; the message is hashed with SHA-256, as WebCrypto's
- * ECDSA with SHA-256 verifies, or `crypto::prehashed{digest}` gives its digest.
+ * initiated, its result posted to `executor`;
+ * the message is hashed with SHA-256, as WebCrypto's ECDSA with SHA-256 verifies, or
+ * `crypto::prehashed{digest}` gives its digest.
+ *
+ * The free form of `public_key.async_verify(executor, crypto::ecdsa_sha256, signature, input,
+ * token)`, which it calls, and which runs the key's `verify`, with the same work.
  *
  * A high S and a low S are both accepted, as `crypto::verify` and WebCrypto accept them. The
  * input is checked as `crypto::can_verify` checks it, before anything else: a marker on a backend
@@ -680,25 +747,8 @@ auto async_verify(Executor const& executor, [[maybe_unused]] ecdsa_sha256_t sche
                   curves::p256::basic_public_key<Backend> const& public_key,
                   CompletionToken&& token) {
     detail::timing_guard const timing;
-    if constexpr (!can_verify<ecdsa_sha256_t, Input, curves::p256::basic_public_key<Backend>>) {
-        detail::check_input<ecdsa_sha256_t, Input, Backend>();
-    } else if constexpr (detail::asynchronous_backend_v<Backend>) {
-        return detail::async_engine<Backend>::verify(executor, scheme, signature,
-                                                     detail::kept_input(input), public_key,
-                                                     std::forward<CompletionToken>(token));
-    } else {
-        return detail::complete_by_post(executor, token,
-                                        [signature, kept = detail::kept_input(input),
-                                         &public_key]() noexcept -> boost::system::result<void> {
-                                            if (signature.size() != curves::p256::signature_size) {
-                                                return error::invalid_signature;
-                                            }
-                                            return ::webcpp::crypto::verify(
-                                                ecdsa_sha256,
-                                                signature.first<curves::p256::signature_size>(),
-                                                kept, public_key);
-                                        });
-    }
+    return public_key.async_verify(executor, scheme, signature, input,
+                                   std::forward<CompletionToken>(token));
 }
 
 /**
@@ -773,6 +823,8 @@ auto async_agree(Executor const& executor, std::span<std::uint8_t const> secret_
  * `key_pair.agree(peer_public_key)` run when the operation is initiated, its result posted to
  * `executor`, as WebCrypto's `deriveBits` with ECDH on P-256 gives its 256 bits.
  *
+ * The free form of `key_pair.async_agree(executor, peer_public_key, token)`, which it calls.
+ *
  * The x coordinate is not a key: a protocol hashes it into its keys (with HKDF, for instance).
  * The key pair and the peer's key are the caller's until the completion.
  *
@@ -792,13 +844,183 @@ auto async_agree(Executor const& executor, curves::p256::basic_keypair<Backend> 
                  curves::p256::basic_public_key<Backend> const& peer_public_key,
                  CompletionToken&& token) {
     detail::timing_guard const timing;
+    return key_pair.async_agree(executor, peer_public_key, std::forward<CompletionToken>(token));
+}
+
+// The asynchronous members (design D9), declared in their classes and defined here, so that a
+// curve's or a cipher's header never includes Asio. Each holds its own guard and initiates as the
+// free function, which calls it, does.
+
+template <class Cipher>
+template <class Executor, class CompletionToken>
+auto ciphers::gcm<Cipher>::async_make(Executor const& executor,
+                                      std::span<std::uint8_t const> key_bytes,
+                                      CompletionToken&& token) {
+    detail::timing_guard const timing;
+    return detail::initiate_make<gcm>(executor, key_bytes, std::forward<CompletionToken>(token));
+}
+
+template <class Cipher>
+template <class Executor, class CompletionToken>
+auto ciphers::gcm<Cipher>::async_seal(Executor const& executor,
+                                      std::span<std::uint8_t const> iv_bytes,
+                                      std::span<std::uint8_t const> additional_data_bytes,
+                                      std::span<std::uint8_t> data_bytes, CompletionToken&& token) {
+    detail::timing_guard const timing;
+    if constexpr (detail::asynchronous_backend_v<backend>) {
+        return detail::async_engine<backend>::seal(executor, *this, iv_bytes, additional_data_bytes,
+                                                   data_bytes,
+                                                   std::forward<CompletionToken>(token));
+    } else {
+        return detail::complete_by_post(
+            executor, token, [this, iv_bytes, additional_data_bytes, data_bytes]() noexcept {
+                return seal(iv_bytes, additional_data_bytes, data_bytes);
+            });
+    }
+}
+
+template <class Cipher>
+template <class Executor, class CompletionToken>
+auto ciphers::gcm<Cipher>::async_open(Executor const& executor,
+                                      std::span<std::uint8_t const> iv_bytes,
+                                      std::span<std::uint8_t const> additional_data_bytes,
+                                      std::span<std::uint8_t> data_bytes,
+                                      std::span<std::uint8_t const> tag_bytes,
+                                      CompletionToken&& token) {
+    detail::timing_guard const timing;
+    if constexpr (detail::asynchronous_backend_v<backend>) {
+        return detail::async_engine<backend>::open(executor, *this, iv_bytes, additional_data_bytes,
+                                                   data_bytes, tag_bytes,
+                                                   std::forward<CompletionToken>(token));
+    } else {
+        return detail::complete_by_post(
+            executor, token,
+            [this, iv_bytes, additional_data_bytes, data_bytes, tag_bytes]() noexcept {
+                return open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
+            });
+    }
+}
+
+template <class Backend>
+template <class Executor, class CompletionToken>
+auto curves::ed25519::basic_keypair<Backend>::async_make(Executor const& executor,
+                                                         std::span<std::uint8_t const> seed,
+                                                         CompletionToken&& token) {
+    detail::timing_guard const timing;
+    return detail::initiate_make<basic_keypair>(executor, seed,
+                                                std::forward<CompletionToken>(token));
+}
+
+template <class Backend>
+template <class Executor, class CompletionToken>
+auto curves::ed25519::basic_keypair<Backend>::async_generate(Executor const& executor,
+                                                             CompletionToken&& token) {
+    detail::timing_guard const timing;
+    return detail::initiate_generate<basic_keypair>(executor, std::forward<CompletionToken>(token));
+}
+
+template <class Backend>
+template <class Executor, class Scheme, class Input, class CompletionToken>
+auto curves::ed25519::basic_keypair<Backend>::async_sign(Executor const& executor, Scheme scheme,
+                                                         Input const& message,
+                                                         CompletionToken&& token) const {
+    detail::timing_guard const timing;
+    return detail::initiate_sign(executor, *this, scheme, message,
+                                 std::forward<CompletionToken>(token));
+}
+
+template <class Backend, class Executor, class Scheme, class Input, class CompletionToken>
+auto curves::ed25519::public_key::async_verify(Executor const& executor,
+                                               [[maybe_unused]] Scheme scheme,
+                                               std::span<std::uint8_t const> signature,
+                                               Input const& message,
+                                               CompletionToken&& token) const {
+    detail::timing_guard const timing;
+    return detail::initiate_verify_ed25519<Backend, Scheme>(
+        executor, signature, message, *this, strict, std::forward<CompletionToken>(token));
+}
+
+template <class Backend, class Executor, class Scheme, class Input, class CompletionToken>
+auto curves::ed25519::public_key::async_verify(Executor const& executor,
+                                               [[maybe_unused]] Scheme scheme,
+                                               std::span<std::uint8_t const> signature,
+                                               Input const& message, strict_t policy,
+                                               CompletionToken&& token) const {
+    detail::timing_guard const timing;
+    return detail::initiate_verify_ed25519<Backend, Scheme>(
+        executor, signature, message, *this, policy, std::forward<CompletionToken>(token));
+}
+
+template <class Backend>
+template <class Executor, class CompletionToken>
+auto curves::p256::basic_keypair<Backend>::async_make(Executor const& executor,
+                                                      std::span<std::uint8_t const> secret_scalar,
+                                                      CompletionToken&& token) {
+    detail::timing_guard const timing;
+    return detail::initiate_make<basic_keypair>(executor, secret_scalar,
+                                                std::forward<CompletionToken>(token));
+}
+
+template <class Backend>
+template <class Executor, class CompletionToken>
+auto curves::p256::basic_keypair<Backend>::async_generate(Executor const& executor,
+                                                          CompletionToken&& token) {
+    detail::timing_guard const timing;
+    return detail::initiate_generate<basic_keypair>(executor, std::forward<CompletionToken>(token));
+}
+
+template <class Backend>
+template <class Executor, class Scheme, class Input, class CompletionToken>
+auto curves::p256::basic_keypair<Backend>::async_sign(Executor const& executor, Scheme scheme,
+                                                      Input const& input,
+                                                      CompletionToken&& token) const {
+    detail::timing_guard const timing;
+    return detail::initiate_sign(executor, *this, scheme, input,
+                                 std::forward<CompletionToken>(token));
+}
+
+template <class Backend>
+template <class Executor, class CompletionToken>
+auto curves::p256::basic_keypair<Backend>::async_agree(Executor const& executor,
+                                                       basic_public_key<Backend> const& peer,
+                                                       CompletionToken&& token) const {
+    detail::timing_guard const timing;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
-        return detail::async_engine<Backend>::agree(executor, key_pair, peer_public_key,
+        return detail::async_engine<Backend>::agree(executor, *this, peer,
                                                     std::forward<CompletionToken>(token));
     } else {
-        return detail::complete_by_post(executor, token, [&key_pair, &peer_public_key]() noexcept {
-            return key_pair.agree(peer_public_key);
-        });
+        return detail::complete_by_post(executor, token,
+                                        [this, &peer]() noexcept { return agree(peer); });
+    }
+}
+
+template <class Backend>
+template <class Executor, class Scheme, class Input, class CompletionToken>
+auto curves::p256::basic_public_key<Backend>::async_verify(Executor const& executor,
+                                                           [[maybe_unused]] Scheme scheme,
+                                                           std::span<std::uint8_t const> signature,
+                                                           Input const& input,
+                                                           CompletionToken&& token) const {
+    detail::timing_guard const timing;
+    if constexpr (!std::is_same_v<Scheme, ecdsa_sha256_t>) {
+        static_assert(detail::refused_v<Scheme>,
+                      "webcpp::crypto: a P-256 public key verifies crypto::ecdsa_sha256.");
+    } else if constexpr (!can_verify<ecdsa_sha256_t, Input, basic_public_key>) {
+        detail::check_input<ecdsa_sha256_t, Input, Backend>();
+    } else if constexpr (detail::asynchronous_backend_v<Backend>) {
+        return detail::async_engine<Backend>::verify(executor, ecdsa_sha256, signature,
+                                                     detail::kept_input(input), *this,
+                                                     std::forward<CompletionToken>(token));
+    } else {
+        return detail::complete_by_post(
+            executor, token,
+            [this, signature,
+             kept = detail::kept_input(input)]() noexcept -> boost::system::result<void> {
+                if (signature.size() != curves::p256::signature_size) {
+                    return error::invalid_signature;
+                }
+                return verify(ecdsa_sha256, signature.first<curves::p256::signature_size>(), kept);
+            });
     }
 }
 

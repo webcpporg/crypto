@@ -189,6 +189,28 @@ public:
     }
 
     /**
+     * Expands a key into a new object, asynchronously: `make` run when the operation is
+     * initiated, its result posted to `executor`; the member form of
+     * `crypto::async_make<gcm>(executor, key_bytes, token)`, which calls it.
+     *
+     * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
+     * "deduced return type used before it is defined".
+     *
+     * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+     * @tparam CompletionToken Any completion token for the signature `token` states.
+     * @param executor The executor the completion is posted to.
+     * @param key_bytes `key_size` bytes, the caller's until the completion.
+     * @param token The completion token, of signature `void(boost::system::error_code, gcm)`; on
+     * an error the object is empty, and every member refuses with `invalid_state`
+     * (`invalid_key_size`, `errc::not_enough_memory`, `backend_failure`).
+     * @return What the completion token's `async_result` gives.
+     */
+    template <class Executor, class CompletionToken>
+    static auto async_make(Executor const& executor, std::span<std::uint8_t const> key_bytes,
+                           CompletionToken&& token);
+
+    /**
      * Moves the key; a message in progress is abandoned, and the source is wiped and empty.
      *
      * Moving an empty object gives an empty one: BearSSL's move initialises the destination's
@@ -282,6 +304,34 @@ public:
     }
 
     /**
+     * Seals a message in place, asynchronously: `seal` run when the operation is initiated, its
+     * result posted to `executor`; the member form of
+     * `crypto::async_seal(executor, aead, iv_bytes, additional_data_bytes, data_bytes, token)`,
+     * which calls it.
+     *
+     * The object and the spans are the caller's until the completion; `data_bytes` holds the
+     * ciphertext at the completion.
+     *
+     * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
+     * "deduced return type used before it is defined".
+     *
+     * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+     * @tparam CompletionToken Any completion token for the signature `token` states.
+     * @param executor The executor the completion is posted to.
+     * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key.
+     * @param additional_data_bytes Authenticated, not encrypted.
+     * @param data_bytes The message.
+     * @param token The completion token, of signature `void(boost::system::error_code,
+     * result_type)`: the tag; on an error the zeroed tag (`seal`'s errors).
+     * @return What the completion token's `async_result` gives.
+     */
+    template <class Executor, class CompletionToken>
+    auto async_seal(Executor const& executor, std::span<std::uint8_t const> iv_bytes,
+                    std::span<std::uint8_t const> additional_data_bytes,
+                    std::span<std::uint8_t> data_bytes, CompletionToken&& token);
+
+    /**
      * Opens a message in place: `data_bytes` holds the ciphertext before and the plaintext after.
      *
      * While it runs, the decrypted bytes are in `data_bytes` before the tag is checked; when the
@@ -327,6 +377,35 @@ public:
             return {};
         }
     }
+
+    /**
+     * Opens a message in place, asynchronously: `open` run when the operation is initiated, its
+     * result posted to `executor`; the member form of `crypto::async_open(executor, aead,
+     * iv_bytes, additional_data_bytes, data_bytes, tag_bytes, token)`, which calls it.
+     *
+     * The object and the spans are the caller's until the completion; `data_bytes` holds the
+     * plaintext at a successful completion.
+     *
+     * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
+     * "deduced return type used before it is defined".
+     *
+     * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+     * @tparam CompletionToken Any completion token for the signature `token` states.
+     * @param executor The executor the completion is posted to.
+     * @param iv_bytes The IV of the seal.
+     * @param additional_data_bytes The additional data of the seal.
+     * @param data_bytes The ciphertext.
+     * @param tag_bytes The seal's tag, 16 bytes.
+     * @param token The completion token, of signature `void(boost::system::error_code)` (`open`'s
+     * errors).
+     * @return What the completion token's `async_result` gives.
+     */
+    template <class Executor, class CompletionToken>
+    auto async_open(Executor const& executor, std::span<std::uint8_t const> iv_bytes,
+                    std::span<std::uint8_t const> additional_data_bytes,
+                    std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
+                    CompletionToken&& token);
 
     /**
      * Begins an incremental seal: the IV and the whole additional data first, both read

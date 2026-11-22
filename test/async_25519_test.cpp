@@ -27,12 +27,20 @@
 //   completion gives the right result (the browser's backend will read them later: they are the
 //   caller's until the completion, as the documentation says).
 // - async_coroutine: the same in one coroutine of the context.
+// - async_four_forms: each Ed25519 operation in its four forms (design D9), the member and the
+//   free, synchronous and asynchronous, gives the same result: make (the same public key, and the
+//   same refusal of a short seed), generate (a key pair whose signature verifies), sign (RFC 8032's
+//   signature, and an empty key pair's invalid_state and zeros), verify with the defaults and with
+//   the backend and the policy named (each accepts the signature and refuses a changed one with
+//   invalid_signature); each asynchronous completion arrives after the initiating call returned.
 
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/keypair.hpp>
+#include <webcpp/crypto/make.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -440,6 +448,163 @@ void async_coroutine(asio::io_context& context) {
     BOOST_TEST(done);
 }
 
+// make in its four forms: the same key pair, and the same refusal of a short seed.
+void four_forms_make(asio::io_context& context, std::span<std::uint8_t const> seed,
+                     ed25519::public_key const& expected) {
+    auto const member_sync = keypair::make(seed);
+    auto const free_sync = crypto::make<keypair>(seed);
+    auto const member_async = complete<keypair>(context, [&](auto const& executor, auto&& token) {
+        return keypair::async_make(executor, seed, std::forward<decltype(token)>(token));
+    });
+    auto const free_async = complete<keypair>(context, [&](auto const& executor, auto&& token) {
+        return crypto::async_make<keypair>(executor, seed, std::forward<decltype(token)>(token));
+    });
+    BOOST_TEST(!member_async.code);
+    BOOST_TEST(!free_async.code);
+    auto const public_of = [](keypair const& key) { return key.public_key().value(); };
+    BOOST_TEST(member_sync.has_value() && public_of(*member_sync) == expected);
+    BOOST_TEST(free_sync.has_value() && public_of(*free_sync) == expected);
+    BOOST_TEST(member_async.value.has_value() &&
+               public_of(std::get<0>(*member_async.value)) == expected);
+    BOOST_TEST(free_async.value.has_value() &&
+               public_of(std::get<0>(*free_async.value)) == expected);
+    auto const short_seed = seed.first(31);
+    BOOST_TEST(keypair::make(short_seed).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(crypto::make<keypair>(short_seed).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(complete<keypair>(context, [&](auto const& executor, auto&& token) {
+                   return keypair::async_make(executor, short_seed,
+                                              std::forward<decltype(token)>(token));
+               }).code == crypto::error::invalid_key_size);
+    BOOST_TEST(complete<keypair>(context, [&](auto const& executor, auto&& token) {
+                   return crypto::async_make<keypair>(executor, short_seed,
+                                                      std::forward<decltype(token)>(token));
+               }).code == crypto::error::invalid_key_size);
+}
+
+// Whether a generated key pair signs a message its own public key verifies.
+bool signs_and_verifies(keypair const& key) {
+    std::array<std::uint8_t, 3> const message{1, 2, 3};
+    auto const signature = key.sign(crypto::eddsa, message);
+    auto const own = key.public_key();
+    return signature.has_value() && own.has_value() &&
+           own->verify(crypto::eddsa, *signature, message).has_value();
+}
+
+// generate in its four forms: each a key pair whose signature verifies.
+void four_forms_generate(asio::io_context& context) {
+    auto const member_sync = keypair::generate();
+    auto const free_sync = crypto::generate<keypair>();
+    auto const member_async = complete<keypair>(context, [](auto const& executor, auto&& token) {
+        return keypair::async_generate(executor, std::forward<decltype(token)>(token));
+    });
+    auto const free_async = complete<keypair>(context, [](auto const& executor, auto&& token) {
+        return crypto::async_generate<keypair>(executor, std::forward<decltype(token)>(token));
+    });
+    BOOST_TEST(!member_async.code);
+    BOOST_TEST(!free_async.code);
+    BOOST_TEST(member_sync.has_value() && signs_and_verifies(*member_sync));
+    BOOST_TEST(free_sync.has_value() && signs_and_verifies(*free_sync));
+    BOOST_TEST(member_async.value.has_value() &&
+               signs_and_verifies(std::get<0>(*member_async.value)));
+    BOOST_TEST(free_async.value.has_value() && signs_and_verifies(std::get<0>(*free_async.value)));
+}
+
+// sign in its four forms: the same signature, or the same refusal and zeros.
+void check_four_signatures(asio::io_context& context, keypair const& key,
+                           std::span<std::uint8_t const> message,
+                           std::span<std::uint8_t const> expected,
+                           boost::system::error_code expected_code) {
+    auto const member_sync = key.sign(crypto::eddsa, message);
+    auto const free_sync = crypto::sign(key, crypto::eddsa, message);
+    auto const member_async =
+        complete<signature_type>(context, [&](auto const& executor, auto&& token) {
+            return key.async_sign(executor, crypto::eddsa, message,
+                                  std::forward<decltype(token)>(token));
+        });
+    auto const free_async =
+        complete<signature_type>(context, [&](auto const& executor, auto&& token) {
+            return crypto::async_sign(executor, key, crypto::eddsa, message,
+                                      std::forward<decltype(token)>(token));
+        });
+    BOOST_TEST(member_async.code == expected_code);
+    BOOST_TEST(free_async.code == expected_code);
+    if (!BOOST_TEST(member_async.value.has_value()) || !BOOST_TEST(free_async.value.has_value())) {
+        return;
+    }
+    if (expected_code) {
+        BOOST_TEST(member_sync.error() == expected_code);
+        BOOST_TEST(free_sync.error() == expected_code);
+        BOOST_TEST(all_zero(std::get<0>(*member_async.value)));
+        BOOST_TEST(all_zero(std::get<0>(*free_async.value)));
+        return;
+    }
+    if (!BOOST_TEST(member_sync.has_value()) || !BOOST_TEST(free_sync.has_value())) {
+        return;
+    }
+    BOOST_TEST(std::ranges::equal(*member_sync, expected));
+    BOOST_TEST(*free_sync == *member_sync);
+    BOOST_TEST(std::get<0>(*member_async.value) == *member_sync);
+    BOOST_TEST(std::get<0>(*free_async.value) == *member_sync);
+}
+
+// verify in its four forms, with the defaults and with the backend and the policy named: the
+// same answer.
+void check_four_verifications(asio::io_context& context, ed25519::public_key const& key,
+                              std::span<std::uint8_t const> signature,
+                              std::span<std::uint8_t const> message,
+                              boost::system::error_code expected_code) {
+    using crypto::backends::sodium;
+    auto const code_of = [](boost::system::result<void> const& done) {
+        return done ? boost::system::error_code{} : done.error();
+    };
+    BOOST_TEST(code_of(key.verify(crypto::eddsa, signature, message)) == expected_code);
+    BOOST_TEST(code_of(key.verify<sodium>(crypto::eddsa, signature, message, ed25519::strict)) ==
+               expected_code);
+    BOOST_TEST(code_of(crypto::verify(crypto::eddsa, signature, message, key)) == expected_code);
+    BOOST_TEST(code_of(crypto::verify<sodium>(crypto::eddsa, signature, message, key,
+                                              ed25519::strict)) == expected_code);
+    BOOST_TEST(complete_code(context, [&](auto const& executor, auto&& token) {
+                   return key.async_verify(executor, crypto::eddsa, signature, message,
+                                           std::forward<decltype(token)>(token));
+               }) == expected_code);
+    BOOST_TEST(complete_code(context, [&](auto const& executor, auto&& token) {
+                   return key.async_verify<sodium>(executor, crypto::eddsa, signature, message,
+                                                   ed25519::strict,
+                                                   std::forward<decltype(token)>(token));
+               }) == expected_code);
+    BOOST_TEST(complete_code(context, [&](auto const& executor, auto&& token) {
+                   return crypto::async_verify(executor, crypto::eddsa, signature, message, key,
+                                               std::forward<decltype(token)>(token));
+               }) == expected_code);
+    BOOST_TEST(complete_code(context, [&](auto const& executor, auto&& token) {
+                   return crypto::async_verify<sodium>(executor, crypto::eddsa, signature, message,
+                                                       key, ed25519::strict,
+                                                       std::forward<decltype(token)>(token));
+               }) == expected_code);
+}
+
+void async_four_forms(asio::io_context& context) {
+    auto const& tested = rfc8032_cases[2];
+    auto const seed = test::from_hex(tested.secret_key);
+    auto const public_key = key_of(tested.public_key);
+    auto const message = test::from_hex(tested.message);
+    auto signature = test::from_hex(tested.signature);
+    four_forms_make(context, seed, public_key);
+    four_forms_generate(context);
+    auto key = keypair::make(seed);
+    if (!BOOST_TEST(key.has_value())) {
+        return;
+    }
+    check_four_signatures(context, *key, message, signature, {});
+    check_four_verifications(context, public_key, signature, message, {});
+    signature[10] ^= 1U;
+    check_four_verifications(context, public_key, signature, message,
+                             crypto::error::invalid_signature);
+    [[maybe_unused]] keypair const taken(std::move(*key));
+    // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): the empty key pair
+    check_four_signatures(context, *key, message, signature, crypto::error::invalid_state);
+}
+
 }  // namespace
 
 int main() {
@@ -451,5 +616,6 @@ int main() {
     async_rfc7748(context);
     async_destroyed(context);
     async_coroutine(context);
+    async_four_forms(context);
     return webcpp::test::exit_status(boost::report_errors());
 }

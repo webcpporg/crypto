@@ -525,10 +525,12 @@ auto async_open(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
 
 /**
  * Signs with an Ed25519 or a P-256 key pair, asynchronously: `key_pair.sign(scheme, input)` run
- * when the operation is initiated, its result posted to `executor`. Ed25519 signs the message
- * with `crypto::eddsa`; P-256 signs with `crypto::ecdsa_sha256` the message, which it hashes with
- * SHA-256, as WebCrypto's ECDSA with SHA-256 signs, or `crypto::prehashed{digest}` (RFC 6979's
- * nonce: the same key and input give the same signature; S low).
+ * when the operation is initiated, its result posted to `executor`.
+ *
+ * Ed25519 signs the message with `crypto::eddsa`; P-256 signs with `crypto::ecdsa_sha256` the
+ * message, which it hashes with SHA-256, as WebCrypto's ECDSA with SHA-256 signs, or
+ * `crypto::prehashed{digest}` (RFC 6979's nonce: the same key and input give the same signature;
+ * S low).
  *
  * The key pair, the scheme and the input are checked as `crypto::can_sign` checks them, before
  * anything else: another pair stops the build with its reason, and so does a marker on a backend

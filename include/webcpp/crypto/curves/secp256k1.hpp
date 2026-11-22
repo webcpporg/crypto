@@ -1367,7 +1367,9 @@ template <class Backend = default_backend_t<families::secp256k1>>
 /**
  * Whether a compact ECDSA signature is in its low-S form, the only form `crypto::verify` accepts
  * on secp256k1, as a protocol checks what it relays (Bitcoin's standardness); `sign` gives the
- * low form. It does not verify the signature.
+ * low form.
+ *
+ * It does not verify the signature.
  *
  * @tparam Backend The backend, `backends::secp256k1`.
  * @param compact_signature 64 bytes, r then s.

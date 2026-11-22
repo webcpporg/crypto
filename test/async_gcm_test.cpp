@@ -334,8 +334,9 @@ void async_coroutine(asio::io_context& context) {
             std::array<std::uint8_t, 40> data{};
             data.fill(0x33);
             auto const plaintext = data;
-            auto [made_code, aead] = co_await crypto::async_make<gcm256>(
+            auto made_code_result = co_await crypto::async_make<gcm256>(
                 executor, key, asio::as_tuple(asio::use_awaitable));
+            auto& [made_code, aead] = made_code_result;
             BOOST_TEST(!made_code);
             auto [code, tag] = co_await crypto::async_seal(
                 executor, aead, iv, additional_data, data, asio::as_tuple(asio::use_awaitable));

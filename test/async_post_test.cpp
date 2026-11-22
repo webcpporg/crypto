@@ -443,8 +443,9 @@ void post_awaitable_token(asio::io_context& context) {
         context,
         [&]() -> asio::awaitable<void> {
             auto const coro = co_await asio::this_coro::executor;
-            auto [made_code, made_key] =
+            auto made_code_result =
                 co_await async_key(coro, 8, asio::as_tuple(asio::use_awaitable));
+            auto& [made_code, made_key] = made_code_result;
             BOOST_TEST(!made_code);
             BOOST_TEST(all_bytes(made_key, 8));
             auto [refused_code, refused_block] =
@@ -734,8 +735,9 @@ void post_gcm_awaitable_token(asio::io_context& context, gcm_fixture& fixture,
         context,
         [&]() -> asio::awaitable<void> {
             auto const coro = co_await asio::this_coro::executor;
-            auto [made_code, made] = co_await crypto::async_make<gcm_fixture::gcm>(
+            auto made_code_result = co_await crypto::async_make<gcm_fixture::gcm>(
                 coro, std::span(fixture.key).first(31), asio::as_tuple(asio::use_awaitable));
+            auto& [made_code, made] = made_code_result;
             BOOST_TEST(made_code == crypto::error::invalid_key_size);
             BOOST_TEST(made.seal(fixture.iv, {}, fixture.data).error() ==
                        crypto::error::invalid_state);

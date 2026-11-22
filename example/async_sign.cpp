@@ -59,7 +59,9 @@ asio::awaitable<bool> sign_and_verify() {
     auto const executor = co_await asio::this_coro::executor;
     auto const use = asio::as_tuple(asio::use_awaitable);
 
-    auto [made, key] = co_await crypto::async_make<ed25519::keypair>(executor, seed, use);
+    auto made_result = co_await crypto::async_make<ed25519::keypair>(executor, seed, use);
+
+    auto& [made, key] = made_result;
     if (made) {
         std::printf("make: %s\n", made.message().c_str());
         co_return false;

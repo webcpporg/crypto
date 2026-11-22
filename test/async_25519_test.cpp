@@ -373,8 +373,9 @@ void async_coroutine(asio::io_context& context) {
             auto const seed = test::from_hex(tested.secret_key);
             auto const public_key = test::from_hex(tested.public_key);
             auto const message = test::from_hex(tested.message);
-            auto [made_code, key] = co_await crypto::async_make<keypair>(
+            auto made_code_result = co_await crypto::async_make<keypair>(
                 executor, seed, asio::as_tuple(asio::use_awaitable));
+            auto& [made_code, key] = made_code_result;
             BOOST_TEST(!made_code);
             auto [sign_code, signature] = co_await crypto::async_sign(
                 executor, key, message, asio::as_tuple(asio::use_awaitable));
@@ -383,15 +384,17 @@ void async_coroutine(asio::io_context& context) {
             auto [verify_code] = co_await crypto::async_verify(
                 executor, public_key, message, signature, asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(!verify_code);
-            auto [generate_code, generated_key] =
+            auto generate_code_result =
                 co_await crypto::async_generate(executor, asio::as_tuple(asio::use_awaitable));
+            auto& [generate_code, generated_key] = generate_code_result;
             BOOST_TEST(!generate_code);
             BOOST_TEST(generated_key.public_key().has_value());
-            auto [agree_code, shared] = co_await crypto::async_agree(
+            auto agree_code_result = co_await crypto::async_agree(
                 executor,
                 test::from_hex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"),
                 test::from_hex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f"),
                 asio::as_tuple(asio::use_awaitable));
+            auto& [agree_code, shared] = agree_code_result;
             BOOST_TEST(!agree_code);
             BOOST_TEST(std::ranges::equal(
                 shared.bytes(), test::from_hex("4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376"

@@ -6,7 +6,7 @@
 
 // A heavy operation's async_ variant that forgets WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS, called in a
 // build without threads (natively with WEBCPP_CRYPTO_NO_THREADS; on WASI always), stops at
-// detail::run_heavy's stand-in, which names the missing refusal, and with that error alone:
+// detail::run_on_work's stand-in, which names the missing refusal, and with that error alone:
 // without it, the variant would compile, never run the work and never call the handler.
 
 // clang-format off
@@ -15,21 +15,21 @@
 
 #include <webcpp/crypto/detail/heavy.hpp>
 
-#include <utility>
+#include <boost/system/result.hpp>
 
 namespace {
 
 /** The test-only heavy operation, synchronous. */
-int slow(int value) noexcept {
+boost::system::result<int> slow(int value) noexcept {
     return value + 1;
 }
 
 /** Its async_ variant, which forgets the refusal. */
 template <class Executor, class CompletionToken>
-auto async_slow(Executor executor, int value, CompletionToken&& token) {
-    return webcpp::crypto::detail::run_heavy(
-        std::move(executor), [value]() noexcept { return slow(value); },
-        std::forward<CompletionToken>(token));
+auto async_slow(Executor const& work, int value, CompletionToken&& token) {
+    return webcpp::crypto::detail::run_on_work(
+        work, []() noexcept { return boost::system::result<void>(); },
+        [value]() noexcept { return slow(value); }, token);
 }
 
 /** An executor and a completion token, which a build without threads never uses. */
@@ -41,5 +41,5 @@ struct token {};
 
 int main() {
     async_slow(executor{}, 41, token{});
-    return slow(0) == 1 ? 0 : 1;
+    return *slow(0) == 1 ? 0 : 1;
 }

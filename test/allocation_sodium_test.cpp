@@ -25,6 +25,7 @@
 #include <webcpp/crypto/hybrid/box.hpp>
 #include <webcpp/crypto/hybrid/sealed_box.hpp>
 #include <webcpp/crypto/pem.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/algorithms.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -83,10 +84,9 @@ void expect_no_allocation_ed25519() {
     using ph = crypto::curves::ed25519::ph<webcpp::hash::sha2_512, crypto::backends::sodium>;
     // Strict verification on libsodium, named once: a template's commas would split a macro's
     // argument.
-    auto const verify = [](auto const& public_key, auto const& message, auto const& signature) {
-        return crypto::curves::ed25519::verify<crypto::curves::ed25519::strict,
-                                               crypto::backends::sodium>(public_key, message,
-                                                                         signature);
+    auto const verify = [](auto const& signature, auto const& message, auto const& public_key) {
+        return crypto::verify<crypto::curves::ed25519::strict, crypto::backends::sodium>(
+            crypto::eddsa, signature, message, public_key);
     };
     std::array<std::uint8_t, 32> seed{};
     seed.fill(5);
@@ -99,12 +99,12 @@ void expect_no_allocation_ed25519() {
         BOOST_TEST(drawn.has_value());
         auto const public_key = made->public_key();
         BOOST_TEST(public_key.has_value());
-        auto const signature = made->sign(message);
+        auto const signature = made->sign(crypto::eddsa, message);
         BOOST_TEST(signature.has_value());
-        auto const verified = verify(*public_key, message, *signature);
+        auto const verified = verify(*signature, message, *public_key);
         BOOST_TEST(verified.has_value());
         std::array<std::uint8_t, 64> const forged{};
-        BOOST_TEST(verify(*public_key, message, forged).error() ==
+        BOOST_TEST(verify(forged, message, *public_key).error() ==
                    crypto::error::invalid_signature);
         auto signer = ph::begin();
         BOOST_TEST(signer.has_value());
@@ -115,7 +115,7 @@ void expect_no_allocation_ed25519() {
         auto verifier = ph::begin();
         BOOST_TEST(verifier.has_value());
         BOOST_TEST(verifier->update(message).has_value());
-        BOOST_TEST(verifier->verify(*public_key, *ph_signature).has_value());
+        BOOST_TEST(verifier->verify(*ph_signature, *public_key).has_value());
         auto const x25519_secret = made->x25519_secret();
         BOOST_TEST(x25519_secret.has_value());
         BOOST_TEST(crypto::curves::ed25519::to_x25519_public<crypto::backends::sodium>(*public_key)

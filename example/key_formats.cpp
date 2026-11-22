@@ -16,6 +16,7 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/pem.hpp>
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <array>
 #include <cstdint>
@@ -73,8 +74,8 @@ bool ed25519_from_pem() {
         return false;
     }
     std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
-    auto const signature = pair->sign(message);
-    return signature && ed25519::verify(*public_key, message, *signature);
+    auto const signature = pair->sign(crypto::eddsa, message);
+    return signature && crypto::verify(crypto::eddsa, *signature, message, *public_key);
 }
 
 // An X25519 public key of RFC 7748's Alice, as SPKI in PEM.

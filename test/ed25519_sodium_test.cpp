@@ -5,14 +5,18 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Ed25519 on libsodium: RFC 8032 section 7.1's tests 1, 2, 3 and SHA(abc), each key pair made
-// from the RFC's secret key, its public key and signature the RFC's, and verify accepting them;
-// the guards (a seed of 31 bytes, a moved-from key pair, a signature changed in one bit, keys and
-// signatures of other sizes); generate() under the planted entropy source of the test seam
-// WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY, failing and answering; and x25519_secret(), whose public key
-// is crypto_sign_ed25519_pk_to_curve25519's of the Ed25519 public key.
+// from the RFC's secret key, its public key and signature the RFC's, signed with
+// sign(crypto::eddsa, message) and accepted by crypto::verify(crypto::eddsa, signature, message,
+// public_key), its policy and backend deduced and named; the empty message; the arguments of the
+// order before it (key, message, signature) refused as a signature; speccheck's small-order key
+// refused under strict; the guards (a seed of 31 bytes, a moved-from key pair, a signature changed
+// in one bit, keys and signatures of other sizes); generate() under the planted entropy source of
+// the test seam WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY, failing and answering; and x25519_secret(),
+// whose public key is crypto_sign_ed25519_pk_to_curve25519's of the Ed25519 public key.
 
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -111,17 +115,19 @@ void rfc8032() {
         }
         auto const public_key = key->public_key();
         BOOST_TEST(public_key && std::ranges::equal(*public_key, expected_public_key));
-        auto const signature = key->sign(message);
+        auto const signature = key->sign(crypto::eddsa, message);
         BOOST_TEST(signature && std::ranges::equal(*signature, expected_signature));
         if (!signature || !public_key) {
             continue;
         }
-        // The default policy, and strict named, on the default backend and on libsodium named.
-        BOOST_TEST(ed25519::verify(*public_key, message, *signature).has_value());
-        BOOST_TEST((ed25519::verify<ed25519::strict, crypto::backends::sodium>(*public_key, message,
-                                                                               *signature)
+        // The default policy, and strict named, on the default backend and on libsodium named:
+        // the explicit arguments pick Ed25519's verify, never P-256's or the catch-all.
+        BOOST_TEST(crypto::verify(crypto::eddsa, *signature, message, *public_key).has_value());
+        BOOST_TEST((crypto::verify<ed25519::strict, crypto::backends::sodium>(
+                        crypto::eddsa, *signature, message, *public_key)
                         .has_value()));
-        BOOST_TEST(ed25519::verify(expected_public_key, message, expected_signature).has_value());
+        BOOST_TEST(crypto::verify(crypto::eddsa, expected_signature, message, expected_public_key)
+                       .has_value());
     }
 }
 
@@ -148,10 +154,10 @@ void guards() {
     // NOLINTBEGIN(bugprone-use-after-move,clang-analyzer-cplusplus.Move): the moved-from state
     // is what is tested
     BOOST_TEST(source.public_key().error() == crypto::error::invalid_state);
-    BOOST_TEST(source.sign(message).error() == crypto::error::invalid_state);
+    BOOST_TEST(source.sign(crypto::eddsa, message).error() == crypto::error::invalid_state);
     BOOST_TEST(source.x25519_secret().error() == crypto::error::invalid_state);
     // NOLINTEND(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
-    auto const signature = target.sign(message);
+    auto const signature = target.sign(crypto::eddsa, message);
     BOOST_TEST(signature &&
                std::ranges::equal(*signature, test::from_hex(rfc8032_cases[1].signature)));
 
@@ -177,23 +183,77 @@ void refusals() {
          {std::size_t{0}, std::size_t{31}, std::size_t{32}, std::size_t{63}}) {
         auto changed = good;
         changed[index] ^= 0x01U;
-        auto const refused = ed25519::verify(public_key, message, changed);
+        auto const refused = crypto::verify(crypto::eddsa, changed, message, public_key);
         BOOST_TEST(refused.has_error() && refused.error() == crypto::error::invalid_signature);
     }
     auto changed_message = message;
     changed_message[0] ^= 0x01U;
-    BOOST_TEST(ed25519::verify(public_key, changed_message, good).error() ==
+    BOOST_TEST(crypto::verify(crypto::eddsa, good, changed_message, public_key).error() ==
                crypto::error::invalid_signature);
 
     // A public key or a signature of another size.
-    BOOST_TEST(ed25519::verify(std::span(public_key).first(31), message, good).error() ==
-               crypto::error::invalid_public_key);
-    BOOST_TEST(ed25519::verify(public_key, message, std::span(good).first(63)).error() ==
-               crypto::error::invalid_signature);
+    BOOST_TEST(
+        crypto::verify(crypto::eddsa, good, message, std::span(public_key).first(31)).error() ==
+        crypto::error::invalid_public_key);
+    BOOST_TEST(
+        crypto::verify(crypto::eddsa, std::span(good).first(63), message, public_key).error() ==
+        crypto::error::invalid_signature);
     std::vector<std::uint8_t> long_signature(good);
     long_signature.push_back(0);
-    BOOST_TEST(ed25519::verify(public_key, message, long_signature).error() ==
+    BOOST_TEST(crypto::verify(crypto::eddsa, long_signature, message, public_key).error() ==
                crypto::error::invalid_signature);
+}
+
+// The arguments of the order before crypto::verify, (key, message, signature), given to it: the
+// 32-byte key stands where the signature goes and is refused as a signature, never verified.
+void old_order_fails_closed() {
+    auto const message = test::from_hex(rfc8032_cases[1].message);
+    std::array<std::uint8_t, 32> public_key{};
+    std::ranges::copy(test::from_hex(rfc8032_cases[1].public_key), public_key.begin());
+    std::array<std::uint8_t, 64> signature{};
+    std::ranges::copy(test::from_hex(rfc8032_cases[1].signature), signature.begin());
+    BOOST_TEST(crypto::verify(crypto::eddsa, signature, message, public_key).has_value());
+    auto const swapped = crypto::verify(crypto::eddsa, public_key, message, signature);
+    BOOST_TEST(swapped.has_error() && swapped.error() == crypto::error::invalid_signature);
+}
+
+// The empty message is a message: signed and verified, its signature RFC 8032's test 1, and
+// refused for a message of one byte.
+void empty_message() {
+    auto const key = ed25519::keypair::make(test::from_hex(rfc8032_cases[0].secret_key));
+    BOOST_TEST(key.has_value());
+    if (!key) {
+        return;
+    }
+    auto const public_key = key->public_key();
+    auto const signature = key->sign(crypto::eddsa, std::span<std::uint8_t const>{});
+    BOOST_TEST(public_key && signature &&
+               std::ranges::equal(*signature, test::from_hex(rfc8032_cases[0].signature)));
+    if (!public_key || !signature) {
+        return;
+    }
+    BOOST_TEST(
+        crypto::verify(crypto::eddsa, *signature, std::span<std::uint8_t const>{}, *public_key)
+            .has_value());
+    std::array<std::uint8_t, 1> const one_byte{};
+    BOOST_TEST(crypto::verify(crypto::eddsa, *signature, one_byte, *public_key).error() ==
+               crypto::error::invalid_signature);
+}
+
+// ed25519-speccheck's case 0 (Chalkias, Garillot and Nikolaenko; Wycheproof's EdDSA file has no
+// small-order key): A and R of small order, S zero, which a cofactored or cofactorless verifier
+// accepts; strict, on libsodium named, refuses it.
+void small_order_key() {
+    auto const public_key =
+        test::from_hex("c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa");
+    auto const message =
+        test::from_hex("8c93255d71dcab10e8f379c26200f3c7bd5f09d9bc3068d3ef4edeb4853022b6");
+    auto const signature = test::from_hex(
+        "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a"
+        "0000000000000000000000000000000000000000000000000000000000000000");
+    auto const refused = crypto::verify<ed25519::strict, crypto::backends::sodium>(
+        crypto::eddsa, signature, message, public_key);
+    BOOST_TEST(refused.has_error() && refused.error() == crypto::error::invalid_signature);
 }
 
 void generated() {
@@ -264,9 +324,31 @@ int main() {
                   !std::is_copy_assignable_v<ed25519::keypair>);
     static_assert(std::is_nothrow_move_constructible_v<ed25519::keypair> &&
                   std::is_nothrow_move_assignable_v<ed25519::keypair>);
+    // An Ed25519 key pair signs a message with eddsa, never a digest, nor with another scheme;
+    // its 32 bytes verify eddsa.
+    static_assert(crypto::can_sign<ed25519::keypair, crypto::eddsa_t, std::array<std::uint8_t, 3>>);
+    static_assert(!crypto::can_sign<ed25519::keypair, crypto::eddsa_t, crypto::prehashed<32>>);
+    static_assert(
+        !crypto::can_sign<ed25519::keypair, crypto::ecdsa_sha256_t, std::array<std::uint8_t, 3>>);
+    static_assert(crypto::can_verify<crypto::eddsa_t, std::vector<std::uint8_t>,
+                                     std::array<std::uint8_t, 32>>);
+    static_assert(
+        !crypto::can_verify<crypto::eddsa_t, crypto::prehashed<32>, std::array<std::uint8_t, 32>>);
+    // Bytes verify eddsa through Ed25519's crypto::verify, so the catch-all steps aside; with
+    // another scheme bytes are no key, and the catch-all refuses them.
+    static_assert(crypto::detail::has_verifier_v<crypto::eddsa_t, std::array<std::uint8_t, 32>>);
+    static_assert(crypto::detail::has_verifier_v<crypto::eddsa_t, std::vector<std::uint8_t>>);
+    static_assert(
+        !crypto::detail::has_verifier_v<crypto::ecdsa_sha256_t, std::array<std::uint8_t, 32>>);
+    static_assert(std::is_void_v<crypto::detail::key_backend<std::array<std::uint8_t, 32>>::type>);
+    static_assert(std::is_same_v<crypto::detail::key_backend<ed25519::keypair>::type,
+                                 crypto::backends::sodium>);
     rfc8032();
     guards();
     refusals();
+    old_order_fails_closed();
+    empty_message();
+    small_order_key();
     generated();
     conversion();
     return test::exit_status(boost::report_errors());

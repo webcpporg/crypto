@@ -208,7 +208,7 @@ int sodium_ed25519() {
     seed.fill(0x42);
     Checker::mark_secret(seed);
     auto const pair = crypto::curves::ed25519::basic_keypair<sodium>::make(seed);
-    auto const signature = pair->sign(message);
+    auto const signature = pair->sign(crypto::eddsa, message);
     return check(signature.has_value() && carries_mark<Checker>(*signature),
                  "Ed25519 on libsodium");
 }

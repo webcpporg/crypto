@@ -20,6 +20,7 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/pem.hpp>
 #include <webcpp/crypto/random_device.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -270,8 +271,8 @@ void ed25519_round_trip() {
     BOOST_TEST(decoded.has_value());
     if (decoded) {
         BOOST_TEST(decoded->public_key().has_value() && *decoded->public_key() == *public_key);
-        auto const signed_again = decoded->sign(message);
-        auto const signed_first = pair->sign(message);
+        auto const signed_again = decoded->sign(crypto::eddsa, message);
+        auto const signed_first = pair->sign(crypto::eddsa, message);
         BOOST_TEST(signed_again.has_value() && signed_first.has_value() &&
                    *signed_again == *signed_first);
     }

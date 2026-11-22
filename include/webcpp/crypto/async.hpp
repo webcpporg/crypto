@@ -24,7 +24,8 @@
    - AES-GCM: `async_make`, `async_seal` and `async_open`, over `ciphers::gcm`. The other AEADs
      (ChaCha20-Poly1305 and its forms, the secret boxes) are not in WebCrypto: call their `seal`.
    - Ed25519: `async_make` (a key pair from its seed), `async_generate`, `async_sign` and
-     `async_verify`, over `curves::ed25519::basic_keypair` and `curves::ed25519::verify`. A key
+     `async_verify`, over `curves::ed25519::basic_keypair::sign` and `crypto::verify` with
+     `crypto::eddsa`. A key
      pair of an algorithm WebCrypto lacks (secp256k1) is not here: call its own signing function
      (`sign_ecdsa`, `sign_schnorr`).
    - X25519: `async_agree`, over `curves::x25519::agree`.
@@ -417,10 +418,10 @@ auto async_open(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
 
 /**
  * Signs a message with an Ed25519 or a P-256 key pair, asynchronously, when the operation is
- * initiated, its result posted to `executor`: Ed25519's `key_pair.sign(message)`; P-256's ECDSA,
- * `key_pair.sign(crypto::ecdsa_sha256, message)`, which hashes the message with SHA-256, as
- * WebCrypto's ECDSA with SHA-256 signs (RFC 6979's nonce: the same key and message give the same
- * signature; S low).
+ * initiated, its result posted to `executor`: Ed25519's `key_pair.sign(crypto::eddsa, message)`;
+ * P-256's ECDSA, `key_pair.sign(crypto::ecdsa_sha256, message)`, which hashes the message with
+ * SHA-256, as WebCrypto's ECDSA with SHA-256 signs (RFC 6979's nonce: the same key and message
+ * give the same signature; S low).
  *
  * `key_pair` and `message` are the caller's until the completion.
  *
@@ -457,15 +458,15 @@ auto async_sign(Executor const& executor, Keypair const& key_pair,
             });
         } else {
             return detail::complete_by_post(executor, token, [&key_pair, message]() noexcept {
-                return key_pair.sign(message);
+                return key_pair.sign(eddsa, message);
             });
         }
     }
 }
 
 /**
- * Verifies an Ed25519 signature, asynchronously: `curves::ed25519::verify<Policy, Backend>`
- * run when the operation is initiated, its result posted to `executor`.
+ * Verifies an Ed25519 signature, asynchronously: `crypto::verify<Policy, Backend>` with
+ * `crypto::eddsa`, run when the operation is initiated, its result posted to `executor`.
  *
  * The spans are the caller's until the completion.
  *
@@ -494,7 +495,7 @@ auto async_verify(Executor const& executor, std::span<std::uint8_t const> public
     } else {
         return detail::complete_by_post(
             executor, token, [public_key, message, signature]() noexcept {
-                return curves::ed25519::verify<Policy, Backend>(public_key, message, signature);
+                return crypto::verify<Policy, Backend>(eddsa, signature, message, public_key);
             });
     }
 }

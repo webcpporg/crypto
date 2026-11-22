@@ -562,13 +562,13 @@ public:
         : message_(filled<32>(static_cast<std::uint8_t>(seed + 4U))),
           key_(take(curves::ed25519::basic_keypair<Backend>::make(filled<32>(seed)), "make")) {}
 
-    std::uint8_t run() { return take(key_.sign(message_), "sign")[0]; }
+    std::uint8_t run() { return take(key_.sign(eddsa, message_), "sign")[0]; }
 
     bool check() {
-        auto const signature = take(key_.sign(message_), "sign");
+        auto const signature = take(key_.sign(eddsa, message_), "sign");
         auto const public_key = take(key_.public_key(), "public_key");
-        return curves::ed25519::verify<curves::ed25519::strict, Backend>(public_key, message_,
-                                                                         signature)
+        return crypto::verify<curves::ed25519::strict, Backend>(eddsa, signature, message_,
+                                                                public_key)
             .has_value();
     }
 

@@ -23,6 +23,7 @@
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -37,6 +38,7 @@
 #include <span>
 #include <vector>
 
+namespace crypto = webcpp::crypto;
 namespace ed25519 = webcpp::crypto::curves::ed25519;
 namespace x25519 = webcpp::crypto::curves::x25519;
 
@@ -162,13 +164,13 @@ bool ed25519_case(std::mt19937_64& rng, std::size_t index) {
         return false;
     }
     auto const public_key = pair->public_key();
-    auto signature = pair->sign(message);
+    auto signature = pair->sign(crypto::eddsa, message);
     BOOST_TEST(public_key.has_value());
     BOOST_TEST(signature.has_value());
     if (!public_key || !signature) {
         return false;
     }
-    BOOST_TEST(ed25519::verify(*public_key, message, *signature).has_value());
+    BOOST_TEST(crypto::verify(crypto::eddsa, *signature, message, *public_key).has_value());
     if (corrupted && index == corrupted_ed25519) {
         (*signature)[5] ^= 0x01U;
     }

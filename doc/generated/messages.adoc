@@ -137,7 +137,7 @@ The fix: Leave the backend out, as in `+curves::ed25519::keypair+`, or name `+ba
 |native, wasip2, wasip3
 |`+webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.+`
 
-The fix: Leave the policy out, as in `+curves::ed25519::verify(public_key, message, signature)+`, or name `+curves::ed25519::strict+`.
+The fix: Leave the policy out, as in `+crypto::verify(crypto::eddsa, signature, message, public_key)+`, or name `+curves::ed25519::strict+`.
 
 |`+ed25519ph_sha256+`
 |native, wasip2, wasip3
@@ -276,6 +276,12 @@ The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp2
 |`+webcpp::crypto: a secret of no bytes holds nothing.+`
 
 The fix: Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
+
+|`+sign_ed25519_prehashed+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure Ed25519) and takes no digest; Ed25519ph, which hashes the message, is curves::ed25519::ph.+`
+
+The fix: Sign the message itself with `+crypto::eddsa+`, RFC 8032's pure Ed25519, which takes no digest; to sign a message given in pieces, use Ed25519ph, `+curves::ed25519::ph<webcpp::hash::sha2_512>+`.
 
 |`+sign_p256_digest_48+`
 |native, wasip2, wasip3
@@ -722,7 +728,7 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: bearssl has no Ed25519. The backends that have it: sodium (native, wasip2, wasip3, emscripten).+`
 
-`+ed25519_unknown_policy_on_emscripten+`:: A program for Emscripten that names a policy of its own in Ed25519's `+verify+`. The fix: As `+ed25519_unknown_policy+`.
+`+ed25519_unknown_policy_on_emscripten+`:: A program for Emscripten that names a policy of its own in Ed25519's `+crypto::verify+`. The fix: As `+ed25519_unknown_policy+`.
 +
 Its Jamfile:
 +
@@ -1072,7 +1078,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+ed25519_unknown_policy+`
 |the compile
-|Leave the policy out, as in `+curves::ed25519::verify(public_key, message, signature)+`, or name `+curves::ed25519::strict+`.
+|Leave the policy out, as in `+crypto::verify(crypto::eddsa, signature, message, public_key)+`, or name `+curves::ed25519::strict+`.
 
 |`+ed25519ph_sha256+`
 |the compile

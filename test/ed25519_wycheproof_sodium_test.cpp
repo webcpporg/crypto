@@ -5,12 +5,13 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Ed25519 against Wycheproof's EdDSA file (testvectors_v1/ed25519_test.json) through
-// curves::ed25519::verify on libsodium, strict: every valid case accepted and every invalid
-// case refused with invalid_signature, without exception (a disagreement is reported, never
+// crypto::verify(crypto::eddsa, ...) on libsodium, strict: every valid case accepted and every
+// invalid case refused with invalid_signature, without exception (a disagreement is reported, never
 // listed away).
 
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -25,7 +26,6 @@
 #include <string_view>
 
 namespace crypto = webcpp::crypto;
-namespace ed25519 = webcpp::crypto::curves::ed25519;
 namespace test = webcpp::test;
 namespace json = boost::json;
 
@@ -56,7 +56,7 @@ int main() {
             auto const message = test::from_hex(text_of(tested.at("msg")));
             auto const signature = test::from_hex(text_of(tested.at("sig")));
             auto const verdict = text_of(tested.at("result"));
-            auto const verified = ed25519::verify(public_key, message, signature);
+            auto const verified = crypto::verify(crypto::eddsa, signature, message, public_key);
             auto label = "tcId " + std::to_string(tested.at("tcId").to_number<std::int64_t>());
             if (verdict == "valid") {
                 ++accepted;

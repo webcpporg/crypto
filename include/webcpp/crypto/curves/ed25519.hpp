@@ -6,8 +6,10 @@
 
 /**
  Ed25519 signatures (RFC 8032): a key pair made from a 32-byte seed, signatures of 64 bytes,
- verification, strict on libsodium, and the conversion of a public key to X25519's; and Ed25519ph,
- the same signature over SHA-512 of a message given in pieces.
+ `key.sign(crypto::eddsa, message)`, and their verification,
+ `crypto::verify(crypto::eddsa, signature, message, public_key)`, strict on libsodium; the
+ conversion of a public key to X25519's; and Ed25519ph, the same signature over SHA-512 of a
+ message given in pieces.
 
  The family's default backend, libsodium on every target, is included when the program links
  it; a program that uses the family without linking it stops where it calls it, with the
@@ -28,6 +30,7 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: random_device draws generate()'s seed
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/algorithms.hpp>  // webcpp::hash::sha2_512, Ed25519ph's hash (design D1)
 
 #include <boost/system/result.hpp>
@@ -195,23 +198,34 @@ public:
     }
 
     /**
-     * Signs a message.
+     * Signs a message with Ed25519 (RFC 8032's pure Ed25519: the message itself, of any length,
+     * empty included, is signed; no digest is taken).
      *
+     * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
+     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
+     * `crypto::prehashed` marker, or anything else, stops the build (Ed25519ph is @ref ph).
+     * @param scheme `crypto::eddsa`.
      * @param message Any bytes.
-     * @return The 64-byte signature; `invalid_state`; `backend_failure`.
+     * @return The 64-byte signature; `invalid_state` moved from; `backend_failure`.
      */
+    template <class Scheme, class Input>
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
-        std::span<std::uint8_t const> message) const noexcept {
+        [[maybe_unused]] Scheme scheme, Input const& message) const noexcept {
         detail::timing_guard const timing;
-        if (!keyed_) {
-            return error::invalid_state;
+        static_assert(std::is_same_v<Scheme, eddsa_t>,
+                      "webcpp::crypto: an Ed25519 key signs with crypto::eddsa.");
+        if constexpr (std::is_same_v<Scheme, eddsa_t>) {
+            detail::check_input<Scheme, Input, Backend>();
+            if constexpr (detail::input_valid_v<Scheme, Input, Backend>) {
+                return signed_message(detail::message_bytes(message));
+            } else {
+                // Never compiled into a program: check_input stopped the build.
+                return error::backend_failure;
+            }
+        } else {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
         }
-        std::array<std::uint8_t, 64> signature{};
-        auto const signed_message = engine::sign(state_, message, signature);
-        if (!signed_message) {
-            return signed_message.error();
-        }
-        return signature;
     }
 
     /**
@@ -236,6 +250,20 @@ public:
 private:
     basic_keypair() noexcept = default;
 
+    // The work of sign, which holds the guard: the signature of the message's bytes.
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> signed_message(
+        std::span<std::uint8_t const> message) const noexcept {
+        if (!keyed_) {
+            return error::invalid_state;
+        }
+        std::array<std::uint8_t, 64> signature{};
+        auto const signed_bytes = engine::sign(state_, message, signature);
+        if (!signed_bytes) {
+            return signed_bytes.error();
+        }
+        return signature;
+    }
+
     state_type state_{};
     bool keyed_ = false;
 };
@@ -248,33 +276,6 @@ using keypair = basic_keypair<>;
  * neither of small order (design D31).
  */
 struct strict {};
-
-/**
- * Verifies an Ed25519 signature under a verification policy (design D31).
- *
- * @tparam Policy `strict` (libsodium's rules), the only policy declared.
- * @tparam Backend The backend; by default the family's.
- * @param public_key 32 bytes.
- * @param message The signed bytes.
- * @param signature 64 bytes.
- * @return Nothing; `invalid_public_key` for a key of another size; `invalid_signature`.
- */
-template <class Policy = strict, class Backend = default_backend_t<families::ed25519>>
-[[nodiscard]] boost::system::result<void> verify(std::span<std::uint8_t const> public_key,
-                                                 std::span<std::uint8_t const> message,
-                                                 std::span<std::uint8_t const> signature) noexcept {
-    detail::timing_guard const timing;
-    static_assert(std::is_same_v<Policy, strict>,
-                  "webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.");
-    if (public_key.size() != 32) {
-        return error::invalid_public_key;
-    }
-    if (signature.size() != 64) {
-        return error::invalid_signature;
-    }
-    return detail::ed25519_engine<families::ed25519, Backend>::verify(
-        public_key.first<32>(), message, signature.first<64>());
-}
 
 /**
  * The X25519 public key of an Ed25519 public key (the birational map from edwards25519 to
@@ -427,23 +428,25 @@ public:
     /**
      * Verifies a signature of the message given, which it ends, strictly (design D31).
      *
-     * @param public_key 32 bytes.
      * @param signature 64 bytes.
+     * @param public_key 32 bytes.
      * @return Nothing; `invalid_state` once the message is ended, or moved from;
-     * `invalid_public_key` for a key of another size; `invalid_signature`.
+     * `invalid_signature` for a signature of another size, then `invalid_public_key` for a key of
+     * another size, so that the arguments given in the other order are refused as a signature;
+     * `invalid_signature`.
      */
     [[nodiscard]] boost::system::result<void> verify(
-        std::span<std::uint8_t const> public_key,
-        std::span<std::uint8_t const> signature) noexcept {
+        std::span<std::uint8_t const> signature,
+        std::span<std::uint8_t const> public_key) noexcept {
         detail::timing_guard const timing;
         if (!begun_) {
             return error::invalid_state;
         }
         boost::system::result<void> verified = error::invalid_signature;
-        if (public_key.size() != 32) {
-            verified = error::invalid_public_key;
-        } else if (signature.size() == 64) {
-            verified = engine::verify(state_, public_key.first<32>(), signature.first<64>());
+        if (signature.size() == 64) {
+            verified = public_key.size() == 32
+                           ? engine::verify(state_, public_key.first<32>(), signature.first<64>())
+                           : boost::system::result<void>(error::invalid_public_key);
         }
         end();
         return verified;
@@ -464,7 +467,93 @@ private:
 
 }  // namespace webcpp::crypto::curves::ed25519
 
+namespace webcpp::crypto {
+
+/**
+ * Verifies an Ed25519 signature (RFC 8032's pure Ed25519) under a verification policy (design
+ * D31).
+ *
+ * The signature comes first, as in every `verify`: the arguments of the order before it, a
+ * 32-byte key where the signature goes, are refused as a signature of another size.
+ *
+ * @tparam Policy `curves::ed25519::strict` (libsodium's rules), the only policy declared.
+ * @tparam Backend The backend; by default the family's.
+ * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
+ * `crypto::prehashed` marker, or anything else, stops the build.
+ * @param scheme `crypto::eddsa`.
+ * @param signature 64 bytes.
+ * @param message The signed bytes.
+ * @param public_key 32 bytes.
+ * @return Nothing; `invalid_signature` for a signature of another size, then
+ * `invalid_public_key` for a key of another size; `invalid_signature` for a signature that does
+ * not verify.
+ */
+template <class Policy = curves::ed25519::strict,
+          class Backend = default_backend_t<families::ed25519>, class Input>
+[[nodiscard]] boost::system::result<void> verify(
+    [[maybe_unused]] eddsa_t scheme, std::span<std::uint8_t const> signature, Input const& message,
+    std::span<std::uint8_t const> public_key) noexcept {
+    detail::timing_guard const timing;
+    static_assert(std::is_same_v<Policy, curves::ed25519::strict>,
+                  "webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.");
+    detail::check_input<eddsa_t, Input, Backend>();
+    if constexpr (detail::input_valid_v<eddsa_t, Input, Backend>) {
+        if (signature.size() != 64) {
+            return error::invalid_signature;
+        }
+        if (public_key.size() != 32) {
+            return error::invalid_public_key;
+        }
+        return detail::ed25519_engine<families::ed25519, Backend>::verify(
+            public_key.first<32>(), detail::message_bytes(message), signature.first<64>());
+    } else {
+        // Never compiled into a program: check_input stopped the build.
+        return error::invalid_signature;
+    }
+}
+
+}  // namespace webcpp::crypto
+
 namespace webcpp::crypto::detail {
+
+/**
+ * An Ed25519 key pair signs with `eddsa`.
+ *
+ * @tparam Backend The key pair's backend.
+ */
+template <class Backend>
+inline constexpr bool key_has_scheme_v<curves::ed25519::basic_keypair<Backend>, eddsa_t> = true;
+
+/**
+ * An Ed25519 key pair's backend.
+ *
+ * @tparam Backend The key pair's backend.
+ */
+template <class Backend>
+struct key_backend<curves::ed25519::basic_keypair<Backend>> {
+    /** The backend. */
+    using type = Backend;
+};
+
+/**
+ * An Ed25519 public key, its 32 bytes, verifies `eddsa`: any bytes that convert to
+ * `std::span<std::uint8_t const>`, whose size `verify` checks; its backend is `void`, the
+ * primary `key_backend`'s.
+ *
+ * @tparam Key The public key's type.
+ */
+template <class Key>
+    requires std::is_convertible_v<Key const&, std::span<std::uint8_t const>>
+inline constexpr bool key_has_scheme_v<Key, eddsa_t> = true;
+
+/**
+ * `crypto::verify` of `eddsa` against bytes is Ed25519's, so that the catch-all steps aside.
+ *
+ * @tparam Key The public key's type.
+ */
+template <class Key>
+    requires std::is_convertible_v<Key const&, std::span<std::uint8_t const>>
+inline constexpr bool has_verifier_v<eddsa_t, Key> = true;
 
 /**
  * Ed25519's engine on a backend whose header does not specialise it: the family's refusal,

@@ -30,6 +30,7 @@
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -177,7 +178,7 @@ void async_rfc8032(asio::io_context& context) {
         }
         auto const& signature = std::get<0>(*signed_async.value);
         BOOST_TEST(std::ranges::equal(signature, expected));
-        auto const signed_sync = key.sign(message);
+        auto const signed_sync = key.sign(crypto::eddsa, message);
         BOOST_TEST(signed_sync.has_value() && *signed_sync == signature);
         auto const verified = complete_code(context, [&](auto const& executor, auto&& token) {
             return crypto::async_verify<ed25519::strict, crypto::backends::sodium>(
@@ -228,12 +229,12 @@ void generated(asio::io_context& context) {
     auto& key = std::get<0>(*made.value);
     std::array<std::uint8_t, 5> const message{1, 2, 3, 4, 5};
     auto const public_key = key.public_key();
-    auto const signature = key.sign(message);
+    auto const signature = key.sign(crypto::eddsa, message);
     if (!BOOST_TEST(public_key.has_value()) || !BOOST_TEST(signature.has_value())) {
         return;
     }
-    auto const verified_sync = ed25519::verify<ed25519::strict, typename Keypair::backend_type>(
-        *public_key, message, *signature);
+    auto const verified_sync = crypto::verify<ed25519::strict, typename Keypair::backend_type>(
+        crypto::eddsa, *signature, message, *public_key);
     BOOST_TEST(verified_sync.has_value());
     auto const signed_async =
         complete<signature_type>(context, [&](auto const& executor, auto&& token) {
@@ -265,7 +266,7 @@ void async_make_refused(asio::io_context& context) {
     auto const& empty = std::get<0>(*made.value);
     std::array<std::uint8_t, 3> const message{1, 2, 3};
     BOOST_TEST(empty.public_key().error() == crypto::error::invalid_state);
-    BOOST_TEST(empty.sign(message).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.sign(crypto::eddsa, message).error() == crypto::error::invalid_state);
     BOOST_TEST(empty.x25519_secret().error() == crypto::error::invalid_state);
     auto const signed_empty = complete<signature_type>(context, [&](auto const& executor,
                                                                     auto&& token) {

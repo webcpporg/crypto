@@ -5,12 +5,14 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Ed25519ph on libsodium: RFC 8032 section 7.3's test, the message "abc" given in one piece and
-// in two, signed into the RFC's signature and verified; a signature changed in one bit and a
-// different message refused; a message is signed or verified once, and a moved-from signer and
-// a moved-from key pair are refused with invalid_state.
+// in two, signed into the RFC's signature and verified with verify(signature, public_key), the
+// signature first; the arguments in the other order refused as a signature; a signature changed
+// in one bit and a different message refused; a message is signed or verified once, and a
+// moved-from signer and a moved-from key pair are refused with invalid_state.
 
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/algorithms.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -70,27 +72,32 @@ void rfc8032_ph() {
         auto const signature = signing.sign(*key);
         BOOST_TEST(signature && std::ranges::equal(*signature, expected));
         auto verifying = begun(pieces);
-        BOOST_TEST(verifying.verify(public_key, expected).has_value());
+        BOOST_TEST(verifying.verify(expected, public_key).has_value());
     }
 
     // Changed in one bit, the signature is refused; so is another message.
     auto changed = expected;
     changed[40] ^= 0x01U;
     auto verifying = begun(two_pieces);
-    BOOST_TEST(verifying.verify(public_key, changed).error() == crypto::error::invalid_signature);
+    BOOST_TEST(verifying.verify(changed, public_key).error() == crypto::error::invalid_signature);
     auto other = begun({{0x61, 0x62}});
-    BOOST_TEST(other.verify(public_key, expected).error() == crypto::error::invalid_signature);
+    BOOST_TEST(other.verify(expected, public_key).error() == crypto::error::invalid_signature);
 
     // Ed25519ph's signature is not Ed25519's of the same message.
-    BOOST_TEST(ed25519::verify(public_key, abc, expected).error() ==
+    BOOST_TEST(crypto::verify(crypto::eddsa, expected, abc, public_key).error() ==
                crypto::error::invalid_signature);
+
+    // The arguments in the other order, (public_key, signature): the 32-byte key stands where
+    // the signature goes and is refused as a signature.
+    auto swapped = begun(one_piece);
+    BOOST_TEST(swapped.verify(public_key, expected).error() == crypto::error::invalid_signature);
 
     // Keys and signatures of other sizes.
     auto short_key = begun(one_piece);
-    BOOST_TEST(short_key.verify(std::span(public_key).first(31), expected).error() ==
+    BOOST_TEST(short_key.verify(expected, std::span(public_key).first(31)).error() ==
                crypto::error::invalid_public_key);
     auto short_signature = begun(one_piece);
-    BOOST_TEST(short_signature.verify(public_key, std::span(expected).first(63)).error() ==
+    BOOST_TEST(short_signature.verify(std::span(expected).first(63), public_key).error() ==
                crypto::error::invalid_signature);
 }
 
@@ -108,7 +115,7 @@ void spent_and_moved() {
     BOOST_TEST(signing.update(abc).error() == crypto::error::invalid_state);
     BOOST_TEST(signing.sign(*key).error() == crypto::error::invalid_state);
     BOOST_TEST(
-        signing.verify(test::from_hex(public_key_hex), test::from_hex(signature_hex)).error() ==
+        signing.verify(test::from_hex(signature_hex), test::from_hex(public_key_hex)).error() ==
         crypto::error::invalid_state);
 
     // Moved, the target carries the message on; the source is spent.

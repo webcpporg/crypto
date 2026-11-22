@@ -19,6 +19,7 @@
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <array>
 #include <cstddef>
@@ -145,7 +146,7 @@ int main(int argc, char** argv) {
                 test::choose(which, generator, zero, secret_key);
                 pair.emplace(*keypair::make(secret_key));
             },
-            [&] { static_cast<void>(pair->sign(message)); });
+            [&] { static_cast<void>(pair->sign(crypto::eddsa, message)); });
         results.record(
             "ed25519_sign", "Ed25519 signing", sign_t, true,
             {{"secret_key", secret_key.data()}, {"message", message.data()}, {"object", &*pair}});

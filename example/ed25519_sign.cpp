@@ -5,11 +5,13 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Signs RFC 8032's second Ed25519 test with a key pair made from its seed and verifies the
-// signature with the public key alone; then signs the message "abc" given in two pieces with
-// Ed25519ph, as RFC 8032's Ed25519ph test does, and verifies it. Prints each key and signature
-// in hex.
+// signature with the public key alone, `key.sign(crypto::eddsa, message)` and
+// `crypto::verify(crypto::eddsa, signature, message, public_key)`; then signs the message "abc"
+// given in two pieces with Ed25519ph, as RFC 8032's Ed25519ph test does, and verifies it with
+// `verify(signature, public_key)`. Prints each key and signature in hex.
 // tag::program[]
 #include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <webcpp/hash/algorithms.hpp>
 
@@ -19,6 +21,7 @@
 #include <cstdio>
 #include <span>
 
+namespace crypto = webcpp::crypto;
 namespace ed25519 = webcpp::crypto::curves::ed25519;
 
 namespace {
@@ -51,14 +54,14 @@ bool sign_whole() {
         return false;
     }
     auto const public_key = key->public_key();
-    auto const signature = key->sign(message);
+    auto const signature = key->sign(crypto::eddsa, message);
     if (!public_key || !signature) {
         return false;
     }
     print("public key", *public_key);
     print("signature ", *signature);
     // The verifier holds the public key, the message and the signature; nothing secret.
-    return ed25519::verify(*public_key, message, *signature).has_value();
+    return crypto::verify(crypto::eddsa, *signature, message, *public_key).has_value();
 }
 
 // Ed25519ph: the message given in pieces, as a large file is read, signed once at the end,
@@ -86,7 +89,7 @@ bool sign_in_pieces() {
     print("signature ", *signature);
     auto verifying = signer::begin();
     return verifying && verifying->update(first) && verifying->update(second) &&
-           verifying->verify(*public_key, *signature).has_value();
+           verifying->verify(*signature, *public_key).has_value();
 }
 
 }  // namespace

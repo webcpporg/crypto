@@ -193,7 +193,7 @@
 |<<crypto-overview-hash2,[.keep]`+equal_hmac.cpp+`>>
 
 |Sign and verify with Ed25519 (RFC 8032), or sign a large message in pieces with Ed25519ph
-|In `+curves::ed25519+`: `+keypair::make+`, `+keypair::generate+`, `+keypair::sign+`, `+verify+`; `+ph<webcpp::hash::sha2_512>+`
+|In `+curves::ed25519+`: `+keypair::make+`, `+keypair::generate+`, `+keypair::sign(crypto::eddsa, message)+`, `+crypto::verify+`; `+ph<webcpp::hash::sha2_512>+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//ed25519-default+`

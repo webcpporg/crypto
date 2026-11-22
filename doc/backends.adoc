@@ -162,17 +162,20 @@ a fixed one against random ones, read |t|
 2.24 to 2.29 and 1.84 to 2.19 natively and 1.36 to 2.51 and 1.85 to 2.08 under
 wasmtime on wasip2 against the same threshold (2026-11-21 UTC, two runs each,
 the lane's among them, on the same machine shared and loaded, a release
-build). The signing with its low-S step is pending the lane's rerun.
+build). The signing with its low-S step, rerun on 2026-11-22, was judged
+constant time too: |t| 1.70 on Linux (an arm64 container) and 1.63 natively on
+an Apple M5 Max, a release build, one run each; these are provisional, to be
+measured again in the final quiet pass.
 
-memcheck and MemorySanitizer last ran the lane on 2026-11-21 UTC with the
-command the CI runs it with, in an arm64 Linux container (Ubuntu 24.04, the
-image `linux-lint:arm64` of webcpp's Linux lint, Valgrind 3.22, clang 18), on
-an Apple M5 Max. Every path above passed under both, P-256's with webcpp's fix
-to BearSSL (<<crypto-backends-bearssl-fix>>) and its signing as it was before
-its low-S step, whose result with that step is pending the lane's rerun; the
-run before the fix, without it, both reported the nonce's leak. Each planted
-program failed where it must, and the lane's dudect programs passed there too:
-P-256's signing |t| 1.91 and `agree` 1.96, with `dudect_planted` at 34.89.
+memcheck and MemorySanitizer last ran the lane on 2026-11-22 with the command
+the CI runs it with, in an arm64 Linux container (Ubuntu 24.04, the image
+`linux-lint:arm64` of webcpp's Linux lint, Valgrind 3.22, clang 18), on an
+Apple M5 Max. Every path above passed under both, P-256's with webcpp's fix to
+BearSSL (<<crypto-backends-bearssl-fix>>) and its signing with its low-S step:
+neither found anything there. The run before the fix, without it, both
+reported the nonce's leak. Each planted program failed where it must, and the
+lane's dudect programs passed there too, with `dudect_planted` at 34.89 on the
+2026-11-21 run.
 
 One measurement is an open finding, listed under the table with its numbers:
 libsodium's X25519 `agree` under wasmtime, on wasip2. Its cause is measured:

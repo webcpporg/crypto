@@ -16,9 +16,13 @@
 
  - The cheap functions exist on every target, for the algorithms the browser's WebCrypto has.
    Each takes the executor its completion is posted to first. On a synchronous backend, their
-   default, they run the synchronous call at once (its guards and its work, on the caller's
-   thread) and complete through a post to that executor, whence the completion reaches the
-   handler's associated executor, never inside the initiating call.
+   default, they run the synchronous call when the operation is initiated (its guards and its
+   work, on the thread that initiates it: the caller's for a callback or `use_awaitable`, the one
+   that launches the operation for `deferred`) and complete through a post to that executor,
+   whence the completion reaches the handler's associated executor, never inside the initiating
+   call.
+   - AES-GCM: `async_make`, `async_seal` and `async_open`, over `ciphers::gcm`. The other AEADs
+     (ChaCha20-Poly1305 and its forms, the secret boxes) are not in WebCrypto: call their `seal`.
  - The heavy functions (design D32's list) take the work executor first (a
    `webcpp::asio::thread_pool`'s): they check their guards on the caller's thread, run the work on
    the work executor and complete on the handler's associated executor, with webcpp::hash's
@@ -37,12 +41,24 @@
 
  @code
  // exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//gcm-default /webcpp/asio//asio ;
- // A coroutine seals in place on the default backend; the completion, the error code and the
- // tag, is posted to the coroutine's executor.
  namespace asio = webcpp::asio;
- auto const executor = co_await asio::this_coro::executor;
- auto [code, tag] = co_await webcpp::crypto::async_seal(executor, aead, iv, ad, data,
-                                                        asio::as_tuple(asio::use_awaitable));
+ namespace crypto = webcpp::crypto;
+ using gcm = crypto::ciphers::gcm<crypto::ciphers::aes256<>>;
+
+ // A coroutine makes a key and seals in place on the default backend; each completion, the error
+ // code and the value, is posted to the coroutine's executor.
+ asio::awaitable<void> seal_message(std::span<std::uint8_t const> key,
+                                    std::span<std::uint8_t const> iv,
+                                    std::span<std::uint8_t const> additional_data,
+                                    std::span<std::uint8_t> data) {
+     auto const executor = co_await asio::this_coro::executor;
+     auto [made_code, aead] =
+         co_await crypto::async_make<gcm>(executor, key, asio::as_tuple(asio::use_awaitable));
+     if (made_code) { co_return; }
+     auto [code, tag] = co_await crypto::async_seal(executor, aead, iv, additional_data, data,
+                                                    asio::as_tuple(asio::use_awaitable));
+     // `data` holds the ciphertext and `tag` the tag when `code` is clear.
+ }
  @endcode
 
  @see "Asynchronous calls", in the guide.
@@ -53,11 +69,10 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/ciphers/gcm.hpp>
-#include <webcpp/crypto/curves/ed25519.hpp>
-#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/heavy.hpp>
+#include <webcpp/crypto/detail/timing.hpp>
 
 #include <webcpp/asio/append.hpp>
 #include <webcpp/asio/async_result.hpp>
@@ -66,6 +81,8 @@
 #include <boost/system/error_code.hpp>
 #include <boost/system/result.hpp>
 
+#include <cstdint>
+#include <span>
 #include <type_traits>
 #include <utility>
 
@@ -139,8 +156,9 @@ struct post_initiation {
 };
 
 /**
- * Initiates a cheap function on a synchronous backend (design D23): runs `operation()` at once,
- * on the caller's thread, and completes through a post to `executor`, never inside the call,
+ * Initiates a cheap function on a synchronous backend (design D23): runs `operation()` when the
+ * operation is initiated (on the initiating thread; for `deferred`, when the deferred operation
+ * is launched), and completes through a post to `executor`, never inside the call,
  * with `operation()`'s result split into its error code and its value.
  *
  * @tparam CompletionToken Any completion token, of signature `completion_of<R>::type`, `R`
@@ -161,7 +179,140 @@ auto complete_by_post(Executor const& executor, CompletionToken& token, Operatio
         post_initiation{}, token, executor, std::move(operation));
 }
 
+/** Whether `Type` is an AES-GCM, `ciphers::gcm<Cipher>`. */
+template <class Type>
+inline constexpr bool is_gcm_v = false;
+
+template <class Cipher>
+inline constexpr bool is_gcm_v<ciphers::gcm<Cipher>> = true;
+
+/** False for every type, so that a refusal's `static_assert` fires only when it is reached. */
+template <class Type>
+inline constexpr bool refused_v = false;
+
 }  // namespace detail
+
+/**
+ * Makes an AES-GCM object from a key, asynchronously: `Algorithm::make(key_bytes)` run when the
+ * operation is initiated, its result posted to `executor` (design D23). The key is read before
+ * the call returns on a synchronous backend, later on the browser's: it is the caller's until the
+ * completion.
+ *
+ * @tparam Algorithm A `ciphers::gcm<Cipher>`, on any backend of AES-GCM; the other algorithms
+ * WebCrypto has are made by their own overloads of the key pairs' functions.
+ * @param executor The executor the completion is posted to.
+ * @param key_bytes `Algorithm::key_size` bytes.
+ * @param token The completion token, of signature `void(boost::system::error_code, Algorithm)`;
+ * on an error the object is empty, and every member refuses with `invalid_state`
+ * (`invalid_key_size`, `errc::not_enough_memory`, `backend_failure`).
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Algorithm, class Executor, class CompletionToken>
+auto async_make(Executor const& executor, std::span<std::uint8_t const> key_bytes,
+                CompletionToken&& token) {
+    detail::timing_guard const timing;
+    if constexpr (!detail::is_gcm_v<Algorithm>) {
+        static_assert(detail::refused_v<Algorithm>,
+                      "webcpp::crypto: async_make takes AES-GCM, the algorithm WebCrypto has: "
+                      "call make for the others.");
+    } else {
+        using backend = Algorithm::backend_type;
+        if constexpr (detail::asynchronous_backend_v<backend>) {
+            return detail::async_engine<backend>::template make<Algorithm>(
+                executor, key_bytes, std::forward<CompletionToken>(token));
+        } else {
+            return detail::complete_by_post(
+                executor, token, [key_bytes]() noexcept { return Algorithm::make(key_bytes); });
+        }
+    }
+}
+
+/**
+ * Seals a message in place, asynchronously: `aead.seal(iv_bytes, additional_data_bytes,
+ * data_bytes)` run when the operation is initiated, its result posted to `executor`.
+ *
+ * `aead` and the spans are the caller's until the completion: a synchronous backend reads and
+ * writes them before the call returns, the browser's later. `data_bytes` holds the ciphertext at
+ * the completion. A guard's refusal (`invalid_iv_size`, `message_too_long`, `invalid_state`)
+ * leaves it untouched, a backend's failure zeroes it, as `seal` does.
+ *
+ * @tparam Gcm A `ciphers::gcm<Cipher>`; the other AEADs are not in WebCrypto: call their `seal`.
+ * @param executor The executor the completion is posted to.
+ * @param aead The keyed object.
+ * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key.
+ * @param additional_data_bytes Authenticated, not encrypted.
+ * @param data_bytes The message.
+ * @param token The completion token, of signature `void(boost::system::error_code,
+ * Gcm::result_type)`: the tag; on an error the zeroed tag.
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Gcm, class Executor, class CompletionToken>
+auto async_seal(Executor const& executor, Gcm& aead, std::span<std::uint8_t const> iv_bytes,
+                std::span<std::uint8_t const> additional_data_bytes,
+                std::span<std::uint8_t> data_bytes, CompletionToken&& token) {
+    detail::timing_guard const timing;
+    if constexpr (!detail::is_gcm_v<Gcm>) {
+        static_assert(detail::refused_v<Gcm>,
+                      "webcpp::crypto: async_seal takes AES-GCM, the AEAD WebCrypto has: call seal "
+                      "for the others.");
+    } else {
+        using backend = Gcm::backend_type;
+        if constexpr (detail::asynchronous_backend_v<backend>) {
+            return detail::async_engine<backend>::seal(executor, aead, iv_bytes,
+                                                       additional_data_bytes, data_bytes,
+                                                       std::forward<CompletionToken>(token));
+        } else {
+            return detail::complete_by_post(
+                executor, token, [&aead, iv_bytes, additional_data_bytes, data_bytes]() noexcept {
+                    return aead.seal(iv_bytes, additional_data_bytes, data_bytes);
+                });
+        }
+    }
+}
+
+/**
+ * Opens a message in place, asynchronously: `aead.open(iv_bytes, additional_data_bytes,
+ * data_bytes, tag_bytes)` run when the operation is initiated, its result posted to `executor`.
+ *
+ * `aead` and the spans are the caller's until the completion. `data_bytes` holds the plaintext at
+ * a successful completion; a wrong tag (`authentication_failed`) or a backend's failure zeroes
+ * it, a guard's refusal leaves it untouched, as `open` does.
+ *
+ * @tparam Gcm A `ciphers::gcm<Cipher>`; the other AEADs are not in WebCrypto: call their `open`.
+ * @param executor The executor the completion is posted to.
+ * @param aead The keyed object.
+ * @param iv_bytes The IV of the seal.
+ * @param additional_data_bytes The additional data of the seal.
+ * @param data_bytes The ciphertext.
+ * @param tag_bytes The seal's tag, 16 bytes.
+ * @param token The completion token, of signature `void(boost::system::error_code)`.
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Gcm, class Executor, class CompletionToken>
+auto async_open(Executor const& executor, Gcm& aead, std::span<std::uint8_t const> iv_bytes,
+                std::span<std::uint8_t const> additional_data_bytes,
+                std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
+                CompletionToken&& token) {
+    detail::timing_guard const timing;
+    if constexpr (!detail::is_gcm_v<Gcm>) {
+        static_assert(detail::refused_v<Gcm>,
+                      "webcpp::crypto: async_open takes AES-GCM, the AEAD WebCrypto has: call open "
+                      "for the others.");
+    } else {
+        using backend = Gcm::backend_type;
+        if constexpr (detail::asynchronous_backend_v<backend>) {
+            return detail::async_engine<backend>::open(executor, aead, iv_bytes,
+                                                       additional_data_bytes, data_bytes, tag_bytes,
+                                                       std::forward<CompletionToken>(token));
+        } else {
+            return detail::complete_by_post(
+                executor, token,
+                [&aead, iv_bytes, additional_data_bytes, data_bytes, tag_bytes]() noexcept {
+                    return aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
+                });
+        }
+    }
+}
 
 }  // namespace webcpp::crypto
 

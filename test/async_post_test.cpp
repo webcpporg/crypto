@@ -24,10 +24,14 @@
 //   plain use_awaitable throws).
 // - post_error_value: an error completes with its code and the empty value (ruling R-A3): a
 //   secret<32> and an array of zeros.
-// Tasks 4.A3 and 4.A4 add async_seal's and async_verify's cases to each check: each check takes
-// the operation's start as a callable of (executor, token).
+// - post_gcm: the same cases through AES-GCM's async_make, async_seal and async_open (the
+//   functions the family really has, Task 4.A3): never inside the call, the work done when the
+//   call returns, a bound executor, the handler's allocator, every token, an error's empty
+//   value. Task 4.A4 adds async_verify's.
+// Each check takes the operation's start as a callable of (executor, token).
 
 #include <webcpp/crypto/async.hpp>
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -60,6 +64,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
+#include <span>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -326,6 +331,27 @@ void check_allocator(asio::io_context& context, Start made, Start refused) {
     BOOST_TEST_EQ(failed.news, 0U);
 }
 
+// check_allocator for a start whose refusal is `expected`, the value type spelled.
+template <class Value, class Made, class Refused>
+void check_allocator_with(asio::io_context& context, Made made, Refused refused,
+                          boost::system::error_code expected) {
+    allocator_call done;
+    start_counted<Value>(context, made, done);
+    BOOST_TEST_EQ(done.calls, 1);
+    BOOST_TEST(!done.code);
+    BOOST_TEST_EQ(done.held_at_call, 0);
+    BOOST_TEST_GE(done.taken, 1);
+    BOOST_TEST_EQ(done.news, 0U);
+
+    allocator_call failed;
+    start_counted<Value>(context, refused, failed);
+    BOOST_TEST_EQ(failed.calls, 1);
+    BOOST_TEST(failed.code == expected);
+    BOOST_TEST_EQ(failed.held_at_call, 0);
+    BOOST_TEST_GE(failed.taken, 1);
+    BOOST_TEST_EQ(failed.news, 0U);
+}
+
 void post_allocator(asio::io_context& context) {
     // One uncounted call first, so that what the runtime makes once is outside the windows.
     allocator_call warm;
@@ -444,6 +470,260 @@ void post_error_value(asio::io_context& context) {
     BOOST_TEST(refused_check.code == crypto::error::invalid_input_size);
 }
 
+// AES-GCM through the family's real functions, on the default backend. The fixture: a key, an IV,
+// four bytes of additional data and forty of data, which a seal changes.
+struct gcm_fixture {
+    using gcm = crypto::ciphers::aes256_gcm;
+    std::array<std::uint8_t, 32> key{};
+    std::array<std::uint8_t, 12> iv{};
+    std::array<std::uint8_t, 4> additional_data{1, 2, 3, 4};
+    std::array<std::uint8_t, 40> data{};
+    std::array<std::uint8_t, 129> long_iv{};
+    std::array<std::uint8_t, 16> tag{};
+    gcm aead;
+
+    gcm_fixture() : aead(*gcm::make(key)) { data.fill(0x5a); }
+
+    auto seal() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_seal(executor, aead, iv, additional_data, data,
+                                      std::forward<decltype(token)>(token));
+        };
+    }
+
+    auto seal_refused() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_seal(executor, aead, long_iv, additional_data, data,
+                                      std::forward<decltype(token)>(token));
+        };
+    }
+
+    auto open() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_open(executor, aead, iv, additional_data, data, tag,
+                                      std::forward<decltype(token)>(token));
+        };
+    }
+
+    auto open_refused() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_open(executor, aead, long_iv, additional_data, data, tag,
+                                      std::forward<decltype(token)>(token));
+        };
+    }
+
+    auto make() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_make<gcm>(executor, key, std::forward<decltype(token)>(token));
+        };
+    }
+
+    auto make_refused() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_make<gcm>(executor, std::span(key).first(31),
+                                           std::forward<decltype(token)>(token));
+        };
+    }
+};
+
+using gcm_tag = gcm_fixture::gcm::result_type;
+
+void post_gcm_inline(asio::io_context& context) {
+    gcm_fixture fixture;
+    auto const plaintext = fixture.data;
+    // The seal ran when the call returned (the data is the ciphertext), the completion after.
+    seen<gcm_tag> sealed;
+    bool returned = false;
+    fixture.seal()(context.get_executor(), [&](boost::system::error_code code, gcm_tag tag) {
+        ++sealed.calls;
+        sealed.after_return = returned;
+        sealed.code = code;
+        sealed.value = std::tuple<gcm_tag>(tag);
+    });
+    returned = true;
+    BOOST_TEST_EQ(sealed.calls, 0);
+    BOOST_TEST(fixture.data != plaintext);
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST_EQ(sealed.calls, 1);
+    BOOST_TEST(sealed.after_return);
+    BOOST_TEST(!sealed.code);
+    std::ranges::copy(std::get<0>(sealed.value), fixture.tag.begin());
+
+    // The open, no value: the plaintext is back when the call returns.
+    seen<> opened;
+    returned = false;
+    fixture.open()(context.get_executor(), [&](boost::system::error_code code) {
+        ++opened.calls;
+        opened.after_return = returned;
+        opened.code = code;
+    });
+    returned = true;
+    BOOST_TEST_EQ(opened.calls, 0);
+    BOOST_TEST(fixture.data == plaintext);
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST_EQ(opened.calls, 1);
+    BOOST_TEST(opened.after_return);
+    BOOST_TEST(!opened.code);
+
+    // A refusal is posted too, with the zeroed tag, and leaves the data untouched.
+    seen<gcm_tag> refused;
+    fixture.seal_refused()(context.get_executor(),
+                           [&](boost::system::error_code code, gcm_tag tag) {
+                               ++refused.calls;
+                               refused.code = code;
+                               refused.value = std::tuple<gcm_tag>(tag);
+                           });
+    BOOST_TEST_EQ(refused.calls, 0);
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST_EQ(refused.calls, 1);
+    BOOST_TEST(refused.code == crypto::error::invalid_iv_size);
+    BOOST_TEST(all_bytes(std::get<0>(refused.value), 0));
+    BOOST_TEST(fixture.data == plaintext);
+}
+
+void post_gcm_bound_executor() {
+    gcm_fixture fixture;
+    // The open needs a sealed message.
+    auto const sealed = fixture.aead.seal(fixture.iv, fixture.additional_data, fixture.data);
+    if (BOOST_TEST(sealed.has_value())) {
+        std::ranges::copy(*sealed, fixture.tag.begin());
+    }
+    complete_on_bound<>(fixture.open());
+    complete_on_bound<gcm_tag>(fixture.seal());
+    complete_on_bound<gcm_fixture::gcm>(fixture.make());
+}
+
+void post_gcm_allocator(asio::io_context& context) {
+    gcm_fixture fixture;
+    allocator_call warm;
+    start_counted<gcm_tag>(context, fixture.seal(), warm);
+    BOOST_TEST_EQ(warm.calls, 1);
+    // A seal changes the data and tag; the open of the next call needs its tag.
+    allocator_call sealed;
+    start_counted<gcm_tag>(context, fixture.seal(), sealed);
+    BOOST_TEST(!sealed.code);
+    BOOST_TEST_EQ(sealed.held_at_call, 0);
+    BOOST_TEST_GE(sealed.taken, 1);
+    BOOST_TEST_EQ(sealed.news, 0U);
+    allocator_call refused;
+    start_counted<gcm_tag>(context, fixture.seal_refused(), refused);
+    BOOST_TEST(refused.code == crypto::error::invalid_iv_size);
+    BOOST_TEST_EQ(refused.held_at_call, 0);
+    BOOST_TEST_GE(refused.taken, 1);
+    BOOST_TEST_EQ(refused.news, 0U);
+    // An open (no value) with a refusal, then a make (an object) and its refusal.
+    allocator_call open_refused;
+    start_counted<>(context, fixture.open_refused(), open_refused);
+    BOOST_TEST(open_refused.code == crypto::error::invalid_iv_size);
+    BOOST_TEST_EQ(open_refused.held_at_call, 0);
+    BOOST_TEST_GE(open_refused.taken, 1);
+    BOOST_TEST_EQ(open_refused.news, 0U);
+    check_allocator_with<gcm_fixture::gcm>(context, fixture.make(), fixture.make_refused(),
+                                           crypto::error::invalid_key_size);
+}
+
+void post_gcm_tokens(asio::io_context& context) {
+    gcm_fixture fixture;
+    auto const plaintext = fixture.data;
+    auto const executor = context.get_executor();
+
+#ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+    auto future_tag = crypto::async_seal(executor, fixture.aead, fixture.iv,
+                                         fixture.additional_data, fixture.data, asio::use_future);
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    std::ranges::copy(future_tag.get(), fixture.tag.begin());
+    BOOST_TEST(fixture.data != plaintext);
+    auto future_open =
+        crypto::async_open(executor, fixture.aead, fixture.iv, fixture.additional_data,
+                           fixture.data, fixture.tag, asio::use_future);
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    future_open.get();
+    BOOST_TEST(fixture.data == plaintext);
+    auto future_made =
+        crypto::async_make<gcm_fixture::gcm>(executor, fixture.key, asio::use_future);
+    auto future_refused = crypto::async_make<gcm_fixture::gcm>(
+        executor, std::span(fixture.key).first(31), asio::use_future);
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    static_cast<void>(future_made.get());
+    bool thrown = false;
+    try {
+        static_cast<void>(future_refused.get());
+    } catch (boost::system::system_error const& failure) {
+        thrown = failure.code() == crypto::error::invalid_key_size;
+    }
+    BOOST_TEST(thrown);
+#endif
+
+    // deferred: the synchronous call runs when the operation is launched, not when it is made.
+    auto operation = crypto::async_seal(executor, fixture.aead, fixture.iv, fixture.additional_data,
+                                        fixture.data, asio::deferred);
+    BOOST_TEST(fixture.data == plaintext);
+    int deferred_calls = 0;
+    std::move(operation)([&](boost::system::error_code code, gcm_tag tag) {
+        ++deferred_calls;
+        BOOST_TEST(!code);
+        std::ranges::copy(tag, fixture.tag.begin());
+    });
+    BOOST_TEST(fixture.data != plaintext);
+    BOOST_TEST_EQ(deferred_calls, 0);
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST_EQ(deferred_calls, 1);
+
+    // as_tuple: the code and the value in one argument; the open, the code alone.
+    int tuples = 0;
+    crypto::async_open(executor, fixture.aead, fixture.iv, fixture.additional_data, fixture.data,
+                       fixture.tag, asio::as_tuple([&](std::tuple<boost::system::error_code> done) {
+                           ++tuples;
+                           BOOST_TEST(!std::get<0>(done));
+                       }));
+    crypto::async_seal(executor, fixture.aead, fixture.long_iv, fixture.additional_data,
+                       fixture.data,
+                       asio::as_tuple([&](std::tuple<boost::system::error_code, gcm_tag> done) {
+                           ++tuples;
+                           BOOST_TEST(std::get<0>(done) == crypto::error::invalid_iv_size);
+                           BOOST_TEST(all_bytes(std::get<1>(done), 0));
+                       }));
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST_EQ(tuples, 2);
+    BOOST_TEST(fixture.data == plaintext);
+
+    // use_awaitable in a coroutine of the context: a refusal through as_tuple.
+    bool done = false;
+    asio::co_spawn(
+        context,
+        [&]() -> asio::awaitable<void> {
+            auto const coro = co_await asio::this_coro::executor;
+            auto [made_code, made] = co_await crypto::async_make<gcm_fixture::gcm>(
+                coro, std::span(fixture.key).first(31), asio::as_tuple(asio::use_awaitable));
+            BOOST_TEST(made_code == crypto::error::invalid_key_size);
+            BOOST_TEST(made.seal(fixture.iv, {}, fixture.data).error() ==
+                       crypto::error::invalid_state);
+            auto [seal_code, tag] =
+                co_await crypto::async_seal(coro, fixture.aead, fixture.iv, fixture.additional_data,
+                                            fixture.data, asio::as_tuple(asio::use_awaitable));
+            BOOST_TEST(!seal_code);
+            BOOST_TEST(fixture.data != plaintext);
+            auto [open_code] = co_await crypto::async_open(
+                coro, fixture.aead, fixture.iv, fixture.additional_data, fixture.data,
+                std::span(tag.data(), tag.size()), asio::as_tuple(asio::use_awaitable));
+            BOOST_TEST(!open_code);
+            BOOST_TEST(fixture.data == plaintext);
+            done = true;
+        },
+        [](std::exception_ptr const& failure) { BOOST_TEST(!failure); });
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST(done);
+}
+
 // The asynchronous default is the synchronous one, on every target (ruling R-A4), and no
 // synchronous backend completes by itself: part B's backends::browser alone will.
 template <class Family>
@@ -464,5 +744,9 @@ int main() {
     post_allocator(context);
     post_tokens(context);
     post_error_value(context);
+    post_gcm_inline(context);
+    post_gcm_bound_executor();
+    post_gcm_allocator(context);
+    post_gcm_tokens(context);
     return webcpp::test::exit_status(boost::report_errors());
 }

@@ -13,7 +13,8 @@
 //
 // What it covers, by family; a family BearSSL gains adds its line and its checks:
 // - AES-GCM, gcm<aes128>, gcm<aes192> and gcm<aes256>: make, the move constructor and move
-//   assignment (ruling R3), seal, open, begin_seal, update, result.
+//   assignment (ruling R3), seal, open, begin_seal, update, result, and the asynchronous
+//   async_make, async_seal and async_open.
 // - ChaCha20-Poly1305, aead: make, seal, open.
 
 #include "support/timing_seam.hpp"
@@ -37,10 +38,16 @@ using crypto::backends::bearssl;
 void cover_ciphers() {
     webcpp::test::cover_gcm<crypto::ciphers::gcm<crypto::ciphers::aes128<bearssl>>>("aes128_gcm",
                                                                                     "bearssl");
+    webcpp::test::cover_async_gcm<crypto::ciphers::gcm<crypto::ciphers::aes128<bearssl>>>(
+        "aes128_gcm", "bearssl");
     webcpp::test::cover_gcm<crypto::ciphers::gcm<crypto::ciphers::aes192<bearssl>>>("aes192_gcm",
                                                                                     "bearssl");
+    webcpp::test::cover_async_gcm<crypto::ciphers::gcm<crypto::ciphers::aes192<bearssl>>>(
+        "aes192_gcm", "bearssl");
     webcpp::test::cover_gcm<crypto::ciphers::gcm<crypto::ciphers::aes256<bearssl>>>("aes256_gcm",
                                                                                     "bearssl");
+    webcpp::test::cover_async_gcm<crypto::ciphers::gcm<crypto::ciphers::aes256<bearssl>>>(
+        "aes256_gcm", "bearssl");
     webcpp::test::cover_aead<crypto::ciphers::chacha20_poly1305<bearssl>>("chacha20_poly1305",
                                                                           "bearssl");
 }

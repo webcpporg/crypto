@@ -15,19 +15,24 @@
 
 #include "timing_seam.hpp"
 
+#include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/ciphers/aead.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 
+#include <webcpp/asio/io_context.hpp>
+
 #include <boost/core/lightweight_test.hpp>
+#include <boost/system/error_code.hpp>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace webcpp::test {
@@ -315,6 +320,94 @@ void cover_gcm(std::string const& family, std::string const& backend) {
         cover_gcm_messages(*made, family, on);
     }
     cover_gcm_moves<Gcm>(family, on);
+}
+
+/**
+ * A completion handler of `cover_async_gcm` that counts its completions and, given a tag's
+ * address, keeps the tag. Not a lambda: a lambda in a template argument keeps
+ * `names_function` from reading the guard's function (support/timing_seam.hpp).
+ */
+template <class Tag>
+struct async_gcm_completion {
+    /** Counts the completion. */
+    int* completions;
+    /** Where a seal's tag is kept, or null. */
+    Tag* tag = nullptr;
+
+    /** A completion with an error code alone. */
+    void operator()(boost::system::error_code /*code*/) const { ++*completions; }
+
+    /** A completion with a value, which is the tag of a seal or an object that is dropped. */
+    template <class Value>
+    void operator()(boost::system::error_code /*code*/, Value&& value) const {
+        ++*completions;
+        if constexpr (std::is_same_v<std::remove_cvref_t<Value>, Tag>) {
+            if (tag != nullptr) {
+                *tag = value;
+            }
+        }
+    }
+};
+
+/**
+ * gcm's asynchronous functions, `async_make`, `async_seal` and `async_open`, each called with
+ * valid input and with input refused before the backend, an `io_context` run after each call so
+ * that its completion is delivered. The first guard each enters is its own (the synchronous call
+ * it makes holds another, which runs second).
+ *
+ * @tparam Gcm `gcm<aes128<Backend>>`, `gcm<aes192<Backend>>` or `gcm<aes256<Backend>>`.
+ * @param family The algorithm's name, `aes128_gcm` or `aes256_gcm`.
+ * @param backend The backend's name.
+ */
+template <class Gcm>
+void cover_async_gcm(std::string const& family, std::string const& backend) {
+    namespace crypto = webcpp::crypto;
+    std::string const on = " on " + backend;
+    webcpp::asio::io_context context;
+    auto const executor = context.get_executor();
+    auto const key = coverage_key<Gcm::key_size>();
+    int completions = 0;
+    typename Gcm::result_type kept{};
+    async_gcm_completion<typename Gcm::result_type> const counted{&completions};
+    async_gcm_completion<typename Gcm::result_type> const keeping{&completions, &kept};
+    // Each call's completion is delivered before the next call.
+    auto const deliver = [&context] {
+        context.restart();
+        context.run();  // lint-run: the test's event loop
+    };
+    covered(family + "::async_make" + on, "crypto::async_make", [&] {
+        crypto::async_make<Gcm>(executor, key, counted);
+        deliver();
+    });
+    covered(family + "::async_make with a short key" + on, "crypto::async_make", [&] {
+        crypto::async_make<Gcm>(executor, std::span(key).first(Gcm::key_size - 1), counted);
+        deliver();
+    });
+    auto made = Gcm::make(key);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    gcm_coverage_message<Gcm> message;
+    covered(family + "::async_seal" + on, "crypto::async_seal", [&] {
+        crypto::async_seal(executor, *made, message.iv, message.additional_data, message.data,
+                           keeping);
+        deliver();
+    });
+    covered(family + "::async_open" + on, "crypto::async_open", [&] {
+        crypto::async_open(executor, *made, message.iv, message.additional_data, message.data,
+                           std::span(kept.data(), kept.size()), counted);
+        deliver();
+    });
+    covered(family + "::async_seal with an empty IV" + on, "crypto::async_seal", [&] {
+        crypto::async_seal(executor, *made, {}, message.additional_data, message.data, counted);
+        deliver();
+    });
+    covered(family + "::async_open with an empty IV" + on, "crypto::async_open", [&] {
+        crypto::async_open(executor, *made, {}, message.additional_data, message.data,
+                           std::span(kept.data(), kept.size()), counted);
+        deliver();
+    });
+    BOOST_TEST_EQ(completions, 6);
 }
 
 /**

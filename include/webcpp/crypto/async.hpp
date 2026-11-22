@@ -244,7 +244,7 @@ auto async_make(Executor const& executor, std::span<std::uint8_t const> key_byte
     if constexpr (!detail::is_gcm_v<Algorithm> && !detail::is_ed25519_keypair_v<Algorithm>) {
         static_assert(detail::refused_v<Algorithm>,
                       "webcpp::crypto: async_make takes AES-GCM or a key pair of an algorithm "
-                      "WebCrypto has (Ed25519, P-256): call make for the others.");
+                      "WebCrypto has (Ed25519, P-256): call the synchronous make for the others.");
     } else {
         using backend = Algorithm::backend_type;
         if constexpr (detail::asynchronous_backend_v<backend>) {
@@ -276,7 +276,7 @@ auto async_generate(Executor const& executor, CompletionToken&& token) {
     if constexpr (!detail::is_ed25519_keypair_v<Keypair>) {
         static_assert(detail::refused_v<Keypair>,
                       "webcpp::crypto: async_generate takes a key pair of an algorithm WebCrypto "
-                      "has (Ed25519, P-256): call generate for the others.");
+                      "has (Ed25519, P-256): call the synchronous generate for the others.");
     } else {
         using backend = Keypair::backend_type;
         if constexpr (detail::asynchronous_backend_v<backend>) {
@@ -396,9 +396,10 @@ auto async_sign(Executor const& executor, Keypair const& key_pair,
                 std::span<std::uint8_t const> message, CompletionToken&& token) {
     detail::timing_guard const timing;
     if constexpr (!detail::is_ed25519_keypair_v<Keypair>) {
-        static_assert(detail::refused_v<Keypair>,
-                      "webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has "
-                      "(Ed25519, P-256): call the key pair's sign for the others.");
+        static_assert(
+            detail::refused_v<Keypair>,
+            "webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has "
+            "(Ed25519, P-256): call the key pair's synchronous signing function for the others.");
     } else {
         using backend = Keypair::backend_type;
         if constexpr (detail::asynchronous_backend_v<backend>) {
@@ -417,14 +418,14 @@ auto async_sign(Executor const& executor, Keypair const& key_pair,
  * run when the operation is initiated, its result posted to `executor`. The spans are the
  * caller's until the completion.
  *
- * @tparam Policy The verification policy, `curves::ed25519::strict`.
+ * @tparam Policy The verification policy; `curves::ed25519::strict` is the only one declared.
  * @tparam Backend The backend; by default the asynchronous family's.
  * @param executor The executor the completion is posted to.
  * @param public_key 32 bytes.
  * @param message The signed bytes.
  * @param signature 64 bytes.
  * @param token The completion token, of signature `void(boost::system::error_code)`:
- * `invalid_public_key` for a key of another size, `invalid_signature`.
+ * `invalid_public_key` for a key of another size, `invalid_signature`, `backend_failure`.
  * @return What the completion token's `async_result` gives.
  */
 template <class Policy = curves::ed25519::strict,

@@ -9,7 +9,7 @@
 // compiles.
 
 // clang-format off
-// expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the key pair's sign for the others.}}
+// expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the key pair's synchronous signing function for the others.}}
 // clang-format on
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>

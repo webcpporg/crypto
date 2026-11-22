@@ -325,12 +325,12 @@ void cover_gcm(std::string const& family, std::string const& backend) {
 }
 
 /**
- * A completion handler of `cover_async_gcm` that counts its completions and, given a tag's
- * address, keeps the tag. Not a lambda: a lambda in a template argument keeps
+ * A completion handler of the `cover_async_*` functions that counts its completions and, given a
+ * tag's address, keeps the tag. Not a lambda: a lambda in a template argument keeps
  * `names_function` from reading the guard's function (support/timing_seam.hpp).
  */
-template <class Tag>
-struct async_gcm_completion {
+template <class Tag = void>
+struct async_completion_counter {
     /** Counts the completion. */
     int* completions;
     /** Where a seal's tag is kept, or null. */
@@ -370,8 +370,8 @@ void cover_async_gcm(std::string const& family, std::string const& backend) {
     auto const key = coverage_key<Gcm::key_size>();
     int completions = 0;
     typename Gcm::result_type kept{};
-    async_gcm_completion<typename Gcm::result_type> const counted{&completions};
-    async_gcm_completion<typename Gcm::result_type> const keeping{&completions, &kept};
+    async_completion_counter<typename Gcm::result_type> const counted{&completions};
+    async_completion_counter<typename Gcm::result_type> const keeping{&completions, &kept};
     // Each call's completion is delivered before the next call.
     auto const deliver = [&context] {
         context.restart();
@@ -434,8 +434,8 @@ void cover_async_ed25519(std::string const& backend) {
     std::array<std::uint8_t, 3> const message{1, 2, 3};
     int completions = 0;
     signature_type kept{};
-    async_gcm_completion<signature_type> const counted{&completions};
-    async_gcm_completion<signature_type> const keeping{&completions, &kept};
+    async_completion_counter<signature_type> const counted{&completions};
+    async_completion_counter<signature_type> const keeping{&completions, &kept};
     // Each call's completion is delivered before the next call.
     auto const deliver = [&context] {
         context.restart();
@@ -507,7 +507,7 @@ void cover_async_x25519(std::string const& backend) {
         return;
     }
     int completions = 0;
-    async_gcm_completion<std::array<std::uint8_t, 64>> const counted{&completions};
+    async_completion_counter<> const counted{&completions};
     covered("x25519::async_agree" + on, "crypto::async_agree", [&] {
         crypto::async_agree<Backend>(executor, alice, *bob, counted);
         context.restart();

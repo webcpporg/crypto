@@ -18,6 +18,10 @@
 // - async_rfc7748: section 6.1's Alice and Bob through async_agree give the RFC's shared secret;
 //   a peer key of low order completes with weak_public_key and a secret of zeros; a short key
 //   with invalid_key_size.
+// - async_destroyed: the key pair, the message and the keys destroyed after the initiating call
+//   returns and before the completion: a synchronous backend has read them already, so the
+//   completion gives the right result (the browser's backend will read them later: they are the
+//   caller's until the completion, as the documentation says).
 // - async_coroutine: the same in one coroutine of the context.
 
 #include <webcpp/crypto/async.hpp>
@@ -45,6 +49,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -320,6 +325,45 @@ void async_rfc7748(asio::io_context& context) {
     BOOST_TEST(short_peer.code == crypto::error::invalid_public_key);
 }
 
+void async_destroyed(asio::io_context& context) {
+    auto const& tested = rfc8032_cases[0];
+    auto const expected = test::from_hex(tested.signature);
+    signature_type signature{};
+    boost::system::error_code sign_code;
+    boost::system::error_code agree_code;
+    std::array<std::uint8_t, 32> shared{};
+    {
+        auto key = keypair::make(test::from_hex(tested.secret_key));
+        auto message = std::make_unique<std::vector<std::uint8_t>>(test::from_hex(tested.message));
+        auto secret_key = std::make_unique<std::vector<std::uint8_t>>(
+            test::from_hex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"));
+        auto peer = std::make_unique<std::vector<std::uint8_t>>(
+            test::from_hex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f"));
+        if (!BOOST_TEST(key.has_value())) {
+            return;
+        }
+        crypto::async_sign(context.get_executor(), *key, *message,
+                           [&](boost::system::error_code code, signature_type done) {
+                               sign_code = code;
+                               signature = done;
+                           });
+        crypto::async_agree(context.get_executor(), *secret_key, *peer,
+                            [&](boost::system::error_code code, crypto::secret<32> done) {
+                                agree_code = code;
+                                std::ranges::copy(done.bytes(), shared.begin());
+                            });
+        // Everything the calls read goes out of scope here, before the completions.
+    }
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST(!sign_code);
+    BOOST_TEST(std::ranges::equal(signature, expected));
+    BOOST_TEST(!agree_code);
+    BOOST_TEST(std::ranges::equal(
+        shared,
+        test::from_hex("4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742")));
+}
+
 void async_coroutine(asio::io_context& context) {
     bool done = false;
     asio::co_spawn(
@@ -370,6 +414,7 @@ int main() {
     async_generate(context);
     async_make_refused(context);
     async_rfc7748(context);
+    async_destroyed(context);
     async_coroutine(context);
     return webcpp::test::exit_status(boost::report_errors());
 }

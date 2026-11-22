@@ -15,6 +15,8 @@
 //   seal (with a zeroed tag) and the open.
 // - async_make_refused: a 31-byte key completes with invalid_key_size and an empty gcm, which
 //   refuses every member with invalid_state (review focus 5).
+// - async_destroyed: the object destroyed after the initiating call and before the completion
+//   still completes with the synchronous result (the work ran before the call returned).
 // - async_coroutine: the example of async.hpp's header, in a coroutine of the context.
 
 #include <webcpp/crypto/async.hpp>
@@ -285,6 +287,40 @@ void async_make_refused(asio::io_context& context) {
 }
 
 // The example of async.hpp's header, in a coroutine of the context: make, seal, open.
+// The object and the key destroyed after the initiating call and before the completion: a
+// synchronous backend has sealed already, so the tag and the ciphertext are the synchronous ones.
+void async_destroyed(asio::io_context& context) {
+    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 4> const additional_data{1, 2, 3, 4};
+    std::array<std::uint8_t, 40> data{};
+    data.fill(0x5a);
+    auto expected_data = data;
+    gcm256::result_type expected_tag{};
+    {
+        gcm256 reference = keyed(context);
+        auto const sealed = reference.seal(iv, additional_data, expected_data);
+        if (!BOOST_TEST(sealed.has_value())) {
+            return;
+        }
+        expected_tag = *sealed;
+    }
+    gcm256::result_type tag{};
+    boost::system::error_code code;
+    {
+        gcm256 aead = keyed(context);
+        crypto::async_seal(context.get_executor(), aead, iv, additional_data, data,
+                           [&](boost::system::error_code done_code, gcm256::result_type done) {
+                               code = done_code;
+                               tag = done;
+                           });
+    }
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST(!code);
+    BOOST_TEST(data == expected_data);
+    BOOST_TEST(tag == expected_tag);
+}
+
 void async_coroutine(asio::io_context& context) {
     bool done = false;
     asio::co_spawn(
@@ -325,6 +361,7 @@ int main() {
     async_wrong_tag(context);
     async_long_iv(context);
     async_make_refused(context);
+    async_destroyed(context);
     async_coroutine(context);
     return webcpp::test::exit_status(boost::report_errors());
 }

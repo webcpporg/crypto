@@ -740,10 +740,9 @@ struct verify_fixture {
     std::vector<std::uint8_t> public_key =
         webcpp::test::from_hex("3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c");
     std::vector<std::uint8_t> message = webcpp::test::from_hex("72");
-    std::vector<std::uint8_t> signature = webcpp::test::from_hex(
-        "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0"
-        "f"
-        "11d8c387b2eaeb4302aeeb00d291612bb0c00");
+    // clang-format off
+    std::vector<std::uint8_t> signature = webcpp::test::from_hex("92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00");
+    // clang-format on
     std::vector<std::uint8_t> secret_key =
         webcpp::test::from_hex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a");
     std::vector<std::uint8_t> peer_key =

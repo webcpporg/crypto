@@ -19,10 +19,10 @@
 // - PEM: algorithm::armour, algorithm::unarmour, and the free armour and unarmour, which forward.
 // - Ed25519, basic_keypair: make, generate, public_key, secret, sign, x25519_secret; public_key:
 //   verify; the free crypto::verify and to_x25519_public, and the free synchronous forms of the
-//   members, crypto::make, crypto::generate and crypto::sign, which enter their own guard before
-//   the member's. Ed25519ph, ph: begin, update, sign, verify. Its formats: decode_spki,
-//   decode_pkcs8 (the encoders call no backend and hold no guard, ruling R4; nor do
-//   public_key::make and bytes).
+//   members, crypto::make (of a key pair, and of a public key, whose own make holds no guard),
+//   crypto::generate and crypto::sign, which enter their own guard before the member's. Ed25519ph,
+//   ph: begin, update, sign, verify. Its formats: decode_spki, decode_pkcs8 (the encoders call no
+//   backend and hold no guard, ruling R4; nor do public_key::make and bytes).
 // - Ed25519's asynchronous functions: async_make, async_generate, async_sign, async_verify.
 // - X25519, algorithm: public_key, agree; the free public_key and agree, which forward, and
 //   the asynchronous async_agree. Its formats: decode_spki, decode_pkcs8.
@@ -284,6 +284,14 @@ void cover_ed25519_free_forms() {
     covered("ed25519 crypto::make with a short seed on sodium", "crypto::make", [&] {
         BOOST_TEST(crypto::make<keypair>(std::span(seed).first(31)).error() ==
                    crypto::error::invalid_key_size);
+    });
+    std::array<std::uint8_t, 32> const key_bytes = seed;
+    covered("ed25519 crypto::make of a public key on sodium", "crypto::make", [&] {
+        BOOST_TEST(crypto::make<crypto::curves::ed25519::public_key>(key_bytes).has_value());
+    });
+    covered("ed25519 crypto::make of a short public key on sodium", "crypto::make", [&] {
+        BOOST_TEST(crypto::make<crypto::curves::ed25519::public_key>(std::span(key_bytes).first(31))
+                       .error() == crypto::error::invalid_public_key);
     });
     covered("ed25519 crypto::generate on sodium", "crypto::generate",
             [] { BOOST_TEST(crypto::generate<keypair>().has_value()); });

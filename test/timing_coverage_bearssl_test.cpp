@@ -20,14 +20,14 @@
 // - P-256, curves::p256: basic_keypair::make, generate, sign (ecdsa_sha256, of a message and of
 //   a digest), agree; basic_public_key::make (both), verify (ecdsa_sha256, of a message and of
 //   a digest); crypto::verify (ecdsa_sha256, of a message and of a digest), to_der, from_der;
-//   decode_spki, decode_pkcs8; the free synchronous forms of the members, crypto::make,
-//   crypto::generate, crypto::sign and crypto::agree, which enter their own guard before the
-//   member's; not guarded (no BearSSL call):
-//   public_key, secret, uncompressed, encode_spki, encode_pkcs8, basic_keypair's move
-//   constructor and move assignment, and normalize_low_s and is_low_s,
-//   which test/timing_test.cpp calls without a backend; and the asynchronous async_make,
-//   async_generate, async_sign and async_verify (ecdsa_sha256, of a message and of a digest) and
-//   async_agree, all but async_generate (which takes no input) also refused once before BearSSL.
+//   decode_spki, decode_pkcs8; the free synchronous forms of the members, crypto::make (of a
+//   key pair and of a public key, both forms), crypto::generate, crypto::sign and crypto::agree,
+//   which enter their own guard before the member's; not guarded (no BearSSL call): public_key,
+//   secret, uncompressed, encode_spki, encode_pkcs8, basic_keypair's move constructor and move
+//   assignment, and normalize_low_s and is_low_s, which test/timing_test.cpp calls without a
+//   backend; and the asynchronous async_make, async_generate, async_sign and async_verify
+//   (ecdsa_sha256, of a message and of a digest) and async_agree, all but async_generate (which
+//   takes no input) also refused once before BearSSL.
 
 #include "support/timing_seam.hpp"
 
@@ -241,10 +241,24 @@ void cover_p256_free_forms() {
     webcpp::test::covered("p256 crypto::make of the order on bearssl", "crypto::make", [] {
         BOOST_TEST(crypto::make<keypair>(data::order).error() == crypto::error::invalid_secret_key);
     });
+    using public_key = p256::basic_public_key<bearssl>;
+    std::span<std::uint8_t const, 65> const point(data::rfc6979_public);
+    webcpp::test::covered("p256 crypto::make of a public key on bearssl", "crypto::make",
+                          [point] { BOOST_TEST(crypto::make<public_key>(point).has_value()); });
+    webcpp::test::covered(
+        "p256 crypto::make of a public key's coordinates on bearssl", "crypto::make", [point] {
+            BOOST_TEST(crypto::make<public_key>(point.subspan<1, 32>(), point.subspan<33, 32>())
+                           .has_value());
+        });
+    webcpp::test::covered("p256 crypto::make of a public key of 64 bytes on bearssl",
+                          "crypto::make", [point] {
+                              BOOST_TEST(crypto::make<public_key>(point.first(64)).error() ==
+                                         crypto::error::invalid_public_key);
+                          });
     webcpp::test::covered("p256 crypto::generate on bearssl", "crypto::generate",
                           [] { BOOST_TEST(crypto::generate<keypair>().has_value()); });
     auto made = keypair::make(data::rfc6979_scalar);
-    auto const peer = p256::basic_public_key<bearssl>::make(data::rfc6979_public);
+    auto const peer = public_key::make(data::rfc6979_public);
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(peer.has_value())) {
         return;
     }

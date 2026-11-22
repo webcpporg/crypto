@@ -14,9 +14,9 @@
  Each curve's header checks its own key pair with a `static_assert` where its default backend is
  linked.
 
- Beside it, the free synchronous forms of the members (design D9, R23): `crypto::make<A>(bytes)`,
- which serves AES-GCM's and the other AEADs' `make` too, `crypto::generate<K>()` and
- `crypto::agree(key_pair, peer)`, each calling the member it is named after.
+ Beside it, the free synchronous form of the key pairs' `agree`, `crypto::agree(key_pair, peer)`
+ (design D9, R23), and, through `make.hpp`, which it includes, `crypto::make<A>(bytes)` and
+ `crypto::generate<K>()`.
 
  @see "Signatures: the scheme and the input", in the guide.
 */
@@ -26,6 +26,7 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/detail/timing.hpp>
+#include <webcpp/crypto/make.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 
@@ -34,7 +35,6 @@
 #include <concepts>
 #include <cstdint>
 #include <span>
-#include <utility>
 
 namespace webcpp::crypto {
 
@@ -132,48 +132,6 @@ concept keypair_over =
  */
 template <class Keypair>
 concept keypair = detail::keypair_over<Keypair, detail::all_schemes>;
-
-/**
- * Makes an object from its key bytes, `Algorithm::make(arguments...)`: the free form of the
- * algorithm's own `make`, which it calls, with its results and its errors.
- *
- * @tparam Algorithm A type whose static `make` takes these arguments: a key pair, a public key,
- * AES-GCM or another AEAD.
- * @tparam Arguments The types of `make`'s arguments.
- * @param arguments `make`'s arguments: the key bytes, and secp256k1's memory resource.
- * @return What `Algorithm::make(arguments...)` returns: the object, or its error.
- */
-template <class Algorithm, class... Arguments>
-    requires requires(Arguments&&... arguments) {
-        Algorithm::make(std::forward<Arguments>(arguments)...);
-    }
-[[nodiscard]] auto make(Arguments&&... arguments) noexcept(
-    noexcept(Algorithm::make(std::forward<Arguments>(arguments)...)))
-    -> decltype(Algorithm::make(std::forward<Arguments>(arguments)...)) {
-    detail::timing_guard const timing;
-    return Algorithm::make(std::forward<Arguments>(arguments)...);
-}
-
-/**
- * Makes a key pair from a fresh secret drawn from the system's generator,
- * `Keypair::generate(arguments...)`: the free form of the key pair's own `generate`, which it
- * calls, with its results and its errors.
- *
- * @tparam Keypair A type whose static `generate` takes these arguments: a key pair.
- * @tparam Arguments The types of `generate`'s arguments: none, or secp256k1's memory resource.
- * @param arguments `generate`'s arguments.
- * @return What `Keypair::generate(arguments...)` returns: the key pair, or its error.
- */
-template <class Keypair, class... Arguments>
-    requires requires(Arguments&&... arguments) {
-        Keypair::generate(std::forward<Arguments>(arguments)...);
-    }
-[[nodiscard]] auto generate(Arguments&&... arguments) noexcept(
-    noexcept(Keypair::generate(std::forward<Arguments>(arguments)...)))
-    -> decltype(Keypair::generate(std::forward<Arguments>(arguments)...)) {
-    detail::timing_guard const timing;
-    return Keypair::generate(std::forward<Arguments>(arguments)...);
-}
 
 /**
  * Agrees a secret with a peer's public key, `key_pair.agree(peer)`: the free form of the key

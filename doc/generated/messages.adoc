@@ -427,6 +427,12 @@ The fix: Give `+crypto::eddsa+` the public key as a `+curves::ed25519::public_ke
 
 The fix: As `+verify_asynchronous_backend+`.
 
+|`+verify_member_ed25519_ecdsa+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: an Ed25519 public key verifies crypto::eddsa.+`
+
+The fix: Verify with `+crypto::eddsa+`, Ed25519's scheme; `+crypto::ecdsa_sha256+` is P-256's and secp256k1's, whose keys are `+curves::p256::basic_public_key+` and `+curves::secp256k1::public_key+`.
+
 |`+verify_member_eddsa_prehashed+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure Ed25519) and takes no digest; Ed25519ph, which hashes the message, is curves::ed25519::ph.+`
@@ -438,6 +444,12 @@ The fix: Verify the message itself with `+crypto::eddsa+`, RFC 8032's pure Ed255
 |`+webcpp::crypto: a P-256 public key verifies crypto::ecdsa_sha256.+`
 
 The fix: Verify with `+crypto::ecdsa_sha256+`, P-256's scheme; `+crypto::eddsa+` is Ed25519's, whose key is a `+curves::ed25519::public_key+`.
+
+|`+verify_member_secp256k1_recoverable+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: a secp256k1 public key verifies crypto::ecdsa_sha256 or crypto::schnorr; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
+
+The fix: Give a recoverable signature to `+curves::secp256k1::recover(crypto::ecdsa_sha256_recoverable, signature, input)+`, which gives the signer's key; a public key verifies `+crypto::ecdsa_sha256+` and `+crypto::schnorr+`.
 
 |`+x25519_default_not_linked+`
 |native, wasip2, wasip3

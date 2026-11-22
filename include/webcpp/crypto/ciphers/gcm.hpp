@@ -8,7 +8,7 @@
  `gcm<Cipher>`, AES-GCM over the cipher's backend.
 
  Its free synchronous forms (design D9, R23), `crypto::make<A>(key)`, `crypto::seal` and
- `crypto::open`, are declared in `keypair.hpp` and `ciphers/aead.hpp`, which it includes.
+ `crypto::open`, are declared in `make.hpp` and `ciphers/aead.hpp`, which it includes.
 
  @see "AES-GCM", in the guide.
 */
@@ -20,13 +20,14 @@
 #include <webcpp/crypto/ciphers/aead.hpp>  // crypto::seal and crypto::open (design R23)
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/detail/async_access.hpp>
+#include <webcpp/crypto/detail/asynchronous.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/limits.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/keypair.hpp>  // crypto::make, which serves AES-GCM's make (design R23)
+#include <webcpp/crypto/make.hpp>  // crypto::make, which serves its make (design R23)
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>

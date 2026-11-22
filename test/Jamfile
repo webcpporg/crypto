@@ -35,7 +35,8 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
   crypto/detail/async_access.hpp crypto/detail/timing.hpp crypto/ciphers/aead.hpp
   crypto/ciphers/chacha20_poly1305.hpp crypto/ciphers/secretbox.hpp crypto/pem.hpp
-  crypto/detail/p_curves.hpp crypto/signing.hpp crypto/keypair.hpp ;
+  crypto/detail/p_curves.hpp crypto/signing.hpp crypto/keypair.hpp
+  crypto/make.hpp crypto/detail/asynchronous.hpp ;
 # detail/heavy.hpp compiles alone only with webcpp::asio, which it includes
 # where the build has threads; async.hpp, which includes it, only with
 # webcpp::asio on every target.

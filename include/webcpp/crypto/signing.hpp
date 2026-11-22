@@ -24,6 +24,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/asynchronous.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/hash/algorithms.hpp>  // webcpp::hash::sha2_256, ECDSA's hash of a message
 
@@ -228,15 +229,6 @@ namespace detail {
 /** False for every type, so that a refusal's `static_assert` fires only when it is reached. */
 template <class Type>
 inline constexpr bool refused_v = false;
-
-/**
- * Whether `Backend` completes by itself, asynchronously: no backend yet; part B's
- * `backends::browser` alone will, through `async.hpp`'s `async_engine`.
- *
- * @tparam Backend A backend.
- */
-template <class Backend>
-inline constexpr bool asynchronous_backend_v = false;
 
 /**
  * The sizes of a scheme's signature and of the digest it takes, specialised for each tag.

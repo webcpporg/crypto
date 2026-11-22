@@ -27,8 +27,9 @@
 //   agree, agree_hashed, agree_point, tweak_xonly; public_key::verify of ecdsa_sha256 and of
 //   schnorr; the free recover, crypto::verify of ecdsa_sha256 and of schnorr (against the typed
 //   key and against x-only bytes), to_der, from_der, normalize_low_s, is_low_s, tweak_xonly; the
-//   free synchronous forms of the members, crypto::make, crypto::generate, crypto::sign (each of
-//   its three forms) and crypto::agree, which enter their own guard before the member's. Its
+//   free synchronous forms of the members, crypto::make (of a key pair and of a public key),
+//   crypto::generate, crypto::sign (with each scheme, Schnorr's randomness drawn and given, and
+//   hedged) and crypto::agree, which enter their own guard before the member's. Its
 //   formats: encode_spki, decode_spki, encode_pkcs8, decode_pkcs8. Its tweaks: seckey_tweak_add,
 //   seckey_tweak_mul, seckey_negate, pubkey_tweak_add, pubkey_tweak_mul, pubkey_negate,
 //   pubkey_combine.
@@ -347,10 +348,11 @@ void cover_public_key_verify() {
 }
 
 /**
- * The free synchronous forms, crypto::make, crypto::generate, crypto::sign and crypto::agree, each
- * entering its own guard before the member's, and refused once before the backend.
+ * The free crypto::make, of a key pair and of a public key, and crypto::generate, each entering
+ * its own guard before the member's, and refused once before the backend (a short secret, a short
+ * key).
  */
-void cover_free_forms() {
+void cover_free_make_forms() {
     auto const secret_key = secret_bytes(0x61);
     covered("secp256k1 crypto::make on secp256k1", "crypto::make",
             [&] { BOOST_TEST(crypto::make<secp::keypair>(secret_key).has_value()); });
@@ -360,6 +362,20 @@ void cover_free_forms() {
     });
     covered("secp256k1 crypto::generate on secp256k1", "crypto::generate",
             [&] { BOOST_TEST(crypto::generate<secp::keypair>().has_value()); });
+    auto const encoded = public_of(keypair_of(0x64)).compressed();
+    covered("secp256k1 crypto::make of a public key on secp256k1", "crypto::make",
+            [&] { BOOST_TEST(crypto::make<secp::public_key>(encoded).has_value()); });
+    covered("secp256k1 crypto::make of a short public key on secp256k1", "crypto::make", [&] {
+        BOOST_TEST(crypto::make<secp::public_key>(std::span(encoded).first(32)).error() ==
+                   crypto::error::invalid_public_key);
+    });
+}
+
+/**
+ * The free crypto::sign and crypto::agree, each entering its own guard before the member's, and
+ * refused once before the backend (a moved-from key pair).
+ */
+void cover_free_forms() {
     auto const made = keypair_of(0x62);
     auto const empty = moved_from();
     auto const peer = keypair_of(0x63).public_key();
@@ -372,6 +388,13 @@ void cover_free_forms() {
     });
     covered("secp256k1 crypto::sign with schnorr's randomness given on secp256k1", "crypto::sign",
             [&] { BOOST_TEST(crypto::sign(made, crypto::schnorr, hash, randomness).has_value()); });
+    covered("secp256k1 crypto::sign with ecdsa_sha256_recoverable on secp256k1", "crypto::sign",
+            [&] {
+                BOOST_TEST(crypto::sign(made, crypto::ecdsa_sha256_recoverable, hash).has_value());
+            });
+    covered("secp256k1 crypto::sign with schnorr, its randomness drawn, on secp256k1",
+            "crypto::sign",
+            [&] { BOOST_TEST(crypto::sign(made, crypto::schnorr, hash).has_value()); });
     covered("secp256k1 crypto::sign moved from on secp256k1", "crypto::sign", [&] {
         BOOST_TEST(crypto::sign(empty, crypto::ecdsa_sha256, hash).error() ==
                    crypto::error::invalid_state);
@@ -1040,6 +1063,7 @@ int main() {
     cover_public_keys();
     cover_verification();
     cover_public_key_verify();
+    cover_free_make_forms();
     cover_free_forms();
     cover_signature_forms();
     cover_low_s();

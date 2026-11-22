@@ -8,7 +8,9 @@
 // on every curve and on AES-GCM and ChaCha20-Poly1305, since the free form calls the member, or
 // both call one worker:
 // - make: K::make(bytes) and crypto::make<K>(bytes) give the same key (its secret, or its seal),
-//   of the same type; generate: crypto::generate<K>() gives a key pair whose signature verifies.
+//   of the same type, on every key pair, AEAD and public key (P-256's of its coordinates too),
+//   secp256k1's with a memory resource; generate: crypto::generate<K>() gives a key pair whose
+//   signature verifies.
 // - sign: key.sign(scheme, input[, extra]) and crypto::sign(key, scheme, input[, extra]) give the
 //   same signature, on every scheme of every curve, secp256k1's hedged ECDSA and BIP340 with
 //   auxiliary randomness included, each the same type.
@@ -41,6 +43,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory_resource>
 #include <span>
 #include <type_traits>
 
@@ -239,6 +242,22 @@ void p256_forms() {
     verify_forms(crypto::ecdsa_sha256, *member_signed, crypto::prehashed{digest}, *public_key);
 }
 
+/**
+ * A member's result and the free form's: the same type, both values, and equal values.
+ *
+ * @tparam Member The member's result type.
+ * @tparam Free The free form's result type.
+ * @param member The member's result.
+ * @param free The free form's result.
+ */
+template <class Member, class Free>
+void same_result(Member const& member, Free const& free) {
+    static_assert(std::is_same_v<Free, Member>);
+    if (BOOST_TEST(member.has_value()) && BOOST_TEST(free.has_value())) {
+        BOOST_TEST(*free == *member);
+    }
+}
+
 /** secp256k1: every sign, member and free, the same signatures and types. */
 void secp256k1_sign_forms() {
     auto const made = secp_keypair::make(secret_bytes(1));
@@ -248,16 +267,61 @@ void secp256k1_sign_forms() {
     auto const digest = digest_of_message();
     std::array<std::uint8_t, 32> const extra = secret_bytes(7);
     auto const ecdsa = made->sign(crypto::ecdsa_sha256, message);
-    BOOST_TEST(*crypto::sign(*made, crypto::ecdsa_sha256, message) == *ecdsa);
-    BOOST_TEST(*crypto::sign(*made, crypto::ecdsa_sha256, crypto::prehashed{digest}) == *ecdsa);
-    auto const hedged = made->sign(crypto::ecdsa_sha256, message, extra);
-    BOOST_TEST(*crypto::sign(*made, crypto::ecdsa_sha256, message, extra) == *hedged);
-    auto const recoverable = made->sign(crypto::ecdsa_sha256_recoverable, message);
-    auto const free_recoverable = crypto::sign(*made, crypto::ecdsa_sha256_recoverable, message);
-    static_assert(std::is_same_v<decltype(free_recoverable), decltype(recoverable)>);
-    BOOST_TEST(*free_recoverable == *recoverable);
-    auto const schnorr = made->sign(crypto::schnorr, message, extra);
-    BOOST_TEST(*crypto::sign(*made, crypto::schnorr, message, extra) == *schnorr);
+    same_result(ecdsa, crypto::sign(*made, crypto::ecdsa_sha256, message));
+    same_result(ecdsa, crypto::sign(*made, crypto::ecdsa_sha256, crypto::prehashed{digest}));
+    same_result(made->sign(crypto::ecdsa_sha256, message, extra),
+                crypto::sign(*made, crypto::ecdsa_sha256, message, extra));
+    same_result(made->sign(crypto::ecdsa_sha256_recoverable, message),
+                crypto::sign(*made, crypto::ecdsa_sha256_recoverable, message));
+    same_result(made->sign(crypto::schnorr, message, extra),
+                crypto::sign(*made, crypto::schnorr, message, extra));
+}
+
+/**
+ * The public keys' make, member and free, on every curve (P-256's of a point and of its
+ * coordinates), and secp256k1's key pair make and generate with a memory resource.
+ */
+void public_key_and_resource_forms() {
+    auto const ed25519_made = ed25519_keypair::make(secret_bytes(1));
+    auto const p256_made = p256_keypair::make(secret_bytes(1));
+    auto const secp_made = secp_keypair::make(secret_bytes(1));
+    if (!BOOST_TEST(ed25519_made.has_value()) || !BOOST_TEST(p256_made.has_value()) ||
+        !BOOST_TEST(secp_made.has_value())) {
+        return;
+    }
+    auto const ed25519_bytes = ed25519_made->public_key()->bytes();
+    same_result(ed25519::public_key::make(ed25519_bytes),
+                crypto::make<ed25519::public_key>(ed25519_bytes));
+
+    using p256_public_key = p256::basic_public_key<crypto::backends::bearssl>;
+    auto const point = p256_made->public_key()->uncompressed();
+    auto const member_point = p256_public_key::make(point);
+    auto const free_point = crypto::make<p256_public_key>(point);
+    static_assert(std::is_same_v<decltype(free_point), decltype(member_point)>);
+    std::span<std::uint8_t const, 32> const x(point.data() + 1, 32);
+    std::span<std::uint8_t const, 32> const y(point.data() + 33, 32);
+    auto const free_coordinates = crypto::make<p256_public_key>(x, y);
+    if (BOOST_TEST(member_point.has_value()) && BOOST_TEST(free_point.has_value()) &&
+        BOOST_TEST(free_coordinates.has_value())) {
+        BOOST_TEST(free_point->uncompressed() == member_point->uncompressed());
+        BOOST_TEST(free_coordinates->uncompressed() == point);
+    }
+
+    auto const compressed = secp_made->public_key()->compressed();
+    same_result(secp256k1::public_key::make(compressed),
+                crypto::make<secp256k1::public_key>(compressed));
+
+    std::pmr::memory_resource* const resource = std::pmr::new_delete_resource();
+    auto const member_made = secp_keypair::make(secret_bytes(1), resource);
+    auto const free_made = crypto::make<secp_keypair>(secret_bytes(1), resource);
+    static_assert(std::is_same_v<decltype(free_made), decltype(member_made)>);
+    if (BOOST_TEST(member_made.has_value()) && BOOST_TEST(free_made.has_value())) {
+        BOOST_TEST(same_secret(*free_made->secret(), *member_made->secret()));
+    }
+    auto const generated = crypto::generate<secp_keypair>(resource);
+    static_assert(
+        std::is_same_v<decltype(generated), decltype(secp_keypair::generate(resource)) const>);
+    BOOST_TEST(generated.has_value());
 }
 
 /** secp256k1: both verify schemes, member and free, ECDSA of a marker and Schnorr drawn too. */
@@ -360,6 +424,7 @@ int main() {
     p256_forms();
     secp256k1_sign_forms();
     secp256k1_verify_forms();
+    public_key_and_resource_forms();
     aead_forms<gcm>();
     aead_forms<chacha>();
     return webcpp::test::exit_status(boost::report_errors());

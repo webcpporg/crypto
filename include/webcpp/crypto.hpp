@@ -36,6 +36,7 @@
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/keypair.hpp>
+#include <webcpp/crypto/make.hpp>
 #include <webcpp/crypto/pem.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the system's entropy, a purpose of crypto
 #include <webcpp/crypto/secret.hpp>

@@ -19,13 +19,14 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/asynchronous.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/limits.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/keypair.hpp>  // crypto::make, which serves an AEAD's make (design R23)
+#include <webcpp/crypto/make.hpp>  // crypto::make, which serves its make (design R23)
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>

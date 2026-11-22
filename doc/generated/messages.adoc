@@ -59,7 +59,7 @@ The fix: Call the AEAD's own `+seal+`: only AES-GCM has `+async_seal+`.
 |native, wasip2, wasip3
 |`+webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the key pair's synchronous signing function for the others.+`
 
-The fix: Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's key pair has `+async_sign+`.
+The fix: Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `+async_sign+`.
 
 |`+bearssl_not_linked+`
 |native, wasip2
@@ -966,7 +966,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+async_sign_secp256k1+`
 |the compile
-|Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's key pair has `+async_sign+`.
+|Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `+async_sign+`.
 
 |`+bearssl_not_linked+`
 |the compile

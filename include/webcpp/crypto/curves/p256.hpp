@@ -22,6 +22,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
@@ -158,6 +159,9 @@ class basic_keypair {
     using state_type = detail::p_curve_state<families::p256, Backend>;
     using engine = detail::p_curve_engine<families::p256, Backend>;
     using traits = detail::p_curve_traits<families::p256>;
+
+    // The asynchronous family's error completions make the empty object a move leaves.
+    friend struct detail::async_access;
 
 public:
     /** The family, for `supports_v`. */

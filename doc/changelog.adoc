@@ -16,7 +16,7 @@ of every version are on webcpp's index page.
 === Unreleased
 
 // tag::unreleased[]
-* Added crypto, C-backed primitives setting DIT on arm64: ciphers, curves, randomness, errors, `+[[nodiscard]]+` results, WEBCPP_CRYPTO_HAS_THREADS, and async_make, async_seal, async_open, async_generate, async_sign, async_verify, async_agree on Asio.
+* Added crypto, C-backed primitives setting DIT on arm64 macOS, iOS, Linux and Android: ciphers, curves, randomness, errors, `+[[nodiscard]]+` results, WEBCPP_CRYPTO_HAS_THREADS, and async_make, async_seal, async_open, async_generate, async_sign, async_verify, async_agree on Asio.
 * Added equal, random_device, pem on libsodium, the AES block cipher ciphers::aes128, aes192 and aes256 with a per-target default, and ciphers::gcm, aes128_gcm and aes256_gcm: incremental seal, two-pass open, failures zeroing data.
 * Added supports_v with its family tags, the capability table per target, default_backend_t and /webcpp/crypto//<family>-default per family and target (secp256k1's modules among them), and refusals naming their Jamfile line.
 * Added backends::bearssl (AES-GCM, ChaCha20-Poly1305, curves::p256: keys, ECDSA, ECDH, SPKI/PKCS#8; allocating nothing), backends::openssl natively and on WASI (allocating at make only, or in openssl_memory_resource with WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE), and backends::ctaes.

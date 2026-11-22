@@ -132,6 +132,13 @@ crypto-run async_gcm_openssl : async_gcm_test.cpp
 # refused seed, a weak peer key, a coroutine.
 crypto-run async_25519 : async_25519_test.cpp
   : <library>/webcpp/asio//asio <library>/third_party//sodium ;
+# P-256's asynchronous functions on BearSSL, every target: RFC 6979's
+# signatures, Wycheproof's first 50 valid ECDSA P-256 SHA-256 cases and first
+# 50 valid ECDH P-256 cases against the synchronous answers, refusals, an
+# empty key pair, a coroutine.
+crypto-run async_p256 : async_p256_test.cpp
+  : <library>/webcpp/asio//asio <library>/third_party//bearssl
+    <library>/third_party//wycheproof <library>/webcpp//boost_json ;
 # Without threads (WEBCPP_CRYPTO_NO_THREADS natively; WASI has none), a heavy
 # operation's async_ variant that forgets its refusal stops at
 # detail::run_on_work's stand-in, which names the refusal, and with that

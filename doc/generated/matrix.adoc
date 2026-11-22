@@ -36,6 +36,11 @@
 |native, wasip2, wasip3, emscripten
 |`+async_25519+`
 
+|`+async_make+`, `+async_generate+`, `+async_sign+`, `+async_verify+`, `+async_agree+`
+|BearSSL
+|native, wasip2, wasip3, emscripten
+|`+async_p256+`
+
 |`+equal+`
 |no backend
 |native, wasip2, wasip3, emscripten
@@ -326,6 +331,12 @@ The same, by target: the backends each operation runs on.
 |libsodium
 |libsodium
 |libsodium
+
+|`+async_make+`, `+async_generate+`, `+async_sign+`, `+async_verify+`, `+async_agree+`
+|BearSSL
+|BearSSL
+|BearSSL
+|BearSSL
 
 |`+equal+`
 |no backend

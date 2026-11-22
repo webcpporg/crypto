@@ -49,7 +49,21 @@ its own, and the handler would run off the program's loop.
 | X25519 (<<crypto-x25519>>)
 | `async_agree(executor, secret_key, peer_public_key, token)`
 | `void(error_code, secret<32>)`
+
+| P-256 (<<crypto-p256>>)
+| `async_make<Keypair>(executor, secret_scalar, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, message, token)`, `async_verify(executor, public_key, message, signature, token)`, `async_agree(executor, key_pair, peer_public_key, token)`
+| `void(error_code, Keypair)` for `async_make` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`, `void(error_code, secret<32>)` for `async_agree`
 |===
+
+P-256's `async_sign` and `async_verify` take the message, not its digest: each
+hashes it with SHA-256 first and calls `sign_ecdsa` or `verify_ecdsa` on the 32
+bytes, as WebCrypto's `+sign({name: "ECDSA", hash: "SHA-256"}, ...)+` hashes and
+signs in one call (link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations[W3C,
+ECDSA's operations]). The signature is r then s, 64 bytes, WebCrypto's form; one
+of another size completes `async_verify` with `invalid_signature`. Their keys are
+P-256's own types, the key pair and the validated `public_key`, and
+`async_agree` gives the shared point's raw x, as WebCrypto's `deriveBits` does
+(<<crypto-p256-ecdh>>).
 
 The other algorithms of crypto (the ChaCha20-Poly1305 AEADs, the secret boxes,
 secp256k1) are not in WebCrypto, and have no asynchronous function: naming one
@@ -62,6 +76,8 @@ include::generated/backends-async_gcm.adoc[]
 include::generated/backends-async_ed25519.adoc[]
 
 include::generated/backends-async_x25519.adoc[]
+
+include::generated/backends-async_p256.adoc[]
 
 [#crypto-async-kinds]
 === The two kinds

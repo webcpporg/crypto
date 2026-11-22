@@ -195,6 +195,17 @@ static_assert(!crypto::detail::has_verifier_v<crypto::ecdsa_sha256_t, stand_in_p
 static_assert(catch_all_verify<stand_in_public_key>);
 static_assert(!catch_all_verify<stand_in_verified_key>);
 
+// A backend named first, as every curve's verify takes it, is no scheme: the catch-all, whose
+// first template parameter is the scheme, steps aside for it, and adds no error of its own to a
+// call that a curve's verify takes.
+template <class Backend, class PublicKey>
+concept catch_all_verify_on = requires(std::array<std::uint8_t, 64> const& signature,
+                                       message_span message, PublicKey const& public_key) {
+    crypto::verify<Backend>(crypto::ecdsa_sha256, signature, message, public_key);
+};
+static_assert(!catch_all_verify_on<stand_in_backend, stand_in_public_key>);
+static_assert(catch_all_verify_on<crypto::ecdsa_sha256_t, stand_in_public_key>);
+
 // The catch-all takes a scheme tag alone: a four-argument verify whose first argument is not a
 // scheme, found by argument-dependent lookup through a crypto type, is not captured.
 template <class Scheme>

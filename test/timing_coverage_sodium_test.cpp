@@ -277,17 +277,17 @@ void cover_ed25519_free() {
     }
     covered("ed25519 crypto::verify on sodium", "crypto::verify", [&] {
         BOOST_TEST((
-            crypto::verify<ed25519::strict, sodium>(crypto::eddsa, *signature, message, *public_key)
+            crypto::verify<sodium>(crypto::eddsa, *signature, message, *public_key, ed25519::strict)
                 .has_value()));
     });
     covered("ed25519 crypto::verify with a short key on sodium", "crypto::verify", [&] {
-        BOOST_TEST((crypto::verify<ed25519::strict, sodium>(crypto::eddsa, *signature, message,
-                                                            std::span(*public_key).first(31))
+        BOOST_TEST((crypto::verify<sodium>(crypto::eddsa, *signature, message,
+                                           std::span(*public_key).first(31), ed25519::strict)
                         .error() == crypto::error::invalid_public_key));
     });
     covered("ed25519 crypto::verify with a short signature on sodium", "crypto::verify", [&] {
-        BOOST_TEST((crypto::verify<ed25519::strict, sodium>(
-                        crypto::eddsa, std::span(*signature).first(63), message, *public_key)
+        BOOST_TEST((crypto::verify<sodium>(crypto::eddsa, std::span(*signature).first(63), message,
+                                           *public_key, ed25519::strict)
                         .error() == crypto::error::invalid_signature));
     });
     covered("ed25519::to_x25519_public on sodium",

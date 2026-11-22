@@ -123,8 +123,8 @@ void rfc8032() {
         // The default policy, and strict named, on the default backend and on libsodium named:
         // the explicit arguments pick Ed25519's verify, never P-256's or the catch-all.
         BOOST_TEST(crypto::verify(crypto::eddsa, *signature, message, *public_key).has_value());
-        BOOST_TEST((crypto::verify<ed25519::strict, crypto::backends::sodium>(
-                        crypto::eddsa, *signature, message, *public_key)
+        BOOST_TEST((crypto::verify<crypto::backends::sodium>(crypto::eddsa, *signature, message,
+                                                             *public_key, ed25519::strict)
                         .has_value()));
         BOOST_TEST(crypto::verify(crypto::eddsa, expected_signature, message, expected_public_key)
                        .has_value());
@@ -251,8 +251,8 @@ void small_order_key() {
     auto const signature = test::from_hex(
         "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a"
         "0000000000000000000000000000000000000000000000000000000000000000");
-    auto const refused = crypto::verify<ed25519::strict, crypto::backends::sodium>(
-        crypto::eddsa, signature, message, public_key);
+    auto const refused = crypto::verify<crypto::backends::sodium>(crypto::eddsa, signature, message,
+                                                                  public_key, ed25519::strict);
     BOOST_TEST(refused.has_error() && refused.error() == crypto::error::invalid_signature);
 }
 

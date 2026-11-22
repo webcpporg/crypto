@@ -473,12 +473,12 @@ void cover_async_ed25519(std::string const& backend) {
         deliver();
     });
     covered("ed25519::async_verify" + on, "crypto::async_verify", [&] {
-        crypto::async_verify<crypto::curves::ed25519::strict, backend_type>(executor, *public_key,
-                                                                            message, kept, counted);
+        crypto::async_verify<crypto::curves::ed25519::strict_t, backend_type>(
+            executor, *public_key, message, kept, counted);
         deliver();
     });
     covered("ed25519::async_verify with a short key" + on, "crypto::async_verify", [&] {
-        crypto::async_verify<crypto::curves::ed25519::strict, backend_type>(
+        crypto::async_verify<crypto::curves::ed25519::strict_t, backend_type>(
             executor, std::span(*public_key).first(31), message, kept, counted);
         deliver();
     });

@@ -272,10 +272,20 @@ private:
 using keypair = basic_keypair<>;
 
 /**
- * Ed25519 verification as libsodium does it: `S` below the group order, `A` and `R` canonical,
- * neither of small order (design D31).
+ * The type of the verification policy `strict`.
+ *
+ * Its explicit default constructor keeps `{}` from standing for a policy.
  */
-struct strict {};
+struct strict_t {
+    /** Makes the tag. */
+    explicit strict_t() = default;
+};
+
+/**
+ * Ed25519 verification as libsodium does it: `S` below the group order, `A` and `R` canonical,
+ * neither of small order (design D31); `crypto::verify`'s policy by default.
+ */
+inline constexpr strict_t strict{};
 
 /**
  * The X25519 public key of an Ed25519 public key (the birational map from edwards25519 to
@@ -476,25 +486,27 @@ namespace webcpp::crypto {
  * The signature comes first, as in every `verify`: the arguments of the order before it, a
  * 32-byte key where the signature goes, are refused as a signature of another size.
  *
- * @tparam Policy `curves::ed25519::strict` (libsodium's rules), the only policy declared.
  * @tparam Backend The backend; by default the family's.
  * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
  * `crypto::prehashed` marker, or anything else, stops the build.
+ * @tparam Policy `curves::ed25519::strict_t` (libsodium's rules), the only policy declared;
+ * anything else stops the build.
  * @param scheme `crypto::eddsa`.
  * @param signature 64 bytes.
  * @param message The signed bytes.
  * @param public_key 32 bytes.
+ * @param policy `curves::ed25519::strict`, the default.
  * @return Nothing; `invalid_signature` for a signature of another size, then
  * `invalid_public_key` for a key of another size; `invalid_signature` for a signature that does
  * not verify.
  */
-template <class Policy = curves::ed25519::strict,
-          class Backend = default_backend_t<families::ed25519>, class Input>
+template <class Backend = default_backend_t<families::ed25519>, class Input,
+          class Policy = curves::ed25519::strict_t>
 [[nodiscard]] boost::system::result<void> verify(
     [[maybe_unused]] eddsa_t scheme, std::span<std::uint8_t const> signature, Input const& message,
-    std::span<std::uint8_t const> public_key) noexcept {
+    std::span<std::uint8_t const> public_key, [[maybe_unused]] Policy policy = Policy{}) noexcept {
     detail::timing_guard const timing;
-    static_assert(std::is_same_v<Policy, curves::ed25519::strict>,
+    static_assert(std::is_same_v<Policy, curves::ed25519::strict_t>,
                   "webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.");
     detail::check_input<eddsa_t, Input, Backend>();
     if constexpr (detail::input_valid_v<eddsa_t, Input, Backend>) {

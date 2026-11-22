@@ -82,11 +82,11 @@ void expect_no_allocation() {
 void expect_no_allocation_ed25519() {
     using keypair = crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>;
     using ph = crypto::curves::ed25519::ph<webcpp::hash::sha2_512, crypto::backends::sodium>;
-    // Strict verification on libsodium, named once: a template's commas would split a macro's
+    // Strict verification on libsodium, named once: a call's commas would split a macro's
     // argument.
     auto const verify = [](auto const& signature, auto const& message, auto const& public_key) {
-        return crypto::verify<crypto::curves::ed25519::strict, crypto::backends::sodium>(
-            crypto::eddsa, signature, message, public_key);
+        return crypto::verify<crypto::backends::sodium>(
+            crypto::eddsa, signature, message, public_key, crypto::curves::ed25519::strict);
     };
     std::array<std::uint8_t, 32> seed{};
     seed.fill(5);

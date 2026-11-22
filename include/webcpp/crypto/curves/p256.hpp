@@ -498,7 +498,8 @@ namespace webcpp::crypto {
  * own signatures may be high); a protocol that requires low S checks `curves::p256::is_low_s`
  * too.
  *
- * @tparam Backend The key's backend, which verifies.
+ * @tparam Backend The key's backend, which verifies: deduced from the key, or named first, as on
+ * every curve, when it is the key's (another backend matches no overload).
  * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
  * empty included, or `crypto::prehashed<32>`; anything else stops the build.
  * @param scheme `crypto::ecdsa_sha256`.

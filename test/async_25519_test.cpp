@@ -181,7 +181,7 @@ void async_rfc8032(asio::io_context& context) {
         auto const signed_sync = key.sign(crypto::eddsa, message);
         BOOST_TEST(signed_sync.has_value() && *signed_sync == signature);
         auto const verified = complete_code(context, [&](auto const& executor, auto&& token) {
-            return crypto::async_verify<ed25519::strict, crypto::backends::sodium>(
+            return crypto::async_verify<ed25519::strict_t, crypto::backends::sodium>(
                 executor, public_key, message, signature, std::forward<decltype(token)>(token));
         });
         BOOST_TEST(!verified);
@@ -233,8 +233,8 @@ void generated(asio::io_context& context) {
     if (!BOOST_TEST(public_key.has_value()) || !BOOST_TEST(signature.has_value())) {
         return;
     }
-    auto const verified_sync = crypto::verify<ed25519::strict, typename Keypair::backend_type>(
-        crypto::eddsa, *signature, message, *public_key);
+    auto const verified_sync = crypto::verify<typename Keypair::backend_type>(
+        crypto::eddsa, *signature, message, *public_key, ed25519::strict);
     BOOST_TEST(verified_sync.has_value());
     auto const signed_async =
         complete<signature_type>(context, [&](auto const& executor, auto&& token) {

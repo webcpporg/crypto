@@ -1439,6 +1439,7 @@ namespace webcpp::crypto {
  * A high S is refused, as libsecp256k1 refuses it (Bitcoin's policy); `sign` gives low S, and
  * `curves::secp256k1::normalize_low_s` makes a high one low.
  *
+ * @tparam Backend The backend, `backends::secp256k1`, the only one; another stops the build.
  * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
  * empty included, or `crypto::prehashed<32>`; anything else stops the build.
  * @param scheme `crypto::ecdsa_sha256`.
@@ -1449,13 +1450,14 @@ namespace webcpp::crypto {
  * @return Nothing; `invalid_signature` for an r or an s not below the group order, a high S, or
  * a signature that does not verify.
  */
-template <class Input>
+template <class Backend = default_backend_t<families::secp256k1>, class Input>
 [[nodiscard]] boost::system::result<void> verify(
     [[maybe_unused]] ecdsa_sha256_t scheme, std::span<std::uint8_t const, 64> signature,
     Input const& input, curves::secp256k1::public_key const& public_key) noexcept {
     detail::timing_guard const timing;
-    detail::check_input<ecdsa_sha256_t, Input, backends::secp256k1>();
-    if constexpr (detail::input_valid_v<ecdsa_sha256_t, Input, backends::secp256k1>) {
+    static_assert(detail::secp256k1_refuses_others<families::secp256k1, Backend>);
+    detail::check_input<ecdsa_sha256_t, Input, Backend>();
+    if constexpr (detail::input_valid_v<ecdsa_sha256_t, Input, Backend>) {
         auto const digest = detail::secp256k1_digest(input);
         detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         secp256k1_selftest();
@@ -1477,6 +1479,7 @@ template <class Input>
  * Verifies a BIP340 signature with libsecp256k1's static context, which allocates nothing, after
  * its self-test (`include/secp256k1.h:235-247`).
  *
+ * @tparam Backend The backend, `backends::secp256k1`, the only one; another stops the build.
  * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
  * empty included; a `crypto::prehashed` marker, or anything else, stops the build.
  * @param scheme `crypto::schnorr`.
@@ -1486,13 +1489,14 @@ template <class Input>
  * taproot output key, MuSig2's aggregate key).
  * @return Nothing; `invalid_public_key` for 32 bytes that are no point's x; `invalid_signature`.
  */
-template <class Input>
+template <class Backend = default_backend_t<families::secp256k1>, class Input>
 [[nodiscard]] boost::system::result<void> verify(
     [[maybe_unused]] schnorr_t scheme, std::span<std::uint8_t const, 64> signature,
     Input const& message, std::span<std::uint8_t const, 32> xonly_public_key) noexcept {
     detail::timing_guard const timing;
-    detail::check_input<schnorr_t, Input, backends::secp256k1>();
-    if constexpr (detail::input_valid_v<schnorr_t, Input, backends::secp256k1>) {
+    static_assert(detail::secp256k1_refuses_others<families::secp256k1, Backend>);
+    detail::check_input<schnorr_t, Input, Backend>();
+    if constexpr (detail::input_valid_v<schnorr_t, Input, Backend>) {
         auto const message_bytes = detail::message_bytes(message);
         detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         secp256k1_selftest();

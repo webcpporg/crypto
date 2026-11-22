@@ -567,8 +567,8 @@ public:
     bool check() {
         auto const signature = take(key_.sign(eddsa, message_), "sign");
         auto const public_key = take(key_.public_key(), "public_key");
-        return crypto::verify<curves::ed25519::strict, Backend>(eddsa, signature, message_,
-                                                                public_key)
+        return crypto::verify<Backend>(eddsa, signature, message_, public_key,
+                                       curves::ed25519::strict)
             .has_value();
     }
 

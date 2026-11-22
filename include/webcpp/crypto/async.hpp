@@ -464,12 +464,12 @@ auto async_sign(Executor const& executor, Keypair const& key_pair,
 }
 
 /**
- * Verifies an Ed25519 signature, asynchronously: `crypto::verify<Policy, Backend>` with
- * `crypto::eddsa`, run when the operation is initiated, its result posted to `executor`.
+ * Verifies an Ed25519 signature, asynchronously: `crypto::verify<Backend>` with `crypto::eddsa`
+ * and the policy, run when the operation is initiated, its result posted to `executor`.
  *
  * The spans are the caller's until the completion.
  *
- * @tparam Policy The verification policy; `curves::ed25519::strict` is the only one declared.
+ * @tparam Policy The verification policy; `curves::ed25519::strict_t` is the only one declared.
  * @tparam Backend The backend; by default the asynchronous family's.
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
  * @tparam CompletionToken Any completion token for the signature `token` states.
@@ -481,7 +481,7 @@ auto async_sign(Executor const& executor, Keypair const& key_pair,
  * `invalid_public_key` for a key of another size, `invalid_signature`, `backend_failure`.
  * @return What the completion token's `async_result` gives.
  */
-template <class Policy = curves::ed25519::strict,
+template <class Policy = curves::ed25519::strict_t,
           class Backend = default_async_backend_t<families::ed25519>, class Executor,
           class CompletionToken>
 auto async_verify(Executor const& executor, std::span<std::uint8_t const> public_key,
@@ -494,7 +494,7 @@ auto async_verify(Executor const& executor, std::span<std::uint8_t const> public
     } else {
         return detail::complete_by_post(
             executor, token, [public_key, message, signature]() noexcept {
-                return crypto::verify<Policy, Backend>(eddsa, signature, message, public_key);
+                return crypto::verify<Backend>(eddsa, signature, message, public_key, Policy{});
             });
     }
 }

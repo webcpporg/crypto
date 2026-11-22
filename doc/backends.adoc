@@ -202,29 +202,28 @@ wherever else the lane runs, on a machine of one's own, in one process.
 
 Whether a tag matched, or a shared secret came out all zero, is public by
 design, since the operation reports it, but it is computed from the secrets: it
-is the one kind of value webcpp marks public, where webcpp's code first
-branches on it (BearSSL's engines, libsodium's engines, X25519's `agree`,
-P-256's range check of a scalar and its low-S test, and each verdict of
-libsecp256k1's that webcpp reads), so that the checkers report every other
-branch. A signature is public once it is made, but one fresh from `sign` is
-computed from the scalar: the low-S step of `sign` selects n - s by a mask,
-without a branch and without marking anything public, and `normalize_low_s`
-and `is_low_s` mark their verdict public, so that a program that checks its own signatures
-under a checker sees no report. libsecp256k1 marks its own public values (a nonce's retry,
-a verdict, a public key it loads) when its context is made with
-`SECP256K1_CONTEXT_DECLASSIFY`, which webcpp's contexts are under the
-checkers, as its `ctime_tests.c` makes its own; a key pair's public key and a
-silent payments label, which webcpp reads from libsecp256k1's structures, are
-marked public where webcpp reads them. libsodium branches on its own
-verdicts inside the functions that compute them; the lane tells memcheck of
-each of those functions (`sodium_verdicts.supp`), and libsodium is used
-unchanged. BearSSL's ECDSA signing does the same with its scalar's decoding
-and RFC 6979's retry of a nonce out of range, in `br_ecdsa_i31_sign_raw`
-(`bearssl_verdicts.supp`). MemorySanitizer approximates a subtraction without its carry, so it
-counts every such verdict public by itself: memcheck is the check of the
-marks. OpenSSL's verdict is OpenSSL's own internal
-branch, which webcpp cannot mark: OpenSSL is checked with the key secret during
-`seal` only.
+is the one kind of value webcpp marks public, where webcpp's code first branches
+on it (BearSSL's engines, libsodium's engines, X25519's `agree`, P-256's range
+check of a scalar and its low-S test, and each verdict of libsecp256k1's that
+webcpp reads), so that the checkers report every other branch. A signature is
+public once it is made, but one fresh from `sign` is computed from the scalar:
+the low-S step of `sign` selects n - s by a mask, without a branch and without
+marking anything public, and `normalize_low_s` and `is_low_s` mark their verdict
+public, so that a program that checks its own signatures under a checker sees no
+report. libsecp256k1 marks its own public values (a nonce's retry, a verdict, a
+public key it loads) when its context is made with
+`SECP256K1_CONTEXT_DECLASSIFY`, which webcpp's contexts are under the checkers,
+as its `ctime_tests.c` makes its own; a key pair's public key and a silent
+payments label, which webcpp reads from libsecp256k1's structures, are marked
+public where webcpp reads them. libsodium branches on its own verdicts inside
+the functions that compute them; the lane tells memcheck of each of those
+functions (`sodium_verdicts.supp`), and libsodium is used unchanged. BearSSL's
+ECDSA signing does the same with its scalar's decoding and RFC 6979's retry of a
+nonce out of range, in `br_ecdsa_i31_sign_raw` (`bearssl_verdicts.supp`).
+MemorySanitizer approximates a subtraction without its carry, so it counts every
+such verdict public by itself: memcheck is the check of the marks. OpenSSL's
+verdict is OpenSSL's own internal branch, which webcpp cannot mark: OpenSSL is
+checked with the key secret during `seal` only.
 
 [#crypto-backends-dit]
 ==== Data-independent timing (DIT)

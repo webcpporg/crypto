@@ -218,11 +218,11 @@ every curve's key pair meets, each curve's header checking its own with a
 
 * `make(secret_bytes)` makes it from its secret, and `generate()` draws one
 from `random_device`, each giving `result<K>`;
-* `public_key()` gives the curve's typed public key, `K::public_key_type`,
-which goes straight into `crypto::verify`: `curves::ed25519::public_key`,
+* `public_key()` gives `result<K::public_key_type>`, the curve's typed public
+key, whose value goes straight into `crypto::verify`: `curves::ed25519::public_key`,
 `curves::p256::public_key` or `curves::secp256k1::public_key`;
-* `secret()` gives back the bytes `make` takes, as a `secret<N>` that wipes
-itself: Ed25519's seed, P-256's scalar, secp256k1's secret key. It is the
+* `secret()` gives `result<secret<N>>`, the bytes `make` takes, in a
+`secret<N>` that wipes itself: Ed25519's seed, P-256's scalar, secp256k1's secret key. It is the
 export a PKCS#8 file or a backup takes;
 * `sign(scheme, input)` signs with every scheme its curve has, at least one.
 

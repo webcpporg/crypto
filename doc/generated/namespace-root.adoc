@@ -44,7 +44,7 @@
 |its values are the errors
 |`invalid_encoding`, `invalid_input_size`
 |`memory_functions_refused`, `memory_functions_not_installed`
-|`invalid_signature` from `verify`; a scheme and an input that do not go together stop the build
+|`verify`: `invalid_signature`, and `invalid_public_key` for 32 x-only bytes that are no point; `sign`: `invalid_state`, `entropy_unavailable` (Schnorr's drawn randomness), `backend_failure`; a scheme and an input that do not go together stop the build
 |none: a concept, checked at compile time
 
 |Standards and sources

@@ -180,22 +180,22 @@ include::generated/backends-p256_ecdsa.adoc[]
 same digest too: anyone can turn one into the other without the key. That is
 *malleability*, harmless for most programs, since both say the same signer
 signed the same digest, but a protocol that names a message by its signature's
-bytes sees two names for one message. FIPS 186-5 and WebCrypto accept both
-forms (link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5];
+bytes sees two names for one message. FIPS 186-5 and WebCrypto accept both forms
+(link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5];
 link:https://www.w3.org/TR/WebCryptoAPI/[W3C]), and so does `crypto::verify`.
 `sign` gives the *low-S* form, s at most (n - 1) / 2: RFC 6979's S is replaced
-by n - s when it is high, without a branch on the secret, as libsecp256k1
-signs. Some protocols accept only the low-S form: Bitcoin's
+by n - s when it is high, without a branch on the secret, as libsecp256k1 signs.
+Some protocols accept only the low-S form: Bitcoin's
 (link:https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki[BIP 146])
 and Trystero's, which normalizes what it signs and refuses a high S in what it
 reads
 (link:https://github.com/dmotz/trystero/blob/0.27.0/packages/core/src/crypto.ts[Trystero
-0.27.0]). What such a protocol sends, `sign` already gives; what it receives,
-it checks with `is_low_s(signature)`, true exactly when r is between 1 and
-n - 1 and s between 1 and (n - 1) / 2, before the signature is verified. `normalize_low_s(signature)`
-returns the low-S form of a signature made elsewhere, such as WebCrypto's,
-whose S may be high, and the same signature when S is already low. Neither
-calls BearSSL: both are arithmetic on public bytes.
+0.27.0]). What such a protocol sends, `sign` already gives; what it receives, it
+checks with `is_low_s(signature)`, true exactly when r is between 1 and n - 1
+and s between 1 and (n - 1) / 2, before the signature is verified.
+`normalize_low_s(signature)` returns the low-S form of a signature made
+elsewhere, such as WebCrypto's, whose S may be high, and the same signature when
+S is already low. Neither calls BearSSL: both are arithmetic on public bytes.
 
 *Example.* RFC 6979's key signs "sample", whose signature in the RFC has a
 high S: `sign` gives its low-S form. Its DER, the signature verified with the

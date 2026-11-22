@@ -57,10 +57,10 @@ struct plain_tag {};
 namespace webcpp::crypto::detail {
 
 template <>
-inline constexpr bool key_has_scheme_v<stand_in_keypair, ecdsa_sha256_t> = true;
+inline constexpr bool signs_with_v<stand_in_keypair, ecdsa_sha256_t> = true;
 
 template <>
-inline constexpr bool key_has_scheme_v<stand_in_public_key, ecdsa_sha256_t> = true;
+inline constexpr bool verifies_with_v<stand_in_public_key, ecdsa_sha256_t> = true;
 
 template <>
 struct key_backend<stand_in_keypair> {
@@ -68,7 +68,7 @@ struct key_backend<stand_in_keypair> {
 };
 
 template <>
-inline constexpr bool key_has_scheme_v<stand_in_async_keypair, ecdsa_sha256_t> = true;
+inline constexpr bool signs_with_v<stand_in_async_keypair, ecdsa_sha256_t> = true;
 
 template <>
 struct key_backend<stand_in_async_keypair> {
@@ -177,6 +177,10 @@ static_assert(
 static_assert(
     !crypto::can_verify<crypto::ecdsa_sha256_t, crypto::prehashed<48>, stand_in_public_key>);
 static_assert(!crypto::can_verify<crypto::schnorr_t, message_span, stand_in_public_key>);
+
+// The two traits are apart: a key pair does not verify, a public key does not sign.
+static_assert(!crypto::can_sign<stand_in_public_key, crypto::ecdsa_sha256_t, message_span>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, message_span, stand_in_keypair>);
 
 // The catch-all verify is a candidate where no curve declares a verifier, and steps aside where
 // one does; a requires-expression reads its declaration alone, never its refusal.

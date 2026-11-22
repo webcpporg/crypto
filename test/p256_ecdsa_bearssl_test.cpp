@@ -535,6 +535,18 @@ void der_short_integers() {
     }
 }
 
+// A key pair signs and its public key verifies; never the other way round.
+static_assert(crypto::can_sign<keypair, crypto::ecdsa_sha256_t, std::span<std::uint8_t const>>);
+static_assert(crypto::can_sign<keypair, crypto::ecdsa_sha256_t, crypto::prehashed<32>>);
+static_assert(
+    crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>, public_key>);
+static_assert(!crypto::can_sign<p256::basic_public_key<crypto::backends::bearssl>,
+                                crypto::ecdsa_sha256_t, std::span<std::uint8_t const>>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>, keypair>);
+// Bytes are no P-256 key: ECDSA never infers its curve from a number of bytes.
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>,
+                                  std::array<std::uint8_t, 64>>);
+
 }  // namespace
 
 int main() {

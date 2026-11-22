@@ -59,3 +59,4 @@ build-project prehashed_dynamic ;
 build-project sign_p256_schnorr ;
 build-project sign_p256_digest_48 ;
 build-project sign_ed25519_prehashed ;
+build-project sign_ed25519_ecdsa ;

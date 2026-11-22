@@ -550,7 +550,7 @@ namespace webcpp::crypto::detail {
  * @tparam Backend The key pair's backend.
  */
 template <class Backend>
-inline constexpr bool key_has_scheme_v<curves::p256::basic_keypair<Backend>, ecdsa_sha256_t> = true;
+inline constexpr bool signs_with_v<curves::p256::basic_keypair<Backend>, ecdsa_sha256_t> = true;
 
 /**
  * A P-256 public key verifies ECDSA over SHA-256.
@@ -558,7 +558,7 @@ inline constexpr bool key_has_scheme_v<curves::p256::basic_keypair<Backend>, ecd
  * @tparam Backend The public key's backend.
  */
 template <class Backend>
-inline constexpr bool key_has_scheme_v<curves::p256::basic_public_key<Backend>, ecdsa_sha256_t> =
+inline constexpr bool verifies_with_v<curves::p256::basic_public_key<Backend>, ecdsa_sha256_t> =
     true;
 
 /**

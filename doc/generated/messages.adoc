@@ -277,6 +277,12 @@ The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp2
 
 The fix: Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
 
+|`+sign_ed25519_ecdsa+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: an Ed25519 key signs with crypto::eddsa.+`
+
+The fix: Sign with `+crypto::eddsa+`, Ed25519's scheme; `+crypto::ecdsa_sha256+` is P-256's and secp256k1's.
+
 |`+sign_ed25519_prehashed+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure Ed25519) and takes no digest; Ed25519ph, which hashes the message, is curves::ed25519::ph.+`

@@ -1394,6 +1394,7 @@
         "async_sign_secp256k1": "Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `async_sign`.",
         "prehashed_dynamic": "Give `crypto::prehashed` a digest of a fixed size: a `std::array<std::uint8_t, 32>`, a `std::span<std::uint8_t const, 32>` or a `boost::hash2::digest<32>`.",
         "sign_p256_schnorr": "Sign with `crypto::ecdsa_sha256`, P-256's scheme; BIP340's `crypto::schnorr` is secp256k1's.",
+        "sign_ed25519_ecdsa": "Sign with `crypto::eddsa`, Ed25519's scheme; `crypto::ecdsa_sha256` is P-256's and secp256k1's.",
         "sign_ed25519_prehashed": "Sign the message itself with `crypto::eddsa`, RFC 8032's pure Ed25519, which takes no digest; to sign a message given in pieces, use Ed25519ph, `curves::ed25519::ph<webcpp::hash::sha2_512>`.",
         "sign_p256_digest_48": "Give `crypto::ecdsa_sha256` SHA-256's 32-byte digest, `crypto::prehashed{digest}` of a `std::array<std::uint8_t, 32>`, or the message itself, which it hashes.",
         "heavy_without_threads_on_emscripten": "As `heavy_without_threads`: on Emscripten, add `<threading>multi`.",

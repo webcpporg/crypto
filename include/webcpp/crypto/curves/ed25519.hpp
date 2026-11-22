@@ -522,7 +522,7 @@ namespace webcpp::crypto::detail {
  * @tparam Backend The key pair's backend.
  */
 template <class Backend>
-inline constexpr bool key_has_scheme_v<curves::ed25519::basic_keypair<Backend>, eddsa_t> = true;
+inline constexpr bool signs_with_v<curves::ed25519::basic_keypair<Backend>, eddsa_t> = true;
 
 /**
  * An Ed25519 key pair's backend.
@@ -544,7 +544,7 @@ struct key_backend<curves::ed25519::basic_keypair<Backend>> {
  */
 template <class Key>
     requires std::is_convertible_v<Key const&, std::span<std::uint8_t const>>
-inline constexpr bool key_has_scheme_v<Key, eddsa_t> = true;
+inline constexpr bool verifies_with_v<Key, eddsa_t> = true;
 
 /**
  * `crypto::verify` of `eddsa` against bytes is Ed25519's, so that the catch-all steps aside.

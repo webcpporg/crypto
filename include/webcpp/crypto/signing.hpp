@@ -261,17 +261,37 @@ inline constexpr bool is_message_v =
     !is_prehashed_v<Type> && std::is_convertible_v<Type const&, std::span<std::uint8_t const>>;
 
 /**
- * Whether `Key`, a key pair or a public key, has the scheme `Scheme`: false, unless the key's
- * curve says so, for its key types and for the byte keys of its schemes.
+ * Whether the key pair `Keypair` signs with the scheme `Scheme`: false, unless the key pair's
+ * curve says so, for its key pair types alone (a public key or bytes never sign).
  *
- * @tparam Key A key pair's or a public key's type, without its reference and qualifiers.
+ * A curve's header specialises it: the header is included before `can_sign` or this trait is
+ * used on its key pairs, or the specialisation comes after the first use (ill-formed).
+ *
+ * @tparam Keypair A key pair's type, without its reference and qualifiers.
  * @tparam Scheme A scheme tag.
  */
-template <class Key, class Scheme>
-inline constexpr bool key_has_scheme_v = false;
+template <class Keypair, class Scheme>
+inline constexpr bool signs_with_v = false;
 
 /**
- * The backend of a key type, `void` for a byte key; each curve specialises it for its own.
+ * Whether the public key `PublicKey` verifies the scheme `Scheme`: false, unless the key's curve
+ * says so, for its public key types and for the byte keys of its schemes (a key pair never
+ * verifies: its public key does).
+ *
+ * A curve's header specialises it: the header is included before `can_verify`, `crypto::verify`
+ * or this trait is used on its public keys, or the specialisation comes after the first use
+ * (ill-formed).
+ *
+ * @tparam PublicKey A public key's type, a curve's type or bytes, without its reference and
+ * qualifiers.
+ * @tparam Scheme A scheme tag.
+ */
+template <class PublicKey, class Scheme>
+inline constexpr bool verifies_with_v = false;
+
+/**
+ * The backend of a key type, `void` for a byte key; each curve specialises it for its own, in
+ * its header, which is included before the trait is used on its keys.
  *
  * @tparam Key A key pair's or a public key's type.
  */
@@ -393,6 +413,7 @@ inline constexpr bool is_scheme_v =
 /**
  * Whether a curve gives `crypto::verify` of `Scheme` for the public key `Key`: false here; each
  * curve specialises it for its own keys, and the catch-all `verify` steps aside where it is true.
+ * The curve's header is included before a call or the trait names its keys.
  *
  * @tparam Scheme A scheme tag.
  * @tparam Key The public key's type, without its reference and qualifiers.
@@ -411,9 +432,10 @@ inline constexpr bool has_verifier_v = false;
  * @tparam Input The input's type: a message, or `prehashed<N>`.
  */
 template <class Keypair, class Scheme, class Input>
-concept can_sign = detail::key_has_scheme_v<Keypair, Scheme> &&
-                   detail::input_valid_v<Scheme, std::remove_cvref_t<Input>,
-                                         typename detail::key_backend<Keypair>::type>;
+concept can_sign =
+    detail::signs_with_v<std::remove_cvref_t<Keypair>, Scheme> &&
+    detail::input_valid_v<Scheme, std::remove_cvref_t<Input>,
+                          typename detail::key_backend<std::remove_cvref_t<Keypair>>::type>;
 
 /**
  * Whether `crypto::verify` checks a signature of `Scheme` over `Input` against `PublicKey`: when
@@ -426,7 +448,7 @@ concept can_sign = detail::key_has_scheme_v<Keypair, Scheme> &&
  */
 template <class Scheme, class Input, class PublicKey>
 concept can_verify =
-    detail::key_has_scheme_v<std::remove_cvref_t<PublicKey>, Scheme> &&
+    detail::verifies_with_v<std::remove_cvref_t<PublicKey>, Scheme> &&
     detail::input_valid_v<Scheme, std::remove_cvref_t<Input>,
                           typename detail::key_backend<std::remove_cvref_t<PublicKey>>::type>;
 

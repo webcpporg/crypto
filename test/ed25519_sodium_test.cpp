@@ -334,6 +334,18 @@ int main() {
                                      std::array<std::uint8_t, 32>>);
     static_assert(
         !crypto::can_verify<crypto::eddsa_t, crypto::prehashed<32>, std::array<std::uint8_t, 32>>);
+    // Bytes never sign, whatever their size, and a key pair is no public key: it verifies
+    // nothing, its public key does.
+    static_assert(!crypto::can_sign<std::array<std::uint8_t, 32>, crypto::eddsa_t,
+                                    std::span<std::uint8_t const>>);
+    static_assert(!crypto::can_sign<std::vector<std::uint8_t>, crypto::eddsa_t,
+                                    std::span<std::uint8_t const>>);
+    static_assert(
+        !crypto::can_verify<crypto::eddsa_t, std::span<std::uint8_t const>, ed25519::keypair>);
+    static_assert(
+        crypto::can_sign<ed25519::keypair const&, crypto::eddsa_t, std::span<std::uint8_t const>>);
+    static_assert(crypto::can_verify<crypto::eddsa_t, std::span<std::uint8_t const>,
+                                     std::array<std::uint8_t, 32> const&>);
     // Bytes verify eddsa through Ed25519's crypto::verify, so the catch-all steps aside; with
     // another scheme bytes are no key, and the catch-all refuses them.
     static_assert(crypto::detail::has_verifier_v<crypto::eddsa_t, std::array<std::uint8_t, 32>>);

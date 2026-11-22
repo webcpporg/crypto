@@ -24,8 +24,12 @@ browser's generator, and nothing else.
 * *secp256k1.* BIP 340 Schnorr signatures, ECDSA signatures, their
 verification, ECDH, ECDSA's strict DER and low-S forms, and the x-only tweak,
 through libsecp256k1.
-* *P-256.* ECDSA over a SHA-256 digest, ECDH, strict DER and low-S forms, and
-SPKI and PKCS#8 keys, through BearSSL.
+* *P-256.* ECDSA over SHA-256, signed low S, ECDH, strict DER and low-S forms,
+and SPKI and PKCS#8 keys, through BearSSL.
+* *One way to sign.* Every key pair signs with `sign(scheme, input)`, and
+`crypto::verify(scheme, signature, input, public_key)` checks the signature,
+the scheme named at every call and a digest given only as
+`+crypto::prehashed{digest}+` (<<crypto-curves-signatures>>).
 * *A constant-time `equal`* for tags and MACs, Boost.Hash2's included.
 * *The AES block cipher,* a building block for the rare case that needs one.
 

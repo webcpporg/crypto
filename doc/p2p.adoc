@@ -150,10 +150,11 @@ session, as the example does: with long-lived key pairs, whoever later steals
 a secret key computes every past session's secret from the recorded public
 keys, while fresh pairs wiped after the session give *forward secrecy*
 (link:https://en.wikipedia.org/wiki/Forward_secrecy[Wikipedia]); a long-lived
-key signs the fresh public keys instead. `ecdh` returns libsecp256k1's hashed
-form, the SHA-256 of the compressed shared point, as a `secret<32>` that wipes
-itself: both sides must use the same form, and a protocol that takes the raw x
-coordinate, such as Nostr's NIP-44, needs `ecdh_x` (<<crypto-secp256k1-ecdh>>).
+key signs the fresh public keys instead. `agree_hashed` returns
+libsecp256k1's hashed form, the SHA-256 of the compressed shared point, as a
+`secret<32>` that wipes itself: both sides must use the same form, and a
+protocol that takes the raw x coordinate, such as Nostr's NIP-44, needs
+`agree` (<<crypto-secp256k1-ecdh>>).
 
 [#crypto-p2p-nostr-dm]
 === A shared key in Nostr's direct messages
@@ -168,7 +169,7 @@ ECDH, and both find the same shared point. Nostr's encrypted payloads take its
 x coordinate unhashed, and derive from it a conversation key, HKDF-extract
 with the salt `nip44-v2`, then a key for each message
 (link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44]).
-`ecdh_x` gives the x coordinate as a `secret<32>`
+`agree` gives the x coordinate as a `secret<32>`
 (<<crypto-secp256k1-ecdh>>); the conversation key and everything after it,
 the message keys, the padding and the payload's format, are NIP-44's, which a
 domain library built on crypto and hash, such as a future webcpp::nostr,
@@ -188,7 +189,7 @@ include::{examples}/ecdh_x_coordinate.expected[]
 This section names no application.
 
 *Mistakes to avoid.* Hashing the x coordinate differently on the two sides:
-`ecdh` hashes the compressed shared point with SHA-256, libsecp256k1's
+`agree_hashed` hashes the compressed shared point with SHA-256, libsecp256k1's
 default, and a side that uses it while the other takes the raw x coordinate
 gets another key, so that every message fails to open with nothing pointing at
 the cause. Reusing the conversation key as a message key: it is the same for
@@ -260,11 +261,11 @@ its 32-byte scalar and made again from it (<<crypto-p256-keys>>), and draws a
 fresh key pair for each session. It sends both public keys raw, the 65 bytes
 of WebCrypto's `exportKey("raw")`, and the receiver makes each a `public_key`,
 which checks the point once. Both sides hash the handshake's bytes with SHA-256
-and each signs the digest with its identity, as WebCrypto's ECDSA with SHA-256
-signs (<<crypto-p256-ecdsa>>). A signature has two forms, s and n - s, and
-both verify; a protocol that requires one form, low S, makes each signature
-low S with `normalize_ecdsa`, and its receiver refuses the other form with
-`check_low_s` before it verifies. The session key comes from ECDH's x of the
+and each signs the digest, marked `+crypto::prehashed{digest}+`, with its
+identity, as WebCrypto's ECDSA with SHA-256 signs (<<crypto-p256-ecdsa>>). A
+signature has two forms, s and n - s, and both verify; a protocol that
+requires one form, low S, gets it from `sign`, which signs no other, and its
+receiver refuses the other form with `is_low_s` before it verifies. The session key comes from ECDH's x of the
 two session key pairs, which is not a key by itself, through HKDF
 (<<crypto-p256-ecdh>>; link:https://www.rfc-editor.org/rfc/rfc5869[RFC 5869]).
 The example builds this from the calls of the three P-256 examples; what is
@@ -302,18 +303,18 @@ include::{examples}/p256_handshake.cpp[tag=receive,indent=0]
 include::{examples}/p256_handshake.cpp[tag=session,indent=0]
 ----
 
-The two peers' run, and a signature sent without `normalize_ecdsa`, whose S
-came out high, refused though it would verify:
+The two peers' run, and the same signature in its high-S form, as another
+implementation may send it, refused though it would verify:
 
 [listing]
 ----
 include::{examples}/p256_handshake.expected[]
 ----
 
-*Mistakes to avoid.* Sending a signature as `sign_ecdsa` gives it to a peer
-that requires low S: about half of them come out high, so the handshake fails
-for half the sessions, with nothing pointing at the cause; normalize what is
-signed. Checking low S only after the signature verifies, or not at all: the
+*Mistakes to avoid.* A peer that signs with another implementation, WebCrypto
+among them, and does not normalize: about half of its signatures come out
+high, so the handshake fails for half the sessions, with nothing pointing at
+the cause; such a peer normalizes what it signs, as Trystero does. Checking low S only after the signature verifies, or not at all: the
 form of a signature is a second, valid signature anyone can make from the
 first, and a protocol that names messages by their signature then sees one
 message twice. Using the identity key for ECDH, or keeping the session key

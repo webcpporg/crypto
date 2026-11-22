@@ -112,8 +112,9 @@ to another place: <<crypto-gcm>>. A large file is sealed in records:
 who can change the download, a compromised mirror, a network in the middle,
 could ship code that the program then runs.
 
-*The idea.* The publisher signs the SHA-256 of each update with ECDSA; the
-program ships with the publisher's public key and accepts an update only when
+*The idea.* The publisher signs each update with ECDSA over SHA-256,
+`crypto::ecdsa_sha256`, which hashes the update inside the call; the program
+ships with the publisher's public key and accepts an update only when
 its signature verifies. Only the publisher's secret key can produce a signature
 the program accepts.
 

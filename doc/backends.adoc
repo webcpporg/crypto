@@ -131,21 +131,22 @@ x-only tweak, ECDH in its three forms, the secret key's tweaks and negation,
 PKCS#8's encoding and decoding, ElligatorSwift's `ellswift_create` and
 `ellswift_xdh`, MuSig2's `nonce_gen` and `partial_sign`, and silent payments'
 `create_outputs`, `create_label` and `scan_outputs`, with the wipe of their
-workspaces; and BearSSL's P-256: the key pair's making, `sign_ecdsa` followed by
-`normalize_ecdsa` and `check_low_s` on the fresh signature, `ecdh_x` and
+workspaces; and BearSSL's P-256: the key pair's making, `sign` of a digest
+(`crypto::prehashed`), which makes its signature low S without a branch, then
+`normalize_low_s` and `is_low_s` on the fresh signature, `agree` and
 `decode_pkcs8`. Both checkers run the same paths, written once (`paths.hpp`),
 memcheck OpenSSL's besides. Each check is shown to fail on a planted branch on
 a key byte, and on a copy of P-256's range check of a scalar that returns at
 the first byte that differs, and each path's output is checked to carry the mark, so that the
 path is traced, where the checker's shadow keeps it: MemorySanitizer's loses
 the mark through a constant-time reduction to one bit, so the result of
-`is_all_zero`, X25519's public key, P-256's public key and `ecdh_x` (BearSSL
+`is_all_zero`, X25519's public key, P-256's public key and `agree` (BearSSL
 selects a window's points with masks of that form) and the bytes a destructor
 wiped are checked by memcheck alone. dudect's statistics
 (link:https://eprint.iacr.org/2016/1123[Reparaz, Balasch and Verbauwhede]) time
-BearSSL's two AEADs' seal and open, BearSSL's P-256 `sign_ecdsa` and
-`ecdh_x` against the key pair's scalar, ctaes, `equal`, libsodium's X25519
-agreement and Ed25519 signing, and libsecp256k1's `ecdh_x` natively, on Linux
+BearSSL's two AEADs' seal and open, BearSSL's P-256 `sign` of a digest and
+`agree` against the key pair's scalar, ctaes, `equal`, libsodium's X25519
+agreement and Ed25519 signing, and libsecp256k1's `agree` natively, on Linux
 and macOS, and under wasmtime.
 dudect's programs set nothing themselves: they measure what a program gets,
 which on 64-bit ARM is the DIT webcpp sets in each call (<<crypto-backends-dit>>).
@@ -155,21 +156,23 @@ get. The lane's `dudect_planted` shows that DIT does not hide a leak: X25519's
 `agree` after an early-exit scan of its secret key, the scan run inside the
 library's own guard as a public operation's code would be, which dudect must
 find: |t| 66.72 and 65.53 against the threshold 10 (2026-11-21 UTC, two runs,
-an Apple M5 Max, a release build). BearSSL's P-256, its `sign_ecdsa` and its `ecdh_x`
-timed against the key pair's scalar, a fixed one against random ones, read |t|
+an Apple M5 Max, a release build). BearSSL's P-256, its signing as it was
+before its low-S step and its `agree`, timed against the key pair's scalar,
+a fixed one against random ones, read |t|
 2.24 to 2.29 and 1.84 to 2.19 natively and 1.36 to 2.51 and 1.85 to 2.08 under
 wasmtime on wasip2 against the same threshold (2026-11-21 UTC, two runs each,
 the lane's among them, on the same machine shared and loaded, a release
-build).
+build). The signing with its low-S step is pending the lane's rerun.
 
 memcheck and MemorySanitizer last ran the lane on 2026-11-21 UTC with the
 command the CI runs it with, in an arm64 Linux container (Ubuntu 24.04, the
 image `linux-lint:arm64` of webcpp's Linux lint, Valgrind 3.22, clang 18), on
 an Apple M5 Max. Every path above passed under both, P-256's with webcpp's fix
-to BearSSL (<<crypto-backends-bearssl-fix>>); the run before, without it, both
-reported the nonce's leak. Each planted program failed where it must, and the
-lane's dudect programs passed there too: P-256's `sign_ecdsa` |t| 1.91 and
-`ecdh_x` 1.96, with `dudect_planted` at 34.89.
+to BearSSL (<<crypto-backends-bearssl-fix>>) and its signing as it was before
+its low-S step, whose result with that step is pending the lane's rerun; the
+run before the fix, without it, both reported the nonce's leak. Each planted
+program failed where it must, and the lane's dudect programs passed there too:
+P-256's signing |t| 1.91 and `agree` 1.96, with `dudect_planted` at 34.89.
 
 One measurement is an open finding, listed under the table with its numbers:
 libsodium's X25519 `agree` under wasmtime, on wasip2. Its cause is measured:
@@ -203,9 +206,10 @@ is the one kind of value webcpp marks public, where webcpp's code first
 branches on it (BearSSL's engines, libsodium's engines, X25519's `agree`,
 P-256's range check of a scalar and its low-S test, and each verdict of
 libsecp256k1's that webcpp reads), so that the checkers report every other
-branch. A signature is public once it is made, but one fresh from
-`sign_ecdsa` is computed from the scalar: `normalize_ecdsa` and `check_low_s`
-mark their verdict public, so that a program that checks its own signatures
+branch. A signature is public once it is made, but one fresh from `sign` is
+computed from the scalar: the low-S step of `sign` selects n - s by a mask,
+without a branch and without marking anything public, and `normalize_low_s`
+and `is_low_s` mark their verdict public, so that a program that checks its own signatures
 under a checker sees no report. libsecp256k1 marks its own public values (a nonce's retry,
 a verdict, a public key it loads) when its context is made with
 `SECP256K1_CONTEXT_DECLASSIFY`, which webcpp's contexts are under the

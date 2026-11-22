@@ -540,9 +540,10 @@ inline constexpr std::size_t recoverable_signature_size = 65;
 class public_key {
 public:
     /**
-     * Makes a public key from SEC1 bytes: 33 with prefix 02 or 03, or 65 with prefix 04 (X9.62's
-     * hybrid prefixes 06 and 07 are refused, as everywhere in crypto). The point is checked: it is
-     * on the curve.
+     * Makes a public key from SEC1 bytes, 33 with prefix 02 or 03, or 65 with prefix 04.
+     *
+     * X9.62's hybrid prefixes 06 and 07 are refused, as everywhere in crypto. The point is
+     * checked: it is on the curve.
      *
      * @tparam Backend The backend, `backends::secp256k1`.
      * @param encoded_key The key, SEC1.

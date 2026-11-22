@@ -79,12 +79,14 @@ int main() {
     auto const sighash = second.result();
     print("sighash", std::span<std::uint8_t const>(sighash.data(), sighash.size()));
 
+    // tag::sign[]
     // The sighash is a SHA-256 digest: marked as one, ECDSA over SHA-256 signs it as given.
     auto const signature = key->sign(crypto::ecdsa_sha256, crypto::prehashed{sighash});
     if (!signature || !crypto::verify(crypto::ecdsa_sha256, *signature, crypto::prehashed{sighash},
                                       *public_key)) {
         return 1;
     }
+    // end::sign[]
     std::array<std::uint8_t, secp256k1::max_der_size> der{};
     auto const der_size = secp256k1::to_der(*signature, der);
     if (!der_size) {

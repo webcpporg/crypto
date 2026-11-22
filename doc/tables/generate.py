@@ -26,7 +26,10 @@ builds only), and {constant_time:<family>}, what crypto.json records of the fami
 constant time; a fact about the world in a column the namespace lists as `cited` holds a source or
 begins with "none", or the table is refused naming its row. The namespaces and the backends are
 crypto.json's, in its order; llms.txt's summary is its `llms`, and each operation's entry gives its
-backends, its default per target and the use cases that name it.
+backends, its default per target and the use cases that name it (a use case's `operations`, when
+it has them, limit it to those operations' ids, for a name that several families' operations
+share). A function's brief is its Doc Comment's first sentence; an operation's `overloads` name,
+per function, a text its declaration holds, for a name another family's overload declares first.
 
 The capability table is crypto.json's families: each family's algorithms and, per backend, the
 targets on which it has them, which the tests of the family's operations must run on (a cell is
@@ -1701,7 +1704,12 @@ def use_cases_page(data: Data, library: Path) -> str:
     namespace under webcpp::crypto that holds it, so that no column is as wide as a namespace's
     full name."""
     rows: List[List[str]] = []
+    ids = {operation['id'] for operation in data.get('operations', [])}
     for entry in data['use_cases']:
+        unknown = [name for name in entry.get('operations', []) if name not in ids]
+        if unknown:
+            raise Fault(f'crypto.json: the use case "{entry["need"]}" names the operations '
+                        f'{", ".join(unknown)}, which crypto.json does not describe')
         example = entry['example']
         if not example and entry['jamfile'] != 'none':
             raise Fault(f'crypto.json: the use case "{entry["need"]}" names no example: each '
@@ -1761,8 +1769,11 @@ def declared_brief(library: Path, operation: Data, function: str) -> str:
     """The first sentence of the Doc Comment of a function an operation names, read from the
     operation's headers: the description llms.txt gives it. A function written `class::name` is
     read in that class's body alone, for a name that another class of the header declares first.
-    A function no header declares is a fault."""
+    A function the operation's `overloads` name is read in the first declaration that holds the
+    text they give it, for a name another family's overload declares first. A function no header
+    declares is a fault."""
     scope, _, name = function.rpartition('::')
+    overload = operation.get('overloads', {}).get(function)
     if name == 'operator()':
         pattern = re.compile(r'\boperator\(\)\(')
     else:
@@ -1779,6 +1790,8 @@ def declared_brief(library: Path, operation: Data, function: str) -> str:
             free = not declaration.lstrip('\n').startswith(' ')
             if operation.get('free') and not free and not scope:
                 continue
+            if overload is not None and overload not in declaration:
+                continue
             found = pattern.search(declaration)
             # The declared name: the first parenthesis of the declaration is its own.
             if found and '(' not in declaration[:found.start()] and '/*' not in declaration:
@@ -1786,8 +1799,9 @@ def declared_brief(library: Path, operation: Data, function: str) -> str:
                                  for line in comment.group(1).splitlines()).strip()
                 words = LINE_REFERENCE.sub('', words.replace('@ref ', ''))
                 return re.split(r'(?<=\.)\s', words, maxsplit=1)[0]
+    held = f' with {overload} in its declaration' if overload is not None else ''
     raise Fault(f'crypto.json names {function} of {operation["id"]}, which no Doc Comment of '
-                f'{operation["header"]} declares')
+                f'{operation["header"]} declares{held}')
 
 
 def llms_entry(library: Path, operation: Data, function: str) -> str:
@@ -1824,10 +1838,11 @@ def llms_default(data: Data, operation: Data) -> str:
 def llms_uses(data: Data, operation: Data) -> str:
     """The use cases of the decision table that an operation answers: of its section, or whose
     `answers` names it where the use case links a teaching chapter instead, naming one of its
-    names."""
+    names; a use case that lists its `operations` answers those alone."""
     named = [part.rpartition('::')[2] for part in operation['api'].split(', ')]
     needs = [entry['need'][:1].lower() + entry['need'][1:] for entry in data['use_cases']
              if entry.get('answers', entry['section']) == operation['section']
+             and operation.get('id') in entry.get('operations', [operation.get('id')])
              and any(re.search(rf'\b{re.escape(name)}\b', entry['api']) for name in named)]
     return f' Use it to: {"; ".join(needs)}.' if needs else ''
 

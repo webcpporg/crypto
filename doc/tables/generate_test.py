@@ -1144,6 +1144,48 @@ def test_a_use_case_that_links_a_teaching_section_joins_the_operation_it_answers
         ' Use it to: find who signed a message.')
 
 
+def test_a_use_case_that_lists_its_operations_joins_those_alone(_: Path) -> None:
+    data = {'use_cases': [
+        {'need': 'Sign with Ed25519', 'api': '`async_sign`', 'section': 's',
+         'operations': ['ed']},
+        {'need': 'Seal a record', 'api': '`async_seal`', 'section': 's'}]}
+    assert generate.llms_uses(data, {'id': 'ed', 'api': 'async_sign', 'section': 's'}) == (
+        ' Use it to: sign with Ed25519.')
+    assert generate.llms_uses(data, {'id': 'p', 'api': 'async_sign', 'section': 's'}) == ''
+
+
+def test_a_use_case_listing_an_unknown_operation_is_a_fault(scratch: Path) -> None:
+    data = {'operations': [{'id': 'ed'}], 'use_cases': [
+        {'need': 'Sign with Ed25519', 'namespace': 'webcpp::crypto', 'api': '`async_sign`',
+         'backend': 'b', 'jamfile': 'none', 'example': '', 'section': 's',
+         'operations': ['nothing']}]}
+    try:
+        generate.use_cases_page(data, scratch)
+    except generate.Fault as fault:
+        assert 'nothing' in str(fault), fault
+    else:
+        raise AssertionError('a use case naming an unknown operation was accepted')
+
+
+def test_an_overload_is_read_in_the_declaration_that_holds_its_text(scratch: Path) -> None:
+    written(scratch, 'include/webcpp/crypto/over.hpp', (
+        'namespace webcpp::crypto {\n'
+        '/** Verifies an Ed25519 signature. */\nint verify(span key, int signature);\n'
+        '/** Verifies a P-256 signature. */\nint verify(p256::basic_public_key const& key);\n}\n'))
+    plain = {'id': 'ed', 'header': '<webcpp/crypto/over.hpp>', 'free': True}
+    assert generate.declared_brief(scratch, plain, 'verify') == 'Verifies an Ed25519 signature.'
+    chosen = dict(plain, id='p', overloads={'verify': 'p256::basic_public_key'})
+    brief = generate.declared_brief(scratch, chosen, 'verify')
+    assert brief == 'Verifies a P-256 signature.', brief
+    missing = dict(plain, id='q', overloads={'verify': 'p384::basic_public_key'})
+    try:
+        generate.declared_brief(scratch, missing, 'verify')
+    except generate.Fault as fault:
+        assert 'p384::basic_public_key' in str(fault), fault
+    else:
+        raise AssertionError('an overload no declaration holds was given a brief')
+
+
 def test_a_measurement_not_built_at_release_is_refused(scratch: Path) -> None:
     import json
     written(scratch, 'doc/performance.json', json.dumps(measured(22.5)))
@@ -1457,6 +1499,9 @@ CASES: list[Callable[[Path], None]] = [
     test_every_api_page_lists_its_default_per_target,
     test_a_use_case_joins_the_operation_it_names,
     test_a_use_case_that_links_a_teaching_section_joins_the_operation_it_answers,
+    test_a_use_case_that_lists_its_operations_joins_those_alone,
+    test_a_use_case_listing_an_unknown_operation_is_a_fault,
+    test_an_overload_is_read_in_the_declaration_that_holds_its_text,
     test_a_measurement_not_built_at_release_is_refused,
     test_a_speed_cell_names_each_operation_and_refuses_an_unknown_backend,
     test_a_measured_cell_escapes_the_bars_of_its_finding,

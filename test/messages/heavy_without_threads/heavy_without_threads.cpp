@@ -8,7 +8,7 @@
 // WEBCPP_CRYPTO_NO_THREADS; on WASI always) stops where it is called, with the synchronous
 // operation to call instead (design D23). The operation is a test's own, declared as every heavy
 // operation declares its variant. The refusal is the first error (heavy_without_threads_first
-// pins the order); detail::run_heavy's stand-in adds its own after it, which defers to an error
+// pins the order); detail::run_on_work's stand-in adds its own after it, which defers to an error
 // above that names the synchronous call. The test is alone: these two errors are the compile's
 // only ones. The refusal's directive comes last, as the message the page shows
 // (doc/tables/generate.py reads a test's last directive).
@@ -20,22 +20,22 @@
 
 #include <webcpp/crypto/detail/heavy.hpp>
 
-#include <utility>
+#include <boost/system/result.hpp>
 
 namespace {
 
 /** The test-only heavy operation, synchronous. */
-int slow(int value) noexcept {
+boost::system::result<int> slow(int value) noexcept {
     return value + 1;
 }
 
 /** Its async_ variant, as every heavy operation declares one. */
 template <class Executor, class CompletionToken>
-auto async_slow(Executor executor, int value, CompletionToken&& token) {
+auto async_slow(Executor const& work, int value, CompletionToken&& token) {
     WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS("async_slow", "slow");
-    return webcpp::crypto::detail::run_heavy(
-        std::move(executor), [value]() noexcept { return slow(value); },
-        std::forward<CompletionToken>(token));
+    return webcpp::crypto::detail::run_on_work(
+        work, []() noexcept { return boost::system::result<void>(); },
+        [value]() noexcept { return slow(value); }, token);
 }
 
 /** An executor and a completion token, which a build without threads never uses. */
@@ -47,5 +47,5 @@ struct token {};
 
 int main() {
     async_slow(executor{}, 41, token{});
-    return slow(0) == 1 ? 0 : 1;
+    return *slow(0) == 1 ? 0 : 1;
 }

@@ -173,3 +173,12 @@ webcpp.example file_share.cpp
 webcpp.example box_messages.cpp
   : <library>/webcpp/crypto//box_xsalsa20poly1305-default
     <library>/webcpp/crypto//x25519-default ;
+
+# The asynchronous family over webcpp::asio's event loop: an audit record
+# sealed and opened by callbacks on AES-256-GCM's default, then an Ed25519
+# signature made and verified in a coroutine with use_awaitable, on the
+# defaults; each completion arrives from the loop's run, on every target.
+webcpp.example async_seal.cpp : <library>/webcpp/asio//asio
+  <library>/webcpp/crypto//gcm-default ;
+webcpp.example async_sign.cpp : <library>/webcpp/asio//asio
+  <library>/webcpp/crypto//ed25519-default ;

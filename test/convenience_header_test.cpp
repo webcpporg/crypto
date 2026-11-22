@@ -7,7 +7,8 @@
 // The convenience header with no backend linked compiles, links and runs (spec section 2.1): this
 // program includes <webcpp/crypto.hpp> alone, names no backend, links none, and calls equal. The
 // headers whose families name a default backend it does not link are there all the same: P-256's
-// key pair names BearSSL.
+// key pair names BearSSL. The convenience header leaves the asynchronous family out:
+// <webcpp/crypto/async.hpp> needs webcpp::asio, which the program would then link.
 
 #include <webcpp/crypto.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -23,6 +24,10 @@
     defined(WEBCPP_CRYPTO_HAS_CTAES) || defined(WEBCPP_CRYPTO_HAS_SECP256K1) || \
     defined(WEBCPP_CRYPTO_HAS_SODIUM)
 #error "this program links no backend: its project must not name one"
+#endif
+
+#ifdef WEBCPP_CRYPTO_ASYNC_HPP
+#error "<webcpp/crypto.hpp> must not include <webcpp/crypto/async.hpp>, which needs webcpp::asio"
 #endif
 
 // curves/p256.hpp is included, and its key pair names its default, BearSSL, which is not linked.

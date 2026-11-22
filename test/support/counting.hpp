@@ -36,6 +36,8 @@
 #include <cstdlib>
 #include <new>
 
+#include <boost/config.hpp>
+
 #ifdef __APPLE__
 #include <malloc/malloc.h>
 #elif defined(__EMSCRIPTEN__)
@@ -101,121 +103,128 @@ inline void* new_block(std::size_t size, std::size_t alignment, bool aligned) {
 }
 
 // The replaceable global allocation functions cannot be inline: they are defined here, in the
-// one translation unit of a program that includes this header, under the standard's names.
+// one translation unit of a program that includes this header, under the standard's names. None is
+// ever inlined: GCC 15 at -O3, seeing the malloc or the free inside one, pairs it with the other's
+// call (a std::allocator's operator new, an exception's) and warns of a mismatch
+// (-Wmismatched-new-delete), though both replaced forms use the C library.
 // NOLINTBEGIN(misc-definitions-in-headers,readability-inconsistent-declaration-parameter-name)
-void* operator new(std::size_t size) {
+BOOST_NOINLINE void* operator new(std::size_t size) {
     if (void* const p = webcpp::test::new_block(size, alignof(std::max_align_t), false)) {
         return p;
     }
     webcpp_test_out_of_memory();
 }
 
-void* operator new[](std::size_t size) {
+BOOST_NOINLINE void* operator new[](std::size_t size) {
     return operator new(size);
 }
 
-void* operator new(std::size_t size, std::align_val_t alignment) {
+BOOST_NOINLINE void* operator new(std::size_t size, std::align_val_t alignment) {
     if (void* const p = webcpp::test::new_block(size, static_cast<std::size_t>(alignment), true)) {
         return p;
     }
     webcpp_test_out_of_memory();
 }
 
-void* operator new[](std::size_t size, std::align_val_t alignment) {
+BOOST_NOINLINE void* operator new[](std::size_t size, std::align_val_t alignment) {
     return operator new(size, alignment);
 }
 
-void* operator new(std::size_t size, std::nothrow_t const& /*unused*/) noexcept {
+BOOST_NOINLINE void* operator new(std::size_t size, std::nothrow_t const& /*unused*/) noexcept {
     return webcpp::test::new_block(size, alignof(std::max_align_t), false);
 }
 
-void* operator new[](std::size_t size, std::nothrow_t const& /*unused*/) noexcept {
+BOOST_NOINLINE void* operator new[](std::size_t size, std::nothrow_t const& /*unused*/) noexcept {
     return webcpp::test::new_block(size, alignof(std::max_align_t), false);
 }
 
-void* operator new(std::size_t size, std::align_val_t alignment,
-                   std::nothrow_t const& /*unused*/) noexcept {
+BOOST_NOINLINE void* operator new(std::size_t size, std::align_val_t alignment,
+                                  std::nothrow_t const& /*unused*/) noexcept {
     return webcpp::test::new_block(size, static_cast<std::size_t>(alignment), true);
 }
 
-void* operator new[](std::size_t size, std::align_val_t alignment,
-                     std::nothrow_t const& /*unused*/) noexcept {
+BOOST_NOINLINE void* operator new[](std::size_t size, std::align_val_t alignment,
+                                    std::nothrow_t const& /*unused*/) noexcept {
     return webcpp::test::new_block(size, static_cast<std::size_t>(alignment), true);
 }
 
-void operator delete(void* p) noexcept {
+BOOST_NOINLINE void operator delete(void* p) noexcept {
     std::free(p);
 }
 
-void operator delete[](void* p) noexcept {
+BOOST_NOINLINE void operator delete[](void* p) noexcept {
     std::free(p);
 }
 
-void operator delete(void* p, std::size_t /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete(void* p, std::size_t /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete[](void* p, std::size_t /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete[](void* p, std::size_t /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete(void* p, std::nothrow_t const& /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete(void* p, std::nothrow_t const& /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete[](void* p, std::nothrow_t const& /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete[](void* p, std::nothrow_t const& /*unused*/) noexcept {
     std::free(p);
 }
 #ifdef _WIN32
-void operator delete(void* p, std::align_val_t /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete(void* p, std::align_val_t /*unused*/) noexcept {
     _aligned_free(p);
 }
 
-void operator delete[](void* p, std::align_val_t /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete[](void* p, std::align_val_t /*unused*/) noexcept {
     _aligned_free(p);
 }
 
-void operator delete(void* p, std::size_t /*unused*/, std::align_val_t /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete(void* p, std::size_t /*unused*/,
+                                    std::align_val_t /*unused*/) noexcept {
     _aligned_free(p);
 }
 
-void operator delete[](void* p, std::size_t /*unused*/, std::align_val_t /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete[](void* p, std::size_t /*unused*/,
+                                      std::align_val_t /*unused*/) noexcept {
     _aligned_free(p);
 }
 
-void operator delete(void* p, std::align_val_t /*unused*/,
-                     std::nothrow_t const& /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete(void* p, std::align_val_t /*unused*/,
+                                    std::nothrow_t const& /*unused*/) noexcept {
     _aligned_free(p);
 }
 
-void operator delete[](void* p, std::align_val_t /*unused*/,
-                       std::nothrow_t const& /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete[](void* p, std::align_val_t /*unused*/,
+                                      std::nothrow_t const& /*unused*/) noexcept {
     _aligned_free(p);
 }
 #else
-void operator delete(void* p, std::align_val_t /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete(void* p, std::align_val_t /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete[](void* p, std::align_val_t /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete[](void* p, std::align_val_t /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete(void* p, std::size_t /*unused*/, std::align_val_t /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete(void* p, std::size_t /*unused*/,
+                                    std::align_val_t /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete[](void* p, std::size_t /*unused*/, std::align_val_t /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete[](void* p, std::size_t /*unused*/,
+                                      std::align_val_t /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete(void* p, std::align_val_t /*unused*/,
-                     std::nothrow_t const& /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete(void* p, std::align_val_t /*unused*/,
+                                    std::nothrow_t const& /*unused*/) noexcept {
     std::free(p);
 }
 
-void operator delete[](void* p, std::align_val_t /*unused*/,
-                       std::nothrow_t const& /*unused*/) noexcept {
+BOOST_NOINLINE void operator delete[](void* p, std::align_val_t /*unused*/,
+                                      std::nothrow_t const& /*unused*/) noexcept {
     std::free(p);
 }
 #endif

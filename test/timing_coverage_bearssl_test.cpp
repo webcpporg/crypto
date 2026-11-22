@@ -103,7 +103,14 @@ void cover_p256_keys() {
     }
     webcpp::test::uncovered("p256::basic_public_key::uncompressed on bearssl",
                             [&key] { BOOST_TEST(key->uncompressed() == data::rfc6979_public); });
-    // The moves only wipe the source: they enter no guard.
+}
+
+// P-256: the key pair's move constructor and move assignment only wipe the source: they enter
+// no guard.
+void cover_p256_keypair_moves() {
+    namespace p256 = crypto::curves::p256;
+    namespace data = webcpp::test::p256;
+    using keypair = p256::basic_keypair<bearssl>;
     auto mover = keypair::make(data::rfc6979_scalar);
     if (BOOST_TEST(mover.has_value())) {
         webcpp::test::uncovered("p256::basic_keypair move constructor on bearssl", [&mover] {
@@ -253,6 +260,7 @@ void cover_p256_formats() {
 int main() {
     cover_ciphers();
     cover_p256_keys();
+    cover_p256_keypair_moves();
     cover_p256_ecdsa();
     cover_p256_ecdh();
     cover_p256_formats();

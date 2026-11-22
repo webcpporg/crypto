@@ -417,10 +417,10 @@ void cover_async_gcm(std::string const& family, std::string const& backend) {
 
 /**
  * Ed25519's asynchronous functions, `async_make`, `async_generate`, `async_sign` and
- * `async_verify`, each called with valid input and with input refused before the backend (a seed
- * or public key of 31 bytes, a moved-from key pair), an `io_context` run after each call so that
- * its completion is delivered. The first guard each enters is its own (the synchronous call it
- * makes holds another, which runs second).
+ * `async_verify` (both overloads, without and with the policy), each called with valid input and
+ * with input refused before the backend (a seed or public key of 31 bytes, a moved-from key pair),
+ * an `io_context` run after each call so that its completion is delivered. The first guard each
+ * enters is its own (the synchronous call it makes holds another, which runs second).
  *
  * @tparam Keypair `curves::ed25519::basic_keypair<Backend>`.
  * @param backend The backend's name.
@@ -469,26 +469,31 @@ void cover_async_ed25519(std::string const& backend) {
         return;
     }
     covered("ed25519::async_sign" + on, "crypto::async_sign", [&] {
-        crypto::async_sign(executor, *made, message, keeping);
+        crypto::async_sign(executor, *made, crypto::eddsa, message, keeping);
         deliver();
     });
     covered("ed25519::async_verify" + on, "crypto::async_verify", [&] {
-        crypto::async_verify<crypto::curves::ed25519::strict_t, backend_type>(
-            executor, *public_key, message, kept, counted);
+        crypto::async_verify<backend_type>(executor, crypto::eddsa, kept, message, *public_key,
+                                           counted);
+        deliver();
+    });
+    covered("ed25519::async_verify with its policy" + on, "crypto::async_verify", [&] {
+        crypto::async_verify<backend_type>(executor, crypto::eddsa, kept, message, *public_key,
+                                           crypto::curves::ed25519::strict, counted);
         deliver();
     });
     covered("ed25519::async_verify with a short key" + on, "crypto::async_verify", [&] {
-        crypto::async_verify<crypto::curves::ed25519::strict_t, backend_type>(
-            executor, std::span(*public_key).first(31), message, kept, counted);
+        crypto::async_verify<backend_type>(executor, crypto::eddsa, kept, message,
+                                           std::span(*public_key).first(31), counted);
         deliver();
     });
     [[maybe_unused]] Keypair const taken(std::move(*made));
     covered("ed25519::async_sign moved from" + on, "crypto::async_sign", [&] {
         // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
-        crypto::async_sign(executor, *made, message, counted);
+        crypto::async_sign(executor, *made, crypto::eddsa, message, counted);
         deliver();
     });
-    BOOST_TEST_EQ(completions, 7);
+    BOOST_TEST_EQ(completions, 8);
 }
 
 /**

@@ -1392,6 +1392,8 @@
         "async_seal_xchacha": "Call the AEAD's own `seal`: only AES-GCM has `async_seal`.",
         "async_open_xchacha": "Call the AEAD's own `open`: only AES-GCM has `async_open`.",
         "async_sign_secp256k1": "Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `async_sign`.",
+        "async_sign_ed25519_prehashed": "Give `async_sign` the message itself with `crypto::eddsa`, RFC 8032's pure Ed25519, which takes no digest, as the synchronous `sign` does.",
+        "async_verify_wrong_key": "Call `crypto::verify` for a key the asynchronous family lacks (secp256k1's, Schnorr's x-only key): `async_verify` has Ed25519's 32-byte key with `crypto::eddsa` and a `curves::p256::basic_public_key` with `crypto::ecdsa_sha256`.",
         "prehashed_dynamic": "Give `crypto::prehashed` a digest of a fixed size: a `std::array<std::uint8_t, 32>`, a `std::span<std::uint8_t const, 32>` or a `boost::hash2::digest<32>`.",
         "sign_p256_schnorr": "Sign with `crypto::ecdsa_sha256`, P-256's scheme; BIP340's `crypto::schnorr` is secp256k1's.",
         "sign_ed25519_ecdsa": "Sign with `crypto::eddsa`, Ed25519's scheme; `crypto::ecdsa_sha256` is P-256's and secp256k1's.",

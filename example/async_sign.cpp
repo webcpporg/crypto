@@ -5,10 +5,10 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // A coroutine on an event loop makes an Ed25519 key pair from RFC 8032's second test seed (a
-// published seed, never a real key), signs the test's message, and verifies the signature with
-// the public key alone, each step a co_await of an asynchronous function with use_awaitable. The
-// coroutine ends, and the loop with it, when the last completion has run: nothing waits for a
-// time.
+// published seed, never a real key), signs the test's message with crypto::eddsa, and verifies
+// the signature with the public key alone, each step a co_await of an asynchronous function with
+// use_awaitable. The coroutine ends, and the loop with it, when the last completion has run:
+// nothing waits for a time.
 // tag::program[]
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
@@ -72,7 +72,8 @@ asio::awaitable<bool> sign_and_verify() {
         std::printf("public key: %s\n", public_key_error.message().c_str());
         co_return false;
     }
-    auto [signed_code, signature] = co_await crypto::async_sign(executor, key, message, use);
+    auto [signed_code, signature] =
+        co_await crypto::async_sign(executor, key, crypto::eddsa, message, use);
     if (signed_code) {
         std::printf("sign: %s\n", signed_code.message().c_str());
         co_return false;
@@ -80,7 +81,8 @@ asio::awaitable<bool> sign_and_verify() {
     print("public key", *public_key);
     print("signature ", signature);
     // The verifier holds the public key, the message and the signature; nothing secret.
-    auto [verified] = co_await crypto::async_verify(executor, *public_key, message, signature, use);
+    auto [verified] = co_await crypto::async_verify(executor, crypto::eddsa, signature, message,
+                                                    *public_key, use);
     if (verified) {
         std::printf("verify: %s\n", verified.message().c_str());
         co_return false;

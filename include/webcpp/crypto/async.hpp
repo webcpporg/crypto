@@ -23,16 +23,21 @@
    call.
    - AES-GCM: `async_make`, `async_seal` and `async_open`, over `ciphers::gcm`. The other AEADs
      (ChaCha20-Poly1305 and its forms, the secret boxes) are not in WebCrypto: call their `seal`.
-   - Ed25519: `async_make` (a key pair from its seed), `async_generate`, `async_sign` and
-     `async_verify`, over `curves::ed25519::basic_keypair::sign` and `crypto::verify` with
-     `crypto::eddsa`. A key pair of an algorithm WebCrypto lacks (secp256k1) is not here: call
-     its own `sign`.
+   - Ed25519: `async_make` (a key pair from its seed), `async_generate`,
+     `async_sign(executor, key_pair, crypto::eddsa, message, token)` and
+     `async_verify(executor, crypto::eddsa, signature, message, public_key[, policy], token)`,
+     over `curves::ed25519::basic_keypair::sign` and `crypto::verify`, with their inputs: the
+     message itself, never a digest, and the 32-byte public key. A key pair of an algorithm
+     WebCrypto lacks (secp256k1) is not here: call its own `sign`.
    - X25519: `async_agree`, over `curves::x25519::agree`.
-   - P-256: `async_make` (a key pair from its secret scalar), `async_generate`, `async_sign` and
-     `async_verify`, ECDSA over `curves::p256::basic_keypair::sign` and `crypto::verify` with
-     `crypto::ecdsa_sha256`, each hashing the message with SHA-256, as WebCrypto's ECDSA with
-     SHA-256 does; and `async_agree`, ECDH's raw x coordinate (WebCrypto's
-     `deriveBits`), over `curves::p256::basic_keypair::ecdh_x`.
+   - P-256: `async_make` (a key pair from its secret scalar), `async_generate`,
+     `async_sign(executor, key_pair, crypto::ecdsa_sha256, input, token)` and
+     `async_verify(executor, crypto::ecdsa_sha256, signature, input, public_key, token)`, ECDSA
+     over `curves::p256::basic_keypair::sign` and `crypto::verify`, with their inputs: the message,
+     hashed with SHA-256, as WebCrypto's ECDSA with SHA-256 hashes it, or
+     `crypto::prehashed{digest}` (which the browser's backend, with no prehash mode, will refuse
+     at compile time); and `async_agree`, ECDH's raw x coordinate (WebCrypto's `deriveBits`), over
+     `curves::p256::basic_keypair::ecdh_x`.
  - The heavy functions (design D32's list) take the work executor first (a
    `webcpp::asio::thread_pool`'s): they check their guards on the caller's thread, run the work on
    the work executor and complete on the handler's associated executor, with webcpp::hash's
@@ -131,11 +136,15 @@ namespace detail {
  * - `generate<Keypair>(executor, token)`;
  * - `seal(executor, aead, iv_bytes, additional_data_bytes, data_bytes, token)` and
  *   `open(executor, aead, iv_bytes, additional_data_bytes, data_bytes, tag_bytes, token)`;
- * - `sign(executor, key_pair, message, token)`; for P-256 the message itself, which the engine
- *   hashes with SHA-256, as WebCrypto's ECDSA does;
- * - `verify<Policy>(executor, public_key, message, signature, token)` for Ed25519, and
- *   `verify(executor, public_key, message, signature, token)` for P-256, its key P-256's
- *   `basic_public_key` and the message itself, which the engine hashes with SHA-256;
+ * - `sign(executor, key_pair, scheme, input, token)`: the scheme tag (`eddsa_t` for Ed25519,
+ *   `ecdsa_sha256_t` for P-256) and the message itself, which for P-256 the engine hashes with
+ *   SHA-256, as WebCrypto's ECDSA does (a marker never reaches it: `can_sign` refuses one on a
+ *   backend that completes by itself);
+ * - `verify(executor, scheme, signature, input, public_key, policy, token)` for Ed25519, its
+ *   signature and its key spans and its policy `curves::ed25519::strict_t`, and
+ *   `verify(executor, scheme, signature, input, public_key, token)` for P-256, its key P-256's
+ *   `basic_public_key`, the signature a span of any size and the message itself, which the
+ *   engine hashes with SHA-256;
  * - `agree(executor, secret_key, peer_public_key, token)` for X25519, and
  *   `agree(executor, key_pair, peer_public_key, token)` for P-256, its key pair and its peer's
  *   key P-256's types.
@@ -242,6 +251,99 @@ inline constexpr bool is_p256_keypair_v<curves::p256::basic_keypair<Backend>> = 
 template <class Type>
 inline constexpr bool is_webcrypto_keypair_v =
     is_ed25519_keypair_v<Type> || is_p256_keypair_v<Type>;
+
+/** Whether `Type` is a P-256 public key, `curves::p256::basic_public_key<Backend>`. */
+template <class Type>
+inline constexpr bool is_p256_public_key_v = false;
+
+template <class Backend>
+inline constexpr bool is_p256_public_key_v<curves::p256::basic_public_key<Backend>> = true;
+
+/**
+ * Whether an `async_verify` of `Scheme` against the public key `Key` exists: `eddsa_t` against
+ * Ed25519's bytes, `ecdsa_sha256_t` against a P-256 public key; the catch-all `async_verify`
+ * steps aside where it is true.
+ *
+ * @tparam Scheme A scheme tag.
+ * @tparam Key The public key's type, without its reference and qualifiers.
+ */
+template <class Scheme, class Key>
+inline constexpr bool has_async_verifier_v =
+    (std::is_same_v<Scheme, eddsa_t> &&
+     std::is_convertible_v<Key const&, std::span<std::uint8_t const>>) ||
+    (std::is_same_v<Scheme, ecdsa_sha256_t> && is_p256_public_key_v<Key>);
+
+/**
+ * Stops the build with the one reason the key pair `Keypair` does not sign `Input` with `Scheme`:
+ * the scheme is not the key pair's, or the input is not one of the scheme's on the key pair's
+ * backend (`check_input`'s reasons).
+ *
+ * @tparam Keypair An Ed25519 or a P-256 key pair's type.
+ * @tparam Scheme Any type, a scheme tag or not.
+ * @tparam Input The input's type, without its reference and qualifiers.
+ */
+template <class Keypair, class Scheme, class Input>
+constexpr void refuse_async_sign() noexcept {
+    if constexpr (!signs_with_v<Keypair, Scheme>) {
+        static_assert(refused_v<Scheme>,
+                      "webcpp::crypto: async_sign: this key pair does not sign with this scheme: "
+                      "an Ed25519 key pair signs with crypto::eddsa, a P-256 key pair with "
+                      "crypto::ecdsa_sha256.");
+    } else {
+        check_input<Scheme, Input, typename key_backend<Keypair>::type>();
+    }
+}
+
+/**
+ * A valid input as the operation keeps it until it runs: a message as the view of its bytes, a
+ * marker as itself, a view too. Neither copies the bytes, which are the caller's until the
+ * completion; a temporary that holds the view, such as `prehashed{digest}` made in the call's
+ * argument list, does not have to outlive the call, which a `deferred` operation launches later.
+ *
+ * @tparam Input A message's type or `prehashed<N>`.
+ * @param input The message or the marker.
+ * @return The view the operation keeps.
+ */
+template <class Input>
+[[nodiscard]] constexpr auto kept_input(Input const& input) noexcept {
+    if constexpr (is_prehashed_v<Input>) {
+        return input;
+    } else {
+        return message_bytes(input);
+    }
+}
+
+/**
+ * Ed25519's `async_verify` once its guard is held, for both public overloads: the engine of a
+ * backend that completes by itself, or `crypto::verify` run when the operation is initiated.
+ *
+ * @tparam Backend The backend.
+ * @param executor The executor the completion is posted to.
+ * @param signature The signature.
+ * @param message The message.
+ * @param public_key The public key.
+ * @param policy `curves::ed25519::strict`.
+ * @param token The completion token.
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Backend, class Executor, class Input, class CompletionToken>
+auto async_verify_ed25519(Executor const& executor, std::span<std::uint8_t const> signature,
+                          Input const& message, std::span<std::uint8_t const> public_key,
+                          [[maybe_unused]] curves::ed25519::strict_t policy,
+                          CompletionToken&& token) {
+    if constexpr (!can_verify<eddsa_t, Input, std::span<std::uint8_t const>>) {
+        check_input<eddsa_t, Input, Backend>();
+    } else if constexpr (asynchronous_backend_v<Backend>) {
+        return async_engine<Backend>::verify(executor, eddsa, signature, message, public_key,
+                                             policy, std::forward<CompletionToken>(token));
+    } else {
+        return complete_by_post(
+            executor, token, [signature, kept = kept_input(message), public_key]() noexcept {
+                return ::webcpp::crypto::verify<Backend>(eddsa, signature, kept, public_key,
+                                                         curves::ed25519::strict);
+            });
+    }
+}
 
 }  // namespace detail
 
@@ -416,133 +518,210 @@ auto async_open(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
 }
 
 /**
- * Signs a message with an Ed25519 or a P-256 key pair, asynchronously, when the operation is
- * initiated, its result posted to `executor`: Ed25519's `key_pair.sign(crypto::eddsa, message)`;
- * P-256's ECDSA, `key_pair.sign(crypto::ecdsa_sha256, message)`, which hashes the message with
- * SHA-256, as WebCrypto's ECDSA with SHA-256 signs (RFC 6979's nonce: the same key and message
- * give the same signature; S low).
+ * Signs with an Ed25519 or a P-256 key pair, asynchronously: `key_pair.sign(scheme, input)` run
+ * when the operation is initiated, its result posted to `executor`. Ed25519 signs the message
+ * with `crypto::eddsa`; P-256 signs with `crypto::ecdsa_sha256` the message, which it hashes with
+ * SHA-256, as WebCrypto's ECDSA with SHA-256 signs, or `crypto::prehashed{digest}` (RFC 6979's
+ * nonce: the same key and input give the same signature; S low).
  *
- * `key_pair` and `message` are the caller's until the completion.
+ * The key pair, the scheme and the input are checked as `crypto::can_sign` checks them, before
+ * anything else: another pair stops the build with its reason, and so does a marker on a backend
+ * that completes by itself (WebCrypto has no prehash mode). `key_pair` and the bytes the input
+ * views are the caller's until the completion.
  *
  * @tparam Keypair A `curves::ed25519::basic_keypair<Backend>` or a
  * `curves::p256::basic_keypair<Backend>`; the other key pairs are not in WebCrypto: call the key
- * pair's own signing function.
+ * pair's own `sign`.
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam Scheme `crypto::eddsa_t` for Ed25519, `crypto::ecdsa_sha256_t` for P-256.
+ * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
+ * empty included, or for P-256 `crypto::prehashed<32>`.
  * @tparam CompletionToken Any completion token for the signature `token` states.
  * @param executor The executor the completion is posted to.
  * @param key_pair The key pair.
- * @param message Any bytes; for P-256 the message itself, never its digest.
+ * @param scheme `crypto::eddsa` or `crypto::ecdsa_sha256`.
+ * @param input The message, or for P-256 `crypto::prehashed{digest}`, its 32-byte SHA-256 digest.
  * @param token The completion token, of signature `void(error_code, signature)`, the signature
  * a `std::array` of 64 bytes (P-256's r then s, IEEE P1363's form, WebCrypto's); on an error it
  * is 64 zeros (`invalid_state`, `backend_failure`).
  * @return What the completion token's `async_result` gives.
  */
-template <class Keypair, class Executor, class CompletionToken>
-auto async_sign(Executor const& executor, Keypair const& key_pair,
-                std::span<std::uint8_t const> message, CompletionToken&& token) {
+template <class Keypair, class Executor, class Scheme, class Input, class CompletionToken>
+auto async_sign(Executor const& executor, Keypair const& key_pair, Scheme scheme,
+                Input const& input, CompletionToken&& token) {
     detail::timing_guard const timing;
     if constexpr (!detail::is_webcrypto_keypair_v<Keypair>) {
         static_assert(
             detail::refused_v<Keypair>,
             "webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has "
             "(Ed25519, P-256): call the key pair's synchronous signing function for the others.");
+    } else if constexpr (!can_sign<Keypair, Scheme, Input>) {
+        detail::refuse_async_sign<Keypair, Scheme, Input>();
     } else {
         using backend = Keypair::backend_type;
         if constexpr (detail::asynchronous_backend_v<backend>) {
-            return detail::async_engine<backend>::sign(executor, key_pair, message,
+            return detail::async_engine<backend>::sign(executor, key_pair, scheme, input,
                                                        std::forward<CompletionToken>(token));
-        } else if constexpr (detail::is_p256_keypair_v<Keypair>) {
-            return detail::complete_by_post(executor, token, [&key_pair, message]() noexcept {
-                return key_pair.sign(ecdsa_sha256, message);
-            });
         } else {
-            return detail::complete_by_post(executor, token, [&key_pair, message]() noexcept {
-                return key_pair.sign(eddsa, message);
-            });
+            return detail::complete_by_post(
+                executor, token, [&key_pair, scheme, kept = detail::kept_input(input)]() noexcept {
+                    return key_pair.sign(scheme, kept);
+                });
         }
     }
 }
 
 /**
- * Verifies an Ed25519 signature, asynchronously: `crypto::verify<Backend>` with `crypto::eddsa`
- * and the policy, run when the operation is initiated, its result posted to `executor`.
+ * Verifies an Ed25519 signature (RFC 8032's pure Ed25519), asynchronously, strictly:
+ * `crypto::verify<Backend>(crypto::eddsa, signature, message, public_key)` run when the operation
+ * is initiated, its result posted to `executor`.
  *
- * The spans are the caller's until the completion.
+ * The input is checked as `crypto::can_verify` checks it, before anything else: a marker stops
+ * the build (Ed25519 signs the message itself). The bytes are the caller's until the completion.
  *
- * @tparam Policy The verification policy; `curves::ed25519::strict_t` is the only one declared.
  * @tparam Backend The backend; by default the asynchronous family's.
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`.
  * @tparam CompletionToken Any completion token for the signature `token` states.
  * @param executor The executor the completion is posted to.
- * @param public_key 32 bytes.
- * @param message The signed bytes.
+ * @param scheme `crypto::eddsa`.
  * @param signature 64 bytes.
+ * @param message The signed bytes.
+ * @param public_key 32 bytes.
  * @param token The completion token, of signature `void(boost::system::error_code)`:
- * `invalid_public_key` for a key of another size, `invalid_signature`, `backend_failure`.
+ * `invalid_signature` for a signature of another size, then `invalid_public_key` for a key of
+ * another size; `invalid_signature` for a signature that does not verify; `backend_failure`.
  * @return What the completion token's `async_result` gives.
  */
-template <class Policy = curves::ed25519::strict_t,
-          class Backend = default_async_backend_t<families::ed25519>, class Executor,
+template <class Backend = default_async_backend_t<families::ed25519>, class Executor, class Input,
           class CompletionToken>
-auto async_verify(Executor const& executor, std::span<std::uint8_t const> public_key,
-                  std::span<std::uint8_t const> message, std::span<std::uint8_t const> signature,
-                  CompletionToken&& token) {
+auto async_verify(Executor const& executor, [[maybe_unused]] eddsa_t scheme,
+                  std::span<std::uint8_t const> signature, Input const& message,
+                  std::span<std::uint8_t const> public_key, CompletionToken&& token) {
     detail::timing_guard const timing;
-    if constexpr (detail::asynchronous_backend_v<Backend>) {
-        return detail::async_engine<Backend>::template verify<Policy>(
-            executor, public_key, message, signature, std::forward<CompletionToken>(token));
-    } else {
-        return detail::complete_by_post(
-            executor, token, [public_key, message, signature]() noexcept {
-                return crypto::verify<Backend>(eddsa, signature, message, public_key, Policy{});
-            });
-    }
+    return detail::async_verify_ed25519<Backend>(executor, signature, message, public_key,
+                                                 curves::ed25519::strict,
+                                                 std::forward<CompletionToken>(token));
 }
 
 /**
- * Verifies a P-256 ECDSA signature of a message, asynchronously:
- * `crypto::verify(crypto::ecdsa_sha256, signature, message, public_key)`, which hashes the message
- * with SHA-256, run when the operation is initiated, its result posted to `executor`, as
- * WebCrypto's ECDSA with SHA-256 verifies.
+ * Verifies an Ed25519 signature under the verification policy given, asynchronously: as the
+ * overload without it, with `crypto::verify`'s policy argument before the token.
  *
- * A high S and a low S are both accepted, as `crypto::verify` and WebCrypto accept them.
+ * The policy is a policy tag, never deduced from another argument, so that a completion token is
+ * never read as one.
  *
- * The key and the spans are the caller's until the completion.
- *
- * @tparam Backend The key's backend, which verifies.
+ * @tparam Backend The backend; by default the asynchronous family's.
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`.
  * @tparam CompletionToken Any completion token for the signature `token` states.
  * @param executor The executor the completion is posted to.
- * @param public_key The signer's public key, validated when it was made.
- * @param message The signed bytes, the message itself, never its digest.
+ * @param scheme `crypto::eddsa`.
+ * @param signature 64 bytes.
+ * @param message The signed bytes.
+ * @param public_key 32 bytes.
+ * @param policy `curves::ed25519::strict` (libsodium's rules), the only policy declared.
+ * @param token The completion token, of signature `void(boost::system::error_code)`, as the
+ * overload without a policy completes.
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Backend = default_async_backend_t<families::ed25519>, class Executor, class Input,
+          class CompletionToken>
+auto async_verify(Executor const& executor, [[maybe_unused]] eddsa_t scheme,
+                  std::span<std::uint8_t const> signature, Input const& message,
+                  std::span<std::uint8_t const> public_key, curves::ed25519::strict_t policy,
+                  CompletionToken&& token) {
+    detail::timing_guard const timing;
+    return detail::async_verify_ed25519<Backend>(executor, signature, message, public_key, policy,
+                                                 std::forward<CompletionToken>(token));
+}
+
+/**
+ * Verifies a P-256 ECDSA signature over SHA-256, asynchronously:
+ * `crypto::verify(crypto::ecdsa_sha256, signature, input, public_key)` run when the operation is
+ * initiated, its result posted to `executor`; the message is hashed with SHA-256, as WebCrypto's
+ * ECDSA with SHA-256 verifies, or `crypto::prehashed{digest}` gives its digest.
+ *
+ * A high S and a low S are both accepted, as `crypto::verify` and WebCrypto accept them. The
+ * input is checked as `crypto::can_verify` checks it, before anything else: a marker on a backend
+ * that completes by itself stops the build. The key and the bytes are the caller's until the
+ * completion.
+ *
+ * @tparam Backend The key's backend, which verifies: deduced from the key, or named first, as on
+ * every curve.
+ * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
+ * empty included, or `crypto::prehashed<32>`.
+ * @tparam CompletionToken Any completion token for the signature `token` states.
+ * @param executor The executor the completion is posted to.
+ * @param scheme `crypto::ecdsa_sha256`.
  * @param signature 64 bytes, r then s (IEEE P1363's form, WebCrypto's); `curves::p256::from_der`
  * reads DER.
+ * @param input The signed message, or `crypto::prehashed{digest}`, its 32-byte SHA-256 digest.
+ * @param public_key The signer's public key, validated when it was made.
  * @param token The completion token, of signature `void(boost::system::error_code)`:
  * `invalid_signature` for a signature of another size, an r or an s that is 0 or not below n, and
  * one that does not verify.
  * @return What the completion token's `async_result` gives.
  */
-template <class Backend, class Executor, class CompletionToken>
-auto async_verify(Executor const& executor,
+template <class Backend, class Executor, class Input, class CompletionToken>
+auto async_verify(Executor const& executor, [[maybe_unused]] ecdsa_sha256_t scheme,
+                  std::span<std::uint8_t const> signature, Input const& input,
                   curves::p256::basic_public_key<Backend> const& public_key,
-                  std::span<std::uint8_t const> message, std::span<std::uint8_t const> signature,
                   CompletionToken&& token) {
     detail::timing_guard const timing;
-    if constexpr (detail::asynchronous_backend_v<Backend>) {
-        return detail::async_engine<Backend>::verify(executor, public_key, message, signature,
+    if constexpr (!can_verify<ecdsa_sha256_t, Input, curves::p256::basic_public_key<Backend>>) {
+        detail::check_input<ecdsa_sha256_t, Input, Backend>();
+    } else if constexpr (detail::asynchronous_backend_v<Backend>) {
+        return detail::async_engine<Backend>::verify(executor, scheme, signature, input, public_key,
                                                      std::forward<CompletionToken>(token));
     } else {
-        return detail::complete_by_post(
-            executor, token,
-            [&public_key, message, signature]() noexcept -> boost::system::result<void> {
-                if (signature.size() != curves::p256::signature_size) {
-                    return error::invalid_signature;
-                }
-                return ::webcpp::crypto::verify(ecdsa_sha256,
+        return detail::complete_by_post(executor, token,
+                                        [signature, kept = detail::kept_input(input),
+                                         &public_key]() noexcept -> boost::system::result<void> {
+                                            if (signature.size() != curves::p256::signature_size) {
+                                                return error::invalid_signature;
+                                            }
+                                            return ::webcpp::crypto::verify(
+                                                ecdsa_sha256,
                                                 signature.first<curves::p256::signature_size>(),
-                                                message, public_key);
-            });
+                                                kept, public_key);
+                                        });
     }
+}
+
+/**
+ * Stops the build: no `async_verify` checks a signature of `Scheme` against this public key.
+ *
+ * The asynchronous family has the algorithms WebCrypto has: Ed25519's and P-256's overloads above
+ * are chosen for their keys; this one only when neither is, and it names them.
+ *
+ * @tparam Backend Ignored: the first template parameter, as on every `async_verify`.
+ * @tparam Executor The executor's type.
+ * @tparam Scheme A scheme tag.
+ * @tparam Signature The signature's type.
+ * @tparam Input The input's type.
+ * @tparam PublicKey The public key's type.
+ * @tparam CompletionToken The completion token's type.
+ * @param executor The executor.
+ * @param scheme The scheme.
+ * @param signature The signature.
+ * @param input The message or the marker.
+ * @param public_key The public key.
+ * @param token The completion token.
+ */
+template <class Backend = void, class Executor, class Scheme, class Signature, class Input,
+          class PublicKey, class CompletionToken>
+    requires(detail::is_scheme_v<Scheme> &&
+             !detail::has_async_verifier_v<Scheme, std::remove_cvref_t<PublicKey>>)
+void async_verify([[maybe_unused]] Executor const& executor, [[maybe_unused]] Scheme scheme,
+                  [[maybe_unused]] Signature const& signature, [[maybe_unused]] Input const& input,
+                  [[maybe_unused]] PublicKey const& public_key,
+                  [[maybe_unused]] CompletionToken&& token) {
+    static_assert(detail::refused_v<Scheme>,
+                  "webcpp::crypto: async_verify takes crypto::eddsa with Ed25519's 32-byte key or "
+                  "crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms "
+                  "WebCrypto has: call crypto::verify for the others.");
 }
 
 /**

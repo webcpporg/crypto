@@ -4,12 +4,17 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Ed25519's and X25519's asynchronous functions on libsodium, on a callback and in a coroutine:
+// Ed25519's and X25519's asynchronous functions on libsodium, on a callback and in a coroutine.
+// async_sign and async_verify take the scheme, crypto::eddsa, and the synchronous calls' inputs,
+// the message and, for async_verify, the policy before the token, strict by default:
 // - async_rfc8032: RFC 8032 section 7.1's tests 1, 2 and 3 through async_make and async_sign give
-//   the RFC's signatures and the synchronous ones, and async_verify accepts them; each completion
-//   arrives after the initiating call returned.
+//   the RFC's signatures and the synchronous ones, and async_verify accepts them, with the backend
+//   named and its policy given, and with the defaults; each completion arrives after the
+//   initiating call returned.
 // - async_verify_changed: a changed byte of the signature or of the message completes with
-//   invalid_signature, a public key of 31 bytes with invalid_public_key.
+//   invalid_signature, a signature of 63 bytes too, and the arguments in the order before the
+//   signature came first (key, message, signature); a public key of 31 bytes with
+//   invalid_public_key.
 // - async_generate: async_generate gives a key pair whose signature verifies, on the default
 //   backend and on libsodium named.
 // - async_make_refused: a seed of 31 bytes completes with invalid_key_size and an empty key pair,
@@ -168,10 +173,11 @@ void async_rfc8032(asio::io_context& context) {
             continue;
         }
         auto& key = std::get<0>(*made.value);
-        auto const signed_async = complete<signature_type>(context, [&](auto const& executor,
-                                                                        auto&& token) {
-            return crypto::async_sign(executor, key, message, std::forward<decltype(token)>(token));
-        });
+        auto const signed_async =
+            complete<signature_type>(context, [&](auto const& executor, auto&& token) {
+                return crypto::async_sign(executor, key, crypto::eddsa, message,
+                                          std::forward<decltype(token)>(token));
+            });
         BOOST_TEST(!signed_async.code);
         if (!BOOST_TEST(signed_async.value.has_value())) {
             continue;
@@ -181,14 +187,15 @@ void async_rfc8032(asio::io_context& context) {
         auto const signed_sync = key.sign(crypto::eddsa, message);
         BOOST_TEST(signed_sync.has_value() && *signed_sync == signature);
         auto const verified = complete_code(context, [&](auto const& executor, auto&& token) {
-            return crypto::async_verify<ed25519::strict_t, crypto::backends::sodium>(
-                executor, public_key, message, signature, std::forward<decltype(token)>(token));
+            return crypto::async_verify<crypto::backends::sodium>(
+                executor, crypto::eddsa, signature, message, public_key, ed25519::strict,
+                std::forward<decltype(token)>(token));
         });
         BOOST_TEST(!verified);
         // The defaults name the same backend.
         auto const verified_default =
             complete_code(context, [&](auto const& executor, auto&& token) {
-                return crypto::async_verify(executor, public_key, message, signature,
+                return crypto::async_verify(executor, crypto::eddsa, signature, message, public_key,
                                             std::forward<decltype(token)>(token));
             });
         BOOST_TEST(!verified_default);
@@ -200,21 +207,27 @@ void async_verify_changed(asio::io_context& context) {
     auto const public_key = test::from_hex(tested.public_key);
     auto message = test::from_hex(tested.message);
     auto signature = test::from_hex(tested.signature);
-    auto const verify = [&](std::span<std::uint8_t const> key) {
+    auto const verify = [&](std::span<std::uint8_t const> key,
+                            std::span<std::uint8_t const> signed_bytes) {
         return complete_code(context, [&](auto const& executor, auto&& token) {
-            return crypto::async_verify(executor, key, message, signature,
+            return crypto::async_verify(executor, crypto::eddsa, signed_bytes, message, key,
                                         std::forward<decltype(token)>(token));
         });
     };
-    BOOST_TEST(!verify(public_key));
+    BOOST_TEST(!verify(public_key, signature));
     signature[10] ^= 1U;
-    BOOST_TEST(verify(public_key) == crypto::error::invalid_signature);
+    BOOST_TEST(verify(public_key, signature) == crypto::error::invalid_signature);
     signature[10] ^= 1U;
     message[0] ^= 1U;
-    BOOST_TEST(verify(public_key) == crypto::error::invalid_signature);
+    BOOST_TEST(verify(public_key, signature) == crypto::error::invalid_signature);
     message[0] ^= 1U;
-    BOOST_TEST(!verify(public_key));
-    BOOST_TEST(verify(std::span(public_key).first(31)) == crypto::error::invalid_public_key);
+    BOOST_TEST(!verify(public_key, signature));
+    BOOST_TEST(verify(public_key, std::span(signature).first(63)) ==
+               crypto::error::invalid_signature);
+    // The order before the signature came first: the 32-byte key where the signature goes.
+    BOOST_TEST(verify(signature, public_key) == crypto::error::invalid_signature);
+    BOOST_TEST(verify(std::span(public_key).first(31), signature) ==
+               crypto::error::invalid_public_key);
 }
 
 template <class Keypair>
@@ -238,11 +251,13 @@ void generated(asio::io_context& context) {
     BOOST_TEST(verified_sync.has_value());
     auto const signed_async =
         complete<signature_type>(context, [&](auto const& executor, auto&& token) {
-            return crypto::async_sign(executor, key, message, std::forward<decltype(token)>(token));
+            return crypto::async_sign(executor, key, crypto::eddsa, message,
+                                      std::forward<decltype(token)>(token));
         });
     BOOST_TEST(!signed_async.code);
+    BOOST_TEST(signed_async.value.has_value() && std::get<0>(*signed_async.value) == *signature);
     auto const verified = complete_code(context, [&](auto const& executor, auto&& token) {
-        return crypto::async_verify(executor, *public_key, message, *signature,
+        return crypto::async_verify(executor, crypto::eddsa, *signature, message, *public_key,
                                     std::forward<decltype(token)>(token));
     });
     BOOST_TEST(!verified);
@@ -268,10 +283,11 @@ void async_make_refused(asio::io_context& context) {
     BOOST_TEST(empty.public_key().error() == crypto::error::invalid_state);
     BOOST_TEST(empty.sign(crypto::eddsa, message).error() == crypto::error::invalid_state);
     BOOST_TEST(empty.x25519_secret().error() == crypto::error::invalid_state);
-    auto const signed_empty = complete<signature_type>(context, [&](auto const& executor,
-                                                                    auto&& token) {
-        return crypto::async_sign(executor, empty, message, std::forward<decltype(token)>(token));
-    });
+    auto const signed_empty =
+        complete<signature_type>(context, [&](auto const& executor, auto&& token) {
+            return crypto::async_sign(executor, empty, crypto::eddsa, message,
+                                      std::forward<decltype(token)>(token));
+        });
     BOOST_TEST(signed_empty.code == crypto::error::invalid_state);
     if (BOOST_TEST(signed_empty.value.has_value())) {
         BOOST_TEST(all_zero(std::get<0>(*signed_empty.value)));
@@ -334,7 +350,8 @@ void async_destroyed(asio::io_context& context) {
     std::array<std::uint8_t, 32> shared{};
     {
         auto key = keypair::make(test::from_hex(tested.secret_key));
-        auto message = std::make_unique<std::vector<std::uint8_t>>(test::from_hex(tested.message));
+        auto const message =
+            std::make_unique<std::vector<std::uint8_t>>(test::from_hex(tested.message));
         auto secret_key = std::make_unique<std::vector<std::uint8_t>>(
             test::from_hex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"));
         auto peer = std::make_unique<std::vector<std::uint8_t>>(
@@ -342,7 +359,7 @@ void async_destroyed(asio::io_context& context) {
         if (!BOOST_TEST(key.has_value())) {
             return;
         }
-        crypto::async_sign(context.get_executor(), *key, *message,
+        crypto::async_sign(context.get_executor(), *key, crypto::eddsa, *message,
                            [&](boost::system::error_code code, signature_type done) {
                                sign_code = code;
                                signature = done;
@@ -379,11 +396,12 @@ void async_coroutine(asio::io_context& context) {
             auto& [made_code, key] = made_code_result;
             BOOST_TEST(!made_code);
             auto [sign_code, signature] = co_await crypto::async_sign(
-                executor, key, message, asio::as_tuple(asio::use_awaitable));
+                executor, key, crypto::eddsa, message, asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(!sign_code);
             BOOST_TEST(std::ranges::equal(signature, test::from_hex(tested.signature)));
-            auto [verify_code] = co_await crypto::async_verify(
-                executor, public_key, message, signature, asio::as_tuple(asio::use_awaitable));
+            auto [verify_code] =
+                co_await crypto::async_verify(executor, crypto::eddsa, signature, message,
+                                              public_key, asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(!verify_code);
             auto generate_code_result =
                 co_await crypto::async_generate(executor, asio::as_tuple(asio::use_awaitable));

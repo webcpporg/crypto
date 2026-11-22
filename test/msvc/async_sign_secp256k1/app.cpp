@@ -26,7 +26,7 @@ int main() {
         return 1;
     }
     webcpp::asio::io_context context;
-    crypto::async_sign(context.get_executor(), *made, message,
+    crypto::async_sign(context.get_executor(), *made, crypto::ecdsa_sha256, message,
                        [](boost::system::error_code, std::array<std::uint8_t, 64>) {});
     return 0;
 }

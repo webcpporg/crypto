@@ -22,8 +22,8 @@
 //   public_key, secret_scalar, uncompressed, encode_spki, encode_pkcs8, basic_keypair's move
 //   constructor and move assignment, and normalize_low_s and is_low_s,
 //   which test/timing_test.cpp calls without a backend; and the asynchronous async_make,
-//   async_generate, async_sign, async_verify and async_agree, all but async_generate (which takes
-//   no input) also refused once before BearSSL.
+//   async_generate, async_sign and async_verify (ecdsa_sha256, of a message and of a digest) and
+//   async_agree, all but async_generate (which takes no input) also refused once before BearSSL.
 
 #include "support/timing_seam.hpp"
 
@@ -350,15 +350,26 @@ void cover_async_p256() {
         return;
     }
     webcpp::test::covered("p256::async_sign on bearssl", "crypto::async_sign", [&] {
-        crypto::async_sign(executor, *made, message, keeping);
+        crypto::async_sign(executor, *made, crypto::ecdsa_sha256, message, keeping);
+        deliver();
+    });
+    webcpp::test::covered("p256::async_sign of a digest on bearssl", "crypto::async_sign", [&] {
+        crypto::async_sign(executor, *made, crypto::ecdsa_sha256,
+                           crypto::prehashed{p256_test_digest}, counted);
         deliver();
     });
     webcpp::test::covered("p256::async_verify on bearssl", "crypto::async_verify", [&] {
-        crypto::async_verify(executor, *key, message, kept, counted);
+        crypto::async_verify(executor, crypto::ecdsa_sha256, kept, message, *key, counted);
+        deliver();
+    });
+    webcpp::test::covered("p256::async_verify of a digest on bearssl", "crypto::async_verify", [&] {
+        crypto::async_verify(executor, crypto::ecdsa_sha256, data::rfc6979_test,
+                             crypto::prehashed{p256_test_digest}, *key, counted);
         deliver();
     });
     webcpp::test::covered("p256::async_verify of 63 bytes on bearssl", "crypto::async_verify", [&] {
-        crypto::async_verify(executor, *key, message, std::span(kept).first(63), counted);
+        crypto::async_verify(executor, crypto::ecdsa_sha256, std::span(kept).first(63), message,
+                             *key, counted);
         deliver();
     });
     webcpp::test::covered("p256::async_agree on bearssl", "crypto::async_agree", [&] {
@@ -368,7 +379,7 @@ void cover_async_p256() {
     [[maybe_unused]] keypair const taken(std::move(*made));
     webcpp::test::covered("p256::async_sign moved from on bearssl", "crypto::async_sign", [&] {
         // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): tested
-        crypto::async_sign(executor, *made, message, counted);
+        crypto::async_sign(executor, *made, crypto::ecdsa_sha256, message, counted);
         deliver();
     });
     webcpp::test::covered("p256::async_agree moved from on bearssl", "crypto::async_agree", [&] {
@@ -376,7 +387,7 @@ void cover_async_p256() {
         crypto::async_agree(executor, *made, *key, counted);
         deliver();
     });
-    BOOST_TEST_EQ(completions, 9);
+    BOOST_TEST_EQ(completions, 11);
 }
 
 }  // namespace

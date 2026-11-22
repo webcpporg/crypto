@@ -789,21 +789,22 @@ struct verify_fixture {
 
     auto verify() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_verify(executor, public_key, message, signature,
+            return crypto::async_verify(executor, crypto::eddsa, signature, message, public_key,
                                         std::forward<decltype(token)>(token));
         };
     }
 
     auto verify_refused() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_verify(executor, std::span(public_key).first(31), message,
-                                        signature, std::forward<decltype(token)>(token));
+            return crypto::async_verify(executor, crypto::eddsa, signature, message,
+                                        std::span(public_key).first(31),
+                                        std::forward<decltype(token)>(token));
         };
     }
 
     auto sign() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_sign(executor, key_pair, message,
+            return crypto::async_sign(executor, key_pair, crypto::eddsa, message,
                                       std::forward<decltype(token)>(token));
         };
     }

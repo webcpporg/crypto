@@ -19,26 +19,28 @@
 #include <source_location>
 
 namespace webcpp::test {
+namespace {
 
 /** The number of webcpp::hash::detail::timing_guard objects this thread has constructed. */
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the seam's counter
-inline thread_local std::size_t hash_timing_entries = 0;
+thread_local std::size_t hash_timing_entries = 0;
 
 /**
  * The `function_name()` of the first hash guard this thread entered since it was last reset to
  * null.
  */
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the seam's record
-inline thread_local char const* hash_timing_first_entry = nullptr;
+thread_local char const* hash_timing_first_entry = nullptr;
 
 /** Records the entry into a hash guard: counts it, and keeps its function when it is the first. */
-inline void hash_timing_entered(std::source_location const& where) noexcept {
+void hash_timing_entered(std::source_location const& where) noexcept {
     ++hash_timing_entries;
     if (hash_timing_first_entry == nullptr) {
         hash_timing_first_entry = where.function_name();
     }
 }
 
+}  // namespace
 }  // namespace webcpp::test
 
 /** Records the entry into a hash guard declared at `where`. */

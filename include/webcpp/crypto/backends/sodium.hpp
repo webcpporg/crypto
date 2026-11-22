@@ -52,9 +52,9 @@
     WEBCPP_CRYPTO_DETAIL_MISMATCH_VALUE(sodium, WEBCPP_CRYPTO_SODIUM_COMMIT, portable))
 #endif
 
-// src/canary_sodium.c defines the canary with a constant; this is its declaration.
-// NOLINTNEXTLINE(bugprone-dynamic-static-initializers): a declaration, never initialised here
-extern "C" const char WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY;
+// src/canary_sodium.c defines the canary with a constant, so its initialisation is static, never
+// dynamic; constinit, on this declaration, states it.
+extern "C" constinit const char WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY;
 
 namespace webcpp::crypto::backends {
 

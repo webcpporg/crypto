@@ -150,11 +150,21 @@ constexpr auto rfc8032_cases = std::to_array<rfc8032_case>({
 });
 // clang-format on
 
-/** The public key of a case's hex, 32 bytes. */
+// async_verify of eddsa takes the typed key alone: bytes fall to the catch-all
+// (messages/async_verify_eddsa_bytes_key).
+static_assert(crypto::detail::has_async_verifier_v<crypto::eddsa_t, ed25519::public_key>);
+static_assert(!crypto::detail::has_async_verifier_v<crypto::eddsa_t, std::array<std::uint8_t, 32>>);
+static_assert(
+    !crypto::detail::has_async_verifier_v<crypto::eddsa_t, std::span<std::uint8_t const>>);
+
+/**
+ * The public key of a case's hex, 32 bytes; a key not made throws (or, without exceptions, ends
+ * the program) through `value()`.
+ */
 ed25519::public_key key_of(std::string_view hex) {
     auto const made = ed25519::public_key::make(test::from_hex(hex));
     BOOST_TEST(made.has_value());
-    return *made;
+    return made.value();
 }
 
 /** Whether every byte of `bytes` is zero. */

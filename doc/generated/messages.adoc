@@ -73,6 +73,12 @@ The fix: Give `+async_sign+` the key pair's own scheme: `+crypto::ecdsa_sha256+`
 
 The fix: Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `+async_sign+`.
 
+|`+async_verify_eddsa_bytes_key+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_verify takes crypto::eddsa with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
+
+The fix: Give `+async_verify+` with `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`, as `+crypto::verify+` takes it: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::make(bytes)+`.
+
 |`+async_verify_named_backend+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: async_verify takes crypto::eddsa with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`

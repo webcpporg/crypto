@@ -6,7 +6,9 @@
 
 // The key pair contract, crypto::keypair (design D8): Ed25519's and P-256's key pairs meet it, on
 // libsodium and BearSSL; a stand-in that has every member meets it, and stand-ins that lack one
-// member each, or whose curve declares no scheme, or a scheme they do not sign, do not.
+// member each (make, generate, public_key_type, secret), whose make, generate, public_key or
+// secret gives another type, or whose curve declares no scheme, or a scheme they do not sign, do
+// not.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
@@ -116,6 +118,54 @@ struct unsigned_scheme_keypair {
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
 
+// No make().
+struct no_make_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<no_make_keypair> generate() noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+};
+
+// No public_key_type.
+struct no_public_key_type_keypair {
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<no_public_key_type_keypair> make(
+        std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<no_public_key_type_keypair> generate() noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+};
+
+// A generate() that gives something other than result<K>.
+struct wrong_generate_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<wrong_generate_keypair> make(
+        std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<int> generate() noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+};
+
+// A make() that gives the key pair itself, not result<K>.
+struct wrong_make_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static wrong_make_keypair make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<wrong_make_keypair> generate() noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+};
+
 }  // namespace
 
 namespace webcpp::crypto::detail {
@@ -134,6 +184,14 @@ template <>
 inline constexpr bool signs_with_v<unsigned_scheme_keypair, ecdsa_sha256_t> = true;
 template <>
 inline constexpr bool signs_with_v<unsigned_scheme_keypair, schnorr_t> = true;
+template <>
+inline constexpr bool signs_with_v<no_make_keypair, ecdsa_sha256_t> = true;
+template <>
+inline constexpr bool signs_with_v<no_public_key_type_keypair, ecdsa_sha256_t> = true;
+template <>
+inline constexpr bool signs_with_v<wrong_generate_keypair, ecdsa_sha256_t> = true;
+template <>
+inline constexpr bool signs_with_v<wrong_make_keypair, ecdsa_sha256_t> = true;
 
 }  // namespace webcpp::crypto::detail
 
@@ -145,6 +203,10 @@ static_assert(!crypto::keypair<byte_public_keypair>);
 static_assert(!crypto::keypair<no_generate_keypair>);
 static_assert(!crypto::keypair<no_scheme_keypair>);
 static_assert(!crypto::keypair<unsigned_scheme_keypair>);
+static_assert(!crypto::keypair<no_make_keypair>);
+static_assert(!crypto::keypair<no_public_key_type_keypair>);
+static_assert(!crypto::keypair<wrong_generate_keypair>);
+static_assert(!crypto::keypair<wrong_make_keypair>);
 static_assert(!crypto::keypair<stand_in_public_key>);
 static_assert(!crypto::keypair<int>);
 

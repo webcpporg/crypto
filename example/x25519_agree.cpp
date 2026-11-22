@@ -90,8 +90,8 @@ bool from_ed25519() {
         return false;
     }
     // Each side knows the other by its Ed25519 public key, and converts it.
-    auto const first_peer = ed25519::to_x25519_public(second_signing->bytes());
-    auto const second_peer = ed25519::to_x25519_public(first_signing->bytes());
+    auto const first_peer = ed25519::to_x25519_public(*second_signing);
+    auto const second_peer = ed25519::to_x25519_public(*first_signing);
     if (!first_peer || !second_peer) {
         return false;
     }

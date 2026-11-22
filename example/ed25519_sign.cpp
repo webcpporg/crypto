@@ -89,7 +89,7 @@ bool sign_in_pieces() {
     print("signature ", *signature);
     auto verifying = signer::begin();
     return verifying && verifying->update(first) && verifying->update(second) &&
-           verifying->verify(*signature, public_key->bytes()).has_value();
+           verifying->verify(*signature, *public_key).has_value();
 }
 
 }  // namespace

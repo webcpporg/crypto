@@ -26,7 +26,6 @@
 #include <boost/system/result.hpp>
 
 #include <concepts>
-#include <cstddef>
 #include <cstdint>
 #include <span>
 

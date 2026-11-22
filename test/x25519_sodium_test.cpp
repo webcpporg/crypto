@@ -115,9 +115,10 @@ void guards() {
     BOOST_TEST(x25519::agree(key, std::span(long_key).first(31)).error() ==
                crypto::error::invalid_public_key);
     BOOST_TEST(x25519::agree(key, long_key).error() == crypto::error::invalid_public_key);
-    BOOST_TEST(ed25519::to_x25519_public(std::span(long_key).first(31)).error() ==
+    // An Ed25519 key of another size is never made, so to_x25519_public never sees one.
+    BOOST_TEST(ed25519::public_key::make(std::span(long_key).first(31)).error() ==
                crypto::error::invalid_public_key);
-    BOOST_TEST(ed25519::to_x25519_public(long_key).error() == crypto::error::invalid_public_key);
+    BOOST_TEST(ed25519::public_key::make(long_key).error() == crypto::error::invalid_public_key);
 }
 
 void all_zero() {
@@ -146,9 +147,8 @@ void converted(std::string_view seed) {
         return;
     }
     auto const derived = x25519::public_key(secret_key->bytes());
-    auto const ed25519_bytes = ed25519_public->bytes();
-    auto const converted_key = ed25519::to_x25519_public(ed25519_bytes);
-    auto const named = ed25519::to_x25519_public<crypto::backends::sodium>(ed25519_bytes);
+    auto const converted_key = ed25519::to_x25519_public(*ed25519_public);
+    auto const named = ed25519::to_x25519_public<crypto::backends::sodium>(*ed25519_public);
     BOOST_TEST(derived.has_value());
     BOOST_TEST(converted_key.has_value());
     BOOST_TEST(named.has_value());
@@ -192,7 +192,12 @@ void conversion_refuses() {
         "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
     });
     for (auto const key : refused) {
-        auto const converted = ed25519::to_x25519_public(test::from_hex(key));
+        // Made, since the size is right: the conversion judges the point.
+        auto const made = ed25519::public_key::make(test::from_hex(key));
+        if (!BOOST_TEST(made.has_value())) {
+            continue;
+        }
+        auto const converted = ed25519::to_x25519_public(*made);
         BOOST_TEST(!converted.has_value());
         if (!converted) {
             BOOST_TEST(converted.error() == crypto::error::invalid_public_key);

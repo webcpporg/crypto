@@ -368,20 +368,18 @@ inline constexpr strict_t strict{};
  * `curves::x25519::agree`; the key pair's own side is `basic_keypair::x25519_secret`.
  *
  * @tparam Backend The backend; by default the family's.
- * @param ed25519_public_key 32 bytes.
- * @return 32 bytes; `invalid_public_key` for a key of another size, not canonical, not on the
- * curve or of small order.
+ * @param ed25519_public_key The Ed25519 public key.
+ * @return 32 bytes; `invalid_public_key` for a key not canonical, not on the curve or of small
+ * order.
  */
 template <class Backend = default_backend_t<families::ed25519>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> to_x25519_public(
-    std::span<std::uint8_t const> ed25519_public_key) noexcept {
+    public_key const& ed25519_public_key) noexcept {
     detail::timing_guard const timing;
-    if (ed25519_public_key.size() != 32) {
-        return error::invalid_public_key;
-    }
+    auto const key_bytes = ed25519_public_key.bytes();
     std::array<std::uint8_t, 32> converted{};
-    auto const done = detail::ed25519_engine<families::ed25519, Backend>::to_x25519_public(
-        ed25519_public_key.first<32>(), converted);
+    auto const done =
+        detail::ed25519_engine<families::ed25519, Backend>::to_x25519_public(key_bytes, converted);
     if (!done) {
         return done.error();
     }
@@ -514,24 +512,22 @@ public:
      * Verifies a signature of the message given, which it ends, strictly (design D31).
      *
      * @param signature 64 bytes.
-     * @param public_key 32 bytes.
+     * @param key The signer's public key.
      * @return Nothing; `invalid_state` once the message is ended, or moved from;
-     * `invalid_signature` for a signature of another size, then `invalid_public_key` for a key of
-     * another size, so that the arguments given in the other order are refused as a signature;
-     * `invalid_signature`.
+     * `invalid_signature` for a signature of another size, so that a key's 32 bytes given where
+     * the signature goes are refused as a signature, and for one that does not verify.
      */
     [[nodiscard]] boost::system::result<void> verify(
         std::span<std::uint8_t const> signature,
-        std::span<std::uint8_t const> public_key) noexcept {
+        ::webcpp::crypto::curves::ed25519::public_key const& key) noexcept {
         detail::timing_guard const timing;
         if (!begun_) {
             return error::invalid_state;
         }
         boost::system::result<void> verified = error::invalid_signature;
         if (signature.size() == 64) {
-            verified = public_key.size() == 32
-                           ? engine::verify(state_, public_key.first<32>(), signature.first<64>())
-                           : boost::system::result<void>(error::invalid_public_key);
+            auto const key_bytes = key.bytes();
+            verified = engine::verify(state_, key_bytes, signature.first<64>());
         }
         end();
         return verified;

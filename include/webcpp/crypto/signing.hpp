@@ -105,11 +105,13 @@ inline constexpr schnorr_t schnorr{};
  * A digest given to a scheme that signs one, in place of the message it hashes:
  * `key.sign(crypto::ecdsa_sha256, crypto::prehashed{digest})`.
  *
- * It views the digest, which stays the caller's and must outlive the call. Its size is fixed by
- * its type, deduced from a `std::array<std::uint8_t, N>`, a `std::span<std::uint8_t const, N>`
- * (or of `std::uint8_t`) or a `boost::hash2::digest<N>`; a span of a dynamic size stops the
- * build. No conversion turns a span or an array into a marker, or a marker into a span: a
- * message is never read as a digest, nor a digest as a message.
+ * It refers to the digest, which stays the caller's: the marker must not outlive it, so a marker
+ * of a temporary, such as `prehashed{hasher.result()}`, is valid only within the full expression
+ * that makes it, as the argument of a call. Its size is fixed by its type, deduced from a
+ * `std::array<std::uint8_t, N>`, a `std::span<std::uint8_t const, N>` (or of `std::uint8_t`) or a
+ * `boost::hash2::digest<N>`; a span of a dynamic size stops the build. No conversion turns a span
+ * or an array into a marker, or a marker into a span: a message is never read as a digest, nor a
+ * digest as a message.
  *
  * @tparam N The digest's size in bytes, never `std::dynamic_extent`.
  */
@@ -350,6 +352,7 @@ constexpr void check_input() noexcept {
 /**
  * The bytes of a message, viewed where they are.
  *
+ * @tparam Input A message's type: bytes that convert to `std::span<std::uint8_t const>`.
  * @param message A message: bytes that convert to `std::span<std::uint8_t const>`.
  * @return The view of its bytes.
  */
@@ -375,6 +378,17 @@ template <class Input>
     std::copy_n(hashed.data(), digest.size(), digest.begin());
     return digest;
 }
+
+/**
+ * Whether `Type` is one of the scheme tags: `eddsa_t`, `ecdsa_sha256_t`,
+ * `ecdsa_sha256_recoverable_t` or `schnorr_t`.
+ *
+ * @tparam Type Any type.
+ */
+template <class Type>
+inline constexpr bool is_scheme_v =
+    std::is_same_v<Type, eddsa_t> || std::is_same_v<Type, ecdsa_sha256_t> ||
+    std::is_same_v<Type, ecdsa_sha256_recoverable_t> || std::is_same_v<Type, schnorr_t>;
 
 /**
  * Whether a curve gives `crypto::verify` of `Scheme` for the public key `Key`: false here; each
@@ -433,7 +447,8 @@ concept can_verify =
  * @return Never: the call does not compile.
  */
 template <class Scheme, class Signature, class Input, class PublicKey>
-    requires(!detail::has_verifier_v<Scheme, std::remove_cvref_t<PublicKey>>)
+    requires(detail::is_scheme_v<Scheme> &&
+             !detail::has_verifier_v<Scheme, std::remove_cvref_t<PublicKey>>)
 [[nodiscard]] boost::system::result<void> verify(
     [[maybe_unused]] Scheme scheme, [[maybe_unused]] Signature const& signature,
     [[maybe_unused]] Input const& input, [[maybe_unused]] PublicKey const& public_key) noexcept {

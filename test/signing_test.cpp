@@ -20,9 +20,11 @@
 #include <boost/system/result.hpp>
 
 #include <array>
+#include <concepts>
 #include <cstdint>
 #include <span>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace crypto = webcpp::crypto;
@@ -188,6 +190,20 @@ concept catch_all_verify = requires(std::array<std::uint8_t, 64> const& signatur
 static_assert(!crypto::detail::has_verifier_v<crypto::ecdsa_sha256_t, stand_in_public_key>);
 static_assert(catch_all_verify<stand_in_public_key>);
 static_assert(!catch_all_verify<stand_in_verified_key>);
+
+// The catch-all takes a scheme tag alone: a four-argument verify whose first argument is not a
+// scheme, found by argument-dependent lookup through a crypto type, is not captured.
+template <class Scheme>
+concept catch_all_takes = requires(Scheme scheme, std::array<std::uint8_t, 64> const& signature,
+                                   message_span message, stand_in_public_key const& public_key) {
+    crypto::verify(scheme, signature, message, public_key);
+};
+static_assert(catch_all_takes<crypto::eddsa_t>);
+static_assert(catch_all_takes<crypto::schnorr_t>);
+static_assert(!catch_all_takes<int>);
+static_assert(!catch_all_takes<crypto::prehashed<32>>);
+static_assert(crypto::detail::is_scheme_v<crypto::ecdsa_sha256_recoverable_t>);
+static_assert(!crypto::detail::is_scheme_v<crypto::ecdsa_sha256_t const>);
 
 // sha256_of is SHA-256: FIPS 180-2's "abc" and the empty message.
 void sha256_of_is_sha256() {

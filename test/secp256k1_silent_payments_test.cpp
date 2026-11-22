@@ -30,6 +30,7 @@
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/bip352_vectors.h"
@@ -414,7 +415,7 @@ void check_found(bip352_receive_subtest const& subtest, sp::found_output const& 
         return;
     }
     auto const spending = keypair_of(spend_tweaked->bytes());
-    auto const signature = spending.sign_schnorr(message, aux);
+    auto const signature = spending.sign(crypto::schnorr, message, aux);
     if (BOOST_TEST(signature.has_value())) {
         BOOST_TEST(std::ranges::equal(*signature, subtest.found_signatures[at]));
     }

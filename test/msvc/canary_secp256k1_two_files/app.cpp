@@ -9,6 +9,7 @@
 // linker compares the values of #pragma detect_mismatch and fails with LNK2038 (spec section
 // 4.3, the third layer). Elsewhere the program links; it is MSVC's case alone.
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <array>
 #include <cstdint>
@@ -21,5 +22,5 @@ int main() {
     std::array<std::uint8_t, 32> const message{};
     std::array<std::uint8_t, 32> const aux{};
     auto key = webcpp::crypto::curves::secp256k1::keypair::make(secret);
-    return key && key->sign_schnorr(message, aux) && sign_other() ? 0 : 1;
+    return key && key->sign(webcpp::crypto::schnorr, message, aux) && sign_other() ? 0 : 1;
 }

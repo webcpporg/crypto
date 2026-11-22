@@ -4,11 +4,13 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// secp256k1 against Wycheproof (spec 8.1): the Bitcoin ECDSA vectors through verify_ecdsa.
-// The ECDH vectors are secp256k1_ecdh_test.cpp's.
+// secp256k1 against Wycheproof (spec 8.1): the Bitcoin ECDSA vectors through
+// crypto::verify(crypto::ecdsa_sha256, ...), the message hashed inside, each verdict the same as
+// for its SHA-256 given as crypto::prehashed. The ECDH vectors are secp256k1_ecdh_test.cpp's.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -58,7 +60,11 @@ void ecdsa_bitcoin() {
     int skipped = 0;
     int invalid = 0;
     for (auto const& group : doc.at("testGroups").as_array()) {
-        auto const key = test::from_hex(str(group.at("publicKey").at("uncompressed")));
+        auto const key =
+            secp::parse_public_key(test::from_hex(str(group.at("publicKey").at("uncompressed"))));
+        if (!BOOST_TEST(key.has_value())) {
+            continue;
+        }
         for (auto const& t : group.at("tests").as_array()) {
             ++total;
             auto const message = test::from_hex(str(t.at("msg")));
@@ -81,7 +87,10 @@ void ecdsa_bitcoin() {
             BOOST_TEST_EQ(secp256k1_ecdsa_signature_serialize_compact(secp256k1_context_static,
                                                                       compact.data(), &parsed),
                           1);
-            auto const result = secp::verify_ecdsa(compact, hash, key);
+            auto const result = crypto::verify(crypto::ecdsa_sha256, compact, message, *key);
+            auto const of_digest =
+                crypto::verify(crypto::ecdsa_sha256, compact, crypto::prehashed{hash}, *key);
+            BOOST_TEST_EQ(result.has_value(), of_digest.has_value());
             auto const verdict = str(t.at("result"));
             if (verdict == "valid") {
                 ++valid;

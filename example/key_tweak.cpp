@@ -16,6 +16,7 @@
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <boost/hash2/sha2.hpp>
 
@@ -131,11 +132,11 @@ int main() {
     if (!device.fill(aux)) {
         return 1;
     }
-    auto const signature = payment_key->sign_schnorr(message, aux);
+    auto const signature = payment_key->sign(crypto::schnorr, message, aux);
     auto const watched_bytes = secp256k1::serialize_public_key(*watched);
     std::array<std::uint8_t, 32> xonly{};
     std::copy_n(watched_bytes.begin() + 1, xonly.size(), xonly.begin());
-    if (!signature || !secp256k1::verify_schnorr(*signature, message, xonly)) {
+    if (!signature || !crypto::verify(crypto::schnorr, *signature, message, xonly)) {
         return 1;
     }
     std::printf("signature verifies under the tweaked public key\n");

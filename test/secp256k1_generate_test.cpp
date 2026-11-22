@@ -10,10 +10,13 @@
 // script is spent. generate draws 32 bytes again when they are not a secret key (0xFF repeated
 // is above the group order), at most four draws in all; the source failing, or four refusals,
 // is entropy_unavailable; a failure allocates nothing; the one allocation of a success is the
-// context's, from the resource given.
+// context's, from the resource given. sign(crypto::schnorr, message) draws its 32 bytes of
+// auxiliary randomness from the same source: the signature is the one made with those bytes
+// given, and a failing source is entropy_unavailable, after one draw.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -24,6 +27,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory_resource>
+#include <utility>
 #include <vector>
 
 namespace crypto = webcpp::crypto;
@@ -140,6 +144,43 @@ void generate_resource() {
     BOOST_TEST_EQ(resource.deallocated, 1U);
 }
 
+// sign(schnorr, message) draws its auxiliary randomness once: a signature equal to the one with
+// those bytes given; then, the source failing, entropy_unavailable, and nothing more drawn.
+void schnorr_draws_from_the_source() {
+    std::array<std::uint8_t, 32> secret{};
+    secret.fill(0x42);
+    script = {0x07};  // the context's seed
+    calls = 0;
+    auto key = secp::keypair::make(secret);
+    if (!BOOST_TEST(key.has_value())) {
+        return;
+    }
+    std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
+    std::array<std::uint8_t, 32> aux{};
+    aux.fill(0x3c);
+    script = {0x3c};
+    calls = 0;
+    auto const drawn = key->sign(crypto::schnorr, message);
+    BOOST_TEST_EQ(calls, 1U);
+    auto const given = key->sign(crypto::schnorr, message, aux);
+    BOOST_TEST_EQ(calls, 1U);
+    if (BOOST_TEST(drawn.has_value()) && BOOST_TEST(given.has_value())) {
+        BOOST_TEST(*drawn == *given);
+    }
+    // The script is spent: the source fails.
+    auto const refused = key->sign(crypto::schnorr, message);
+    BOOST_TEST(!refused && refused.error() == crypto::error::entropy_unavailable);
+    BOOST_TEST_EQ(calls, 2U);
+    // A moved-from key pair answers invalid_state before it draws.
+    secp::keypair const moved = std::move(*key);
+    script = {};
+    calls = 0;
+    // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair is what this checks
+    BOOST_TEST(key->sign(crypto::schnorr, message).error() == crypto::error::invalid_state);
+    BOOST_TEST_EQ(calls, 0U);
+    BOOST_TEST(moved.xonly_public_key().has_value());
+}
+
 }  // namespace
 
 int main() {
@@ -148,5 +189,6 @@ int main() {
     generate_four_refusals();
     generate_source_fails();
     generate_resource();
+    schnorr_draws_from_the_source();
     return webcpp::test::exit_status(boost::report_errors());
 }

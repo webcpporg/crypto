@@ -12,6 +12,7 @@
 // `parse_public_key`'s; both with the key pair's.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -27,6 +28,7 @@
 
 namespace {
 
+namespace crypto = webcpp::crypto;
 namespace secp = webcpp::crypto::curves::secp256k1;
 
 using secret_key = std::array<std::uint8_t, 32>;
@@ -75,7 +77,8 @@ void recovery(secp256k1_context const* context, secret_key const& secret,
     std::array<std::uint8_t, secp::recoverable_signature_size> with_id{};
     std::ranges::copy(compact, with_id.begin());
     with_id[64] = static_cast<std::uint8_t>(id);
-    auto const wrapped = secp::recover(with_id, hash);
+    auto const wrapped =
+        secp::recover(crypto::ecdsa_sha256_recoverable, with_id, crypto::prehashed{hash});
     auto const expected_key = secp::parse_public_key(expected);
     if (BOOST_TEST(wrapped && expected_key)) {
         BOOST_TEST(*wrapped == *expected_key);

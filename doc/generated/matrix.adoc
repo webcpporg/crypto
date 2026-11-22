@@ -86,12 +86,12 @@
 |native, wasip2, wasip3, emscripten
 |`+secp256k1+`, `+secp256k1_generate+`, `+secp256k1_bip340+`, `+secp256k1_xonly_tweak+`, `+secp256k1_ecdh+`, `+secp256k1_recovery+`
 
-|`+curves::secp256k1::verify_schnorr+`, `+verify_ecdsa+`
+|`+crypto::verify+`, `+curves::secp256k1::recover+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
-|`+secp256k1_bip340+`, `+secp256k1_wycheproof+`
+|`+secp256k1_bip340+`, `+secp256k1_wycheproof+`, `+secp256k1_recovery+`, `+signing_curves+`
 
-|`+curves::secp256k1::to_der+`, `+from_der+`, `+normalize_ecdsa+`
+|`+curves::secp256k1::to_der+`, `+from_der+`, `+normalize_low_s+`, `+is_low_s+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_der+`
@@ -368,13 +368,13 @@ The same, by target: the backends each operation runs on.
 |libsecp256k1
 |libsecp256k1
 
-|`+curves::secp256k1::verify_schnorr+`, `+verify_ecdsa+`
+|`+crypto::verify+`, `+curves::secp256k1::recover+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
 
-|`+curves::secp256k1::to_der+`, `+from_der+`, `+normalize_ecdsa+`
+|`+curves::secp256k1::to_der+`, `+from_der+`, `+normalize_low_s+`, `+is_low_s+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1

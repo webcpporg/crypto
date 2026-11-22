@@ -73,14 +73,14 @@
 |<<crypto-block,[.keep]`+order_reference.cpp+`>>
 
 |Prove who wrote a message posted to a relay
-|In `+curves::secp256k1+`: `+keypair::sign_schnorr+`, `+verify_schnorr+`
+|In `+curves::secp256k1+`: `+keypair::sign(crypto::schnorr, message)+`, `+crypto::verify+`
 |libsecp256k1
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+`
 |<<crypto-p2p-signed,[.keep]`+signed_message.cpp+`>>
 
 |Check a software update or a licence file
-|In `+curves::secp256k1+`: `+keypair::sign_ecdsa+`, `+verify_ecdsa+`
+|In `+curves::secp256k1+`: `+keypair::sign(crypto::ecdsa_sha256, message)+`, `+parse_public_key+`, `+crypto::verify+`
 |libsecp256k1
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+`
@@ -102,7 +102,7 @@
 |<<crypto-p2p-nostr-dm,[.keep]`+ecdh_x_coordinate.cpp+`>>
 
 |Find who signed a message or a transaction without being sent their key (Ethereum's signatures)
-|In `+curves::secp256k1+`: `+keypair::sign_recoverable+`, `+recover+`
+|In `+curves::secp256k1+`: `+keypair::sign(crypto::ecdsa_sha256_recoverable, message)+`, `+recover+`
 |libsecp256k1
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+`
@@ -153,11 +153,11 @@
 |<<crypto-wallets-key,[.keep]`+wallet_key.cpp+`>>
 
 |Sign a Bitcoin SegWit v0 input (a domain library's job)
-|In `+curves::secp256k1+`: `+sign_ecdsa+`, `+to_der+`, `+normalize_ecdsa+`
+|In `+curves::secp256k1+`: `+keypair::sign(crypto::ecdsa_sha256, crypto::prehashed{sighash})+`, `+to_der+`, `+is_low_s+`, `+normalize_low_s+`
 |libsecp256k1
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+`
-|<<crypto-wallets-der,[.keep]`+ecdsa_der.cpp+`>>
+|<<crypto-wallets-der,[.keep]`+bitcoin_sighash.cpp+`>>
 
 |Derive a Bitcoin Taproot output key and spend by key path (a domain library's job)
 |In `+curves::secp256k1+`: `+tweak_xonly+`, `+keypair::tweak_xonly+`

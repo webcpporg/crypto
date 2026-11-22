@@ -18,6 +18,7 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/algorithms.hpp>
 
 #include <algorithm>
@@ -30,6 +31,7 @@
 #include <string_view>
 #include <utility>
 
+namespace crypto = webcpp::crypto;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 namespace musig = webcpp::crypto::curves::secp256k1::musig;
 
@@ -135,11 +137,11 @@ int main() {
     // path, and not under the internal key.
     std::array<musig::partial_signature, 2> const parts{*phone_part, *laptop_part};
     auto const signature = musig::partial_signature_aggregate(*signing_session, parts, space);
-    if (!signature || !secp256k1::verify_schnorr(*signature, message, output_key)) {
+    if (!signature || !crypto::verify(crypto::schnorr, *signature, message, output_key)) {
         return 1;
     }
     std::printf("the signature verifies under the output key\n");
-    auto const under_internal = secp256k1::verify_schnorr(*signature, message, internal_key);
+    auto const under_internal = crypto::verify(crypto::schnorr, *signature, message, internal_key);
     if (under_internal) {
         return 1;
     }

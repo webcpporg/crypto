@@ -10,6 +10,7 @@
 // tag::program[]
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/equal.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <boost/hash2/sha2.hpp>
 
@@ -101,8 +102,8 @@ int main() {
 
     std::array<std::uint8_t, 32> const message{};
     std::array<std::uint8_t, 32> const aux{};
-    auto const signature = key->sign_schnorr(message, aux);
-    if (!signature || !secp256k1::verify_schnorr(*signature, message, output->key)) {
+    auto const signature = key->sign(crypto::schnorr, message, aux);
+    if (!signature || !crypto::verify(crypto::schnorr, *signature, message, output->key)) {
         return 1;
     }
     std::printf("key-path signature verified\n");

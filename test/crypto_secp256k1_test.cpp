@@ -5,13 +5,16 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // <webcpp/crypto.hpp> in a program that links libsecp256k1 brings secp256k1's header: its
-// branch for WEBCPP_CRYPTO_HAS_SECP256K1 compiles, and the key pair, both verifications, the
-// tweaks of tweak.hpp, the formats of formats.hpp, the ElligatorSwift of ellswift.hpp, the
-// MuSig2 of musig.hpp and the silent payments of silent_payments.hpp are declared through it
-// alone.
+// branch for WEBCPP_CRYPTO_HAS_SECP256K1 compiles, and the key pair's sign, both of its
+// crypto::verify, the low-S functions, the tweaks of tweak.hpp, the formats of formats.hpp, the
+// ElligatorSwift of ellswift.hpp, the MuSig2 of musig.hpp and the silent payments of
+// silent_payments.hpp are declared through it alone.
 
 #include <webcpp/crypto.hpp>
 
+#include <array>
+#include <cstdint>
+#include <span>
 #include <type_traits>
 
 #ifndef WEBCPP_CRYPTO_HAS_SECP256K1
@@ -21,8 +24,14 @@
 namespace secp = webcpp::crypto::curves::secp256k1;
 
 static_assert(std::is_same_v<secp::keypair::backend_type, webcpp::crypto::backends::secp256k1>);
-static_assert(std::is_function_v<decltype(secp::verify_schnorr<>)>);
-static_assert(std::is_function_v<decltype(secp::verify_ecdsa<>)>);
+static_assert(webcpp::crypto::can_sign<secp::keypair, webcpp::crypto::schnorr_t,
+                                       std::span<std::uint8_t const>>);
+static_assert(webcpp::crypto::can_verify<webcpp::crypto::schnorr_t, std::span<std::uint8_t const>,
+                                         std::array<std::uint8_t, 32>>);
+static_assert(webcpp::crypto::can_verify<webcpp::crypto::ecdsa_sha256_t,
+                                         std::span<std::uint8_t const>, secp::public_key>);
+static_assert(std::is_function_v<decltype(secp::normalize_low_s<>)>);
+static_assert(std::is_function_v<decltype(secp::is_low_s<>)>);
 static_assert(std::is_function_v<decltype(secp::seckey_tweak_add<>)>);
 static_assert(std::is_function_v<decltype(secp::pubkey_combine<>)>);
 static_assert(std::is_function_v<decltype(secp::decode_spki<>)>);

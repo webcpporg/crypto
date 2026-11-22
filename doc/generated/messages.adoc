@@ -301,6 +301,18 @@ The fix: Give `+crypto::ecdsa_sha256+` SHA-256's 32-byte digest, `+crypto::preha
 
 The fix: Sign with `+crypto::ecdsa_sha256+`, P-256's scheme; BIP340's `+crypto::schnorr+` is secp256k1's.
 
+|`+sign_schnorr_prehashed+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto::schnorr (BIP340) signs a message of any length and has no prehash mode: pass the message.+`
+
+The fix: Sign the message itself with `+crypto::schnorr+`, BIP340's, which has no prehash mode; a taproot sighash, BIP341's tagged hash, is that message.
+
+|`+sign_secp256k1_eddsa+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, crypto::ecdsa_sha256_recoverable or crypto::schnorr.+`
+
+The fix: Sign with `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+` or `+crypto::schnorr+`, secp256k1's schemes; `+crypto::eddsa+` is Ed25519's.
+
 |`+silent_payments_other_backend+`
 |native, wasip2
 |`+webcpp::crypto: bearssl has no BIP 352 silent payments. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
@@ -312,6 +324,12 @@ The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp2
 |`+webcpp::crypto: the backend libsodium is used and not linked. In the program's Jamfile, add /third_party//sodium beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
 The fix: Add `+/third_party//sodium+`.
+
+|`+verify_ecdsa_bytes_key+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes Ed25519's 32 bytes, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a 32-byte x-only key.+`
+
+The fix: Give `+crypto::ecdsa_sha256+` the public key as a parsed object, `+curves::secp256k1::parse_public_key(bytes)+` or `+curves::p256::public_key::make(bytes)+`: bytes never choose the curve.
 
 |`+x25519_default_not_linked+`
 |native, wasip2, wasip3

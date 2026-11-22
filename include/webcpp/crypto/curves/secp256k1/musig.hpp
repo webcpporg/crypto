@@ -556,7 +556,8 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
 
 /**
  * The BIP 340 signature of the partial signatures (`secp256k1_musig_partial_sig_agg`), which
- * `verify_schnorr` checks under `aggregate_key::xonly_public_key()`.
+ * `crypto::verify(crypto::schnorr, signature, message, key)` checks under
+ * `aggregate_key::xonly_public_key()`.
  *
  * @tparam Backend The backend, `backends::secp256k1`.
  * @param signing_session The session of the message.

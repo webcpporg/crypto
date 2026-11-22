@@ -151,6 +151,11 @@ crypto-run equal : equal_test.cpp ;
 # signing.hpp's tags, prehashed, the input checks and the concepts, over
 # stand-in key types; the catch-all verify; sha256_of.
 crypto-run signing : signing_test.cpp ;
+# Every curve's crypto::verify in one program: a 32-byte key is Ed25519's under
+# eddsa and BIP340's under schnorr, with no ambiguity.
+crypto-run signing_curves : signing_curves_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium
+    <library>/third_party//secp256k1 ;
 # The tests' hex readers: hex<N> at compile time, from_hex and to_hex at run
 # time.
 crypto-run hex : hex_test.cpp ;

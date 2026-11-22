@@ -60,3 +60,6 @@ build-project sign_p256_schnorr ;
 build-project sign_p256_digest_48 ;
 build-project sign_ed25519_prehashed ;
 build-project sign_ed25519_ecdsa ;
+build-project sign_schnorr_prehashed ;
+build-project sign_secp256k1_eddsa ;
+build-project verify_ecdsa_bytes_key ;

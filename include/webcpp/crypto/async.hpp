@@ -25,9 +25,8 @@
      (ChaCha20-Poly1305 and its forms, the secret boxes) are not in WebCrypto: call their `seal`.
    - Ed25519: `async_make` (a key pair from its seed), `async_generate`, `async_sign` and
      `async_verify`, over `curves::ed25519::basic_keypair::sign` and `crypto::verify` with
-     `crypto::eddsa`. A key
-     pair of an algorithm WebCrypto lacks (secp256k1) is not here: call its own signing function
-     (`sign_ecdsa`, `sign_schnorr`).
+     `crypto::eddsa`. A key pair of an algorithm WebCrypto lacks (secp256k1) is not here: call
+     its own `sign`.
    - X25519: `async_agree`, over `curves::x25519::agree`.
    - P-256: `async_make` (a key pair from its secret scalar), `async_generate`, `async_sign` and
      `async_verify`, ECDSA over `curves::p256::basic_keypair::sign` and `crypto::verify` with

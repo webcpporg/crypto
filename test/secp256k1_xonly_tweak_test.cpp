@@ -14,6 +14,7 @@
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -124,7 +125,7 @@ void check_input(json::value const& input, int index) {
     // bytes (a 65th is the hash type, when it is not SIGHASH_DEFAULT).
     std::array<std::uint8_t, 32> const aux{};
     auto const sighash = fixed<32>(intermediary.at("sigHash"));
-    auto const signature = key.sign_schnorr(sighash, aux);
+    auto const signature = key.sign(crypto::schnorr, sighash, aux);
     auto const& expected = input.at("expected");
     auto const& witnesses = expected.at("witness").as_array();
     auto const witness = test::from_hex(str(witnesses.at(0)));
@@ -140,7 +141,7 @@ void check_input(json::value const& input, int index) {
         !std::ranges::equal(*signature, std::span(witness).first(64))) {
         fail("keyPathSpending input " + std::to_string(index) + ": signature differs");
     }
-    BOOST_TEST(signature && secp::verify_schnorr(*signature, sighash, output->key));
+    BOOST_TEST(signature && crypto::verify(crypto::schnorr, *signature, sighash, output->key));
 }
 
 int key_path_inputs(json::value const& doc) {

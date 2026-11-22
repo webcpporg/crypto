@@ -12,6 +12,7 @@
 #define WEBCPP_CRYPTO_SECP256K1_CANARY_CONFIGURATION w2c2x5
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <array>
 #include <cstdint>
@@ -26,5 +27,5 @@ bool sign_other() {
     std::array<std::uint8_t, 32> const message{};
     std::array<std::uint8_t, 32> const aux{};
     auto key = webcpp::crypto::curves::secp256k1::keypair::make(secret);
-    return key && key->sign_schnorr(message, aux);
+    return key && key->sign(webcpp::crypto::schnorr, message, aux);
 }

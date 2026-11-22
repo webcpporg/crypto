@@ -186,13 +186,12 @@ public:
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
                     "make")) {}
 
-    std::uint8_t run() { return take(key_.sign_schnorr(message_, aux_), "sign")[0]; }
+    std::uint8_t run() { return take(key_.sign(schnorr, message_, aux_), "sign")[0]; }
 
     bool check() {
-        auto const signature = take(key_.sign_schnorr(message_, aux_), "sign");
+        auto const signature = take(key_.sign(schnorr, message_, aux_), "sign");
         auto const public_key = take(key_.xonly_public_key(), "xonly_public_key");
-        return curves::secp256k1::verify_schnorr<Backend>(signature, message_, public_key)
-            .has_value();
+        return crypto::verify(schnorr, signature, message_, public_key).has_value();
     }
 
 private:
@@ -248,18 +247,20 @@ public:
           key_(take(curves::secp256k1::basic_keypair<Backend>::make(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
                     "make")),
-          signature_(take(key_.sign_recoverable(hash_), "sign_recoverable")) {}
+          signature_(take(key_.sign(ecdsa_sha256_recoverable, prehashed{hash_}), "sign")) {}
 
     std::uint8_t run() {
-        auto const recovered =
-            take(curves::secp256k1::recover<Backend>(signature_, hash_), "recover");
+        auto const recovered = take(curves::secp256k1::recover<Backend>(
+                                        ecdsa_sha256_recoverable, signature_, prehashed{hash_}),
+                                    "recover");
         return curves::secp256k1::serialize_public_key<curves::secp256k1::point_form::compressed,
                                                        Backend>(recovered)[1];
     }
 
     bool check() {
-        auto const recovered =
-            take(curves::secp256k1::recover<Backend>(signature_, hash_), "recover");
+        auto const recovered = take(curves::secp256k1::recover<Backend>(
+                                        ecdsa_sha256_recoverable, signature_, prehashed{hash_}),
+                                    "recover");
         return curves::secp256k1::serialize_public_key<curves::secp256k1::point_form::compressed,
                                                        Backend>(recovered) ==
                take(key_.public_key(), "public_key");
@@ -339,8 +340,7 @@ public:
     std::uint8_t run() { return sign()[0]; }
 
     bool check() {
-        return curves::secp256k1::verify_schnorr<Backend>(sign(), message_,
-                                                          signers_key_.xonly_public_key())
+        return crypto::verify(schnorr, sign(), message_, signers_key_.xonly_public_key())
             .has_value();
     }
 

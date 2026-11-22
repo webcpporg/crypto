@@ -15,6 +15,7 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <algorithm>
 #include <array>
@@ -23,6 +24,7 @@
 #include <cstdio>
 #include <utility>
 
+namespace crypto = webcpp::crypto;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 namespace musig = webcpp::crypto::curves::secp256k1::musig;
 
@@ -102,7 +104,7 @@ int main() {
     std::array<musig::partial_signature, 2> const parts{*phone_part, *laptop_part};
     auto const signature = musig::partial_signature_aggregate(*signing_session, parts, space);
     if (!signature ||
-        !secp256k1::verify_schnorr(*signature, message, wallet_key->xonly_public_key())) {
+        !crypto::verify(crypto::schnorr, *signature, message, wallet_key->xonly_public_key())) {
         return 1;
     }
     std::printf("the aggregate signature verifies as one BIP 340 signature\n");

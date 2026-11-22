@@ -16,6 +16,7 @@
 #include "support/timing_seam.hpp"
 
 #include <cstddef>
+#include <source_location>
 
 namespace webcpp::test {
 
@@ -23,11 +24,25 @@ namespace webcpp::test {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the seam's counter
 inline thread_local std::size_t hash_timing_entries = 0;
 
+/**
+ * The `function_name()` of the first hash guard this thread entered since it was last reset to
+ * null.
+ */
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the seam's record
+inline thread_local char const* hash_timing_first_entry = nullptr;
+
+/** Records the entry into a hash guard: counts it, and keeps its function when it is the first. */
+inline void hash_timing_entered(std::source_location const& where) noexcept {
+    ++hash_timing_entries;
+    if (hash_timing_first_entry == nullptr) {
+        hash_timing_first_entry = where.function_name();
+    }
+}
+
 }  // namespace webcpp::test
 
-/** Counts the entry into a hash guard; the function it names does not matter to this test. */
-#define WEBCPP_HASH_DETAIL_TIMING_ENTERED(where) \
-    (static_cast<void>(where), ++::webcpp::test::hash_timing_entries)
+/** Records the entry into a hash guard declared at `where`. */
+#define WEBCPP_HASH_DETAIL_TIMING_ENTERED(where) (::webcpp::test::hash_timing_entered(where))
 
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
@@ -44,6 +59,7 @@ inline thread_local std::size_t hash_timing_entries = 0;
 #include <array>
 #include <cstdint>
 #include <span>
+#include <string_view>
 
 namespace {
 
@@ -92,7 +108,13 @@ void same_cpu() {
     force_dit(false);
 }
 
-// Whether DIT is set, in the one place both copies agree it is read.
+/** Whether a recorded `function_name()` is the named function, as the seam support reads it. */
+bool first_is(char const* entered, std::string_view function) {
+    return entered != nullptr &&
+           webcpp::test::names_function(entered, webcpp::test::function_named(function));
+}
+
+// Whether DIT is set; reads through crypto's copy, which same_cpu has shown agrees with hash's.
 bool dit_set() {
     return crypto_detail::dit_is_set();
 }
@@ -152,7 +174,7 @@ void ed25519ph_uses_hash_unkeyed() {
     std::size_t const hash_before = hash_timing_entries;
     auto const signature = signer->sign(*key);
     BOOST_TEST(signature.has_value());
-    BOOST_TEST_GT(timing_entries, crypto_before);
+    BOOST_TEST_EQ(timing_entries, crypto_before + 1);
     BOOST_TEST_EQ(hash_timing_entries, hash_before);
 }
 
@@ -164,15 +186,18 @@ void hkdf_beside_crypto() {
         bool const before = dit_set();
         std::array<std::uint8_t, 32> okm{};
         std::array<std::uint8_t, 16> const salt{};
-        std::array<std::uint8_t, 22> const secret{};
-        std::array<std::uint8_t, 4> const info{};
+        std::array<std::uint8_t, 22> const secret{};  // the input keying material, all zero
+        std::array<std::uint8_t, 4> const info{};     // also the message the key then signs
         std::size_t crypto_entries = timing_entries;
         std::size_t hash_entries = hash_timing_entries;
+        webcpp::test::hash_timing_first_entry = nullptr;
+        webcpp::test::timing_first_entry = nullptr;
         auto const derived =
             webcpp::hash::hkdf<webcpp::hash::hmac_sha2_256>(okm, salt, secret, info);
         BOOST_TEST(derived.has_value());
-        BOOST_TEST_GT(hash_timing_entries, hash_entries);
+        BOOST_TEST_EQ(hash_timing_entries, hash_entries + 1);
         BOOST_TEST_EQ(timing_entries, crypto_entries);
+        BOOST_TEST(first_is(webcpp::test::hash_timing_first_entry, "webcpp::hash::hkdf"));
         BOOST_TEST_EQ(dit_set(), before);
 
         auto const key = ed25519::basic_keypair<webcpp::crypto::backends::sodium>::make(okm);
@@ -181,9 +206,11 @@ void hkdf_beside_crypto() {
         }
         crypto_entries = timing_entries;
         hash_entries = hash_timing_entries;
+        webcpp::test::timing_first_entry = nullptr;
         auto const signature = key->sign(std::span<std::uint8_t const>(info));
         BOOST_TEST(signature.has_value());
-        BOOST_TEST_GT(timing_entries, crypto_entries);
+        BOOST_TEST_EQ(timing_entries, crypto_entries + 1);
+        BOOST_TEST(first_is(webcpp::test::timing_first_entry, "basic_keypair::sign"));
         BOOST_TEST_EQ(hash_timing_entries, hash_entries);
         BOOST_TEST_EQ(dit_set(), before);
     }

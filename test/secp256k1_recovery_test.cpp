@@ -70,7 +70,7 @@ hash_bytes draw_hash(std::mt19937_64& generator) {
     return hash;
 }
 
-// The key pair's public key, parsed.
+// The key pair's public key.
 secp::public_key key_of(secp::keypair const& key) {
     return *key.public_key();
 }

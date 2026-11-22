@@ -309,6 +309,22 @@ private:
 }
 
 /**
+ * A public key's BIP340 x-only form, with libsecp256k1's static context; the parity of y is
+ * dropped. The caller has read the canary and run the self-test.
+ *
+ * @param point_value A valid point, as every `public_key` holds.
+ * @return The x-only key.
+ */
+[[nodiscard]] inline secp256k1_xonly_pubkey secp256k1_xonly_of(
+    secp256k1_pubkey const& point_value) noexcept {
+    secp256k1_xonly_pubkey xonly_key{};
+    // libsecp256k1 returns 1 always: every valid point has an x-only form.
+    static_cast<void>(secp256k1_xonly_pubkey_from_pubkey(secp256k1_context_static, &xonly_key,
+                                                         nullptr, &point_value));
+    return xonly_key;
+}
+
+/**
  * Whether 32 bytes of a compact signature, its r or its s, are not zero.
  *
  * @param half_bytes The 32 bytes.
@@ -583,10 +599,7 @@ public:
         detail::timing_guard const timing;
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         secp256k1_selftest();
-        secp256k1_xonly_pubkey xonly_key{};
-        // libsecp256k1 returns 1 always: every valid point has an x-only form.
-        static_cast<void>(secp256k1_xonly_pubkey_from_pubkey(secp256k1_context_static, &xonly_key,
-                                                             nullptr, &point_value_));
+        auto const xonly_key = webcpp::crypto::detail::secp256k1_xonly_of(point_value_);
         std::array<std::uint8_t, 32> output_bytes{};
         secp256k1_xonly_pubkey_serialize(secp256k1_context_static, output_bytes.data(), &xonly_key);
         return output_bytes;
@@ -1586,11 +1599,8 @@ template <class Backend = default_backend_t<families::secp256k1>, class Input>
         auto const message_bytes = detail::message_bytes(message);
         detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         secp256k1_selftest();
-        secp256k1_xonly_pubkey xonly_key{};
-        // libsecp256k1 returns 1 always: every valid point has an x-only form.
-        static_cast<void>(
-            secp256k1_xonly_pubkey_from_pubkey(secp256k1_context_static, &xonly_key, nullptr,
-                                               &detail::secp256k1_access::point(public_key)));
+        auto const xonly_key =
+            detail::secp256k1_xonly_of(detail::secp256k1_access::point(public_key));
         return detail::secp256k1_verify_schnorr(signature, message_bytes, xonly_key);
     } else {
         // Never compiled into a program: check_input stopped the build.

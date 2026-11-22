@@ -143,10 +143,11 @@ inline constexpr bool asynchronous_backend_v = false;
  * - `generate<Keypair>(executor, token)`;
  * - `seal(executor, aead, iv_bytes, additional_data_bytes, data_bytes, token)` and
  *   `open(executor, aead, iv_bytes, additional_data_bytes, data_bytes, tag_bytes, token)`;
- * - `sign(executor, key_pair, message, token)`;
+ * - `sign(executor, key_pair, message, token)`; for P-256 the message itself, which the engine
+ *   hashes with SHA-256, as WebCrypto's ECDSA does;
  * - `verify<Policy>(executor, public_key, message, signature, token)` for Ed25519, and
  *   `verify(executor, public_key, message, signature, token)` for P-256, its key P-256's
- *   `basic_public_key`;
+ *   `basic_public_key` and the message itself, which the engine hashes with SHA-256;
  * - `agree(executor, secret_key, peer_public_key, token)` for X25519, and
  *   `agree(executor, key_pair, peer_public_key, token)` for P-256, its key pair and its peer's
  *   key P-256's types.

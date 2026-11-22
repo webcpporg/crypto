@@ -227,6 +227,10 @@ void async_wycheproof_ecdsa(asio::io_context& context) {
     auto const doc = load("ecdsa_secp256r1_sha256_p1363_test");
     int run = 0;
     for (auto const& group : doc.at("testGroups").as_array()) {
+        // The groups after the 50th case are not read: their keys are not made.
+        if (run == wycheproof_cases) {
+            break;
+        }
         auto const key =
             public_key::make(test::from_hex(str(group.at("publicKey").at("uncompressed"))));
         if (!BOOST_TEST(key.has_value())) {

@@ -21,8 +21,8 @@
 //   guarded (no BearSSL call): public_key, secret_scalar, uncompressed, encode_spki, encode_pkcs8,
 //   basic_keypair's move constructor and move assignment, and normalize_ecdsa and check_low_s,
 //   which test/timing_test.cpp calls without a backend; and the asynchronous async_make,
-//   async_generate, async_sign, async_verify and async_agree, each refused once before BearSSL
-//   too.
+//   async_generate, async_sign, async_verify and async_agree, all but async_generate (which takes
+//   no input) also refused once before BearSSL.
 
 #include "support/timing_seam.hpp"
 

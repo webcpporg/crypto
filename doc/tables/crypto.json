@@ -292,6 +292,7 @@
             "functions": ["async_make", "async_generate", "async_sign", "async_verify", "async_agree"],
             "namespace": "root",
             "api": "async_make, async_generate, async_sign, async_verify, async_agree",
+            "overloads": {"async_verify": "p256::basic_public_key", "async_agree": "p256::basic_keypair"},
             "header": "<webcpp/crypto/async.hpp>",
             "what": "P-256's asynchronous make, generate, ECDSA sign and verify of a message hashed with SHA-256, and ECDH's raw x, each completing through a post to the executor the call gives, with any Asio completion token.",
             "section": "crypto-async",
@@ -1217,8 +1218,8 @@
         }
     },
     "use_cases": [
-        {"need": "Seal or open a record inside an event loop without waiting", "namespace": "webcpp::crypto", "api": "`async_seal`, `async_open`", "backend": "the default of AES-GCM", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//gcm-default /webcpp/asio//asio", "example": "async_seal", "section": "crypto-async"},
-        {"need": "Sign and verify with Ed25519 in a coroutine", "namespace": "webcpp::crypto", "api": "`async_sign`, `async_verify`", "backend": "the default of Ed25519", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default /webcpp/asio//asio", "example": "async_sign", "section": "crypto-async"},
+        {"need": "Seal or open a record inside an event loop without waiting", "namespace": "webcpp::crypto", "api": "`async_seal`, `async_open`", "backend": "the default of AES-GCM", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//gcm-default /webcpp/asio//asio", "example": "async_seal", "section": "crypto-async", "operations": ["async_gcm"]},
+        {"need": "Sign and verify with Ed25519 in a coroutine", "namespace": "webcpp::crypto", "api": "`async_sign`, `async_verify`", "backend": "the default of Ed25519", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default /webcpp/asio//asio", "example": "async_sign", "section": "crypto-async", "operations": ["async_ed25519"]},
         {"need": "Generate a session token, a password-reset link or an API key", "namespace": "webcpp::crypto", "api": "`random_device::fill`", "backend": "the system's generator", "jamfile": "/webcpp/crypto//crypto", "example": "reset_token", "section": "crypto-entropy"},
         {"need": "Draw an unbiased number in a range, such as a six-digit code", "namespace": "webcpp::crypto", "api": "`random_device` with `std::uniform_int_distribution`", "backend": "the system's generator", "jamfile": "/webcpp/crypto//crypto", "example": "reset_token", "section": "crypto-entropy"},
         {"need": "Check a webhook's or an API's HMAC signature", "namespace": "webcpp::crypto", "api": "`equal`, with Boost.Hash2's `hmac`", "backend": "none", "jamfile": "/webcpp/crypto//crypto", "example": "equal_hmac", "section": "crypto-equal"},

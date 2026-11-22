@@ -282,8 +282,9 @@ void cover_async_p256() {
     std::array<std::uint8_t, 3> const message{1, 2, 3};
     int completions = 0;
     signature_type kept{};
-    webcpp::test::async_completion_counter<signature_type> const counted{.completions =
-                                                                             &completions};
+    webcpp::test::async_completion_counter<signature_type> const counted{
+        .completions = &completions,
+    };
     webcpp::test::async_completion_counter<signature_type> const keeping{
         .completions = &completions,
         .tag = &kept,

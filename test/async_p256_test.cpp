@@ -194,9 +194,10 @@ void async_rfc6979(asio::io_context& context) {
         return;
     }
     BOOST_TEST(own->uncompressed() == data::rfc6979_public);
-    for (auto const& [text, expected] :
-         {std::pair{std::string_view("sample"), data::rfc6979_sample},
-          std::pair{std::string_view("test"), data::rfc6979_test}}) {
+    for (auto const& [text, expected] : {
+             std::pair{std::string_view("sample"), data::rfc6979_sample},
+             std::pair{std::string_view("test"), data::rfc6979_test},
+         }) {
         auto const message = bytes_of(text);
         auto const signed_async = sign_async(context, *key, message);
         BOOST_TEST(!signed_async.code);
@@ -223,6 +224,46 @@ std::string str(json::value const& v) {
     return std::string(std::string_view(v.as_string()));
 }
 
+// One valid case: the synchronous and the asynchronous verification accept it, and both refuse
+// the message with a changed byte.
+void check_wycheproof_ecdsa_case(asio::io_context& context, public_key const& key,
+                                 json::value const& t) {
+    auto message = test::from_hex(str(t.at("msg")));
+    auto const encoded = test::from_hex(str(t.at("sig")));
+    if (!BOOST_TEST_EQ(encoded.size(), p256::signature_size)) {
+        return;
+    }
+    std::span<std::uint8_t const, p256::signature_size> const signature(encoded.data(),
+                                                                        encoded.size());
+    auto const verified_sync = p256::verify_ecdsa(signature, sha256(message), key);
+    BOOST_TEST(verified_sync.has_value());
+    BOOST_TEST(!verify_async(context, key, message, encoded));
+    // A changed byte of the message: both refuse it.
+    message.push_back(0);
+    message.front() ^= 1U;
+    BOOST_TEST(p256::verify_ecdsa(signature, sha256(message), key).error() ==
+               crypto::error::invalid_signature);
+    BOOST_TEST(verify_async(context, key, message, encoded) == crypto::error::invalid_signature);
+}
+
+void async_wycheproof_ecdsa_group(asio::io_context& context, json::value const& group, int& run) {
+    auto const key =
+        public_key::make(test::from_hex(str(group.at("publicKey").at("uncompressed"))));
+    if (!BOOST_TEST(key.has_value())) {
+        return;
+    }
+    for (auto const& t : group.at("tests").as_array()) {
+        if (run == wycheproof_cases) {
+            break;
+        }
+        if (str(t.at("result")) != "valid") {
+            continue;
+        }
+        ++run;
+        check_wycheproof_ecdsa_case(context, *key, t);
+    }
+}
+
 void async_wycheproof_ecdsa(asio::io_context& context) {
     auto const doc = load("ecdsa_secp256r1_sha256_p1363_test");
     int run = 0;
@@ -231,37 +272,7 @@ void async_wycheproof_ecdsa(asio::io_context& context) {
         if (run == wycheproof_cases) {
             break;
         }
-        auto const key =
-            public_key::make(test::from_hex(str(group.at("publicKey").at("uncompressed"))));
-        if (!BOOST_TEST(key.has_value())) {
-            continue;
-        }
-        for (auto const& t : group.at("tests").as_array()) {
-            if (run == wycheproof_cases) {
-                break;
-            }
-            if (str(t.at("result")) != "valid") {
-                continue;
-            }
-            ++run;
-            auto message = test::from_hex(str(t.at("msg")));
-            auto const encoded = test::from_hex(str(t.at("sig")));
-            if (!BOOST_TEST_EQ(encoded.size(), p256::signature_size)) {
-                continue;
-            }
-            std::span<std::uint8_t const, p256::signature_size> const signature(encoded.data(),
-                                                                                encoded.size());
-            auto const verified_sync = p256::verify_ecdsa(signature, sha256(message), *key);
-            BOOST_TEST(verified_sync.has_value());
-            BOOST_TEST(!verify_async(context, *key, message, encoded));
-            // A changed byte of the message: both refuse it.
-            message.push_back(0);
-            message.front() ^= 1U;
-            BOOST_TEST(p256::verify_ecdsa(signature, sha256(message), *key).error() ==
-                       crypto::error::invalid_signature);
-            BOOST_TEST(verify_async(context, *key, message, encoded) ==
-                       crypto::error::invalid_signature);
-        }
+        async_wycheproof_ecdsa_group(context, group, run);
     }
     BOOST_TEST_EQ(run, wycheproof_cases);
     std::cout << "ecdsa_secp256r1_sha256_p1363_test: async_verified=" << run << '\n';
@@ -282,6 +293,31 @@ std::optional<std::array<std::uint8_t, p256::secret_key_size>> scalar_bytes(
     return padded;
 }
 
+// One valid case: the key made asynchronously agrees with the peer's key as the vector says and
+// as the synchronous key does.
+void check_wycheproof_ecdh_case(asio::io_context& context, json::value const& t) {
+    auto const scalar = scalar_bytes(test::from_hex(str(t.at("private"))));
+    auto const peer = public_key::make(test::from_hex(str(t.at("public"))));
+    auto const shared = test::from_hex(str(t.at("shared")));
+    if (!BOOST_TEST(scalar.has_value()) || !BOOST_TEST(peer.has_value())) {
+        return;
+    }
+    auto const key = made_async(context, *scalar);
+    auto const synchronous = keypair::make(*scalar);
+    if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(synchronous.has_value())) {
+        return;
+    }
+    auto const agreed_sync = synchronous->ecdh_x(*peer);
+    auto const agreed = agree_async(context, *key, *peer);
+    BOOST_TEST(!agreed.code);
+    if (!BOOST_TEST(agreed.value.has_value()) || !BOOST_TEST(agreed_sync.has_value())) {
+        return;
+    }
+    auto const bytes = std::get<0>(*agreed.value).bytes();
+    BOOST_TEST(std::ranges::equal(bytes, shared));
+    BOOST_TEST(std::ranges::equal(bytes, agreed_sync->bytes()));
+}
+
 void async_wycheproof_ecdh(asio::io_context& context) {
     auto const doc = load("ecdh_secp256r1_ecpoint_test");
     int run = 0;
@@ -294,26 +330,7 @@ void async_wycheproof_ecdh(asio::io_context& context) {
                 continue;
             }
             ++run;
-            auto const scalar = scalar_bytes(test::from_hex(str(t.at("private"))));
-            auto const peer = public_key::make(test::from_hex(str(t.at("public"))));
-            auto const shared = test::from_hex(str(t.at("shared")));
-            if (!BOOST_TEST(scalar.has_value()) || !BOOST_TEST(peer.has_value())) {
-                continue;
-            }
-            auto const key = made_async(context, *scalar);
-            auto const synchronous = keypair::make(*scalar);
-            if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(synchronous.has_value())) {
-                continue;
-            }
-            auto const agreed_sync = synchronous->ecdh_x(*peer);
-            auto const agreed = agree_async(context, *key, *peer);
-            BOOST_TEST(!agreed.code);
-            if (!BOOST_TEST(agreed.value.has_value()) || !BOOST_TEST(agreed_sync.has_value())) {
-                continue;
-            }
-            auto const bytes = std::get<0>(*agreed.value).bytes();
-            BOOST_TEST(std::ranges::equal(bytes, shared));
-            BOOST_TEST(std::ranges::equal(bytes, agreed_sync->bytes()));
+            check_wycheproof_ecdh_case(context, t);
         }
     }
     BOOST_TEST_EQ(run, wycheproof_cases);
@@ -374,39 +391,48 @@ void async_generate(asio::io_context& context) {
     generated<keypair>(context);
 }
 
+// A key made from a refused scalar is the empty object a move leaves: every member says
+// invalid_state, and the asynchronous functions complete with it and a zeroed value.
+void check_empty_keypair(asio::io_context& context, keypair const& empty, public_key const& peer,
+                         std::span<std::uint8_t const> message) {
+    BOOST_TEST(empty.public_key().error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.secret_scalar().error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.sign_ecdsa(sha256(message)).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.ecdh_x(peer).error() == crypto::error::invalid_state);
+    auto const signed_empty = sign_async(context, empty, message);
+    BOOST_TEST(signed_empty.code == crypto::error::invalid_state);
+    if (BOOST_TEST(signed_empty.value.has_value())) {
+        BOOST_TEST(all_zero(std::get<0>(*signed_empty.value)));
+    }
+    auto const agreed_empty = agree_async(context, empty, peer);
+    BOOST_TEST(agreed_empty.code == crypto::error::invalid_state);
+    if (BOOST_TEST(agreed_empty.value.has_value())) {
+        BOOST_TEST(all_zero(std::get<0>(*agreed_empty.value).bytes()));
+    }
+}
+
+void check_make_refused(asio::io_context& context, public_key const& peer,
+                        std::span<std::uint8_t const> message, std::span<std::uint8_t const> scalar,
+                        crypto::error expected) {
+    auto const made = complete<keypair>(context, [&](auto const& executor, auto&& token) {
+        return crypto::async_make<keypair>(executor, scalar, std::forward<decltype(token)>(token));
+    });
+    BOOST_TEST(made.code == expected);
+    if (!BOOST_TEST(made.value.has_value())) {
+        return;
+    }
+    check_empty_keypair(context, std::get<0>(*made.value), peer, message);
+}
+
 void async_make_refused(asio::io_context& context) {
     auto const peer = public_key::make(data::rfc6979_public);
     if (!BOOST_TEST(peer.has_value())) {
         return;
     }
     std::array<std::uint8_t, 3> const message{1, 2, 3};
-    auto const refused = [&](std::span<std::uint8_t const> scalar, crypto::error expected) {
-        auto const made = complete<keypair>(context, [&](auto const& executor, auto&& token) {
-            return crypto::async_make<keypair>(executor, scalar,
-                                               std::forward<decltype(token)>(token));
-        });
-        BOOST_TEST(made.code == expected);
-        if (!BOOST_TEST(made.value.has_value())) {
-            return;
-        }
-        auto const& empty = std::get<0>(*made.value);
-        BOOST_TEST(empty.public_key().error() == crypto::error::invalid_state);
-        BOOST_TEST(empty.secret_scalar().error() == crypto::error::invalid_state);
-        BOOST_TEST(empty.sign_ecdsa(sha256(message)).error() == crypto::error::invalid_state);
-        BOOST_TEST(empty.ecdh_x(*peer).error() == crypto::error::invalid_state);
-        auto const signed_empty = sign_async(context, empty, message);
-        BOOST_TEST(signed_empty.code == crypto::error::invalid_state);
-        if (BOOST_TEST(signed_empty.value.has_value())) {
-            BOOST_TEST(all_zero(std::get<0>(*signed_empty.value)));
-        }
-        auto const agreed_empty = agree_async(context, empty, *peer);
-        BOOST_TEST(agreed_empty.code == crypto::error::invalid_state);
-        if (BOOST_TEST(agreed_empty.value.has_value())) {
-            BOOST_TEST(all_zero(std::get<0>(*agreed_empty.value).bytes()));
-        }
-    };
-    refused(std::span(data::rfc6979_scalar).first(31), crypto::error::invalid_key_size);
-    refused(data::order, crypto::error::invalid_secret_key);
+    check_make_refused(context, *peer, message, std::span(data::rfc6979_scalar).first(31),
+                       crypto::error::invalid_key_size);
+    check_make_refused(context, *peer, message, data::order, crypto::error::invalid_secret_key);
 }
 
 void async_destroyed(asio::io_context& context) {
@@ -418,7 +444,7 @@ void async_destroyed(asio::io_context& context) {
     {
         auto key = std::make_unique<keypair>(*keypair::make(data::rfc6979_scalar));
         auto message = std::make_unique<std::vector<std::uint8_t>>(bytes_of("sample"));
-        auto peer = std::make_unique<public_key>(*public_key::make(data::rfc6979_public));
+        auto const peer = std::make_unique<public_key>(*public_key::make(data::rfc6979_public));
         auto const agreed_sync = key->ecdh_x(*peer);
         if (!BOOST_TEST(agreed_sync.has_value())) {
             return;
@@ -444,45 +470,52 @@ void async_destroyed(asio::io_context& context) {
     BOOST_TEST(shared == expected_shared);
 }
 
+// The second half of the coroutine: a generated key agrees with the first one's.
+asio::awaitable<void> coroutine_agreement(asio::any_io_executor const& executor,
+                                          p256::keypair const& key, public_key const& own,
+                                          bool& done) {
+    auto generate_result = co_await crypto::async_generate<p256::keypair>(
+        executor, asio::as_tuple(asio::use_awaitable));
+    auto& [generate_code, peer_key] = generate_result;
+    BOOST_TEST(!generate_code);
+    auto const peer = peer_key.public_key();
+    if (!BOOST_TEST(peer.has_value())) {
+        co_return;
+    }
+    auto agree_result =
+        co_await crypto::async_agree(executor, key, *peer, asio::as_tuple(asio::use_awaitable));
+    auto& [agree_code, shared] = agree_result;
+    BOOST_TEST(!agree_code);
+    auto const back = peer_key.ecdh_x(own);
+    BOOST_TEST(back.has_value() && std::ranges::equal(shared.bytes(), back->bytes()));
+    done = true;
+}
+
+asio::awaitable<void> coroutine_body(bool& done) {
+    auto const executor = co_await asio::this_coro::executor;
+    auto const message = bytes_of("test");
+    auto made_result = co_await crypto::async_make<p256::keypair>(
+        executor, data::rfc6979_scalar, asio::as_tuple(asio::use_awaitable));
+    auto& [made_code, key] = made_result;
+    BOOST_TEST(!made_code);
+    auto [sign_code, signature] =
+        co_await crypto::async_sign(executor, key, message, asio::as_tuple(asio::use_awaitable));
+    BOOST_TEST(!sign_code);
+    BOOST_TEST(signature == data::rfc6979_test);
+    auto const own = key.public_key();
+    if (!BOOST_TEST(own.has_value())) {
+        co_return;
+    }
+    auto [verify_code] = co_await crypto::async_verify(executor, *own, message, signature,
+                                                       asio::as_tuple(asio::use_awaitable));
+    BOOST_TEST(!verify_code);
+    co_await coroutine_agreement(executor, key, *own, done);
+}
+
 void async_coroutine(asio::io_context& context) {
     bool done = false;
-    asio::co_spawn(
-        context,
-        [&]() -> asio::awaitable<void> {
-            auto const executor = co_await asio::this_coro::executor;
-            auto const message = bytes_of("test");
-            auto made_result = co_await crypto::async_make<p256::keypair>(
-                executor, data::rfc6979_scalar, asio::as_tuple(asio::use_awaitable));
-            auto& [made_code, key] = made_result;
-            BOOST_TEST(!made_code);
-            auto [sign_code, signature] = co_await crypto::async_sign(
-                executor, key, message, asio::as_tuple(asio::use_awaitable));
-            BOOST_TEST(!sign_code);
-            BOOST_TEST(signature == data::rfc6979_test);
-            auto const own = key.public_key();
-            if (!BOOST_TEST(own.has_value())) {
-                co_return;
-            }
-            auto [verify_code] = co_await crypto::async_verify(executor, *own, message, signature,
-                                                               asio::as_tuple(asio::use_awaitable));
-            BOOST_TEST(!verify_code);
-            auto generate_result = co_await crypto::async_generate<p256::keypair>(
-                executor, asio::as_tuple(asio::use_awaitable));
-            auto& [generate_code, peer_key] = generate_result;
-            BOOST_TEST(!generate_code);
-            auto const peer = peer_key.public_key();
-            if (!BOOST_TEST(peer.has_value())) {
-                co_return;
-            }
-            auto agree_result = co_await crypto::async_agree(executor, key, *peer,
-                                                             asio::as_tuple(asio::use_awaitable));
-            auto& [agree_code, shared] = agree_result;
-            BOOST_TEST(!agree_code);
-            auto const back = peer_key.ecdh_x(*own);
-            BOOST_TEST(back.has_value() && std::ranges::equal(shared.bytes(), back->bytes()));
-            done = true;
-        },
-        [](std::exception_ptr const& failure) { BOOST_TEST(!failure); });
+    asio::co_spawn(context, coroutine_body(done),
+                   [](std::exception_ptr const& failure) { BOOST_TEST(!failure); });
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST(done);

@@ -485,6 +485,90 @@ struct secp256k1_refusal<families::secp256k1, Backend, false> {
 template <class Family, class Backend>
 inline constexpr bool secp256k1_refuses_others = sizeof(secp256k1_refusal<Family, Backend>) != 0;
 
+/**
+ * Verifies a BIP340 signature against an x-only key already parsed, with libsecp256k1's static
+ * context: the end of every verification of `schnorr`, whose public functions hold the guard.
+ *
+ * @param signature 64 bytes.
+ * @param message_bytes The signed message, as given.
+ * @param xonly_key The signer's x-only key.
+ * @return Nothing; `invalid_signature`.
+ */
+[[nodiscard]] inline boost::system::result<void> secp256k1_verify_schnorr(
+    std::span<std::uint8_t const, 64> signature, std::span<std::uint8_t const> message_bytes,
+    secp256k1_xonly_pubkey const& xonly_key) noexcept {
+    if (secp256k1_schnorrsig_verify(secp256k1_context_static, signature.data(),
+                                    message_bytes.data(), message_bytes.size(), &xonly_key) == 0) {
+        return error::invalid_signature;
+    }
+    return {};
+}
+
+/**
+ * Verifies a BIP340 signature against a public key's point, through its x-only form, with
+ * libsecp256k1's static context: the work of `public_key::verify` and of `crypto::verify` of
+ * `schnorr` against the typed key, which hold the guard.
+ *
+ * @tparam Backend The backend, libsecp256k1.
+ * @tparam Input A message; anything else stops the build.
+ * @param signature 64 bytes.
+ * @param message The signed message, as given.
+ * @param point_value The signer's point.
+ * @return Nothing; `invalid_signature`.
+ */
+template <class Backend, class Input>
+[[nodiscard]] boost::system::result<void> secp256k1_verify_schnorr_key(
+    std::span<std::uint8_t const, 64> signature, Input const& message,
+    secp256k1_pubkey const& point_value) noexcept {
+    check_input<schnorr_t, Input, Backend>();
+    if constexpr (input_valid_v<schnorr_t, Input, Backend>) {
+        auto const bytes_of_message = message_bytes(message);
+        read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+        secp256k1_selftest();
+        auto const xonly_key = secp256k1_xonly_of(point_value);
+        return secp256k1_verify_schnorr(signature, bytes_of_message, xonly_key);
+    } else {
+        // Never compiled into a program: check_input stopped the build.
+        return error::invalid_signature;
+    }
+}
+
+/**
+ * Verifies an ECDSA signature over SHA-256 against a public key's point, with libsecp256k1's
+ * static context, after its self-test: the work of `public_key::verify` and of `crypto::verify`
+ * of `ecdsa_sha256`, which hold the guard.
+ *
+ * @tparam Backend The backend, libsecp256k1.
+ * @tparam Input A message or `crypto::prehashed<32>`; anything else stops the build.
+ * @param signature 64 bytes, r then s.
+ * @param input The signed message, hashed with SHA-256 here, or the marker of its digest.
+ * @param point_value The signer's point.
+ * @return Nothing; `invalid_signature` for an r or an s not below the group order, a high S, or a
+ * signature that does not verify.
+ */
+template <class Backend, class Input>
+[[nodiscard]] boost::system::result<void> secp256k1_verify_ecdsa(
+    std::span<std::uint8_t const, 64> signature, Input const& input,
+    secp256k1_pubkey const& point_value) noexcept {
+    check_input<ecdsa_sha256_t, Input, Backend>();
+    if constexpr (input_valid_v<ecdsa_sha256_t, Input, Backend>) {
+        auto const digest = secp256k1_digest(input);
+        read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+        secp256k1_selftest();
+        secp256k1_ecdsa_signature parsed_value{};
+        if (secp256k1_ecdsa_signature_parse_compact(secp256k1_context_static, &parsed_value,
+                                                    signature.data()) == 0 ||
+            secp256k1_ecdsa_verify(secp256k1_context_static, &parsed_value, digest.data(),
+                                   &point_value) == 0) {
+            return error::invalid_signature;
+        }
+        return {};
+    } else {
+        // Never compiled into a program: check_input stopped the build.
+        return error::invalid_signature;
+    }
+}
+
 }  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::curves::secp256k1 {
@@ -604,6 +688,50 @@ public:
         std::array<std::uint8_t, 32> output_bytes{};
         secp256k1_xonly_pubkey_serialize(secp256k1_context_static, output_bytes.data(), &xonly_key);
         return output_bytes;
+    }
+
+    /**
+     * Verifies a signature with this key, of ECDSA over SHA-256 or of BIP340's Schnorr (design
+     * R22): `crypto::verify(scheme, signature, input, key)`, of which it is the member form, with
+     * the same work, results and refusals.
+     *
+     * ECDSA's high S is refused, as libsecp256k1 refuses it; Schnorr reads the key's x-only form.
+     *
+     * @tparam Backend The backend, `backends::secp256k1`, the only one; another stops the build.
+     * @tparam Scheme `crypto::ecdsa_sha256_t` or `crypto::schnorr_t`; another scheme stops the
+     * build.
+     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
+     * empty included; or, for ECDSA, `crypto::prehashed<32>`; anything else stops the build.
+     * @param scheme `crypto::ecdsa_sha256` or `crypto::schnorr`.
+     * @param signature 64 bytes: r then s for ECDSA, BIP340's signature for Schnorr.
+     * @param input For ECDSA, the message, hashed with SHA-256 inside the call, or
+     * `crypto::prehashed{digest}`; for Schnorr, the message itself.
+     * @return Nothing; `invalid_signature` for an r or an s not below the group order, a high S,
+     * or a signature that does not verify.
+     */
+    template <class Backend = default_backend_t<families::secp256k1>, class Scheme, class Input>
+    [[nodiscard]] boost::system::result<void> verify([[maybe_unused]] Scheme scheme,
+                                                     std::span<std::uint8_t const, 64> signature,
+                                                     Input const& input) const noexcept {
+        detail::timing_guard const timing;
+        static_assert(
+            webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
+        constexpr bool is_ecdsa = std::is_same_v<Scheme, ecdsa_sha256_t>;
+        constexpr bool is_schnorr = std::is_same_v<Scheme, schnorr_t>;
+        static_assert(is_ecdsa || is_schnorr,
+                      "webcpp::crypto: a secp256k1 public key verifies crypto::ecdsa_sha256 or "
+                      "crypto::schnorr; a crypto::ecdsa_sha256_recoverable signature gives its "
+                      "key to curves::secp256k1::recover.");
+        if constexpr (is_ecdsa) {
+            return webcpp::crypto::detail::secp256k1_verify_ecdsa<Backend>(signature, input,
+                                                                           point_value_);
+        } else if constexpr (is_schnorr) {
+            return webcpp::crypto::detail::secp256k1_verify_schnorr_key<Backend>(signature, input,
+                                                                                 point_value_);
+        } else {
+            // Never compiled into a program: an assertion above stopped the build.
+            return error::invalid_signature;
+        }
     }
 
     /**
@@ -1469,29 +1597,6 @@ template <class Backend = default_backend_t<families::secp256k1>>
 
 }  // namespace webcpp::crypto::curves::secp256k1
 
-namespace webcpp::crypto::detail {
-
-/**
- * Verifies a BIP340 signature against an x-only key already parsed, with libsecp256k1's static
- * context: the worker of both `crypto::verify` overloads of `schnorr`, which hold the guard.
- *
- * @param signature 64 bytes.
- * @param message_bytes The signed message, as given.
- * @param xonly_key The signer's x-only key.
- * @return Nothing; `invalid_signature`.
- */
-[[nodiscard]] inline boost::system::result<void> secp256k1_verify_schnorr(
-    std::span<std::uint8_t const, 64> signature, std::span<std::uint8_t const> message_bytes,
-    secp256k1_xonly_pubkey const& xonly_key) noexcept {
-    if (secp256k1_schnorrsig_verify(secp256k1_context_static, signature.data(),
-                                    message_bytes.data(), message_bytes.size(), &xonly_key) == 0) {
-        return error::invalid_signature;
-    }
-    return {};
-}
-
-}  // namespace webcpp::crypto::detail
-
 namespace webcpp::crypto {
 
 /**
@@ -1519,23 +1624,8 @@ template <class Backend = default_backend_t<families::secp256k1>, class Input>
     Input const& input, curves::secp256k1::public_key const& public_key) noexcept {
     detail::timing_guard const timing;
     static_assert(detail::secp256k1_refuses_others<families::secp256k1, Backend>);
-    detail::check_input<ecdsa_sha256_t, Input, Backend>();
-    if constexpr (detail::input_valid_v<ecdsa_sha256_t, Input, Backend>) {
-        auto const digest = detail::secp256k1_digest(input);
-        detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-        secp256k1_selftest();
-        secp256k1_ecdsa_signature parsed_value{};
-        if (secp256k1_ecdsa_signature_parse_compact(secp256k1_context_static, &parsed_value,
-                                                    signature.data()) == 0 ||
-            secp256k1_ecdsa_verify(secp256k1_context_static, &parsed_value, digest.data(),
-                                   &detail::secp256k1_access::point(public_key)) == 0) {
-            return error::invalid_signature;
-        }
-        return {};
-    } else {
-        // Never compiled into a program: check_input stopped the build.
-        return error::invalid_signature;
-    }
+    return detail::secp256k1_verify_ecdsa<Backend>(signature, input,
+                                                   detail::secp256k1_access::point(public_key));
 }
 
 /**
@@ -1595,18 +1685,8 @@ template <class Backend = default_backend_t<families::secp256k1>, class Input>
     Input const& message, curves::secp256k1::public_key const& public_key) noexcept {
     detail::timing_guard const timing;
     static_assert(detail::secp256k1_refuses_others<families::secp256k1, Backend>);
-    detail::check_input<schnorr_t, Input, Backend>();
-    if constexpr (detail::input_valid_v<schnorr_t, Input, Backend>) {
-        auto const message_bytes = detail::message_bytes(message);
-        detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-        secp256k1_selftest();
-        auto const xonly_key =
-            detail::secp256k1_xonly_of(detail::secp256k1_access::point(public_key));
-        return detail::secp256k1_verify_schnorr(signature, message_bytes, xonly_key);
-    } else {
-        // Never compiled into a program: check_input stopped the build.
-        return error::invalid_signature;
-    }
+    return detail::secp256k1_verify_schnorr_key<Backend>(
+        signature, message, detail::secp256k1_access::point(public_key));
 }
 
 }  // namespace webcpp::crypto

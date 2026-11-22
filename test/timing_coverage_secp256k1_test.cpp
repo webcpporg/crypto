@@ -24,11 +24,14 @@
 //   operator== and operator<=>; basic_keypair: make, public_key, secret, sign with each scheme
 //   (ecdsa_sha256 of a message and of a digest, ecdsa_sha256_recoverable, schnorr with its
 //   auxiliary randomness drawn), sign hedged, sign with Schnorr's auxiliary randomness given,
-//   agree, agree_hashed, agree_point, tweak_xonly; the free recover, crypto::verify of
-//   ecdsa_sha256 and of schnorr (against the typed key and against x-only bytes), to_der,
-//   from_der, normalize_low_s, is_low_s, tweak_xonly. Its formats: encode_spki, decode_spki,
-//   encode_pkcs8, decode_pkcs8. Its tweaks: seckey_tweak_add, seckey_tweak_mul, seckey_negate,
-//   pubkey_tweak_add, pubkey_tweak_mul, pubkey_negate, pubkey_combine.
+//   agree, agree_hashed, agree_point, tweak_xonly; public_key::verify of ecdsa_sha256 and of
+//   schnorr; the free recover, crypto::verify of ecdsa_sha256 and of schnorr (against the typed
+//   key and against x-only bytes), to_der, from_der, normalize_low_s, is_low_s, tweak_xonly; the
+//   free synchronous forms of the members, crypto::make, crypto::generate, crypto::sign (each of
+//   its three forms) and crypto::agree, which enter their own guard before the member's. Its
+//   formats: encode_spki, decode_spki, encode_pkcs8, decode_pkcs8. Its tweaks: seckey_tweak_add,
+//   seckey_tweak_mul, seckey_negate, pubkey_tweak_add, pubkey_tweak_mul, pubkey_negate,
+//   pubkey_combine.
 // - ElligatorSwift: ellswift_encode, ellswift_decode, ellswift_create, ellswift_xdh.
 // - MuSig2, a whole round of two signers: aggregate_key's xonly_public_key, full_public_key,
 //   tweak_add, tweak_xonly_add; the free key_aggregate, nonce_gen, nonce_aggregate,
@@ -47,6 +50,7 @@
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -313,6 +317,69 @@ void cover_verification() {
     covered("secp256k1::recover with a recovery id of 4 on secp256k1", [&] {
         BOOST_TEST(secp::recover(crypto::ecdsa_sha256_recoverable, *recoverable, hash).error() ==
                    crypto::error::invalid_signature);
+    });
+}
+
+/** public_key::verify of both its schemes, each of a signature that does not verify too. */
+void cover_public_key_verify() {
+    auto const signer = keypair_of(0x52);
+    bytes32 const hash = secret_bytes(0x5d);
+    auto const public_key = signer.public_key();
+    auto const schnorr = signer.sign(crypto::schnorr, hash, secret_bytes(0x01));
+    auto const ecdsa = signer.sign(crypto::ecdsa_sha256, hash);
+    if (!BOOST_TEST(public_key.has_value()) || !BOOST_TEST(schnorr.has_value()) ||
+        !BOOST_TEST(ecdsa.has_value())) {
+        return;
+    }
+    covered("secp256k1::public_key::verify of ecdsa_sha256 on secp256k1", [&] {
+        BOOST_TEST(public_key->verify(crypto::ecdsa_sha256, *ecdsa, hash).has_value());
+    });
+    covered("secp256k1::public_key::verify of schnorr on secp256k1",
+            [&] { BOOST_TEST(public_key->verify(crypto::schnorr, *schnorr, hash).has_value()); });
+    covered("secp256k1::public_key::verify of ecdsa_sha256 of another signature on secp256k1", [&] {
+        BOOST_TEST(public_key->verify(crypto::ecdsa_sha256, *schnorr, hash).error() ==
+                   crypto::error::invalid_signature);
+    });
+    covered("secp256k1::public_key::verify of schnorr of another signature on secp256k1", [&] {
+        BOOST_TEST(public_key->verify(crypto::schnorr, *ecdsa, hash).error() ==
+                   crypto::error::invalid_signature);
+    });
+}
+
+/**
+ * The free synchronous forms, crypto::make, crypto::generate, crypto::sign and crypto::agree, each
+ * entering its own guard before the member's, and refused once before the backend.
+ */
+void cover_free_forms() {
+    auto const secret_key = secret_bytes(0x61);
+    covered("secp256k1 crypto::make on secp256k1", "crypto::make",
+            [&] { BOOST_TEST(crypto::make<secp::keypair>(secret_key).has_value()); });
+    covered("secp256k1 crypto::make with a short secret on secp256k1", "crypto::make", [&] {
+        BOOST_TEST(crypto::make<secp::keypair>(std::span(secret_key).first(31)).error() ==
+                   crypto::error::invalid_key_size);
+    });
+    covered("secp256k1 crypto::generate on secp256k1", "crypto::generate",
+            [&] { BOOST_TEST(crypto::generate<secp::keypair>().has_value()); });
+    auto const made = keypair_of(0x62);
+    auto const empty = moved_from();
+    auto const peer = keypair_of(0x63).public_key();
+    bytes32 const hash = secret_bytes(0x5e);
+    bytes32 const randomness = secret_bytes(0x5f);
+    covered("secp256k1 crypto::sign with ecdsa_sha256 on secp256k1", "crypto::sign",
+            [&] { BOOST_TEST(crypto::sign(made, crypto::ecdsa_sha256, hash).has_value()); });
+    covered("secp256k1 crypto::sign hedged on secp256k1", "crypto::sign", [&] {
+        BOOST_TEST(crypto::sign(made, crypto::ecdsa_sha256, hash, randomness).has_value());
+    });
+    covered("secp256k1 crypto::sign with schnorr's randomness given on secp256k1", "crypto::sign",
+            [&] { BOOST_TEST(crypto::sign(made, crypto::schnorr, hash, randomness).has_value()); });
+    covered("secp256k1 crypto::sign moved from on secp256k1", "crypto::sign", [&] {
+        BOOST_TEST(crypto::sign(empty, crypto::ecdsa_sha256, hash).error() ==
+                   crypto::error::invalid_state);
+    });
+    covered("secp256k1 crypto::agree on secp256k1", "crypto::agree",
+            [&] { BOOST_TEST(crypto::agree(made, *peer).has_value()); });
+    covered("secp256k1 crypto::agree moved from on secp256k1", "crypto::agree", [&] {
+        BOOST_TEST(crypto::agree(empty, *peer).error() == crypto::error::invalid_state);
     });
 }
 
@@ -972,6 +1039,8 @@ int main() {
     cover_keypair_agreement();
     cover_public_keys();
     cover_verification();
+    cover_public_key_verify();
+    cover_free_forms();
     cover_signature_forms();
     cover_low_s();
     cover_ellswift();

@@ -81,6 +81,62 @@ template <class Hash, class Backend>
 class ph;
 
 /**
+ * The type of the verification policy `strict`.
+ *
+ * Its explicit default constructor keeps `{}` from standing for a policy.
+ */
+struct strict_t {
+    /** Makes the tag. */
+    explicit strict_t() = default;
+};
+
+/**
+ * Ed25519 verification as libsodium does it: `S` below the group order, `A` and `R` canonical,
+ * neither of small order (design D31); `crypto::verify`'s policy by default.
+ */
+inline constexpr strict_t strict{};
+
+}  // namespace webcpp::crypto::curves::ed25519
+
+namespace webcpp::crypto::detail {
+
+/**
+ * Verifies an Ed25519 signature on `Backend` under `Policy`: the work of `public_key::verify`
+ * and of `crypto::verify` of `eddsa`, which hold the guard.
+ *
+ * @tparam Backend The backend.
+ * @tparam Policy `curves::ed25519::strict_t`; anything else stops the build.
+ * @tparam Input A message; anything else stops the build.
+ * @param signature 64 bytes.
+ * @param message The signed bytes.
+ * @param key_bytes The public key's 32 bytes.
+ * @return Nothing; `invalid_signature` for a signature of another size, and for one that does not
+ * verify.
+ */
+template <class Backend, class Policy, class Input>
+[[nodiscard]] boost::system::result<void> ed25519_verify(
+    std::span<std::uint8_t const> signature, Input const& message,
+    std::span<std::uint8_t const, 32> key_bytes) noexcept {
+    static_assert(std::is_same_v<Policy, curves::ed25519::strict_t>,
+                  "webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.");
+    check_input<eddsa_t, Input, Backend>();
+    if constexpr (input_valid_v<eddsa_t, Input, Backend>) {
+        if (signature.size() != 64) {
+            return error::invalid_signature;
+        }
+        return ed25519_engine<families::ed25519, Backend>::verify(key_bytes, message_bytes(message),
+                                                                  signature.first<64>());
+    } else {
+        // Never compiled into a program: check_input stopped the build.
+        return error::invalid_signature;
+    }
+}
+
+}  // namespace webcpp::crypto::detail
+
+namespace webcpp::crypto::curves::ed25519 {
+
+/**
  * An Ed25519 public key (RFC 8032): the 32 bytes of the encoded point A, which
  * `crypto::verify(crypto::eddsa, ...)` takes.
  *
@@ -117,6 +173,43 @@ public:
      * @return 32 bytes.
      */
     [[nodiscard]] std::array<std::uint8_t, size> bytes() const noexcept { return bytes_; }
+
+    /**
+     * Verifies an Ed25519 signature (RFC 8032's pure Ed25519) with this key, under a verification
+     * policy (design D31): `crypto::verify(crypto::eddsa, signature, message, key, policy)`, of
+     * which it is the member form, with the same work, results and refusals.
+     *
+     * @tparam Backend The backend; by default the family's.
+     * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
+     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
+     * `crypto::prehashed` marker, or anything else, stops the build.
+     * @tparam Policy `curves::ed25519::strict_t` (libsodium's rules), the only policy declared;
+     * anything else stops the build.
+     * @param scheme `crypto::eddsa`.
+     * @param signature 64 bytes.
+     * @param message The signed bytes.
+     * @param policy `curves::ed25519::strict`, the default.
+     * @return Nothing; `invalid_signature` for a signature of another size, and for one that does
+     * not verify, a key that is not canonical or of small order included.
+     */
+    template <class Backend = default_backend_t<families::ed25519>, class Scheme, class Input,
+              class Policy = strict_t>
+    [[nodiscard]] boost::system::result<void> verify(
+        [[maybe_unused]] Scheme scheme, std::span<std::uint8_t const> signature,
+        Input const& message, [[maybe_unused]] Policy policy = Policy{}) const noexcept {
+        detail::timing_guard const timing;
+        static_assert(std::is_same_v<Scheme, eddsa_t>,
+                      "webcpp::crypto: an Ed25519 public key verifies crypto::eddsa.");
+        static_assert(!detail::asynchronous_backend_v<Backend>,
+                      "webcpp::crypto: verify on this backend completes asynchronously: call "
+                      "async_verify.");
+        if constexpr (std::is_same_v<Scheme, eddsa_t> && !detail::asynchronous_backend_v<Backend>) {
+            return detail::ed25519_verify<Backend, Policy>(signature, message, bytes_);
+        } else {
+            // Never compiled into a program: an assertion above stopped the build.
+            return error::invalid_signature;
+        }
+    }
 
     /**
      * Whether two keys are the same bytes.
@@ -177,16 +270,24 @@ public:
     [[nodiscard]] static boost::system::result<basic_keypair> make(
         std::span<std::uint8_t const> seed) noexcept {
         detail::timing_guard const timing;
-        if (seed.size() != seed_size) {
-            return error::invalid_key_size;
+        static_assert(
+            !detail::asynchronous_backend_v<Backend>,
+            "webcpp::crypto: make on this backend completes asynchronously: call async_make.");
+        if constexpr (detail::asynchronous_backend_v<Backend>) {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
+        } else {
+            if (seed.size() != seed_size) {
+                return error::invalid_key_size;
+            }
+            basic_keypair made;
+            auto const keyed = engine::make(made.state_, seed.template first<seed_size>());
+            if (!keyed) {
+                return keyed.error();
+            }
+            made.keyed_ = true;
+            return made;
         }
-        basic_keypair made;
-        auto const keyed = engine::make(made.state_, seed.template first<seed_size>());
-        if (!keyed) {
-            return keyed.error();
-        }
-        made.keyed_ = true;
-        return made;
     }
 
     /**
@@ -197,14 +298,22 @@ public:
      */
     [[nodiscard]] static boost::system::result<basic_keypair> generate() noexcept {
         detail::timing_guard const timing;
-        crypto::secret<seed_size> seed;
-        auto const drawn = random_device().fill(seed.writable());  // lint-world: the seed
-        if (!drawn) {
-            // The generator's not_supported (an Emscripten audio worklet) is the same failure
-            // for a key pair: one error to handle.
-            return error::entropy_unavailable;
+        static_assert(!detail::asynchronous_backend_v<Backend>,
+                      "webcpp::crypto: generate on this backend completes asynchronously: call "
+                      "async_generate.");
+        if constexpr (detail::asynchronous_backend_v<Backend>) {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
+        } else {
+            crypto::secret<seed_size> seed;
+            auto const drawn = random_device().fill(seed.writable());  // lint-world: the seed
+            if (!drawn) {
+                // The generator's not_supported (an Emscripten audio worklet) is the same failure
+                // for a key pair: one error to handle.
+                return error::entropy_unavailable;
+            }
+            return make(seed.bytes());
         }
-        return make(seed.bytes());
     }
 
     /**
@@ -289,7 +398,10 @@ public:
         detail::timing_guard const timing;
         static_assert(std::is_same_v<Scheme, eddsa_t>,
                       "webcpp::crypto: an Ed25519 key signs with crypto::eddsa.");
-        if constexpr (std::is_same_v<Scheme, eddsa_t>) {
+        static_assert(!detail::asynchronous_backend_v<Backend>,
+                      "webcpp::crypto: sign on this backend completes asynchronously: call "
+                      "async_sign.");
+        if constexpr (std::is_same_v<Scheme, eddsa_t> && !detail::asynchronous_backend_v<Backend>) {
             detail::check_input<Scheme, Input, Backend>();
             if constexpr (detail::input_valid_v<Scheme, Input, Backend>) {
                 return signed_message(detail::message_bytes(message));
@@ -298,7 +410,7 @@ public:
                 return error::backend_failure;
             }
         } else {
-            // Never compiled into a program: the assertion above stopped the build.
+            // Never compiled into a program: an assertion above stopped the build.
             return error::backend_failure;
         }
     }
@@ -345,22 +457,6 @@ private:
 
 /** The key pair on the default backend. */
 using keypair = basic_keypair<>;
-
-/**
- * The type of the verification policy `strict`.
- *
- * Its explicit default constructor keeps `{}` from standing for a policy.
- */
-struct strict_t {
-    /** Makes the tag. */
-    explicit strict_t() = default;
-};
-
-/**
- * Ed25519 verification as libsodium does it: `S` below the group order, `A` and `R` canonical,
- * neither of small order (design D31); `crypto::verify`'s policy by default.
- */
-inline constexpr strict_t strict{};
 
 /**
  * The X25519 public key of an Ed25519 public key (the birational map from edwards25519 to
@@ -556,7 +652,8 @@ namespace webcpp::crypto {
  *
  * The signature comes first, as in every `verify`, and the key is typed (design R17): the
  * arguments of the order before it do not compile, the signature's bytes being no key, and a
- * key's 32 bytes where the signature goes are refused as a signature of another size.
+ * key's 32 bytes where the signature goes are refused as a signature of another size. The key's
+ * own `verify` is its member form, with the same work.
  *
  * @tparam Backend The backend; by default the family's.
  * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
@@ -578,18 +675,14 @@ template <class Backend = default_backend_t<families::ed25519>, class Input,
     curves::ed25519::public_key const& public_key,
     [[maybe_unused]] Policy policy = Policy{}) noexcept {
     detail::timing_guard const timing;
-    static_assert(std::is_same_v<Policy, curves::ed25519::strict_t>,
-                  "webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.");
-    detail::check_input<eddsa_t, Input, Backend>();
-    if constexpr (detail::input_valid_v<eddsa_t, Input, Backend>) {
-        if (signature.size() != 64) {
-            return error::invalid_signature;
-        }
+    static_assert(!detail::asynchronous_backend_v<Backend>,
+                  "webcpp::crypto: verify on this backend completes asynchronously: call "
+                  "async_verify.");
+    if constexpr (!detail::asynchronous_backend_v<Backend>) {
         auto const key_bytes = public_key.bytes();
-        return detail::ed25519_engine<families::ed25519, Backend>::verify(
-            key_bytes, detail::message_bytes(message), signature.first<64>());
+        return detail::ed25519_verify<Backend, Policy>(signature, message, key_bytes);
     } else {
-        // Never compiled into a program: check_input stopped the build.
+        // Never compiled into a program: the assertion above stopped the build.
         return error::invalid_signature;
     }
 }

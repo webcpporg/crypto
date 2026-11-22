@@ -7,6 +7,9 @@
 /**
  `gcm<Cipher>`, AES-GCM over the cipher's backend.
 
+ Its free synchronous forms (design D9, R23), `crypto::make<A>(key)`, `crypto::seal` and
+ `crypto::open`, are declared in `keypair.hpp` and `ciphers/aead.hpp`, which it includes.
+
  @see "AES-GCM", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_CIPHERS_GCM_HPP
@@ -14,6 +17,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/ciphers/aead.hpp>  // crypto::seal and crypto::open (design R23)
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
@@ -22,6 +26,7 @@
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/keypair.hpp>  // crypto::make, which serves AES-GCM's make (design R23)
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
@@ -162,16 +167,24 @@ public:
     [[nodiscard]] static boost::system::result<gcm> make(
         std::span<std::uint8_t const> key_bytes) noexcept {
         detail::timing_guard const timing;
-        if (key_bytes.size() != key_size) {
-            return error::invalid_key_size;
+        static_assert(
+            !detail::asynchronous_backend_v<backend>,
+            "webcpp::crypto: make on this backend completes asynchronously: call async_make.");
+        if constexpr (detail::asynchronous_backend_v<backend>) {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
+        } else {
+            if (key_bytes.size() != key_size) {
+                return error::invalid_key_size;
+            }
+            gcm made_object;
+            auto const key_result = engine::init(made_object.state_, key_bytes);
+            if (!key_result) {
+                return key_result.error();
+            }
+            made_object.keyed_ = true;
+            return made_object;
         }
-        gcm made_object;
-        auto const key_result = engine::init(made_object.state_, key_bytes);
-        if (!key_result) {
-            return key_result.error();
-        }
-        made_object.keyed_ = true;
-        return made_object;
     }
 
     /**
@@ -240,23 +253,31 @@ public:
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::span<std::uint8_t> data_bytes) noexcept {
         detail::timing_guard const timing;
-        auto const guard_result =
-            guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_size);
-        if (!guard_result) {
-            return guard_result.error();
+        static_assert(
+            !detail::asynchronous_backend_v<backend>,
+            "webcpp::crypto: seal on this backend completes asynchronously: call async_seal.");
+        if constexpr (detail::asynchronous_backend_v<backend>) {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
+        } else {
+            auto const guard_result =
+                guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_size);
+            if (!guard_result) {
+                return guard_result.error();
+            }
+            auto const start_result = engine::start(state_, true, iv_bytes, additional_data_bytes);
+            auto const run_result = start_result ? engine::run(state_, data_bytes) : start_result;
+            result_type tag_bytes{};
+            auto const tag_result = run_result ? engine::tag(state_, tag_bytes) : run_result;
+            if (!tag_result) {
+                // A message without a tag is not to be sent: data is zeroed, and nothing of the
+                // failed message stays in the context, as after an incremental one.
+                detail::wipe(data_bytes.data(), data_bytes.size());
+                engine::abandon(state_);
+                return tag_result.error();
+            }
+            return tag_bytes;
         }
-        auto const start_result = engine::start(state_, true, iv_bytes, additional_data_bytes);
-        auto const run_result = start_result ? engine::run(state_, data_bytes) : start_result;
-        result_type tag_bytes{};
-        auto const tag_result = run_result ? engine::tag(state_, tag_bytes) : run_result;
-        if (!tag_result) {
-            // A message without a tag is not to be sent: data is zeroed, and nothing of the
-            // failed message stays in the context, as after an incremental one.
-            detail::wipe(data_bytes.data(), data_bytes.size());
-            engine::abandon(state_);
-            return tag_result.error();
-        }
-        return tag_bytes;
     }
 
     /**
@@ -278,24 +299,32 @@ public:
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes) noexcept {
         detail::timing_guard const timing;
-        auto const guard_result =
-            guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_bytes.size());
-        if (!guard_result) {
-            return guard_result.error();
+        static_assert(
+            !detail::asynchronous_backend_v<backend>,
+            "webcpp::crypto: open on this backend completes asynchronously: call async_open.");
+        if constexpr (detail::asynchronous_backend_v<backend>) {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
+        } else {
+            auto const guard_result =
+                guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_bytes.size());
+            if (!guard_result) {
+                return guard_result.error();
+            }
+            // The tag may lie in data, which decryption overwrites: a copy is checked.
+            std::array<std::uint8_t, tag_size> expected_tag{};
+            std::ranges::copy(tag_bytes, expected_tag.begin());
+            auto const start_result = engine::start(state_, false, iv_bytes, additional_data_bytes);
+            auto const open_result = start_result ? engine::run(state_, data_bytes) : start_result;
+            auto const tag_check_result =
+                open_result ? engine::check(state_, expected_tag) : open_result;
+            if (!tag_check_result) {
+                detail::wipe(data_bytes.data(), data_bytes.size());
+                engine::abandon(state_);
+                return tag_check_result.error();
+            }
+            return {};
         }
-        // The tag may lie in data, which decryption overwrites: a copy is checked.
-        std::array<std::uint8_t, tag_size> expected_tag{};
-        std::ranges::copy(tag_bytes, expected_tag.begin());
-        auto const start_result = engine::start(state_, false, iv_bytes, additional_data_bytes);
-        auto const open_result = start_result ? engine::run(state_, data_bytes) : start_result;
-        auto const tag_check_result =
-            open_result ? engine::check(state_, expected_tag) : open_result;
-        if (!tag_check_result) {
-            detail::wipe(data_bytes.data(), data_bytes.size());
-            engine::abandon(state_);
-            return tag_check_result.error();
-        }
-        return {};
     }
 
     /**

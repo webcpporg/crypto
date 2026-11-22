@@ -61,6 +61,51 @@ inline constexpr std::size_t signature_size = 64;
 /** The longest strict DER encoding of a signature. */
 inline constexpr std::size_t max_der_size = 72;
 
+}  // namespace webcpp::crypto::curves::p256
+
+namespace webcpp::crypto::detail {
+
+/**
+ * Verifies an ECDSA signature over SHA-256 with a P-256 point on `Backend`: the work of
+ * `basic_public_key::verify` and of `crypto::verify` of `ecdsa_sha256`, which hold the guard.
+ *
+ * @tparam Backend The key's backend.
+ * @tparam Input A message or `crypto::prehashed<32>`; anything else stops the build.
+ * @param signature 64 bytes, r then s.
+ * @param input The signed message, hashed with SHA-256 here, or the marker of its digest.
+ * @param point The public key's point, validated when the key was made.
+ * @return Nothing; `invalid_signature`.
+ */
+template <class Backend, class Input>
+[[nodiscard]] boost::system::result<void> p256_verify(
+    std::span<std::uint8_t const, curves::p256::signature_size> signature, Input const& input,
+    std::span<std::uint8_t const, curves::p256::public_key_size> point) noexcept {
+    check_input<ecdsa_sha256_t, Input, Backend>();
+    if constexpr (input_valid_v<ecdsa_sha256_t, Input, Backend>) {
+        using engine = p_curve_engine<families::p256, Backend>;
+        std::array<std::uint8_t, curves::p256::digest_size> digest{};
+        if constexpr (is_prehashed_v<Input>) {
+            std::ranges::copy(input.digest, digest.begin());
+        } else {
+            digest = sha256_of(message_bytes(input));
+        }
+        if (!p_curve_signature_in_range<families::p256>(signature)) {
+            return error::invalid_signature;
+        }
+        if (!engine::verify(point, digest, signature)) {
+            return error::invalid_signature;
+        }
+        return {};
+    } else {
+        // Never compiled into a program: check_input stopped the build.
+        return error::invalid_signature;
+    }
+}
+
+}  // namespace webcpp::crypto::detail
+
+namespace webcpp::crypto::curves::p256 {
+
 /**
  * A P-256 public key, validated: a point on the curve, its coordinates below p, never the
  * identity, kept as SEC 1's uncompressed point.
@@ -133,6 +178,43 @@ public:
         return point_;
     }
 
+    /**
+     * Verifies an ECDSA signature over SHA-256 with this key: `crypto::verify(crypto::ecdsa_sha256,
+     * signature, input, key)`, of which it is the member form, with the same work, results and
+     * refusals.
+     *
+     * A high S and a low S are both accepted, as FIPS 186-5 and WebCrypto accept them; a protocol
+     * that requires low S checks `curves::p256::is_low_s` too.
+     *
+     * @tparam Scheme `crypto::ecdsa_sha256_t`; another scheme stops the build.
+     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
+     * empty included, or `crypto::prehashed<32>`; anything else stops the build.
+     * @param scheme `crypto::ecdsa_sha256`.
+     * @param signature 64 bytes, r then s (IEEE P1363, WebCrypto's form).
+     * @param input The signed message, hashed with SHA-256 inside the call; or
+     * `crypto::prehashed{digest}`, its 32-byte SHA-256 digest.
+     * @return Nothing; `invalid_signature` for an r or an s that is 0 or not below n, and for a
+     * signature that does not verify.
+     */
+    template <class Scheme, class Input>
+    [[nodiscard]] boost::system::result<void> verify(
+        [[maybe_unused]] Scheme scheme, std::span<std::uint8_t const, signature_size> signature,
+        Input const& input) const noexcept {
+        detail::timing_guard const timing;
+        static_assert(std::is_same_v<Scheme, ecdsa_sha256_t>,
+                      "webcpp::crypto: a P-256 public key verifies crypto::ecdsa_sha256.");
+        static_assert(!detail::asynchronous_backend_v<Backend>,
+                      "webcpp::crypto: verify on this backend completes asynchronously: call "
+                      "async_verify.");
+        if constexpr (std::is_same_v<Scheme, ecdsa_sha256_t> &&
+                      !detail::asynchronous_backend_v<Backend>) {
+            return detail::p256_verify<Backend>(signature, input, point_);
+        } else {
+            // Never compiled into a program: an assertion above stopped the build.
+            return error::invalid_signature;
+        }
+    }
+
 private:
     basic_public_key() noexcept = default;
 
@@ -193,20 +275,28 @@ public:
     [[nodiscard]] static boost::system::result<basic_keypair> make(
         std::span<std::uint8_t const> secret_scalar) noexcept {
         detail::timing_guard const timing;
-        if (secret_scalar.size() != secret_key_size) {
-            return error::invalid_key_size;
+        static_assert(
+            !detail::asynchronous_backend_v<Backend>,
+            "webcpp::crypto: make on this backend completes asynchronously: call async_make.");
+        if constexpr (detail::asynchronous_backend_v<Backend>) {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
+        } else {
+            if (secret_scalar.size() != secret_key_size) {
+                return error::invalid_key_size;
+            }
+            auto const scalar = secret_scalar.template first<secret_key_size>();
+            if (!detail::p_curve_scalar_valid(scalar, traits::order)) {
+                return error::invalid_secret_key;
+            }
+            basic_keypair made;
+            auto const keyed = engine::make(made.state_, scalar);
+            if (!keyed) {
+                return keyed.error();
+            }
+            made.keyed_ = true;
+            return made;
         }
-        auto const scalar = secret_scalar.template first<secret_key_size>();
-        if (!detail::p_curve_scalar_valid(scalar, traits::order)) {
-            return error::invalid_secret_key;
-        }
-        basic_keypair made;
-        auto const keyed = engine::make(made.state_, scalar);
-        if (!keyed) {
-            return keyed.error();
-        }
-        made.keyed_ = true;
-        return made;
     }
 
     /**
@@ -218,16 +308,24 @@ public:
      */
     [[nodiscard]] static boost::system::result<basic_keypair> generate() noexcept {
         detail::timing_guard const timing;
-        crypto::secret<secret_key_size> scalar;
-        random_device device;  // lint-world: the scalar
-        do {
-            if (!device.fill(scalar.writable())) {
-                // The generator's not_supported (an Emscripten audio worklet) is the same failure
-                // for a key pair: one error to handle.
-                return error::entropy_unavailable;
-            }
-        } while (!detail::p_curve_scalar_valid(scalar.bytes(), traits::order));
-        return make(scalar.bytes());
+        static_assert(!detail::asynchronous_backend_v<Backend>,
+                      "webcpp::crypto: generate on this backend completes asynchronously: call "
+                      "async_generate.");
+        if constexpr (detail::asynchronous_backend_v<Backend>) {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
+        } else {
+            crypto::secret<secret_key_size> scalar;
+            random_device device;  // lint-world: the scalar
+            do {
+                if (!device.fill(scalar.writable())) {
+                    // The generator's not_supported (an Emscripten audio worklet) is the same
+                    // failure for a key pair: one error to handle.
+                    return error::entropy_unavailable;
+                }
+            } while (!detail::p_curve_scalar_valid(scalar.bytes(), traits::order));
+            return make(scalar.bytes());
+        }
     }
 
     /**
@@ -313,7 +411,11 @@ public:
         detail::timing_guard const timing;
         static_assert(std::is_same_v<Scheme, ecdsa_sha256_t>,
                       "webcpp::crypto: a P-256 key signs with crypto::ecdsa_sha256.");
-        if constexpr (std::is_same_v<Scheme, ecdsa_sha256_t>) {
+        static_assert(!detail::asynchronous_backend_v<Backend>,
+                      "webcpp::crypto: sign on this backend completes asynchronously: call "
+                      "async_sign.");
+        if constexpr (std::is_same_v<Scheme, ecdsa_sha256_t> &&
+                      !detail::asynchronous_backend_v<Backend>) {
             detail::check_input<Scheme, Input, Backend>();
             if constexpr (detail::input_valid_v<Scheme, Input, Backend>) {
                 if constexpr (detail::is_prehashed_v<Input>) {
@@ -326,7 +428,7 @@ public:
                 return error::backend_failure;
             }
         } else {
-            // Never compiled into a program: the assertion above stopped the build.
+            // Never compiled into a program: an assertion above stopped the build.
             return error::backend_failure;
         }
     }
@@ -345,16 +447,24 @@ public:
     [[nodiscard]] boost::system::result<crypto::secret<coordinate_size>> agree(
         basic_public_key<Backend> const& peer) const noexcept {
         detail::timing_guard const timing;
-        if (!keyed_) {
-            return error::invalid_state;
+        static_assert(
+            !detail::asynchronous_backend_v<Backend>,
+            "webcpp::crypto: agree on this backend completes asynchronously: call async_agree.");
+        if constexpr (detail::asynchronous_backend_v<Backend>) {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
+        } else {
+            if (!keyed_) {
+                return error::invalid_state;
+            }
+            crypto::secret<coordinate_size> shared;
+            auto const derived =
+                engine::ecdh_x(state_, detail::p_curve_access::point(peer), shared.writable());
+            if (!derived) {
+                return derived.error();
+            }
+            return shared;
         }
-        crypto::secret<coordinate_size> shared;
-        auto const derived =
-            engine::ecdh_x(state_, detail::p_curve_access::point(peer), shared.writable());
-        if (!derived) {
-            return derived.error();
-        }
-        return shared;
     }
 
 private:
@@ -497,9 +607,9 @@ namespace webcpp::crypto {
 /**
  * Verifies an ECDSA signature over SHA-256 with a P-256 public key.
  *
- * A high S and a low S are both accepted, as FIPS 186-5 and WebCrypto accept them (WebCrypto's
- * own signatures may be high); a protocol that requires low S checks `curves::p256::is_low_s`
- * too.
+ * The key's own `verify` is its member form, with the same work. A high S and a low S are both
+ * accepted, as FIPS 186-5 and WebCrypto accept them (WebCrypto's own signatures may be high); a
+ * protocol that requires low S checks `curves::p256::is_low_s` too.
  *
  * @tparam Backend The key's backend, which verifies: deduced from the key, or named first, as on
  * every curve, when it is the key's (another backend matches no overload).
@@ -522,24 +632,14 @@ template <class Backend, class Input>
     std::span<std::uint8_t const, curves::p256::signature_size> signature, Input const& input,
     curves::p256::basic_public_key<Backend> const& public_key) noexcept {
     detail::timing_guard const timing;
-    detail::check_input<ecdsa_sha256_t, Input, Backend>();
-    if constexpr (detail::input_valid_v<ecdsa_sha256_t, Input, Backend>) {
-        using engine = detail::p_curve_engine<families::p256, Backend>;
-        std::array<std::uint8_t, curves::p256::digest_size> digest{};
-        if constexpr (detail::is_prehashed_v<Input>) {
-            std::ranges::copy(input.digest, digest.begin());
-        } else {
-            digest = detail::sha256_of(detail::message_bytes(input));
-        }
-        if (!detail::p_curve_signature_in_range<families::p256>(signature)) {
-            return error::invalid_signature;
-        }
-        if (!engine::verify(detail::p_curve_access::point(public_key), digest, signature)) {
-            return error::invalid_signature;
-        }
-        return {};
+    static_assert(!detail::asynchronous_backend_v<Backend>,
+                  "webcpp::crypto: verify on this backend completes asynchronously: call "
+                  "async_verify.");
+    if constexpr (!detail::asynchronous_backend_v<Backend>) {
+        return detail::p256_verify<Backend>(signature, input,
+                                            detail::p_curve_access::point(public_key));
     } else {
-        // Never compiled into a program: check_input stopped the build.
+        // Never compiled into a program: the assertion above stopped the build.
         return error::invalid_signature;
     }
 }

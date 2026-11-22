@@ -7,7 +7,10 @@
 /**
  `aead<Family, Backend>`, one-shot authenticated encryption in place, and the families it
  takes: ChaCha20-Poly1305, its original form and XChaCha20-Poly1305, and libsodium's
- `crypto_secretbox`, XSalsa20-Poly1305 and XChaCha20-Poly1305 without additional data.
+ `crypto_secretbox`, XSalsa20-Poly1305 and XChaCha20-Poly1305 without additional data; and the
+ free synchronous forms of every AEAD's members, AES-GCM's included (design D9, R23),
+ `crypto::seal(aead, iv, additional_data, data)` and
+ `crypto::open(aead, iv, additional_data, data, tag)`.
 
  @see "ChaCha20-Poly1305" and "Secret boxes", in the guide.
 */
@@ -22,6 +25,7 @@
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/keypair.hpp>  // crypto::make, which serves an AEAD's make (design R23)
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
@@ -316,16 +320,24 @@ public:
     [[nodiscard]] static boost::system::result<aead> make(
         std::span<std::uint8_t const> key_bytes) noexcept {
         detail::timing_guard const timing;
-        if (key_bytes.size() != key_size) {
-            return error::invalid_key_size;
+        static_assert(
+            !detail::asynchronous_backend_v<Backend>,
+            "webcpp::crypto: make on this backend completes asynchronously: call async_make.");
+        if constexpr (detail::asynchronous_backend_v<Backend>) {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
+        } else {
+            if (key_bytes.size() != key_size) {
+                return error::invalid_key_size;
+            }
+            aead made_object;
+            auto const key_result = engine::init(made_object.state_, key_bytes);
+            if (!key_result) {
+                return key_result.error();
+            }
+            made_object.keyed_ = true;
+            return made_object;
         }
-        aead made_object;
-        auto const key_result = engine::init(made_object.state_, key_bytes);
-        if (!key_result) {
-            return key_result.error();
-        }
-        made_object.keyed_ = true;
-        return made_object;
     }
 
     /**
@@ -392,19 +404,27 @@ public:
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::span<std::uint8_t> data_bytes) noexcept {
         detail::timing_guard const timing;
-        auto const guard_result =
-            guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_size);
-        if (!guard_result) {
-            return guard_result.error();
+        static_assert(
+            !detail::asynchronous_backend_v<Backend>,
+            "webcpp::crypto: seal on this backend completes asynchronously: call async_seal.");
+        if constexpr (detail::asynchronous_backend_v<Backend>) {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
+        } else {
+            auto const guard_result =
+                guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_size);
+            if (!guard_result) {
+                return guard_result.error();
+            }
+            result_type tag_bytes{};
+            auto const seal_result =
+                engine::seal(state_, iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
+            if (!seal_result) {
+                detail::wipe(data_bytes.data(), data_bytes.size());
+                return seal_result.error();
+            }
+            return tag_bytes;
         }
-        result_type tag_bytes{};
-        auto const seal_result =
-            engine::seal(state_, iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
-        if (!seal_result) {
-            detail::wipe(data_bytes.data(), data_bytes.size());
-            return seal_result.error();
-        }
-        return tag_bytes;
     }
 
     /**
@@ -427,21 +447,29 @@ public:
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes) noexcept {
         detail::timing_guard const timing;
-        auto const guard_result =
-            guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_bytes.size());
-        if (!guard_result) {
-            return guard_result.error();
+        static_assert(
+            !detail::asynchronous_backend_v<Backend>,
+            "webcpp::crypto: open on this backend completes asynchronously: call async_open.");
+        if constexpr (detail::asynchronous_backend_v<Backend>) {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
+        } else {
+            auto const guard_result =
+                guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_bytes.size());
+            if (!guard_result) {
+                return guard_result.error();
+            }
+            // The tag may lie in data, which decryption overwrites: a copy is checked.
+            std::array<std::uint8_t, tag_size> expected_tag{};
+            std::ranges::copy(tag_bytes, expected_tag.begin());
+            auto const open_result =
+                engine::open(state_, iv_bytes, additional_data_bytes, data_bytes, expected_tag);
+            if (!open_result) {
+                detail::wipe(data_bytes.data(), data_bytes.size());
+                return open_result.error();
+            }
+            return {};
         }
-        // The tag may lie in data, which decryption overwrites: a copy is checked.
-        std::array<std::uint8_t, tag_size> expected_tag{};
-        std::ranges::copy(tag_bytes, expected_tag.begin());
-        auto const open_result =
-            engine::open(state_, iv_bytes, additional_data_bytes, data_bytes, expected_tag);
-        if (!open_result) {
-            detail::wipe(data_bytes.data(), data_bytes.size());
-            return open_result.error();
-        }
-        return {};
     }
 
 private:
@@ -479,5 +507,62 @@ private:
 };
 
 }  // namespace webcpp::crypto::ciphers
+
+namespace webcpp::crypto {
+
+/**
+ * Seals a message in place, `aead.seal(iv_bytes, additional_data_bytes, data_bytes)`: the free
+ * form of the AEAD's own `seal`, which it calls, with its results and its errors.
+ *
+ * @tparam Aead A type whose `seal` takes these arguments: `ciphers::gcm<Cipher>` or
+ * `ciphers::aead<Family, Backend>`.
+ * @param aead The keyed object.
+ * @param iv_bytes The IV or nonce, never reused under this key.
+ * @param additional_data_bytes Authenticated, not encrypted.
+ * @param data_bytes The message, the ciphertext after.
+ * @return What `aead.seal` returns: the tag, or its error.
+ */
+template <class Aead>
+    requires requires(Aead& aead, std::span<std::uint8_t const> bytes,
+                      std::span<std::uint8_t> data) { aead.seal(bytes, bytes, data); }
+[[nodiscard]] auto seal(
+    Aead& aead, std::span<std::uint8_t const> iv_bytes,
+    std::span<std::uint8_t const> additional_data_bytes,
+    std::span<std::uint8_t> data_bytes) noexcept(noexcept(aead.seal(iv_bytes, additional_data_bytes,
+                                                                    data_bytes)))
+    -> decltype(aead.seal(iv_bytes, additional_data_bytes, data_bytes)) {
+    detail::timing_guard const timing;
+    return aead.seal(iv_bytes, additional_data_bytes, data_bytes);
+}
+
+/**
+ * Opens a message in place, `aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)`:
+ * the free form of the AEAD's own `open`, which it calls, with its results and its errors.
+ *
+ * @tparam Aead A type whose `open` takes these arguments: `ciphers::gcm<Cipher>` or
+ * `ciphers::aead<Family, Backend>`.
+ * @param aead The keyed object.
+ * @param iv_bytes The IV or nonce of the seal.
+ * @param additional_data_bytes The additional data of the seal.
+ * @param data_bytes The ciphertext, the plaintext after.
+ * @param tag_bytes The seal's tag.
+ * @return What `aead.open` returns: nothing, or its error (`authentication_failed`, which zeroes
+ * `data_bytes`).
+ */
+template <class Aead>
+    requires requires(Aead& aead, std::span<std::uint8_t const> bytes,
+                      std::span<std::uint8_t> data) { aead.open(bytes, bytes, data, bytes); }
+[[nodiscard]] auto open(
+    Aead& aead, std::span<std::uint8_t const> iv_bytes,
+    std::span<std::uint8_t const> additional_data_bytes, std::span<std::uint8_t> data_bytes,
+    std::span<std::uint8_t const> tag_bytes) noexcept(noexcept(aead.open(iv_bytes,
+                                                                         additional_data_bytes,
+                                                                         data_bytes, tag_bytes)))
+    -> decltype(aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)) {
+    detail::timing_guard const timing;
+    return aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
+}
+
+}  // namespace webcpp::crypto
 
 #endif  // WEBCPP_CRYPTO_CIPHERS_AEAD_HPP

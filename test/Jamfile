@@ -178,6 +178,11 @@ crypto-run keypair : keypair_test.cpp
 crypto-run signing_curves : signing_curves_test.cpp
   : <library>/third_party//bearssl <library>/third_party//sodium
     <library>/third_party//secp256k1 ;
+# Each operation's member and free synchronous forms give the same results on
+# every curve, AES-GCM and ChaCha20-Poly1305 (design D9).
+crypto-run synchronous_forms : synchronous_forms_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium
+    <library>/third_party//secp256k1 ;
 # The tests' hex readers: hex<N> at compile time, from_hex and to_hex at run
 # time.
 crypto-run hex : hex_test.cpp ;

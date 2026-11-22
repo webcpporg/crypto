@@ -8,8 +8,9 @@
  What every curve's signing shares (design D1 to D3): the scheme tags, `eddsa`, `ecdsa_sha256`,
  `ecdsa_sha256_recoverable` and `schnorr`, and the library's one list of them,
  `detail::all_schemes`; the marker of a digest, `prehashed{digest}`; the
- concepts `can_sign` and `can_verify`, which say which key, scheme and input go together; and the
- catch-all `verify`, which stops the build with the pairs that do.
+ concepts `can_sign` and `can_verify`, which say which key, scheme and input go together; the
+ free synchronous `sign(key_pair, scheme, input)`, the key pair's `sign` (design D9); and the
+ catch-alls of `sign` and `verify`, which stop the build with what goes together.
 
  A signature's input is a message, any bytes that convert to `std::span<std::uint8_t const>`, of
  any size, empty included, or a digest marked as one, `prehashed{digest}`: no call tells the two
@@ -23,6 +24,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/hash/algorithms.hpp>  // webcpp::hash::sha2_256, ECDSA's hash of a message
 
 #include <boost/hash2/digest.hpp>
@@ -486,6 +488,82 @@ concept can_verify =
     detail::verifies_with_v<std::remove_cvref_t<PublicKey>, Scheme> &&
     detail::input_valid_v<Scheme, std::remove_cvref_t<Input>,
                           typename detail::key_backend<std::remove_cvref_t<PublicKey>>::type>;
+
+namespace detail {
+
+/**
+ * Whether `key.sign(scheme, input, extra...)` names a member `sign` of `Keypair` that takes these
+ * arguments: the key pair's own signing function, which `crypto::sign` calls.
+ *
+ * @tparam Keypair A key pair's type, or any type.
+ * @tparam Scheme A scheme tag, or any type.
+ * @tparam Input The input's type.
+ * @tparam Extra The types of the arguments after the input, secp256k1's 32 bytes.
+ */
+template <class Keypair, class Scheme, class Input, class... Extra>
+concept has_sign_member = requires(Keypair const& key, Scheme const& scheme, Input const& input,
+                                   Extra const&... extra) { key.sign(scheme, input, extra...); };
+
+}  // namespace detail
+
+/**
+ * Signs with a key pair, `key_pair.sign(scheme, input, extra...)`: the free form of the key
+ * pair's own `sign`, which it calls, with its results, its errors and its refusals.
+ *
+ * A scheme the key pair does not have, or an input the scheme does not take, stops the build with
+ * the key pair's own message.
+ *
+ * @tparam Keypair A key pair's type, whose `sign` takes these arguments: Ed25519's, P-256's or
+ * secp256k1's.
+ * @tparam Scheme A scheme tag.
+ * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, or
+ * `crypto::prehashed<N>`.
+ * @tparam Extra Nothing, or secp256k1's 32 bytes: the hedged ECDSA's extra entropy or BIP340's
+ * auxiliary randomness.
+ * @param key_pair The key pair.
+ * @param scheme The scheme.
+ * @param input The message or the marker.
+ * @param extra Nothing, or secp256k1's 32 bytes.
+ * @return What `key_pair.sign(scheme, input, extra...)` returns: the signature, or its error.
+ */
+template <class Keypair, class Scheme, class Input, class... Extra>
+    requires detail::has_sign_member<Keypair, Scheme, Input, Extra...>
+[[nodiscard]] auto sign(Keypair const& key_pair, Scheme scheme, Input const& input,
+                        Extra const&... extra) noexcept(noexcept(key_pair.sign(scheme, input,
+                                                                               extra...)))
+    -> decltype(key_pair.sign(scheme, input, extra...)) {
+    detail::timing_guard const timing;
+    return key_pair.sign(scheme, input, extra...);
+}
+
+/**
+ * Stops the build: the first argument has no `sign` that takes these arguments, a public key or a
+ * key pair given arguments its `sign` does not take.
+ *
+ * @tparam Keypair The first argument's type.
+ * @tparam Scheme A scheme tag.
+ * @tparam Input The input's type.
+ * @tparam Extra The types of the arguments after the input.
+ * @param key_pair The first argument.
+ * @param scheme The scheme.
+ * @param input The input.
+ * @param extra The arguments after the input.
+ * @return Never: the call does not compile.
+ */
+template <class Keypair, class Scheme, class Input, class... Extra>
+    requires(detail::is_scheme_v<Scheme> &&
+             !detail::has_sign_member<Keypair, Scheme, Input, Extra...>)
+[[nodiscard]] boost::system::result<void> sign([[maybe_unused]] Keypair const& key_pair,
+                                               [[maybe_unused]] Scheme scheme,
+                                               [[maybe_unused]] Input const& input,
+                                               [[maybe_unused]] Extra const&... extra) noexcept {
+    static_assert(detail::refused_v<Keypair>,
+                  "webcpp::crypto: sign: the first argument is a key pair, and the others are "
+                  "its sign's: crypto::sign(key_pair, scheme, input), and on secp256k1 its 32 "
+                  "bytes of extra entropy or auxiliary randomness after the input; a public key "
+                  "verifies, with crypto::verify.");
+    return {};
+}
 
 /**
  * Stops the build: no curve verifies a signature of `Scheme` against this public key.

@@ -14,6 +14,10 @@
  Each curve's header checks its own key pair with a `static_assert` where its default backend is
  linked.
 
+ Beside it, the free synchronous forms of the members (design D9, R23): `crypto::make<A>(bytes)`,
+ which serves AES-GCM's and the other AEADs' `make` too, `crypto::generate<K>()` and
+ `crypto::agree(key_pair, peer)`, each calling the member it is named after.
+
  @see "Signatures: the scheme and the input", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_KEYPAIR_HPP
@@ -21,6 +25,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 
@@ -29,6 +34,7 @@
 #include <concepts>
 #include <cstdint>
 #include <span>
+#include <utility>
 
 namespace webcpp::crypto {
 
@@ -126,6 +132,90 @@ concept keypair_over =
  */
 template <class Keypair>
 concept keypair = detail::keypair_over<Keypair, detail::all_schemes>;
+
+/**
+ * Makes an object from its key bytes, `Algorithm::make(arguments...)`: the free form of the
+ * algorithm's own `make`, which it calls, with its results and its errors.
+ *
+ * @tparam Algorithm A type whose static `make` takes these arguments: a key pair, a public key,
+ * AES-GCM or another AEAD.
+ * @tparam Arguments The types of `make`'s arguments.
+ * @param arguments `make`'s arguments: the key bytes, and secp256k1's memory resource.
+ * @return What `Algorithm::make(arguments...)` returns: the object, or its error.
+ */
+template <class Algorithm, class... Arguments>
+    requires requires(Arguments&&... arguments) {
+        Algorithm::make(std::forward<Arguments>(arguments)...);
+    }
+[[nodiscard]] auto make(Arguments&&... arguments) noexcept(
+    noexcept(Algorithm::make(std::forward<Arguments>(arguments)...)))
+    -> decltype(Algorithm::make(std::forward<Arguments>(arguments)...)) {
+    detail::timing_guard const timing;
+    return Algorithm::make(std::forward<Arguments>(arguments)...);
+}
+
+/**
+ * Makes a key pair from a fresh secret drawn from the system's generator,
+ * `Keypair::generate(arguments...)`: the free form of the key pair's own `generate`, which it
+ * calls, with its results and its errors.
+ *
+ * @tparam Keypair A type whose static `generate` takes these arguments: a key pair.
+ * @tparam Arguments The types of `generate`'s arguments: none, or secp256k1's memory resource.
+ * @param arguments `generate`'s arguments.
+ * @return What `Keypair::generate(arguments...)` returns: the key pair, or its error.
+ */
+template <class Keypair, class... Arguments>
+    requires requires(Arguments&&... arguments) {
+        Keypair::generate(std::forward<Arguments>(arguments)...);
+    }
+[[nodiscard]] auto generate(Arguments&&... arguments) noexcept(
+    noexcept(Keypair::generate(std::forward<Arguments>(arguments)...)))
+    -> decltype(Keypair::generate(std::forward<Arguments>(arguments)...)) {
+    detail::timing_guard const timing;
+    return Keypair::generate(std::forward<Arguments>(arguments)...);
+}
+
+/**
+ * Agrees a secret with a peer's public key, `key_pair.agree(peer)`: the free form of the key
+ * pair's own `agree`, which it calls, with its results and its errors.
+ *
+ * @tparam Keypair A key pair's type whose `agree` takes `peer`: P-256's or secp256k1's.
+ * @tparam PublicKey The peer's public key's type, the key pair's own `public_key_type`.
+ * @param key_pair The key pair.
+ * @param peer The peer's public key.
+ * @return What `key_pair.agree(peer)` returns: the shared point's x coordinate, or its error.
+ */
+template <class Keypair, class PublicKey>
+    requires requires(Keypair const& key_pair, PublicKey const& peer) { key_pair.agree(peer); }
+[[nodiscard]] auto agree(Keypair const& key_pair,
+                         PublicKey const& peer) noexcept(noexcept(key_pair.agree(peer)))
+    -> decltype(key_pair.agree(peer)) {
+    detail::timing_guard const timing;
+    return key_pair.agree(peer);
+}
+
+/**
+ * Stops the build: the key pair has no `agree` that takes this peer, a key pair of a curve without
+ * an agreement, or a peer of another curve, another backend, or bytes.
+ *
+ * @tparam Keypair The key pair's type, a key pair of the contract.
+ * @tparam PublicKey The peer's type.
+ * @param key_pair The key pair.
+ * @param peer The peer.
+ * @return Never: the call does not compile.
+ */
+template <class Keypair, class PublicKey>
+    requires(keypair<Keypair> &&
+             !requires(Keypair const& key, PublicKey const& other) { key.agree(other); })
+[[nodiscard]] boost::system::result<void> agree([[maybe_unused]] Keypair const& key_pair,
+                                                [[maybe_unused]] PublicKey const& peer) noexcept {
+    static_assert(detail::refused_v<Keypair>,
+                  "webcpp::crypto: agree: this key pair does not agree with this peer: a P-256 "
+                  "key pair agrees with a curves::p256::basic_public_key of its backend, a "
+                  "secp256k1 key pair with a curves::secp256k1::public_key; an Ed25519 key pair "
+                  "agrees through X25519, its x25519_secret() and curves::x25519::agree.");
+    return {};
+}
 
 }  // namespace webcpp::crypto
 

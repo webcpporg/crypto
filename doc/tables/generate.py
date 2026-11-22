@@ -933,9 +933,11 @@ def defaults_header(data: Data) -> str:
             'using default_backend_t = default_backend_of<Family>::type;', '']
     if any(family['name'] == 'gcm' for family in data['families']):
         out += ['/**',
-                ' * The default backend of AES-GCM, version 0.1\'s name, which `aes128_gcm`,',
-                ' * `aes256_gcm` and the AES block cipher\'s `aes256<>` take: natively OpenSSL, on',
-                ' * WebAssembly BearSSL.',
+                ' * The default backend of AES-GCM, version 0.1\'s name, which `aes128_gcm` and',
+                ' * `aes256_gcm` take: natively OpenSSL, on WebAssembly BearSSL.',
+                ' *',
+                ' * The AES block cipher has a default of its own,',
+                ' * `default_backend_t<families::aes_block>`, which `aes256<>` names.',
                 ' *',
                 ' * @see "The default backend per target", in the guide.',
                 ' */',
@@ -1216,9 +1218,8 @@ def api_backends(data: Data, matrix: Matrix, operation: Data) -> str:
                      matrix.describe(operation['id'], backend)])
     text = (f'The backends of {names(operation["api"])}, from the test programs that run it:\n\n'
             + table(['Backend', 'Jamfile', 'Header', 'Targets'], rows, 'cols="1,2,2,4",'))
-    name = operation.get('default_of', operation.get('family'))
+    name = operation.get('family')
     if name is not None:
-        # The block cipher's default argument is AES-GCM's default: its table is AES-GCM's.
         family = family_of(data, name)
         defaults = [[target_label(data, entry), default_title(data, entry)]
                     for entry in family['default']]
@@ -1809,8 +1810,7 @@ def first_comment(source: Path) -> str:
 
 def llms_default(data: Data, operation: Data) -> str:
     """An operation's default backend per target in llms.txt, from its own family's row ("none"
-    where the family has none), then, for an operation whose default argument is another
-    family's, its own note of what that means."""
+    where the family has none)."""
     name = operation.get('family')
     if name is None:
         return ''
@@ -1818,8 +1818,6 @@ def llms_default(data: Data, operation: Data) -> str:
                 for entry in family_of(data, name)['default']]
     if not defaults:
         return ''
-    if 'default_of' in operation:
-        return f' Default: {"; ".join(defaults)}; {operation["default"]}'
     return f' Default: {"; ".join(defaults)}.'
 
 

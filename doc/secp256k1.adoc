@@ -34,19 +34,22 @@ the same way, such as another program on libsecp256k1's default; `ecdh_x`
 gives the raw x coordinate that Nostr's encrypted messages
 (link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44]) take.
 
-A `keypair` is made from a 32-byte secret key with `make(secret)`, which
-allocates its signing context in the `std::pmr::memory_resource` it is given,
-and randomises it from `random_device`; crypto's own code allocates nothing
-else (<<crypto-memory>>). The namespace's functions, by header:
+A `keypair` is made from a 32-byte secret key with `make(secret)`, or
+generated with `generate()`, which draws the secret key from `random_device`
+and draws again, at most four times in all, for 32 bytes that are not one.
+Either allocates its signing context in the `std::pmr::memory_resource` it is
+given, and randomises it from `random_device`; crypto's own code allocates
+nothing else (<<crypto-memory>>). The namespace's functions, by header:
 
-* `<webcpp/crypto/curves/secp256k1.hpp>`: the key pair's `make`, its public
-keys (`xonly_public_key`, `public_key`, `public_key_uncompressed`), its
-signatures (`sign_schnorr`, `sign_ecdsa`, hedged or not, and
-`sign_recoverable`), its ECDH (`ecdh`, `ecdh_x`, `ecdh_point`) and its tweak
-in place (`tweak_xonly`); `verify_schnorr` and `verify_ecdsa`, which check a
-signature with a public key alone; `recover`, which finds the key of a
-recoverable signature (<<crypto-secp256k1-recovery>>); `parse_public_key`
-and `serialize_public_key`, which read and write a `public_key`
+* `<webcpp/crypto/curves/secp256k1.hpp>`: the key pair's `make` and
+`generate`, its public keys (`xonly_public_key`, `public_key`,
+`public_key_uncompressed`), its signatures (`sign_schnorr`, `sign_ecdsa`,
+hedged or not, and `sign_recoverable`), its ECDH (`ecdh`, `ecdh_x`,
+`ecdh_point`) and its tweak in place (`tweak_xonly`); `verify_schnorr` and
+`verify_ecdsa`, which check a signature with a public key alone; `recover`,
+which finds the key of a recoverable signature
+(<<crypto-secp256k1-recovery>>); `parse_public_key` and
+`serialize_public_key`, which read and write a `public_key`
 (<<crypto-secp256k1-keys>>); `to_der`, `from_der` (strict DER) and
 `normalize_ecdsa`, ECDSA's DER and low-S forms; and `tweak_xonly`, the tweak
 of an x-only public key;
@@ -317,7 +320,8 @@ keys, each function a call of libsecp256k1:
 32-byte tweak, modulo the group order, returned as a `secret<32>`;
 `pubkey_tweak_add` and `pubkey_tweak_mul`: P + tG and tP, the public keys of
 those two secrets;
-* `seckey_negate` and `pubkey_negate`: the negation of either, n - d and -P;
+* `seckey_negate` and `pubkey_negate`: the negation of either, n - d and -P,
+each a `result` like the other tweaks;
 * `pubkey_combine`: the sum of public keys, the public key of the sum of their
 secrets. libsecp256k1 takes an array of pointers to the keys, which crypto
 builds in a `workspace` the caller lends, of `combine_workspace_size(n)` bytes,

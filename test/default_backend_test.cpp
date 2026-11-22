@@ -18,18 +18,6 @@ namespace crypto = webcpp::crypto;
 namespace backends = webcpp::crypto::backends;
 namespace families = webcpp::crypto::families;
 
-namespace {
-
-/** Whether `Family` has a default: `default_backend_t<Family>` names a type. */
-template <class Family, class = void>
-inline constexpr bool has_default = false;
-
-/** A family with a default. */
-template <class Family>
-inline constexpr bool has_default<Family, std::void_t<crypto::default_backend_t<Family>>> = true;
-
-}  // namespace
-
 // AES-GCM: natively OpenSSL, whatever is linked (the owner's answer Q2); on WebAssembly BearSSL.
 #ifdef WEBCPP_CRYPTO_WEBASSEMBLY
 using gcm_default = backends::bearssl;
@@ -48,8 +36,23 @@ static_assert(std::is_same_v<crypto::default_backend_t<families::gcm>, gcm_defau
 static_assert(std::is_same_v<crypto::default_backend, gcm_default>);
 static_assert(crypto::detail::supported<families::gcm, crypto::tags::aes256_gcm, gcm_default>);
 
-// The AES block cipher: none (its aes256<> takes AES-GCM's as its argument).
-static_assert(!has_default<families::aes_block>);
+// The AES block cipher (design D3): natively OpenSSL, whatever is linked; on WebAssembly ctaes,
+// which aes256<> names apart from AES-GCM's default.
+#ifdef WEBCPP_CRYPTO_WEBASSEMBLY
+using block_expected = backends::ctaes;
+#if !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_CTAES) || \
+    defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_OPENSSL)
+#error "aes_block.hpp is told to include another header than ctaes's"
+#endif
+#else
+using block_expected = backends::openssl;
+#if !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_OPENSSL) || \
+    defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_CTAES)
+#error "aes_block.hpp is told to include another header than OpenSSL's"
+#endif
+#endif
+static_assert(std::is_same_v<crypto::default_backend_t<families::aes_block>, block_expected>);
+static_assert(crypto::detail::supported<families::aes_block, crypto::tags::aes256, block_expected>);
 
 // secp256k1: libsecp256k1, the only backend, on every target.
 static_assert(std::is_same_v<crypto::default_backend_t<families::secp256k1>, backends::secp256k1>);

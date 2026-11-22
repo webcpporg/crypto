@@ -34,7 +34,9 @@ in place and returns its 16-byte tag, a `boost::hash2::digest<16>`;
 * `open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)` checks the
 tag and decrypts `data_bytes` in place;
 * `begin_seal(iv_bytes, additional_data_bytes)`, `update(data_bytes)` and
-`result()` seal a message in pieces.
+`result()` seal a message in pieces;
+* `begin_open`, `authenticate`, `verify`, `decrypt` and `end_open` open a
+message in pieces, in two passes (<<crypto-gcm-incremental-open>>).
 
 include::generated/backends-gcm.adoc[]
 
@@ -100,9 +102,11 @@ fails the same way everywhere.
 * *In place, the tag apart.* `data_bytes` is both input and output, so no
 buffer is copied; the tag is separate, so that a wire format that appends it
 or sends it apart is a matter of the caller's spans.
-* *A failed `open` zeroes `data_bytes`.* Every backend decrypts and checks the
+* *A failure zeroes `data_bytes`.* Every backend decrypts and checks the
 tag in one pass; when the tag does not match, crypto zeroes the whole of
-`data_bytes`, so that no unauthenticated plaintext is left. A caller who
+`data_bytes`, so that no unauthenticated plaintext is left. A `seal` or
+`update` that fails in the backend zeroes its data too, so that no message
+without a tag can be sent. A caller who
 needs the ciphertext after a failure keeps a copy. A guard's refusal
 (`invalid_state`, `invalid_iv_size`, `invalid_tag_size`, `message_too_long`)
 comes before any work and leaves `data_bytes` untouched. Whether the tag
@@ -112,10 +116,11 @@ matched is the one value derived from the key that crypto treats as public
 `data_bytes` before the tag is checked. When `data_bytes` is memory another
 party can read during the call (a shared segment, a `SharedArrayBuffer` that
 JavaScript sees), open into private memory and copy the result out.
-* *No incremental `open`.* Decrypting piece by piece would hand out plaintext
-before the tag is known, and code that acts on unverified plaintext is how many
-protocols were broken. A large message is split into records, each sealed and
-opened whole (<<crypto-gcm-incremental>>).
+* *No plaintext before the tag.* Decrypting piece by piece would hand out
+plaintext before the tag is known, and code that acts on unverified plaintext is
+how many protocols were broken. The incremental open therefore reads the
+ciphertext twice: it authenticates every piece and verifies the tag before it
+decrypts any (<<crypto-gcm-incremental-open>>).
 * *One thread at a time, and not shareable.* A `gcm` holds the state of a
 message, so it is used by one thread at a time, as a Hash2 algorithm is. It
 holds a key, and OpenSSL's holds pointers into OpenSSL's heap: it is never
@@ -136,14 +141,17 @@ itself, which come after the guards:
 
 |`make`: a key of another size than `key_size` |`invalid_key_size`
 |any other function: the object was moved from |`invalid_state`
-|`begin_seal` while a message is in progress; `update` or `result` with no
-message begun |`invalid_state`
+|`begin_seal` or `begin_open` while a message is in progress; `update` or
+`result` outside a seal; `authenticate` or `verify` outside the open's first
+pass; `decrypt` or `end_open` before `verify` matched |`invalid_state`
 |an empty IV, or one longer than `max_iv_size`, 128 bytes |`invalid_iv_size`
-|`open`: a tag of another size than 16 |`invalid_tag_size`
+|`open` or `verify`: a tag of another size than 16 |`invalid_tag_size`
 |a message longer than `max_message_size`, 2^36^ - 32 bytes, in one call or
-summed over `update`, or additional data longer than 2^61^ - 1 bytes (NIST SP
-800-38D, section 5.2.1.1) |`message_too_long`
-|`open`: the tag does not match |`authentication_failed`
+summed over `update` or `authenticate`, or additional data longer than 2^61^ -
+1 bytes (NIST SP 800-38D, section 5.2.1.1) |`message_too_long`
+|`decrypt`: more bytes than `authenticate` read; `end_open`: fewer
+|`invalid_input_size`
+|`open` or `verify`: the tag does not match |`authentication_failed`
 |the backend fails where it should not |`backend_failure`
 |`make`: OpenSSL cannot allocate its context |`errc::not_enough_memory`
 |===
@@ -176,8 +184,10 @@ message: its pieces have no tag and are not to be sent.
 include::{examples}/sealed_records.cpp[tag=incremental,indent=0]
 ----
 
-What is sealed in pieces is opened whole. To open a large file piece by piece,
-split it into *records*, each sealed alone with its own IV, and with two things
+What is sealed in pieces is opened whole, or, when the receiver can read the
+ciphertext twice, in two passes (<<crypto-gcm-incremental-open>>). To open a
+stream piece by piece as it arrives, split it into *records*, each sealed alone
+with its own IV, and with two things
 in its additional data: its number, so that a record cannot be reordered or
 replayed at another position, and a flag that is 1 for the last record and 0
 for every other, so that a stream cut after any record does not open: the
@@ -212,3 +222,43 @@ include::{examples}/sealed_records.expected[]
 *Pitfalls.* Without the last-record flag, an attacker who drops the final
 records leaves a stream that opens record by record, shorter than the one sent.
 Never send the pieces of an abandoned message.
+
+[#crypto-gcm-incremental-open]
+==== Opening what does not fit in memory
+
+A message sealed whole, too large to hold in memory, is opened in two passes
+when its ciphertext lies where the program can read it twice: a file on the
+program's own disk. `begin_open` takes the IV and the additional data;
+`authenticate` reads each piece of the ciphertext and writes none of it;
+`verify` checks the tag. Only once the tag matched does `decrypt` turn the same
+pieces into plaintext, in place, and `end_open` ends the message. No byte of
+plaintext reaches the program before the tag is verified: `decrypt` before
+`verify` returns `invalid_state`, and a tag that does not match leaves nothing
+to decrypt.
+
+[source,cpp]
+----
+include::{examples}/opened_in_two_passes.cpp[tag=open,indent=0]
+----
+
+[listing]
+----
+include::{examples}/opened_in_two_passes.expected[]
+----
+
+*The cost.* Every byte is read twice and decrypted twice: the first pass
+decrypts each piece into a buffer of 256 bytes that it wipes, because the
+backends compute GCM's hash only while they decrypt. An open in two passes
+costs about two one-shot opens.
+
+*The second pass reads the bytes the first read.* GCM's keystream is the key's
+and the IV's alone: a byte changed between the passes is decrypted without ever
+being authenticated, and whoever changes it chooses the change in the
+plaintext, bit for bit. Only the program can keep the bytes the same: it reads
+a file that no other process writes during the open, never a file another
+party can reach. The object checks only the length: `decrypt` refuses more
+bytes than `authenticate` read, and `end_open` refuses fewer, with
+`invalid_input_size`.
+
+*A stream that cannot be read twice*, a socket or a pipe, is sealed in
+records, each opened whole (<<crypto-gcm-incremental>>).

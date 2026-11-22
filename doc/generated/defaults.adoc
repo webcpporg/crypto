@@ -36,10 +36,22 @@
 |`+default_bearssl+`, `+default_backend_all_linked_emscripten+`
 
 |AES block cipher
-|native, wasip2, wasip3, emscripten
-|none
-|a raw block cipher is a building block a program chooses deliberately, naming its backend; `aes256<>` takes AES-GCM's default as its argument, and its `make` does not compile where that is BearSSL
-|`+default_backend_none_linked+`, `+default_selection_bearssl+`
+|native, Clang and GCC
+|OpenSSL
+|OpenSSL's assembly uses the CPU's AES instructions on x86-64 and ARMv8 (link:https://github.com/openssl/openssl/tree/master/crypto/aes/asm[OpenSSL's AES assembly for ARMv8 and x86-64]); ctaes is bitsliced, constant time and several times slower. OpenSSL whatever the program links: a program that links ctaes alone names `aes256<backends::ctaes>`
+|`+default_aes_block+`, `+default_backend_all_linked+`
+
+|AES block cipher
+|native, MSVC
+|OpenSSL
+|the same rule as with Clang and GCC, but here OpenSSL is built no-asm: table-based AES, no AES-NI, not constant time (link:https://github.com/openssl/openssl/blob/master/INSTALL.md[OpenSSL's INSTALL.md, no-asm]); where timing attacks matter, link ctaes and name `aes256<backends::ctaes>`
+|`+default_aes_block+`
+
+|AES block cipher
+|wasip2, wasip3, emscripten
+|ctaes
+|constant time by design (link:https://github.com/bitcoin/bitcoin/tree/master/src/crypto/ctaes[ctaes, constant-time AES]), where OpenSSL is built no-asm and its AES is table-based (link:https://github.com/openssl/openssl/blob/master/INSTALL.md[OpenSSL's INSTALL.md, no-asm]), and webcpp does not build OpenSSL for Emscripten
+|`+default_aes_block+`, `+default_bearssl+`
 
 |secp256k1
 |native, wasip2, wasip3, emscripten

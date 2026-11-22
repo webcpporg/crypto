@@ -236,9 +236,15 @@ webcpp.run secp256k1_ctime_msan : $(SECP256K1_CTIME)
 # guard, which sets DIT in each call on macOS and Linux on arm64 where the CPU
 # has it, and fail if it is already set outside the calls (dudect.hpp). On a
 # runner GitHub hosts, a virtual machine shared with other tenants whose
-# processor changes from run to run, each |t| is printed and not judged:
-# there it moved with what the measurement cannot control (dudect.hpp,
-# judged). dudect_planted is judged everywhere.
+# processor changes from run to run, each |t| is printed and the program does
+# not judge it: there it moved with what the measurement cannot control
+# (dudect.hpp, judged), so the CI's dudect_judge.py warns at 10 and measures
+# a case over 10 again in two fresh processes, failing when two of the three
+# are 10 or more. dudect_planted is judged everywhere. Under wasmtime
+# dudect_sodium and dudect_secp256k1 run for minutes, near or past run.sh's
+# default bound of 600 seconds on a loaded machine: the CI gives this lane
+# WEBCPP_WASIP2_TEST_TIMEOUT=1800, and a local wasip2 run of the lane may need
+# the same variable.
 DUDECT = <variant>release ;
 if [ os.environ RUNNER_ENVIRONMENT ] = github-hosted
 {
@@ -262,6 +268,10 @@ webcpp.run dudect_planted : dudect_planted_test.cpp
   : <library>/third_party//sodium <variant>release
     <define>WEBCPP_TEST_CRYPTO_PLANTED_LEAK : native ;
 
+# dudect.hpp itself, on synthetic data and without timing: the statistics, the
+# A/A control's preparation, --case and the lines the CI's judge reads.
+webcpp.run dudect_harness : dudect_harness_test.cpp : : native wasip2 ;
+
 # libsecp256k1's ecdh_x, natively and under wasmtime.
 webcpp.run dudect_secp256k1 : dudect_secp256k1_test.cpp
   : <library>/third_party//secp256k1 $(DUDECT) : native wasip2 ;
@@ -269,5 +279,5 @@ webcpp.run dudect_secp256k1 : dudect_secp256k1_test.cpp
 webcpp.lane constant-time : ctgrind ctgrind_planted ctgrind_planted_scalar
     ctgrind_space msan msan_planted msan_planted_scalar secp256k1_ctime
     secp256k1_ctime_msan dudect_bearssl dudect_sodium dudect_planted
-    dudect_secp256k1
+    dudect_secp256k1 dudect_harness
   : native wasip2 ;

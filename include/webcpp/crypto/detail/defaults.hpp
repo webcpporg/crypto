@@ -50,6 +50,25 @@ struct default_backend_of<families::gcm> {
     using type = backends::bearssl;
 };
 #endif
+#ifdef WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE
+/** Defined where OpenSSL is the default of AES block cipher. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_OPENSSL 1
+/** The default of AES block cipher on native: OpenSSL. */
+template <>
+struct default_backend_of<families::aes_block> {
+    /** `backends::openssl`. */
+    using type = backends::openssl;
+};
+#elif defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+/** Defined where ctaes is the default of AES block cipher. */
+#define WEBCPP_CRYPTO_DETAIL_DEFAULT_AES_BLOCK_CTAES 1
+/** The default of AES block cipher on wasip2, wasip3, emscripten: ctaes. */
+template <>
+struct default_backend_of<families::aes_block> {
+    /** `backends::ctaes`. */
+    using type = backends::ctaes;
+};
+#endif
 /** Defined where libsecp256k1 is the default of secp256k1. */
 #define WEBCPP_CRYPTO_DETAIL_DEFAULT_SECP256K1_SECP256K1 1
 /** The default of secp256k1 on native, wasip2, wasip3, emscripten: libsecp256k1. */
@@ -205,9 +224,11 @@ template <class Family>
 using default_backend_t = default_backend_of<Family>::type;
 
 /**
- * The default backend of AES-GCM, version 0.1's name, which `aes128_gcm`,
- * `aes256_gcm` and the AES block cipher's `aes256<>` take: natively OpenSSL, on
- * WebAssembly BearSSL.
+ * The default backend of AES-GCM, version 0.1's name, which `aes128_gcm` and
+ * `aes256_gcm` take: natively OpenSSL, on WebAssembly BearSSL.
+ *
+ * The AES block cipher has a default of its own,
+ * `default_backend_t<families::aes_block>`, which `aes256<>` names.
  *
  * @see "The default backend per target", in the guide.
  */

@@ -25,7 +25,7 @@ and Ethereum's ECDSA: recoverable signatures, the recovery of a signer's public
 key from a signature, and the uncompressed key
 (<<crypto-secp256k1-recovery>>). Its functions, by header:
 
-* `secp256k1.hpp`, the key pair and its signatures and ECDH: `keypair::make`,
+* `secp256k1.hpp`, the key pair and its signatures and ECDH: `keypair::make`, `generate`,
 and the key pair's `xonly_public_key`, `public_key`,
 `public_key_uncompressed`, `sign_schnorr`, `sign_ecdsa`, `sign_recoverable`,
 `ecdh`, `ecdh_x`, `ecdh_point` and `tweak_xonly`; `verify_schnorr`,

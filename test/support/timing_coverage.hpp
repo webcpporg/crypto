@@ -111,8 +111,132 @@ void cover_aes(std::string const& family, std::string const& backend) {
 }
 
 /**
- * gcm's guarded functions on a message: `seal` and `open`, an IV of no byte included, and the
- * incremental `begin_seal`, `update` and `result`, each refused once too.
+ * The bytes gcm's coverage reads and writes: the IV, the additional data, the data, which a seal
+ * turns into the ciphertext that the open reads, and the seal's tag.
+ *
+ * @tparam Gcm `gcm<aes128<Backend>>`, `gcm<aes192<Backend>>` or `gcm<aes256<Backend>>`.
+ */
+template <class Gcm>
+struct gcm_coverage_message {
+    /** An IV of the size gcm takes. */
+    std::array<std::uint8_t, Gcm::iv_size> iv{};
+    /** Four bytes of additional data. */
+    std::array<std::uint8_t, 4> additional_data{1, 2, 3, 4};
+    /** The data, sealed and opened in place. */
+    std::array<std::uint8_t, 40> data{};
+    /** The tag of the last seal. */
+    Gcm::result_type tag{};
+};
+
+/**
+ * gcm's one-shot `seal` and `open`, an IV of no byte included.
+ *
+ * @tparam Gcm `gcm<aes128<Backend>>`, `gcm<aes192<Backend>>` or `gcm<aes256<Backend>>`.
+ * @param made A keyed object, with no message in progress, as it is left.
+ * @param message The bytes; `data` and `tag` are left sealed.
+ * @param family The algorithm's name, `aes128_gcm` or `aes256_gcm`.
+ * @param on ` on <backend>`, which ends each name.
+ */
+template <class Gcm>
+void cover_gcm_one_shot(Gcm& made, gcm_coverage_message<Gcm>& message, std::string const& family,
+                        std::string const& on) {
+    covered(family + "::seal" + on, "gcm::seal", [&] {
+        auto const sealed = made.seal(message.iv, message.additional_data, message.data);
+        if (BOOST_TEST(sealed.has_value())) {
+            message.tag = *sealed;
+        }
+    });
+    covered(family + "::open" + on, "gcm::open", [&] {
+        BOOST_TEST(made.open(message.iv, message.additional_data, message.data,
+                             std::span(message.tag.data(), message.tag.size()))
+                       .has_value());
+    });
+    covered(family + "::seal with an empty IV" + on, "gcm::seal", [&] {
+        BOOST_TEST(made.seal({}, message.additional_data, message.data).error() ==
+                   webcpp::crypto::error::invalid_iv_size);
+    });
+    covered(family + "::open with an empty IV" + on, "gcm::open", [&] {
+        BOOST_TEST(made.open({}, message.additional_data, message.data,
+                             std::span(message.tag.data(), message.tag.size()))
+                       .error() == webcpp::crypto::error::invalid_iv_size);
+    });
+}
+
+/**
+ * gcm's incremental `begin_seal`, `update` and `result`, each refused once too.
+ *
+ * @tparam Gcm `gcm<aes128<Backend>>`, `gcm<aes192<Backend>>` or `gcm<aes256<Backend>>`.
+ * @param made A keyed object, with no message in progress, as it is left.
+ * @param message The bytes; `data` is left holding the one-shot seal's ciphertext again.
+ * @param family The algorithm's name, `aes128_gcm` or `aes256_gcm`.
+ * @param on ` on <backend>`, which ends each name.
+ */
+template <class Gcm>
+void cover_gcm_incremental_seal(Gcm& made, gcm_coverage_message<Gcm>& message,
+                                std::string const& family, std::string const& on) {
+    covered(family + "::begin_seal" + on, "gcm::begin_seal",
+            [&] { BOOST_TEST(made.begin_seal(message.iv, message.additional_data).has_value()); });
+    covered(family + "::update" + on, "gcm::update",
+            [&] { BOOST_TEST(made.update(message.data).has_value()); });
+    covered(family + "::result" + on, "gcm::result",
+            [&] { BOOST_TEST(made.result().has_value()); });
+    covered(family + "::begin_seal with an empty IV" + on, "gcm::begin_seal", [&] {
+        BOOST_TEST(made.begin_seal({}, message.additional_data).error() ==
+                   webcpp::crypto::error::invalid_iv_size);
+    });
+    covered(family + "::update without a message" + on, "gcm::update", [&] {
+        BOOST_TEST(made.update(message.data).error() == webcpp::crypto::error::invalid_state);
+    });
+    covered(family + "::result without a message" + on, "gcm::result",
+            [&] { BOOST_TEST(made.result().error() == webcpp::crypto::error::invalid_state); });
+}
+
+/**
+ * gcm's incremental `begin_open`, `authenticate`, `verify`, `decrypt` and `end_open`, each
+ * refused once too.
+ *
+ * @tparam Gcm `gcm<aes128<Backend>>`, `gcm<aes192<Backend>>` or `gcm<aes256<Backend>>`.
+ * @param made A keyed object, with no message in progress, as it is left.
+ * @param message The bytes: `data` the ciphertext of `tag`'s seal, which the open reads.
+ * @param family The algorithm's name, `aes128_gcm` or `aes256_gcm`.
+ * @param on ` on <backend>`, which ends each name.
+ */
+template <class Gcm>
+void cover_gcm_incremental_open(Gcm& made, gcm_coverage_message<Gcm>& message,
+                                std::string const& family, std::string const& on) {
+    covered(family + "::begin_open" + on, "gcm::begin_open",
+            [&] { BOOST_TEST(made.begin_open(message.iv, message.additional_data).has_value()); });
+    covered(family + "::authenticate" + on, "gcm::authenticate",
+            [&] { BOOST_TEST(made.authenticate(message.data).has_value()); });
+    covered(family + "::verify" + on, "gcm::verify", [&] {
+        BOOST_TEST(made.verify(std::span(message.tag.data(), message.tag.size())).has_value());
+    });
+    covered(family + "::decrypt" + on, "gcm::decrypt",
+            [&] { BOOST_TEST(made.decrypt(message.data).has_value()); });
+    covered(family + "::end_open" + on, "gcm::end_open",
+            [&] { BOOST_TEST(made.end_open().has_value()); });
+    covered(family + "::begin_open with an empty IV" + on, "gcm::begin_open", [&] {
+        BOOST_TEST(made.begin_open({}, message.additional_data).error() ==
+                   webcpp::crypto::error::invalid_iv_size);
+    });
+    covered(family + "::authenticate without a message" + on, "gcm::authenticate", [&] {
+        BOOST_TEST(made.authenticate(message.data).error() == webcpp::crypto::error::invalid_state);
+    });
+    covered(family + "::verify without a message" + on, "gcm::verify", [&] {
+        BOOST_TEST(made.verify(std::span(message.tag.data(), message.tag.size())).error() ==
+                   webcpp::crypto::error::invalid_state);
+    });
+    covered(family + "::decrypt without a message" + on, "gcm::decrypt", [&] {
+        BOOST_TEST(made.decrypt(message.data).error() == webcpp::crypto::error::invalid_state);
+    });
+    covered(family + "::end_open without a message" + on, "gcm::end_open",
+            [&] { BOOST_TEST(made.end_open().error() == webcpp::crypto::error::invalid_state); });
+}
+
+/**
+ * gcm's guarded functions on a message: `seal` and `open`, an IV of no byte included, the
+ * incremental `begin_seal`, `update` and `result`, and the incremental `begin_open`,
+ * `authenticate`, `verify`, `decrypt` and `end_open`, each refused once too.
  *
  * @tparam Gcm `gcm<aes128<Backend>>`, `gcm<aes192<Backend>>` or `gcm<aes256<Backend>>`.
  * @param made A keyed object, with no message in progress, as it is left.
@@ -121,49 +245,18 @@ void cover_aes(std::string const& family, std::string const& backend) {
  */
 template <class Gcm>
 void cover_gcm_messages(Gcm& made, std::string const& family, std::string const& on) {
-    std::array<std::uint8_t, Gcm::iv_size> const iv{};
-    std::array<std::uint8_t, 4> const additional_data{1, 2, 3, 4};
-    std::array<std::uint8_t, 40> data{};
-    typename Gcm::result_type tag{};
-    covered(family + "::seal" + on, "gcm::seal", [&] {
-        auto const sealed = made.seal(iv, additional_data, data);
-        if (BOOST_TEST(sealed.has_value())) {
-            tag = *sealed;
-        }
-    });
-    covered(family + "::open" + on, "gcm::open", [&] {
-        BOOST_TEST(
-            made.open(iv, additional_data, data, std::span(tag.data(), tag.size())).has_value());
-    });
-    covered(family + "::seal with an empty IV" + on, "gcm::seal", [&] {
-        BOOST_TEST(made.seal({}, additional_data, data).error() ==
-                   webcpp::crypto::error::invalid_iv_size);
-    });
-    covered(family + "::open with an empty IV" + on, "gcm::open", [&] {
-        BOOST_TEST(
-            made.open({}, additional_data, data, std::span(tag.data(), tag.size())).error() ==
-            webcpp::crypto::error::invalid_iv_size);
-    });
-    covered(family + "::begin_seal" + on, "gcm::begin_seal",
-            [&] { BOOST_TEST(made.begin_seal(iv, additional_data).has_value()); });
-    covered(family + "::update" + on, "gcm::update",
-            [&] { BOOST_TEST(made.update(data).has_value()); });
-    covered(family + "::result" + on, "gcm::result",
-            [&] { BOOST_TEST(made.result().has_value()); });
-    covered(family + "::begin_seal with an empty IV" + on, "gcm::begin_seal", [&] {
-        BOOST_TEST(made.begin_seal({}, additional_data).error() ==
-                   webcpp::crypto::error::invalid_iv_size);
-    });
-    covered(family + "::update without a message" + on, "gcm::update",
-            [&] { BOOST_TEST(made.update(data).error() == webcpp::crypto::error::invalid_state); });
-    covered(family + "::result without a message" + on, "gcm::result",
-            [&] { BOOST_TEST(made.result().error() == webcpp::crypto::error::invalid_state); });
+    gcm_coverage_message<Gcm> message;
+    cover_gcm_one_shot(made, message, family, on);
+    cover_gcm_incremental_seal(made, message, family, on);
+    // data holds the ciphertext of the seal above again, which the incremental open reads.
+    cover_gcm_incremental_open(made, message, family, on);
 }
 
 /**
  * gcm's move constructor and move assignment, which run the backend (ruling R3), of a keyed
- * object and of one in the middle of `begin_seal`. Each check does the move alone, so that no
- * other guarded function raises the count.
+ * object and of one in the middle of `begin_seal`, and the move constructor of one in the
+ * middle of `begin_open`. Each check does the move alone, so that no other guarded function
+ * raises the count.
  *
  * @tparam Gcm `gcm<aes128<Backend>>`, `gcm<aes192<Backend>>` or `gcm<aes256<Backend>>`.
  * @param family The algorithm's name, `aes128_gcm` or `aes256_gcm`.
@@ -178,11 +271,13 @@ void cover_gcm_moves(std::string const& family, std::string const& on) {
     auto target = Gcm::make(key);
     auto in_message = Gcm::make(key);
     auto in_other_message = Gcm::make(key);
+    auto in_open = Gcm::make(key);
     if (!BOOST_TEST(keyed.has_value()) || !BOOST_TEST(other_keyed.has_value()) ||
         !BOOST_TEST(target.has_value()) || !BOOST_TEST(in_message.has_value()) ||
-        !BOOST_TEST(in_other_message.has_value()) ||
+        !BOOST_TEST(in_other_message.has_value()) || !BOOST_TEST(in_open.has_value()) ||
         !BOOST_TEST(in_message->begin_seal(iv, {}).has_value()) ||
-        !BOOST_TEST(in_other_message->begin_seal(iv, {}).has_value())) {
+        !BOOST_TEST(in_other_message->begin_seal(iv, {}).has_value()) ||
+        !BOOST_TEST(in_open->begin_open(iv, {}).has_value())) {
         return;
     }
     covered(family + "::gcm(gcm&&) of a keyed object" + on, "gcm::gcm",
@@ -193,6 +288,8 @@ void cover_gcm_moves(std::string const& family, std::string const& on) {
             [&in_message] { [[maybe_unused]] Gcm const moved(std::move(*in_message)); });
     covered(family + "::operator=(gcm&&) during begin_seal" + on, "gcm::operator=",
             [&in_other_message, &target] { *target = std::move(*in_other_message); });
+    covered(family + "::gcm(gcm&&) during begin_open" + on, "gcm::gcm",
+            [&in_open] { [[maybe_unused]] Gcm const moved(std::move(*in_open)); });
 }
 
 /**

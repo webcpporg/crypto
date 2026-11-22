@@ -183,12 +183,19 @@ preparation of each measurement reads both inputs and writes the secret with
 the same instructions whatever the class, since anything a class does
 differently before the measured call shows in its time. On a runner GitHub
 hosts, a virtual machine shared with other tenants whose processor changes from
-run to run, the lane prints each dudect |t| and judges only
-`dudect_planted`: measured there on 2026-11-20 on three processors, 23 runs of
-24 stayed below 4.4 and one read 69.8, on both seeds, on a case below 4.4 in
-every other run, so a verdict there would pass or fail with the machine drawn.
-Valgrind's memcheck and MemorySanitizer, which do not measure time, are judged
-there; dudect is judged wherever else the lane runs, on a machine of one's own.
+run to run, a program prints each dudect |t| with its evidence and does not
+judge it, since a verdict from one process would pass or fail with the machine
+drawn: measured there on 2026-11-20 on three processors, 23 runs of 24 stayed
+below 4.4 and one read 69.8, on both seeds, on a case below 4.4 in every other
+run. The research's hypothesis is a layout effect, which a fresh process
+(other addresses) varies, so the CI's `dudect_judge.py` warns for every |t| of
+10 or more, measures such a case again in two fresh processes and fails when
+two of the three values are 10 or more, naming the case and its values. Each
+program but `dudect_planted` also measures an A/A control case, whose classes
+are prepared by the same instructions with the same value: it shows what the
+machine itself does. Valgrind's memcheck and MemorySanitizer, which do not
+measure time, are judged there; dudect is judged by the program itself
+wherever else the lane runs, on a machine of one's own, in one process.
 
 Whether a tag matched, or a shared secret came out all zero, is public by
 design, since the operation reports it, but it is computed from the secrets: it

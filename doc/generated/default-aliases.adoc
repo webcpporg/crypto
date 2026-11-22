@@ -16,6 +16,11 @@
 |`+/webcpp/crypto//openssl+` on native; `+/third_party//bearssl+` on wasip2, wasip3, emscripten
 |<<crypto-jamfile-cases,`+gcm_default+`>>
 
+|`+/webcpp/crypto//aes_block-default+`
+|AES block cipher
+|`+/webcpp/crypto//openssl+` on native; `+/third_party//ctaes+` on wasip2, wasip3, emscripten
+|<<crypto-jamfile-cases,`+aes_block_default+`>>
+
 |`+/webcpp/crypto//secp256k1-default+`
 |secp256k1
 |`+/third_party//secp256k1+` on every target

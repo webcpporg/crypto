@@ -57,9 +57,9 @@ extern "C" {
                                         WEBCPP_CRYPTO_DETAIL_CTAES_CONFIGURATION))
 #endif
 
-// src/canary_ctaes.c defines the canary with a constant; this is its declaration.
-// NOLINTNEXTLINE(bugprone-dynamic-static-initializers): a declaration, never initialised here
-extern "C" const char WEBCPP_CRYPTO_DETAIL_CTAES_CANARY;
+// src/canary_ctaes.c defines the canary with a constant, so its initialisation is static, never
+// dynamic; constinit, on this declaration, states it.
+extern "C" constinit const char WEBCPP_CRYPTO_DETAIL_CTAES_CANARY;
 
 namespace webcpp::crypto::backends {
 

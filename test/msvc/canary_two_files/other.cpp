@@ -19,8 +19,9 @@
 #include <cstdint>
 
 // The canary of the configuration above, which no archive defines (the archive of MSVC's BearSSL
-// is built noseeder). The header declared it, so this definition has external linkage.
-extern "C" const char WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY = 0;
+// is built noseeder). The header declared it, so this definition has external linkage; it
+// declared it constinit, which its initialising declaration repeats.
+extern "C" constinit const char WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY = 0;
 
 bool seal_other() {
     std::array<std::uint8_t, 32> const key{};

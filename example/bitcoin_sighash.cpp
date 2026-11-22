@@ -62,11 +62,7 @@ int main() {
     if (!key) {
         return 1;
     }
-    auto const encoded_key = key->public_key();
-    if (!encoded_key) {
-        return 1;
-    }
-    auto const public_key = secp256k1::parse_public_key(*encoded_key);
+    auto const public_key = key->public_key();
     if (!public_key) {
         return 1;
     }

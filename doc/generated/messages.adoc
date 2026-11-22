@@ -363,13 +363,13 @@ The fix: Add `+/third_party//sodium+`.
 
 |`+verify_ecdsa_bytes_key+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a 32-byte x-only key.+`
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key.+`
 
-The fix: Give `+crypto::ecdsa_sha256+` the public key as a parsed object, `+curves::secp256k1::parse_public_key(bytes)+` or `+curves::p256::public_key::make(bytes)+`: bytes never choose the curve.
+The fix: Give `+crypto::ecdsa_sha256+` the public key as a typed object, `+curves::secp256k1::public_key::make(bytes)+` or `+curves::p256::public_key::make(bytes)+`: bytes never choose the curve.
 
 |`+verify_eddsa_bytes_key+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a 32-byte x-only key.+`
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key.+`
 
 The fix: Give `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::make(bytes)+` for a key received as bytes.
 

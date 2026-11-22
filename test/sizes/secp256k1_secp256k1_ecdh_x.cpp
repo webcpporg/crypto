@@ -4,8 +4,8 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// The size of secp256k1's ecdh_x on libsecp256k1: bench/operations.hpp's secp256k1_ecdh_x, once
-// (test/sizes/Jamfile).
+// The size of secp256k1's agree, the operation ecdh_x, on libsecp256k1: bench/operations.hpp's
+// secp256k1_ecdh_x, once (test/sizes/Jamfile).
 
 #include <webcpp/crypto/backends/secp256k1.hpp>
 

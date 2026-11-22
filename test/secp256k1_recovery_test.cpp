@@ -72,7 +72,7 @@ hash_bytes draw_hash(std::mt19937_64& generator) {
 
 // The key pair's public key, parsed.
 secp::public_key key_of(secp::keypair const& key) {
-    return *secp::parse_public_key(*key.public_key());
+    return *key.public_key();
 }
 
 bool refused_as_signature(boost::system::result<secp::public_key> const& recovered) {
@@ -346,7 +346,7 @@ void moved_from() {
                crypto::error::invalid_state);
     BOOST_TEST(source.sign(crypto::ecdsa_sha256, crypto::prehashed{hash}, hash).error() ==
                crypto::error::invalid_state);
-    BOOST_TEST(source.public_key_uncompressed().error() == crypto::error::invalid_state);
+    BOOST_TEST(source.secret().error() == crypto::error::invalid_state);
     test::expect_empty_keypair(source);
     BOOST_TEST(target.sign(crypto::ecdsa_sha256_recoverable, crypto::prehashed{hash}).has_value());
 }

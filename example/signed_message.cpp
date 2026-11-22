@@ -76,7 +76,7 @@ int main() {
     if (!author) {
         return 1;
     }
-    auto const public_key = author->xonly_public_key();
+    auto const public_key = author->public_key();
     if (!public_key) {
         return 1;
     }

@@ -4,11 +4,12 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// secp256k1's three forms of ECDH, each a secret<N>: ecdh (libsecp256k1's SHA-256 of the
-// compressed shared point), ecdh_x (the point's raw x coordinate) and ecdh_point (the point,
-// SEC1 uncompressed). Two sides agree in every form; a known answer computed apart from
-// libsecp256k1; ecdh keeps version 0.1's value; Wycheproof's ECDH vectors, in ASN.1 and JWK
-// form, against ecdh_x; the refusals of a moved-from key pair and of every malformed key.
+// secp256k1's three forms of ECDH, each a secret<N> of a key pair and a peer's typed public key:
+// agree (the shared point's raw x coordinate), agree_hashed (libsecp256k1's SHA-256 of the
+// compressed shared point) and agree_point (the point, SEC1 uncompressed). Two sides agree in
+// every form; a known answer computed apart from libsecp256k1; agree_hashed keeps version 0.1's
+// value; Wycheproof's ECDH vectors, in ASN.1 and JWK form, against agree; the refusals of a
+// moved-from key pair, and of every malformed key by public_key::make.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -76,7 +77,7 @@ secp::keypair draw(std::mt19937_64& generator) {
 
 // The uncompressed SEC1 form, 04 || x || y, of a key pair's public key, through libsecp256k1.
 std::array<std::uint8_t, 65> uncompressed(secp::keypair const& key) {
-    auto const compressed = *key.public_key();
+    auto const compressed = key.public_key()->compressed();
     secp256k1_pubkey parsed{};
     BOOST_TEST(secp256k1_ec_pubkey_parse(secp256k1_context_static, &parsed, compressed.data(),
                                          compressed.size()) == 1);
@@ -112,17 +113,17 @@ bool hashes_to(std::span<std::uint8_t const, 65> point, std::span<std::uint8_t c
 void types() {
     auto const key = from_byte(0x11);
     auto const peer = *key.public_key();
-    static_assert(std::is_same_v<decltype(key.ecdh(peer)),
+    static_assert(std::is_same_v<decltype(key.agree(peer)),
                                  boost::system::result<webcpp::crypto::secret<32>>>);
-    static_assert(std::is_same_v<decltype(key.ecdh_x(peer)),
+    static_assert(std::is_same_v<decltype(key.agree_hashed(peer)),
                                  boost::system::result<webcpp::crypto::secret<32>>>);
-    static_assert(std::is_same_v<decltype(key.ecdh_point(peer)),
+    static_assert(std::is_same_v<decltype(key.agree_point(peer)),
                                  boost::system::result<webcpp::crypto::secret<65>>>);
 }
 
 // 32 pairs of key pairs from a seeded generator: both sides of each agree in every form, the
-// point's x is ecdh_x, the point is on the curve, and ecdh is the SHA-256 of its compressed
-// form, as version 0.1's ecdh was.
+// point's x is agree's, the point is on the curve, and agree_hashed is the SHA-256 of its
+// compressed form, as version 0.1's ecdh was.
 void agreement() {
     // NOLINTNEXTLINE(bugprone-random-generator-seed,cert-msc32-c,cert-msc51-cpp): reproducible
     std::mt19937_64 generator(0x5ec9256b1ecdULL);
@@ -131,12 +132,12 @@ void agreement() {
         auto const b = draw(generator);
         auto const a_public = *a.public_key();
         auto const b_public = *b.public_key();
-        auto const x_a = a.ecdh_x(b_public);
-        auto const x_b = b.ecdh_x(a_public);
-        auto const point_a = a.ecdh_point(b_public);
-        auto const point_b = b.ecdh_point(a_public);
-        auto const hashed_a = a.ecdh(b_public);
-        auto const hashed_b = b.ecdh(a_public);
+        auto const x_a = a.agree(b_public);
+        auto const x_b = b.agree(a_public);
+        auto const point_a = a.agree_point(b_public);
+        auto const point_b = b.agree_point(a_public);
+        auto const hashed_a = a.agree_hashed(b_public);
+        auto const hashed_b = b.agree_hashed(a_public);
         if (!BOOST_TEST(x_a && x_b && point_a && point_b && hashed_a && hashed_b)) {
             continue;
         }
@@ -149,8 +150,8 @@ void agreement() {
         BOOST_TEST(secp256k1_ec_pubkey_parse(secp256k1_context_static, &parsed,
                                              point_a->bytes().data(), 65) == 1);
         BOOST_TEST(hashes_to(point_a->bytes(), hashed_a->bytes()));
-        // The peer's key, uncompressed, gives the same x.
-        auto const x_full = a.ecdh_x(uncompressed(b));
+        // The peer's key, made from its uncompressed form, gives the same x.
+        auto const x_full = a.agree(*secp::public_key::make(uncompressed(b)));
         BOOST_TEST(x_full && std::ranges::equal(x_full->bytes(), x_a->bytes()));
     }
 }
@@ -162,27 +163,27 @@ void known_answer() {
     auto const b = from_byte(0x22);
     auto const a_public = a.public_key();
     BOOST_TEST(a_public &&
-               test::to_hex(*a_public) ==
+               test::to_hex(a_public->compressed()) ==
                    "034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa");
-    auto const x_a = a.ecdh_x(*b.public_key());
-    auto const x_b = b.ecdh_x(*a_public);
+    auto const x_a = a.agree(*b.public_key());
+    auto const x_b = b.agree(*a_public);
     std::string const expected = "77e0510d5042e2f5e9e59c977b81eeed590cf7d20c1c51da451a8eaa9fdc45ff";
     BOOST_TEST(x_a && test::to_hex(x_a->bytes()) == expected);
     BOOST_TEST(x_b && test::to_hex(x_b->bytes()) == expected);
 }
 
-// A moved-from key pair answers invalid_state; a key of the wrong size, an x that is no point's
-// and X9.62's hybrid prefixes, 06 and 07, are invalid_public_key, in every form.
+// A moved-from key pair answers invalid_state in every form; a key of the wrong size, an x that is
+// no point's and X9.62's hybrid prefixes, 06 and 07, are invalid_public_key to public_key::make,
+// so that no form is reached with them.
 // NOLINTBEGIN(bugprone-use-after-move)
 void guards() {
     auto key = from_byte(0x42);
     secp::keypair const moved = std::move(key);
     auto const peer = *moved.public_key();
-    BOOST_TEST(key.ecdh(peer).error() == crypto::error::invalid_state);
-    BOOST_TEST(key.ecdh_x(peer).error() == crypto::error::invalid_state);
-    BOOST_TEST(key.ecdh_point(peer).error() == crypto::error::invalid_state);
+    BOOST_TEST(key.agree(peer).error() == crypto::error::invalid_state);
+    BOOST_TEST(key.agree_hashed(peer).error() == crypto::error::invalid_state);
+    BOOST_TEST(key.agree_point(peer).error() == crypto::error::invalid_state);
 
-    auto const a = from_byte(0x11);
     std::array<std::uint8_t, 33> off_curve{};
     off_curve[0] = 0x02;  // x = 0: no point
     auto first_hybrid = uncompressed(from_byte(0x22));
@@ -198,9 +199,7 @@ void guards() {
         bytes(second_hybrid.begin(), second_hybrid.end()),
     };
     for (auto const& peer_key : refused) {
-        BOOST_TEST(a.ecdh(peer_key).error() == crypto::error::invalid_public_key);
-        BOOST_TEST(a.ecdh_x(peer_key).error() == crypto::error::invalid_public_key);
-        BOOST_TEST(a.ecdh_point(peer_key).error() == crypto::error::invalid_public_key);
+        BOOST_TEST(secp::public_key::make(peer_key).error() == crypto::error::invalid_public_key);
     }
 }
 
@@ -235,29 +234,28 @@ struct counts {
 };
 
 // The three forms of a key pair whose secret make accepted, on one taken case: a point
-// libsecp256k1 cannot parse is refused in every form; otherwise ecdh_point's x is ecdh_x and
-// ecdh equals the C API's default hash.
+// libsecp256k1 cannot parse is refused by public_key::make, so that no form is reached;
+// otherwise agree_point's x is agree's and agree_hashed equals the C API's default hash.
 bool forms(std::string const& label, secp::keypair const& key, bytes const& point,
            std::array<std::uint8_t, 32> const& scalar, bytes const& shared, counts& c) {
     secp256k1_pubkey parsed{};
     bool const parses = secp256k1_ec_pubkey_parse(secp256k1_context_static, &parsed, point.data(),
                                                   point.size()) == 1;
-    auto const x = key.ecdh_x(point);
-    auto const whole = key.ecdh_point(point);
-    auto const hashed = key.ecdh(point);
-    if (!x.has_value()) {
-        BOOST_TEST(x.error() == crypto::error::invalid_public_key);
-        BOOST_TEST(whole.has_error() && whole.error() == crypto::error::invalid_public_key);
-        BOOST_TEST(hashed.has_error() && hashed.error() == crypto::error::invalid_public_key);
+    auto const peer = secp::public_key::make(point);
+    if (!peer.has_value()) {
+        BOOST_TEST(peer.error() == crypto::error::invalid_public_key);
         return false;
     }
+    auto const x = key.agree(*peer);
+    auto const whole = key.agree_point(*peer);
+    auto const hashed = key.agree_hashed(*peer);
     // A point webcpp took and libsecp256k1's parser refuses is reported here: the C call below
     // would reach libsecp256k1's illegal callback with the unparsed point, and abort.
     if (!BOOST_TEST(parses)) {
         fail(label + ": a point libsecp256k1 refuses was taken");
         return true;
     }
-    if (!BOOST_TEST(whole && hashed)) {
+    if (!BOOST_TEST(x && whole && hashed)) {
         return true;
     }
     BOOST_TEST(std::ranges::equal(whole->bytes().subspan<1, 32>(), x->bytes()));
@@ -267,7 +265,7 @@ bool forms(std::string const& label, secp::keypair const& key, bytes const& poin
         std::ranges::equal(hashed->bytes(), reference)) {
         ++c.agreed_default;
     } else {
-        fail(label + ": ecdh differs from the C API's default");
+        fail(label + ": agree_hashed differs from the C API's default");
     }
     if (std::ranges::equal(x->bytes(), shared)) {
         ++c.agreed_x;
@@ -276,8 +274,8 @@ bool forms(std::string const& label, secp::keypair const& key, bytes const& poin
 }
 
 // One taken case: the point as SEC1 bytes and the private key as 32 bytes. A valid case's
-// shared secret is ecdh_x; an invalid one is refused, by make for its scalar or by ecdh_x for
-// its point; an acceptable one is counted by what webcpp does.
+// shared secret is agree's; an invalid one is refused, by make for its scalar or by
+// public_key::make for its point; an acceptable one is counted by what webcpp does.
 void ecdh_case(std::string const& label, std::string const& verdict, bytes const& point,
                std::array<std::uint8_t, 32> const& scalar, bytes const& shared, counts& c) {
     ++c.taken;
@@ -291,7 +289,7 @@ void ecdh_case(std::string const& label, std::string const& verdict, bytes const
         int const agreed = c.agreed_x;
         computes = forms(label, *key, point, scalar, shared, c);
         if (verdict == "valid" && c.agreed_x == agreed) {
-            fail(label + ": shared secret differs from ecdh_x");
+            fail(label + ": shared secret differs from agree");
         }
     }
     if (!computes) {

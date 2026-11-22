@@ -87,11 +87,7 @@ bool key_pair_to_pem(secp256k1::keypair const& key_pair) {
 
 // The server's files written and read back.
 bool store_and_read(secp256k1::keypair const& key_pair) {
-    auto const encoded = key_pair.public_key();
-    if (!encoded) {
-        return false;
-    }
-    auto const key = secp256k1::parse_public_key(*encoded);
+    auto const key = key_pair.public_key();
     return key && public_key_to_pem(*key) && key_pair_to_pem(key_pair);
 }
 

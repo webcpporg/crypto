@@ -166,10 +166,11 @@ crypto-run equal : equal_test.cpp ;
 # signing.hpp's tags, prehashed, the input checks and the concepts, over
 # stand-in key types; the catch-all verify; sha256_of.
 crypto-run signing : signing_test.cpp ;
-# The key pair contract, crypto::keypair: Ed25519's and P-256's key pairs meet
-# it, stand-ins that lack a member do not.
+# The key pair contract, crypto::keypair: Ed25519's, P-256's and secp256k1's
+# key pairs meet it, stand-ins that lack a member do not.
 crypto-run keypair : keypair_test.cpp
-  : <library>/third_party//bearssl <library>/third_party//sodium ;
+  : <library>/third_party//bearssl <library>/third_party//sodium
+    <library>/third_party//secp256k1 ;
 # Every curve's crypto::verify in one program: a 32-byte key is BIP340's under
 # schnorr and no key under eddsa, which takes Ed25519's typed key, with no
 # ambiguity.

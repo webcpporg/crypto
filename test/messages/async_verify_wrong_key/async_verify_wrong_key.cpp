@@ -33,11 +33,7 @@ int main() {
     if (!made) {
         return 1;
     }
-    auto const encoded = made->public_key();
-    if (!encoded) {
-        return 1;
-    }
-    auto const public_key = crypto::curves::secp256k1::parse_public_key(*encoded);
+    auto const public_key = made->public_key();
     auto const signature = made->sign(crypto::ecdsa_sha256, message);
     if (!public_key || !signature) {
         return 1;

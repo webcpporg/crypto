@@ -190,7 +190,7 @@ public:
 
     bool check() {
         auto const signature = take(key_.sign(schnorr, message_, aux_), "sign");
-        auto const public_key = take(key_.xonly_public_key(), "xonly_public_key");
+        auto const public_key = take(key_.public_key(), "public_key");
         return crypto::verify(schnorr, signature, message_, public_key).has_value();
     }
 
@@ -200,7 +200,8 @@ private:
     curves::secp256k1::basic_keypair<Backend> key_;
 };
 
-// The x coordinate of the ECDH shared point of a key pair and a peer's public key, unhashed.
+// The x coordinate of the ECDH shared point of a key pair and a peer's public key, unhashed,
+// agree.
 template <class Backend>
 class secp256k1_ecdh_x {
 public:
@@ -217,21 +218,21 @@ public:
           peer_public_(take(peer_.public_key(), "public_key")) {}
 
     std::uint8_t run() {
-        auto const shared = take(key_.ecdh_x(peer_public_), "ecdh_x");
+        auto const shared = take(key_.agree(peer_public_), "agree");
         return shared.bytes()[0];
     }
 
     bool check() {
         auto const own_public = take(key_.public_key(), "public_key");
-        auto const shared = take(key_.ecdh_x(peer_public_), "ecdh_x");
-        auto const peer_shared = take(peer_.ecdh_x(own_public), "ecdh_x");
+        auto const shared = take(key_.agree(peer_public_), "agree");
+        auto const peer_shared = take(peer_.agree(own_public), "agree");
         return std::ranges::equal(shared.bytes(), peer_shared.bytes());
     }
 
 private:
     curves::secp256k1::basic_keypair<Backend> key_;
     curves::secp256k1::basic_keypair<Backend> peer_;
-    std::array<std::uint8_t, 33> peer_public_{};
+    curves::secp256k1::public_key peer_public_;
 };
 
 // The public key recovered from a recoverable ECDSA signature of a 32-byte hash; the signature
@@ -253,17 +254,14 @@ public:
         auto const recovered = take(curves::secp256k1::recover<Backend>(
                                         ecdsa_sha256_recoverable, signature_, prehashed{hash_}),
                                     "recover");
-        return curves::secp256k1::serialize_public_key<curves::secp256k1::point_form::compressed,
-                                                       Backend>(recovered)[1];
+        return recovered.compressed()[1];
     }
 
     bool check() {
         auto const recovered = take(curves::secp256k1::recover<Backend>(
                                         ecdsa_sha256_recoverable, signature_, prehashed{hash_}),
                                     "recover");
-        return curves::secp256k1::serialize_public_key<curves::secp256k1::point_form::compressed,
-                                                       Backend>(recovered) ==
-               take(key_.public_key(), "public_key");
+        return recovered == take(key_.public_key(), "public_key");
     }
 
 private:
@@ -351,10 +349,8 @@ private:
         curves::secp256k1::basic_keypair<Backend> const& first,
         curves::secp256k1::basic_keypair<Backend> const& second, space_type& space) {
         std::array<curves::secp256k1::public_key, 2> const keys{
-            take(curves::secp256k1::parse_public_key<Backend>(take(first.public_key(), "key")),
-                 "parse_public_key"),
-            take(curves::secp256k1::parse_public_key<Backend>(take(second.public_key(), "key")),
-                 "parse_public_key"),
+            take(first.public_key(), "public_key"),
+            take(second.public_key(), "public_key"),
         };
         return take(curves::secp256k1::musig::key_aggregate<Backend>(keys, space), "key_aggregate");
     }
@@ -428,8 +424,7 @@ public:
 private:
     static curves::secp256k1::public_key public_of(
         curves::secp256k1::basic_keypair<Backend> const& key) {
-        return take(curves::secp256k1::parse_public_key<Backend>(take(key.public_key(), "key")),
-                    "parse_public_key");
+        return take(key.public_key(), "public_key");
     }
 
     std::array<std::uint8_t, 32> send() {

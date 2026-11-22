@@ -61,7 +61,7 @@ void ecdsa_bitcoin() {
     int invalid = 0;
     for (auto const& group : doc.at("testGroups").as_array()) {
         auto const key =
-            secp::parse_public_key(test::from_hex(str(group.at("publicKey").at("uncompressed"))));
+            secp::public_key::make(test::from_hex(str(group.at("publicKey").at("uncompressed"))));
         if (!BOOST_TEST(key.has_value())) {
             continue;
         }

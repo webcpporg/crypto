@@ -49,12 +49,12 @@ void print(char const* name, std::span<std::uint8_t const> bytes) {
 // on every run; sign(crypto::schnorr, message) alone draws fresh bytes, as BIP340 recommends.
 bool sign_and_verify(secp256k1::keypair const& key, std::span<std::uint8_t const> message) {
     std::array<std::uint8_t, 32> const aux{};
-    auto const public_key = key.xonly_public_key();
+    auto const public_key = key.public_key();
     auto const signature = key.sign(crypto::schnorr, message, aux);
     if (!public_key || !signature) {
         return false;
     }
-    print("public key", *public_key);
+    print("public key", public_key->xonly());
     print("signature ", *signature);
     return crypto::verify(crypto::schnorr, *signature, message, *public_key).has_value();
 }

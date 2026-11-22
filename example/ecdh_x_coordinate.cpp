@@ -4,7 +4,7 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Two key pairs agree on the shared point's raw x coordinate with ecdh_x, the form Nostr's
+// Two key pairs agree on the shared point's raw x coordinate with agree, the form Nostr's
 // encrypted messages (NIP-44) take, then derive from it what a NIP-44 library would: the
 // conversation key, HKDF-extract with the salt "nip44-v2". The x coordinate is not a key; the
 // derivation that makes one is the protocol's, and belongs to a domain library.
@@ -103,8 +103,8 @@ int main() {
     }
     // Each side combines its secret key with the other's public key: the same x coordinate,
     // a secret<32> that wipes itself.
-    auto const alice_x = alice->ecdh_x(*bob_public);
-    auto const bob_x = bob->ecdh_x(*alice_public);
+    auto const alice_x = alice->agree(*bob_public);
+    auto const bob_x = bob->agree(*alice_public);
     if (!alice_x || !bob_x || !crypto::equal(alice_x->bytes(), bob_x->bytes())) {
         return 1;
     }

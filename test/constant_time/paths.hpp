@@ -341,16 +341,20 @@ inline boost::system::result<secp256k1_pair> secp256k1_public_pair(std::uint8_t 
     return secp256k1_pair::make(secret_key);
 }
 
-/** A key pair's compressed public key, marked public: it is sent to a peer. */
+/**
+ * A key pair's public key as its peer reads it: its compressed bytes, marked public since they
+ * are sent, made into the peer's `public_key`.
+ */
 template <class Checker>
-std::array<std::uint8_t, 33> secp256k1_sent_key(secp256k1_pair const& pair) {
-    auto const encoded_key = pair.public_key();
+boost::system::result<crypto::curves::secp256k1::public_key> secp256k1_sent_key(
+    secp256k1_pair const& pair) {
+    auto const public_key = pair.public_key();
     std::array<std::uint8_t, 33> sent_key{};
-    if (encoded_key) {
-        sent_key = *encoded_key;
+    if (public_key) {
+        sent_key = public_key->compressed();
     }
     Checker::mark_public(sent_key);
-    return sent_key;
+    return crypto::curves::secp256k1::public_key::make<crypto::backends::secp256k1>(sent_key);
 }
 
 /** The bytes of a caller's workspace, for a checker's primitives. */
@@ -360,8 +364,9 @@ std::span<std::uint8_t const> workspace_bytes(std::array<std::byte, N> const& sp
 }
 
 /**
- * ECDH on libsecp256k1, its three forms: the key pair's secret secret, the peer's key public.
- * Each shared secret is traced.
+ * ECDH on libsecp256k1, its three forms, `agree`, `agree_hashed` and `agree_point`: the key
+ * pair's secret secret, the peer's key public. Each shared secret is traced, and so is the
+ * secret key `secret()` gives back.
  */
 template <class Checker>
 int secp256k1_ecdh() {
@@ -371,14 +376,20 @@ int secp256k1_ecdh() {
         return check(false, "secp256k1's key pairs for ECDH");
     }
     auto const peer_key = secp256k1_sent_key<Checker>(*peer);
-    auto const hashed = pair->ecdh(peer_key);
-    auto const x_only = pair->ecdh_x(peer_key);
-    auto const point = pair->ecdh_point(peer_key);
-    return check(hashed.has_value() && carries_mark<Checker>(hashed->bytes()), "secp256k1's ecdh") +
-           check(x_only.has_value() && carries_mark<Checker>(x_only->bytes()),
-                 "secp256k1's ecdh_x") +
+    if (!peer_key) {
+        return check(false, "secp256k1's peer key for ECDH");
+    }
+    auto const x_only = pair->agree(*peer_key);
+    auto const hashed = pair->agree_hashed(*peer_key);
+    auto const point = pair->agree_point(*peer_key);
+    auto const kept = pair->secret();
+    return check(x_only.has_value() && carries_mark<Checker>(x_only->bytes()),
+                 "secp256k1's agree") +
+           check(hashed.has_value() && carries_mark<Checker>(hashed->bytes()),
+                 "secp256k1's agree_hashed") +
            check(point.has_value() && carries_mark<Checker>(point->bytes()),
-                 "secp256k1's ecdh_point");
+                 "secp256k1's agree_point") +
+           check(kept.has_value() && carries_mark<Checker>(kept->bytes()), "secp256k1's secret");
 }
 
 /**
@@ -510,9 +521,8 @@ int secp256k1_musig() {
     if (!pair || !other) {
         return check(false, "secp256k1's key pairs for MuSig2");
     }
-    auto const own_key = secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*pair));
-    auto const other_key =
-        secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*other));
+    auto const own_key = secp256k1_sent_key<Checker>(*pair);
+    auto const other_key = secp256k1_sent_key<Checker>(*other);
     if (!own_key || !other_key) {
         return check(false, "secp256k1's public keys for MuSig2");
     }
@@ -572,12 +582,9 @@ int secp256k1_silent_payments() {
     if (!scan_pair || !spend_pair || !input_pair) {
         return check(false, "secp256k1's key pairs for silent payments");
     }
-    auto const scan_key =
-        secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*scan_pair));
-    auto const spend_key =
-        secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*spend_pair));
-    auto const input_key =
-        secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*input_pair));
+    auto const scan_key = secp256k1_sent_key<Checker>(*scan_pair);
+    auto const spend_key = secp256k1_sent_key<Checker>(*spend_pair);
+    auto const input_key = secp256k1_sent_key<Checker>(*input_pair);
     if (!scan_key || !spend_key || !input_key) {
         return check(false, "secp256k1's public keys for silent payments");
     }

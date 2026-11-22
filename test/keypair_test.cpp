@@ -4,16 +4,18 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// The key pair contract, crypto::keypair (design D8): Ed25519's and P-256's key pairs meet it, on
-// libsodium and BearSSL; a stand-in that has every member meets it, and stand-ins that lack one
-// member each (make, generate, public_key_type, secret), whose make, generate, public_key or
-// secret gives another type, or whose curve declares no scheme, or a scheme they do not sign, do
+// The key pair contract, crypto::keypair (design D8): Ed25519's, P-256's and secp256k1's key pairs
+// meet it, on libsodium, BearSSL and libsecp256k1, each through the contract alone, secp256k1's
+// with each of its three schemes; a stand-in that has every member meets it, and stand-ins that
+// lack one member each (make, generate, public_key_type, secret), whose make, generate, public_key
+// or secret gives another type, or whose curve declares no scheme, or a scheme they do not sign, do
 // not.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
+#include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
@@ -213,15 +215,21 @@ static_assert(!crypto::keypair<int>);
 // The curves' key pairs, on each backend this test links.
 static_assert(crypto::keypair<crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>>);
 static_assert(crypto::keypair<crypto::curves::p256::basic_keypair<crypto::backends::bearssl>>);
+static_assert(
+    crypto::keypair<crypto::curves::secp256k1::basic_keypair<crypto::backends::secp256k1>>);
 static_assert(std::is_same_v<crypto::curves::ed25519::keypair::public_key_type,
                              crypto::curves::ed25519::public_key>);
 static_assert(std::is_same_v<crypto::curves::p256::keypair::public_key_type,
                              crypto::curves::p256::public_key>);
+static_assert(std::is_same_v<crypto::curves::secp256k1::keypair::public_key_type,
+                             crypto::curves::secp256k1::public_key>);
 static_assert(crypto::curves::ed25519::keypair::secret_key_size == 32);
 static_assert(crypto::curves::p256::keypair::secret_key_size == 32);
+static_assert(crypto::curves::secp256k1::keypair::secret_key_size == 32);
 // A public key is not a key pair.
 static_assert(!crypto::keypair<crypto::curves::ed25519::public_key>);
 static_assert(!crypto::keypair<crypto::curves::p256::public_key>);
+static_assert(!crypto::keypair<crypto::curves::secp256k1::public_key>);
 
 namespace {
 
@@ -247,5 +255,8 @@ int main() {
     round_trip<crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>>(crypto::eddsa);
     round_trip<crypto::curves::p256::basic_keypair<crypto::backends::bearssl>>(
         crypto::ecdsa_sha256);
+    using secp256k1_keypair = crypto::curves::secp256k1::basic_keypair<crypto::backends::secp256k1>;
+    round_trip<secp256k1_keypair>(crypto::ecdsa_sha256);
+    round_trip<secp256k1_keypair>(crypto::schnorr);
     return webcpp::test::exit_status(boost::report_errors());
 }

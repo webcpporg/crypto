@@ -105,7 +105,7 @@ void check_input(json::value const& input, int index) {
     auto const& intermediary = input.at("intermediary");
     auto key = *secp::keypair::make(fixed<32>(given.at("internalPrivkey")));
     auto const internal = fixed<32>(intermediary.at("internalPubkey"));
-    BOOST_TEST(*key.xonly_public_key() == internal);
+    BOOST_TEST(key.public_key()->xonly() == internal);
     auto const tweak = tap_tweak(internal, hex_or_empty(given.at("merkleRoot")));
     BOOST_TEST(key.tweak_xonly(tweak).has_value());
 
@@ -118,8 +118,8 @@ void check_input(json::value const& input, int index) {
     if (!output) {
         return;
     }
-    BOOST_TEST(*key.xonly_public_key() == output->key);
-    BOOST_TEST_EQ(output->parity, (*key.public_key())[0] == 0x03 ? 1 : 0);
+    BOOST_TEST(key.public_key()->xonly() == output->key);
+    BOOST_TEST_EQ(output->parity, key.public_key()->compressed()[0] == 0x03 ? 1 : 0);
 
     // Its BIP340 signature of the sighash, with an all-zero aux, is the witness's first 64
     // bytes (a 65th is the hash type, when it is not SIGHASH_DEFAULT).
@@ -158,7 +158,7 @@ void refusals() {
     std::array<std::uint8_t, 32> secret{};
     secret.fill(0x11);
     auto key = *secp::keypair::make(secret);
-    auto const internal = *key.xonly_public_key();
+    auto const internal = key.public_key()->xonly();
     std::array<std::uint8_t, 32> const zero{};
     // A tweak of zero leaves the key as it is.
     auto const same = secp::tweak_xonly(internal, zero);
@@ -186,7 +186,7 @@ void refusals() {
     BOOST_TEST(moved.tweak_xonly(tweak).has_value());
     auto const output = *secp::tweak_xonly(internal, tweak);
     auto const again = std::move(moved);
-    BOOST_TEST(*again.xonly_public_key() == output.key);
+    BOOST_TEST(again.public_key()->xonly() == output.key);
 }
 
 }  // namespace

@@ -20,14 +20,14 @@
 // generic one too, and the check only proves that a guard of some sign was entered first.
 //
 // What it covers, by family; a family libsecp256k1 gains adds its line and its checks:
-// - secp256k1, curves/secp256k1.hpp: public_key's operator== and operator<=>; basic_keypair:
-//   make, xonly_public_key, public_key, public_key_uncompressed, sign with each scheme
+// - secp256k1, curves/secp256k1.hpp: public_key's make, compressed, uncompressed, xonly,
+//   operator== and operator<=>; basic_keypair: make, public_key, secret, sign with each scheme
 //   (ecdsa_sha256 of a message and of a digest, ecdsa_sha256_recoverable, schnorr with its
 //   auxiliary randomness drawn), sign hedged, sign with Schnorr's auxiliary randomness given,
-//   ecdh, ecdh_x, ecdh_point, tweak_xonly; the free parse_public_key, serialize_public_key,
-//   recover, crypto::verify of ecdsa_sha256 and of schnorr, to_der, from_der, normalize_low_s,
-//   is_low_s, tweak_xonly. Its formats: encode_spki, decode_spki, encode_pkcs8,
-//   decode_pkcs8. Its tweaks: seckey_tweak_add, seckey_tweak_mul, seckey_negate,
+//   agree, agree_hashed, agree_point, tweak_xonly; the free recover, crypto::verify of
+//   ecdsa_sha256 and of schnorr (against the typed key and against x-only bytes), to_der,
+//   from_der, normalize_low_s, is_low_s, tweak_xonly. Its formats: encode_spki, decode_spki,
+//   encode_pkcs8, decode_pkcs8. Its tweaks: seckey_tweak_add, seckey_tweak_mul, seckey_negate,
 //   pubkey_tweak_add, pubkey_tweak_mul, pubkey_negate, pubkey_combine.
 // - ElligatorSwift: ellswift_encode, ellswift_decode, ellswift_create, ellswift_xdh.
 // - MuSig2, a whole round of two signers: aggregate_key's xonly_public_key, full_public_key,
@@ -98,14 +98,13 @@ secp::keypair keypair_of(std::uint8_t fill) {
     return std::move(*made);
 }
 
-/** A key pair's public key, parsed outside a check. */
+/** A key pair's public key, taken outside a check. */
 secp::public_key public_of(secp::keypair const& key_pair) {
-    auto const encoded = key_pair.public_key();
-    auto const parsed = secp::parse_public_key(*encoded);
-    if (!BOOST_TEST(parsed.has_value())) {
+    auto const public_key = key_pair.public_key();
+    if (!BOOST_TEST(public_key.has_value())) {
         std::exit(boost::report_errors());
     }
-    return *parsed;
+    return *public_key;
 }
 
 /**
@@ -154,17 +153,15 @@ void cover_make_and_compare() {
             [&] { BOOST_TEST((alice <=> bob) != std::strong_ordering::equal); });
 }
 
-/** The key pair's public keys and signatures. */
+/** The key pair's public key, its secret key and its signatures. */
 void cover_keypair_signing() {
     auto const made = keypair_of(0x21);
     bytes32 const hash = secret_bytes(0x5a);
     bytes32 const randomness = secret_bytes(0x5b);
-    covered("secp256k1::basic_keypair::xonly_public_key on secp256k1",
-            [&] { BOOST_TEST(made.xonly_public_key().has_value()); });
     covered("secp256k1::basic_keypair::public_key on secp256k1",
             [&] { BOOST_TEST(made.public_key().has_value()); });
-    covered("secp256k1::basic_keypair::public_key_uncompressed on secp256k1",
-            [&] { BOOST_TEST(made.public_key_uncompressed().has_value()); });
+    covered("secp256k1::basic_keypair::secret on secp256k1",
+            [&] { BOOST_TEST(made.secret().has_value()); });
     crypto::prehashed const digest{hash};
     covered("secp256k1::basic_keypair::sign with ecdsa_sha256 of a message on secp256k1",
             [&] { BOOST_TEST(made.sign(crypto::ecdsa_sha256, hash).has_value()); });
@@ -182,19 +179,18 @@ void cover_keypair_signing() {
             [&] { BOOST_TEST(made.sign(crypto::schnorr, hash, randomness).has_value()); });
 }
 
-/** The key pair's public keys and signatures of a moved-from key pair, refused before the backend.
+/**
+ * The key pair's public key, secret key and signatures of a moved-from key pair, refused before
+ * the backend.
  */
 void cover_keypair_signing_moved_from() {
     auto const empty = moved_from();
     bytes32 const hash = secret_bytes(0x5a);
     bytes32 const randomness = secret_bytes(0x5b);
-    covered("secp256k1::basic_keypair::xonly_public_key moved from on secp256k1",
-            [&] { BOOST_TEST(empty.xonly_public_key().error() == crypto::error::invalid_state); });
     covered("secp256k1::basic_keypair::public_key moved from on secp256k1",
             [&] { BOOST_TEST(empty.public_key().error() == crypto::error::invalid_state); });
-    covered("secp256k1::basic_keypair::public_key_uncompressed moved from on secp256k1", [&] {
-        BOOST_TEST(empty.public_key_uncompressed().error() == crypto::error::invalid_state);
-    });
+    covered("secp256k1::basic_keypair::secret moved from on secp256k1",
+            [&] { BOOST_TEST(empty.secret().error() == crypto::error::invalid_state); });
     crypto::prehashed const digest{hash};
     covered("secp256k1::basic_keypair::sign with ecdsa_sha256 moved from on secp256k1", [&] {
         BOOST_TEST(empty.sign(crypto::ecdsa_sha256, hash).error() == crypto::error::invalid_state);
@@ -223,48 +219,47 @@ void cover_keypair_signing_moved_from() {
         });
 }
 
-/** The key pair's three forms of ECDH and its tweak, each of a moved-from key pair too. */
+/** The key pair's three agreements and its tweak, each of a moved-from key pair too. */
 void cover_keypair_agreement() {
     auto const made = keypair_of(0x31);
     auto tweaked = keypair_of(0x32);
     auto empty = moved_from();
     auto const peer = keypair_of(0x33).public_key();
     bytes32 const tweak = secret_bytes(0x07);
-    covered("secp256k1::basic_keypair::ecdh on secp256k1",
-            [&] { BOOST_TEST(made.ecdh(*peer).has_value()); });
-    covered("secp256k1::basic_keypair::ecdh_x on secp256k1",
-            [&] { BOOST_TEST(made.ecdh_x(*peer).has_value()); });
-    covered("secp256k1::basic_keypair::ecdh_point on secp256k1",
-            [&] { BOOST_TEST(made.ecdh_point(*peer).has_value()); });
+    covered("secp256k1::basic_keypair::agree on secp256k1",
+            [&] { BOOST_TEST(made.agree(*peer).has_value()); });
+    covered("secp256k1::basic_keypair::agree_hashed on secp256k1",
+            [&] { BOOST_TEST(made.agree_hashed(*peer).has_value()); });
+    covered("secp256k1::basic_keypair::agree_point on secp256k1",
+            [&] { BOOST_TEST(made.agree_point(*peer).has_value()); });
     covered("secp256k1::basic_keypair::tweak_xonly on secp256k1",
             [&] { BOOST_TEST(tweaked.tweak_xonly(tweak).has_value()); });
-    covered("secp256k1::basic_keypair::ecdh moved from on secp256k1",
-            [&] { BOOST_TEST(empty.ecdh(*peer).error() == crypto::error::invalid_state); });
-    covered("secp256k1::basic_keypair::ecdh_x moved from on secp256k1",
-            [&] { BOOST_TEST(empty.ecdh_x(*peer).error() == crypto::error::invalid_state); });
-    covered("secp256k1::basic_keypair::ecdh_point moved from on secp256k1",
-            [&] { BOOST_TEST(empty.ecdh_point(*peer).error() == crypto::error::invalid_state); });
+    covered("secp256k1::basic_keypair::agree moved from on secp256k1",
+            [&] { BOOST_TEST(empty.agree(*peer).error() == crypto::error::invalid_state); });
+    covered("secp256k1::basic_keypair::agree_hashed moved from on secp256k1",
+            [&] { BOOST_TEST(empty.agree_hashed(*peer).error() == crypto::error::invalid_state); });
+    covered("secp256k1::basic_keypair::agree_point moved from on secp256k1",
+            [&] { BOOST_TEST(empty.agree_point(*peer).error() == crypto::error::invalid_state); });
     covered("secp256k1::basic_keypair::tweak_xonly moved from on secp256k1",
             [&] { BOOST_TEST(empty.tweak_xonly(tweak).error() == crypto::error::invalid_state); });
 }
 
-/** parse_public_key, a key of the wrong size included, and serialize_public_key in both forms. */
+/** public_key::make, a key of the wrong size included, and the key's three byte forms. */
 void cover_public_keys() {
-    auto const encoded = keypair_of(0x41).public_key();
-    auto const parsed = secp::parse_public_key(*encoded);
-    if (!BOOST_TEST(parsed.has_value())) {
-        return;
-    }
-    covered("secp256k1::parse_public_key on secp256k1",
-            [&] { BOOST_TEST(secp::parse_public_key(*encoded).has_value()); });
-    covered("secp256k1::parse_public_key of a short key on secp256k1", [&] {
-        BOOST_TEST(secp::parse_public_key(std::span(*encoded).first(32)).error() ==
+    auto const parsed = public_of(keypair_of(0x41));
+    auto const encoded = parsed.compressed();
+    covered("secp256k1::public_key::make on secp256k1",
+            [&] { BOOST_TEST(secp::public_key::make(encoded).has_value()); });
+    covered("secp256k1::public_key::make of a short key on secp256k1", [&] {
+        BOOST_TEST(secp::public_key::make(std::span(encoded).first(32)).error() ==
                    crypto::error::invalid_public_key);
     });
-    covered("secp256k1::serialize_public_key on secp256k1",
-            [&] { BOOST_TEST(secp::serialize_public_key(*parsed) == *encoded); });
-    covered("secp256k1::serialize_public_key uncompressed on secp256k1", [&] {
-        BOOST_TEST(secp::serialize_public_key<secp::point_form::uncompressed>(*parsed)[0] == 0x04);
+    covered("secp256k1::public_key::compressed on secp256k1",
+            [&] { BOOST_TEST(parsed.compressed() == encoded); });
+    covered("secp256k1::public_key::uncompressed on secp256k1",
+            [&] { BOOST_TEST(parsed.uncompressed()[0] == 0x04); });
+    covered("secp256k1::public_key::xonly on secp256k1", [&] {
+        BOOST_TEST(std::ranges::equal(parsed.xonly(), std::span(encoded).subspan<1>()));
     });
 }
 
@@ -274,16 +269,15 @@ void cover_verification() {
     bytes32 const hash = secret_bytes(0x5c);
     auto const hashed = crypto::detail::sha256_of(hash);
     crypto::prehashed const digest{hashed};
-    auto const xonly_key = signer.xonly_public_key();
-    auto const public_key = secp::parse_public_key(*signer.public_key());
+    auto const public_key = signer.public_key();
     auto const schnorr = signer.sign(crypto::schnorr, hash, secret_bytes(0x01));
     auto const ecdsa = signer.sign(crypto::ecdsa_sha256, hash);
     auto recoverable = signer.sign(crypto::ecdsa_sha256_recoverable, hash);
-    if (!BOOST_TEST(xonly_key.has_value()) || !BOOST_TEST(public_key.has_value()) ||
-        !BOOST_TEST(schnorr.has_value()) || !BOOST_TEST(ecdsa.has_value()) ||
-        !BOOST_TEST(recoverable.has_value())) {
+    if (!BOOST_TEST(public_key.has_value()) || !BOOST_TEST(schnorr.has_value()) ||
+        !BOOST_TEST(ecdsa.has_value()) || !BOOST_TEST(recoverable.has_value())) {
         return;
     }
+    auto const xonly_key = public_key->xonly();
     bytes32 const not_a_key = secret_bytes(0xff);
     covered("secp256k1::recover of a message on secp256k1", [&] {
         BOOST_TEST(secp::recover(crypto::ecdsa_sha256_recoverable, *recoverable, hash).has_value());
@@ -293,8 +287,13 @@ void cover_verification() {
             secp::recover(crypto::ecdsa_sha256_recoverable, *recoverable, digest).has_value());
     });
     covered("secp256k1 crypto::verify of schnorr on secp256k1", "crypto::verify(schnorr_t", [&] {
-        BOOST_TEST(crypto::verify(crypto::schnorr, *schnorr, hash, *xonly_key).has_value());
+        BOOST_TEST(crypto::verify(crypto::schnorr, *schnorr, hash, xonly_key).has_value());
     });
+    covered(
+        "secp256k1 crypto::verify of schnorr with the typed key on secp256k1",
+        "crypto::verify(schnorr_t", [&] {
+            BOOST_TEST(crypto::verify(crypto::schnorr, *schnorr, hash, *public_key).has_value());
+        });
     covered(
         "secp256k1 crypto::verify of ecdsa_sha256 of a message on secp256k1",
         "crypto::verify(ecdsa_sha256_t", [&] {
@@ -321,10 +320,11 @@ void cover_verification() {
 void cover_signature_forms() {
     auto const signer = keypair_of(0x61);
     auto const ecdsa = signer.sign(crypto::ecdsa_sha256, crypto::prehashed{secret_bytes(0x5d)});
-    auto const xonly_key = signer.xonly_public_key();
-    if (!BOOST_TEST(ecdsa.has_value()) || !BOOST_TEST(xonly_key.has_value())) {
+    auto const public_key = signer.public_key();
+    if (!BOOST_TEST(ecdsa.has_value()) || !BOOST_TEST(public_key.has_value())) {
         return;
     }
+    auto const xonly_key = public_key->xonly();
     std::array<std::uint8_t, secp::max_der_size> der{};
     std::size_t der_size = 0;
     bytes32 const tweak = secret_bytes(0x08);
@@ -337,7 +337,7 @@ void cover_signature_forms() {
     covered("secp256k1::from_der on secp256k1",
             [&] { BOOST_TEST(secp::from_der(std::span(der).first(der_size)).has_value()); });
     covered("secp256k1::tweak_xonly on secp256k1",
-            [&] { BOOST_TEST(secp::tweak_xonly(*xonly_key, tweak).has_value()); });
+            [&] { BOOST_TEST(secp::tweak_xonly(xonly_key, tweak).has_value()); });
     covered("secp256k1::to_der into a short output on secp256k1", [&] {
         BOOST_TEST(secp::to_der(*ecdsa, std::span(der).first(1)).error() ==
                    crypto::error::invalid_input_size);

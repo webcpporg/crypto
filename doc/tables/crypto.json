@@ -358,11 +358,11 @@
         {
             "id": "keypair",
             "family": "secp256k1",
-            "functions": ["make", "generate", "xonly_public_key", "public_key", "public_key_uncompressed", "sign", "ecdh", "ecdh_x", "ecdh_point", "tweak_xonly"],
+            "functions": ["basic_keypair::make", "generate", "basic_keypair::public_key", "basic_keypair::secret", "sign", "agree", "agree_hashed", "agree_point", "basic_keypair::tweak_xonly"],
             "namespace": "curves",
             "api": "curves::secp256k1::keypair",
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
-            "what": "A secp256k1 key pair: `sign(crypto::schnorr, message)` (BIP 340, its auxiliary randomness drawn or given), `sign(crypto::ecdsa_sha256, input)` (hedged too) and `sign(crypto::ecdsa_sha256_recoverable, input)`, the input a message hashed inside or `crypto::prehashed{digest}`; ECDH in three forms and the x-only tweak.",
+            "what": "A secp256k1 key pair: made from its 32-byte secret key, which `secret()` gives back, or drawn from `random_device`; its public key, a `curves::secp256k1::public_key`; `sign(crypto::schnorr, message)` (BIP 340, its auxiliary randomness drawn or given), `sign(crypto::ecdsa_sha256, input)` (hedged too) and `sign(crypto::ecdsa_sha256_recoverable, input)`, the input a message hashed inside or `crypto::prehashed{digest}`; ECDH in three forms, `agree` (the shared x), `agree_hashed` and `agree_point`, each with a peer's `public_key`; and the x-only tweak.",
             "section": "crypto-secp256k1",
             "backends": {"secp256k1": {"tests": ["secp256k1", "secp256k1_generate", "secp256k1_bip340", "secp256k1_xonly_tweak", "secp256k1_ecdh", "secp256k1_recovery"]}}
         },
@@ -373,7 +373,7 @@
             "namespace": "curves",
             "api": "crypto::verify, curves::secp256k1::recover",
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
-            "what": "Verifies a BIP 340 signature against a 32-byte x-only key, `crypto::verify(crypto::schnorr, signature, message, key)`, or an ECDSA one against a parsed public key, `crypto::verify(crypto::ecdsa_sha256, signature, input, public_key)`, refusing a high S; `recover(crypto::ecdsa_sha256_recoverable, signature, input)` gives the signer's key.",
+            "what": "Verifies a BIP 340 signature against a `curves::secp256k1::public_key` or its 32-byte x-only form, `crypto::verify(crypto::schnorr, signature, message, key)`, or an ECDSA one against a `curves::secp256k1::public_key`, `crypto::verify(crypto::ecdsa_sha256, signature, input, public_key)`, refusing a high S; `recover(crypto::ecdsa_sha256_recoverable, signature, input)` gives the signer's key.",
             "section": "crypto-secp256k1",
             "backends": {"secp256k1": {"tests": ["secp256k1_bip340", "secp256k1_wycheproof", "secp256k1_recovery", "signing_curves"]}}
         },
@@ -664,12 +664,11 @@
         {
             "id": "public_key",
             "family": "secp256k1",
-            "free": true,
-            "functions": ["parse_public_key", "serialize_public_key"],
+            "functions": ["public_key::make", "compressed", "uncompressed", "xonly"],
             "namespace": "curves",
-            "api": "curves::secp256k1::public_key, parse_public_key, serialize_public_key",
+            "api": "curves::secp256k1::public_key",
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
-            "what": "A parsed public key, read from and written to its compressed or uncompressed form.",
+            "what": "A secp256k1 public key, a point checked on the curve, which `crypto::verify` and a key pair's `agree` take: made from its compressed or uncompressed SEC 1 form, and giving its compressed, uncompressed and x-only forms.",
             "section": "crypto-secp256k1-keys",
             "backends": {"secp256k1": {"tests": ["secp256k1_keys"]}}
         },
@@ -868,7 +867,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "secp256k1", "tests": ["secp256k1", "default_backend_none_linked"], "why": "the only backend ({libsecp256k1})"}
             ],
             "backends": {
-                "secp256k1": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}, "lane_note": {"memcheck": "libsecp256k1's own `ctime_tests.c`, and webcpp's code around it: the key pair's making, its signatures and x-only tweak, ECDH in three forms, the secret key's tweaks and negation, and PKCS#8", "msan": "the same paths as memcheck's", "dudect": "`ecdh_x`"}}
+                "secp256k1": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}, "lane_note": {"memcheck": "libsecp256k1's own `ctime_tests.c`, and webcpp's code around it: the key pair's making and `secret()`, its signatures and x-only tweak, ECDH in three forms (`agree`, `agree_hashed` and `agree_point`), the secret key's tweaks and negation, and PKCS#8", "msan": "the same paths as memcheck's", "dudect": "`agree`"}}
             }
         },
         {
@@ -1156,7 +1155,7 @@
         {"title": "The usage limit", "section": "crypto-gcm-rules", "text": "with random IVs, at most 2^32 messages under one key ({sp800-38d}, section 8.3); rotate the key before."},
         {"title": "A failed open zeroes data", "section": "crypto-gcm-rules", "text": "when the tag does not match, `open` returns `authentication_failed` and zeroes the whole of `data`; keep a copy of the ciphertext if it is needed after a failure. the incremental open authenticates every piece and verifies the tag before it decrypts any; a stream read only once is sealed in records."},
         {"title": "Records: each stream its own key", "section": "crypto-gcm-incremental", "text": "records numbered from 0 with the number as IV are safe only under a key used for that one stream: derive a key per stream (HKDF of the storage key with a random salt) or draw one; never number two streams' records under one key."},
-        {"title": "ECDH's form", "section": "crypto-secp256k1-ecdh", "text": "`keypair::ecdh` returns libsecp256k1's hashed form, the SHA-256 of the compressed shared point; protocols that take the raw x coordinate, such as Nostr's NIP-44 ({nip44}), need `ecdh_x`. Both sides must use the same form, or they derive different keys. Derive keys with a KDF, never use a shared secret directly."},
+        {"title": "ECDH's form", "section": "crypto-secp256k1-ecdh", "text": "`keypair::agree` returns the raw x coordinate of the shared point, which protocols such as Nostr's NIP-44 ({nip44}) take; `keypair::agree_hashed` returns libsecp256k1's hashed form, the SHA-256 of the compressed shared point. Both sides must use the same form, or they derive different keys. Derive keys with a KDF, never use a shared secret directly."},
         {"title": "The x-only tweak is not BIP 32", "section": "crypto-wallets-taproot", "text": "`tweak_xonly` is BIP 341's even-y arithmetic ({bip341}); BIP 32's child derivation tweaks the full key, with `seckey_tweak_add` and `pubkey_tweak_add`, and computes the tweak with HMAC-SHA-512, a domain library's ({bip32})."},
         {"title": "Ethereum", "section": "crypto-curves", "text": "this version signs and verifies Ethereum's ECDSA, recoverable signatures included (`keypair::sign(crypto::ecdsa_sha256_recoverable, input)`), recovers a signer's public key from a signature and the same input (`recover`), and writes the uncompressed key ({ethereum}); the recovery id's `v` encoding, the hash Ethereum signs, transactions and addresses are a domain library's."},
         {"title": "Compare secrets in constant time", "section": "crypto-equal", "text": "compare a tag, a MAC or a token with `equal`, never `==` or `memcmp` ({cwe208})."},
@@ -1242,16 +1241,16 @@
         {"need": "Tell a forged message from a malformed one", "namespace": "webcpp::crypto", "api": "`error`", "backend": "any", "jamfile": "/webcpp/crypto//crypto", "example": "failure_reasons", "section": "crypto-errors"},
         {"need": "Turn a sequential id into an opaque reference", "namespace": "webcpp::crypto::ciphers", "api": "`aes256<backends::ctaes>`", "backend": "ctaes, or OpenSSL natively and on WASI", "jamfile": "/webcpp/crypto//crypto /third_party//ctaes", "example": "order_reference", "section": "crypto-block"},
         {"need": "Prove who wrote a message posted to a relay", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign(crypto::schnorr, message)`, `crypto::verify`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "signed_message", "section": "crypto-p2p-signed"},
-        {"need": "Check a software update or a licence file", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign(crypto::ecdsa_sha256, message)`, `parse_public_key`, `crypto::verify`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "signed_update", "section": "crypto-everyday-update"},
-        {"need": "Agree on a key with a peer through a relay that sees everything", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::ecdh` (SHA-256 of the shared point), then HKDF on Boost.Hash2 and `aes256_gcm`", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//gcm-default", "example": "ecdh_session", "section": "crypto-p2p-session"},
-        {"need": "Derive a Nostr direct message's conversation key (NIP-44; the format is a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::ecdh_x`, then HKDF on Boost.Hash2", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ecdh_x_coordinate", "section": "crypto-p2p-nostr-dm", "answers": "crypto-secp256k1-ecdh"},
+        {"need": "Check a software update or a licence file", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign(crypto::ecdsa_sha256, message)`, `public_key::make`, `crypto::verify`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "signed_update", "section": "crypto-everyday-update"},
+        {"need": "Agree on a key with a peer through a relay that sees everything", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::agree_hashed` (SHA-256 of the shared point), then HKDF on Boost.Hash2 and `aes256_gcm`", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//gcm-default", "example": "ecdh_session", "section": "crypto-p2p-session"},
+        {"need": "Derive a Nostr direct message's conversation key (NIP-44; the format is a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::agree`, then HKDF on Boost.Hash2", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ecdh_x_coordinate", "section": "crypto-p2p-nostr-dm", "answers": "crypto-secp256k1-ecdh"},
         {"need": "Find who signed a message or a transaction without being sent their key (Ethereum's signatures)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign(crypto::ecdsa_sha256_recoverable, message)`, `recover`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "recover_signer", "section": "crypto-wallets-recovery", "answers": "crypto-secp256k1-recovery"},
         {"need": "Derive child keys for a watch-only wallet (BIP 32's derivation is a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`seckey_tweak_add`, `pubkey_tweak_add`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "key_tweak", "section": "crypto-secp256k1-tweaks"},
         {"need": "Store or exchange a secp256k1 key with OpenSSL or a config file", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`encode_spki`, `decode_spki`, `encode_pkcs8`, `decode_pkcs8`; `webcpp::crypto::pem::armour`, `unarmour`", "backend": "libsecp256k1, libsodium for PEM", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//pem-default", "example": "secp256k1_key_formats", "section": "crypto-secp256k1-formats"},
         {"need": "Make a peer-to-peer connection's key exchange look like random bytes (BIP 324's transport; its packets are a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`ellswift_create`, `ellswift_decode`, `ellswift_xdh`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "ellswift_handshake", "section": "crypto-p2p-v2", "answers": "crypto-secp256k1-ellswift"},
         {"need": "Publish one donation address that never shows two payments as related (BIP 352's addresses and transactions are a domain library's)", "namespace": "webcpp::crypto::curves::secp256k1::silent_payments", "api": "`create_outputs`, `make_prevouts_summary`, `scan_outputs`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "silent_payment", "section": "crypto-wallets-silent", "answers": "crypto-secp256k1-silent-payments"},
         {"need": "Require two devices to sign for a wallet, with one ordinary signature on the chain", "namespace": "webcpp::crypto::curves::secp256k1::musig", "api": "`key_aggregate`, `nonce_gen`, `partial_sign`, `partial_signature_aggregate`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "musig_wallet", "section": "crypto-wallets-musig", "answers": "crypto-secp256k1-musig"},
-        {"need": "Make and keep a wallet's key", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::make`, `xonly_public_key`, `public_key`; `aes256_gcm` at rest", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//gcm-default", "example": "wallet_key", "section": "crypto-wallets-key"},
+        {"need": "Make and keep a wallet's key", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::make`, `keypair::public_key`, `public_key::xonly`, `public_key::compressed`; `aes256_gcm` at rest", "backend": "libsecp256k1, and AES-GCM's default", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1 /webcpp/crypto//gcm-default", "example": "wallet_key", "section": "crypto-wallets-key"},
         {"need": "Sign a Bitcoin SegWit v0 input (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::sign(crypto::ecdsa_sha256, crypto::prehashed{sighash})`, `to_der`, `is_low_s`, `normalize_low_s`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "bitcoin_sighash", "section": "crypto-wallets-der"},
         {"need": "Derive a Bitcoin Taproot output key and spend by key path (a domain library's job)", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`tweak_xonly`, `keypair::tweak_xonly`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "taproot_tweak", "section": "crypto-wallets-taproot"},
         {"need": "Sign where allocation is restricted to the program's arena", "namespace": "webcpp::crypto::curves::secp256k1", "api": "`keypair::make(secret, resource)`", "backend": "libsecp256k1", "jamfile": "/webcpp/crypto//crypto /third_party//secp256k1", "example": "arena_signer", "section": "crypto-memory"},
@@ -1417,7 +1416,7 @@
         "sign_schnorr_prehashed": "Sign the message itself with `crypto::schnorr`, BIP340's, which has no prehash mode; a taproot sighash, BIP341's tagged hash, is that message.",
         "sign_secp256k1_eddsa": "Sign with `crypto::ecdsa_sha256`, `crypto::ecdsa_sha256_recoverable` or `crypto::schnorr`, secp256k1's schemes; `crypto::eddsa` is Ed25519's.",
         "sign_secp256k1_not_a_scheme": "Name the scheme with its tag: `crypto::ecdsa_sha256`, `crypto::ecdsa_sha256_recoverable` or `crypto::schnorr`.",
-        "verify_ecdsa_bytes_key": "Give `crypto::ecdsa_sha256` the public key as a parsed object, `curves::secp256k1::parse_public_key(bytes)` or `curves::p256::public_key::make(bytes)`: bytes never choose the curve.",
+        "verify_ecdsa_bytes_key": "Give `crypto::ecdsa_sha256` the public key as a typed object, `curves::secp256k1::public_key::make(bytes)` or `curves::p256::public_key::make(bytes)`: bytes never choose the curve.",
         "verify_eddsa_bytes_key": "Give `crypto::eddsa` the public key as a `curves::ed25519::public_key`: `key_pair.public_key()`, or `curves::ed25519::public_key::make(bytes)` for a key received as bytes.",
         "async_verify_eddsa_bytes_key": "Give `async_verify` with `crypto::eddsa` the public key as a `curves::ed25519::public_key`, as `crypto::verify` takes it: `key_pair.public_key()`, or `curves::ed25519::public_key::make(bytes)`.",
         "sign_p256_digest_48": "Give `crypto::ecdsa_sha256` SHA-256's 32-byte digest, `crypto::prehashed{digest}` of a `std::array<std::uint8_t, 32>`, or the message itself, which it hashes.",

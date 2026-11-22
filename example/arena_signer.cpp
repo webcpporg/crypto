@@ -82,7 +82,7 @@ int main() {
     std::array<std::uint8_t, 32> message{};
     message.fill(0x17);
     std::array<std::uint8_t, 32> const aux{};
-    auto const public_key = key->xonly_public_key();
+    auto const public_key = key->public_key();
     auto const signature = key->sign(crypto::schnorr, message, aux);
     if (!public_key || !signature ||
         !crypto::verify(crypto::schnorr, *signature, message, *public_key)) {

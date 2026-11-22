@@ -81,7 +81,7 @@ void byte_keys() {
         return;
     }
     auto const ed25519_key = *ed25519->public_key();
-    key_bytes const xonly_key = *secp256k1->xonly_public_key();
+    key_bytes const xonly_key = secp256k1->public_key()->xonly();
     auto const eddsa_signature = ed25519->sign(crypto::eddsa, message);
     auto const schnorr_signature = secp256k1->sign(crypto::schnorr, message);
     if (!BOOST_TEST(eddsa_signature.has_value()) || !BOOST_TEST(schnorr_signature.has_value())) {
@@ -141,34 +141,33 @@ void backend_first_ecdsa() {
     if (!BOOST_TEST(secp256k1.has_value()) || !BOOST_TEST(p256.has_value())) {
         return;
     }
-    auto const encoded_key = secp256k1->public_key();
-    auto const xonly_key = secp256k1->xonly_public_key();
+    auto const secp256k1_key = secp256k1->public_key();
     auto const p256_key = p256->public_key();
-    if (!BOOST_TEST(encoded_key.has_value()) || !BOOST_TEST(xonly_key.has_value()) ||
-        !BOOST_TEST(p256_key.has_value())) {
+    if (!BOOST_TEST(secp256k1_key.has_value()) || !BOOST_TEST(p256_key.has_value())) {
         return;
     }
-    auto const secp256k1_key = crypto::curves::secp256k1::parse_public_key(*encoded_key);
+    auto const xonly_key = secp256k1_key->xonly();
     auto const schnorr_signature = secp256k1->sign(crypto::schnorr, hello_message);
     auto const ecdsa_signature = secp256k1->sign(crypto::ecdsa_sha256, hello_message);
     auto const recoverable_signature =
         secp256k1->sign(crypto::ecdsa_sha256_recoverable, hello_message);
     auto const p256_signature = p256->sign(crypto::ecdsa_sha256, hello_message);
-    if (!BOOST_TEST(secp256k1_key.has_value()) || !BOOST_TEST(schnorr_signature.has_value()) ||
-        !BOOST_TEST(ecdsa_signature.has_value()) ||
+    if (!BOOST_TEST(schnorr_signature.has_value()) || !BOOST_TEST(ecdsa_signature.has_value()) ||
         !BOOST_TEST(recoverable_signature.has_value()) || !BOOST_TEST(p256_signature.has_value())) {
         return;
     }
     BOOST_TEST(crypto::verify<crypto::backends::secp256k1>(crypto::schnorr, *schnorr_signature,
-                                                           hello_message, *xonly_key)
+                                                           hello_message, xonly_key)
+                   .has_value());
+    BOOST_TEST(crypto::verify<crypto::backends::secp256k1>(crypto::schnorr, *schnorr_signature,
+                                                           hello_message, *secp256k1_key)
                    .has_value());
     BOOST_TEST(crypto::verify<crypto::backends::secp256k1>(crypto::ecdsa_sha256, *ecdsa_signature,
                                                            hello_message, *secp256k1_key)
                    .has_value());
     auto const recovered = crypto::curves::secp256k1::recover<crypto::backends::secp256k1>(
         crypto::ecdsa_sha256_recoverable, *recoverable_signature, hello_message);
-    BOOST_TEST((recovered.has_value() &&
-                crypto::curves::secp256k1::serialize_public_key(*recovered) == *encoded_key));
+    BOOST_TEST((recovered.has_value() && *recovered == *secp256k1_key));
     BOOST_TEST(crypto::verify<crypto::backends::bearssl>(crypto::ecdsa_sha256, *p256_signature,
                                                          hello_message, *p256_key)
                    .has_value());

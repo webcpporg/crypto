@@ -73,15 +73,16 @@ int main() {
     if (!key) {
         return 1;
     }
-    auto const internal_key = key->xonly_public_key();
-    if (!internal_key) {
+    auto const internal_public = key->public_key();
+    if (!internal_public) {
         return 1;
     }
+    auto const internal_key = internal_public->xonly();
 
     // tag::tweak[]
     // The tweak is the domain library's business; the library only applies it.
-    auto const tweak = tagged_hash("TapTweak", *internal_key);
-    auto const output = secp256k1::tweak_xonly(*internal_key, tweak);
+    auto const tweak = tagged_hash("TapTweak", internal_key);
+    auto const output = secp256k1::tweak_xonly(internal_key, tweak);
     if (!output) {
         return 1;
     }
@@ -94,8 +95,8 @@ int main() {
     if (!key->tweak_xonly(tweak)) {
         return 1;
     }
-    auto const tweaked_public = key->xonly_public_key();
-    if (!tweaked_public || !crypto::equal(*tweaked_public, output->key)) {
+    auto const tweaked_public = key->public_key();
+    if (!tweaked_public || !crypto::equal(tweaked_public->xonly(), output->key)) {
         return 1;
     }
     std::printf("key pair tweaked: same output key\n");

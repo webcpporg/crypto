@@ -171,22 +171,21 @@ std::pair<secp::keypair, bytes> draw(std::mt19937_64& generator) {
 }
 
 secp::public_key public_of(secp::keypair const& key) {
-    auto const encoded_key = key.public_key();
-    auto const parsed = secp::parse_public_key(*encoded_key);
-    if (!BOOST_TEST(parsed.has_value())) {
+    auto const public_key = key.public_key();
+    if (!BOOST_TEST(public_key.has_value())) {
         std::exit(boost::report_errors());
     }
-    return *parsed;
+    return *public_key;
 }
 
 bytes uncompressed_of(secp::keypair const& key) {
-    auto const point = key.public_key_uncompressed();
-    return {point->begin(), point->end()};
+    auto const point = public_of(key).uncompressed();
+    return {point.begin(), point.end()};
 }
 
 bytes compressed_of(secp::keypair const& key) {
-    auto const point = key.public_key();
-    return {point->begin(), point->end()};
+    auto const point = public_of(key).compressed();
+    return {point.begin(), point.end()};
 }
 
 bytes spki(secp::public_key const& key, secp::point_form form) {

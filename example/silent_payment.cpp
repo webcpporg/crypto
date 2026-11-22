@@ -70,9 +70,9 @@ int main() {
     if (!scan_pair || !spend_pair || !donor) {
         return 1;
     }
-    auto const scan_key = secp256k1::parse_public_key(*scan_pair->public_key());
-    auto const spend_key = secp256k1::parse_public_key(*spend_pair->public_key());
-    auto const donor_key = secp256k1::parse_public_key(*donor->public_key());
+    auto const scan_key = scan_pair->public_key();
+    auto const spend_key = spend_pair->public_key();
+    auto const donor_key = donor->public_key();
     if (!scan_key || !spend_key || !donor_key) {
         return 1;
     }
@@ -116,8 +116,8 @@ int main() {
     if (!spending_pair) {
         return 1;
     }
-    auto const spending_key = spending_pair->xonly_public_key();
-    if (!spending_key || *spending_key != found[0].output_key) {
+    auto const spending_key = spending_pair->public_key();
+    if (!spending_key || spending_key->xonly() != found[0].output_key) {
         return 1;
     }
     std::printf("the spending key matches the output\n");

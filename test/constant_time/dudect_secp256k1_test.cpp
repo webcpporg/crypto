@@ -4,12 +4,12 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// dudect's statistics (spec section 8.3) on libsecp256k1: ecdh_x's time against the key pair's
-// secret key, the two classes differing only in the secret (one fixed key, against random
-// ones), the peer's public key the same; natively and under wasmtime, where the engine's
-// compiler decides whether libsecp256k1's field arithmetic stays constant time. Each
+// dudect's statistics (spec section 8.3) on libsecp256k1: agree's time (the case ecdh_x) against
+// the key pair's secret key, the two classes differing only in the secret (one fixed key,
+// against random ones), the peer's public key the same; natively and under wasmtime, where the
+// engine's compiler decides whether libsecp256k1's field arithmetic stays constant time. Each
 // measurement's key pair is made before it, unmeasured, as the Ed25519 signing of
-// dudect_sodium_test.cpp makes its own. ecdh_x is measured once more as the program's A/A
+// dudect_sodium_test.cpp makes its own. agree is measured once more as the program's A/A
 // control (ecdh_x_aa), both classes the fixed key, prepared by the same instructions;
 // `--case <name>` measures one case alone.
 
@@ -40,7 +40,7 @@ using keypair = secp256k1::basic_keypair<webcpp::crypto::backends::secp256k1>;
 constexpr std::size_t count = 500'000;
 
 /**
- * Times ecdh_x against the key pair's secret key: a fixed one, against random ones, or, with
+ * Times agree against the key pair's secret key: a fixed one, against random ones, or, with
  * `Control`, the fixed one for both classes; the case's lines are recorded.
  * @param results Where the case is recorded.
  * @param name The case's name.
@@ -48,8 +48,8 @@ constexpr std::size_t count = 500'000;
  * @param peer_key The peer's public key.
  */
 template <bool Control, class PublicKey>
-void measure_ecdh_x(test::case_results& results, char const* name, char const* label,
-                    PublicKey const& peer_key) {
+void measure_agree(test::case_results& results, char const* name, char const* label,
+                   PublicKey const& peer_key) {
     std::array<std::uint8_t, 32> fixed{};
     fixed.fill(0x42);
     std::array<std::uint8_t, 32> secret_key{};
@@ -65,7 +65,7 @@ void measure_ecdh_x(test::case_results& results, char const* name, char const* l
             }
             pair.emplace(std::move(*made));
         },
-        [&] { static_cast<void>(pair->ecdh_x(peer_key)); });
+        [&] { static_cast<void>(pair->agree(peer_key)); });
     results.record(name, label, agree_t, true,
                    {{"secret_key", secret_key.data()}, {"object", &*pair}});
 }
@@ -96,10 +96,10 @@ int main(int argc, char** argv) {
     }
     test::case_results results;
     if (selection->runs("ecdh_x")) {
-        measure_ecdh_x<false>(results, "ecdh_x", "secp256k1 ecdh_x", *peer_key);
+        measure_agree<false>(results, "ecdh_x", "secp256k1 agree", *peer_key);
     }
     if (selection->runs("ecdh_x_aa")) {
-        measure_ecdh_x<true>(results, "ecdh_x_aa", "secp256k1 ecdh_x A/A", *peer_key);
+        measure_agree<true>(results, "ecdh_x_aa", "secp256k1 agree A/A", *peer_key);
     }
     results.print();
     return test::verdict(results.passes());

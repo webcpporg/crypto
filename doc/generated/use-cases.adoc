@@ -80,14 +80,14 @@
 |<<crypto-p2p-signed,[.keep]`+signed_message.cpp+`>>
 
 |Check a software update or a licence file
-|In `+curves::secp256k1+`: `+keypair::sign(crypto::ecdsa_sha256, message)+`, `+parse_public_key+`, `+crypto::verify+`
+|In `+curves::secp256k1+`: `+keypair::sign(crypto::ecdsa_sha256, message)+`, `+public_key::make+`, `+crypto::verify+`
 |libsecp256k1
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+`
 |<<crypto-everyday-update,[.keep]`+signed_update.cpp+`>>
 
 |Agree on a key with a peer through a relay that sees everything
-|In `+curves::secp256k1+`: `+keypair::ecdh+` (SHA-256 of the shared point), then HKDF on Boost.Hash2 and `+aes256_gcm+`
+|In `+curves::secp256k1+`: `+keypair::agree_hashed+` (SHA-256 of the shared point), then HKDF on Boost.Hash2 and `+aes256_gcm+`
 |libsecp256k1, and AES-GCM's default
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+` +
@@ -95,7 +95,7 @@
 |<<crypto-p2p-session,[.keep]`+ecdh_session.cpp+`>>
 
 |Derive a Nostr direct message's conversation key (NIP-44; the format is a domain library's)
-|In `+curves::secp256k1+`: `+keypair::ecdh_x+`, then HKDF on Boost.Hash2
+|In `+curves::secp256k1+`: `+keypair::agree+`, then HKDF on Boost.Hash2
 |libsecp256k1
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+`
@@ -145,7 +145,7 @@
 |<<crypto-wallets-musig,[.keep]`+musig_wallet.cpp+`>>
 
 |Make and keep a wallet's key
-|In `+curves::secp256k1+`: `+keypair::make+`, `+xonly_public_key+`, `+public_key+`; `+aes256_gcm+` at rest
+|In `+curves::secp256k1+`: `+keypair::make+`, `+keypair::public_key+`, `+public_key::xonly+`, `+public_key::compressed+`; `+aes256_gcm+` at rest
 |libsecp256k1, and AES-GCM's default
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+` +

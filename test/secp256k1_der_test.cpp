@@ -142,7 +142,7 @@ void normalization() {
     hash.fill(0x77);
     crypto::prehashed const digest{hash};
     auto const signature = *key.sign(crypto::ecdsa_sha256, digest);
-    auto const public_key = *secp::parse_public_key(*key.public_key());
+    auto const public_key = *key.public_key();
     auto const high = test::negate_s(signature);
     BOOST_TEST(high != signature);
     BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, high, digest, public_key).error() ==

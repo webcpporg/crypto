@@ -80,14 +80,14 @@ boost::system::result<musig::partial_signature> received_part(
 }  // namespace
 
 int main() {
-    // Each device's key pair; each publishes its public key, which every party parses.
+    // Each device's key pair; each publishes its public key, which every party reads.
     auto const phone = secp256k1::keypair::make(repeated(0x11));
     auto const laptop = secp256k1::keypair::make(repeated(0x22));
     if (!phone || !laptop) {
         return 1;
     }
-    auto const phone_key = secp256k1::parse_public_key(*phone->public_key());
-    auto const laptop_key = secp256k1::parse_public_key(*laptop->public_key());
+    auto const phone_key = phone->public_key();
+    auto const laptop_key = laptop->public_key();
     if (!phone_key || !laptop_key) {
         return 1;
     }

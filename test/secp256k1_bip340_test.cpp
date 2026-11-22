@@ -74,8 +74,8 @@ void check_signing(std::vector<std::string> const& f, std::vector<std::uint8_t> 
     if (!key.has_value() || aux.size() != 32) {
         return;
     }
-    auto const xonly = key->xonly_public_key();
-    BOOST_TEST(xonly.has_value() && std::ranges::equal(*xonly, pub));
+    auto const public_key = key->public_key();
+    BOOST_TEST(public_key.has_value() && std::ranges::equal(public_key->xonly(), pub));
     auto const made = key->sign(crypto::schnorr, message, std::span<std::uint8_t const, 32>(aux));
     BOOST_TEST(made.has_value());
     if (made.has_value() && !std::ranges::equal(*made, signature)) {

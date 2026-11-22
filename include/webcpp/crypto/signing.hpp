@@ -478,7 +478,7 @@ template <class Scheme, class Signature, class Input, class PublicKey>
                   "webcpp::crypto: verify: this public key does not go with this scheme: "
                   "crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a "
                   "curves::p256::basic_public_key or a curves::secp256k1::public_key, "
-                  "crypto::schnorr a 32-byte x-only key.");
+                  "crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key.");
     return {};
 }
 

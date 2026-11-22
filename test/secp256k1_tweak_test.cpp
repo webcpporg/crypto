@@ -119,12 +119,11 @@ secp::public_key public_of(std::span<std::uint8_t const, 32> secret_bytes) {
     if (!BOOST_TEST(key.has_value())) {
         std::exit(boost::report_errors());
     }
-    auto const encoded = key->public_key();
-    auto const parsed = secp::parse_public_key(*encoded);
-    if (!BOOST_TEST(parsed.has_value())) {
+    auto const public_key = key->public_key();
+    if (!BOOST_TEST(public_key.has_value())) {
         std::exit(boost::report_errors());
     }
-    return *parsed;
+    return *public_key;
 }
 
 // The compressed bytes of a key libsecp256k1's C API computed.
@@ -138,7 +137,7 @@ std::array<std::uint8_t, 33> c_bytes(secp256k1_pubkey const& point) {
 }
 
 secp256k1_pubkey c_point(secp::public_key const& key) {
-    auto const encoded = secp::serialize_public_key(key);
+    auto const encoded = key.compressed();
     secp256k1_pubkey out{};
     BOOST_TEST(secp256k1_ec_pubkey_parse(secp256k1_context_static, &out, encoded.data(),
                                          encoded.size()) == 1);
@@ -187,8 +186,7 @@ void keys_against_c_api(secp::public_key const& p_d, secp::public_key const& p_t
         &c_combined,
     };
     for (std::size_t i = 0; i < results.size(); ++i) {
-        BOOST_TEST(std::ranges::equal(secp::serialize_public_key(results.at(i)),
-                                      c_bytes(*expected.at(i))));
+        BOOST_TEST(std::ranges::equal(results.at(i).compressed(), c_bytes(*expected.at(i))));
     }
 }
 
@@ -307,7 +305,7 @@ void known_answer() {
     }
     BOOST_TEST(std::ranges::equal(two->bytes(), small(2)));
     auto const key = public_of(two->bytes());
-    BOOST_TEST_EQ(test::to_hex(secp::serialize_public_key(key)),
+    BOOST_TEST_EQ(test::to_hex(key.compressed()),
                   "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5");
     auto const added = secp::pubkey_tweak_add(public_of(small(1)), small(1));
     BOOST_TEST(added && *added == key);

@@ -72,17 +72,18 @@ int main() {
     if (!wallet) {
         return 1;
     }
-    auto const published = wallet->public_key_uncompressed();
+    auto const wallet_key = wallet->public_key();
     std::string message = "pay 10 to bob";
     auto const signature = wallet->sign(crypto::ecdsa_sha256_recoverable, bytes_of(message));
-    if (!published || !signature) {
+    if (!wallet_key || !signature) {
         return 1;
     }
+    auto const published = wallet_key->uncompressed();
 
     // tag::recover[]
-    // The reader holds no key of the wallet's: it parses the published key once, recovers the
+    // The reader holds no key of the wallet's: it makes the published key once, recovers the
     // signer's key from the 65-byte signature and the message, and compares the two.
-    auto const expected = secp256k1::parse_public_key(*published);
+    auto const expected = secp256k1::public_key::make(published);
     auto const signer =
         secp256k1::recover(crypto::ecdsa_sha256_recoverable, *signature, bytes_of(message));
     if (!expected || !signer || *signer != *expected) {

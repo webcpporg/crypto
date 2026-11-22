@@ -5,12 +5,16 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 /**
- secp256k1 on libsecp256k1: `key.sign(scheme, input)` with `crypto::ecdsa_sha256` (hedged too),
+ secp256k1 on libsecp256k1: a key pair made from its 32-byte secret key, which `secret()` gives
+ back, and its typed public key, `curves::secp256k1::public_key`, made from SEC1 bytes by
+ `public_key::make` and giving its compressed, uncompressed and x-only forms;
+ `key.sign(scheme, input)` with `crypto::ecdsa_sha256` (hedged too),
  `crypto::ecdsa_sha256_recoverable` and `crypto::schnorr` (BIP340), the input a message or, for
- ECDSA, `crypto::prehashed{digest}`; `crypto::verify` of ECDSA against a parsed public key and of
- Schnorr against a 32-byte x-only key; `recover`, the signer's key; ECDH in three forms, each a
- secret; the parsed public key in its two SEC1 forms; ECDSA's DER form, `normalize_low_s` and
- `is_low_s`, the tweak of an x-only key, and the workspace a function over many keys borrows.
+ ECDSA, `crypto::prehashed{digest}`; `crypto::verify` of ECDSA against the public key and of
+ Schnorr against the public key or its 32-byte x-only form; `recover`, the signer's key; ECDH in
+ three forms, `agree` (the shared x, as P-256's), `agree_hashed` and `agree_point`, each a secret;
+ ECDSA's DER form, `normalize_low_s` and `is_low_s`, the tweak of an x-only key, and the
+ workspace a function over many keys borrows.
 
  @see "secp256k1", in the guide.
 */
@@ -26,6 +30,7 @@
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the context's randomisation and generate()'s key
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
@@ -507,14 +512,86 @@ inline constexpr std::size_t point_size<point_form::uncompressed> = 65;
 inline constexpr std::size_t recoverable_signature_size = 65;
 
 /**
- * A secp256k1 public key, parsed: a point on the curve, never the identity
- * (libsecp256k1's `secp256k1_pubkey`).
+ * A secp256k1 public key: a point on the curve, never the identity (libsecp256k1's
+ * `secp256k1_pubkey`), which `crypto::verify` takes, of ECDSA and of Schnorr, and a key pair's
+ * `agree` takes as its peer.
  *
- * It holds nothing secret and is copied freely; it is made only by the functions that return
- * one, so that it is always valid.
+ * It holds nothing secret and is copied freely; it is made only by `make` and by the functions
+ * that return one (a key pair's `public_key()`, `recover`, the tweaks), so that it is always
+ * valid. It gives its bytes in each of its forms: `compressed()` (33, Bitcoin's), `uncompressed()`
+ * (65, Ethereum's) and `xonly()` (32, BIP340's).
  */
 class public_key {
 public:
+    /**
+     * Makes a public key from SEC1 bytes: 33 with prefix 02 or 03, or 65 with prefix 04 (X9.62's
+     * hybrid prefixes 06 and 07 are refused, as everywhere in crypto). The point is checked: it is
+     * on the curve.
+     *
+     * @tparam Backend The backend, `backends::secp256k1`.
+     * @param encoded_key The key, SEC1.
+     * @return The key; `invalid_public_key` for any other length or prefix, or a point off the
+     * curve.
+     */
+    template <class Backend = default_backend_t<families::secp256k1>>
+    [[nodiscard]] static boost::system::result<public_key> make(
+        std::span<std::uint8_t const> encoded_key) noexcept {
+        detail::timing_guard const timing;
+        static_assert(
+            webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
+        webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+        secp256k1_selftest();
+        public_key made_key;
+        if (!webcpp::crypto::detail::secp256k1_parse_public_key(encoded_key,
+                                                                made_key.point_value_)) {
+            return error::invalid_public_key;
+        }
+        return made_key;
+    }
+
+    /**
+     * The key, SEC1 compressed: 02 or 03 by the parity of y, then x; Bitcoin's form.
+     *
+     * @return 33 bytes.
+     */
+    [[nodiscard]] std::array<std::uint8_t, point_size<point_form::compressed>> compressed()
+        const noexcept {
+        detail::timing_guard const timing;
+        return encoded<point_size<point_form::compressed>>(
+            webcpp::crypto::detail::secp256k1_compressed);
+    }
+
+    /**
+     * The key, SEC1 uncompressed: 04, x, y; Ethereum's form, and OpenSSL's default.
+     *
+     * @return 65 bytes.
+     */
+    [[nodiscard]] std::array<std::uint8_t, point_size<point_form::uncompressed>> uncompressed()
+        const noexcept {
+        detail::timing_guard const timing;
+        return encoded<point_size<point_form::uncompressed>>(
+            webcpp::crypto::detail::secp256k1_uncompressed);
+    }
+
+    /**
+     * The key's BIP340 x-only form, its x coordinate, which `crypto::verify(crypto::schnorr, ...)`
+     * takes as the key itself does; the parity of y is dropped.
+     *
+     * @return 32 bytes.
+     */
+    [[nodiscard]] std::array<std::uint8_t, 32> xonly() const noexcept {
+        detail::timing_guard const timing;
+        webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+        secp256k1_selftest();
+        secp256k1_xonly_pubkey xonly_key{};
+        // libsecp256k1 returns 1 always: every valid point has an x-only form.
+        static_cast<void>(secp256k1_xonly_pubkey_from_pubkey(secp256k1_context_static, &xonly_key,
+                                                             nullptr, &point_value_));
+        std::array<std::uint8_t, 32> output_bytes{};
+        secp256k1_xonly_pubkey_serialize(secp256k1_context_static, output_bytes.data(), &xonly_key);
+        return output_bytes;
+    }
+
     /**
      * Equal when the points are equal.
      *
@@ -545,6 +622,24 @@ private:
     friend struct webcpp::crypto::detail::secp256k1_access;
 
     public_key() noexcept = default;
+
+    /**
+     * The key in the SEC1 form `flags` names, with libsecp256k1's static context.
+     *
+     * @tparam N The form's size, 33 or 65.
+     * @param flags libsecp256k1's flag of the form.
+     * @return `N` bytes.
+     */
+    template <std::size_t N>
+    [[nodiscard]] std::array<std::uint8_t, N> encoded(unsigned flags) const noexcept {
+        webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+        secp256k1_selftest();
+        std::array<std::uint8_t, N> output_bytes{};
+        std::size_t written_size = output_bytes.size();
+        secp256k1_ec_pubkey_serialize(secp256k1_context_static, output_bytes.data(), &written_size,
+                                      &point_value_, flags);
+        return output_bytes;
+    }
 
     /**
      * libsecp256k1's comparison of two keys with the static context, which reads both as
@@ -588,11 +683,15 @@ public:
     using family_type = families::secp256k1;
     /** The algorithm of the capability table: the family's own tag, its one algorithm. */
     using name_type = families::secp256k1;
+    /** The public key's type, which `crypto::verify` and `agree` take. */
+    using public_key_type = ::webcpp::crypto::curves::secp256k1::public_key;
+    /** The size of the secret key, which `make` takes and `secret()` gives. */
+    static constexpr std::size_t secret_key_size = 32;
     /** The most draws `generate` makes: 32 bytes that are not a secret key are drawn again. */
     static constexpr int max_draws = 4;
 
     /**
-     * Makes a key pair from a secret key.
+     * Makes a key pair from a secret key, as a program that kept `secret()` loads it again.
      *
      * @param secret_bytes 32 bytes, not zero and below the group order.
      * @param memory_resource The resource of the signing context, the one allocation; it must
@@ -609,7 +708,7 @@ public:
         std::span<std::uint8_t const> secret_bytes,
         std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource()) {
         detail::timing_guard const timing;
-        if (secret_bytes.size() != 32) {
+        if (secret_bytes.size() != secret_key_size) {
             return error::invalid_key_size;
         }
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -654,7 +753,7 @@ public:
         std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource()) {
         detail::timing_guard const timing;
         for (int draw = 0; draw < max_draws; ++draw) {
-            secret<32> secret_key;
+            crypto::secret<secret_key_size> secret_key;
             auto const drawn =
                 random_device().fill(secret_key.writable());  // lint-world: the secret key
             if (!drawn) {
@@ -710,43 +809,40 @@ public:
     ~basic_keypair() { release(); }
 
     /**
-     * The BIP340 x-only public key.
+     * The public key, which `crypto::verify` takes, and `agree` as a peer's; its `compressed()`,
+     * `uncompressed()` and `xonly()` give its bytes.
      *
-     * @return 32 bytes; `invalid_state` moved from.
+     * @return The public key; `invalid_state` moved from.
      */
-    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> xonly_public_key()
-        const noexcept {
+    [[nodiscard]] boost::system::result<public_key_type> public_key() const noexcept {
         detail::timing_guard const timing;
         if (!keyed_) {
             return error::invalid_state;
         }
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-        secp256k1_xonly_pubkey xonly_key{};
-        std::array<std::uint8_t, 32> output_bytes{};
-        secp256k1_keypair_xonly_pub(context_, &xonly_key, nullptr, &keypair_);
-        secp256k1_xonly_pubkey_serialize(context_, output_bytes.data(), &xonly_key);
-        return output_bytes;
+        using access = webcpp::crypto::detail::secp256k1_access;
+        public_key_type made_key = access::make_public_key();
+        access::point(made_key) =
+            webcpp::crypto::detail::secp256k1_public_point(context_, keypair_);
+        return made_key;
     }
 
     /**
-     * The public key, SEC1 compressed.
+     * The secret key (`secp256k1_keypair_sec`), for a program that keeps the key pair and makes it
+     * again with `make`, or exports it.
      *
-     * @return 33 bytes; `invalid_state` moved from.
+     * @return 32 secret bytes, big-endian; `invalid_state` moved from.
      */
-    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 33>> public_key() const noexcept {
+    [[nodiscard]] boost::system::result<crypto::secret<secret_key_size>> secret() const noexcept {
         detail::timing_guard const timing;
-        return encoded_public_key<33>(webcpp::crypto::detail::secp256k1_compressed);
-    }
-
-    /**
-     * The public key, SEC1 uncompressed.
-     *
-     * @return 65 bytes; `invalid_state` moved from.
-     */
-    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 65>> public_key_uncompressed()
-        const noexcept {
-        detail::timing_guard const timing;
-        return encoded_public_key<65>(webcpp::crypto::detail::secp256k1_uncompressed);
+        if (!keyed_) {
+            return error::invalid_state;
+        }
+        webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+        crypto::secret<secret_key_size> secret_key;
+        // libsecp256k1 returns 1 always: a key pair holds its secret key.
+        static_cast<void>(secp256k1_keypair_sec(context_, secret_key.writable().data(), &keypair_));
+        return secret_key;
     }
 
     /**
@@ -854,46 +950,49 @@ public:
     }
 
     /**
-     * The SHA-256 of the compressed shared point with a peer's public key, libsecp256k1's
-     * default.
-     *
-     * @param public_key_bytes The peer's key, SEC1: 33 bytes, prefix 02 or 03, or 65, prefix 04.
-     * @return 32 secret bytes; `invalid_state`; `invalid_public_key`; `backend_failure`.
-     */
-    [[nodiscard]] boost::system::result<secret<32>> ecdh(
-        std::span<std::uint8_t const> public_key_bytes) const noexcept {
-        detail::timing_guard const timing;
-        return agree<32>(public_key_bytes, nullptr);
-    }
-
-    /**
-     * The shared point's x coordinate, unhashed: what Wycheproof's ECDH vectors, Nostr's NIP-44
+     * ECDH with a peer's public key: the shared point's x coordinate, unhashed, as P-256's `agree`
+     * and WebCrypto's `deriveBits` give it, and what Wycheproof's ECDH vectors, Nostr's NIP-44
      * and other protocols that hash it themselves take.
      *
      * Tip: the x coordinate is not a key; a protocol derives its keys from it (NIP-44 with
      * HKDF), and that derivation is the protocol's.
      *
-     * @param public_key_bytes The peer's key, SEC1, as `ecdh` takes it.
-     * @return 32 secret bytes; `invalid_state`; `invalid_public_key`; `backend_failure`.
+     * @param peer The peer's public key.
+     * @return 32 secret bytes; `invalid_state` moved from; `backend_failure`, which a valid key
+     * pair and a valid public key cannot cause.
      */
-    [[nodiscard]] boost::system::result<secret<32>> ecdh_x(
-        std::span<std::uint8_t const> public_key_bytes) const noexcept {
+    [[nodiscard]] boost::system::result<crypto::secret<32>> agree(
+        public_key_type const& peer) const noexcept {
         detail::timing_guard const timing;
-        return agree<32>(public_key_bytes,
-                         webcpp::crypto::detail::webcpp_crypto_detail_secp256k1_copy_x);
+        return ecdh_secret<32>(peer, webcpp::crypto::detail::webcpp_crypto_detail_secp256k1_copy_x);
     }
 
     /**
-     * The shared point itself, SEC1 uncompressed (0x04, x, y).
+     * ECDH with a peer's public key, hashed as libsecp256k1 hashes it by default: the SHA-256 of
+     * the compressed shared point.
      *
-     * @param public_key_bytes The peer's key, SEC1, as `ecdh` takes it.
-     * @return 65 secret bytes; `invalid_state`; `invalid_public_key`; `backend_failure`.
+     * @param peer The peer's public key.
+     * @return 32 secret bytes; `invalid_state` moved from; `backend_failure`, which a valid key
+     * pair and a valid public key cannot cause.
      */
-    [[nodiscard]] boost::system::result<secret<65>> ecdh_point(
-        std::span<std::uint8_t const> public_key_bytes) const noexcept {
+    [[nodiscard]] boost::system::result<crypto::secret<32>> agree_hashed(
+        public_key_type const& peer) const noexcept {
         detail::timing_guard const timing;
-        return agree<65>(public_key_bytes,
-                         webcpp::crypto::detail::webcpp_crypto_detail_secp256k1_copy_point);
+        return ecdh_secret<32>(peer, nullptr);
+    }
+
+    /**
+     * ECDH with a peer's public key: the shared point itself, SEC1 uncompressed (0x04, x, y).
+     *
+     * @param peer The peer's public key.
+     * @return 65 secret bytes; `invalid_state` moved from; `backend_failure`, which a valid key
+     * pair and a valid public key cannot cause.
+     */
+    [[nodiscard]] boost::system::result<crypto::secret<65>> agree_point(
+        public_key_type const& peer) const noexcept {
+        detail::timing_guard const timing;
+        return ecdh_secret<65>(peer,
+                               webcpp::crypto::detail::webcpp_crypto_detail_secp256k1_copy_point);
     }
 
     /**
@@ -929,29 +1028,6 @@ private:
     friend struct webcpp::crypto::detail::secp256k1_access;
 
     basic_keypair() noexcept = default;
-
-    /**
-     * The public key in the SEC1 form `flags` names.
-     *
-     * @tparam N The form's size, 33 or 65.
-     * @param flags libsecp256k1's flag of the form.
-     * @return `N` bytes; `invalid_state` moved from.
-     */
-    template <std::size_t N>
-    [[nodiscard]] boost::system::result<std::array<std::uint8_t, N>> encoded_public_key(
-        unsigned flags) const noexcept {
-        if (!keyed_) {
-            return error::invalid_state;
-        }
-        webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-        secp256k1_pubkey const public_point =
-            webcpp::crypto::detail::secp256k1_public_point(context_, keypair_);
-        std::array<std::uint8_t, N> output_bytes{};
-        std::size_t written_size = output_bytes.size();
-        secp256k1_ec_pubkey_serialize(context_, output_bytes.data(), &written_size, &public_point,
-                                      flags);
-        return output_bytes;
-    }
 
     /**
      * An ECDSA signature with RFC 6979's nonce, `nonce_data` mixed in when it is not null.
@@ -1076,30 +1152,27 @@ private:
 
     /**
      * ECDH with a peer's public key, its output written by `hash_function` into the secret:
-     * libsecp256k1's SHA-256 when it is null.
+     * libsecp256k1's SHA-256 when it is null. The worker of `agree`, `agree_hashed` and
+     * `agree_point`, which hold the guard.
      *
      * @tparam N The output's size, which `hash_function` writes.
-     * @param public_key_bytes The peer's key, SEC1, as `ecdh` takes it.
+     * @param peer The peer's public key.
      * @param hash_function libsecp256k1's hash function, or null for its default.
-     * @return `N` secret bytes; `invalid_state`; `invalid_public_key`; `backend_failure`.
+     * @return `N` secret bytes; `invalid_state`; `backend_failure`.
      */
     template <std::size_t N>
-    [[nodiscard]] boost::system::result<secret<N>> agree(
-        std::span<std::uint8_t const> public_key_bytes,
-        secp256k1_ecdh_hash_function hash_function) const noexcept {
+    [[nodiscard]] boost::system::result<crypto::secret<N>> ecdh_secret(
+        public_key_type const& peer, secp256k1_ecdh_hash_function hash_function) const noexcept {
         if (!keyed_) {
             return error::invalid_state;
-        }
-        secp256k1_pubkey parsed_value{};
-        if (!webcpp::crypto::detail::secp256k1_parse_public_key(public_key_bytes, parsed_value)) {
-            return error::invalid_public_key;
         }
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         webcpp::crypto::detail::secp256k1_secret secret_bytes;
         secp256k1_keypair_sec(context_, secret_bytes.bytes.data(), &keypair_);
-        secret<N> shared_secret;
+        crypto::secret<N> shared_secret;
         if (!webcpp::crypto::detail::secp256k1_accepted(
-                secp256k1_ecdh(context_, shared_secret.writable().data(), &parsed_value,
+                secp256k1_ecdh(context_, shared_secret.writable().data(),
+                               &webcpp::crypto::detail::secp256k1_access::point(peer),
                                secret_bytes.bytes.data(), hash_function, nullptr))) {
             return error::backend_failure;
         }
@@ -1167,56 +1240,6 @@ inline curves::secp256k1::public_key secp256k1_access::make_public_key() noexcep
 }  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::curves::secp256k1 {
-
-/**
- * Parses a public key: 33 bytes with prefix 02 or 03, or 65 with prefix 04 (X9.62's hybrid
- * prefixes 06 and 07 are refused, as everywhere in crypto).
- *
- * @tparam Backend The backend, `backends::secp256k1`.
- * @param encoded_key The key, SEC1.
- * @return The key; `invalid_public_key` for any other length or prefix, or a point off the curve.
- */
-template <class Backend = default_backend_t<families::secp256k1>>
-[[nodiscard]] boost::system::result<public_key> parse_public_key(
-    std::span<std::uint8_t const> encoded_key) noexcept {
-    detail::timing_guard const timing;
-    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
-    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-    secp256k1_selftest();
-    using access = webcpp::crypto::detail::secp256k1_access;
-    public_key parsed_key = access::make_public_key();
-    if (!webcpp::crypto::detail::secp256k1_parse_public_key(encoded_key,
-                                                            access::point(parsed_key))) {
-        return error::invalid_public_key;
-    }
-    return parsed_key;
-}
-
-/**
- * Serialises a public key in `Form`.
- *
- * @tparam Form The SEC1 form, `compressed` by default.
- * @tparam Backend The backend, `backends::secp256k1`.
- * @param parsed_key The key.
- * @return 33 bytes (`compressed`, the default) or 65 (`uncompressed`).
- */
-template <point_form Form = point_form::compressed,
-          class Backend = default_backend_t<families::secp256k1>>
-[[nodiscard]] std::array<std::uint8_t, point_size<Form>> serialize_public_key(
-    public_key const& parsed_key) noexcept {
-    detail::timing_guard const timing;
-    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
-    webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-    secp256k1_selftest();
-    std::array<std::uint8_t, point_size<Form>> output_bytes{};
-    std::size_t written_size = output_bytes.size();
-    secp256k1_ec_pubkey_serialize(secp256k1_context_static, output_bytes.data(), &written_size,
-                                  &webcpp::crypto::detail::secp256k1_access::point(parsed_key),
-                                  Form == point_form::compressed
-                                      ? webcpp::crypto::detail::secp256k1_compressed
-                                      : webcpp::crypto::detail::secp256k1_uncompressed);
-    return output_bytes;
-}
 
 /**
  * The public key that made a recoverable signature (`secp256k1_ecdsa_recover`), as Ethereum
@@ -1432,6 +1455,29 @@ template <class Backend = default_backend_t<families::secp256k1>>
 
 }  // namespace webcpp::crypto::curves::secp256k1
 
+namespace webcpp::crypto::detail {
+
+/**
+ * Verifies a BIP340 signature against an x-only key already parsed, with libsecp256k1's static
+ * context: the worker of both `crypto::verify` overloads of `schnorr`, which hold the guard.
+ *
+ * @param signature 64 bytes.
+ * @param message_bytes The signed message, as given.
+ * @param xonly_key The signer's x-only key.
+ * @return Nothing; `invalid_signature`.
+ */
+[[nodiscard]] inline boost::system::result<void> secp256k1_verify_schnorr(
+    std::span<std::uint8_t const, 64> signature, std::span<std::uint8_t const> message_bytes,
+    secp256k1_xonly_pubkey const& xonly_key) noexcept {
+    if (secp256k1_schnorrsig_verify(secp256k1_context_static, signature.data(),
+                                    message_bytes.data(), message_bytes.size(), &xonly_key) == 0) {
+        return error::invalid_signature;
+    }
+    return {};
+}
+
+}  // namespace webcpp::crypto::detail
+
 namespace webcpp::crypto {
 
 /**
@@ -1448,7 +1494,8 @@ namespace webcpp::crypto {
  * @param signature 64 bytes, r then s; `curves::secp256k1::from_der` reads DER.
  * @param input The signed message, hashed with SHA-256 inside the call; or
  * `crypto::prehashed{digest}`, the 32-byte digest signed (a Bitcoin sighash).
- * @param public_key The signer's public key, from `curves::secp256k1::parse_public_key`.
+ * @param public_key The signer's public key: a key pair's `public_key()`, or
+ * `curves::secp256k1::public_key::make` of its SEC1 bytes.
  * @return Nothing; `invalid_signature` for an r or an s not below the group order, a high S, or
  * a signature that does not verify.
  */
@@ -1487,8 +1534,8 @@ template <class Backend = default_backend_t<families::secp256k1>, class Input>
  * @param scheme `crypto::schnorr`.
  * @param signature 64 bytes.
  * @param message The signed message, as given.
- * @param xonly_public_key The signer's 32-byte x-only key (a key pair's `xonly_public_key`, a
- * taproot output key, MuSig2's aggregate key).
+ * @param xonly_public_key The signer's 32-byte x-only key (a public key's `xonly()`, a taproot
+ * output key, MuSig2's aggregate key).
  * @return Nothing; `invalid_public_key` for 32 bytes that are no point's x; `invalid_signature`.
  */
 template <class Backend = default_backend_t<families::secp256k1>, class Input>
@@ -1507,12 +1554,44 @@ template <class Backend = default_backend_t<families::secp256k1>, class Input>
                                          xonly_public_key.data()) == 0) {
             return error::invalid_public_key;
         }
-        if (secp256k1_schnorrsig_verify(secp256k1_context_static, signature.data(),
-                                        message_bytes.data(), message_bytes.size(),
-                                        &parsed_key) == 0) {
-            return error::invalid_signature;
-        }
-        return {};
+        return detail::secp256k1_verify_schnorr(signature, message_bytes, parsed_key);
+    } else {
+        // Never compiled into a program: check_input stopped the build.
+        return error::invalid_signature;
+    }
+}
+
+/**
+ * Verifies a BIP340 signature against a secp256k1 public key, whose x-only form BIP340 reads
+ * (the parity of y is dropped), with libsecp256k1's static context, which allocates nothing,
+ * after its self-test.
+ *
+ * @tparam Backend The backend, `backends::secp256k1`, the only one; another stops the build.
+ * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
+ * empty included; a `crypto::prehashed` marker, or anything else, stops the build.
+ * @param scheme `crypto::schnorr`.
+ * @param signature 64 bytes.
+ * @param message The signed message, as given.
+ * @param public_key The signer's public key: a key pair's `public_key()`.
+ * @return Nothing; `invalid_signature`.
+ */
+template <class Backend = default_backend_t<families::secp256k1>, class Input>
+[[nodiscard]] boost::system::result<void> verify(
+    [[maybe_unused]] schnorr_t scheme, std::span<std::uint8_t const, 64> signature,
+    Input const& message, curves::secp256k1::public_key const& public_key) noexcept {
+    detail::timing_guard const timing;
+    static_assert(detail::secp256k1_refuses_others<families::secp256k1, Backend>);
+    detail::check_input<schnorr_t, Input, Backend>();
+    if constexpr (detail::input_valid_v<schnorr_t, Input, Backend>) {
+        auto const message_bytes = detail::message_bytes(message);
+        detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+        secp256k1_selftest();
+        secp256k1_xonly_pubkey xonly_key{};
+        // libsecp256k1 returns 1 always: every valid point has an x-only form.
+        static_cast<void>(
+            secp256k1_xonly_pubkey_from_pubkey(secp256k1_context_static, &xonly_key, nullptr,
+                                               &detail::secp256k1_access::point(public_key)));
+        return detail::secp256k1_verify_schnorr(signature, message_bytes, xonly_key);
     } else {
         // Never compiled into a program: check_input stopped the build.
         return error::invalid_signature;
@@ -1553,6 +1632,10 @@ inline constexpr bool signs_with_v<curves::secp256k1::basic_keypair<Backend>, sc
 template <>
 inline constexpr bool verifies_with_v<curves::secp256k1::public_key, ecdsa_sha256_t> = true;
 
+/** A secp256k1 public key verifies BIP340's Schnorr, through its x-only form. */
+template <>
+inline constexpr bool verifies_with_v<curves::secp256k1::public_key, schnorr_t> = true;
+
 /**
  * A BIP340 x-only key, its 32 bytes, verifies `schnorr`: any bytes that convert to
  * `std::span<std::uint8_t const, 32>`, an array of 32 bytes or a span of that fixed size; its
@@ -1590,6 +1673,13 @@ template <>
 inline constexpr bool has_verifier_v<ecdsa_sha256_t, curves::secp256k1::public_key> = true;
 
 /**
+ * `crypto::verify` of `schnorr` against a secp256k1 public key is secp256k1's, so that the
+ * catch-all steps aside.
+ */
+template <>
+inline constexpr bool has_verifier_v<schnorr_t, curves::secp256k1::public_key> = true;
+
+/**
  * `crypto::verify` of `schnorr` against 32 bytes is secp256k1's, so that the catch-all steps
  * aside.
  *
@@ -1600,5 +1690,11 @@ template <class Key>
 inline constexpr bool has_verifier_v<schnorr_t, Key> = true;
 
 }  // namespace webcpp::crypto::detail
+
+// The key pair contract (design D8), on the family's one backend, which this header includes.
+static_assert(
+    ::webcpp::crypto::keypair<
+        ::webcpp::crypto::curves::secp256k1::basic_keypair<::webcpp::crypto::backends::secp256k1>>,
+    "webcpp::crypto: secp256k1's key pair meets crypto::keypair.");
 
 #endif  // WEBCPP_CRYPTO_CURVES_SECP256K1_HPP

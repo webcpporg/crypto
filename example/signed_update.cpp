@@ -69,17 +69,18 @@ int main() {
         return 1;
     }
     // The compressed public key (33 bytes) is what the program ships with.
-    auto const shipped_key = publisher->public_key();
+    auto const publisher_public = publisher->public_key();
     std::string update = "update v2.1 payload";
     auto const signature = publisher->sign(crypto::ecdsa_sha256, bytes_of(update));
-    if (!shipped_key || !signature) {
+    if (!publisher_public || !signature) {
         return 1;
     }
+    auto const shipped_key = publisher_public->compressed();
 
     // tag::verify[]
-    // The program parses the key it ships with once, then checks the signature against the bytes
+    // The program makes the key it ships with once, then checks the signature against the bytes
     // it downloaded, which crypto::verify hashes with SHA-256.
-    auto const publisher_key = secp256k1::parse_public_key(*shipped_key);
+    auto const publisher_key = secp256k1::public_key::make(shipped_key);
     if (!publisher_key ||
         !crypto::verify(crypto::ecdsa_sha256, *signature, bytes_of(update), *publisher_key)) {
         return 1;

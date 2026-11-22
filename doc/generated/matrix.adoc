@@ -231,7 +231,7 @@
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_recovery+`
 
-|`+curves::secp256k1::public_key+`, `+parse_public_key+`, `+serialize_public_key+`
+|`+curves::secp256k1::public_key+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_keys+`
@@ -522,7 +522,7 @@ The same, by target: the backends each operation runs on.
 |libsecp256k1
 |libsecp256k1
 
-|`+curves::secp256k1::public_key+`, `+parse_public_key+`, `+serialize_public_key+`
+|`+curves::secp256k1::public_key+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1

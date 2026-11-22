@@ -26,7 +26,8 @@
 //   to the loop (which then runs, or is destroyed without running) or has no executor of its own,
 //   and the signal emitted after it reaches nothing.
 // - heavy_tokens: a callback without an executor of its own (completing on the pool), use_future
-//   (in the build with exceptions, a refusal thrown as system_error), deferred and as_tuple.
+//   (in the build with exceptions, a refusal thrown as system_error), deferred and as_tuple; and
+//   a type-erased work executor (any_io_executor), whose job falls back to std::allocator.
 // - heavy_allocator: the handler's associated allocator, bound by bind_allocator, holds the
 //   operation's state and every completion, and gets every block back before the handler runs, on
 //   each way an operation completes; the job queued in the pool is the work executor's, given
@@ -39,6 +40,7 @@
 
 #include "support/counting.hpp"
 
+#include <webcpp/asio/any_io_executor.hpp>
 #include <webcpp/asio/as_tuple.hpp>
 #include <webcpp/asio/bind_cancellation_slot.hpp>
 #include <webcpp/asio/bind_executor.hpp>
@@ -69,6 +71,7 @@
 #include <memory>
 #include <thread>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #ifndef WEBCPP_CRYPTO_HAS_THREADS
@@ -282,7 +285,6 @@ void heavy_guard_refused(asio::io_context& loop) {
     held_pool held;
     int const before = runs();
     seen refused;
-    refused.value = key{};
     async_slow(held.pool.get_executor(), 0, recorder(loop, refused));
     BOOST_TEST_EQ(refused.calls, 0);
     loop.restart();
@@ -486,6 +488,20 @@ void heavy_tokens(asio::io_context& loop) {
     BOOST_TEST_EQ(deferred.calls, 1);
     BOOST_TEST(!deferred.code);
     BOOST_TEST(all_bytes(deferred.value, 3));
+
+    // A type-erased work executor, which does not answer the allocator query: the job's storage
+    // is then Asio's recycling std::allocator<void>.
+    static_assert(std::is_same_v<crypto::detail::heavy_job_allocator_t<asio::any_io_executor>,
+                                 std::allocator<void>>);
+    asio::any_io_executor const erased_work(pool.get_executor());
+    seen erased;
+    async_slow(erased_work, 6, recorder(loop, erased));
+    loop.restart();
+    loop.run();  // lint-run: the test's event loop
+    BOOST_TEST_EQ(erased.calls, 1);
+    BOOST_TEST(!erased.code);
+    BOOST_TEST(erased.thread == caller_thread);
+    BOOST_TEST(all_bytes(erased.value, 6));
 
     int tuples = 0;
     async_slow(pool.get_executor(), 4,

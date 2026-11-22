@@ -167,12 +167,33 @@ struct heavy_value<void> {};
  *
  * @tparam WorkExecutor The work executor.
  */
+template <class WorkExecutor, bool = webcpp::asio::can_query_v<
+                                  WorkExecutor const&, webcpp::asio::execution::allocator_t<void>>>
+struct heavy_job_allocator_of {
+    /** An executor that does not answer the query: Asio's recycling `std::allocator<void>`. */
+    using type = std::allocator<void>;
+};
+
+/**
+ * The allocator of a work executor that answers the query, named only then.
+ *
+ * @tparam WorkExecutor The work executor.
+ */
 template <class WorkExecutor>
-using heavy_job_allocator_t = std::conditional_t<
-    webcpp::asio::can_query_v<WorkExecutor const&, webcpp::asio::execution::allocator_t<void>>,
-    std::decay<webcpp::asio::query_result_t<WorkExecutor const&,
-                                            webcpp::asio::execution::allocator_t<void>>>,
-    std::type_identity<std::allocator<void>>>::type;
+struct heavy_job_allocator_of<WorkExecutor, true> {
+    /** The executor's own allocator. */
+    using type =
+        std::decay_t<webcpp::asio::query_result_t<WorkExecutor const&,
+                                                  webcpp::asio::execution::allocator_t<void>>>;
+};
+
+/**
+ * The allocator of a heavy operation's job, as @ref heavy_job_allocator_of chooses it.
+ *
+ * @tparam WorkExecutor The work executor.
+ */
+template <class WorkExecutor>
+using heavy_job_allocator_t = heavy_job_allocator_of<WorkExecutor>::type;
 
 /**
  * The work executor's allocator, for its job.
@@ -654,6 +675,9 @@ auto run_on_work(WorkExecutor const& work, Guards guards, Work run, CompletionTo
                   "webcpp::crypto: a heavy operation's guards return boost::system::result<void>");
     static_assert(std::is_nothrow_invocable_v<Work&>,
                   "webcpp::crypto: a heavy operation's call reports its errors as values");
+    using value_type = completion_of<std::invoke_result_t<Work&>>::value_type;
+    static_assert(std::is_void_v<value_type> || std::is_nothrow_move_constructible_v<value_type>,
+                  "webcpp::crypto: a heavy operation's value moves without failing");
     using signature = completion_of<std::invoke_result_t<Work&>>::type;
     return webcpp::asio_backend::async_initiate<CompletionToken, signature>(
         heavy_initiation{}, token, work, std::move(guards), std::move(run));

@@ -179,8 +179,9 @@ public:
     }
 
     /**
-     * Verifies an ECDSA signature over SHA-256 with this key: `crypto::verify(crypto::ecdsa_sha256,
-     * signature, input, key)`, of which it is the member form, with the same work, results and
+     * Verifies an ECDSA signature over SHA-256 with this key:
+     * `crypto::verify(crypto::ecdsa_sha256, signature, input, key)`, of which it is the member
+     * form, with the same work, results and
      * refusals.
      *
      * A high S and a low S are both accepted, as FIPS 186-5 and WebCrypto accept them; a protocol
@@ -373,8 +374,9 @@ public:
      * @tparam CompletionToken Any completion token for the signature `token` states.
      * @param executor The executor the completion is posted to.
      * @param secret_scalar 32 bytes, big-endian, the caller's until the completion.
-     * @param token The completion token, of signature `void(boost::system::error_code,
-     * basic_keypair)`; on an error the key pair is empty, and every member refuses with
+     * @param token The completion token, of signature
+     * `void(boost::system::error_code, basic_keypair)`; on an error the key pair is empty, and
+     * every member refuses with
      * `invalid_state` (`invalid_key_size`, `invalid_secret_key`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
@@ -388,13 +390,15 @@ public:
      * `crypto::async_generate<basic_keypair>(executor, token)`, which calls it.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
-     * it, with `<library>/webcpp/asio//asio` in its Jamfile.
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
+     * "deduced return type used before it is defined".
      *
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
      * @tparam CompletionToken Any completion token for the signature `token` states.
      * @param executor The executor the completion is posted to.
-     * @param token The completion token, of signature `void(boost::system::error_code,
-     * basic_keypair)`; on an error the key pair is empty (`entropy_unavailable`,
+     * @param token The completion token, of signature
+     * `void(boost::system::error_code, basic_keypair)`; on an error the key pair is empty
+     * (`entropy_unavailable`,
      * `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
@@ -526,8 +530,9 @@ public:
      * @param executor The executor the completion is posted to.
      * @param scheme `crypto::ecdsa_sha256`.
      * @param input The message, hashed with SHA-256, or `crypto::prehashed{digest}`.
-     * @param token The completion token, of signature `void(boost::system::error_code,
-     * std::array<std::uint8_t, 64>)`: r then s, S low; on an error 64 zeros (`invalid_state`,
+     * @param token The completion token, of signature
+     * `void(boost::system::error_code, std::array<std::uint8_t, 64>)`: r then s, S low; on an error
+     * 64 zeros (`invalid_state`,
      * `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
@@ -577,14 +582,16 @@ public:
      * The key pair and the peer's key are the caller's until the completion.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
-     * it, with `<library>/webcpp/asio//asio` in its Jamfile.
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
+     * "deduced return type used before it is defined".
      *
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
      * @tparam CompletionToken Any completion token for the signature `token` states.
      * @param executor The executor the completion is posted to.
      * @param peer The peer's public key, validated when it was made.
-     * @param token The completion token, of signature `void(boost::system::error_code,
-     * crypto::secret<32>)`: the shared x, big-endian; on an error a secret of zeros
+     * @param token The completion token, of signature
+     * `void(boost::system::error_code, crypto::secret<32>)`: the shared x, big-endian; on an error
+     * a secret of zeros
      * (`invalid_state`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */

@@ -284,8 +284,9 @@ namespace webcpp::crypto::curves::secp256k1::silent_payments {
  * @param taproot_inputs The key pairs of the Taproot inputs.
  * @param plain_inputs The key pairs of the other eligible inputs.
  * @param output_keys One per recipient, where the outputs' x-only keys go.
- * @param pointer_space At least `send_workspace_size(recipients.size(), taproot_inputs.size(),
- * plain_inputs.size())` bytes; zero when the function returns, whatever it returns.
+ * @param pointer_space At least
+ * `send_workspace_size(recipients.size(), taproot_inputs.size(), plain_inputs.size())` bytes; zero
+ * when the function returns, whatever it returns.
  * @return Nothing; `invalid_input_size` (no recipient, no input at all, outputs not one per
  * recipient, a short workspace, more than `group_limit` recipients sharing a scan key, which
  * webcpp counts only when there are more recipients than that); `invalid_state` (a moved-from
@@ -461,8 +462,9 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
  * @param smallest_outpoint The smallest outpoint of all the transaction's inputs, serialised.
  * @param taproot_input_keys The Taproot inputs' x-only keys.
  * @param plain_input_keys The other eligible inputs' keys.
- * @param pointer_space At least `summary_workspace_size(taproot_input_keys.size(),
- * plain_input_keys.size())` bytes; zero when the function returns, whatever it returns.
+ * @param pointer_space At least
+ * `summary_workspace_size(taproot_input_keys.size(), plain_input_keys.size())` bytes; zero when the
+ * function returns, whatever it returns.
  * @return The summary; `invalid_input_size` for no input key at all or a short workspace (an
  * `ARG_CHECK` in libsecp256k1); `invalid_public_key` when they sum to infinity or a Taproot
  * key does not parse (not a silent payment).

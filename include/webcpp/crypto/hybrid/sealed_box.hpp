@@ -33,8 +33,9 @@
 namespace webcpp::crypto::detail {
 
 /**
- * The work of sealed boxes on a backend, whose specialisation provides `seal(recipient_public_key,
- * message, out)` and `open(recipient_public_key, recipient_secret_key, sealed, out)`; the
+ * The work of sealed boxes on a backend, whose specialisation provides
+ * `seal(recipient_public_key, message, out)` and
+ * `open(recipient_public_key, recipient_secret_key, sealed, out)`; the
  * primary refuses (defined at the end of this header).
  */
 template <class Family, class Backend>

@@ -395,8 +395,9 @@ public:
      * @tparam CompletionToken Any completion token for the signature `token` states.
      * @param executor The executor the completion is posted to.
      * @param seed 32 bytes, the caller's until the completion.
-     * @param token The completion token, of signature `void(boost::system::error_code,
-     * basic_keypair)`; on an error the key pair is empty, and every member refuses with
+     * @param token The completion token, of signature
+     * `void(boost::system::error_code, basic_keypair)`; on an error the key pair is empty, and
+     * every member refuses with
      * `invalid_state` (`invalid_key_size`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
@@ -410,13 +411,15 @@ public:
      * `crypto::async_generate<basic_keypair>(executor, token)`, which calls it.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
-     * it, with `<library>/webcpp/asio//asio` in its Jamfile.
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
+     * "deduced return type used before it is defined".
      *
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
      * @tparam CompletionToken Any completion token for the signature `token` states.
      * @param executor The executor the completion is posted to.
-     * @param token The completion token, of signature `void(boost::system::error_code,
-     * basic_keypair)`; on an error the key pair is empty (`entropy_unavailable`,
+     * @param token The completion token, of signature
+     * `void(boost::system::error_code, basic_keypair)`; on an error the key pair is empty
+     * (`entropy_unavailable`,
      * `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
@@ -542,8 +545,9 @@ public:
      * @param executor The executor the completion is posted to.
      * @param scheme `crypto::eddsa`.
      * @param message Any bytes.
-     * @param token The completion token, of signature `void(boost::system::error_code,
-     * std::array<std::uint8_t, 64>)`; on an error 64 zeros (`invalid_state`, `backend_failure`).
+     * @param token The completion token, of signature
+     * `void(boost::system::error_code, std::array<std::uint8_t, 64>)`; on an error 64 zeros
+     * (`invalid_state`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class Scheme, class Input, class CompletionToken>

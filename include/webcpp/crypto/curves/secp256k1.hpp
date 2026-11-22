@@ -1385,8 +1385,8 @@ namespace webcpp::crypto::curves::secp256k1 {
 
 /**
  * The public key that made a recoverable signature (`secp256k1_ecdsa_recover`), as Ethereum
- * identifies a transaction's signer: the same inputs as `sign(crypto::ecdsa_sha256_recoverable,
- * input)`.
+ * identifies a transaction's signer: the same inputs as
+ * `sign(crypto::ecdsa_sha256_recoverable, input)`.
  *
  * Tip: recovery finds some key for almost any signature; the signature is the expected
  * signer's only when the key recovered is the one expected.

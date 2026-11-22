@@ -520,8 +520,8 @@ auto async_generate(Executor const& executor, CompletionToken&& token) {
  * Seals a message in place, asynchronously: `aead.seal` run when the operation is initiated, its
  * result posted to `executor`.
  *
- * The free form of `aead.async_seal(executor, iv_bytes, additional_data_bytes, data_bytes,
- * token)`, which it calls.
+ * The free form of
+ * `aead.async_seal(executor, iv_bytes, additional_data_bytes, data_bytes, token)`, which it calls.
  *
  * `aead` and the spans are the caller's until the completion: a synchronous backend reads and
  * writes them before the call returns, the browser's later. `data_bytes` holds the ciphertext at
@@ -536,8 +536,8 @@ auto async_generate(Executor const& executor, CompletionToken&& token) {
  * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key.
  * @param additional_data_bytes Authenticated, not encrypted.
  * @param data_bytes The message.
- * @param token The completion token, of signature `void(boost::system::error_code,
- * Gcm::result_type)`: the tag; on an error the zeroed tag.
+ * @param token The completion token, of signature
+ * `void(boost::system::error_code, Gcm::result_type)`: the tag; on an error the zeroed tag.
  * @return What the completion token's `async_result` gives.
  */
 template <class Gcm, class Executor, class CompletionToken>
@@ -559,8 +559,9 @@ auto async_seal(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
  * Opens a message in place, asynchronously: `aead.open` run when the operation is initiated, its
  * result posted to `executor`.
  *
- * The free form of `aead.async_open(executor, iv_bytes, additional_data_bytes, data_bytes,
- * tag_bytes, token)`, which it calls.
+ * The free form of
+ * `aead.async_open(executor, iv_bytes, additional_data_bytes, data_bytes, tag_bytes, token)`, which
+ * it calls.
  *
  * `aead` and the spans are the caller's until the completion. `data_bytes` holds the plaintext at
  * a successful completion; a wrong tag (`authentication_failed`) or a backend's failure zeroes
@@ -646,8 +647,9 @@ auto async_sign(Executor const& executor, Keypair const& key_pair, Scheme scheme
  * `crypto::verify<Backend>(crypto::eddsa, signature, message, public_key)` run when the operation
  * is initiated, its result posted to `executor`.
  *
- * The free form of `public_key.async_verify<Backend>(executor, crypto::eddsa, signature, message,
- * token)`, which it calls, and which runs the key's `verify`, with the same work.
+ * The free form of
+ * `public_key.async_verify<Backend>(executor, crypto::eddsa, signature, message, token)`, which it
+ * calls, and which runs the key's `verify`, with the same work.
  *
  * The input is checked as `crypto::can_verify` checks it, before anything else: a marker stops
  * the build (Ed25519 signs the message itself). The signature's and the message's bytes are the
@@ -715,8 +717,9 @@ auto async_verify(Executor const& executor, eddsa_t scheme, std::span<std::uint8
  * the message is hashed with SHA-256, as WebCrypto's ECDSA with SHA-256 verifies, or
  * `crypto::prehashed{digest}` gives its digest.
  *
- * The free form of `public_key.async_verify(executor, crypto::ecdsa_sha256, signature, input,
- * token)`, which it calls, and which runs the key's `verify`, with the same work.
+ * The free form of
+ * `public_key.async_verify(executor, crypto::ecdsa_sha256, signature, input, token)`, which it
+ * calls, and which runs the key's `verify`, with the same work.
  *
  * A high S and a low S are both accepted, as `crypto::verify` and WebCrypto accept them. The
  * input is checked as `crypto::can_verify` checks it, before anything else: a marker on a backend

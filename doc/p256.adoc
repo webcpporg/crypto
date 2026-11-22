@@ -83,6 +83,49 @@ coordinates, as a JSON Web Key carries them, and `uncompressed()` writes the
 the field prime p, a point off the curve. A `public_key` holds nothing secret
 and is copied freely.
 
+Each operation has its four forms, the member and its free form, synchronous
+and asynchronous, with the same work, errors and refusals
+(<<crypto-curves-four-forms>>); `public_key::make` and
+`crypto::make<public_key>` make the public key, synchronously only. An
+asynchronous form needs `<webcpp/crypto/async.hpp>` and
+`<library>/webcpp/asio//asio` in the Jamfile:
+
+.P-256's operations in their four forms
+[cols="1,3,3",options="header"]
+|===
+| Operation | Synchronous: the member; its free form | Asynchronous: the member; its free form
+
+| Make
+| `keypair::make(scalar)` +
+`crypto::make<keypair>(scalar)`
+| `keypair::async_make(executor, scalar, token)` +
+`crypto::async_make<keypair>(executor, scalar, token)`
+
+| Generate
+| `keypair::generate()` +
+`crypto::generate<keypair>()`
+| `keypair::async_generate(executor, token)` +
+`crypto::async_generate<keypair>(executor, token)`
+
+| Sign
+| `key_pair.sign(crypto::ecdsa_sha256, input)` +
+`crypto::sign(key_pair, crypto::ecdsa_sha256, input)`
+| `key_pair.async_sign(executor, crypto::ecdsa_sha256, input, token)` +
+`crypto::async_sign(executor, key_pair, crypto::ecdsa_sha256, input, token)`
+
+| Verify
+| `public_key.verify(crypto::ecdsa_sha256, signature, input)` +
+`crypto::verify(crypto::ecdsa_sha256, signature, input, public_key)`
+| `public_key.async_verify(executor, crypto::ecdsa_sha256, signature, input, token)` +
+`crypto::async_verify(executor, crypto::ecdsa_sha256, signature, input, public_key, token)`
+
+| Agree
+| `key_pair.agree(peer)` +
+`crypto::agree(key_pair, peer)`
+| `key_pair.async_agree(executor, peer, token)` +
+`crypto::async_agree(executor, key_pair, peer, token)`
+|===
+
 include::generated/backends-p256_keypair.adoc[]
 
 include::generated/backends-p256_public_key.adoc[]

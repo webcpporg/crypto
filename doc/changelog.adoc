@@ -25,5 +25,5 @@ of every version are on webcpp's index page.
 * Added backends::sodium on /third_party//sodium, shared with webcpp::hash, every backend's link-time canary and C suite, and ciphers::aead: chacha20_poly1305 (also BearSSL, OpenSSL), the original form, xchacha20_poly1305, failed seals and opens zeroing data.
 * Added ciphers::secretbox and secretbox_xchacha20poly1305, without additional data, hybrid::box, box_xchacha20poly1305 and sealed_box (failed seals and opens zeroing data), and curves::x25519::kx_keypair (crypto_kx) on libsodium, refusing peer keys of small order.
 * Added the page: chapters per namespace and use case, the memory option's guide, generated tables, Jamfiles, messages, llms.txt, release-built sizes and throughput, X25519 timing findings (wasip2, DIT).
-* Added signing.hpp and keypair.hpp: sign(scheme, input) and crypto::verify(scheme, signature, input, key), async on Ed25519 and P-256, digests only as crypto::prehashed; typed public keys, secret(), ECDH as agree.
+* Added signing.hpp, keypair.hpp and make.hpp: sign(scheme, input) and crypto::verify, digests only as crypto::prehashed; typed public keys, secret(), agree; member and free forms, synchronous and asynchronous on Ed25519, P-256, AES-GCM.
 // end::unreleased[]

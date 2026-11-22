@@ -40,6 +40,41 @@ that hash the same way; `agree_point` gives the point itself
 Each call names its scheme, as on every curve, and the key pair keeps the
 contract every curve's keeps (<<crypto-curves-signatures>>).
 
+Each operation has the member and its free form, with the same work, errors
+and refusals (<<crypto-curves-four-forms>>). It has no asynchronous form:
+secp256k1 is not in WebCrypto, whose algorithms the asynchronous family
+follows, and its calls are cheap enough for a handler. `sign` and
+`crypto::sign` take the 32 bytes of hedged ECDSA's extra entropy or BIP 340's
+auxiliary randomness after the input; `public_key.verify` takes
+`crypto::ecdsa_sha256` and `crypto::schnorr`, and `crypto::verify` with
+`crypto::schnorr` also takes the 32-byte x-only key:
+
+.secp256k1's operations in their two forms
+[cols="1,3,3",options="header"]
+|===
+| Operation | The member | Its free form
+
+| Make
+| `keypair::make(secret_key)`
+| `crypto::make<keypair>(secret_key)`
+
+| Generate
+| `keypair::generate()`
+| `crypto::generate<keypair>()`
+
+| Sign
+| `key_pair.sign(scheme, input)`
+| `crypto::sign(key_pair, scheme, input)`
+
+| Verify
+| `public_key.verify(scheme, signature, input)`
+| `crypto::verify(scheme, signature, input, public_key)`
+
+| Agree
+| `key_pair.agree(peer)`
+| `crypto::agree(key_pair, peer)`
+|===
+
 A `keypair` is made from a 32-byte secret key with `make(secret)`, or
 generated with `generate()`, which draws the secret key from `random_device`
 and draws again, at most four times in all, for 32 bytes that are not one.

@@ -186,3 +186,9 @@ webcpp.example async_seal.cpp : <library>/webcpp/asio//asio
   <library>/webcpp/crypto//gcm-default ;
 webcpp.example async_sign.cpp : <library>/webcpp/asio//asio
   <library>/webcpp/crypto//ed25519-default ;
+
+# One operation's four forms (design D9): P-256's key pair made, a message
+# signed and the signature verified by the member, its free form, the
+# asynchronous member and its free form, on the default; the four agree.
+webcpp.example four_forms.cpp : <library>/webcpp/asio//asio
+  <library>/webcpp/crypto//p256-default ;

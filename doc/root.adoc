@@ -14,9 +14,11 @@ key's standard form becomes text and back (`pem`, on libsodium;
 <<crypto-key-formats>>). It also declares, for a native program on OpenSSL that
 turns the memory option on, the resource every allocation of OpenSSL's goes to
 (`openssl_memory_resource`, <<crypto-memory-openssl>>). And it holds what every
-curve's signatures share: the schemes, the `prehashed` marker and
-`crypto::verify` (`<webcpp/crypto/signing.hpp>`), and the key pair contract,
-the concept `crypto::keypair` (`<webcpp/crypto/keypair.hpp>`;
-<<crypto-curves-signatures>>).
+curve's signatures share: the schemes, the `prehashed` marker, `crypto::sign`
+and `crypto::verify` (`<webcpp/crypto/signing.hpp>`), and the key pair
+contract, the concept `crypto::keypair`, with `crypto::agree`
+(`<webcpp/crypto/keypair.hpp>`; <<crypto-curves-signatures>>); and the free
+forms that make an object by its type, `crypto::make` and `crypto::generate`
+(`<webcpp/crypto/make.hpp>`; <<crypto-curves-four-forms>>).
 
 include::generated/namespace-root.adoc[]

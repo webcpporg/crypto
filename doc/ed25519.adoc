@@ -39,6 +39,44 @@ makes one from them, checking their size alone, and `bytes()` gives them back.
 Whether the point is canonical and not of small order is the verification
 policy's to judge, so a key that `crypto::verify` refuses can still be made.
 
+Each operation has its four forms, the member and its free form, synchronous
+and asynchronous, with the same work, errors and refusals
+(<<crypto-curves-four-forms>>); `public_key::make(bytes)` and
+`crypto::make<public_key>(bytes)` make the public key. Verification takes the
+policy as an optional last argument, before the token in the asynchronous
+forms. An asynchronous form needs `<webcpp/crypto/async.hpp>` and
+`<library>/webcpp/asio//asio` in the Jamfile:
+
+.Ed25519's operations in their four forms
+[cols="1,3,3",options="header"]
+|===
+| Operation | Synchronous: the member; its free form | Asynchronous: the member; its free form
+
+| Make
+| `keypair::make(seed)` +
+`crypto::make<keypair>(seed)`
+| `keypair::async_make(executor, seed, token)` +
+`crypto::async_make<keypair>(executor, seed, token)`
+
+| Generate
+| `keypair::generate()` +
+`crypto::generate<keypair>()`
+| `keypair::async_generate(executor, token)` +
+`crypto::async_generate<keypair>(executor, token)`
+
+| Sign
+| `key_pair.sign(crypto::eddsa, message)` +
+`crypto::sign(key_pair, crypto::eddsa, message)`
+| `key_pair.async_sign(executor, crypto::eddsa, message, token)` +
+`crypto::async_sign(executor, key_pair, crypto::eddsa, message, token)`
+
+| Verify
+| `public_key.verify(crypto::eddsa, signature, message)` +
+`crypto::verify(crypto::eddsa, signature, message, public_key)`
+| `public_key.async_verify(executor, crypto::eddsa, signature, message, token)` +
+`crypto::async_verify(executor, crypto::eddsa, signature, message, public_key, token)`
+|===
+
 *Ed25519ph* signs the SHA-512 of a message instead of the message: a program
 that signs a large file reads it in pieces, gives each to `update`, and signs
 once at the end. Its type names the hash, `ph<webcpp::hash::sha2_512>`, which

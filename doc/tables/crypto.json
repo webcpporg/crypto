@@ -339,7 +339,8 @@
         {
             "id": "gcm",
             "family": "gcm",
-            "functions": ["make", "seal", "open", "begin_seal", "update", "result", "begin_open",
+            "functions": ["make", "gcm::async_make", "seal", "gcm::async_seal", "open",
+                          "gcm::async_open", "begin_seal", "update", "result", "begin_open",
                           "authenticate", "verify", "decrypt", "end_open"],
             "namespace": "ciphers",
             "api": "ciphers::gcm, aes128_gcm, aes256_gcm",
@@ -369,6 +370,7 @@
         {
             "id": "verify",
             "family": "secp256k1",
+            "free": true,
             "functions": ["verify", "recover"],
             "namespace": "curves",
             "api": "crypto::verify, curves::secp256k1::recover",
@@ -413,7 +415,9 @@
         {
             "id": "ed25519_keypair",
             "family": "ed25519",
-            "functions": ["basic_keypair::make", "generate", "basic_keypair::public_key", "secret", "sign", "x25519_secret"],
+            "functions": ["basic_keypair::make", "generate", "basic_keypair::async_make",
+                          "basic_keypair::async_generate", "basic_keypair::public_key", "secret",
+                          "sign", "basic_keypair::async_sign", "x25519_secret"],
             "namespace": "curves",
             "api": "curves::ed25519::keypair",
             "header": "<webcpp/crypto/curves/ed25519.hpp>",
@@ -427,7 +431,7 @@
         {
             "id": "ed25519_public_key",
             "family": "ed25519",
-            "functions": ["public_key::make", "bytes"],
+            "functions": ["public_key::make", "bytes", "public_key::verify", "public_key::async_verify"],
             "namespace": "curves",
             "api": "curves::ed25519::public_key",
             "header": "<webcpp/crypto/curves/ed25519.hpp>",
@@ -664,7 +668,7 @@
         {
             "id": "public_key",
             "family": "secp256k1",
-            "functions": ["public_key::make", "compressed", "uncompressed", "xonly"],
+            "functions": ["public_key::make", "compressed", "uncompressed", "xonly", "public_key::verify"],
             "namespace": "curves",
             "api": "curves::secp256k1::public_key",
             "header": "<webcpp/crypto/curves/secp256k1.hpp>",
@@ -734,7 +738,8 @@
         {
             "id": "p256_keypair",
             "family": "p256",
-            "functions": ["basic_keypair::make", "generate", "public_key", "secret"],
+            "functions": ["basic_keypair::make", "generate", "basic_keypair::async_make",
+                          "basic_keypair::async_generate", "public_key", "secret"],
             "namespace": "curves",
             "api": "curves::p256::keypair",
             "header": "<webcpp/crypto/curves/p256.hpp>",
@@ -748,7 +753,8 @@
         {
             "id": "p256_public_key",
             "family": "p256",
-            "functions": ["basic_public_key::make", "uncompressed"],
+            "functions": ["basic_public_key::make", "uncompressed", "basic_public_key::verify",
+                          "basic_public_key::async_verify"],
             "namespace": "curves",
             "api": "curves::p256::public_key",
             "header": "<webcpp/crypto/curves/p256.hpp>",
@@ -763,7 +769,8 @@
             "id": "p256_ecdsa",
             "family": "p256",
             "free": true,
-            "functions": ["basic_keypair::sign", "verify", "to_der", "from_der", "normalize_low_s", "is_low_s"],
+            "functions": ["basic_keypair::sign", "basic_keypair::async_sign", "verify", "to_der",
+                          "from_der", "normalize_low_s", "is_low_s"],
             "namespace": "curves",
             "api": "curves::p256::keypair::sign; crypto::verify, to_der, from_der, normalize_low_s, is_low_s",
             "header": "<webcpp/crypto/curves/p256.hpp>",
@@ -777,7 +784,7 @@
         {
             "id": "p256_ecdh",
             "family": "p256",
-            "functions": ["basic_keypair::agree"],
+            "functions": ["basic_keypair::agree", "basic_keypair::async_agree"],
             "namespace": "curves",
             "api": "curves::p256::keypair::agree",
             "header": "<webcpp/crypto/curves/p256.hpp>",
@@ -1187,8 +1194,9 @@
                 ["`error`", "Telling failures apart", "`<webcpp/crypto/error.hpp>`", "its values are the errors", "none", "you branch on a failure: forged data, a wrong size, no entropy"],
                 ["`pem`", "A key's SPKI or PKCS#8 as text, to paste, store or exchange with OpenSSL", "`<webcpp/crypto/pem.hpp>`", "`invalid_encoding`, `invalid_input_size`", "{rfc7468}, {libsodium-base64}", "a key goes to or comes from a file, a form or a tool as `-----BEGIN PUBLIC KEY-----` text; with the `encode_spki` and `encode_pkcs8` of `curves::ed25519`, `curves::x25519`, `curves::secp256k1` or `curves::p256`"],
                 ["`openssl_memory_resource`", "Keeping every allocation of OpenSSL's in the program's own resource, natively", "`<webcpp/crypto/backends/openssl.hpp>`", "`memory_functions_refused`, `memory_functions_not_installed`", "{openssl-mem}", "a native program on OpenSSL must allocate only from its own arena; on WebAssembly, BearSSL allocates nothing"],
-                ["`eddsa`, `ecdsa_sha256`, `ecdsa_sha256_recoverable`, `schnorr`, `prehashed`, `can_sign`, `can_verify`, `verify`: Signatures", "Naming the scheme of every signature, and a digest as a digest, on every curve", "`<webcpp/crypto/signing.hpp>`", "`verify`: `invalid_signature`, and `invalid_public_key` for 32 x-only bytes that are no point; `sign`: `invalid_state`, `entropy_unavailable` (Schnorr's drawn randomness), `backend_failure`; a scheme and an input that do not go together stop the build", "{rfc8032}, {fips186-5}, {bip340}, {webcrypto}", "a key pair signs with `sign(scheme, input)` and a signature is checked with `verify(scheme, signature, input, public_key)`; a digest computed elsewhere, such as a Bitcoin sighash, goes in marked as `prehashed`, never as a bare span"],
-                ["`keypair`: The key pair contract", "Code written once for every curve's key pair", "`<webcpp/crypto/keypair.hpp>`", "none: a concept, checked at compile time", "{rfc8032}, {fips186-5}, {sec1}", "a template takes any curve's key pair: `make`, `generate`, a typed `public_key()` that `verify` takes, `secret()`, and `sign(scheme, input)`"]
+                ["`eddsa`, `ecdsa_sha256`, `ecdsa_sha256_recoverable`, `schnorr`, `prehashed`, `can_sign`, `can_verify`, `sign`, `verify`: Signatures", "Naming the scheme of every signature, and a digest as a digest, on every curve", "`<webcpp/crypto/signing.hpp>`", "`verify`: `invalid_signature`, and `invalid_public_key` for 32 x-only bytes that are no point; `sign`: `invalid_state`, `entropy_unavailable` (Schnorr's drawn randomness), `backend_failure`; a scheme and an input that do not go together stop the build", "{rfc8032}, {fips186-5}, {bip340}, {webcrypto}", "a key pair signs with `key_pair.sign(scheme, input)` or `sign(key_pair, scheme, input)`, and a signature is checked with `public_key.verify(scheme, signature, input)` or `verify(scheme, signature, input, public_key)`; a digest computed elsewhere, such as a Bitcoin sighash, goes in marked as `prehashed`, never as a bare span"],
+                ["`keypair`, `agree`: The key pair contract", "Code written once for every curve's key pair", "`<webcpp/crypto/keypair.hpp>`", "`keypair`: none, a concept checked at compile time; `agree`: what the key pair's `agree` returns, and a peer it does not take stops the build", "{rfc8032}, {fips186-5}, {sec1}", "a template takes any curve's key pair: `make`, `generate`, a typed `public_key()` that `verify` takes, `secret()`, and `sign(scheme, input)`; `agree(key_pair, peer)` is the free form of `key_pair.agree(peer)`"],
+                ["`make`, `generate`: Making by type", "Making a key pair, a public key or an AEAD from its bytes, or drawing a key pair, the type named once", "`<webcpp/crypto/make.hpp>`", "the member's: `make<A>(bytes)` returns what `A::make(bytes)` returns, `generate<K>()` what `K::generate()` returns", "none", "generic code makes any key pair, public key or AEAD by its type, `make<A>(bytes)`, or draws a key pair, `generate<K>()`; the free forms of the static members `make` and `generate`"]
             ]
         },
         "ciphers": {

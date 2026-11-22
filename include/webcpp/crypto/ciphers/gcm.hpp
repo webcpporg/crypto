@@ -322,8 +322,9 @@ public:
      * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key.
      * @param additional_data_bytes Authenticated, not encrypted.
      * @param data_bytes The message.
-     * @param token The completion token, of signature `void(boost::system::error_code,
-     * result_type)`: the tag; on an error the zeroed tag (`seal`'s errors).
+     * @param token The completion token, of signature
+     * `void(boost::system::error_code, result_type)`: the tag; on an error the zeroed tag (the
+     * errors of `seal`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
@@ -380,8 +381,8 @@ public:
 
     /**
      * Opens a message in place, asynchronously: `open` run when the operation is initiated, its
-     * result posted to `executor`; the member form of `crypto::async_open(executor, aead,
-     * iv_bytes, additional_data_bytes, data_bytes, tag_bytes, token)`, which calls it.
+     * result posted to `executor`; the member form of `crypto::async_open`, which calls it with the
+     * executor and the object before this function's arguments.
      *
      * The object and the spans are the caller's until the completion; `data_bytes` holds the
      * plaintext at a successful completion.

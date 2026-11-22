@@ -66,6 +66,8 @@ include::formats.adoc[]
 
 include::hybrid.adoc[]
 
+include::async.adoc[]
+
 include::choosing_backend.adoc[]
 
 include::backends.adoc[]

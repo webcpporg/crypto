@@ -37,6 +37,30 @@ The fix: On WASI the block cipher's default is ctaes: add `+/webcpp/crypto//aes_
 
 The fix: Name `+ciphers::aes256<backends::ctaes>+`, include `+<webcpp/crypto/backends/ctaes.hpp>+` and add `+/third_party//ctaes+`.
 
+|`+async_make_xchacha+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_make takes AES-GCM or a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the synchronous make for the others.+`
+
+The fix: Call the synchronous `+make+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
+
+|`+async_open_xchacha+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_open takes AES-GCM, the AEAD WebCrypto has: call open for the others.+`
+
+The fix: Call the AEAD's own `+open+`: only AES-GCM has `+async_open+`.
+
+|`+async_seal_xchacha+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_seal takes AES-GCM, the AEAD WebCrypto has: call seal for the others.+`
+
+The fix: Call the AEAD's own `+seal+`: only AES-GCM has `+async_seal+`.
+
+|`+async_sign_secp256k1+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the key pair's synchronous signing function for the others.+`
+
+The fix: Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's key pair has `+async_sign+`.
+
 |`+bearssl_not_linked+`
 |native, wasip2
 |`+webcpp::crypto: the backend BearSSL is used and not linked. In the program's Jamfile, add /third_party//bearssl beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)+`
@@ -887,6 +911,22 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+aes_on_bearssl+`
 |the compile
 |Name `+ciphers::aes256<backends::ctaes>+`, include `+<webcpp/crypto/backends/ctaes.hpp>+` and add `+/third_party//ctaes+`.
+
+|`+async_make_xchacha+`
+|the compile
+|Call the synchronous `+make+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
+
+|`+async_open_xchacha+`
+|the compile
+|Call the AEAD's own `+open+`: only AES-GCM has `+async_open+`.
+
+|`+async_seal_xchacha+`
+|the compile
+|Call the AEAD's own `+seal+`: only AES-GCM has `+async_seal+`.
+
+|`+async_sign_secp256k1+`
+|the compile
+|Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's key pair has `+async_sign+`.
 
 |`+bearssl_not_linked+`
 |the compile

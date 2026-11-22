@@ -97,8 +97,9 @@ namespace webcpp::crypto {
 
 /**
  * The backend of the asynchronous family when a call names none (ruling R-A4): the synchronous
- * function's, `default_backend_t<Family>`, on every target, Emscripten included. The browser's
- * backend is never a default: a program names it in the type to reach WebCrypto.
+ * function's, `default_backend_t<Family>`, on every target, Emscripten included.
+ *
+ * The browser's backend is never a default: a program names it in the type to reach WebCrypto.
  *
  * @tparam Family A family tag of `families` that has a default.
  */
@@ -224,12 +225,16 @@ inline constexpr bool refused_v = false;
 /**
  * Makes an AES-GCM object or an Ed25519 key pair from its key bytes, asynchronously:
  * `Algorithm::make(key_bytes)` run when the operation is initiated, its result posted to
- * `executor` (design D23). The key is read before the call returns on a synchronous backend,
+ * `executor` (design D23).
+ *
+ * The key is read before the call returns on a synchronous backend,
  * later on the browser's: it is the caller's until the completion.
  *
  * @tparam Algorithm A `ciphers::gcm<Cipher>` or a `curves::ed25519::basic_keypair<Backend>`, on
  * any backend that has it; the other algorithms crypto has are not in WebCrypto: call their
  * `make`.
+ * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam CompletionToken Any completion token for the signature `token` states.
  * @param executor The executor the completion is posted to.
  * @param key_bytes `Algorithm::key_size` bytes for AES-GCM, the seed's `seed_size` for a key pair.
  * @param token The completion token, of signature `void(boost::system::error_code, Algorithm)`;
@@ -264,6 +269,8 @@ auto async_make(Executor const& executor, std::span<std::uint8_t const> key_byte
  *
  * @tparam Keypair A `curves::ed25519::basic_keypair<Backend>`, by default the family's
  * `curves::ed25519::keypair`; the other key pairs are not in WebCrypto: call their `generate`.
+ * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam CompletionToken Any completion token for the signature `token` states.
  * @param executor The executor the completion is posted to.
  * @param token The completion token, of signature `void(boost::system::error_code, Keypair)`;
  * on an error the key pair is empty, and every member refuses with `invalid_state`
@@ -290,8 +297,8 @@ auto async_generate(Executor const& executor, CompletionToken&& token) {
 }
 
 /**
- * Seals a message in place, asynchronously: `aead.seal(iv_bytes, additional_data_bytes,
- * data_bytes)` run when the operation is initiated, its result posted to `executor`.
+ * Seals a message in place, asynchronously: `aead.seal` run when the operation is initiated, its
+ * result posted to `executor`.
  *
  * `aead` and the spans are the caller's until the completion: a synchronous backend reads and
  * writes them before the call returns, the browser's later. `data_bytes` holds the ciphertext at
@@ -299,6 +306,8 @@ auto async_generate(Executor const& executor, CompletionToken&& token) {
  * leaves it untouched, a backend's failure zeroes it, as `seal` does.
  *
  * @tparam Gcm A `ciphers::gcm<Cipher>`; the other AEADs are not in WebCrypto: call their `seal`.
+ * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam CompletionToken Any completion token for the signature `token` states.
  * @param executor The executor the completion is posted to.
  * @param aead The keyed object.
  * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key.
@@ -333,14 +342,16 @@ auto async_seal(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
 }
 
 /**
- * Opens a message in place, asynchronously: `aead.open(iv_bytes, additional_data_bytes,
- * data_bytes, tag_bytes)` run when the operation is initiated, its result posted to `executor`.
+ * Opens a message in place, asynchronously: `aead.open` run when the operation is initiated, its
+ * result posted to `executor`.
  *
  * `aead` and the spans are the caller's until the completion. `data_bytes` holds the plaintext at
  * a successful completion; a wrong tag (`authentication_failed`) or a backend's failure zeroes
  * it, a guard's refusal leaves it untouched, as `open` does.
  *
  * @tparam Gcm A `ciphers::gcm<Cipher>`; the other AEADs are not in WebCrypto: call their `open`.
+ * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam CompletionToken Any completion token for the signature `token` states.
  * @param executor The executor the completion is posted to.
  * @param aead The keyed object.
  * @param iv_bytes The IV of the seal.
@@ -378,17 +389,19 @@ auto async_open(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
 
 /**
  * Signs a message with an Ed25519 key pair, asynchronously: `key_pair.sign(message)` run when
- * the operation is initiated, its result posted to `executor`. `key_pair` and `message` are the
- * caller's until the completion.
+ * the operation is initiated, its result posted to `executor`.
+ *
+ * `key_pair` and `message` are the caller's until the completion.
  *
  * @tparam Keypair A `curves::ed25519::basic_keypair<Backend>`; the other key pairs are not in
  * WebCrypto: call their `sign`.
+ * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam CompletionToken Any completion token for the signature `token` states.
  * @param executor The executor the completion is posted to.
  * @param key_pair The key pair.
  * @param message Any bytes.
- * @param token The completion token, of signature `void(boost::system::error_code,
- * std::array<std::uint8_t, 64>)`: the signature; on an error 64 zeros (`invalid_state`,
- * `backend_failure`).
+ * @param token The completion token, of signature `void(error_code, signature)`, the signature
+ * a `std::array` of 64 bytes; on an error it is 64 zeros (`invalid_state`, `backend_failure`).
  * @return What the completion token's `async_result` gives.
  */
 template <class Keypair, class Executor, class CompletionToken>
@@ -415,11 +428,14 @@ auto async_sign(Executor const& executor, Keypair const& key_pair,
 
 /**
  * Verifies an Ed25519 signature, asynchronously: `curves::ed25519::verify<Policy, Backend>`
- * run when the operation is initiated, its result posted to `executor`. The spans are the
- * caller's until the completion.
+ * run when the operation is initiated, its result posted to `executor`.
+ *
+ * The spans are the caller's until the completion.
  *
  * @tparam Policy The verification policy; `curves::ed25519::strict` is the only one declared.
  * @tparam Backend The backend; by default the asynchronous family's.
+ * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam CompletionToken Any completion token for the signature `token` states.
  * @param executor The executor the completion is posted to.
  * @param public_key 32 bytes.
  * @param message The signed bytes.
@@ -448,10 +464,13 @@ auto async_verify(Executor const& executor, std::span<std::uint8_t const> public
 
 /**
  * Agrees an X25519 shared secret, asynchronously: `curves::x25519::agree<Backend>` run when the
- * operation is initiated, its result posted to `executor`. The spans are the caller's until the
- * completion.
+ * operation is initiated, its result posted to `executor`.
+ *
+ * The spans are the caller's until the completion.
  *
  * @tparam Backend The backend; by default the asynchronous family's.
+ * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam CompletionToken Any completion token for the signature `token` states.
  * @param executor The executor the completion is posted to.
  * @param secret_key 32 bytes.
  * @param peer_public_key 32 bytes.

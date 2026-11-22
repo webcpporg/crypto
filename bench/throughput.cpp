@@ -4,19 +4,24 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// The throughput of each family's fixed operation (bench/operations.hpp) on each backend this
-// build links: AES-256-GCM on BearSSL and OpenSSL, the AES block cipher on ctaes and OpenSSL,
-// BIP340 signing on libsecp256k1, Ed25519 signing and X25519 agreement on libsodium, and the
-// ChaCha20-Poly1305 family on libsodium, BearSSL and OpenSSL (OpenSSL natively and on WASI only).
+// The throughput of each family's fixed operation (bench/operations.hpp) on each backend this build
+// links: AES-256-GCM on BearSSL and OpenSSL, the AES block cipher on ctaes and OpenSSL, BIP340
+// signing on libsecp256k1, P-256's ECDSA signing, its verification and its ECDH's x on BearSSL,
+// Ed25519 signing and X25519 agreement on libsodium, and the ChaCha20-Poly1305 family on libsodium,
+// BearSSL and OpenSSL (OpenSSL natively and on WASI only). A family's further operation, beside its
+// fixed one, is named after it, as crypto.json's `sized_operations` names it (P-256's
+// `verify_ecdsa` and `ecdh_x`).
 //
-// Run with a family and a backend, `throughput <family> <backend> [--runs N]`, it repeats the
-// operation enough times for a run to last at least 50 ms, times N runs (5 by default), and prints
-// one JSON line: the family, the backend, the operation, the target, the compiler, the repetitions
-// of a run, each run's microseconds per operation and their median. `--list` prints the cells this
-// build has, one "<family> <backend>" per line. Run with no argument, it is the correctness test:
-// each cell's operation is checked once (an open of what it sealed, a verification of what it
-// signed, both sides of an agreement), and the program exits 0 only when every check holds. A
-// measurement never fails on its time; bench/collect.py runs it and writes doc/performance.adoc.
+// Run with a family and a backend, `throughput <family> <backend> [<operation>] [--runs N]`, it
+// repeats the operation, the fixed one when none is named, enough times for a run to last at least
+// 50 ms, times N runs (5 by default), and prints one JSON line: the family, the backend, the
+// operation, the target, the compiler, the repetitions of a run, each run's microseconds per
+// operation and their median. `--list` prints the cells this build has, one "<family> <backend>"
+// per line, with " <operation>" after it for a further operation. Run with no argument, it is the
+// correctness test: each cell's operation is checked once (an open of what it sealed, a
+// verification of what it signed, both sides of an agreement), and the program exits 0 only when
+// every check holds. A measurement never fails on its time; bench/collect.py runs it and writes
+// doc/performance.adoc.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/backends/ctaes.hpp>
@@ -35,6 +40,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <system_error>
@@ -73,6 +79,8 @@ constexpr double shortest_run = 0.05;
 struct cell {
     std::string_view family;
     std::string_view backend;
+    // The further operation's name, crypto.json's `sized_operations` key; empty for the fixed one.
+    std::string_view further;
     std::string_view operation;
     void (*measure)(std::string_view family, int runs);
     bool (*check)();
@@ -141,9 +149,16 @@ struct on : Family<Backend> {
 };
 
 template <template <class> class Family, class Backend>
-constexpr cell cell_of(std::string_view family) {
+constexpr cell cell_of(std::string_view family, std::string_view further = {}) {
     using operation = on<Family, Backend>;
-    return {family, Backend::name, operation::operation, &measure<operation>, &check<operation>};
+    return {
+        .family = family,
+        .backend = Backend::name,
+        .further = further,
+        .operation = operation::operation,
+        .measure = &measure<operation>,
+        .check = &check<operation>,
+    };
 }
 
 constexpr auto cells = std::to_array<cell>({
@@ -154,6 +169,9 @@ constexpr auto cells = std::to_array<cell>({
 #endif
     cell_of<bench::aes_block, backends::ctaes>("aes_block"),
     cell_of<bench::secp256k1, backends::secp256k1>("secp256k1"),
+    cell_of<bench::p256, backends::bearssl>("p256"),
+    cell_of<bench::p256_verify_ecdsa, backends::bearssl>("p256", "verify_ecdsa"),
+    cell_of<bench::p256_ecdh_x, backends::bearssl>("p256", "ecdh_x"),
     cell_of<bench::ed25519, backends::sodium>("ed25519"),
     cell_of<bench::x25519, backends::sodium>("x25519"),
     cell_of<bench::chacha20_poly1305, backends::sodium>("chacha20_poly1305"),
@@ -166,9 +184,53 @@ constexpr auto cells = std::to_array<cell>({
 });
 
 int usage() {
-    static_cast<void>(
-        std::fprintf(stderr, "usage: throughput [--list | <family> <backend> [--runs N]]\n"));
+    static_cast<void>(std::fprintf(stderr,
+                                   "usage: throughput [--list | <family> <backend> [<operation>] "
+                                   "[--runs N]]\n"));
     return 2;
+}
+
+// Prints a cell's name, "<family> <backend>" and " <operation>" for a further operation.
+void print_cell(cell const& each) {
+    std::printf("%.*s %.*s", static_cast<int>(each.family.size()), each.family.data(),
+                static_cast<int>(each.backend.size()), each.backend.data());
+    if (!each.further.empty()) {
+        std::printf(" %.*s", static_cast<int>(each.further.size()), each.further.data());
+    }
+}
+
+// What a measurement's command line asks for.
+struct request {
+    std::string_view family;
+    std::string_view backend;
+    std::string_view further;
+    int runs = 5;
+};
+
+// `<family> <backend> [<operation>] [--runs N]`, read; empty when it is not that form.
+std::optional<request> parse(std::span<char*> given) {
+    if (given.size() < 3) {
+        return std::nullopt;
+    }
+    request asked{.family = given[1], .backend = given[2], .further = {}};
+    // After the family and the backend: the further operation, if any, then --runs N, if any.
+    std::span<char*> rest = given.subspan(3);
+    if (!rest.empty() && std::string_view(rest[0]) != "--runs") {
+        asked.further = rest[0];
+        rest = rest.subspan(1);
+    }
+    if (rest.empty()) {
+        return asked;
+    }
+    if (rest.size() != 2 || std::string_view(rest[0]) != "--runs") {
+        return std::nullopt;
+    }
+    std::string_view const count = rest[1];
+    auto const parsed = std::from_chars(count.data(), count.data() + count.size(), asked.runs);
+    if (parsed.ec != std::errc{} || parsed.ptr != count.data() + count.size() || asked.runs < 1) {
+        return std::nullopt;
+    }
+    return asked;
 }
 
 }  // namespace
@@ -180,38 +242,32 @@ int main(int argument_count, char** arguments) {
         for (cell const& each : cells) {
             bool const held = each.check();
             all = all && held;
-            std::printf("%.*s %.*s %s\n", static_cast<int>(each.family.size()), each.family.data(),
-                        static_cast<int>(each.backend.size()), each.backend.data(),
-                        held ? "ok" : "FAILED");
+            print_cell(each);
+            std::printf(" %s\n", held ? "ok" : "FAILED");
         }
         return all ? 0 : 1;
     }
     std::string_view const first = given[1];
     if (first == "--list" && given.size() == 2) {
         for (cell const& each : cells) {
-            std::printf("%.*s %.*s\n", static_cast<int>(each.family.size()), each.family.data(),
-                        static_cast<int>(each.backend.size()), each.backend.data());
+            print_cell(each);
+            std::printf("\n");
         }
         return 0;
     }
-    int runs = 5;
-    if (given.size() == 5 && std::string_view(given[3]) == "--runs") {
-        std::string_view const count = given[4];
-        auto const parsed = std::from_chars(count.data(), count.data() + count.size(), runs);
-        if (parsed.ec != std::errc{} || parsed.ptr != count.data() + count.size() || runs < 1) {
-            return usage();
-        }
-    } else if (given.size() != 3) {
+    auto const asked = parse(given);
+    if (!asked) {
         return usage();
     }
-    std::string_view const backend = given[2];
     for (cell const& each : cells) {
-        if (each.family == first && each.backend == backend) {
-            each.measure(each.family, runs);
+        if (each.family == asked->family && each.backend == asked->backend &&
+            each.further == asked->further) {
+            each.measure(each.family, asked->runs);
             return 0;
         }
     }
-    static_cast<void>(
-        std::fprintf(stderr, "throughput: no cell %s %s in this build\n", given[1], given[2]));
+    static_cast<void>(std::fprintf(stderr, "throughput: no cell %s %s%s%.*s in this build\n",
+                                   given[1], given[2], asked->further.empty() ? "" : " ",
+                                   static_cast<int>(asked->further.size()), asked->further.data()));
     return 2;
 }

@@ -18,6 +18,7 @@
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
@@ -172,6 +173,12 @@ struct refuses_secp256k1_musig {
 template <class Backend>
 struct refuses_secp256k1_silent_payments {
     WEBCPP_CRYPTO_DETAIL_REFUSE_SECP256K1_SILENT_PAYMENTS(Backend);
+};
+
+/** The refusals of P-256, parsed: nothing instantiates it. */
+template <class Backend>
+struct refuses_p256 {
+    WEBCPP_CRYPTO_DETAIL_REFUSE_P256(Backend);
 };
 
 }  // namespace
@@ -506,6 +513,20 @@ static_assert(!crypto::supports_v<algorithm<families::secp256k1_silent_payments,
 #endif
 // BIP 352 silent payments on sodium: none.
 static_assert(!crypto::supports_v<algorithm<families::secp256k1_silent_payments, families::secp256k1_silent_payments>, backends::sodium>);
+// P-256 on bearssl: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+static_assert(crypto::supports_v<algorithm<families::p256, families::p256>, backends::bearssl>);
+#else
+static_assert(!crypto::supports_v<algorithm<families::p256, families::p256>, backends::bearssl>);
+#endif
+// P-256 on openssl: none.
+static_assert(!crypto::supports_v<algorithm<families::p256, families::p256>, backends::openssl>);
+// P-256 on ctaes: none.
+static_assert(!crypto::supports_v<algorithm<families::p256, families::p256>, backends::ctaes>);
+// P-256 on secp256k1: none.
+static_assert(!crypto::supports_v<algorithm<families::p256, families::p256>, backends::secp256k1>);
+// P-256 on sodium: none.
+static_assert(!crypto::supports_v<algorithm<families::p256, families::p256>, backends::sodium>);
 // clang-format on
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity): one check per cell
@@ -594,6 +615,9 @@ int main() {
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
     BOOST_TEST((webcpp::test::made<crypto::hybrid::basic_sealed_box<backends::sodium>, families::sealed_box, families::sealed_box, backends::sodium>()));
+#endif
+#if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_BEARSSL)
+    BOOST_TEST((webcpp::test::made<crypto::curves::p256::basic_keypair<backends::bearssl>, families::p256, families::p256, backends::bearssl>()));
 #endif
     // clang-format on
     return webcpp::test::exit_status(boost::report_errors());

@@ -149,7 +149,7 @@
 |`+pem::armour+`, `+pem::unarmour+`
 |libsodium
 |native, wasip2, wasip3, emscripten
-|`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+allocation_sodium+`
+|`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+allocation_sodium+`, `+p256_formats_bearssl+`
 
 |`+curves::x25519::kx_keypair+`
 |libsodium
@@ -245,6 +245,56 @@
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_silent_payments+`
+
+|`+curves::p256::keypair+`
+|BearSSL
+|native, wasip2, wasip3, emscripten
+|`+p256_keys_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`
+
+|`+curves::p256::keypair+`
+|libsodium
+|refused at compile time
+|`+p256_on_sodium+`
+
+|`+curves::p256::public_key+`
+|BearSSL
+|native, wasip2, wasip3, emscripten
+|`+p256_keys_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`
+
+|`+curves::p256::public_key+`
+|libsodium
+|refused at compile time
+|`+p256_on_sodium+`
+
+|`+curves::p256::keypair::sign_ecdsa; verify_ecdsa+`, `+to_der+`, `+from_der+`, `+normalize_ecdsa+`, `+check_low_s+`
+|BearSSL
+|native, wasip2, wasip3, emscripten
+|`+p256_ecdsa_bearssl+`, `+p256_wycheproof_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`
+
+|`+curves::p256::keypair::sign_ecdsa; verify_ecdsa+`, `+to_der+`, `+from_der+`, `+normalize_ecdsa+`, `+check_low_s+`
+|libsodium
+|refused at compile time
+|`+p256_on_sodium+`
+
+|`+curves::p256::keypair::ecdh_x+`
+|BearSSL
+|native, wasip2, wasip3, emscripten
+|`+p256_ecdh_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`
+
+|`+curves::p256::keypair::ecdh_x+`
+|libsodium
+|refused at compile time
+|`+p256_on_sodium+`
+
+|`+curves::p256::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|BearSSL
+|native, wasip2, wasip3, emscripten
+|`+p256_formats_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`
+
+|`+curves::p256::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|libsodium
+|refused at compile time
+|`+p256_on_sodium+`
 |===
 
 The same, by target: the backends each operation runs on.
@@ -480,4 +530,34 @@ The same, by target: the backends each operation runs on.
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
+
+|`+curves::p256::keypair+`
+|BearSSL
+|BearSSL
+|BearSSL
+|BearSSL
+
+|`+curves::p256::public_key+`
+|BearSSL
+|BearSSL
+|BearSSL
+|BearSSL
+
+|`+curves::p256::keypair::sign_ecdsa; verify_ecdsa+`, `+to_der+`, `+from_der+`, `+normalize_ecdsa+`, `+check_low_s+`
+|BearSSL
+|BearSSL
+|BearSSL
+|BearSSL
+
+|`+curves::p256::keypair::ecdh_x+`
+|BearSSL
+|BearSSL
+|BearSSL
+|BearSSL
+
+|`+curves::p256::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
+|BearSSL
+|BearSSL
+|BearSSL
+|BearSSL
 |===

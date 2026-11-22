@@ -1,0 +1,10 @@
+signature  efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf3716
+           f7cb1c942d657c41d436c7a1b6e29f65f3e900dbb9aff4064dc4ab2f843acda8
+low S      no
+low-S form efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf3716
+           0834e36ad29a83bf2bc9385e491d6099c8fdf9d1ed67aa7ea5f51f93782857a9
+DER        3045022100efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0e
+           a84eaf371602200834e36ad29a83bf2bc9385e491d6099c8fdf9d1ed67aa7ea5
+           f51f93782857a9
+verified   both forms
+other text the signature does not verify or is not a valid encoding

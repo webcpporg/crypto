@@ -9,10 +9,13 @@
 // the program, a crash or a success, fails. The report is symbolised by the toolchain's
 // llvm-symbolizer (llvm-symbolizer-18 on the lane's runner, installed with the lane's
 // packages), named in MSAN_SYMBOLIZER_PATH; without symbols the frames are bare addresses,
-// so the driver refuses to judge and says what is missing.
+// so the driver refuses to judge and says what is missing. With --in <function>, the report's
+// first frame must be in that function instead: the planted copy of P-256's scalar check.
 import {spawnSync} from 'node:child_process'
 
 const program = process.argv[process.argv.length - 1]
+const inAt = process.argv.indexOf('--in')
+const plantedIn = inAt === -1 ? undefined : process.argv[inAt + 1]
 const symbolizer = ['llvm-symbolizer-18', 'llvm-symbolizer']
     .map(name => spawnSync('sh', ['-c', `command -v ${name}`], {encoding: 'utf8'}).stdout.trim())
     .find(path => path !== '')
@@ -29,13 +32,18 @@ process.stdout.write(run.stdout ?? '')
 process.stderr.write(run.stderr ?? '')
 const stderr = run.stderr ?? ''
 const reported = stderr.includes('WARNING: MemorySanitizer: use-of-uninitialized-value')
-// The planted branch is in main, in msan_test.cpp: the first frame or the SUMMARY line names it.
-const inTheTest = /msan_test\.cpp:\d+/.test(stderr) ||
-    /^SUMMARY: MemorySanitizer: use-of-uninitialized-value .* in main$/m.test(stderr)
+// The planted branch is in main, in msan_test.cpp: the first frame or the SUMMARY line names it;
+// with --in, the first frame names the function given.
+const inTheTest = plantedIn !== undefined
+    ? new RegExp(`^\\s*#0 .* in .*\\b${plantedIn}\\b`, 'm').test(stderr)
+    : /msan_test\.cpp:\d+/.test(stderr) ||
+      /^SUMMARY: MemorySanitizer: use-of-uninitialized-value .* in main$/m.test(stderr)
 if (run.status === 77 && reported && inTheTest) {
     console.log('msan_planted: MemorySanitizer reported the planted branch')
     process.exit(0)
 }
-console.error(`msan_planted: expected MemorySanitizer's report in msan_test.cpp and exit 77; ` +
-    `got status ${run.status}, signal ${run.signal}, report ${reported}, in the test ${inTheTest}`)
+const where = plantedIn ?? 'msan_test.cpp'
+console.error(`msan_planted: expected MemorySanitizer's report in ${where} and exit 77; ` +
+    `got status ${run.status}, signal ${run.signal}, report ${reported}, ` +
+    `in the test ${inTheTest}`)
 process.exit(1)

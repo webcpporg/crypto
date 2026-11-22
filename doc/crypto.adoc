@@ -62,6 +62,8 @@ include::x25519.adoc[]
 
 include::kx.adoc[]
 
+include::p256.adoc[]
+
 include::formats.adoc[]
 
 include::hybrid.adoc[]

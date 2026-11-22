@@ -27,7 +27,10 @@ cells so that a change of load on a shared machine falls on all of them alike; e
 times five runs of the family's fixed operation and reports their median, in microseconds per
 operation. The data holds, per cell, every invocation's median, their median, and the fastest and
 slowest single run. The operation each cell's program reports must be the one
-doc/tables/crypto.json states for its family (the size matrix's), or the cell is refused. A time
+doc/tables/crypto.json states for its family (the size matrix's), or the cell is refused. A cell
+the program lists with a third word, `<family> <backend> <operation>`, is a further operation of
+the family, measured as `throughput <family> <backend> <operation>`, whose text is the entry of
+that name in the family's "sized_operations". A time
 never fails this script: only a program that does not run, or a cell it does not know, does.
 `--render-only` rewrites the page from the data.
 
@@ -260,14 +263,33 @@ def run(target, command):
 
 
 def cells_of(target, exe, families):
-    """The cells the program was built with, which it lists without measuring; each must be a
-    family of crypto.json."""
-    cells = [tuple(line.split()) for line in run(target, [exe, "--list"]).splitlines() if line]
-    for family, backend in cells:
+    """The cells the program was built with, which it lists without measuring, each as (family,
+    backend, operation), the operation "" for the family's fixed one; each must be a family of
+    crypto.json, and a further operation one of its "sized_operations"."""
+    cells = []
+    for line in run(target, [exe, "--list"]).splitlines():
+        words = line.split()
+        if not words:
+            continue
+        if len(words) not in (2, 3):
+            sys.exit(f"collect.py: {target} lists {line!r}, which is not "
+                     "\"<family> <backend> [<operation>]\"")
+        family, backend = words[0], words[1]
+        further = words[2] if len(words) == 3 else ""
         if family not in families:
             sys.exit(f"collect.py: {target} lists {family} {backend}, and crypto.json has no "
                      f"family {family}")
+        if further and further not in families[family].get("sized_operations", {}):
+            sys.exit(f"collect.py: {target} lists {family} {backend} {further}, and crypto.json's "
+                     f"family {family} has no sized operation {further}")
+        cells.append((family, backend, further))
     return cells
+
+
+def stated_operation(family, further):
+    """The operation crypto.json states for a cell: the family's fixed one, or the further one of
+    that name."""
+    return family["sized_operations"][further] if further else family["measured"]
 
 
 def measure(exes, invocations):
@@ -275,22 +297,23 @@ def measure(exes, invocations):
     families = {family["name"]: family for family in data["families"]}
     cases = {}
     for target, exe in exes.items():
-        for family, backend in cells_of(target, exe, families):
-            cases[(target, family, backend)] = {"exe": exe, "results": []}
+        for family, backend, further in cells_of(target, exe, families):
+            cases[(target, family, backend, further)] = {"exe": exe, "results": []}
     loads = [os.getloadavg()]
     for _ in range(invocations):
-        for (target, family, backend), case in cases.items():
-            command = [case["exe"], family, backend, "--runs", "5"]
+        for (target, family, backend, further), case in cases.items():
+            command = [case["exe"], family, backend] + ([further] if further else []) + [
+                "--runs", "5"]
             case["results"].append(program_line(target, command, run(target, command),
                                                 THROUGHPUT_LINE_SHAPE))
     loads.append(os.getloadavg())
     out = []
-    for (target, family, backend), case in cases.items():
+    for (target, family, backend, further), case in cases.items():
         results = case["results"]
-        stated = families[family]["measured"]
+        stated = stated_operation(families[family], further)
         if results[0]["operation"] != stated:
-            sys.exit(f"collect.py: {target} {family} {backend} measures "
-                     f"{results[0]['operation']!r}, and crypto.json states {stated!r}")
+            sys.exit(f"collect.py: {target} {family} {backend}{' ' + further if further else ''} "
+                     f"measures {results[0]['operation']!r}, and crypto.json states {stated!r}")
         medians = [r["median_us"] for r in results]
         runs = [t for r in results for t in r["runs_us"]]
         out.append({
@@ -308,8 +331,8 @@ def measure(exes, invocations):
             "max_us": max(runs),
         })
     return {
-        "measurement": "each family's fixed operation per backend and target, "
-                       "bench/operations.hpp",
+        "measurement": "each family's fixed operation, and its further sized operations, per "
+                       "backend and target, bench/operations.hpp",
         "date": utc_today(),
         "machine": machine(),
         "load_average_before_after": [list(loads[0]), list(loads[1])],
@@ -479,8 +502,9 @@ def render(data, page):
         "[#crypto-performance]",
         "=== Throughput",
         "",
-        "How long each family's fixed operation takes on each backend and target, the operation",
-        "the size matrix's programs call (bench/operations.hpp). A dated reference, measured by",
+        "How long each family's fixed operation, and each further operation the size matrix",
+        "measures, takes on each backend and target, the operations the size matrix's programs",
+        "call (bench/operations.hpp). A dated reference, measured by",
         "hand, that decides nothing: every default is chosen by the reason",
         "<<crypto-backends-defaults>> states, whatever these figures say.",
         "",
@@ -515,8 +539,17 @@ def render(data, page):
         "| Operation | Backend | Target | Median (µs) | Fastest (µs) | Slowest (µs) "
         "| Per second",
     ]
+    operations = {family["name"]: [family["measured"]] +
+                  list(family.get("sized_operations", {}).values())
+                  for family in table["families"]}
+
+    def operation_rank(case):
+        # A further operation crypto.json no longer states sorts after the stated ones.
+        stated = operations[case["family"]]
+        return stated.index(case["operation"]) if case["operation"] in stated else len(stated)
+
     cases = sorted(data["cases"], key=lambda c: (order.index(c["family"]), c["backend"],
-                                                 TARGETS.index(c["target"])))
+                                                 operation_rank(c), TARGETS.index(c["target"])))
     for c in cases:
         lines += [
             "",

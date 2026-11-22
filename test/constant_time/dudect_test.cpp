@@ -6,11 +6,13 @@
 
 // dudect's statistics (spec section 8.3): BearSSL's AES-GCM and ChaCha20-Poly1305 seal's time
 // against its key, open's against its tag (the failure's zeroing included), ctaes's block
-// encryption's against its key, and equal's against its second argument; natively and under
-// wasmtime, where the engine's compiler decides whether BearSSL's 64-bit multiplication stays
-// constant time. ChaCha20-Poly1305's open is measured once more as the program's A/A control
-// (chacha_open_aa), both classes the same nearly right tag, prepared by the same instructions.
-// `--case <name>` measures one case alone.
+// encryption's against its key, equal's against its second argument, and P-256's ECDSA signing
+// and ECDH's x against the key pair's scalar (one fixed scalar, against random ones; the digest
+// and the peer's public key fixed), each key pair made before its measurement, unmeasured;
+// natively and under wasmtime, where the engine's compiler decides whether BearSSL's 64-bit
+// multiplication stays constant time. ChaCha20-Poly1305's open is measured once more as the
+// program's A/A control (chacha_open_aa), both classes the same nearly right tag, prepared by
+// the same instructions. `--case <name>` measures one case alone.
 
 #include "dudect.hpp"
 
@@ -19,6 +21,7 @@
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
+#include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/equal.hpp>
 
 #include <algorithm>
@@ -27,6 +30,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <optional>
+#include <utility>
 
 namespace {
 
@@ -108,6 +112,63 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
     }
 }
 
+/**
+ * Times P-256's ECDSA signing of a fixed digest (case p256_sign) and its ECDH's x with a fixed
+ * peer (case p256_ecdh_x), the two classes differing only in the key pair's scalar: a fixed one,
+ * against random ones, each key pair made before its measurement, unmeasured.
+ * @param results Where each case measured is recorded.
+ * @param selection The cases to measure.
+ * @return false when the peer's key pair was refused, which fails the program.
+ */
+bool measure_p256(test::case_results& results, test::case_selection const& selection) {
+    bool const sign = selection.runs("p256_sign");
+    bool const ecdh_x = selection.runs("p256_ecdh_x");
+    if (!sign && !ecdh_x) {
+        return true;
+    }
+    using keypair = webcpp::crypto::curves::p256::basic_keypair<webcpp::crypto::backends::bearssl>;
+    // Signing takes about 190 microseconds and the ECDH 145 natively (a release build on an Apple
+    // M5 Max under load, 2026-11-21); with 100,000 measurements of each, the whole program ran in
+    // about three minutes natively and two under wasmtime, well within wasmtime's 600 seconds.
+    constexpr std::size_t p256_count = 100'000;
+    std::array<std::uint8_t, 32> fixed{};
+    fixed.fill(0x42);
+    std::array<std::uint8_t, 32> scalar{};
+    std::array<std::uint8_t, 32> digest{};
+    digest.fill(0x17);
+    std::array<std::uint8_t, 32> peer_scalar{};
+    peer_scalar.fill(0x24);
+    auto const peer = keypair::make(peer_scalar);
+    auto const peer_key = peer ? peer->public_key() : peer.error();
+    if (!peer_key) {
+        std::printf("the peer's key pair was refused\n");
+        return false;
+    }
+    std::optional<keypair> pair;
+    auto const prepare = [&](int which, auto& generator) {
+        test::choose(which, generator, fixed, scalar);
+        // A random scalar is 0 or not below n only with probability about 2^-32.
+        auto made = keypair::make(scalar);
+        if (!made) {
+            made = keypair::make(fixed);
+        }
+        pair.emplace(std::move(*made));
+    };
+    if (sign) {
+        auto const sign_t =
+            test::twice(p256_count, prepare, [&] { static_cast<void>(pair->sign_ecdsa(digest)); });
+        results.record("p256_sign", "p256 sign", sign_t, true,
+                       {{"digest", digest.data()}, {"scalar", scalar.data()}, {"object", &*pair}});
+    }
+    if (ecdh_x) {
+        auto const ecdh_t =
+            test::twice(p256_count, prepare, [&] { static_cast<void>(pair->ecdh_x(*peer_key)); });
+        results.record("p256_ecdh_x", "p256 ecdh_x", ecdh_t, true,
+                       {{"peer", &*peer_key}, {"scalar", scalar.data()}, {"object", &*pair}});
+    }
+    return true;
+}
+
 }  // namespace
 
 // NOLINTNEXTLINE(misc-const-correctness): main's arguments have the type the standard gives them
@@ -121,6 +182,8 @@ int main(int argc, char** argv) {
                                                  "ctaes_encrypt",
                                                  "equal",
                                                  "chacha_open_aa",
+                                                 "p256_sign",
+                                                 "p256_ecdh_x",
                                              });
     if (!selection) {
         return 2;
@@ -164,6 +227,10 @@ int main(int argc, char** argv) {
             count, [&](int which, auto& generator) { test::choose(which, generator, a, b); },
             [&] { sink = crypto::equal(a, b); });
         results.record("equal", "equal", equal_t, true, {{"a", a.data()}, {"b", b.data()}});
+    }
+
+    if (!measure_p256(results, *selection)) {
+        return 1;
     }
 
     results.print();

@@ -107,6 +107,11 @@ int bearssl_gcm() {
 }  // namespace
 
 int main() {
+#ifdef WEBCPP_TEST_CRYPTO_PLANTED_SCALAR_CHECK
+    // The planted early exit in a copy of P-256's scalar check (paths.hpp), first:
+    // MemorySanitizer must report it there, in that copy (msan_report.mjs --in), and stops.
+    static_cast<void>(webcpp::test::constant_time::planted_scalar_check<memory_sanitizer>());
+#endif
     int const failures =
         webcpp::test::constant_time::common_paths<memory_sanitizer>() + bearssl_gcm();
     std::printf("constant time under MemorySanitizer: %s\n", failures == 0 ? "ok" : "FAILED");

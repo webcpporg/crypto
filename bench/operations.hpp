@@ -21,6 +21,7 @@
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
 #ifdef WEBCPP_CRYPTO_HAS_SECP256K1
@@ -451,6 +452,99 @@ private:
     std::array<std::uint8_t, curves::secp256k1::silent_payments::outpoint_size> outpoint_{};
 };
 #endif
+
+// An ECDSA signature of a 32-byte SHA-256 digest on P-256, RFC 6979's nonce, S as computed.
+template <class Backend>
+class p256 {
+public:
+    static constexpr std::string_view operation = "ECDSA signature of a 32-byte SHA-256 digest";
+
+    explicit p256(std::uint8_t seed)
+        : digest_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
+          key_(take(curves::p256::basic_keypair<Backend>::make(
+                        filled<32>(static_cast<std::uint8_t>(seed | 1U))),
+                    "make")) {}
+
+    std::uint8_t run() { return take(key_.sign_ecdsa(digest_), "sign_ecdsa")[0]; }
+
+    bool check() {
+        auto const signature = take(key_.sign_ecdsa(digest_), "sign_ecdsa");
+        auto const public_key = take(key_.public_key(), "public_key");
+        return curves::p256::verify_ecdsa(signature, digest_, public_key).has_value();
+    }
+
+private:
+    std::array<std::uint8_t, 32> digest_{};
+    curves::p256::basic_keypair<Backend> key_;
+};
+
+// The verification of an ECDSA signature of a 32-byte SHA-256 digest on P-256; the signature and
+// the public key are made once, outside what is measured.
+template <class Backend>
+class p256_verify_ecdsa {
+public:
+    static constexpr std::string_view operation = "ECDSA verification of a 32-byte SHA-256 digest";
+
+    explicit p256_verify_ecdsa(std::uint8_t seed)
+        : digest_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
+          key_(take(curves::p256::basic_keypair<Backend>::make(
+                        filled<32>(static_cast<std::uint8_t>(seed | 1U))),
+                    "make")),
+          public_key_(take(key_.public_key(), "public_key")),
+          signature_(take(key_.sign_ecdsa(digest_), "sign_ecdsa")) {}
+
+    std::uint8_t run() {
+        take(curves::p256::verify_ecdsa(signature_, digest_, public_key_), "verify_ecdsa");
+        return signature_[0];
+    }
+
+    bool check() {
+        auto other = signature_;
+        other[63] ^= 1U;
+        return curves::p256::verify_ecdsa(signature_, digest_, public_key_).has_value() &&
+               !curves::p256::verify_ecdsa(other, digest_, public_key_).has_value();
+    }
+
+private:
+    std::array<std::uint8_t, 32> digest_{};
+    curves::p256::basic_keypair<Backend> key_;
+    curves::p256::basic_public_key<Backend> public_key_;
+    std::array<std::uint8_t, curves::p256::signature_size> signature_{};
+};
+
+// The x coordinate of the ECDH shared point of a P-256 key pair and a peer's public key.
+template <class Backend>
+class p256_ecdh_x {
+public:
+    static constexpr std::string_view operation =
+        "x coordinate of the ECDH shared point with a peer's public key";
+
+    explicit p256_ecdh_x(std::uint8_t seed)
+        : key_(take(curves::p256::basic_keypair<Backend>::make(
+                        filled<32>(static_cast<std::uint8_t>(seed | 1U))),
+                    "make")),
+          peer_(take(curves::p256::basic_keypair<Backend>::make(
+                         filled<32>(static_cast<std::uint8_t>(seed + 6U))),
+                     "make")),
+          peer_public_(take(peer_.public_key(), "public_key")) {}
+
+    std::uint8_t run() {
+        auto const shared = take(key_.ecdh_x(peer_public_), "ecdh_x");
+        return shared.bytes()[0];
+    }
+
+    bool check() {
+        auto const own_public = take(key_.public_key(), "public_key");
+        auto const shared = take(key_.ecdh_x(peer_public_), "ecdh_x");
+        auto const peer_shared = take(peer_.ecdh_x(own_public), "ecdh_x");
+        return std::ranges::equal(shared.bytes(), peer_shared.bytes());
+    }
+
+private:
+    curves::p256::basic_keypair<Backend> key_;
+    curves::p256::basic_keypair<Backend> peer_;
+    curves::p256::basic_public_key<Backend> peer_public_;
+};
 
 // An Ed25519 signature of a 32-byte message.
 template <class Backend>

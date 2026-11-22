@@ -84,6 +84,9 @@ struct secp256k1_musig;
  */
 struct secp256k1_silent_payments;
 
+/** The family P-256, of `curves::p256`, also the tag of its one algorithm. */
+struct p256;
+
 }  // namespace webcpp::crypto::families
 
 namespace webcpp::crypto::tags {
@@ -273,6 +276,11 @@ inline constexpr bool supported<families::secp256k1_musig, families::secp256k1_m
 #if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
 template <>
 inline constexpr bool supported<families::secp256k1_silent_payments, families::secp256k1_silent_payments, backends::secp256k1> = true;
+#endif
+// P-256 on bearssl: native, wasip2, wasip3, emscripten.
+#if defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)
+template <>
+inline constexpr bool supported<families::p256, families::p256, backends::bearssl> = true;
 #endif
 // clang-format on
 
@@ -1121,6 +1129,47 @@ inline constexpr bool linked<backends::sodium> = true;
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1's BIP 352 silent payments is in <webcpp/crypto/backends/secp256k1.hpp>, which the program does not include. Include it, and add /third_party//secp256k1 to the program's Jamfile."); \
     static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no BIP 352 silent payments. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten)."); \
     static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: BIP 352 silent payments has no backend of that name. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).")
+#endif
+#ifdef WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE
+/** The refusals of the family P-256's primary engine for `Backend`, on native. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_P256(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::bearssl>, "webcpp::crypto: P-256's default backend on this target is BearSSL, which is not linked, and the one backend that has it there. Add /webcpp/crypto//p256-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//p256-default ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl's P-256 is in <webcpp/crypto/backends/bearssl.hpp>, which the program does not include. Include it, and add /third_party//bearssl to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: P-256 has no backend of that name. The backends that have it: bearssl (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP2)
+/** The refusals of the family P-256's primary engine for `Backend`, on wasip2. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_P256(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::bearssl>, "webcpp::crypto: P-256's default backend on this target is BearSSL, which is not linked, and the one backend that has it there. Add /webcpp/crypto//p256-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//p256-default ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl's P-256 is in <webcpp/crypto/backends/bearssl.hpp>, which the program does not include. Include it, and add /third_party//bearssl to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: P-256 has no backend of that name. The backends that have it: bearssl (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_WASIP3)
+/** The refusals of the family P-256's primary engine for `Backend`, on wasip3. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_P256(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::bearssl>, "webcpp::crypto: P-256's default backend on this target is BearSSL, which is not linked, and the one backend that has it there. Add /webcpp/crypto//p256-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//p256-default ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl's P-256 is in <webcpp/crypto/backends/bearssl.hpp>, which the program does not include. Include it, and add /third_party//bearssl to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: P-256 has no backend of that name. The backends that have it: bearssl (native, wasip2, wasip3, emscripten).")
+#elif defined(WEBCPP_TARGET_EMSCRIPTEN)
+/** The refusals of the family P-256's primary engine for `Backend`, on emscripten. */
+#define WEBCPP_CRYPTO_DETAIL_REFUSE_P256(Backend) \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || ::webcpp::crypto::detail::linked<::webcpp::crypto::backends::bearssl>, "webcpp::crypto: P-256's default backend on this target is BearSSL, which is not linked, and the one backend that has it there. Add /webcpp/crypto//p256-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//p256-default ; (without b2: define WEBCPP_CRYPTO_HAS_BEARSSL=1 and link BearSSL built with webcpp's src/canary_bearssl.c)"); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || !::webcpp::crypto::detail::linked<::webcpp::crypto::backends::bearssl>, "webcpp::crypto: bearssl's P-256 is in <webcpp/crypto/backends/bearssl.hpp>, which the program does not include. Include it, and add /third_party//bearssl to the program's Jamfile."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::openssl>, "webcpp::crypto: openssl has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes>, "webcpp::crypto: ctaes has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1>, "webcpp::crypto: secp256k1 has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(!std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: sodium has no P-256. The backends that have it: bearssl (native, wasip2, wasip3, emscripten)."); \
+    static_assert(std::is_same_v<Backend, ::webcpp::crypto::backends::bearssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::openssl> || std::is_same_v<Backend, ::webcpp::crypto::backends::ctaes> || std::is_same_v<Backend, ::webcpp::crypto::backends::secp256k1> || std::is_same_v<Backend, ::webcpp::crypto::backends::sodium>, "webcpp::crypto: P-256 has no backend of that name. The backends that have it: bearssl (native, wasip2, wasip3, emscripten).")
 #endif
 // clang-format on
 

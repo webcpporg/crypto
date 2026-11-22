@@ -34,17 +34,19 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/detail/windows.hpp crypto/detail/wipe.hpp crypto/secret.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
   crypto/detail/async_access.hpp crypto/detail/timing.hpp crypto/ciphers/aead.hpp
-  crypto/ciphers/chacha20_poly1305.hpp crypto/ciphers/secretbox.hpp crypto/pem.hpp ;
+  crypto/ciphers/chacha20_poly1305.hpp crypto/ciphers/secretbox.hpp crypto/pem.hpp
+  crypto/detail/p_curves.hpp ;
 # detail/heavy.hpp compiles alone only with webcpp::asio, which it includes
 # where the build has threads; async.hpp, which includes it, only with
 # webcpp::asio on every target.
 webcpp.headers-alone crypto : ../include : crypto/detail/heavy.hpp crypto/async.hpp
   : <library>/webcpp/asio//asio ;
 
-# The backend BearSSL's header and the default backend's, with BearSSL linked,
-# on every target.
+# The backend BearSSL's header and the default backend's, and P-256's, with
+# BearSSL linked, on every target.
 webcpp.headers-alone crypto : ../include
-  : crypto/ciphers/aes256_gcm.hpp crypto/backends/bearssl.hpp
+  : crypto/ciphers/aes256_gcm.hpp crypto/backends/bearssl.hpp crypto/curves/p256.hpp
+    crypto/curves/p256/formats.hpp
   : <library>/third_party//bearssl ;
 # The backend OpenSSL's header, with OpenSSL linked; BearSSL,
 # ctaes, libsecp256k1 and libsodium are linked too, and webcpp::asio, so that
@@ -139,6 +141,9 @@ webcpp.compile-diagnostic heavy_refusal_forgotten : heavy_refusal_forgotten_test
 
 crypto-run error : error_test.cpp ;
 crypto-run equal : equal_test.cpp ;
+# The tests' hex readers: hex<N> at compile time, from_hex and to_hex at run
+# time.
+crypto-run hex : hex_test.cpp ;
 # detail::timing_guard sets DIT for its scope where the CPU has it and leaves
 # the thread's state as it found it; its seam fires on every target; equal
 # enters it. timing_threads adds a second thread, natively, with threads.
@@ -420,6 +425,50 @@ crypto-run default_both_wasm : default_both_wasm_test.cpp
 crypto-run default_aes_block : default_aes_block_test.cpp
   : <library>/webcpp/crypto//aes_block-default <library>/webcpp/crypto//gcm-default ;
 
+# P-256 on BearSSL: RFC 6979's key, the scalar's range checked before BearSSL,
+# generate, public keys from a point and from coordinates and their refusals,
+# a moved-from key pair, and its storage zero once moved from and destroyed:
+# optimised, every call inlined, as ed25519_wipe_sodium's.
+crypto-run p256_keys_bearssl : p256_keys_bearssl_test.cpp
+  : <library>/third_party//bearssl $(OPTIMISED) <inlining>full ;
+# P-256 ECDSA on BearSSL: RFC 6979's signatures, verification of both forms
+# and its refusals, low S checked and normalized, DER both ways and its strict
+# decoder.
+crypto-run p256_ecdsa_bearssl : p256_ecdsa_bearssl_test.cpp : <library>/third_party//bearssl ;
+# Wycheproof's P-256 SHA-256 ECDSA vectors, raw (IEEE P1363) and DER.
+crypto-run p256_wycheproof_bearssl : p256_wycheproof_bearssl_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
+# P-256 ECDH on BearSSL, the raw x: two sides agree, the algebra's fixed points,
+# Wycheproof's ECDH vectors on points, a moved-from key pair.
+crypto-run p256_ecdh_bearssl : p256_ecdh_bearssl_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//wycheproof
+    <library>/webcpp//boost_json ;
+# P-256's SPKI and PKCS#8 on BearSSL, by fixed layouts: round trips, BearSSL's
+# own PKCS#8 encoder as an oracle of the layout, the strict decoders' refusals,
+# Wycheproof's ECDH SPKIs, and PEM around both on libsodium.
+crypto-run p256_formats_bearssl : p256_formats_bearssl_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium
+    <library>/third_party//wycheproof <library>/webcpp//boost_json ;
+# OpenSSL as an outside oracle of P-256 on native, wasip2 and wasip3 (linked in
+# the test alone), from a printed seed, 200 cases each: its RFC 6979 signature
+# of a digest equals ours and each side verifies the other's; its ECDH equals
+# ecdh_x; its SPKI and PrivateKeyInfo decode and encode again to its bytes, and
+# ours load in it to the same key. It prints `oracle ok 600`.
+crypto-run p256_openssl_oracle : p256_openssl_oracle_test.cpp
+  : <library>/webcpp/crypto//openssl <library>/third_party//bearssl
+  : native wasip2 wasip3 ;
+# node's WebCrypto as an outside oracle of P-256 on Emscripten (EM_ASYNC_JS
+# under the JSPI link, as oracle_25519): 200 seeded cases each of ECDSA with
+# SHA-256 both ways, ECDH's 256 bits, and exportKey's spki, pkcs8 and raw equal
+# to ours byte for byte; it prints `oracle ok 800`. Its corrupted twin flips
+# one signature and one shared x and passes only when WebCrypto disagrees on
+# exactly those two checks.
+crypto-run p256_webcrypto_oracle : p256_webcrypto_oracle_test.cpp
+  : <library>/third_party//bearssl <linkflags>-sJSPI : emscripten ;
+crypto-run p256_webcrypto_oracle_corrupted : p256_webcrypto_oracle_test.cpp
+  : <library>/third_party//bearssl <linkflags>-sJSPI
+    <define>WEBCPP_TEST_CRYPTO_ORACLE_CORRUPTED : emscripten ;
 # The backend ctaes: the AES block cipher alone, on every target; FIPS-197 only
 # (ruling R5).
 crypto-run aes_ctaes : aes_ctaes_test.cpp : <library>/third_party//ctaes ;
@@ -643,6 +692,9 @@ webcpp.compile doc_secp256k1_default_app
 webcpp.compile doc_ed25519_default_app
   : ../../../tools/test/fixtures/crypto_jamfiles/ed25519_default/app.cpp
   : <library>/webcpp/crypto//ed25519-default ;
+webcpp.compile doc_p256_default_app
+  : ../../../tools/test/fixtures/crypto_jamfiles/p256_default/app.cpp
+  : <library>/webcpp/crypto//p256-default ;
 webcpp.compile doc_x25519_default_app
   : ../../../tools/test/fixtures/crypto_jamfiles/x25519_default/app.cpp
   : <library>/webcpp/crypto//x25519-default ;

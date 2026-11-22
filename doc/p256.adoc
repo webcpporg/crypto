@@ -1,0 +1,420 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-p256]
+=== P-256
+
+`<webcpp/crypto/curves/p256.hpp>` is P-256, NIST's elliptic curve of FIPS 186-5
+(link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5]), also named
+secp256r1 (link:https://www.secg.org/sec2-v2.pdf[SEC 2]), on BearSSL
+(`/third_party//bearssl`, or `/webcpp/crypto//p256-default`, which links it on
+every target), in the namespace `webcpp::crypto::curves::p256`. It is the curve
+every browser's WebCrypto has (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]),
+the curve of passkeys, whose ES256 is ECDSA on P-256 with SHA-256
+(link:https://www.w3.org/TR/webauthn-2/#sctn-alg-identifier[W3C Web
+Authentication]), and a key-agreement group of every TLS 1.3 client
+(link:https://www.rfc-editor.org/rfc/rfc8446#section-4.2.7[RFC 8446]). An
+ordinary application uses it to sign what a browser verifies and to agree on a
+key with a browser, which derives the same secret with WebCrypto: the
+handshakes of webcpp::trystero, whose peers run in browsers, are both. Its keys
+do not interoperate with secp256k1's, Ed25519's or X25519's: a peer on P-256
+needs P-256.
+
+BearSSL is the family's one backend in this version, on all four targets:
+constant time by design and allocating nothing
+(link:https://www.bearssl.org/[BearSSL]). Natively it runs BearSSL's 64-bit
+multiplications where the compiler has them, and the 32-bit code on WebAssembly,
+whose 128-bit product is a library call whose timing nobody states.
+The constant-time lane runs its key pair's making, signing, ECDH and PKCS#8's
+decoding under memcheck and MemorySanitizer, and times its signing and its ECDH
+with dudect (<<crypto-backends-constant-time>>). On 2026-11-21, in an arm64
+Linux container (Valgrind 3.22, clang 18), both checkers found upstream
+BearSSL's signing branching on its nonce's bit length; webcpp's BearSSL carries
+a one-commit fix (<<crypto-backends-bearssl-fix>>), and under it they find
+nothing. Its programs' sizes and its
+three operations' times are in <<crypto-backends-sizes>> and
+<<crypto-performance>>.
+
+Two implementations outside webcpp check it, on 200 cases each from a seed the
+test prints. OpenSSL, natively and on WASI (`p256_openssl_oracle`): it signs
+the same digest with RFC 6979's nonce, which its `nonce-type` parameter selects
+(link:https://docs.openssl.org/3.5/man7/EVP_SIGNATURE-ECDSA/[OpenSSL's
+EVP_SIGNATURE-ECDSA]), and gives the same signature; each side verifies the
+other's; its ECDH gives the same x; its SPKI and its PKCS#8 are the bytes the
+encoders write, and it reads theirs as the same key. node's WebCrypto, on
+Emscripten (`p256_webcrypto_oracle`, the ECDSA and ECDH that Trystero's peers
+run): it verifies the signature of `sign_ecdsa` and its low-S form, its own
+signatures verify with `verify_ecdsa`, whatever their S, its `deriveBits` gives
+the bytes of `ecdh_x`, and its `exportKey` of the keys it imported gives the
+bytes of `encode_spki`, of `encode_pkcs8` and of `uncompressed()`, byte for
+byte.
+`p256_webcrypto_oracle_corrupted` flips one bit of one signature and of one
+shared x, and passes only when WebCrypto disagrees on exactly those two.
+
+[#crypto-p256-keys]
+==== Key pairs and public keys
+
+A P-256 secret key is a number, the *scalar* d, 32 bytes big-endian, between 1
+and the group order n minus 1; the public key is the point d times the
+curve's generator (link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS
+186-5]). `keypair::make(scalar)` makes a key pair from a scalar a program kept,
+and refuses a scalar of another size with `invalid_key_size` and a scalar 0,
+n or above with `invalid_secret_key`: that check runs in webcpp, in time
+independent of the scalar, before BearSSL sees it. `keypair::generate()` draws
+the scalar from `random_device`. `secret_scalar()` gives the scalar back as a
+`secret<32>`, which wipes itself, and `make` of it gives the same key pair: the
+way a program stores a key pair and loads it again. The key pair computes its
+public point once, when it is made, wipes the scalar when it is moved from and
+destroyed, and answers `invalid_state` moved from.
+
+A `public_key` is a point that the type guarantees valid, kept as SEC 1's
+*uncompressed* form, 65 bytes: 04, then x and y
+(link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 2.3.3]), the bytes
+WebCrypto's `exportKey("raw")` writes and `importKey("raw")` reads
+(link:https://www.w3.org/TR/WebCryptoAPI/[W3C]). `public_key::make(bytes)`
+makes one from those 65 bytes, `public_key::make(x, y)` from the two
+coordinates, as a JSON Web Key carries them, and `uncompressed()` writes the
+65 bytes back; the key pair's `public_key()` gives its own. A point refused is
+`invalid_public_key`: another size, another first byte, a coordinate not below
+the field prime p, a point off the curve. A `public_key` holds nothing secret
+and is copied freely.
+
+include::generated/backends-p256_keypair.adoc[]
+
+include::generated/backends-p256_public_key.adoc[]
+
+*Example.* RFC 6979's P-256 key made from its scalar, its public key exported,
+the key pair made again from its kept scalar, the public key imported as a
+peer's, the same bytes with one bit changed refused, and a key pair drawn from
+the system's generator:
+
+[source,cpp]
+----
+include::{examples}/p256_keys.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/p256_keys.expected[]
+----
+
+*Pitfalls.*
+
+* A scalar stored outside a `secret<32>` outlives the key pair: the key pair
+and the `secret<32>` that `secret_scalar` returns wipe their bytes, but a copy in a string, a log or
+a file stays where it was written. What webcpp wipes is what it owns: BearSSL's
+own signing keeps the scalar, the nonce and the state that derives the nonce in
+its stack frame and returns without zeroing them
+(link:https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ecdsa_i31_sign_raw.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l45[BearSSL's
+ecdsa_i31_sign_raw.c, lines 45 to 51 and 115 to 135]), where a later call
+overwrites them; nothing in webcpp can reach that frame. Keep the scalar in the `secret<32>` until it
+is encrypted or written to the key store, and never print it.
+* A peer's key is made into a `public_key` once, where it arrives, and kept:
+made again for every message, it costs a point check each time, and code that
+keeps the bytes instead may skip the check on some path. The check matters: a
+point off the curve, combined with a secret key, is how invalid-curve attacks
+begin, which is why SEC 1 has a peer's public key validated before it is used
+(link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 3.2.2]).
+* The compressed form, 33 bytes that start with 02 or 03
+(link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 2.3.3]), is refused with
+`invalid_public_key`: BearSSL decodes uncompressed points alone. WebCrypto's
+raw export is uncompressed, so a browser's key arrives in the form `make`
+takes; a key a tool sends compressed is decompressed by that tool first.
+
+[#crypto-p256-ecdsa]
+==== ECDSA
+
+ECDSA signs bytes so that anyone who holds the public key, a browser's
+WebCrypto included, can check who signed them and that nothing changed: a
+handshake, a token, a record a peer sends on. It signs a *digest*, not a
+message: the program hashes the message with
+SHA-256, then `keypair::sign_ecdsa(digest)` signs those 32 bytes, as
+WebCrypto's `+sign({name: "ECDSA", hash: "SHA-256"}, ...)+` hashes and signs in one
+call (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]) and passkeys' ES256 does
+(link:https://www.w3.org/TR/webauthn-2/#sctn-alg-identifier[W3C Web
+Authentication]):
+
+[source,cpp]
+----
+include::{examples}/p256_sign.cpp[tag=sign,indent=0]
+----
+
+The nonce is RFC 6979's (link:https://www.rfc-editor.org/rfc/rfc6979[RFC
+6979]): derived from the secret key and the digest, so signing draws no random
+number, a weak generator cannot leak the key, and the same key and digest give
+the same signature. Every verifier accepts it, WebCrypto's and OpenSSL's
+included: a verifier cannot tell how a nonce was made, and the signature is an
+ordinary ECDSA signature (link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS
+186-5]). `verify_ecdsa(signature, digest, public_key)` succeeds or returns
+`invalid_signature`, also for an r or an s that is 0 or not below the group
+order n, refused before BearSSL sees it.
+
+A signature has two forms. The *raw* form, 64 bytes, r then s at 32 bytes each
+(link:https://standards.ieee.org/ieee/1363/2049/[IEEE 1363]), is the one
+`sign_ecdsa` and `verify_ecdsa` take: what WebCrypto signs and verifies
+(link:https://www.w3.org/TR/WebCryptoAPI/[W3C]) and what a JSON Web Token's
+ES256 carries (link:https://www.rfc-editor.org/rfc/rfc7518#section-3.4[RFC
+7518, section 3.4]). *DER*, 8 to 72 bytes: a SEQUENCE of two INTEGERs, is the
+form of X.509 certificates and OpenSSL
+(link:https://www.rfc-editor.org/rfc/rfc3279#section-2.2.3[RFC 3279, section
+2.2.3]): `to_der(signature, output)` writes it into at least `max_der_size`
+bytes and returns its length, and `from_der(bytes)` reads it back, accepting
+strict DER only, the encoding `to_der` writes, and refusing anything else with
+`invalid_signature`.
+
+include::generated/backends-p256_ecdsa.adoc[]
+
+*Low S.* If (r, s) is a valid signature, (r, n - s) is a valid signature of the
+same digest too: anyone can turn one into the other without the key. That is
+*malleability*, harmless for most programs, since both say the same signer
+signed the same digest, but a protocol that names a message by its signature's
+bytes sees two names for one message. FIPS 186-5 and WebCrypto accept both
+forms (link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5];
+link:https://www.w3.org/TR/WebCryptoAPI/[W3C]), and so does `verify_ecdsa`;
+`sign_ecdsa` returns S as RFC 6979 computes it, high or low. Some protocols
+accept only the *low-S* form, s at most (n - 1) / 2: Bitcoin's
+(link:https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki[BIP 146])
+and Trystero's, which normalizes what it signs and refuses a high S in what it
+reads
+(link:https://github.com/dmotz/trystero/blob/0.27.0/packages/core/src/crypto.ts[Trystero
+0.27.0]). Such a policy has two halves, and crypto offers each:
+`normalize_ecdsa(signature)` returns the low-S form, the same signature when S
+is already low, before the signature is sent; `check_low_s(signature)` returns
+`invalid_signature` for a high S, before the signature received is verified.
+Neither calls BearSSL: both are arithmetic on public bytes.
+
+*Example.* RFC 6979's key signs the SHA-256 of "sample", which gives the RFC's
+own signature, whose S is high; its low-S form, its DER, both forms verified,
+and another message's digest refused:
+
+[source,cpp]
+----
+include::{examples}/p256_sign.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/p256_sign.expected[]
+----
+
+*Pitfalls.*
+
+* A protocol that requires low S and forgets `normalize_ecdsa` fails about one
+signature in two: the S of `sign_ecdsa` is high half the time, and
+`check_low_s` on the peer's side refuses those. The tests that sign a fixed message may pass
+every time, the signature being the same; a program sees it at the first
+handshake whose S is high. Normalize every signature such a protocol sends,
+and check every one it receives.
+* `check_low_s` does not verify: a forged signature can have a low S. Check low
+S, then verify, and accept the signature only when both succeed.
+* Signing a message instead of its digest does not compile: `sign_ecdsa` takes
+exactly 32 bytes. A digest of another hash than SHA-256, or a message cut to 32
+bytes, signs, and no WebCrypto peer verifies it, since WebCrypto's ECDSA with
+SHA-256 hashes what it verifies with SHA-256 itself.
+* A passkey's ES256 is ECDSA on P-256 with SHA-256, and its assertion's
+signature arrives in DER
+(link:https://www.w3.org/TR/webauthn-2/#sctn-signature-attestation-types[W3C
+Web Authentication, section 6.5.5]): `from_der`, then `verify_ecdsa` of the
+SHA-256 of what the authenticator signed. Reading the COSE key and building
+those signed bytes are WebAuthn's, and stay outside crypto.
+
+[#crypto-p256-ecdh]
+==== ECDH
+
+Two peers that have exchanged public keys, a program and a browser for
+instance, agree on a secret that nobody who saw only the public keys can
+compute, and key their encryption with it: that is elliptic-curve
+Diffie-Hellman, ECDH (link:https://www.secg.org/sec1-v2.pdf[SEC 1, section
+3.3.1]). Each side multiplies the other's public point by its own scalar, and
+both arrive at the same point, d~A~ times d~B~ times the generator.
+`keypair::ecdh_x(peer)` returns that point's x coordinate, 32 bytes big-endian,
+as a `secret<32>`, which wipes itself:
+
+[source,cpp]
+----
+include::{examples}/p256_ecdh.cpp[tag=agree,indent=0]
+----
+
+The raw x is exactly what a browser's WebCrypto gives:
+`+deriveBits({name: "ECDH", public: peerKey}, privateKey, 256)+` returns the
+shared point's x coordinate, 256 bits
+(link:https://www.w3.org/TR/WebCryptoAPI/#ecdh-operations[W3C, ECDH's
+operations]), so a program and a browser that hash it the same way derive the
+same keys. Trystero 0.27.0 derives its pairwise keys so: its
+`derivePairwiseAesKey` takes 256 bits from WebCrypto's ECDH `deriveBits` and
+keys HKDF with SHA-256 with them
+(link:https://github.com/dmotz/trystero/blob/8d3f57ef42c3d622840eec479784c99deeeb2d05/packages/core/src/crypto.ts#L303-L328[Trystero
+0.27.0, commit 8d3f57e, packages/core/src/crypto.ts, lines 303 to 328]), and
+its scale manager generates an ECDH P-256 key pair
+(link:https://github.com/dmotz/trystero/blob/8d3f57ef42c3d622840eec479784c99deeeb2d05/packages/core/src/scale/manager.ts#L306[packages/core/src/scale/manager.ts,
+line 306]). The peer's key is a `public_key`, validated when it was made, so
+`ecdh_x` never sees a point off the curve; it refuses a moved-from key pair
+with `invalid_state`. The `secret<32>` and webcpp's own copy of the point are
+wiped, but BearSSL's multiplication leaves the values it computes from the
+scalar in its stack frame, as its signing does (<<crypto-p256-keys>>, its
+pitfalls;
+link:https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ec_p256_m62.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l1251[BearSSL's
+ec_p256_m62.c, from line 1251], natively, and
+link:https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ec_p256_m31.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l1116[ec_p256_m31.c,
+from line 1116], on WebAssembly).
+
+The x coordinate is not a key. A Diffie-Hellman value is not uniformly random
+(link:https://www.rfc-editor.org/rfc/rfc5869#section-3.3[RFC 5869, section
+3.3]): it is always below the field prime and always the x of a point of the
+curve, which not every 32-byte value is, so its 256 bits hold less than 256
+bits of entropy. A protocol hashes it into its keys, with a key derivation
+function such as HKDF (link:https://www.rfc-editor.org/rfc/rfc5869[RFC 5869]),
+which webcpp::hash provides, and with the salt and the info the protocol names:
+
+[source,cpp]
+----
+include::{examples}/p256_ecdh.cpp[tag=derive,indent=0]
+----
+
+Unlike secp256k1, whose `ecdh` hashes the point (<<crypto-secp256k1-ecdh>>),
+P-256 offers no hashed form: no browser computes one, and the derivation, its
+hash, its salt and its info belong to the protocol, not to the primitive. A
+program that hashed the point some other way would agree with no WebCrypto
+peer.
+
+include::generated/backends-p256_ecdh.adoc[]
+
+*Example.* Two key pairs made from fixed scalars agree on the shared x, and
+HKDF-SHA-256 derives a 32-byte key from it; the values match OpenSSL's for the
+same two scalars:
+
+[source,cpp]
+----
+include::{examples}/p256_ecdh.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/p256_ecdh.expected[]
+----
+
+*Pitfalls.*
+
+* Using the x coordinate as an AES key directly. Its bits are not uniform, so
+the key is weaker than 256 bits, and it is the same key in every protocol and
+every session that uses the same two key pairs that way: a key that leaks from
+one leaks from all of them. Hash it with HKDF and the protocol's own info into
+one key per purpose.
+* Two sides must derive the same way. A program that hashes the x with another
+salt, info or hash than its browser peer derives another key, and every message
+fails to open with nothing pointing at the cause: read the protocol's
+derivation, byte for byte.
+* A `deriveBits` length below 256 in the browser gives the first bits of the x
+alone (link:https://www.w3.org/TR/WebCryptoAPI/#ecdh-operations[W3C, ECDH's
+operations]); the program then takes the same leading bytes of what `ecdh_x`
+returns, or the two sides hash different inputs.
+
+[#crypto-p256-formats]
+==== Keys in files: SPKI, PKCS#8 and PEM
+
+A key that leaves the program for another one, a browser's WebCrypto, OpenSSL's
+command line, a server's configuration file, travels in a standard form that
+names its algorithm and its curve. A public key is an *SPKI*,
+SubjectPublicKeyInfo (link:https://www.rfc-editor.org/rfc/rfc5480[RFC 5480]);
+a key pair is a *PKCS#8* (link:https://www.rfc-editor.org/rfc/rfc5208[RFC
+5208]), which for an elliptic curve holds RFC 5915's ECPrivateKey: the scalar,
+and optionally the curve and the public key
+(link:https://www.rfc-editor.org/rfc/rfc5915[RFC 5915]). These are what
+WebCrypto's `exportKey("spki")` and `exportKey("pkcs8")` produce and its
+`importKey` reads (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]).
+
+On P-256 each has one layout, fixed bytes around the key's own:
+
+* `encode_spki(public_key, output)` writes 91 bytes: 26 that name
+id-ecPublicKey and secp256r1 and open the BIT STRING, then the 65-byte
+uncompressed point. That is the SPKI WebCrypto exports, the named curve and the
+uncompressed form
+(link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations-export-key[W3C,
+ECDSA's export]); `decode_spki(bytes)` reads it back into a `public_key`, its
+point checked as `public_key::make` checks it.
+* `encode_pkcs8(keypair, output)` writes 138 bytes: version 0, the same
+algorithm, and an ECPrivateKey of version 1 with the scalar and the
+uncompressed public key, without the curve inside it. That is the form OpenSSL
+writes for a key in its default uncompressed form
+(link:https://docs.openssl.org/master/man7/EVP_PKEY-EC/[OpenSSL's EVP_PKEY-EC]),
+and BearSSL's own encoder, `br_encode_ec_pkcs8_der`, writes the same bytes,
+which the tests compare; `decode_pkcs8(bytes)` reads it into a key pair, made
+as `keypair::make` makes one.
+
+`max_spki_size` and `max_pkcs8_size`, 91 and 138, size the caller's buffers.
+The encoders copy what the key and the key pair hold, call no BearSSL code,
+and refuse a short buffer with `invalid_input_size` and a moved-from key pair
+with `invalid_state`, writing nothing then.
+
+The decoders are strict (design D30): they accept exactly the bytes the
+encoders write, and refuse anything else with `invalid_encoding`. The point
+must be on the curve, the scalar between 1 and n - 1, and the public key inside
+a PKCS#8 the scalar's own: `decode_pkcs8` makes the key pair and compares its
+point with the one the file carries. Refused, too: another curve, a compressed
+point (BearSSL decodes uncompressed points alone), explicit curve parameters in
+place of the curve's name, a PKCS#8 without its public key, a length in BER's
+long form where DER has the short one, a byte left over. Against Wycheproof's
+612 P-256 ECDH cases whose peer key is an SPKI, the 330 valid ones decode and
+agree on the shared x, the 52 invalid ones are refused, and the 230 acceptable
+ones are refused, each for a form the rule refuses: a compressed point (1),
+ASN.1 that is not the one DER encoding (222), or explicit parameters (7)
+(link:https://github.com/C2SP/wycheproof[Wycheproof]).
+
+PEM is the DER as base64 text between `-----BEGIN PUBLIC KEY-----` or
+`-----BEGIN PRIVATE KEY-----` and its `-----END` line
+(link:https://www.rfc-editor.org/rfc/rfc7468[RFC 7468]). `pem::armour` and
+`pem::unarmour` (`<webcpp/crypto/pem.hpp>`, <<crypto-key-formats>>) write and
+read it around these functions' bytes, with the labels `pem::public_key_label`
+and `pem::private_key_label`, as strictly as the decoders read DER. PEM runs on
+libsodium, whose base64 takes a time that does not depend on the bytes: a
+program that writes or reads PEM links `/webcpp/crypto//pem-default` beside
+`/webcpp/crypto//p256-default`.
+
+include::generated/backends-p256_formats.adoc[]
+
+*Example.* RFC 6979's key: its public key written as PEM SPKI, printed and read
+back; its key pair written as PEM PKCS#8, kept in a `secret<N>` and never
+printed, and read back:
+
+[source,cpp]
+----
+include::{examples}/p256_key_formats.cpp[tag=program]
+----
+
+[listing]
+----
+include::{examples}/p256_key_formats.expected[]
+----
+
+*Pitfalls.*
+
+* The W3C text says a PKCS#8 that WebCrypto exports also carries the curve
+inside its ECPrivateKey, as `[0] parameters`
+(link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations-export-key[W3C,
+ECDSA's export]): 150 bytes, which `decode_pkcs8` refuses like any other
+encoding than its own. node's WebCrypto does not: its `exportKey("pkcs8")`
+writes the 138 bytes `encode_pkcs8` writes, which `p256_webcrypto_oracle`
+compares byte for byte, and so does OpenSSL's PrivateKeyInfo encoder; a
+WebCrypto that followed the text would write the 150. WebCrypto's
+`importKey("pkcs8")` reads the 138 bytes `encode_pkcs8` writes, the parameters
+being optional there
+(link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations-import-key[W3C,
+ECDSA's import]), and OpenSSL's `openssl pkey` rewrites a 150-byte file into
+the 138-byte form, PKCS#8 being what it writes by default
+(link:https://docs.openssl.org/master/man1/openssl-pkey/[OpenSSL's pkey]).
+* `-----BEGIN EC PRIVATE KEY-----`, what `openssl ec` writes, is not PKCS#8: it
+is RFC 5915's ECPrivateKey alone, with the curve's parameters
+(link:https://www.rfc-editor.org/rfc/rfc5915[RFC 5915]), and `pem::unarmour`
+refuses its label. `openssl pkey` turns it into a PKCS#8
+(link:https://docs.openssl.org/master/man1/openssl-pkey/[OpenSSL's pkey]).
+* A lenient parser lets a file say two things at once: RFC 5915 makes the
+public key optional inside ECPrivateKey, so a PKCS#8 can carry a public key
+that is not its scalar's, and a program that shows or checks that key, rather
+than the one the scalar gives, trusts the wrong key. `decode_pkcs8` refuses
+such a file.
+* The PKCS#8, as DER or as PEM, is the secret key in clear: base64 is an
+encoding, not encryption. Keep it in a `secret<N>`, as the example does, and
+seal it before it is written anywhere (<<crypto-wallets>>).

@@ -141,6 +141,14 @@ static_assert(
 #error "secretbox.hpp, box.hpp and sealed_box.hpp are not told to include libsodium's header"
 #endif
 
+// P-256: BearSSL, the one backend of the P-curves, on every target.
+static_assert(std::is_same_v<crypto::default_backend_t<families::p256>, backends::bearssl>);
+#ifndef WEBCPP_CRYPTO_DETAIL_DEFAULT_P256_BEARSSL
+#error "curves/p256.hpp is told to include another header than BearSSL's"
+#endif
+static_assert(crypto::detail::supported<families::p256, families::p256,
+                                        crypto::default_backend_t<families::p256>>);
+
 // secp256k1's modules, each a family of its own: libsecp256k1, the only backend, on every target.
 static_assert(
     std::is_same_v<crypto::default_backend_t<families::secp256k1_ellswift>, backends::secp256k1>);

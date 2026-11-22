@@ -221,6 +221,9 @@ public:
      * `crypto::async_verify(executor, crypto::ecdsa_sha256, signature, input, key, token)`, which
      * calls it.
      *
+     * The key and the bytes the signature and the input view are the caller's until the
+     * completion.
+     *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
      * "deduced return type used before it is defined".

@@ -217,6 +217,9 @@ public:
      * `crypto::async_verify<Backend>(executor, crypto::eddsa, signature, message, key, token)`,
      * which calls it.
      *
+     * The signature's and the message's bytes are the caller's until the completion; the key is
+     * copied.
+     *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
      * "deduced return type used before it is defined".
@@ -247,7 +250,8 @@ public:
      * asynchronously: as the overload without it, with `verify`'s policy before the token.
      *
      * The policy is a policy tag, never deduced from another argument, so that a completion token
-     * is never read as one.
+     * is never read as one. The signature's and the message's bytes are the caller's until the
+     * completion; the key is copied.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's

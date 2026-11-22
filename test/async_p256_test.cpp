@@ -42,6 +42,9 @@
 //   invalid_signature), agree (the same secret); and the refusals are the same, a short scalar's
 //   invalid_key_size and an empty key pair's invalid_state, each asynchronous completion arriving
 //   after the initiating call returned.
+// - async_member_deferred: key.async_sign with asio::deferred, of a crypto::prehashed{digest}
+//   made in the call's argument list, launched after the statement that made it ended, runs when
+//   launched and gives RFC 6979's signature.
 
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/backends/bearssl.hpp>
@@ -61,6 +64,7 @@
 #include <webcpp/asio/as_tuple.hpp>
 #include <webcpp/asio/awaitable.hpp>
 #include <webcpp/asio/co_spawn.hpp>
+#include <webcpp/asio/deferred.hpp>
 #include <webcpp/asio/io_context.hpp>
 #include <webcpp/asio/this_coro.hpp>
 #include <webcpp/asio/use_awaitable.hpp>
@@ -765,6 +769,29 @@ void check_four_agreements(asio::io_context& context, keypair const& key, public
     BOOST_TEST(std::ranges::equal(free_bytes, member_sync->bytes()));
 }
 
+void async_member_deferred(asio::io_context& context) {
+    auto const key = keypair::make(data::rfc6979_scalar);
+    if (!BOOST_TEST(key.has_value())) {
+        return;
+    }
+    auto const digest = sha256(bytes_of("test"));
+    // The marker is a temporary of this statement: the operation keeps its own copy.
+    auto operation = key->async_sign(context.get_executor(), crypto::ecdsa_sha256,
+                                     crypto::prehashed{digest}, asio::deferred);
+    int calls = 0;
+    signature_type signature{};
+    std::move(operation)([&](boost::system::error_code code, signature_type done) {
+        ++calls;
+        BOOST_TEST(!code);
+        signature = done;
+    });
+    BOOST_TEST_EQ(calls, 0);
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST_EQ(calls, 1);
+    BOOST_TEST(signature == data::rfc6979_test);
+}
+
 void async_four_forms(asio::io_context& context) {
     four_forms_make(context);
     four_forms_generate(context);
@@ -813,5 +840,6 @@ int main() {
     async_destroyed(context);
     async_coroutine(context);
     async_four_forms(context);
+    async_member_deferred(context);
     return webcpp::test::exit_status(boost::report_errors());
 }

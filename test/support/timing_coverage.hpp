@@ -562,7 +562,8 @@ void cover_async_ed25519(std::string const& backend) {
         deliver();
     });
     covered("ed25519::public_key::async_verify" + on, [&] {
-        public_key->async_verify(executor, crypto::eddsa, kept, message, counted);
+        public_key->template async_verify<backend_type>(executor, crypto::eddsa, kept, message,
+                                                        counted);
         deliver();
     });
     covered("ed25519::public_key::async_verify with its policy" + on, [&] {
@@ -571,8 +572,8 @@ void cover_async_ed25519(std::string const& backend) {
         deliver();
     });
     covered("ed25519::public_key::async_verify with a short signature" + on, [&] {
-        public_key->async_verify(executor, crypto::eddsa, std::span(kept).first(63), message,
-                                 counted);
+        public_key->template async_verify<backend_type>(
+            executor, crypto::eddsa, std::span(kept).first(63), message, counted);
         deliver();
     });
     [[maybe_unused]] Keypair const taken(std::move(*made));

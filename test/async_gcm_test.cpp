@@ -23,6 +23,8 @@
 //   refusal of a short key), seal (the same ciphertext and tag), open (the plaintext, and a
 //   changed tag's authentication_failed with zeroed data); each asynchronous completion arrives
 //   after the initiating call returned.
+// - async_member_deferred: aead.async_seal with asio::deferred runs when launched, after the
+//   call returned, and gives the synchronous seal's ciphertext and tag.
 
 #include <webcpp/crypto/async.hpp>
 #ifdef WEBCPP_TEST_ASYNC_GCM_OPENSSL
@@ -43,6 +45,7 @@
 #include <webcpp/asio/as_tuple.hpp>
 #include <webcpp/asio/awaitable.hpp>
 #include <webcpp/asio/co_spawn.hpp>
+#include <webcpp/asio/deferred.hpp>
 #include <webcpp/asio/io_context.hpp>
 #include <webcpp/asio/this_coro.hpp>
 #include <webcpp/asio/use_awaitable.hpp>
@@ -500,6 +503,35 @@ void check_four_opens(asio::io_context& context, gcm256& aead, four_forms_messag
     }
 }
 
+void async_member_deferred(asio::io_context& context) {
+    four_forms_message const message;
+    auto aead = gcm256::make(message.key);
+    if (!BOOST_TEST(aead.has_value())) {
+        return;
+    }
+    auto expected_data = message.plaintext;
+    auto const expected_tag = aead->seal(message.iv, message.additional_data, expected_data);
+    if (!BOOST_TEST(expected_tag.has_value())) {
+        return;
+    }
+    auto data = message.plaintext;
+    auto operation = aead->async_seal(context.get_executor(), message.iv, message.additional_data,
+                                      data, asio::deferred);
+    // Nothing runs before the operation is launched.
+    BOOST_TEST(data == message.plaintext);
+    int calls = 0;
+    std::move(operation)([&](boost::system::error_code code, gcm256::result_type tag) {
+        ++calls;
+        BOOST_TEST(!code);
+        BOOST_TEST(tag == *expected_tag);
+    });
+    BOOST_TEST_EQ(calls, 0);
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST_EQ(calls, 1);
+    BOOST_TEST(data == expected_data);
+}
+
 void async_four_forms(asio::io_context& context) {
     four_forms_message const message;
     four_forms_make(context, message);
@@ -534,5 +566,6 @@ int main() {
     async_destroyed(context);
     async_coroutine(context);
     async_four_forms(context);
+    async_member_deferred(context);
     return webcpp::test::exit_status(boost::report_errors());
 }

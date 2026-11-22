@@ -669,9 +669,9 @@ auto async_sign(Executor const& executor, Keypair const& key_pair, Scheme scheme
  */
 template <class Backend = default_async_backend_t<families::ed25519>, class Executor, class Input,
           class CompletionToken>
-auto async_verify(Executor const& executor, [[maybe_unused]] eddsa_t scheme,
-                  std::span<std::uint8_t const> signature, Input const& message,
-                  curves::ed25519::public_key const& public_key, CompletionToken&& token) {
+auto async_verify(Executor const& executor, eddsa_t scheme, std::span<std::uint8_t const> signature,
+                  Input const& message, curves::ed25519::public_key const& public_key,
+                  CompletionToken&& token) {
     detail::timing_guard const timing;
     return public_key.template async_verify<Backend>(executor, scheme, signature, message,
                                                      std::forward<CompletionToken>(token));
@@ -700,10 +700,9 @@ auto async_verify(Executor const& executor, [[maybe_unused]] eddsa_t scheme,
  */
 template <class Backend = default_async_backend_t<families::ed25519>, class Executor, class Input,
           class CompletionToken>
-auto async_verify(Executor const& executor, [[maybe_unused]] eddsa_t scheme,
-                  std::span<std::uint8_t const> signature, Input const& message,
-                  curves::ed25519::public_key const& public_key, curves::ed25519::strict_t policy,
-                  CompletionToken&& token) {
+auto async_verify(Executor const& executor, eddsa_t scheme, std::span<std::uint8_t const> signature,
+                  Input const& message, curves::ed25519::public_key const& public_key,
+                  curves::ed25519::strict_t policy, CompletionToken&& token) {
     detail::timing_guard const timing;
     return public_key.template async_verify<Backend>(executor, scheme, signature, message, policy,
                                                      std::forward<CompletionToken>(token));
@@ -742,7 +741,7 @@ auto async_verify(Executor const& executor, [[maybe_unused]] eddsa_t scheme,
  * @return What the completion token's `async_result` gives.
  */
 template <class Backend, class Executor, class Input, class CompletionToken>
-auto async_verify(Executor const& executor, [[maybe_unused]] ecdsa_sha256_t scheme,
+auto async_verify(Executor const& executor, ecdsa_sha256_t scheme,
                   std::span<std::uint8_t const> signature, Input const& input,
                   curves::p256::basic_public_key<Backend> const& public_key,
                   CompletionToken&& token) {

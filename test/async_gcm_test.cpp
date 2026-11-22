@@ -20,7 +20,7 @@
 // - async_coroutine: the example of async.hpp's header, in a coroutine of the context.
 
 #include <webcpp/crypto/async.hpp>
-#if defined(WEBCPP_TEST_ASYNC_GCM_OPENSSL)
+#ifdef WEBCPP_TEST_ASYNC_GCM_OPENSSL
 #include <webcpp/crypto/backends/openssl.hpp>
 #else
 #include <webcpp/crypto/backends/bearssl.hpp>
@@ -58,7 +58,7 @@ namespace crypto = webcpp::crypto;
 
 namespace {
 
-#if defined(WEBCPP_TEST_ASYNC_GCM_OPENSSL)
+#ifdef WEBCPP_TEST_ASYNC_GCM_OPENSSL
 using backend = crypto::backends::openssl;
 #else
 using backend = crypto::backends::bearssl;
@@ -279,9 +279,10 @@ void async_make_refused(asio::io_context& context) {
     BOOST_TEST(empty.result().error() == crypto::error::invalid_state);
     BOOST_TEST(same_bytes(data, untouched));
     // Through the asynchronous functions too.
-    auto sealed = complete<gcm256::result_type>(context, [&](auto const& executor, auto&& token) {
-        crypto::async_seal(executor, empty, iv, {}, data, std::forward<decltype(token)>(token));
-    });
+    auto const sealed =
+        complete<gcm256::result_type>(context, [&](auto const& executor, auto&& token) {
+            crypto::async_seal(executor, empty, iv, {}, data, std::forward<decltype(token)>(token));
+        });
     BOOST_TEST(sealed.code == crypto::error::invalid_state);
     BOOST_TEST(same_bytes(data, untouched));
 }

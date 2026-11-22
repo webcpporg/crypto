@@ -160,21 +160,31 @@ struct post_initiation {
      */
     template <class Handler, class Executor, class Operation>
     void operator()(Handler&& handler, Executor const& executor, Operation operation) const {
-        auto done = operation();
-        using value_type = completion_of<decltype(done)>::value_type;
-        if constexpr (std::is_void_v<value_type>) {
-            boost::system::error_code const code =
-                done ? boost::system::error_code{} : done.error();
-            webcpp::asio::post(executor,
-                               webcpp::asio::append(std::forward<Handler>(handler), code));
-        } else if (done) {
+        deliver(std::forward<Handler>(handler), executor, operation());
+    }
+
+private:
+    // A call without a value completes with its error code alone.
+    template <class Handler, class Executor>
+    static void deliver(Handler&& handler, Executor const& executor,
+                        boost::system::result<void> const& done) {
+        boost::system::error_code const code = done ? boost::system::error_code{} : done.error();
+        webcpp::asio::post(executor, webcpp::asio::append(std::forward<Handler>(handler), code));
+    }
+
+    // A call with a value completes with it, or on an error with the empty one.
+    template <class Handler, class Executor, class Value>
+        requires(!std::is_void_v<Value>)
+    static void deliver(Handler&& handler, Executor const& executor,
+                        boost::system::result<Value>&& done) {
+        if (done) {
             webcpp::asio::post(executor,
                                webcpp::asio::append(std::forward<Handler>(handler),
-                                                    boost::system::error_code{}, std::move(*done)));
+                                                    boost::system::error_code{}, *std::move(done)));
         } else {
             webcpp::asio::post(executor,
                                webcpp::asio::append(std::forward<Handler>(handler), done.error(),
-                                                    async_access::empty<value_type>()));
+                                                    async_access::empty<Value>()));
         }
     }
 };

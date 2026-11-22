@@ -37,7 +37,7 @@ namespace {
 // The bytes a string of hex digits writes, two per byte.
 std::vector<std::uint8_t> bytes_of(std::string_view hex) {
     auto const digit = [](char c) {
-        return static_cast<std::uint8_t>(c <= '9' ? c - '0' : c - 'a' + 10);
+        return static_cast<std::uint32_t>(c <= '9' ? c - '0' : c - 'a' + 10);
     };
     std::vector<std::uint8_t> bytes(hex.size() / 2);
     for (std::size_t i = 0; i < bytes.size(); ++i) {

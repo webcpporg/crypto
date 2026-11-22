@@ -59,7 +59,6 @@
 namespace asio = webcpp::asio;
 namespace crypto = webcpp::crypto;
 namespace ed25519 = webcpp::crypto::curves::ed25519;
-namespace x25519 = webcpp::crypto::curves::x25519;
 namespace test = webcpp::test;
 
 namespace {

@@ -371,10 +371,9 @@ void post_allocator(asio::io_context& context) {
     check_allocator<>(context, check_of(1), check_of(0));
 }
 
-void post_tokens(asio::io_context& context) {
-    auto const executor = context.get_executor();
-
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+void post_future_token(asio::io_context& context) {
+    auto const executor = context.get_executor();
     // use_future: a single-threaded program runs the context before get().
     auto made = async_key(executor, 5, asio::use_future);
     auto filled = async_block(executor, 5, asio::use_future);
@@ -392,8 +391,11 @@ void post_tokens(asio::io_context& context) {
         thrown = failure.code() == crypto::error::invalid_input_size;
     }
     BOOST_TEST(thrown);
+}
 #endif
 
+void post_deferred_token(asio::io_context& context) {
+    auto const executor = context.get_executor();
     // deferred: the operation runs when it is launched, and completes through the post.
     int const runs_before = sync_runs;
     auto operation = async_key(executor, 6, asio::deferred);
@@ -414,7 +416,10 @@ void post_tokens(asio::io_context& context) {
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST_EQ(deferred_calls, 2);
+}
 
+void post_tuple_token(asio::io_context& context) {
+    auto const executor = context.get_executor();
     // as_tuple: the error code and the value in one argument.
     int tuples = 0;
     async_block(executor, 7, asio::as_tuple([&](std::tuple<boost::system::error_code, block> done) {
@@ -429,7 +434,9 @@ void post_tokens(asio::io_context& context) {
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST_EQ(tuples, 2);
+}
 
+void post_awaitable_token(asio::io_context& context) {
     // use_awaitable in a coroutine of the context.
     bool done = false;
     asio::co_spawn(
@@ -465,6 +472,15 @@ void post_tokens(asio::io_context& context) {
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST(done);
+}
+
+void post_tokens(asio::io_context& context) {
+#ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+    post_future_token(context);
+#endif
+    post_deferred_token(context);
+    post_tuple_token(context);
+    post_awaitable_token(context);
 }
 
 void post_error_value(asio::io_context& context) {
@@ -633,12 +649,10 @@ void post_gcm_allocator(asio::io_context& context) {
                                            crypto::error::invalid_key_size);
 }
 
-void post_gcm_tokens(asio::io_context& context) {
-    gcm_fixture fixture;
-    auto const plaintext = fixture.data;
-    auto const executor = context.get_executor();
-
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+void post_gcm_future_token(asio::io_context& context, gcm_fixture& fixture,
+                           std::array<std::uint8_t, 40> const& plaintext) {
+    auto const executor = context.get_executor();
     auto future_tag = crypto::async_seal(executor, fixture.aead, fixture.iv,
                                          fixture.additional_data, fixture.data, asio::use_future);
     context.restart();
@@ -666,8 +680,12 @@ void post_gcm_tokens(asio::io_context& context) {
         thrown = failure.code() == crypto::error::invalid_key_size;
     }
     BOOST_TEST(thrown);
+}
 #endif
 
+void post_gcm_deferred_token(asio::io_context& context, gcm_fixture& fixture,
+                             std::array<std::uint8_t, 40> const& plaintext) {
+    auto const executor = context.get_executor();
     // deferred: the synchronous call runs when the operation is launched, not when it is made.
     auto operation = crypto::async_seal(executor, fixture.aead, fixture.iv, fixture.additional_data,
                                         fixture.data, asio::deferred);
@@ -683,7 +701,11 @@ void post_gcm_tokens(asio::io_context& context) {
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST_EQ(deferred_calls, 1);
+}
 
+void post_gcm_tuple_token(asio::io_context& context, gcm_fixture& fixture,
+                          std::array<std::uint8_t, 40> const& plaintext) {
+    auto const executor = context.get_executor();
     // as_tuple: the code and the value in one argument; the open, the code alone.
     int tuples = 0;
     crypto::async_open(executor, fixture.aead, fixture.iv, fixture.additional_data, fixture.data,
@@ -702,7 +724,10 @@ void post_gcm_tokens(asio::io_context& context) {
     context.run();  // lint-run: the test's event loop
     BOOST_TEST_EQ(tuples, 2);
     BOOST_TEST(fixture.data == plaintext);
+}
 
+void post_gcm_awaitable_token(asio::io_context& context, gcm_fixture& fixture,
+                              std::array<std::uint8_t, 40> const& plaintext) {
     // use_awaitable in a coroutine of the context: a refusal through as_tuple.
     bool done = false;
     asio::co_spawn(
@@ -730,6 +755,17 @@ void post_gcm_tokens(asio::io_context& context) {
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST(done);
+}
+
+void post_gcm_tokens(asio::io_context& context) {
+    gcm_fixture fixture;
+    auto const plaintext = fixture.data;
+#ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+    post_gcm_future_token(context, fixture, plaintext);
+#endif
+    post_gcm_deferred_token(context, fixture, plaintext);
+    post_gcm_tuple_token(context, fixture, plaintext);
+    post_gcm_awaitable_token(context, fixture, plaintext);
 }
 
 // Ed25519's async_verify, async_sign and X25519's async_agree through the family's real

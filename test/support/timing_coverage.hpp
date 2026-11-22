@@ -332,7 +332,7 @@ void cover_gcm(std::string const& family, std::string const& backend) {
 template <class Tag = void>
 struct async_completion_counter {
     /** Counts the completion. */
-    int* completions;
+    int* completions = nullptr;
     /** Where a seal's tag is kept, or null. */
     Tag* tag = nullptr;
 
@@ -370,8 +370,11 @@ void cover_async_gcm(std::string const& family, std::string const& backend) {
     auto const key = coverage_key<Gcm::key_size>();
     int completions = 0;
     typename Gcm::result_type kept{};
-    async_completion_counter<typename Gcm::result_type> const counted{&completions};
-    async_completion_counter<typename Gcm::result_type> const keeping{&completions, &kept};
+    async_completion_counter<typename Gcm::result_type> const counted{.completions = &completions};
+    async_completion_counter<typename Gcm::result_type> const keeping{
+        .completions = &completions,
+        .tag = &kept,
+    };
     // Each call's completion is delivered before the next call.
     auto const deliver = [&context] {
         context.restart();
@@ -434,8 +437,11 @@ void cover_async_ed25519(std::string const& backend) {
     std::array<std::uint8_t, 3> const message{1, 2, 3};
     int completions = 0;
     signature_type kept{};
-    async_completion_counter<signature_type> const counted{&completions};
-    async_completion_counter<signature_type> const keeping{&completions, &kept};
+    async_completion_counter<signature_type> const counted{.completions = &completions};
+    async_completion_counter<signature_type> const keeping{
+        .completions = &completions,
+        .tag = &kept,
+    };
     // Each call's completion is delivered before the next call.
     auto const deliver = [&context] {
         context.restart();
@@ -507,7 +513,7 @@ void cover_async_x25519(std::string const& backend) {
         return;
     }
     int completions = 0;
-    async_completion_counter<> const counted{&completions};
+    async_completion_counter<> const counted{.completions = &completions};
     covered("x25519::async_agree" + on, "crypto::async_agree", [&] {
         crypto::async_agree<Backend>(executor, alice, *bob, counted);
         context.restart();

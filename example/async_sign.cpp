@@ -66,7 +66,8 @@ asio::awaitable<bool> sign_and_verify() {
     }
     auto const public_key = key.public_key();
     if (!public_key) {
-        std::printf("public key: %s\n", public_key.error().message().c_str());
+        auto const public_key_error = public_key.error();
+        std::printf("public key: %s\n", public_key_error.message().c_str());
         co_return false;
     }
     auto [signed_code, signature] = co_await crypto::async_sign(executor, key, message, use);

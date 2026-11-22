@@ -27,16 +27,23 @@
 // - post_gcm: the same cases through AES-GCM's async_make, async_seal and async_open (the
 //   functions the family really has, Task 4.A3): never inside the call, the work done when the
 //   call returns, a bound executor, the handler's allocator, every token, an error's empty
-//   value. Task 4.A4 adds async_verify's.
+//   value.
+// - post_verify_*: the same cases through Ed25519's async_verify (no value), RFC 8032's test 2,
+//   and, for the value shapes, async_sign (an array) and async_agree (a secret<32>): never
+//   inside the call, the work done when the call returns, a bound executor, the handler's
+//   allocator, every token, an error's empty value.
 // Each check takes the operation's start as a callable of (executor, token).
 
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
+#include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/counting.hpp"
+#include "support/hex.hpp"
 
 #include <webcpp/asio/as_tuple.hpp>
 #include <webcpp/asio/awaitable.hpp>
@@ -68,6 +75,7 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace asio = webcpp::asio;
 namespace crypto = webcpp::crypto;
@@ -724,6 +732,209 @@ void post_gcm_tokens(asio::io_context& context) {
     BOOST_TEST(done);
 }
 
+// Ed25519's async_verify, async_sign and X25519's async_agree through the family's real
+// functions, on the default backend. The fixture: RFC 8032's test 2 and RFC 7748's section 6.1.
+struct verify_fixture {
+    std::vector<std::uint8_t> seed =
+        webcpp::test::from_hex("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb");
+    std::vector<std::uint8_t> public_key =
+        webcpp::test::from_hex("3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c");
+    std::vector<std::uint8_t> message = webcpp::test::from_hex("72");
+    std::vector<std::uint8_t> signature = webcpp::test::from_hex(
+        "92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0"
+        "f"
+        "11d8c387b2eaeb4302aeeb00d291612bb0c00");
+    std::vector<std::uint8_t> secret_key =
+        webcpp::test::from_hex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a");
+    std::vector<std::uint8_t> peer_key =
+        webcpp::test::from_hex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f");
+    crypto::curves::ed25519::keypair key_pair = *crypto::curves::ed25519::keypair::make(seed);
+
+    auto verify() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_verify(executor, public_key, message, signature,
+                                        std::forward<decltype(token)>(token));
+        };
+    }
+
+    auto verify_refused() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_verify(executor, std::span(public_key).first(31), message,
+                                        signature, std::forward<decltype(token)>(token));
+        };
+    }
+
+    auto sign() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_sign(executor, key_pair, message,
+                                      std::forward<decltype(token)>(token));
+        };
+    }
+
+    auto agree() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_agree(executor, secret_key, peer_key,
+                                       std::forward<decltype(token)>(token));
+        };
+    }
+
+    auto agree_refused() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_agree(executor, std::span(secret_key).first(31), peer_key,
+                                       std::forward<decltype(token)>(token));
+        };
+    }
+};
+
+// complete_by_callback of a real function, whose synchronous call is not counted by sync_runs: the
+// completion comes after the initiating call returned, never inside it.
+template <class... Value, class Start>
+seen<Value...> complete_later(asio::io_context& context, Start start) {
+    seen<Value...> done;
+    bool returned = false;
+    start(context.get_executor(),
+          [&done, &returned](boost::system::error_code code, Value... value) {
+              ++done.calls;
+              done.after_return = returned;
+              done.code = code;
+              done.value = std::tuple<Value...>(std::move(value)...);
+          });
+    returned = true;
+    BOOST_TEST_EQ(done.calls, 0);
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST_EQ(done.calls, 1);
+    BOOST_TEST(done.after_return);
+    return done;
+}
+
+void post_verify_inline(asio::io_context& context) {
+    verify_fixture fixture;
+    auto const verified = complete_later<>(context, fixture.verify());
+    BOOST_TEST(!verified.code);
+    // A changed signature is refused.
+    ++fixture.signature[3];
+    auto const refused = complete_later<>(context, fixture.verify());
+    BOOST_TEST(refused.code == crypto::error::invalid_signature);
+    --fixture.signature[3];
+    auto const short_key = complete_later<>(context, fixture.verify_refused());
+    BOOST_TEST(short_key.code == crypto::error::invalid_public_key);
+    // The value shapes: a signature (an array) and a shared secret, and an error's empty value.
+    auto const signed_message = complete_later<block>(context, fixture.sign());
+    BOOST_TEST(!signed_message.code);
+    BOOST_TEST(std::ranges::equal(std::get<0>(signed_message.value), fixture.signature));
+    auto const agreed = complete_later<key>(context, fixture.agree());
+    BOOST_TEST(!agreed.code);
+    auto const agree_refused = complete_later<key>(context, fixture.agree_refused());
+    BOOST_TEST(agree_refused.code == crypto::error::invalid_key_size);
+    BOOST_TEST(all_bytes(std::get<0>(agree_refused.value), 0));
+}
+
+void post_verify_bound_executor() {
+    verify_fixture fixture;
+    complete_on_bound<>(fixture.verify());
+    complete_on_bound<block>(fixture.sign());
+    complete_on_bound<key>(fixture.agree());
+}
+
+void post_verify_allocator(asio::io_context& context) {
+    verify_fixture fixture;
+    allocator_call warm;
+    start_counted<>(context, fixture.verify(), warm);
+    BOOST_TEST_EQ(warm.calls, 1);
+    allocator_call verified;
+    start_counted<>(context, fixture.verify(), verified);
+    BOOST_TEST(!verified.code);
+    BOOST_TEST_EQ(verified.held_at_call, 0);
+    BOOST_TEST_GE(verified.taken, 1);
+    BOOST_TEST_EQ(verified.news, 0U);
+    allocator_call refused;
+    start_counted<>(context, fixture.verify_refused(), refused);
+    BOOST_TEST(refused.code == crypto::error::invalid_public_key);
+    BOOST_TEST_EQ(refused.held_at_call, 0);
+    BOOST_TEST_GE(refused.taken, 1);
+    BOOST_TEST_EQ(refused.news, 0U);
+    check_allocator_with<key>(context, fixture.agree(), fixture.agree_refused(),
+                              crypto::error::invalid_key_size);
+}
+
+void post_verify_tokens(asio::io_context& context) {
+    verify_fixture fixture;
+    auto const executor = context.get_executor();
+
+#ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+    auto future_ok = fixture.verify()(executor, asio::use_future);
+    auto future_refused = fixture.verify_refused()(executor, asio::use_future);
+    auto future_secret = fixture.agree()(executor, asio::use_future);
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    future_ok.get();
+    BOOST_TEST(!all_bytes(future_secret.get(), 0));
+    bool thrown = false;
+    try {
+        future_refused.get();
+    } catch (boost::system::system_error const& failure) {
+        thrown = failure.code() == crypto::error::invalid_public_key;
+    }
+    BOOST_TEST(thrown);
+#endif
+
+    // deferred: the synchronous call runs when the operation is launched, not when it is made.
+    ++fixture.signature[0];
+    auto operation = fixture.verify()(executor, asio::deferred);
+    --fixture.signature[0];
+    int deferred_calls = 0;
+    // The signature is intact again when the operation is launched: the call reads it then.
+    std::move(operation)([&](boost::system::error_code code) {
+        ++deferred_calls;
+        BOOST_TEST(!code);
+    });
+    BOOST_TEST_EQ(deferred_calls, 0);
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST_EQ(deferred_calls, 1);
+
+    // as_tuple: the code alone, and the code with the value of an error.
+    int tuples = 0;
+    fixture.verify_refused()(executor,
+                             asio::as_tuple([&](std::tuple<boost::system::error_code> done) {
+                                 ++tuples;
+                                 BOOST_TEST(std::get<0>(done) == crypto::error::invalid_public_key);
+                             }));
+    fixture.agree_refused()(executor,
+                            asio::as_tuple([&](std::tuple<boost::system::error_code, key> done) {
+                                ++tuples;
+                                BOOST_TEST(std::get<0>(done) == crypto::error::invalid_key_size);
+                                BOOST_TEST(all_bytes(std::get<1>(done), 0));
+                            }));
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST_EQ(tuples, 2);
+
+    // use_awaitable in a coroutine of the context: a refusal through as_tuple.
+    bool done = false;
+    asio::co_spawn(
+        context,
+        [&]() -> asio::awaitable<void> {
+            auto const coro = co_await asio::this_coro::executor;
+            auto [verify_code] =
+                co_await fixture.verify()(coro, asio::as_tuple(asio::use_awaitable));
+            BOOST_TEST(!verify_code);
+            auto [sign_code, signature] =
+                co_await fixture.sign()(coro, asio::as_tuple(asio::use_awaitable));
+            BOOST_TEST(!sign_code);
+            BOOST_TEST(std::ranges::equal(signature, fixture.signature));
+            auto [refused_code] =
+                co_await fixture.verify_refused()(coro, asio::as_tuple(asio::use_awaitable));
+            BOOST_TEST(refused_code == crypto::error::invalid_public_key);
+            done = true;
+        },
+        [](std::exception_ptr const& failure) { BOOST_TEST(!failure); });
+    context.restart();
+    context.run();  // lint-run: the test's event loop
+    BOOST_TEST(done);
+}
+
 // The asynchronous default is the synchronous one, on every target (ruling R-A4), and no
 // synchronous backend completes by itself: part B's backends::browser alone will.
 template <class Family>
@@ -748,5 +959,9 @@ int main() {
     post_gcm_bound_executor();
     post_gcm_allocator(context);
     post_gcm_tokens(context);
+    post_verify_inline(context);
+    post_verify_bound_executor();
+    post_verify_allocator(context);
+    post_verify_tokens(context);
     return webcpp::test::exit_status(boost::report_errors());
 }

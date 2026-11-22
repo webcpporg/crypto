@@ -20,6 +20,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
@@ -88,6 +89,8 @@ class basic_keypair {
     friend class ph;
     template <class>
     friend struct detail::ed25519_keypair_access;
+    // The asynchronous family's error completions make the empty object a move leaves.
+    friend struct detail::async_access;
 
 public:
     /** The family, for `supports_v`. */

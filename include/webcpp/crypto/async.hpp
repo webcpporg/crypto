@@ -23,6 +23,10 @@
    call.
    - AES-GCM: `async_make`, `async_seal` and `async_open`, over `ciphers::gcm`. The other AEADs
      (ChaCha20-Poly1305 and its forms, the secret boxes) are not in WebCrypto: call their `seal`.
+   - Ed25519: `async_make` (a key pair from its seed), `async_generate`, `async_sign` and
+     `async_verify`, over `curves::ed25519::basic_keypair` and `curves::ed25519::verify`. A key
+     pair of an algorithm WebCrypto lacks (secp256k1) is not here: call its own `sign`.
+   - X25519: `async_agree`, over `curves::x25519::agree`.
  - The heavy functions (design D32's list) take the work executor first (a
    `webcpp::asio::thread_pool`'s): they check their guards on the caller's thread, run the work on
    the work executor and complete on the handler's associated executor, with webcpp::hash's
@@ -69,10 +73,13 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/ciphers/gcm.hpp>
+#include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/heavy.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
+#include <webcpp/crypto/secret.hpp>
 
 #include <webcpp/asio/append.hpp>
 #include <webcpp/asio/async_result.hpp>
@@ -111,8 +118,23 @@ inline constexpr bool asynchronous_backend_v = false;
 
 /**
  * The operations of a backend that completes by itself: part B specialises it for
- * `backends::browser`, with a static member function per asynchronous function, taking its
- * arguments and returning its result. Declared only: no synchronous backend reaches it.
+ * `backends::browser`. Declared only: no synchronous backend reaches it.
+ *
+ * Each asynchronous function whose backend satisfies @ref asynchronous_backend_v calls one static
+ * member function of the specialisation and returns its result, the completion token's
+ * `async_result`. The shape is the same for every one: the executor the completion is posted to
+ * first, the function's other arguments as the public function takes them, the completion token
+ * last, forwarded (`std::forward<CompletionToken>(token)`); the function's explicit template
+ * arguments, other than the backend, go to a member template of the same name:
+ * - `make<Algorithm>(executor, key_bytes, token)`: AES-GCM or a key pair from its bytes;
+ * - `generate<Keypair>(executor, token)`;
+ * - `seal(executor, aead, iv_bytes, additional_data_bytes, data_bytes, token)` and
+ *   `open(executor, aead, iv_bytes, additional_data_bytes, data_bytes, tag_bytes, token)`;
+ * - `sign(executor, key_pair, message, token)`;
+ * - `verify<Policy>(executor, public_key, message, signature, token)`;
+ * - `agree(executor, secret_key, peer_public_key, token)`.
+ * The signatures of the completions are the public functions'. The function's guard
+ * (`detail::timing_guard`) is held by the public function before it calls the engine.
  *
  * @tparam Backend `backends::browser`.
  */
@@ -121,9 +143,9 @@ struct async_engine;
 
 /**
  * The initiation of a cheap function on a synchronous backend: runs the synchronous call (its
- * guards first) at once and posts the completion, its result split by @ref completion_of, to
- * `executor`, whence it reaches the handler's associated executor; the post's storage is the
- * handler's associated allocator's.
+ * guards first) when the operation is initiated and posts the completion, its result split by @ref
+ * completion_of, to `executor`, whence it reaches the handler's associated executor; the post's
+ * storage is the handler's associated allocator's.
  */
 struct post_initiation {
     /**
@@ -186,6 +208,13 @@ inline constexpr bool is_gcm_v = false;
 template <class Cipher>
 inline constexpr bool is_gcm_v<ciphers::gcm<Cipher>> = true;
 
+/** Whether `Type` is an Ed25519 key pair, `curves::ed25519::basic_keypair<Backend>`. */
+template <class Type>
+inline constexpr bool is_ed25519_keypair_v = false;
+
+template <class Backend>
+inline constexpr bool is_ed25519_keypair_v<curves::ed25519::basic_keypair<Backend>> = true;
+
 /** False for every type, so that a refusal's `static_assert` fires only when it is reached. */
 template <class Type>
 inline constexpr bool refused_v = false;
@@ -193,15 +222,16 @@ inline constexpr bool refused_v = false;
 }  // namespace detail
 
 /**
- * Makes an AES-GCM object from a key, asynchronously: `Algorithm::make(key_bytes)` run when the
- * operation is initiated, its result posted to `executor` (design D23). The key is read before
- * the call returns on a synchronous backend, later on the browser's: it is the caller's until the
- * completion.
+ * Makes an AES-GCM object or an Ed25519 key pair from its key bytes, asynchronously:
+ * `Algorithm::make(key_bytes)` run when the operation is initiated, its result posted to
+ * `executor` (design D23). The key is read before the call returns on a synchronous backend,
+ * later on the browser's: it is the caller's until the completion.
  *
- * @tparam Algorithm A `ciphers::gcm<Cipher>`, on any backend of AES-GCM; the other algorithms
- * WebCrypto has are made by their own overloads of the key pairs' functions.
+ * @tparam Algorithm A `ciphers::gcm<Cipher>` or a `curves::ed25519::basic_keypair<Backend>`, on
+ * any backend that has it; the other algorithms crypto has are not in WebCrypto: call their
+ * `make`.
  * @param executor The executor the completion is posted to.
- * @param key_bytes `Algorithm::key_size` bytes.
+ * @param key_bytes `Algorithm::key_size` bytes for AES-GCM, the seed's `seed_size` for a key pair.
  * @param token The completion token, of signature `void(boost::system::error_code, Algorithm)`;
  * on an error the object is empty, and every member refuses with `invalid_state`
  * (`invalid_key_size`, `errc::not_enough_memory`, `backend_failure`).
@@ -211,10 +241,10 @@ template <class Algorithm, class Executor, class CompletionToken>
 auto async_make(Executor const& executor, std::span<std::uint8_t const> key_bytes,
                 CompletionToken&& token) {
     detail::timing_guard const timing;
-    if constexpr (!detail::is_gcm_v<Algorithm>) {
+    if constexpr (!detail::is_gcm_v<Algorithm> && !detail::is_ed25519_keypair_v<Algorithm>) {
         static_assert(detail::refused_v<Algorithm>,
-                      "webcpp::crypto: async_make takes AES-GCM, the algorithm WebCrypto has: "
-                      "call make for the others.");
+                      "webcpp::crypto: async_make takes AES-GCM or a key pair of an algorithm "
+                      "WebCrypto has (Ed25519, P-256): call make for the others.");
     } else {
         using backend = Algorithm::backend_type;
         if constexpr (detail::asynchronous_backend_v<backend>) {
@@ -223,6 +253,38 @@ auto async_make(Executor const& executor, std::span<std::uint8_t const> key_byte
         } else {
             return detail::complete_by_post(
                 executor, token, [key_bytes]() noexcept { return Algorithm::make(key_bytes); });
+        }
+    }
+}
+
+/**
+ * Makes an Ed25519 key pair from a fresh seed, asynchronously: `Keypair::generate()` run when
+ * the operation is initiated (the system's generator is drawn from then), its result posted to
+ * `executor`.
+ *
+ * @tparam Keypair A `curves::ed25519::basic_keypair<Backend>`, by default the family's
+ * `curves::ed25519::keypair`; the other key pairs are not in WebCrypto: call their `generate`.
+ * @param executor The executor the completion is posted to.
+ * @param token The completion token, of signature `void(boost::system::error_code, Keypair)`;
+ * on an error the key pair is empty, and every member refuses with `invalid_state`
+ * (`entropy_unavailable`, `backend_failure`).
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Keypair = curves::ed25519::keypair, class Executor, class CompletionToken>
+auto async_generate(Executor const& executor, CompletionToken&& token) {
+    detail::timing_guard const timing;
+    if constexpr (!detail::is_ed25519_keypair_v<Keypair>) {
+        static_assert(detail::refused_v<Keypair>,
+                      "webcpp::crypto: async_generate takes a key pair of an algorithm WebCrypto "
+                      "has (Ed25519, P-256): call generate for the others.");
+    } else {
+        using backend = Keypair::backend_type;
+        if constexpr (detail::asynchronous_backend_v<backend>) {
+            return detail::async_engine<backend>::template generate<Keypair>(
+                executor, std::forward<CompletionToken>(token));
+        } else {
+            return detail::complete_by_post(executor, token,
+                                            []() noexcept { return Keypair::generate(); });
         }
     }
 }
@@ -311,6 +373,104 @@ auto async_open(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
                     return aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
                 });
         }
+    }
+}
+
+/**
+ * Signs a message with an Ed25519 key pair, asynchronously: `key_pair.sign(message)` run when
+ * the operation is initiated, its result posted to `executor`. `key_pair` and `message` are the
+ * caller's until the completion.
+ *
+ * @tparam Keypair A `curves::ed25519::basic_keypair<Backend>`; the other key pairs are not in
+ * WebCrypto: call their `sign`.
+ * @param executor The executor the completion is posted to.
+ * @param key_pair The key pair.
+ * @param message Any bytes.
+ * @param token The completion token, of signature `void(boost::system::error_code,
+ * std::array<std::uint8_t, 64>)`: the signature; on an error 64 zeros (`invalid_state`,
+ * `backend_failure`).
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Keypair, class Executor, class CompletionToken>
+auto async_sign(Executor const& executor, Keypair const& key_pair,
+                std::span<std::uint8_t const> message, CompletionToken&& token) {
+    detail::timing_guard const timing;
+    if constexpr (!detail::is_ed25519_keypair_v<Keypair>) {
+        static_assert(detail::refused_v<Keypair>,
+                      "webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has "
+                      "(Ed25519, P-256): call the key pair's sign for the others.");
+    } else {
+        using backend = Keypair::backend_type;
+        if constexpr (detail::asynchronous_backend_v<backend>) {
+            return detail::async_engine<backend>::sign(executor, key_pair, message,
+                                                       std::forward<CompletionToken>(token));
+        } else {
+            return detail::complete_by_post(executor, token, [&key_pair, message]() noexcept {
+                return key_pair.sign(message);
+            });
+        }
+    }
+}
+
+/**
+ * Verifies an Ed25519 signature, asynchronously: `curves::ed25519::verify<Policy, Backend>`
+ * run when the operation is initiated, its result posted to `executor`. The spans are the
+ * caller's until the completion.
+ *
+ * @tparam Policy The verification policy, `curves::ed25519::strict`.
+ * @tparam Backend The backend; by default the asynchronous family's.
+ * @param executor The executor the completion is posted to.
+ * @param public_key 32 bytes.
+ * @param message The signed bytes.
+ * @param signature 64 bytes.
+ * @param token The completion token, of signature `void(boost::system::error_code)`:
+ * `invalid_public_key` for a key of another size, `invalid_signature`.
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Policy = curves::ed25519::strict,
+          class Backend = default_async_backend_t<families::ed25519>, class Executor,
+          class CompletionToken>
+auto async_verify(Executor const& executor, std::span<std::uint8_t const> public_key,
+                  std::span<std::uint8_t const> message, std::span<std::uint8_t const> signature,
+                  CompletionToken&& token) {
+    detail::timing_guard const timing;
+    if constexpr (detail::asynchronous_backend_v<Backend>) {
+        return detail::async_engine<Backend>::template verify<Policy>(
+            executor, public_key, message, signature, std::forward<CompletionToken>(token));
+    } else {
+        return detail::complete_by_post(
+            executor, token, [public_key, message, signature]() noexcept {
+                return curves::ed25519::verify<Policy, Backend>(public_key, message, signature);
+            });
+    }
+}
+
+/**
+ * Agrees an X25519 shared secret, asynchronously: `curves::x25519::agree<Backend>` run when the
+ * operation is initiated, its result posted to `executor`. The spans are the caller's until the
+ * completion.
+ *
+ * @tparam Backend The backend; by default the asynchronous family's.
+ * @param executor The executor the completion is posted to.
+ * @param secret_key 32 bytes.
+ * @param peer_public_key 32 bytes.
+ * @param token The completion token, of signature `void(boost::system::error_code, secret<32>)`:
+ * the shared secret; on an error a secret of zeros (`invalid_key_size`, `invalid_public_key`,
+ * `weak_public_key`, `backend_failure`).
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Backend = default_async_backend_t<families::x25519>, class Executor,
+          class CompletionToken>
+auto async_agree(Executor const& executor, std::span<std::uint8_t const> secret_key,
+                 std::span<std::uint8_t const> peer_public_key, CompletionToken&& token) {
+    detail::timing_guard const timing;
+    if constexpr (detail::asynchronous_backend_v<Backend>) {
+        return detail::async_engine<Backend>::agree(executor, secret_key, peer_public_key,
+                                                    std::forward<CompletionToken>(token));
+    } else {
+        return detail::complete_by_post(executor, token, [secret_key, peer_public_key]() noexcept {
+            return curves::x25519::agree<Backend>(secret_key, peer_public_key);
+        });
     }
 }
 

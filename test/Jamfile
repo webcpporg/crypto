@@ -110,9 +110,10 @@ crypto-run heavy : heavy_test.cpp
     <toolset>emscripten:<linkflags>-sPTHREAD_POOL_SIZE=3
   : native emscripten ;
 # The cheap functions of the asynchronous family on a synchronous backend, on
-# every target: detail::complete_by_post runs the call at once and completes
-# through a post, on the handler's associated executor and in its associated
-# allocator, with every completion token (use_future where exceptions are on).
+# every target: detail::complete_by_post runs the call when the operation is
+# initiated and completes through a post, on the handler's associated executor
+# and in its associated allocator, with every completion token (use_future where
+# exceptions are on).
 crypto-run async_post : async_post_test.cpp
   : <library>/webcpp/asio//asio <library>/webcpp/crypto//gcm-default
     <library>/third_party//sodium ;
@@ -124,6 +125,11 @@ crypto-run async_gcm : async_gcm_test.cpp
 crypto-run async_gcm_openssl : async_gcm_test.cpp
   : <library>/webcpp/asio//asio <library>/webcpp/crypto//openssl
     <define>WEBCPP_TEST_ASYNC_GCM_OPENSSL : native wasip2 wasip3 ;
+# Ed25519's and X25519's asynchronous functions on libsodium, every target:
+# RFC 8032's and RFC 7748's cases, a changed byte, a generated key pair, a
+# refused seed, a weak peer key, a coroutine.
+crypto-run async_25519 : async_25519_test.cpp
+  : <library>/webcpp/asio//asio <library>/third_party//sodium ;
 # Without threads (WEBCPP_CRYPTO_NO_THREADS natively; WASI has none), a heavy
 # operation's async_ variant that forgets its refusal stops at
 # detail::run_on_work's stand-in, which names the refusal, and with that

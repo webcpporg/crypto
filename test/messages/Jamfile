@@ -47,5 +47,7 @@ build-project ellswift_other_backend ;
 build-project musig_other_backend ;
 build-project silent_payments_other_backend ;
 build-project label_lookup_by_value ;
+build-project p256_default_not_linked ;
+build-project p256_on_sodium ;
 build-project aes_block_default_not_linked ;
 build-project aes_block_default_not_linked_wasm ;

@@ -24,6 +24,8 @@ browser's generator, and nothing else.
 * *secp256k1.* BIP 340 Schnorr signatures, ECDSA signatures, their
 verification, ECDH, ECDSA's strict DER and low-S forms, and the x-only tweak,
 through libsecp256k1.
+* *P-256.* ECDSA over a SHA-256 digest, ECDH, strict DER and low-S forms, and
+SPKI and PKCS#8 keys, through BearSSL.
 * *A constant-time `equal`* for tags and MACs, Boost.Hash2's included.
 * *The AES block cipher,* a building block for the rare case that needs one.
 
@@ -65,6 +67,8 @@ the namespaces as `<webcpp/crypto/<group>/<name>.hpp>`:
 and `aes256_gcm` (<<crypto-ciphers>>);
 * `webcpp::crypto::curves::secp256k1`: key pairs, signatures, ECDH, the
 encodings and the x-only tweak on secp256k1 (<<crypto-curves>>);
+* `webcpp::crypto::curves::p256`: key pairs, ECDSA, ECDH and the encodings on
+P-256 (<<crypto-p256>>);
 * `webcpp::crypto::backends`: the backends (<<crypto-backends>>).
 
 `<webcpp/crypto.hpp>` includes every header whose backend the program links.

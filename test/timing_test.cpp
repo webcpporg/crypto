@@ -9,13 +9,17 @@
 // and MSVC; where the CPU has DIT, a guard sets it for its scope and clears it after when it was
 // clear, leaves it set when it was set, and nests; equal enters its own guard. Built with
 // WEBCPP_TEST_TIMING_THREADS (timing_threads, native, with threads), a guard on one thread leaves
-// another's DIT clear.
+// another's DIT clear. P-256's normalize_ecdsa and check_low_s, which call no backend, enter no
+// guard: this program links none, and curves/p256.hpp needs none to declare them.
 
 #include "support/timing_seam.hpp"
 
+#include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/test/exit_status.hpp>
+
+#include "support/p256_data.hpp"
 
 #include <boost/core/lightweight_test.hpp>
 #include <boost/hash2/digest.hpp>
@@ -196,6 +200,18 @@ void equal_enters() {
     BOOST_TEST(!detail::dit_is_set());
 }
 
+// P-256's low-S functions are arithmetic on public bytes, with no backend: no guard.
+void p256_low_s_unguarded() {
+    namespace p256 = webcpp::crypto::curves::p256;
+    namespace data = webcpp::test::p256;
+    webcpp::test::uncovered("p256::normalize_ecdsa", [] {
+        auto const normalized = p256::normalize_ecdsa(data::rfc6979_sample);
+        BOOST_TEST(normalized.has_value() && *normalized == data::rfc6979_sample_low_s);
+    });
+    webcpp::test::uncovered("p256::check_low_s",
+                            [] { BOOST_TEST(p256::check_low_s(data::rfc6979_test).has_value()); });
+}
+
 #ifdef WEBCPP_TEST_TIMING_THREADS
 // While a guard holds DIT on this thread, another thread reads it clear. The other thread is
 // started before the guard, so that it cannot inherit the state at its creation (Linux's clone
@@ -229,6 +245,7 @@ int main() {
     guard_leaves_set_bit();
     nested_guards();
     equal_enters();
+    p256_low_s_unguarded();
 #ifdef WEBCPP_TEST_TIMING_THREADS
     other_thread_untouched();
 #endif

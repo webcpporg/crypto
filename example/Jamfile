@@ -119,6 +119,27 @@ webcpp.example openssl_memory.cpp
 # Ed25519ph's test given in two pieces, on the family's default.
 webcpp.example ed25519_sign.cpp : <library>/webcpp/crypto//ed25519-default ;
 
+# The guide's P-256 key pair program: RFC 6979's key made from its scalar, its
+# public key exported and imported as a peer's, a tampered point refused, and a
+# key pair drawn from the system's generator.
+webcpp.example p256_keys.cpp : <library>/webcpp/crypto//p256-default ;
+# The guide's P-256 ECDSA program: RFC 6979's signature of "sample", its low-S
+# form and its DER, both forms verified and another digest refused.
+webcpp.example p256_sign.cpp : <library>/webcpp/crypto//p256-default ;
+# The guide's P-256 ECDH program: two key pairs from fixed scalars agree on the
+# shared x coordinate, then HKDF-SHA-256 derives a key from it.
+webcpp.example p256_ecdh.cpp : <library>/webcpp/crypto//p256-default ;
+# The guide's P-256 key formats program: RFC 6979's key written as PEM SPKI,
+# printed, and as PEM PKCS#8, kept secret, each read back; PEM on its default,
+# libsodium.
+webcpp.example p256_key_formats.cpp : <library>/webcpp/crypto//p256-default
+  <library>/webcpp/crypto//pem-default ;
+# The guide's signed handshake on P-256 (doc/p2p.adoc): two peers' identities
+# kept as scalars, the handshake's SHA-256 signed low S and checked low S first,
+# a signature not normalized refused, and the session key from ECDH's x
+# through HKDF-SHA-256.
+webcpp.example p256_handshake.cpp : <library>/webcpp/crypto//p256-default ;
+
 # The guide's X25519 program: RFC 7748's Alice and Bob, the agreement of two
 # Ed25519 key pairs through their X25519 forms, and a peer of low order
 # refused, on the family's default.

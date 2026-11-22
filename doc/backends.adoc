@@ -40,6 +40,49 @@ OpenSSL is never the system's: the superproject builds it from
 Natively with Clang and GCC it is built with its assembly; on MSVC, wasip2 and
 wasip3 it is built `no-asm`
 (link:https://github.com/openssl/openssl/blob/master/INSTALL.md[INSTALL.md]).
+BearSSL zeroes nothing it computes on the stack: its ECDSA signing keeps the
+scalar, the nonce and the HMAC-DRBG state that derives the nonce in its own
+stack frame and returns without clearing them
+(link:https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ecdsa_i31_sign_raw.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l45[ecdsa_i31_sign_raw.c,
+lines 45 to 51 and 115 to 135]). webcpp wipes what it owns, a key pair's state
+and every `secret<N>`, and cannot reach a callee's frame, which the program's
+next calls overwrite.
+
+BearSSL's P-256 code differs by target. Natively webcpp takes `br_ec_p256_m62`,
+whose field arithmetic multiplies 64-bit words into a 128-bit product, where
+BearSSL compiled it (a compiler with `unsigned __int128`, or MSVC's
+`_umul128`), and `br_ec_p256_m31`, 32-bit words, where it did not. On
+WebAssembly it takes `br_ec_p256_m31` always: wasm32 has no 128-bit product,
+the compiler makes it a call into its runtime library, and BearSSL states the
+constant time of its multiplications only for the instructions it names
+(link:https://www.bearssl.org/ctmul.html[BearSSL, constant-time
+multiplications]). Both are constant time by BearSSL's design, and the lane
+below times the 64-bit code natively and the 32-bit code under wasmtime. ECDSA
+is BearSSL's `br_ecdsa_i31_sign_raw` and `br_ecdsa_i31_vrfy_raw` on every
+target, over the curve code chosen.
+
+[#crypto-backends-bearssl-fix]
+webcpp's BearSSL is upstream's commit `7bea48e` with one fix of webcpp's, on
+the branch `webcpp` of its mirror
+(link:https://github.com/webcpporg/bearssl/commit/32381d6e787a32cbb7a687246349200d78b8ff7c[webcpporg/bearssl
+32381d6]). Upstream's ECDSA signing reads RFC 6979's nonce through
+`br_ecdsa_i31_bits2int`
+(link:https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ecdsa_i31_bits.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l44[ecdsa_i31_bits.c,
+lines 44 and 45]): `br_i31_decode` writes the nonce's actual bit length into
+the integer's header, and `br_i31_rshift` then runs its loop and its last
+store over the words that length needs, 8 rather than 9 for a P-256 nonce
+below 2^248^, one signature in about 256. A signature's time then tells whether
+its nonce is short, the leak a lattice turns into the key from enough timed
+signatures
+(link:https://minerva.crocs.fi.muni.cz/[Minerva, CVE-2019-15809]).
+The fix sets the header back to the order's length before the shift, which
+then runs over every word: the words above the nonce are zero, so the nonce is
+unchanged. The constant-time lane below found the leak on 2026-11-21 under
+memcheck and MemorySanitizer; dudect, which would see one measurement in about
+256 differ by a few instructions, did not. The 15-bit copy, which webcpp does
+not call, has the same fix. Each move of BearSSL's pin carries the commit
+until upstream has it.
+
 A program has one copy of each library: libsecp256k1's tables and OpenSSL's
 state are global symbols, so webcpp's build is never linked with another copy.
 
@@ -88,15 +131,20 @@ x-only tweak, ECDH in its three forms, the secret key's tweaks and negation,
 PKCS#8's encoding and decoding, ElligatorSwift's `ellswift_create` and
 `ellswift_xdh`, MuSig2's `nonce_gen` and `partial_sign`, and silent payments'
 `create_outputs`, `create_label` and `scan_outputs`, with the wipe of their
-workspaces. Both checkers run the same paths, written once (`paths.hpp`),
+workspaces; and BearSSL's P-256: the key pair's making, `sign_ecdsa` followed by
+`normalize_ecdsa` and `check_low_s` on the fresh signature, `ecdh_x` and
+`decode_pkcs8`. Both checkers run the same paths, written once (`paths.hpp`),
 memcheck OpenSSL's besides. Each check is shown to fail on a planted branch on
-a key byte, and each path's output is checked to carry the mark, so that the
+a key byte, and on a copy of P-256's range check of a scalar that returns at
+the first byte that differs, and each path's output is checked to carry the mark, so that the
 path is traced, where the checker's shadow keeps it: MemorySanitizer's loses
 the mark through a constant-time reduction to one bit, so the result of
-`is_all_zero`, X25519's public key and the bytes a destructor wiped are checked
-by memcheck alone. dudect's statistics
+`is_all_zero`, X25519's public key, P-256's public key and `ecdh_x` (BearSSL
+selects a window's points with masks of that form) and the bytes a destructor
+wiped are checked by memcheck alone. dudect's statistics
 (link:https://eprint.iacr.org/2016/1123[Reparaz, Balasch and Verbauwhede]) time
-BearSSL's two AEADs' seal and open, ctaes, `equal`, libsodium's X25519
+BearSSL's two AEADs' seal and open, BearSSL's P-256 `sign_ecdsa` and
+`ecdh_x` against the key pair's scalar, ctaes, `equal`, libsodium's X25519
 agreement and Ed25519 signing, and libsecp256k1's `ecdh_x` natively, on Linux
 and macOS, and under wasmtime.
 dudect's programs set nothing themselves: they measure what a program gets,
@@ -107,7 +155,21 @@ get. The lane's `dudect_planted` shows that DIT does not hide a leak: X25519's
 `agree` after an early-exit scan of its secret key, the scan run inside the
 library's own guard as a public operation's code would be, which dudect must
 find: |t| 66.72 and 65.53 against the threshold 10 (2026-11-21 UTC, two runs,
-an Apple M5 Max, a release build).
+an Apple M5 Max, a release build). BearSSL's P-256, its `sign_ecdsa` and its `ecdh_x`
+timed against the key pair's scalar, a fixed one against random ones, read |t|
+2.24 to 2.29 and 1.84 to 2.19 natively and 1.36 to 2.51 and 1.85 to 2.08 under
+wasmtime on wasip2 against the same threshold (2026-11-21 UTC, two runs each,
+the lane's among them, on the same machine shared and loaded, a release
+build).
+
+memcheck and MemorySanitizer last ran the lane on 2026-11-21 UTC with the
+command the CI runs it with, in an arm64 Linux container (Ubuntu 24.04, the
+image `linux-lint:arm64` of webcpp's Linux lint, Valgrind 3.22, clang 18), on
+an Apple M5 Max. Every path above passed under both, P-256's with webcpp's fix
+to BearSSL (<<crypto-backends-bearssl-fix>>); the run before, without it, both
+reported the nonce's leak. Each planted program failed where it must, and the
+lane's dudect programs passed there too: P-256's `sign_ecdsa` |t| 1.91 and
+`ecdh_x` 1.96, with `dudect_planted` at 34.89.
 
 One measurement is an open finding, listed under the table with its numbers:
 libsodium's X25519 `agree` under wasmtime, on wasip2. Its cause is measured:
@@ -138,9 +200,13 @@ wherever else the lane runs, on a machine of one's own, in one process.
 Whether a tag matched, or a shared secret came out all zero, is public by
 design, since the operation reports it, but it is computed from the secrets: it
 is the one kind of value webcpp marks public, where webcpp's code first
-branches on it (BearSSL's engines, libsodium's engines, X25519's `agree`, and
-each verdict of libsecp256k1's that webcpp reads), so that the checkers report
-every other branch. libsecp256k1 marks its own public values (a nonce's retry,
+branches on it (BearSSL's engines, libsodium's engines, X25519's `agree`,
+P-256's range check of a scalar and its low-S test, and each verdict of
+libsecp256k1's that webcpp reads), so that the checkers report every other
+branch. A signature is public once it is made, but one fresh from
+`sign_ecdsa` is computed from the scalar: `normalize_ecdsa` and `check_low_s`
+mark their verdict public, so that a program that checks its own signatures
+under a checker sees no report. libsecp256k1 marks its own public values (a nonce's retry,
 a verdict, a public key it loads) when its context is made with
 `SECP256K1_CONTEXT_DECLASSIFY`, which webcpp's contexts are under the
 checkers, as its `ctime_tests.c` makes its own; a key pair's public key and a
@@ -148,7 +214,9 @@ silent payments label, which webcpp reads from libsecp256k1's structures, are
 marked public where webcpp reads them. libsodium branches on its own
 verdicts inside the functions that compute them; the lane tells memcheck of
 each of those functions (`sodium_verdicts.supp`), and libsodium is used
-unchanged. MemorySanitizer approximates a subtraction without its carry, so it
+unchanged. BearSSL's ECDSA signing does the same with its scalar's decoding
+and RFC 6979's retry of a nonce out of range, in `br_ecdsa_i31_sign_raw`
+(`bearssl_verdicts.supp`). MemorySanitizer approximates a subtraction without its carry, so it
 counts every such verdict public by itself: memcheck is the check of the
 marks. OpenSSL's verdict is OpenSSL's own internal
 branch, which webcpp cannot mark: OpenSSL is checked with the key secret during

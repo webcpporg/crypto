@@ -1,6 +1,6 @@
 {
-  "measurement": "each family's fixed operation per backend and target, bench/operations.hpp",
-  "date": "2026-11-20",
+  "measurement": "each family's fixed operation, and its further sized operations, per backend and target, bench/operations.hpp",
+  "date": "2026-11-21",
   "machine": {
     "cpu": "Apple M5 Max",
     "architecture": "arm64",
@@ -12,14 +12,14 @@
   },
   "load_average_before_after": [
     [
-      10.6513671875,
-      69.86572265625,
-      105.9052734375
+      25.6005859375,
+      51.232421875,
+      145.328125
     ],
     [
-      19.90380859375,
-      56.12353515625,
-      95.6845703125
+      83.2802734375,
+      54.90771484375,
+      128.51513671875
     ]
   ],
   "build": "variant=release",
@@ -34,21 +34,21 @@
         512,
         512,
         512,
-        1024,
-        1024
+        512,
+        512
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        98.8047,
-        104.23,
-        110.7644,
-        98.2049,
-        103.3168
+        113.6545,
+        114.5186,
+        119.8251,
+        110.4408,
+        191.0535
       ],
-      "median_us": 103.3168,
-      "min_us": 96.3768,
-      "max_us": 127.6825
+      "median_us": 114.5186,
+      "min_us": 108.7874,
+      "max_us": 300.6535
     },
     {
       "family": "gcm",
@@ -66,15 +66,15 @@
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        2.1371,
-        2.1671,
-        2.4846,
-        1.9977,
-        2.0276
+        2.2785,
+        2.5848,
+        2.5979,
+        2.6709,
+        4.5237
       ],
-      "median_us": 2.1371,
-      "min_us": 1.9515,
-      "max_us": 2.7085
+      "median_us": 2.5979,
+      "min_us": 2.1836,
+      "max_us": 5.2031
     },
     {
       "family": "aes_block",
@@ -92,15 +92,15 @@
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        0.0507,
-        0.0539,
-        0.0541,
-        0.0507,
-        0.0505
+        0.0598,
+        0.0624,
+        0.0573,
+        0.063,
+        0.0887
       ],
-      "median_us": 0.0507,
-      "min_us": 0.05,
-      "max_us": 0.0559
+      "median_us": 0.0624,
+      "min_us": 0.0564,
+      "max_us": 0.1226
     },
     {
       "family": "aes_block",
@@ -113,20 +113,20 @@
         131072,
         131072,
         131072,
-        262144
+        131072
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        0.3943,
-        0.3959,
-        0.4189,
-        0.3784,
-        0.38
+        0.4684,
+        0.483,
+        0.4657,
+        0.4735,
+        0.6885
       ],
-      "median_us": 0.3943,
-      "min_us": 0.3775,
-      "max_us": 0.4365
+      "median_us": 0.4735,
+      "min_us": 0.4475,
+      "max_us": 0.8449
     },
     {
       "family": "secp256k1",
@@ -136,23 +136,101 @@
       "compiler": "Apple LLVM 21.0.0 (clang-2100.4.1.1)",
       "repetitions": [
         8192,
+        4096,
         8192,
         8192,
-        8192,
-        8192
+        4096
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        9.0248,
-        11.8183,
-        10.0879,
-        8.6328,
-        8.7116
+        10.9441,
+        11.8292,
+        12.3154,
+        10.7248,
+        18.0031
       ],
-      "median_us": 9.0248,
-      "min_us": 8.6193,
-      "max_us": 14.2206
+      "median_us": 11.8292,
+      "min_us": 10.3261,
+      "max_us": 24.3664
+    },
+    {
+      "family": "p256",
+      "backend": "bearssl",
+      "target": "native",
+      "operation": "ECDSA signature of a 32-byte SHA-256 digest",
+      "compiler": "Apple LLVM 21.0.0 (clang-2100.4.1.1)",
+      "repetitions": [
+        512,
+        512,
+        512,
+        512,
+        512
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        161.497,
+        169.4205,
+        161.9125,
+        154.935,
+        281.757
+      ],
+      "median_us": 161.9125,
+      "min_us": 150.6346,
+      "max_us": 335.7074
+    },
+    {
+      "family": "p256",
+      "backend": "bearssl",
+      "target": "native",
+      "operation": "ECDSA verification of a 32-byte SHA-256 digest",
+      "compiler": "Apple LLVM 21.0.0 (clang-2100.4.1.1)",
+      "repetitions": [
+        256,
+        256,
+        256,
+        256,
+        256
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        255.9666,
+        285.618,
+        270.9007,
+        271.5295,
+        520.1979
+      ],
+      "median_us": 271.5295,
+      "min_us": 249.0439,
+      "max_us": 627.3836
+    },
+    {
+      "family": "p256",
+      "backend": "bearssl",
+      "target": "native",
+      "operation": "x coordinate of the ECDH shared point with a peer's public key",
+      "compiler": "Apple LLVM 21.0.0 (clang-2100.4.1.1)",
+      "repetitions": [
+        512,
+        512,
+        512,
+        512,
+        512
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        132.9984,
+        130.3925,
+        135.8477,
+        140.2062,
+        238.9005
+      ],
+      "median_us": 135.8477,
+      "min_us": 122.6903,
+      "max_us": 274.8832
     },
     {
       "family": "ed25519",
@@ -164,21 +242,21 @@
         8192,
         8192,
         8192,
-        8192,
-        8192
+        4096,
+        4096
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        8.204,
-        10.1714,
-        8.64,
-        7.854,
-        7.8646
+        11.803,
+        10.8176,
+        10.4083,
+        11.8177,
+        12.66
       ],
-      "median_us": 8.204,
-      "min_us": 7.8098,
-      "max_us": 11.5266
+      "median_us": 11.803,
+      "min_us": 9.9748,
+      "max_us": 20.5313
     },
     {
       "family": "x25519",
@@ -190,21 +268,21 @@
         4096,
         4096,
         4096,
-        4096,
-        4096
+        2048,
+        2048
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        17.6831,
-        18.1857,
-        18.3415,
-        16.8713,
-        17.9335
+        20.7152,
+        22.4336,
+        21.4408,
+        28.231,
+        37.5185
       ],
-      "median_us": 17.9335,
-      "min_us": 16.5724,
-      "max_us": 22.2107
+      "median_us": 22.4336,
+      "min_us": 20.1559,
+      "max_us": 49.381
     },
     {
       "family": "chacha20_poly1305",
@@ -213,24 +291,24 @@
       "operation": "seal of 16 KiB, 256-bit key",
       "compiler": "Apple LLVM 21.0.0 (clang-2100.4.1.1)",
       "repetitions": [
-        4096,
-        4096,
-        4096,
-        4096,
-        4096
+        2048,
+        2048,
+        2048,
+        2048,
+        2048
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        21.1765,
-        22.2371,
-        21.0199,
-        21.0981,
-        20.4914
+        26.0346,
+        25.5974,
+        26.6545,
+        29.5006,
+        42.4347
       ],
-      "median_us": 21.0981,
-      "min_us": 20.4033,
-      "max_us": 24.4028
+      "median_us": 26.6545,
+      "min_us": 25.5377,
+      "max_us": 80.3947
     },
     {
       "family": "chacha20_poly1305",
@@ -240,23 +318,23 @@
       "compiler": "Apple LLVM 21.0.0 (clang-2100.4.1.1)",
       "repetitions": [
         2048,
-        4096,
-        4096,
-        4096,
-        4096
+        2048,
+        2048,
+        2048,
+        2048
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        28.5672,
-        21.2116,
-        20.7705,
-        20.3037,
-        20.317
+        24.9705,
+        25.5425,
+        27.2026,
+        31.9178,
+        46.5681
       ],
-      "median_us": 20.7705,
-      "min_us": 20.2856,
-      "max_us": 31.2372
+      "median_us": 27.2026,
+      "min_us": 24.0596,
+      "max_us": 65.919
     },
     {
       "family": "chacha20_poly1305",
@@ -274,15 +352,15 @@
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        7.9891,
-        7.5442,
-        8.2329,
-        7.1994,
-        7.0862
+        8.57,
+        9.0431,
+        8.7816,
+        9.3858,
+        13.6017
       ],
-      "median_us": 7.5442,
-      "min_us": 7.0829,
-      "max_us": 8.3154
+      "median_us": 9.0431,
+      "min_us": 8.3029,
+      "max_us": 15.8583
     },
     {
       "family": "chacha20_poly1305_original",
@@ -292,23 +370,23 @@
       "compiler": "Apple LLVM 21.0.0 (clang-2100.4.1.1)",
       "repetitions": [
         2048,
-        4096,
         2048,
-        4096,
-        4096
+        2048,
+        2048,
+        2048
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        26.3642,
-        23.0471,
-        26.4208,
-        20.4068,
-        20.4075
+        25.7058,
+        25.6118,
+        25.5885,
+        29.4484,
+        50.0611
       ],
-      "median_us": 23.0471,
-      "min_us": 20.4021,
-      "max_us": 29.6451
+      "median_us": 25.7058,
+      "min_us": 24.527,
+      "max_us": 60.6105
     },
     {
       "family": "xchacha20_poly1305",
@@ -318,23 +396,23 @@
       "compiler": "Apple LLVM 21.0.0 (clang-2100.4.1.1)",
       "repetitions": [
         2048,
-        4096,
         2048,
-        4096,
-        4096
+        2048,
+        2048,
+        2048
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        27.8997,
-        21.7305,
-        26.1057,
-        20.4797,
-        20.584
+        24.0933,
+        26.7353,
+        25.6325,
+        29.5236,
+        41.8635
       ],
-      "median_us": 21.7305,
-      "min_us": 20.4655,
-      "max_us": 30.6661
+      "median_us": 26.7353,
+      "min_us": 24.0789,
+      "max_us": 55.675
     },
     {
       "family": "gcm",
@@ -352,306 +430,20 @@
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        145.9158,
-        107.1113,
-        128.3739,
-        99.3409,
-        99.3902
+        112.1667,
+        134.0758,
+        127.5148,
+        157.5338,
+        248.3724
       ],
-      "median_us": 107.1113,
-      "min_us": 99.3074,
-      "max_us": 153.4439
+      "median_us": 134.0758,
+      "min_us": 111.7157,
+      "max_us": 303.2047
     },
     {
       "family": "gcm",
       "backend": "openssl",
       "target": "wasip2",
-      "operation": "seal of 16 KiB, 256-bit key",
-      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
-      "repetitions": [
-        512,
-        512,
-        512,
-        1024,
-        512
-      ],
-      "invocations": 5,
-      "runs_per_invocation": 5,
-      "invocation_medians_us": [
-        119.6616,
-        101.186,
-        96.4217,
-        96.3689,
-        96.9688
-      ],
-      "median_us": 96.9688,
-      "min_us": 96.3007,
-      "max_us": 131.5442
-    },
-    {
-      "family": "aes_block",
-      "backend": "openssl",
-      "target": "wasip2",
-      "operation": "encryption of one 16-byte block, 256-bit key",
-      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
-      "repetitions": [
-        524288,
-        1048576,
-        1048576,
-        1048576,
-        1048576
-      ],
-      "invocations": 5,
-      "runs_per_invocation": 5,
-      "invocation_medians_us": [
-        0.1101,
-        0.0989,
-        0.0735,
-        0.0736,
-        0.0733
-      ],
-      "median_us": 0.0736,
-      "min_us": 0.073,
-      "max_us": 0.1279
-    },
-    {
-      "family": "aes_block",
-      "backend": "ctaes",
-      "target": "wasip2",
-      "operation": "encryption of one 16-byte block, 256-bit key",
-      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
-      "repetitions": [
-        131072,
-        131072,
-        262144,
-        131072,
-        262144
-      ],
-      "invocations": 5,
-      "runs_per_invocation": 5,
-      "invocation_medians_us": [
-        0.5754,
-        0.4596,
-        0.3607,
-        0.3907,
-        0.3986
-      ],
-      "median_us": 0.3986,
-      "min_us": 0.3525,
-      "max_us": 0.6475
-    },
-    {
-      "family": "secp256k1",
-      "backend": "secp256k1",
-      "target": "wasip2",
-      "operation": "BIP340 signature of a 32-byte message",
-      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
-      "repetitions": [
-        1024,
-        1024,
-        1024,
-        1024,
-        1024
-      ],
-      "invocations": 5,
-      "runs_per_invocation": 5,
-      "invocation_medians_us": [
-        73.0942,
-        72.2137,
-        53.6623,
-        52.0558,
-        53.8806
-      ],
-      "median_us": 53.8806,
-      "min_us": 51.3226,
-      "max_us": 79.6647
-    },
-    {
-      "family": "ed25519",
-      "backend": "sodium",
-      "target": "wasip2",
-      "operation": "signature of a 32-byte message",
-      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
-      "repetitions": [
-        2048,
-        2048,
-        4096,
-        4096,
-        4096
-      ],
-      "invocations": 5,
-      "runs_per_invocation": 5,
-      "invocation_medians_us": [
-        25.3588,
-        24.5698,
-        19.8426,
-        17.7641,
-        18.0283
-      ],
-      "median_us": 19.8426,
-      "min_us": 17.5626,
-      "max_us": 27.4213
-    },
-    {
-      "family": "x25519",
-      "backend": "sodium",
-      "target": "wasip2",
-      "operation": "agreement of a secret key and a public key",
-      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
-      "repetitions": [
-        1024,
-        1024,
-        2048,
-        1024,
-        2048
-      ],
-      "invocations": 5,
-      "runs_per_invocation": 5,
-      "invocation_medians_us": [
-        60.9593,
-        49.4645,
-        54.333,
-        43.2848,
-        42.8718
-      ],
-      "median_us": 49.4645,
-      "min_us": 40.9906,
-      "max_us": 85.8366
-    },
-    {
-      "family": "chacha20_poly1305",
-      "backend": "sodium",
-      "target": "wasip2",
-      "operation": "seal of 16 KiB, 256-bit key",
-      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
-      "repetitions": [
-        1024,
-        2048,
-        2048,
-        2048,
-        2048
-      ],
-      "invocations": 5,
-      "runs_per_invocation": 5,
-      "invocation_medians_us": [
-        38.4281,
-        34.7759,
-        30.2173,
-        26.4405,
-        26.521
-      ],
-      "median_us": 30.2173,
-      "min_us": 26.4344,
-      "max_us": 48.5391
-    },
-    {
-      "family": "chacha20_poly1305",
-      "backend": "bearssl",
-      "target": "wasip2",
-      "operation": "seal of 16 KiB, 256-bit key",
-      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
-      "repetitions": [
-        1024,
-        1024,
-        1024,
-        1024,
-        1024
-      ],
-      "invocations": 5,
-      "runs_per_invocation": 5,
-      "invocation_medians_us": [
-        58.5653,
-        62.7726,
-        51.2478,
-        49.7384,
-        49.6995
-      ],
-      "median_us": 51.2478,
-      "min_us": 49.6035,
-      "max_us": 66.058
-    },
-    {
-      "family": "chacha20_poly1305",
-      "backend": "openssl",
-      "target": "wasip2",
-      "operation": "seal of 16 KiB, 256-bit key",
-      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
-      "repetitions": [
-        2048,
-        2048,
-        2048,
-        2048,
-        2048
-      ],
-      "invocations": 5,
-      "runs_per_invocation": 5,
-      "invocation_medians_us": [
-        35.8136,
-        40.4412,
-        35.4365,
-        38.2327,
-        34.4407
-      ],
-      "median_us": 35.8136,
-      "min_us": 34.4331,
-      "max_us": 41.95
-    },
-    {
-      "family": "chacha20_poly1305_original",
-      "backend": "sodium",
-      "target": "wasip2",
-      "operation": "seal of 16 KiB, 256-bit key",
-      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
-      "repetitions": [
-        2048,
-        2048,
-        2048,
-        2048,
-        2048
-      ],
-      "invocations": 5,
-      "runs_per_invocation": 5,
-      "invocation_medians_us": [
-        27.1777,
-        31.8569,
-        28.515,
-        26.4807,
-        26.4299
-      ],
-      "median_us": 27.1777,
-      "min_us": 26.4106,
-      "max_us": 33.0793
-    },
-    {
-      "family": "xchacha20_poly1305",
-      "backend": "sodium",
-      "target": "wasip2",
-      "operation": "seal of 16 KiB, 256-bit key",
-      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
-      "repetitions": [
-        2048,
-        2048,
-        2048,
-        2048,
-        2048
-      ],
-      "invocations": 5,
-      "runs_per_invocation": 5,
-      "invocation_medians_us": [
-        27.7744,
-        28.4214,
-        29.1949,
-        34.8716,
-        26.56
-      ],
-      "median_us": 28.4214,
-      "min_us": 26.483,
-      "max_us": 36.927
-    },
-    {
-      "family": "gcm",
-      "backend": "bearssl",
-      "target": "wasip3",
       "operation": "seal of 16 KiB, 256-bit key",
       "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
       "repetitions": [
@@ -664,98 +456,72 @@
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        142.5138,
-        107.0623,
-        103.0632,
-        138.6147,
-        98.5474
+        121.5887,
+        129.3955,
+        118.3584,
+        140.0017,
+        170.0403
       ],
-      "median_us": 107.0623,
-      "min_us": 98.4974,
-      "max_us": 150.9495
-    },
-    {
-      "family": "gcm",
-      "backend": "openssl",
-      "target": "wasip3",
-      "operation": "seal of 16 KiB, 256-bit key",
-      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
-      "repetitions": [
-        512,
-        512,
-        512,
-        512,
-        1024
-      ],
-      "invocations": 5,
-      "runs_per_invocation": 5,
-      "invocation_medians_us": [
-        123.2382,
-        112.0401,
-        106.2601,
-        112.3486,
-        96.4527
-      ],
-      "median_us": 112.0401,
-      "min_us": 96.4042,
-      "max_us": 130.9873
+      "median_us": 129.3955,
+      "min_us": 115.2306,
+      "max_us": 360.4814
     },
     {
       "family": "aes_block",
       "backend": "openssl",
-      "target": "wasip3",
+      "target": "wasip2",
       "operation": "encryption of one 16-byte block, 256-bit key",
       "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
       "repetitions": [
-        524288,
-        1048576,
         1048576,
         524288,
-        1048576
+        1048576,
+        524288,
+        524288
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        0.1056,
-        0.0889,
-        0.0762,
-        0.0953,
-        0.0744
+        0.0883,
+        0.0991,
+        0.0931,
+        0.1085,
+        0.1757
       ],
-      "median_us": 0.0889,
-      "min_us": 0.0739,
-      "max_us": 0.1133
+      "median_us": 0.0991,
+      "min_us": 0.0874,
+      "max_us": 0.2044
     },
     {
       "family": "aes_block",
       "backend": "ctaes",
-      "target": "wasip3",
+      "target": "wasip2",
       "operation": "encryption of one 16-byte block, 256-bit key",
       "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
       "repetitions": [
         131072,
         131072,
-        262144,
         131072,
-        262144
+        131072,
+        131072
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        0.421,
-        0.3898,
-        0.3599,
-        0.4705,
-        0.3583
+        0.4609,
+        0.5037,
+        0.4566,
+        0.5906,
+        0.9106
       ],
-      "median_us": 0.3898,
-      "min_us": 0.3513,
-      "max_us": 0.507
+      "median_us": 0.5037,
+      "min_us": 0.4417,
+      "max_us": 0.9892
     },
     {
       "family": "secp256k1",
       "backend": "secp256k1",
-      "target": "wasip3",
+      "target": "wasip2",
       "operation": "BIP340 signature of a 32-byte message",
       "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
       "repetitions": [
@@ -768,15 +534,483 @@
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        79.6713,
-        66.5381,
-        65.8654,
-        59.2526,
-        57.3269
+        62.1799,
+        64.5223,
+        68.7148,
+        79.5172,
+        128.9309
       ],
-      "median_us": 65.8654,
-      "min_us": 57.3121,
-      "max_us": 86.4301
+      "median_us": 68.7148,
+      "min_us": 61.2878,
+      "max_us": 185.8009
+    },
+    {
+      "family": "p256",
+      "backend": "bearssl",
+      "target": "wasip2",
+      "operation": "ECDSA signature of a 32-byte SHA-256 digest",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        256,
+        256,
+        256,
+        256,
+        256
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        226.3224,
+        240.792,
+        243.1673,
+        299.766,
+        587.7209
+      ],
+      "median_us": 243.1673,
+      "min_us": 224.0851,
+      "max_us": 650.8882
+    },
+    {
+      "family": "p256",
+      "backend": "bearssl",
+      "target": "wasip2",
+      "operation": "ECDSA verification of a 32-byte SHA-256 digest",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        128,
+        128,
+        128,
+        128,
+        128
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        432.5859,
+        482.891,
+        459.7601,
+        561.2083,
+        1001.6104
+      ],
+      "median_us": 482.891,
+      "min_us": 431.6855,
+      "max_us": 1083.2445
+    },
+    {
+      "family": "p256",
+      "backend": "bearssl",
+      "target": "wasip2",
+      "operation": "x coordinate of the ECDH shared point with a peer's public key",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        256,
+        256,
+        256,
+        256,
+        256
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        228.7215,
+        215.2956,
+        244.0931,
+        297.1382,
+        486.5563
+      ],
+      "median_us": 244.0931,
+      "min_us": 212.2474,
+      "max_us": 986.4196
+    },
+    {
+      "family": "ed25519",
+      "backend": "sodium",
+      "target": "wasip2",
+      "operation": "signature of a 32-byte message",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        4096,
+        4096,
+        4096,
+        2048,
+        2048
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        22.7394,
+        21.703,
+        22.7989,
+        29.307,
+        53.2431
+      ],
+      "median_us": 22.7989,
+      "min_us": 21.0465,
+      "max_us": 103.132
+    },
+    {
+      "family": "x25519",
+      "backend": "sodium",
+      "target": "wasip2",
+      "operation": "agreement of a secret key and a public key",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        1024,
+        1024,
+        1024,
+        1024,
+        1024
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        56.5866,
+        52.4095,
+        58.0922,
+        65.7419,
+        106.0959
+      ],
+      "median_us": 58.0922,
+      "min_us": 51.4944,
+      "max_us": 119.735
+    },
+    {
+      "family": "chacha20_poly1305",
+      "backend": "sodium",
+      "target": "wasip2",
+      "operation": "seal of 16 KiB, 256-bit key",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        2048,
+        2048,
+        2048,
+        2048,
+        2048
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        34.5934,
+        33.6447,
+        33.0769,
+        37.3321,
+        70.963
+      ],
+      "median_us": 34.5934,
+      "min_us": 32.9468,
+      "max_us": 89.3904
+    },
+    {
+      "family": "chacha20_poly1305",
+      "backend": "bearssl",
+      "target": "wasip2",
+      "operation": "seal of 16 KiB, 256-bit key",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        1024,
+        1024,
+        1024,
+        1024,
+        1024
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        71.9199,
+        62.9041,
+        64.918,
+        61.4925,
+        110.1601
+      ],
+      "median_us": 64.918,
+      "min_us": 60.5908,
+      "max_us": 140.102
+    },
+    {
+      "family": "chacha20_poly1305",
+      "backend": "openssl",
+      "target": "wasip2",
+      "operation": "seal of 16 KiB, 256-bit key",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        1024,
+        2048,
+        2048,
+        2048,
+        2048
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        47.9284,
+        45.7629,
+        44.9181,
+        41.3904,
+        71.1847
+      ],
+      "median_us": 45.7629,
+      "min_us": 41.2165,
+      "max_us": 87.3537
+    },
+    {
+      "family": "chacha20_poly1305_original",
+      "backend": "sodium",
+      "target": "wasip2",
+      "operation": "seal of 16 KiB, 256-bit key",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        2048,
+        2048,
+        2048,
+        2048,
+        2048
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        38.6034,
+        34.4636,
+        33.2297,
+        31.8452,
+        59.2712
+      ],
+      "median_us": 34.4636,
+      "min_us": 31.2491,
+      "max_us": 66.1135
+    },
+    {
+      "family": "xchacha20_poly1305",
+      "backend": "sodium",
+      "target": "wasip2",
+      "operation": "seal of 16 KiB, 256-bit key",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        2048,
+        2048,
+        2048,
+        2048,
+        2048
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        37.5573,
+        36.3205,
+        33.3548,
+        31.6737,
+        54.9346
+      ],
+      "median_us": 36.3205,
+      "min_us": 31.2988,
+      "max_us": 66.9661
+    },
+    {
+      "family": "gcm",
+      "backend": "bearssl",
+      "target": "wasip3",
+      "operation": "seal of 16 KiB, 256-bit key",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        512,
+        512,
+        512,
+        512,
+        512
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        157.9873,
+        129.9276,
+        118.3678,
+        115.7412,
+        233.0208
+      ],
+      "median_us": 129.9276,
+      "min_us": 113.2744,
+      "max_us": 268.3167
+    },
+    {
+      "family": "gcm",
+      "backend": "openssl",
+      "target": "wasip3",
+      "operation": "seal of 16 KiB, 256-bit key",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        512,
+        512,
+        512,
+        512,
+        512
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        137.4174,
+        121.955,
+        113.9148,
+        114.2834,
+        207.6267
+      ],
+      "median_us": 121.955,
+      "min_us": 113.53,
+      "max_us": 407.5479
+    },
+    {
+      "family": "aes_block",
+      "backend": "openssl",
+      "target": "wasip3",
+      "operation": "encryption of one 16-byte block, 256-bit key",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        524288,
+        524288,
+        1048576,
+        1048576,
+        524288
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        0.1121,
+        0.0961,
+        0.0891,
+        0.0927,
+        0.1529
+      ],
+      "median_us": 0.0961,
+      "min_us": 0.088,
+      "max_us": 0.3026
+    },
+    {
+      "family": "aes_block",
+      "backend": "ctaes",
+      "target": "wasip3",
+      "operation": "encryption of one 16-byte block, 256-bit key",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        131072,
+        131072,
+        131072,
+        131072,
+        131072
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        0.5939,
+        0.4512,
+        0.4254,
+        0.4168,
+        0.9657
+      ],
+      "median_us": 0.4512,
+      "min_us": 0.4159,
+      "max_us": 1.0293
+    },
+    {
+      "family": "secp256k1",
+      "backend": "secp256k1",
+      "target": "wasip3",
+      "operation": "BIP340 signature of a 32-byte message",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        1024,
+        1024,
+        1024,
+        1024,
+        512
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        86.8636,
+        77.6374,
+        66.8131,
+        67.9305,
+        152.4146
+      ],
+      "median_us": 77.6374,
+      "min_us": 66.4173,
+      "max_us": 162.1133
+    },
+    {
+      "family": "p256",
+      "backend": "bearssl",
+      "target": "wasip3",
+      "operation": "ECDSA signature of a 32-byte SHA-256 digest",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        256,
+        256,
+        256,
+        256,
+        128
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        296.8031,
+        279.8446,
+        220.5138,
+        231.2839,
+        443.5501
+      ],
+      "median_us": 279.8446,
+      "min_us": 220.0163,
+      "max_us": 653.1683
+    },
+    {
+      "family": "p256",
+      "backend": "bearssl",
+      "target": "wasip3",
+      "operation": "ECDSA verification of a 32-byte SHA-256 digest",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        128,
+        128,
+        128,
+        128,
+        128
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        585.7337,
+        508.474,
+        430.6426,
+        453.9411,
+        1043.1527
+      ],
+      "median_us": 508.474,
+      "min_us": 424.3304,
+      "max_us": 1066.3525
+    },
+    {
+      "family": "p256",
+      "backend": "bearssl",
+      "target": "wasip3",
+      "operation": "x coordinate of the ECDH shared point with a peer's public key",
+      "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
+      "repetitions": [
+        256,
+        256,
+        256,
+        256,
+        256
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        289.7277,
+        262.4473,
+        245.972,
+        247.7251,
+        503.8604
+      ],
+      "median_us": 262.4473,
+      "min_us": 237.1364,
+      "max_us": 536.6413
     },
     {
       "family": "ed25519",
@@ -786,23 +1020,23 @@
       "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
       "repetitions": [
         2048,
-        4096,
         2048,
         4096,
-        4096
+        2048,
+        2048
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        26.4126,
-        21.2944,
-        25.5214,
-        25.8049,
-        18.3788
+        26.4178,
+        24.6249,
+        21.7758,
+        29.0912,
+        44.9925
       ],
-      "median_us": 25.5214,
-      "min_us": 17.9491,
-      "max_us": 29.7626
+      "median_us": 26.4178,
+      "min_us": 20.966,
+      "max_us": 71.4122
     },
     {
       "family": "x25519",
@@ -812,23 +1046,23 @@
       "compiler": "Clang 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)",
       "repetitions": [
         1024,
-        2048,
         1024,
-        2048,
-        2048
+        1024,
+        1024,
+        1024
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        60.4835,
-        43.9704,
-        62.2465,
-        56.047,
-        42.3789
+        57.6128,
+        58.386,
+        49.7369,
+        111.4055,
+        95.8518
       ],
-      "median_us": 56.047,
-      "min_us": 41.4276,
-      "max_us": 77.4012
+      "median_us": 58.386,
+      "min_us": 47.9106,
+      "max_us": 153.349
     },
     {
       "family": "chacha20_poly1305",
@@ -846,15 +1080,15 @@
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        29.7965,
-        35.5215,
-        32.196,
-        34.7059,
-        26.4432
+        35.1349,
+        35.0691,
+        31.5482,
+        69.4963,
+        61.0747
       ],
-      "median_us": 32.196,
-      "min_us": 26.4286,
-      "max_us": 37.5371
+      "median_us": 35.1349,
+      "min_us": 31.498,
+      "max_us": 89.6446
     },
     {
       "family": "chacha20_poly1305",
@@ -872,15 +1106,15 @@
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        56.2223,
-        66.6398,
-        68.1445,
-        73.0147,
-        55.8983
+        70.462,
+        67.8096,
+        66.8546,
+        152.6086,
+        122.814
       ],
-      "median_us": 66.6398,
-      "min_us": 54.2463,
-      "max_us": 79.0842
+      "median_us": 70.462,
+      "min_us": 66.5692,
+      "max_us": 186.2697
     },
     {
       "family": "chacha20_poly1305",
@@ -898,15 +1132,15 @@
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        36.4446,
-        41.1329,
-        42.8451,
-        42.5562,
-        34.3694
+        46.304,
+        43.1785,
+        42.8367,
+        84.6441,
+        71.8498
       ],
-      "median_us": 41.1329,
-      "min_us": 34.3429,
-      "max_us": 48.8345
+      "median_us": 46.304,
+      "min_us": 41.6435,
+      "max_us": 86.8937
     },
     {
       "family": "chacha20_poly1305_original",
@@ -917,22 +1151,22 @@
       "repetitions": [
         2048,
         2048,
-        2048,
+        1024,
         2048,
         2048
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        28.9174,
-        26.8683,
-        32.0724,
-        30.6579,
-        26.4273
+        35.3298,
+        33.3846,
+        52.5155,
+        56.7126,
+        59.4984
       ],
-      "median_us": 28.9174,
-      "min_us": 26.4181,
-      "max_us": 35.3021
+      "median_us": 52.5155,
+      "min_us": 32.9494,
+      "max_us": 112.4305
     },
     {
       "family": "xchacha20_poly1305",
@@ -943,22 +1177,22 @@
       "repetitions": [
         2048,
         2048,
-        2048,
+        1024,
         2048,
         2048
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        28.2508,
-        26.5443,
-        36.0236,
-        27.5792,
-        26.5317
+        33.3944,
+        32.984,
+        41.5425,
+        53.7568,
+        57.574
       ],
-      "median_us": 27.5792,
-      "min_us": 26.483,
-      "max_us": 36.5752
+      "median_us": 41.5425,
+      "min_us": 32.1165,
+      "max_us": 72.5906
     },
     {
       "family": "gcm",
@@ -968,23 +1202,23 @@
       "compiler": "Clang 24.0.0git (https:/github.com/llvm/llvm-project f718ebe873411a562ef6e5c27da36d75b7aaec98)",
       "repetitions": [
         512,
-        1024,
         512,
         512,
-        1024
+        512,
+        512
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        101.8162,
-        98.4979,
-        138.6268,
-        99.7449,
-        100.8054
+        139.8916,
+        137.8378,
+        150.2335,
+        224.5914,
+        248.5692
       ],
-      "median_us": 100.8054,
-      "min_us": 97.4165,
-      "max_us": 142.901
+      "median_us": 150.2335,
+      "min_us": 129.3907,
+      "max_us": 317.4707
     },
     {
       "family": "aes_block",
@@ -993,24 +1227,24 @@
       "operation": "encryption of one 16-byte block, 256-bit key",
       "compiler": "Clang 24.0.0git (https:/github.com/llvm/llvm-project f718ebe873411a562ef6e5c27da36d75b7aaec98)",
       "repetitions": [
-        262144,
-        262144,
         131072,
-        262144,
-        262144
+        131072,
+        131072,
+        131072,
+        131072
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        0.3219,
-        0.3037,
-        0.4414,
-        0.3003,
-        0.2994
+        0.4092,
+        0.4176,
+        0.4497,
+        0.8054,
+        0.8265
       ],
-      "median_us": 0.3037,
-      "min_us": 0.2992,
-      "max_us": 0.472
+      "median_us": 0.4497,
+      "min_us": 0.386,
+      "max_us": 1.0579
     },
     {
       "family": "secp256k1",
@@ -1020,23 +1254,101 @@
       "compiler": "Clang 24.0.0git (https:/github.com/llvm/llvm-project f718ebe873411a562ef6e5c27da36d75b7aaec98)",
       "repetitions": [
         1024,
-        2048,
         1024,
-        2048,
-        2048
+        1024,
+        1024,
+        512
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        65.6552,
-        70.716,
-        63.8631,
-        45.1886,
-        45.2857
+        57.3505,
+        69.2089,
+        58.2395,
+        119.9875,
+        138.6746
       ],
-      "median_us": 63.8631,
-      "min_us": 44.5174,
-      "max_us": 71.5211
+      "median_us": 69.2089,
+      "min_us": 54.164,
+      "max_us": 158.5287
+    },
+    {
+      "family": "p256",
+      "backend": "bearssl",
+      "target": "emscripten",
+      "operation": "ECDSA signature of a 32-byte SHA-256 digest",
+      "compiler": "Clang 24.0.0git (https:/github.com/llvm/llvm-project f718ebe873411a562ef6e5c27da36d75b7aaec98)",
+      "repetitions": [
+        256,
+        256,
+        256,
+        256,
+        256
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        214.3135,
+        212.8211,
+        207.006,
+        420.3734,
+        390.0967
+      ],
+      "median_us": 214.3135,
+      "min_us": 196.3773,
+      "max_us": 751.6865
+    },
+    {
+      "family": "p256",
+      "backend": "bearssl",
+      "target": "emscripten",
+      "operation": "ECDSA verification of a 32-byte SHA-256 digest",
+      "compiler": "Clang 24.0.0git (https:/github.com/llvm/llvm-project f718ebe873411a562ef6e5c27da36d75b7aaec98)",
+      "repetitions": [
+        128,
+        128,
+        128,
+        128,
+        128
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        485.7051,
+        449.446,
+        424.4652,
+        830.6029,
+        775.4274
+      ],
+      "median_us": 485.7051,
+      "min_us": 396.4743,
+      "max_us": 912.5006
+    },
+    {
+      "family": "p256",
+      "backend": "bearssl",
+      "target": "emscripten",
+      "operation": "x coordinate of the ECDH shared point with a peer's public key",
+      "compiler": "Clang 24.0.0git (https:/github.com/llvm/llvm-project f718ebe873411a562ef6e5c27da36d75b7aaec98)",
+      "repetitions": [
+        256,
+        256,
+        256,
+        256,
+        256
+      ],
+      "invocations": 5,
+      "runs_per_invocation": 5,
+      "invocation_medians_us": [
+        250.4108,
+        239.2653,
+        218.7788,
+        444.5326,
+        388.9393
+      ],
+      "median_us": 250.4108,
+      "min_us": 218.0794,
+      "max_us": 496.902
     },
     {
       "family": "ed25519",
@@ -1048,21 +1360,21 @@
         4096,
         4096,
         4096,
-        4096,
-        4096
+        2048,
+        2048
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        21.3037,
-        22.7337,
-        20.6338,
-        16.1659,
-        15.8556
+        20.6038,
+        21.5127,
+        19.1156,
+        41.9247,
+        42.8096
       ],
-      "median_us": 20.6338,
-      "min_us": 15.4948,
-      "max_us": 24.0628
+      "median_us": 21.5127,
+      "min_us": 18.6677,
+      "max_us": 49.2125
     },
     {
       "family": "x25519",
@@ -1071,24 +1383,24 @@
       "operation": "agreement of a secret key and a public key",
       "compiler": "Clang 24.0.0git (https:/github.com/llvm/llvm-project f718ebe873411a562ef6e5c27da36d75b7aaec98)",
       "repetitions": [
-        2048,
         1024,
         1024,
         2048,
-        2048
+        1024,
+        1024
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        41.28,
-        58.6005,
-        50.125,
-        36.7375,
-        36.5724
+        51.0406,
+        54.7374,
+        43.2726,
+        113.7409,
+        95.6661
       ],
-      "median_us": 41.28,
-      "min_us": 35.7279,
-      "max_us": 66.9067
+      "median_us": 54.7374,
+      "min_us": 41.7098,
+      "max_us": 134.4194
     },
     {
       "family": "chacha20_poly1305",
@@ -1100,21 +1412,21 @@
         2048,
         2048,
         2048,
-        4096,
-        4096
+        2048,
+        2048
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        26.6769,
-        31.6361,
-        25.4823,
-        22.6587,
-        22.283
+        30.3407,
+        30.0471,
+        25.0724,
+        64.0934,
+        55.4506
       ],
-      "median_us": 25.4823,
-      "min_us": 22.1689,
-      "max_us": 43.6315
+      "median_us": 30.3407,
+      "min_us": 24.9984,
+      "max_us": 71.9587
     },
     {
       "family": "chacha20_poly1305",
@@ -1126,21 +1438,21 @@
         2048,
         2048,
         2048,
-        2048,
-        2048
+        1024,
+        1024
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        37.0352,
-        55.3973,
-        41.5324,
-        35.2327,
-        44.3917
+        52.5103,
+        45.9385,
+        38.7927,
+        81.6842,
+        86.5848
       ],
-      "median_us": 41.5324,
-      "min_us": 34.1455,
-      "max_us": 56.8689
+      "median_us": 52.5103,
+      "min_us": 38.1802,
+      "max_us": 108.3415
     },
     {
       "family": "chacha20_poly1305_original",
@@ -1151,22 +1463,22 @@
       "repetitions": [
         2048,
         2048,
-        4096,
-        4096,
+        2048,
+        2048,
         2048
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        23.4612,
-        32.601,
-        23.1197,
-        22.9875,
-        27.0586
+        30.4742,
+        30.2001,
+        25.7137,
+        56.9314,
+        51.108
       ],
-      "median_us": 23.4612,
-      "min_us": 22.3345,
-      "max_us": 34.3943
+      "median_us": 30.4742,
+      "min_us": 25.1736,
+      "max_us": 68.4634
     },
     {
       "family": "xchacha20_poly1305",
@@ -1175,24 +1487,24 @@
       "operation": "seal of 16 KiB, 256-bit key",
       "compiler": "Clang 24.0.0git (https:/github.com/llvm/llvm-project f718ebe873411a562ef6e5c27da36d75b7aaec98)",
       "repetitions": [
-        4096,
         2048,
-        4096,
-        4096,
+        2048,
+        2048,
+        2048,
         2048
       ],
       "invocations": 5,
       "runs_per_invocation": 5,
       "invocation_medians_us": [
-        23.9379,
-        32.1158,
-        22.387,
-        22.3196,
-        22.3591
+        28.0928,
+        29.9805,
+        25.3454,
+        71.9433,
+        62.0207
       ],
-      "median_us": 22.387,
-      "min_us": 22.2395,
-      "max_us": 32.5425
+      "median_us": 29.9805,
+      "min_us": 25.0257,
+      "max_us": 74.5166
     }
   ],
   "amd64_asm": {
@@ -1203,9 +1515,10 @@
     "status": "not measured yet",
     "reason": "x86-64 assembly runs only on an x86-64 machine; this page's machine is arm64. D7 asks for the rows recorded, never used: webcpp builds libsodium without it."
   },
+  "provisional": true,
   "timing_guard": {
     "measurement": "the nanoseconds detail::timing_guard adds to a call, bench/timing.cpp",
-    "date": "2026-11-20",
+    "date": "2026-11-21",
     "machine": {
       "cpu": "Apple M5 Max",
       "architecture": "arm64",
@@ -1217,14 +1530,14 @@
     },
     "load_average_before_after": [
       [
-        19.90380859375,
-        56.12353515625,
-        95.6845703125
+        83.2802734375,
+        54.90771484375,
+        128.51513671875
       ],
       [
-        19.90380859375,
-        56.12353515625,
-        95.6845703125
+        87.021484375,
+        56.154296875,
+        128.5234375
       ]
     ],
     "build": "variant=release",
@@ -1233,9 +1546,12 @@
     "iterations": 10000000,
     "runs": 5,
     "dit": true,
-    "clear_ns": 40.297,
-    "set_ns": 0.681,
+    "clear_ns": 77.594,
+    "clear_fastest_ns": 64.399,
+    "clear_slowest_ns": 88.056,
+    "set_ns": 1.798,
+    "set_fastest_ns": 0.771,
+    "set_slowest_ns": 3.25,
     "provisional": true
-  },
-  "provisional": true
+  }
 }

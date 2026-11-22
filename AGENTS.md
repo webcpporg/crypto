@@ -40,15 +40,21 @@ specific to crypto.
 
 - An algorithm type does every guard; a backend's header supplies only the six traits of
   `detail/engines.hpp` (`block_state`, `block_engine`, `gcm_state`, `gcm_engine`, `aead_state`,
-  `aead_engine`) and, for the curves and `hybrid`, the functions of its own header.
+  `aead_engine`), the two of `detail/p_curves.hpp` per P-curve (`p_curve_state`,
+  `p_curve_engine`) and, for the other curves and `hybrid`, the functions of its own header.
 - A new public function that calls a backend holds `detail::timing_guard` as its
   first statement (it sets arm64's DIT for the call, `detail/timing.hpp`) and joins the coverage
   test of its backend, `test/timing_coverage_<backend>_test.cpp`, which checks through the seam
   that each call entered its own guard. A function that only copies or encodes bytes, with no
   backend call, holds none.
+- The constant-time lane's P-256 paths (`test/constant_time/paths.hpp`): BearSSL's ECDSA signing
+  branches on its own verdicts, listed for memcheck in `bearssl_verdicts.supp`, which a later
+  P-curve's signing joins; MemorySanitizer counts BearSSL's window selections public (masks of the
+  form `(q | -q) >> 31`), so the public point and `ecdh_x` are checked traced by memcheck alone.
 - A test of a backend is a `.cpp` of its own per backend, never a define that changes the backend
   of one source (spec section 4.3's pitfall).
-- Every C library is unchanged upstream code. A moved pin is a change of its own
-  (CODING-GUIDELINES.md chapter 5, rule 12).
+- Every C library is upstream code, unchanged except where CODING-GUIDELINES.md chapter 5 rule 1
+  allows a security fix on the mirror's `webcpp` branch (BearSSL: 32381d6, ECDSA's nonce
+  decoding); a moved pin carries that commit. A moved pin is a change of its own (rule 12).
 - X25519's constant time on wasip2 is an open finding (the page's constant-time table): do not
   describe it as a pass.

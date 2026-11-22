@@ -1001,6 +1001,11 @@ def test_the_ciphers_table_has_the_columns_of_d19(_: Path) -> None:
     loaded = generate.namespace_page(two_ciphers(), 'ciphers', measured(22.5, load=89.6))
     assert '(2026-11-18, Apple M5 Max, under load: read the spread; <<crypto-performance>>)' in (
         loaded), loaded
+    # A provisional measurement is said so beside the figure, as the throughput page says it.
+    provisional = dict(measured(22.5, load=89.6), provisional=True)
+    marked = generate.namespace_page(two_ciphers(), 'ciphers', provisional)
+    assert ('(2026-11-18, Apple M5 Max, under load: read the spread, provisional; '
+            '<<crypto-performance>>)') in marked, marked
     try:
         data = two_ciphers()
         data['namespaces']['ciphers']['rows'][0][5] = '{speed:aegis}'

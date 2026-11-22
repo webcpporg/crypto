@@ -1,0 +1,30 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+#
+# Valgrind's suppressions for valgrind.mjs: BearSSL's own branches on a verdict, public by design,
+# in a function webcpp calls with a secret, where webcpp cannot mark the verdict public as it
+# does in its engines; BearSSL is upstream 7bea48e plus the one fix 32381d6, in code that these
+# functions do not touch. The entry is a conditional jump whose innermost
+# frame is that function, and the function's body branches on nothing else that is secret
+# (BearSSL at webcpp's pin, the lines given). MemorySanitizer needs none: it approximates a
+# subtraction's shadow by its operands' without the carry (msan_test.cpp's head comment), and
+# each of these verdicts is the top bit of a word computed from BearSSL's 31-bit limbs, whose top
+# bit is a defined 0, so the verdict comes out initialised.
+#
+# An entry covers every conditional jump in its function's own body, not only the lines named:
+# a moved BearSSL pin re-reads br_ecdsa_i31_sign_raw for a new branch on a secret, and the lane
+# builds BearSSL without link-time optimisation, which would inline a callee's jumps into it.
+
+# ec/ecdsa_i31_sign_raw.c, P-256's ECDSA (curves::p256::keypair::sign_ecdsa): whether the scalar
+# decodes below n and is not zero (lines 89 and 92), which webcpp has checked before, and RFC
+# 6979's retry of a nonce that is zero or not below n (lines 121 and 124), which libsecp256k1
+# marks public in its own signing; br_i31_decode_mod, br_i31_iszero and br_i31_sub compute each
+# verdict without a branch, in translation units of their own.
+{
+   bearssl-verdict-ecdsa-sign
+   Memcheck:Cond
+   fun:br_ecdsa_i31_sign_raw
+}

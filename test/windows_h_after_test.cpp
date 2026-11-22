@@ -24,6 +24,8 @@
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/config.hpp>
+#include <webcpp/crypto/curves/p256.hpp>
+#include <webcpp/crypto/curves/p256/formats.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
 #include <webcpp/crypto/curves/secp256k1/formats.hpp>

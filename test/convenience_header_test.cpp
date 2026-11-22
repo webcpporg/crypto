@@ -5,7 +5,9 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // The convenience header with no backend linked compiles, links and runs (spec section 2.1): this
-// program includes <webcpp/crypto.hpp> alone, names no backend, links none, and calls equal.
+// program includes <webcpp/crypto.hpp> alone, names no backend, links none, and calls equal. The
+// headers whose families name a default backend it does not link are there all the same: P-256's
+// key pair names BearSSL.
 
 #include <webcpp/crypto.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -15,12 +17,21 @@
 
 #include <array>
 #include <cstdint>
+#include <type_traits>
 
 #if defined(WEBCPP_CRYPTO_HAS_BEARSSL) || defined(WEBCPP_CRYPTO_HAS_OPENSSL) || \
     defined(WEBCPP_CRYPTO_HAS_CTAES) || defined(WEBCPP_CRYPTO_HAS_SECP256K1) || \
     defined(WEBCPP_CRYPTO_HAS_SODIUM)
 #error "this program links no backend: its project must not name one"
 #endif
+
+// curves/p256.hpp is included, and its key pair names its default, BearSSL, which is not linked.
+static_assert(std::is_same_v<webcpp::crypto::curves::p256::keypair::backend_type,
+                             webcpp::crypto::backends::bearssl>);
+static_assert(webcpp::crypto::supports_v<webcpp::crypto::curves::p256::keypair,
+                                         webcpp::crypto::backends::bearssl>);
+// curves/p256/formats.hpp is included with it.
+static_assert(webcpp::crypto::curves::p256::max_pkcs8_size == 138);
 
 int main() {
     std::array<std::uint8_t, 16> const zero{};

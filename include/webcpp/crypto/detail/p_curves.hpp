@@ -1,0 +1,202 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+#ifndef WEBCPP_CRYPTO_DETAIL_P_CURVES_HPP
+#define WEBCPP_CRYPTO_DETAIL_P_CURVES_HPP
+
+#include <webcpp/crypto/config.hpp>
+
+#include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/declassify.hpp>
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <span>
+
+/*
+ * WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED() runs first in each function of a backend's P-curve
+ * engine that calls the backend's code. Nothing in a program's build; a test defines it before its
+ * first include to count those calls, so that it sees a refusal that the family's header makes
+ * before the backend (test/p256_keys_bearssl_test.cpp).
+ */
+#ifndef WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED
+/** Marks a call of a P-curve engine's backend code: nothing in a program's build. */
+#define WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED() static_cast<void>(0)
+#endif
+
+namespace webcpp::crypto::detail {
+
+/** A P-curve's constants: its sizes, the group order and its half, big-endian. */
+template <class Curve>
+struct p_curve_traits;
+
+/** P-256's constants (FIPS 186-5; SEC 2). */
+template <>
+struct p_curve_traits<families::p256> {
+    /** The size of a scalar, and of a coordinate. */
+    static constexpr std::size_t scalar_size = 32;
+    /** The size of the digest ECDSA signs, SHA-256's. */
+    static constexpr std::size_t digest_size = 32;
+    /** The longest strict DER encoding of an ECDSA signature. */
+    static constexpr std::size_t max_der_size = 72;
+    /** n, the group order (FIPS 186-5; SEC 2). */
+    static constexpr std::array<std::uint8_t, 32> order{
+        0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xbc, 0xe6, 0xfa, 0xad, 0xa7, 0x17,
+        0x9e, 0x84, 0xf3, 0xb9, 0xca, 0xc2, 0xfc, 0x63, 0x25, 0x51,
+    };
+    /** (n - 1) / 2, the largest S of a low-S signature. */
+    static constexpr std::array<std::uint8_t, 32> half_order{
+        0x7f, 0xff, 0xff, 0xff, 0x80, 0x00, 0x00, 0x00, 0x7f, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xde, 0x73, 0x7d, 0x56, 0xd3, 0x8b,
+        0xcf, 0x42, 0x79, 0xdc, 0xe5, 0x61, 0x7e, 0x31, 0x92, 0xa8,
+    };
+};
+
+/**
+ * Whether 0 < value < bound, both big-endian of N bytes, in time independent of `value`: the
+ * borrow of value - bound and the OR of value's bytes over every byte, as BearSSL's br_ec_keygen
+ * computes them. The verdict alone is declassified: whether a key is valid is public.
+ *
+ * @param value The secret scalar.
+ * @param bound The group order.
+ * @return Whether the scalar is in range.
+ */
+template <std::size_t N>
+[[nodiscard]] bool p_curve_scalar_valid(std::span<std::uint8_t const, N> value,
+                                        std::array<std::uint8_t, N> const& bound) noexcept {
+    unsigned borrow = 0;
+    unsigned nonzero = 0;
+    for (std::size_t i = N; i-- > 0;) {
+        borrow = ((static_cast<unsigned>(value[i]) - bound[i] - borrow) >> 8U) & 1U;
+        nonzero |= value[i];
+    }
+    // Not const: the comparison below must read the variable again after the declassifying
+    // client request, whose memory clobber reaches a mutable object only.
+    // NOLINTNEXTLINE(misc-const-correctness): see above
+    unsigned verdict = borrow & ((nonzero + 0xffU) >> 8U);
+    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&verdict, sizeof verdict);
+    return verdict != 0;
+}
+
+/**
+ * Whether an ECDSA signature r || s has 0 < r < n and 0 < s < n, each checked by
+ * `p_curve_scalar_valid`: a signature is public, the same check serves.
+ *
+ * @tparam Curve The curve's family tag.
+ * @param signature r then s, big-endian, each of the curve's scalar size.
+ * @return Whether both are in range.
+ */
+template <class Curve>
+[[nodiscard]] bool p_curve_signature_in_range(
+    std::span<std::uint8_t const, 2 * p_curve_traits<Curve>::scalar_size> signature) noexcept {
+    constexpr std::size_t size = p_curve_traits<Curve>::scalar_size;
+    bool const r_valid =
+        p_curve_scalar_valid(signature.template first<size>(), p_curve_traits<Curve>::order);
+    bool const s_valid =
+        p_curve_scalar_valid(signature.template last<size>(), p_curve_traits<Curve>::order);
+    return r_valid && s_valid;
+}
+
+/**
+ * Whether an ECDSA signature's s, already checked 0 < s < n, is low: s <= (n - 1) / 2, the borrow
+ * of (n - 1) / 2 - s over every byte, the same arithmetic as `p_curve_scalar_valid`'s. The
+ * verdict alone is declassified: a signature is public once it is made, but one fresh from
+ * `sign_ecdsa` is computed from the secret scalar, and a constant-time checker (memcheck,
+ * MemorySanitizer) still holds it secret where `normalize_ecdsa` or `check_low_s` branches on
+ * this verdict.
+ *
+ * @tparam Curve The curve's family tag.
+ * @param s The signature's s, big-endian.
+ * @return Whether s is at most half the group order.
+ */
+template <class Curve>
+[[nodiscard]] bool p_curve_low_s(
+    std::span<std::uint8_t const, p_curve_traits<Curve>::scalar_size> s) noexcept {
+    constexpr auto const& half = p_curve_traits<Curve>::half_order;
+    unsigned borrow = 0;
+    for (std::size_t i = s.size(); i-- > 0;) {
+        borrow = ((static_cast<unsigned>(half[i]) - s[i] - borrow) >> 8U) & 1U;
+    }
+    // Not const: the comparison below must read the variable again after the declassifying
+    // client request, whose memory clobber reaches a mutable object only.
+    // NOLINTNEXTLINE(misc-const-correctness): see above
+    unsigned high = borrow;
+    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&high, sizeof high);
+    return high == 0;
+}
+
+/**
+ * n - s, the other s of the same signature, for an s already checked 0 < s < n, so that the
+ * result is in that range too: the borrow arithmetic of `p_curve_scalar_valid`, over every byte.
+ *
+ * @tparam Curve The curve's family tag.
+ * @param s The signature's s, big-endian.
+ * @param output n - s, big-endian; it may not overlap `s`.
+ */
+template <class Curve>
+void p_curve_negate_scalar(
+    std::span<std::uint8_t const, p_curve_traits<Curve>::scalar_size> s,
+    std::span<std::uint8_t, p_curve_traits<Curve>::scalar_size> output) noexcept {
+    constexpr auto const& order = p_curve_traits<Curve>::order;
+    unsigned borrow = 0;
+    for (std::size_t i = s.size(); i-- > 0;) {
+        unsigned const difference = static_cast<unsigned>(order[i]) - s[i] - borrow;
+        output[i] = static_cast<std::uint8_t>(difference);
+        borrow = (difference >> 8U) & 1U;
+    }
+}
+
+/**
+ * What a P-curve key pair stores on a backend whose header does not specialise it: nothing, since
+ * its engine refuses the backend where the family is called.
+ */
+template <class Curve, class Backend>
+struct p_curve_state {};
+
+/**
+ * The work of a P-curve on a backend: a backend's header specialises it per curve, and each
+ * curve's header defines the refusal for the others (`curves/p256.hpp`).
+ */
+template <class Curve, class Backend>
+struct p_curve_engine;
+
+/**
+ * The one door into a P-curve's opaque types (a public key, whose default constructor is
+ * private), for the family's own functions alone: they make one through it and write its point
+ * before they return it. A key made through it is not validated: only a point a key pair
+ * computed or the backend checked may be written into it.
+ */
+struct p_curve_access {
+    /**
+     * An object of an opaque type, not yet written: the function that returns it writes it
+     * first.
+     *
+     * @tparam Opaque The type, whose default constructor is private.
+     * @return The unwritten object.
+     */
+    template <class Opaque>
+    [[nodiscard]] static Opaque blank() noexcept {
+        return Opaque();
+    }
+
+    /**
+     * A public key's point, to be written by the function that makes the key.
+     *
+     * @tparam PublicKey The public key's type.
+     * @param key The public key.
+     * @return Its encoded point.
+     */
+    template <class PublicKey>
+    [[nodiscard]] static auto& point(PublicKey& key) noexcept {
+        return key.point_;
+    }
+};
+
+}  // namespace webcpp::crypto::detail
+
+#endif  // WEBCPP_CRYPTO_DETAIL_P_CURVES_HPP

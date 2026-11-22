@@ -23,6 +23,7 @@
 #include <concepts>
 #include <cstdint>
 #include <span>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -101,10 +102,13 @@ concept from_empty_braces = requires { taker<Tag>::take({}); };
 
 // The tags: an explicit default constructor keeps `{}` from standing for a scheme.
 static_assert(from_empty_braces<plain_tag>);
-static_assert(!from_empty_braces<crypto::eddsa_t>);
-static_assert(!from_empty_braces<crypto::ecdsa_sha256_t>);
-static_assert(!from_empty_braces<crypto::ecdsa_sha256_recoverable_t>);
-static_assert(!from_empty_braces<crypto::schnorr_t>);
+
+template <class... Schemes>
+constexpr bool none_from_empty_braces(crypto::detail::scheme_list<Schemes...> /*list*/) noexcept {
+    return (!from_empty_braces<Schemes> && ...);
+}
+
+static_assert(none_from_empty_braces(crypto::detail::all_schemes{}));
 static_assert(!std::is_constructible_v<crypto::ecdsa_sha256_t, int>);
 static_assert(std::is_same_v<decltype(crypto::eddsa), crypto::eddsa_t const>);
 static_assert(std::is_same_v<decltype(crypto::ecdsa_sha256), crypto::ecdsa_sha256_t const>);
@@ -213,8 +217,13 @@ concept catch_all_takes = requires(Scheme scheme, std::array<std::uint8_t, 64> c
                                    message_span message, stand_in_public_key const& public_key) {
     crypto::verify(scheme, signature, message, public_key);
 };
-static_assert(catch_all_takes<crypto::eddsa_t>);
-static_assert(catch_all_takes<crypto::schnorr_t>);
+
+template <class... Schemes>
+constexpr bool catch_all_takes_each(crypto::detail::scheme_list<Schemes...> /*list*/) noexcept {
+    return (catch_all_takes<Schemes> && ...);
+}
+
+static_assert(catch_all_takes_each(crypto::detail::all_schemes{}));
 static_assert(!catch_all_takes<int>);
 static_assert(!catch_all_takes<crypto::prehashed<32>>);
 static_assert(crypto::detail::is_scheme_v<crypto::ecdsa_sha256_recoverable_t>);
@@ -235,6 +244,8 @@ static_assert(std::is_same_v<
                                           crypto::ecdsa_sha256_recoverable_t, crypto::schnorr_t>>);
 static_assert(!crypto::detail::is_scheme_v<crypto::detail::all_schemes>);
 static_assert(!crypto::detail::is_scheme_v<crypto::prehashed<32>>);
+static_assert(!crypto::detail::in_scheme_list_v<crypto::eddsa_t, int>);
+static_assert(!crypto::detail::in_scheme_list_v<crypto::eddsa_t, std::tuple<crypto::eddsa_t>>);
 
 // sha256_of is SHA-256: FIPS 180-2's "abc" and the empty message.
 void sha256_of_is_sha256() {

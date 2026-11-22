@@ -29,6 +29,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <tuple>
 #include <type_traits>
 
 namespace crypto = webcpp::crypto;
@@ -270,9 +271,16 @@ static_assert(!crypto::keypair<int>);
 
 // The contract folds over a list of schemes: crypto::keypair is keypair_over all_schemes, and a
 // list with the test scheme asks its sign of a key pair that declares it.
-using with_test_scheme = crypto::detail::scheme_list<crypto::eddsa_t, crypto::ecdsa_sha256_t,
-                                                     crypto::ecdsa_sha256_recoverable_t,
-                                                     crypto::schnorr_t, test_scheme_t>;
+// A list with one more scheme at its end.
+template <class List, class Scheme>
+struct append;
+
+template <class... Schemes, class Scheme>
+struct append<crypto::detail::scheme_list<Schemes...>, Scheme> {
+    using type = crypto::detail::scheme_list<Schemes..., Scheme>;
+};
+
+using with_test_scheme = append<crypto::detail::all_schemes, test_scheme_t>::type;
 using test_scheme_alone = crypto::detail::scheme_list<test_scheme_t>;
 static_assert(!crypto::detail::keypair_over<unsigned_test_scheme_keypair, with_test_scheme>);
 static_assert(crypto::detail::keypair_over<test_scheme_keypair, with_test_scheme>);
@@ -285,6 +293,9 @@ static_assert(!crypto::keypair<only_test_scheme_keypair>);
 // An empty list has no scheme to sign.
 static_assert(!crypto::detail::keypair_over<complete_keypair, crypto::detail::scheme_list<>>);
 static_assert(crypto::detail::keypair_over<complete_keypair, crypto::detail::all_schemes>);
+// A type that is not a list of schemes asks for a scheme that none is.
+static_assert(!crypto::detail::keypair_over<complete_keypair, int>);
+static_assert(!crypto::detail::keypair_over<complete_keypair, std::tuple<crypto::ecdsa_sha256_t>>);
 
 // The curves' key pairs, on each backend this test links.
 static_assert(crypto::keypair<crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>>);

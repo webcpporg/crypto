@@ -14,7 +14,8 @@
 // What it covers, by family; a family OpenSSL gains adds its line and its checks:
 // - The AES block cipher, aes128, aes192 and aes256: make; basic_aes: encrypt, decrypt.
 // - AES-GCM, gcm<aes128>, gcm<aes192> and gcm<aes256>: make, the move constructor and move
-//   assignment (ruling R3), seal, open, begin_seal, update, result.
+//   assignment (ruling R3), seal, open, begin_seal, update, result, and the asynchronous
+//   async_make, async_seal and async_open.
 // - ChaCha20-Poly1305, aead: make, seal, open.
 
 #include "support/timing_seam.hpp"
@@ -41,10 +42,16 @@ void cover_ciphers() {
     webcpp::test::cover_aes<crypto::ciphers::aes256<openssl>>("aes256", "openssl");
     webcpp::test::cover_gcm<crypto::ciphers::gcm<crypto::ciphers::aes128<openssl>>>("aes128_gcm",
                                                                                     "openssl");
+    webcpp::test::cover_async_gcm<crypto::ciphers::gcm<crypto::ciphers::aes128<openssl>>>(
+        "aes128_gcm", "openssl");
     webcpp::test::cover_gcm<crypto::ciphers::gcm<crypto::ciphers::aes192<openssl>>>("aes192_gcm",
                                                                                     "openssl");
+    webcpp::test::cover_async_gcm<crypto::ciphers::gcm<crypto::ciphers::aes192<openssl>>>(
+        "aes192_gcm", "openssl");
     webcpp::test::cover_gcm<crypto::ciphers::gcm<crypto::ciphers::aes256<openssl>>>("aes256_gcm",
                                                                                     "openssl");
+    webcpp::test::cover_async_gcm<crypto::ciphers::gcm<crypto::ciphers::aes256<openssl>>>(
+        "aes256_gcm", "openssl");
     webcpp::test::cover_aead<crypto::ciphers::chacha20_poly1305<openssl>>("chacha20_poly1305",
                                                                           "openssl");
 }

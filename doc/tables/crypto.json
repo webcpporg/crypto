@@ -247,6 +247,60 @@
             "backends": {"system": {"tests": ["random_device"]}}
         },
         {
+            "id": "async_gcm",
+            "free": true,
+            "functions": ["async_make", "async_seal", "async_open"],
+            "namespace": "root",
+            "api": "async_make, async_seal, async_open",
+            "header": "<webcpp/crypto/async.hpp>",
+            "what": "AES-GCM's asynchronous make, seal and open, each completing through a post to the executor the call gives, with any Asio completion token.",
+            "section": "crypto-async",
+            "backends": {
+                "bearssl": {"tests": ["async_gcm"]},
+                "openssl": {"tests": ["async_gcm_openssl"]}
+            }
+        },
+        {
+            "id": "async_ed25519",
+            "free": true,
+            "functions": ["async_make", "async_generate", "async_sign", "async_verify"],
+            "namespace": "root",
+            "api": "async_make, async_generate, async_sign, async_verify",
+            "header": "<webcpp/crypto/async.hpp>",
+            "what": "Ed25519's asynchronous make, generate, sign and verify, each completing through a post to the executor the call gives, with any Asio completion token.",
+            "section": "crypto-async",
+            "backends": {
+                "sodium": {"tests": ["async_25519", "async_post"]}
+            }
+        },
+        {
+            "id": "async_x25519",
+            "free": true,
+            "functions": ["async_agree"],
+            "namespace": "root",
+            "api": "async_agree",
+            "header": "<webcpp/crypto/async.hpp>",
+            "what": "X25519's asynchronous agree, completing through a post to the executor the call gives, with any Asio completion token.",
+            "section": "crypto-async",
+            "backends": {
+                "sodium": {"tests": ["async_25519"]}
+            }
+        },
+        {
+            "id": "async_p256",
+            "free": true,
+            "functions": ["async_make", "async_generate", "async_sign", "async_verify", "async_agree"],
+            "namespace": "root",
+            "api": "async_make, async_generate, async_sign, async_verify, async_agree",
+            "overloads": {"async_verify": "p256::basic_public_key", "async_agree": "p256::basic_keypair"},
+            "header": "<webcpp/crypto/async.hpp>",
+            "what": "P-256's asynchronous make, generate, ECDSA sign and verify of a message hashed with SHA-256, and ECDH's raw x, each completing through a post to the executor the call gives, with any Asio completion token.",
+            "section": "crypto-async",
+            "backends": {
+                "bearssl": {"tests": ["async_p256"]}
+            }
+        },
+        {
             "id": "equal",
             "functions": ["equal"],
             "namespace": "root",
@@ -1164,6 +1218,8 @@
         }
     },
     "use_cases": [
+        {"need": "Seal or open a record inside an event loop without waiting", "namespace": "webcpp::crypto", "api": "`async_seal`, `async_open`", "backend": "the default of AES-GCM", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//gcm-default /webcpp/asio//asio", "example": "async_seal", "section": "crypto-async", "operations": ["async_gcm"]},
+        {"need": "Sign and verify with Ed25519 in a coroutine", "namespace": "webcpp::crypto", "api": "`async_sign`, `async_verify`", "backend": "the default of Ed25519", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default /webcpp/asio//asio", "example": "async_sign", "section": "crypto-async", "operations": ["async_ed25519"]},
         {"need": "Generate a session token, a password-reset link or an API key", "namespace": "webcpp::crypto", "api": "`random_device::fill`", "backend": "the system's generator", "jamfile": "/webcpp/crypto//crypto", "example": "reset_token", "section": "crypto-entropy"},
         {"need": "Draw an unbiased number in a range, such as a six-digit code", "namespace": "webcpp::crypto", "api": "`random_device` with `std::uniform_int_distribution`", "backend": "the system's generator", "jamfile": "/webcpp/crypto//crypto", "example": "reset_token", "section": "crypto-entropy"},
         {"need": "Check a webhook's or an API's HMAC signature", "namespace": "webcpp::crypto", "api": "`equal`, with Boost.Hash2's `hmac`", "backend": "none", "jamfile": "/webcpp/crypto//crypto", "example": "equal_hmac", "section": "crypto-equal"},
@@ -1332,6 +1388,10 @@
         "ed25519_default_not_linked_on_emscripten": "As `ed25519_default_not_linked`.",
         "heavy_without_threads": "Call the synchronous operation the message names, or build with threads: natively without `WEBCPP_CRYPTO_NO_THREADS`, on Emscripten with `-pthread`; WASI has none.",
         "heavy_without_threads_first": "As `heavy_without_threads`.",
+        "async_make_xchacha": "Call the synchronous `make`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.",
+        "async_seal_xchacha": "Call the AEAD's own `seal`: only AES-GCM has `async_seal`.",
+        "async_open_xchacha": "Call the AEAD's own `open`: only AES-GCM has `async_open`.",
+        "async_sign_secp256k1": "Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `async_sign`.",
         "heavy_without_threads_on_emscripten": "As `heavy_without_threads`: on Emscripten, add `<threading>multi`.",
         "chacha_on_ctaes_on_emscripten": "As `chacha_on_ctaes`.",
         "aead_not_a_family_on_emscripten": "As `aead_not_a_family`.",

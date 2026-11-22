@@ -152,6 +152,11 @@ ordinary ECDSA signature (link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS
 `invalid_signature`, also for an r or an s that is 0 or not below the group
 order n, refused before BearSSL sees it.
 
+In an event loop, `async_sign(executor, key_pair, message, token)` and
+`async_verify(executor, public_key, message, signature, token)` do the same
+through a completion (<<crypto-async>>); they take the *message* and hash it
+with SHA-256 themselves, as WebCrypto does.
+
 A signature has two forms. The *raw* form, 64 bytes, r then s at 32 bytes each
 (link:https://standards.ieee.org/ieee/1363/2049/[IEEE 1363]), is the one
 `sign_ecdsa` and `verify_ecdsa` take: what WebCrypto signs and verifies
@@ -237,6 +242,9 @@ as a `secret<32>`, which wipes itself:
 ----
 include::{examples}/p256_ecdh.cpp[tag=agree,indent=0]
 ----
+
+In an event loop, `async_agree(executor, key_pair, peer, token)` gives the
+same x through a completion (<<crypto-async>>).
 
 The raw x is exactly what a browser's WebCrypto gives:
 `+deriveBits({name: "ECDH", public: peerKey}, privateKey, 256)+` returns the

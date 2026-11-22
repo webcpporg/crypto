@@ -15,19 +15,26 @@
 
 #include "timing_seam.hpp"
 
+#include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/ciphers/aead.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
+#include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 
+#include <webcpp/asio/io_context.hpp>
+
 #include <boost/core/lightweight_test.hpp>
+#include <boost/system/error_code.hpp>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace webcpp::test {
@@ -315,6 +322,209 @@ void cover_gcm(std::string const& family, std::string const& backend) {
         cover_gcm_messages(*made, family, on);
     }
     cover_gcm_moves<Gcm>(family, on);
+}
+
+/**
+ * A completion handler of the `cover_async_*` functions that counts its completions and, given a
+ * tag's address, keeps the tag. Not a lambda: a lambda in a template argument keeps
+ * `names_function` from reading the guard's function (support/timing_seam.hpp).
+ */
+template <class Tag = void>
+struct async_completion_counter {
+    /** Counts the completion. */
+    int* completions = nullptr;
+    /** Where a seal's tag is kept, or null. */
+    Tag* tag = nullptr;
+
+    /** A completion with an error code alone. */
+    void operator()(boost::system::error_code /*code*/) const { ++*completions; }
+
+    /** A completion with a value, which is the tag of a seal or an object that is dropped. */
+    template <class Value>
+    void operator()(boost::system::error_code /*code*/, Value&& value) const {
+        ++*completions;
+        if constexpr (std::is_same_v<std::remove_cvref_t<Value>, Tag>) {
+            if (tag != nullptr) {
+                *tag = value;
+            }
+        }
+    }
+};
+
+/**
+ * gcm's asynchronous functions, `async_make`, `async_seal` and `async_open`, each called with
+ * valid input and with input refused before the backend, an `io_context` run after each call so
+ * that its completion is delivered. The first guard each enters is its own (the synchronous call
+ * it makes holds another, which runs second).
+ *
+ * @tparam Gcm `gcm<aes128<Backend>>`, `gcm<aes192<Backend>>` or `gcm<aes256<Backend>>`.
+ * @param family The algorithm's name, `aes128_gcm` or `aes256_gcm`.
+ * @param backend The backend's name.
+ */
+template <class Gcm>
+void cover_async_gcm(std::string const& family, std::string const& backend) {
+    namespace crypto = webcpp::crypto;
+    std::string const on = " on " + backend;
+    webcpp::asio::io_context context;
+    auto const executor = context.get_executor();
+    auto const key = coverage_key<Gcm::key_size>();
+    int completions = 0;
+    typename Gcm::result_type kept{};
+    async_completion_counter<typename Gcm::result_type> const counted{.completions = &completions};
+    async_completion_counter<typename Gcm::result_type> const keeping{
+        .completions = &completions,
+        .tag = &kept,
+    };
+    // Each call's completion is delivered before the next call.
+    auto const deliver = [&context] {
+        context.restart();
+        context.run();  // lint-run: the test's event loop
+    };
+    covered(family + "::async_make" + on, "crypto::async_make", [&] {
+        crypto::async_make<Gcm>(executor, key, counted);
+        deliver();
+    });
+    covered(family + "::async_make with a short key" + on, "crypto::async_make", [&] {
+        crypto::async_make<Gcm>(executor, std::span(key).first(Gcm::key_size - 1), counted);
+        deliver();
+    });
+    auto made = Gcm::make(key);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    gcm_coverage_message<Gcm> message;
+    covered(family + "::async_seal" + on, "crypto::async_seal", [&] {
+        crypto::async_seal(executor, *made, message.iv, message.additional_data, message.data,
+                           keeping);
+        deliver();
+    });
+    covered(family + "::async_open" + on, "crypto::async_open", [&] {
+        crypto::async_open(executor, *made, message.iv, message.additional_data, message.data,
+                           std::span(kept.data(), kept.size()), counted);
+        deliver();
+    });
+    covered(family + "::async_seal with an empty IV" + on, "crypto::async_seal", [&] {
+        crypto::async_seal(executor, *made, {}, message.additional_data, message.data, counted);
+        deliver();
+    });
+    covered(family + "::async_open with an empty IV" + on, "crypto::async_open", [&] {
+        crypto::async_open(executor, *made, {}, message.additional_data, message.data,
+                           std::span(kept.data(), kept.size()), counted);
+        deliver();
+    });
+    BOOST_TEST_EQ(completions, 6);
+}
+
+/**
+ * Ed25519's asynchronous functions, `async_make`, `async_generate`, `async_sign` and
+ * `async_verify`, each called with valid input and with input refused before the backend (a seed
+ * or public key of 31 bytes, a moved-from key pair), an `io_context` run after each call so that
+ * its completion is delivered. The first guard each enters is its own (the synchronous call it
+ * makes holds another, which runs second).
+ *
+ * @tparam Keypair `curves::ed25519::basic_keypair<Backend>`.
+ * @param backend The backend's name.
+ */
+template <class Keypair>
+void cover_async_ed25519(std::string const& backend) {
+    namespace crypto = webcpp::crypto;
+    using signature_type = std::array<std::uint8_t, 64>;
+    using backend_type = Keypair::backend_type;
+    std::string const on = " on " + backend;
+    webcpp::asio::io_context context;
+    auto const executor = context.get_executor();
+    auto const seed = coverage_key<Keypair::seed_size>();
+    std::array<std::uint8_t, 3> const message{1, 2, 3};
+    int completions = 0;
+    signature_type kept{};
+    async_completion_counter<signature_type> const counted{.completions = &completions};
+    async_completion_counter<signature_type> const keeping{
+        .completions = &completions,
+        .tag = &kept,
+    };
+    // Each call's completion is delivered before the next call.
+    auto const deliver = [&context] {
+        context.restart();
+        context.run();  // lint-run: the test's event loop
+    };
+    covered("ed25519::async_make" + on, "crypto::async_make", [&] {
+        crypto::async_make<Keypair>(executor, seed, counted);
+        deliver();
+    });
+    covered("ed25519::async_make with a short seed" + on, "crypto::async_make", [&] {
+        crypto::async_make<Keypair>(executor, std::span(seed).first(Keypair::seed_size - 1),
+                                    counted);
+        deliver();
+    });
+    covered("ed25519::async_generate" + on, "crypto::async_generate", [&] {
+        crypto::async_generate<Keypair>(executor, counted);
+        deliver();
+    });
+    auto made = Keypair::make(seed);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    auto const public_key = made->public_key();
+    if (!BOOST_TEST(public_key.has_value())) {
+        return;
+    }
+    covered("ed25519::async_sign" + on, "crypto::async_sign", [&] {
+        crypto::async_sign(executor, *made, message, keeping);
+        deliver();
+    });
+    covered("ed25519::async_verify" + on, "crypto::async_verify", [&] {
+        crypto::async_verify<crypto::curves::ed25519::strict, backend_type>(executor, *public_key,
+                                                                            message, kept, counted);
+        deliver();
+    });
+    covered("ed25519::async_verify with a short key" + on, "crypto::async_verify", [&] {
+        crypto::async_verify<crypto::curves::ed25519::strict, backend_type>(
+            executor, std::span(*public_key).first(31), message, kept, counted);
+        deliver();
+    });
+    [[maybe_unused]] Keypair const taken(std::move(*made));
+    covered("ed25519::async_sign moved from" + on, "crypto::async_sign", [&] {
+        // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
+        crypto::async_sign(executor, *made, message, counted);
+        deliver();
+    });
+    BOOST_TEST_EQ(completions, 7);
+}
+
+/**
+ * X25519's asynchronous `async_agree`, called with valid input and with a key of 31 bytes, an
+ * `io_context` run after each call so that its completion is delivered. Its first guard is its
+ * own (the synchronous call it makes holds others, which run after).
+ *
+ * @tparam Backend The backend of X25519.
+ * @param backend The backend's name.
+ */
+template <class Backend>
+void cover_async_x25519(std::string const& backend) {
+    namespace crypto = webcpp::crypto;
+    std::string const on = " on " + backend;
+    webcpp::asio::io_context context;
+    auto const executor = context.get_executor();
+    auto const alice = coverage_key<32>();
+    auto bob_secret = coverage_key<32>();
+    bob_secret[0] ^= 0x42U;
+    auto const bob = crypto::curves::x25519::public_key<Backend>(bob_secret);
+    if (!BOOST_TEST(bob.has_value())) {
+        return;
+    }
+    int completions = 0;
+    async_completion_counter<> const counted{.completions = &completions};
+    covered("x25519::async_agree" + on, "crypto::async_agree", [&] {
+        crypto::async_agree<Backend>(executor, alice, *bob, counted);
+        context.restart();
+        context.run();  // lint-run: the test's event loop
+    });
+    covered("x25519::async_agree with a short key" + on, "crypto::async_agree", [&] {
+        crypto::async_agree<Backend>(executor, std::span(alice).first(31), *bob, counted);
+        context.restart();
+        context.run();  // lint-run: the test's event loop
+    });
+    BOOST_TEST_EQ(completions, 2);
 }
 
 /**

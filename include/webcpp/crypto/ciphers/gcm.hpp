@@ -15,6 +15,7 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/limits.hpp>
@@ -568,6 +569,9 @@ private:
 
     // The bytes authenticate decrypts at once into its own buffer.
     static constexpr std::size_t scratch_size = 256;
+
+    // The asynchronous family's error completions make the empty object a move leaves.
+    friend struct detail::async_access;
 
     gcm() noexcept = default;
 

@@ -1,0 +1,277 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
+[#crypto-async]
+== Asynchronous calls
+
+Many programs are built around an event loop: a server that answers thousands
+of connections on a few threads, a browser page, a chat client that keeps its
+window responsive. Such a program must never wait inside a handler, because
+every other connection, every click and every animation waits with it. The
+browser's cryptography library, WebCrypto (`crypto.subtle`,
+https://www.w3.org/TR/WebCryptoAPI/[W3C]), answers every call with a promise
+for that reason: it runs in the browser's native code, off the page's thread,
+and the answer arrives later. A program written for it, and a program that
+wants one shape for its code on every target, needs the same shape from the
+library.
+
+`<webcpp/crypto/async.hpp>` gives the functions of crypto that WebCrypto has
+an asynchronous form in webcpp::asio's model: each returns at once, and its
+completion arrives later through the event loop, with a
+`boost::system::error_code` and, for an operation that returns a value, the
+value. Each takes any completion token: a callback, `use_awaitable` for
+`co_await` in Asio, Cobalt's `use_op`, `deferred`, `as_tuple`, `use_future`. A
+program names `/webcpp/asio//asio` in its Jamfile, besides the backend of what
+it calls, and includes the header by itself: `<webcpp/crypto.hpp>` leaves it
+out, so that a program without an event loop does not build webcpp::asio.
+
+Every function takes, first, the executor its completion is posted to, as
+webcpp::hash's asynchronous functions do (the executor of an `io_context`, or
+of a strand). Without it, Asio would post to the system executor, a thread of
+its own, and the handler would run off the program's loop.
+
+.The asynchronous functions
+[cols="2,3,3"]
+|===
+| Algorithm | Functions | Completion
+
+| AES-GCM (<<crypto-gcm>>)
+| `async_make<Gcm>(executor, key, token)`, `async_seal(executor, aead, iv, additional_data, data, token)`, `async_open(executor, aead, iv, additional_data, data, tag, token)`
+| `void(error_code, Gcm)` for `async_make`, `void(error_code, tag)` for `async_seal`, `void(error_code)` for `async_open`
+
+| Ed25519 (<<crypto-ed25519>>)
+| `async_make<Keypair>(executor, seed, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, message, token)`, `async_verify(executor, public_key, message, signature, token)`
+| `void(error_code, Keypair)` for `async_make` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`
+
+| X25519 (<<crypto-x25519>>)
+| `async_agree(executor, secret_key, peer_public_key, token)`
+| `void(error_code, secret<32>)`
+
+| P-256 (<<crypto-p256>>)
+| `async_make<Keypair>(executor, secret_scalar, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, message, token)`, `async_verify(executor, public_key, message, signature, token)`, `async_agree(executor, key_pair, peer_public_key, token)`
+| `void(error_code, Keypair)` for `async_make` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`, `void(error_code, secret<32>)` for `async_agree`
+|===
+
+P-256's `async_sign` and `async_verify` take the message, not its digest: each
+hashes it with SHA-256 first and calls `sign_ecdsa` or `verify_ecdsa` on the 32
+bytes, as WebCrypto's `+sign({name: "ECDSA", hash: "SHA-256"}, ...)+` hashes and
+signs in one call (link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations[W3C,
+ECDSA's operations]). The signature is r then s, 64 bytes, WebCrypto's form; one
+of another size completes `async_verify` with `invalid_signature`. Their keys are
+P-256's own types, the key pair and the validated `public_key`, and
+`async_agree` gives the shared point's raw x, as WebCrypto's `deriveBits` does
+(<<crypto-p256-ecdh>>).
+
+The other algorithms of crypto (the ChaCha20-Poly1305 AEADs, the secret boxes,
+secp256k1) are not in WebCrypto, and have no asynchronous function: naming one
+stops the build with a message that names the synchronous function to call, whose text
+and fix are in <<crypto-jamfile-messages>>. Their synchronous functions are as cheap
+as these, and are called inside a handler.
+
+include::generated/backends-async_gcm.adoc[]
+
+include::generated/backends-async_ed25519.adoc[]
+
+include::generated/backends-async_x25519.adoc[]
+
+include::generated/backends-async_p256.adoc[]
+
+[#crypto-async-kinds]
+=== The two kinds
+
+The functions come in two kinds:
+
+* *The cheap functions*, all of the table above, cost microseconds: they run
+their work when initiated and complete through the event loop, never inside the call. They exist
+on every target, so that a program written once builds and runs everywhere.
+* *The heavy functions* run their work on another thread, on an executor the
+program gives (the executor of a `webcpp::asio::thread_pool`), and complete on
+the event loop. They exist only where the build has threads
+(`WEBCPP_CRYPTO_HAS_THREADS`). No function of this version is heavy: the
+operations that take long enough to freeze a loop (RSA key generation, for
+one) are not in it, and each arrives with its own `async_` function, which
+follows the rules of <<crypto-async-heavy>>.
+
+Each runs, by default, on the synchronous function's backend: the default of
+its family (<<crypto-backends-defaults>>), on every target, Emscripten
+included. The browser's WebCrypto is a backend of its own, which a program
+names in the type where it wants it (<<crypto-async-webcrypto>>); it is never
+a default, so that one program gives the same bytes on every target.
+
+[#crypto-async-cheap]
+=== The cheap functions through the event loop
+
+A cheap function runs the synchronous call when the operation is initiated (at the call
+for a callback, at the `co_await` for `use_awaitable`, at the launch for `deferred`), its guards first, and posts
+the completion to the executor the call gives, whence it reaches the handler's
+associated executor. The completion never runs inside the call, so a handler
+written for the browser's WebCrypto, which always completes later, behaves the
+same on every target. An audit record sealed with AES-256-GCM and opened again,
+each step started by the handler of the one before:
+
+[source]
+----
+include::{examples}/async_seal.cpp[tag=program,indent=0]
+----
+
+[listing]
+----
+include::{examples}/async_seal.expected[]
+----
+
+The same functions in a coroutine, which reads as the synchronous code does:
+Ed25519's key pair made from a seed, a message signed and the signature
+verified, each step a `co_await` with `use_awaitable`. The coroutine ends, and
+the loop with it, when the last completion has run:
+
+[source]
+----
+include::{examples}/async_sign.cpp[tag=program,indent=0]
+----
+
+[listing]
+----
+include::{examples}/async_sign.expected[]
+----
+
+*The completion's value on an error.* A value that is a keyed object or a
+secret has no meaning when the call failed, and the completion gives the
+empty object a move leaves: a `gcm` or a key pair without a key, a `secret<32>`
+or a signature of zeros, a tag of zeros. A program that reads the object by
+mistake gets `invalid_state` from every member of a `gcm` or a key pair, and
+zeros from a secret, never a key. Check the error code first. An operation
+without a value, `async_open` and `async_verify`, completes with the code
+alone.
+
+*What the guards say.* The completion's code is the synchronous function's,
+unchanged: `invalid_key_size`, `invalid_iv_size`, `message_too_long`,
+`authentication_failed`, `invalid_public_key`, `weak_public_key`,
+`invalid_signature`, `entropy_unavailable`, `backend_failure`
+(<<crypto-errors>>). A refusal is posted like a success, and the data a guard
+refuses is untouched; a failed `async_seal` or `async_open` zeroes it, as
+`seal` and `open` do.
+
+*Pitfalls.*
+
+* *The object and the spans are the caller's until the completion.* The
+key, the IV, the additional data, the data, the message and the signature are
+read and written by the call, which on a synchronous backend finishes before
+it returns; the browser's backend reads them later. A program written
+for either keeps them alive, and does not touch the data, until the handler
+runs: the key pair and the message of a coroutine live in its frame, and the
+record of the first example in `main`. An `aead` is not used by another call
+meanwhile. The parameters that are values are copied.
+* *The completion is later.* It never runs inside the call: code that follows
+the call runs first. A handler that needs a value from the call's caller
+captures it, as the examples do.
+* *Bind the completion to the loop.* The completion is dispatched to the
+handler's associated executor, else to the one the call was given; a handler
+bound to another executor with `bind_executor` runs there, and code that
+touches the loop's state from it races with it.
+* *The storage is the handler's.* The post allocates with the handler's
+associated allocator (`bind_allocator`), as every Asio operation does; a
+program that counts or pools its allocations binds its own. webcpp's own code
+calls neither `operator new` nor the C allocator in this family; a backend that allocates at
+`make` (OpenSSL) does so here too, as the synchronous `make` does (see <<crypto-memory>>).
+* *`use_future` without exceptions.* An error completes a future with an
+exception; a program built without exceptions reads errors with a callback or
+`as_tuple`.
+* *A call that never completes destroys its handler.* An event loop destroyed
+with the completion queued destroys the handler without calling it and gives
+its storage back, as Asio does for any operation: a `use_future` future then
+reports a broken promise.
+
+[#crypto-async-heavy]
+=== The heavy functions on another thread
+
+A heavy function takes the work executor first, the executor of a
+`webcpp::asio::thread_pool` the program keeps for the slow work, and
+completes on the handler's associated executor: the program binds the
+completion to its loop with `bind_executor`, so that the handler runs on the
+loop's thread. It checks its guards on the caller's thread, as the synchronous
+function does, and posts a refusal to the handler's executor without waiting
+for the pool; then the work runs on a thread of the pool, the completion is
+dispatched to the handler's associated executor, and the event loop, which has
+work while the operation is pending, does not return from `run` early. The
+machinery is the one of webcpp::hash's heavy functions
+(link:{webcpp-libs}/hash/{webcpp-page}#hash-async-heavy[Asynchronous calls]
+in its page), so that a program that uses both knows one set of rules.
+
+Where the build has threads, `WEBCPP_CRYPTO_HAS_THREADS` is defined:
+
+[cols="1,3"]
+|===
+| Target | The heavy functions
+
+| Native
+| Always: every native build has threads, b2's default `threading=single`
+included. A program that must never start work on another thread defines
+`WEBCPP_CRYPTO_NO_THREADS`.
+
+| Emscripten
+| With `-pthread`, which b2's `threading=multi` adds: each thread of the pool
+is a Web Worker. A page needs cross-origin isolation for workers to share
+memory
+(https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer#security_requirements[MDN,
+SharedArrayBuffer's security requirements]); under node they run as they
+are. A program that blocks its main thread (`run`, `join`) links
+`-sPTHREAD_POOL_SIZE=<n>` so that the workers start before it blocks.
+
+| wasip2, wasip3
+| Never: wasip2 has no threads, and wasip3's threads are cooperative, so the
+work would still block the loop. Call the synchronous function.
+|===
+
+Without threads each heavy name still exists, as a template whose call stops
+the build with "webcpp::crypto: <function> runs on another thread and needs a
+build with threads (...). Without threads, call <the synchronous function>.",
+so that a program never blocks its loop under an asynchronous name; the text
+and its fix are in <<crypto-jamfile-messages>>.
+
+*Cancellation of the heavy ones.*
+
+* A cancellation through the handler's slot before the work starts completes
+at once with `operation_aborted`, whatever the type, even when every thread of
+the pool is busy, and the work never runs. It completes on the handler's
+executor: a handler not bound to the loop's completes on the pool, and so
+waits for one of its threads.
+* After the work starts, it is not interrupted. A `terminal` or `partial`
+cancellation lets it run to its end, destroys its value (which wipes a
+`secret<N>` or a key pair) and completes with `operation_aborted`. A `total`
+one is then ignored, since the value's destruction is a side effect already
+under way.
+* The signal is emitted on the handler's executor, as Asio's slots require:
+bind the loop's executor with `bind_executor` and emit from the loop, never
+from another thread. It must outlive the call until its handler is called or
+destroyed, since the operation clears its slot then: declare the signal before
+the `io_context` and the pool, which are then destroyed first.
+* A pool destroyed with the work still queued, or an event loop destroyed with
+the completion queued, destroys the handler without calling it, as above.
+
+*Pitfalls.*
+
+* *A pool sized for the costs.* Each heavy operation holds its memory on its
+thread until it ends: a pool of n threads can hold n times the memory at once.
+Size the pool to what the program may spend, not to the number of requests.
+* *The storage is the handler's.* The operation's state and its completion
+are allocated with the handler's associated allocator, and all of it is given
+back before the handler runs, a cancellation's completion included; the pool
+allocates the job it queues as Asio does, with the work executor's own
+allocator when it has one.
+
+[#crypto-async-webcrypto]
+=== The browser's WebCrypto
+
+This section is for a later version. A program built with Emscripten will
+reach WebCrypto (`crypto.subtle`) as a backend named in the type of an
+asynchronous function, `backends::browser`: nothing of it compiled into the
+program, the key held by the browser, and a completion that arrives when the
+browser's promise settles. The functions of this page are the shape it plugs
+into: the same names, the same completions, the same errors, so that a program
+written against them today runs on it unchanged where the browser has the
+algorithm. In this version every asynchronous function runs on a synchronous
+backend, on every target, Emscripten included; naming a backend that is not
+built stops the build as it does for the synchronous functions.

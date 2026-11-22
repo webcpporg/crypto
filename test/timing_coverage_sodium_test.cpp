@@ -20,8 +20,9 @@
 // - Ed25519, basic_keypair: make, generate, public_key, sign, x25519_secret; the free verify and
 //   to_x25519_public. Ed25519ph, ph: begin, update, sign, verify. Its formats: decode_spki,
 //   decode_pkcs8 (the encoders call no backend and hold no guard, ruling R4).
-// - X25519, algorithm: public_key, agree; the free public_key and agree, which forward. Its
-//   formats: decode_spki, decode_pkcs8.
+// - Ed25519's asynchronous functions: async_make, async_generate, async_sign, async_verify.
+// - X25519, algorithm: public_key, agree; the free public_key and agree, which forward, and
+//   the asynchronous async_agree. Its formats: decode_spki, decode_pkcs8.
 // - crypto_kx, kx_keypair: make, generate, client_session_keys, server_session_keys.
 
 #include "support/timing_seam.hpp"
@@ -479,6 +480,8 @@ void cover_kx() {
 /** Ed25519, Ed25519ph, X25519, crypto_kx, and the decoders of the key formats. */
 void cover_curves() {
     cover_ed25519_keypair();
+    webcpp::test::cover_async_ed25519<crypto::curves::ed25519::basic_keypair<sodium>>("sodium");
+    webcpp::test::cover_async_x25519<sodium>("sodium");
     cover_ed25519_free();
     cover_ed25519ph();
     cover_ed25519ph_refusals();

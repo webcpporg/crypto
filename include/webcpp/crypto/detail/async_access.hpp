@@ -9,6 +9,26 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/defaults.hpp>
+
+namespace webcpp::crypto {
+
+/**
+ * The backend of the asynchronous family when a call names none (ruling R-A4): the synchronous
+ * function's, `default_backend_t<Family>`, on every target, Emscripten included.
+ *
+ * The browser's backend is never a default: a program names it in the type to reach WebCrypto.
+ * Declared here, beside the asynchronous family's other shared pieces, so that a curve's header
+ * defaults its asynchronous members' backend to it as `<webcpp/crypto/async.hpp>` defaults the free
+ * forms', without including Asio.
+ *
+ * @tparam Family A family tag of `families` that has a default.
+ */
+template <class Family>
+using default_async_backend_t = default_backend_t<Family>;
+
+}  // namespace webcpp::crypto
+
 namespace webcpp::crypto::detail {
 
 /**

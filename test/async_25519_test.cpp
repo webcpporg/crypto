@@ -32,7 +32,9 @@
 //   same refusal of a short seed), generate (a key pair whose signature verifies), sign (RFC 8032's
 //   signature, and an empty key pair's invalid_state and zeros), verify with the defaults and with
 //   the backend and the policy named (each accepts the signature and refuses a changed one with
-//   invalid_signature); each asynchronous completion arrives after the initiating call returned.
+//   invalid_signature; each takes the signature as a std::vector, a dynamic span of 64 bytes, or
+//   one of 63 or 65 bytes, invalid_signature); each asynchronous completion arrives after the
+//   initiating call returned.
 
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
@@ -548,10 +550,10 @@ void check_four_signatures(asio::io_context& context, keypair const& key,
 }
 
 // verify in its four forms, with the defaults and with the backend and the policy named: the
-// same answer.
+// same answer, the signature given to each as it is given here (a std::vector or a span).
+template <class Signature>
 void check_four_verifications(asio::io_context& context, ed25519::public_key const& key,
-                              std::span<std::uint8_t const> signature,
-                              std::span<std::uint8_t const> message,
+                              Signature const& signature, std::span<std::uint8_t const> message,
                               boost::system::error_code expected_code) {
     using crypto::backends::sodium;
     auto const code_of = [](boost::system::result<void> const& done) {
@@ -597,6 +599,15 @@ void async_four_forms(asio::io_context& context) {
     }
     check_four_signatures(context, *key, message, signature, {});
     check_four_verifications(context, public_key, signature, message, {});
+    check_four_verifications(context, public_key, std::span<std::uint8_t const>(signature), message,
+                             {});
+    auto longer = signature;
+    longer.push_back(0);
+    check_four_verifications(context, public_key, longer, message,
+                             crypto::error::invalid_signature);
+    check_four_verifications(context, public_key,
+                             std::span<std::uint8_t const>(signature).first(63), message,
+                             crypto::error::invalid_signature);
     signature[10] ^= 1U;
     check_four_verifications(context, public_key, signature, message,
                              crypto::error::invalid_signature);

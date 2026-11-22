@@ -35,8 +35,8 @@ namespace webcpp::crypto::detail {
 /**
  * The work of sealed boxes on a backend, whose specialisation provides
  * `seal(recipient_public_key, message, out)` and
- * `open(recipient_public_key, recipient_secret_key, sealed, out)`; the
- * primary refuses (defined at the end of this header).
+ * `open(recipient_public_key, recipient_secret_key, sealed, out)`; the primary refuses (defined at
+ * the end of this header).
  */
 template <class Family, class Backend>
 struct sealed_box_engine;
@@ -48,12 +48,11 @@ namespace webcpp::crypto::hybrid {
 /**
  * Sealed boxes: anonymous encryption to a public key.
  *
- * `seal` draws a key pair for the message
- * (libsodium draws it from its own generator), seals the message in a box from that key pair
- * to the recipient's public key, under a nonce derived from the two public keys, and writes
- * the drawn public key, the tag and the ciphertext; the drawn secret key is wiped. Only the
- * recipient's key pair opens it. The recipient cannot tell who sealed it, and the sender
- * cannot open it afterwards: a sealed box proves nothing about who wrote it.
+ * `seal` draws a key pair for the message (libsodium draws it from its own generator), seals the
+ * message in a box from that key pair to the recipient's public key, under a nonce derived from the
+ * two public keys, and writes the drawn public key, the tag and the ciphertext; the drawn secret
+ * key is wiped. Only the recipient's key pair opens it. The recipient cannot tell who sealed it,
+ * and the sender cannot open it afterwards: a sealed box proves nothing about who wrote it.
  *
  * @tparam Backend The backend; by default the family's.
  */
@@ -74,8 +73,8 @@ struct basic_sealed_box {
      * Seals `message` into `out`, of `message.size() + overhead` bytes: the drawn public key,
      * the tag, then the ciphertext.
      *
-     * The message may be the first `message.size()` bytes of
-     * `out`, sealed in place; it overlaps `out` in no other way, and the key does not.
+     * The message may be the first `message.size()` bytes of `out`, sealed in place; it overlaps
+     * `out` in no other way, and the key does not.
      *
      * The sizes are checked first; a refusal of theirs or of the key's leaves `out` untouched.
      * A failure of the work zeroes it.

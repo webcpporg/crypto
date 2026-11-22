@@ -398,6 +398,11 @@ constexpr void check_input() noexcept {
         static_assert(refused_v<Input>,
                       "webcpp::crypto: crypto::schnorr (BIP340) signs a message of any length and "
                       "has no prehash mode: pass the message.");
+    } else if constexpr (decltype(Input::digest)::extent != scheme_traits<Scheme>::digest_size &&
+                         std::is_same_v<Scheme, ecdsa_sha256_recoverable_t>) {
+        static_assert(refused_v<Input>,
+                      "webcpp::crypto: crypto::ecdsa_sha256_recoverable takes a 32-byte digest, "
+                      "SHA-256's: crypto::prehashed{digest} of a std::array<std::uint8_t, 32>.");
     } else if constexpr (decltype(Input::digest)::extent != scheme_traits<Scheme>::digest_size) {
         static_assert(refused_v<Input>,
                       "webcpp::crypto: crypto::ecdsa_sha256 takes a 32-byte digest, SHA-256's: "
@@ -583,7 +588,9 @@ template <class Scheme, class Signature, class Input, class PublicKey>
                   "webcpp::crypto: verify: this public key does not go with this scheme: "
                   "crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a "
                   "curves::p256::basic_public_key or a curves::secp256k1::public_key, "
-                  "crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key.");
+                  "crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a "
+                  "crypto::ecdsa_sha256_recoverable signature gives its key to "
+                  "curves::secp256k1::recover.");
     return {};
 }
 

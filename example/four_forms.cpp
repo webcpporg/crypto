@@ -12,7 +12,7 @@
 // tag::program[]
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
-#include <webcpp/crypto/keypair.hpp>
+#include <webcpp/crypto/make.hpp>
 #include <webcpp/crypto/signing.hpp>
 
 #include <webcpp/asio/io_context.hpp>

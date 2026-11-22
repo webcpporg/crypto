@@ -71,28 +71,33 @@ namespace webcpp::crypto::detail {
  *
  * @tparam Backend The key's backend.
  * @tparam Input A message or `crypto::prehashed<32>`; anything else stops the build.
- * @param signature 64 bytes, r then s.
+ * @param signature 64 bytes, r then s; its size is checked first.
  * @param input The signed message, hashed with SHA-256 here, or the marker of its digest.
  * @param point The public key's point, validated when the key was made.
- * @return Nothing; `invalid_signature`.
+ * @return Nothing; `invalid_signature` for a signature of another size, and for one out of range
+ * or that does not verify.
  */
 template <class Backend, class Input>
 [[nodiscard]] boost::system::result<void> p256_verify(
-    std::span<std::uint8_t const, curves::p256::signature_size> signature, Input const& input,
+    std::span<std::uint8_t const> signature, Input const& input,
     std::span<std::uint8_t const, curves::p256::public_key_size> point) noexcept {
     check_input<ecdsa_sha256_t, Input, Backend>();
     if constexpr (input_valid_v<ecdsa_sha256_t, Input, Backend>) {
         using engine = p_curve_engine<families::p256, Backend>;
+        if (signature.size() != curves::p256::signature_size) {
+            return error::invalid_signature;
+        }
+        auto const fixed = signature.first<curves::p256::signature_size>();
         std::array<std::uint8_t, curves::p256::digest_size> digest{};
         if constexpr (is_prehashed_v<Input>) {
             std::ranges::copy(input.digest, digest.begin());
         } else {
             digest = sha256_of(message_bytes(input));
         }
-        if (!p_curve_signature_in_range<families::p256>(signature)) {
+        if (!p_curve_signature_in_range<families::p256>(fixed)) {
             return error::invalid_signature;
         }
-        if (!engine::verify(point, digest, signature)) {
+        if (!engine::verify(point, digest, fixed)) {
             return error::invalid_signature;
         }
         return {};
@@ -181,8 +186,7 @@ public:
     /**
      * Verifies an ECDSA signature over SHA-256 with this key:
      * `crypto::verify(crypto::ecdsa_sha256, signature, input, key)`, of which it is the member
-     * form, with the same work, results and
-     * refusals.
+     * form, with the same work, results and refusals.
      *
      * A high S and a low S are both accepted, as FIPS 186-5 and WebCrypto accept them; a protocol
      * that requires low S checks `curves::p256::is_low_s` too.
@@ -191,16 +195,17 @@ public:
      * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
      * empty included, or `crypto::prehashed<32>`; anything else stops the build.
      * @param scheme `crypto::ecdsa_sha256`.
-     * @param signature 64 bytes, r then s (IEEE P1363, WebCrypto's form).
+     * @param signature 64 bytes, r then s (IEEE P1363, WebCrypto's form), as any bytes: a span, a
+     * `std::array`, a `std::vector`.
      * @param input The signed message, hashed with SHA-256 inside the call; or
      * `crypto::prehashed{digest}`, its 32-byte SHA-256 digest.
-     * @return Nothing; `invalid_signature` for an r or an s that is 0 or not below n, and for a
-     * signature that does not verify.
+     * @return Nothing; `invalid_signature` for a signature of another size, an r or an s that is 0
+     * or not below n, and a signature that does not verify.
      */
     template <class Scheme, class Input>
-    [[nodiscard]] boost::system::result<void> verify(
-        [[maybe_unused]] Scheme scheme, std::span<std::uint8_t const, signature_size> signature,
-        Input const& input) const noexcept {
+    [[nodiscard]] boost::system::result<void> verify([[maybe_unused]] Scheme scheme,
+                                                     std::span<std::uint8_t const> signature,
+                                                     Input const& input) const noexcept {
         detail::timing_guard const timing;
         static_assert(std::is_same_v<Scheme, ecdsa_sha256_t>,
                       "webcpp::crypto: a P-256 public key verifies crypto::ecdsa_sha256.");
@@ -247,6 +252,14 @@ public:
     auto async_verify(Executor const& executor, Scheme scheme,
                       std::span<std::uint8_t const> signature, Input const& input,
                       CompletionToken&& token) const;
+
+    /**
+     * Whether two keys are the same point.
+     *
+     * @param other The other key.
+     * @return True for the same 65 bytes.
+     */
+    [[nodiscard]] bool operator==(basic_public_key const& other) const noexcept = default;
 
 private:
     basic_public_key() noexcept = default;
@@ -376,8 +389,8 @@ public:
      * @param secret_scalar 32 bytes, big-endian, the caller's until the completion.
      * @param token The completion token, of signature
      * `void(boost::system::error_code, basic_keypair)`; on an error the key pair is empty, and
-     * every member refuses with
-     * `invalid_state` (`invalid_key_size`, `invalid_secret_key`, `backend_failure`).
+     * every member refuses with `invalid_state` (`invalid_key_size`, `invalid_secret_key`,
+     * `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
@@ -398,8 +411,7 @@ public:
      * @param executor The executor the completion is posted to.
      * @param token The completion token, of signature
      * `void(boost::system::error_code, basic_keypair)`; on an error the key pair is empty
-     * (`entropy_unavailable`,
-     * `backend_failure`).
+     * (`entropy_unavailable`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
@@ -532,8 +544,7 @@ public:
      * @param input The message, hashed with SHA-256, or `crypto::prehashed{digest}`.
      * @param token The completion token, of signature
      * `void(boost::system::error_code, std::array<std::uint8_t, 64>)`: r then s, S low; on an error
-     * 64 zeros (`invalid_state`,
-     * `backend_failure`).
+     * 64 zeros (`invalid_state`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class Scheme, class Input, class CompletionToken>
@@ -591,8 +602,7 @@ public:
      * @param peer The peer's public key, validated when it was made.
      * @param token The completion token, of signature
      * `void(boost::system::error_code, crypto::secret<32>)`: the shared x, big-endian; on an error
-     * a secret of zeros
-     * (`invalid_state`, `backend_failure`).
+     * a secret of zeros (`invalid_state`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
@@ -748,21 +758,20 @@ namespace webcpp::crypto {
  * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
  * empty included, or `crypto::prehashed<32>`; anything else stops the build.
  * @param scheme `crypto::ecdsa_sha256`.
- * @param signature 64 bytes, r then s (IEEE P1363, WebCrypto's form); `curves::p256::from_der`
- * reads DER.
+ * @param signature 64 bytes, r then s (IEEE P1363, WebCrypto's form), as any bytes;
+ * `curves::p256::from_der` reads DER.
  * @param input The signed message, hashed with SHA-256 inside the call; or
  * `crypto::prehashed{digest}`, its 32-byte SHA-256 digest.
  * @param public_key The signer's public key.
- * @return Nothing; `invalid_signature` for an r or an s that is 0 or not below n, refused before
- * the backend, and for a signature that does not verify. A digest whose value modulo n is 0 (32
- * zero bytes, or n itself), which no SHA-256 of a message gives in practice, is refused too:
- * BearSSL's verification refuses a zero multiplier.
+ * @return Nothing; `invalid_signature` for a signature of another size, an r or an s that is 0 or
+ * not below n, refused before the backend, and a signature that does not verify. A digest whose
+ * value modulo n is 0 (32 zero bytes, or n itself), which no SHA-256 of a message gives in
+ * practice, is refused too: BearSSL's verification refuses a zero multiplier.
  */
 template <class Backend, class Input>
 [[nodiscard]] boost::system::result<void> verify(
-    [[maybe_unused]] ecdsa_sha256_t scheme,
-    std::span<std::uint8_t const, curves::p256::signature_size> signature, Input const& input,
-    curves::p256::basic_public_key<Backend> const& public_key) noexcept {
+    [[maybe_unused]] ecdsa_sha256_t scheme, std::span<std::uint8_t const> signature,
+    Input const& input, curves::p256::basic_public_key<Backend> const& public_key) noexcept {
     detail::timing_guard const timing;
     static_assert(!detail::asynchronous_backend_v<Backend>,
                   "webcpp::crypto: verify on this backend completes asynchronously: call "

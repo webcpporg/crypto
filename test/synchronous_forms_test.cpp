@@ -16,7 +16,10 @@
 //   auxiliary randomness included, each the same type.
 // - verify: pub.verify(scheme, signature, input) and crypto::verify(scheme, signature, input, pub)
 //   accept a valid signature and refuse a changed one with invalid_signature, a message and a
-//   marker of its digest alike; Ed25519's policy and backend named, on both.
+//   marker of its digest alike; Ed25519's policy and backend named, on both. Both take the
+//   signature as bytes of any size, so the same arguments go to every form and every curve: a
+//   std::vector of the signature verifies, and 63 or 65 bytes are invalid_signature, on every
+//   scheme, secp256k1's x-only key and recover (64 or 66 bytes, and a std::vector) included.
 // - agree: key.agree(peer) and crypto::agree(key, peer) give the same secret, on P-256 and
 //   secp256k1.
 // - seal and open: aead.seal and crypto::seal give the same ciphertext and tag; aead.open and
@@ -46,6 +49,7 @@
 #include <memory_resource>
 #include <span>
 #include <type_traits>
+#include <vector>
 
 namespace crypto = webcpp::crypto;
 
@@ -188,6 +192,22 @@ void verify_forms(Scheme scheme, std::array<std::uint8_t, 64> const& signature, 
     BOOST_TEST(public_key.verify(scheme, wrong, input).error() == crypto::error::invalid_signature);
     BOOST_TEST(crypto::verify(scheme, wrong, input, public_key).error() ==
                crypto::error::invalid_signature);
+    // The signature as bytes off the wire: a std::vector, and a dynamic span of it.
+    std::vector<std::uint8_t> const received(signature.begin(), signature.end());
+    BOOST_TEST(public_key.verify(scheme, received, input).has_value());
+    BOOST_TEST(crypto::verify(scheme, received, input, public_key).has_value());
+    BOOST_TEST(crypto::verify(scheme, std::span<std::uint8_t const>(received), input, public_key)
+                   .has_value());
+    // One byte short (the signature's first 63) and one byte more (a 65th of 0).
+    auto const short_one = std::span<std::uint8_t const>(received).first(63);
+    std::vector<std::uint8_t> long_one = received;
+    long_one.push_back(0);
+    for (auto const sized : {short_one, std::span<std::uint8_t const>(long_one)}) {
+        BOOST_TEST(public_key.verify(scheme, sized, input).error() ==
+                   crypto::error::invalid_signature);
+        BOOST_TEST(crypto::verify(scheme, sized, input, public_key).error() ==
+                   crypto::error::invalid_signature);
+    }
 }
 
 /** Ed25519: sign and verify, member and free; Ed25519's policy and backend named on both. */
@@ -350,10 +370,50 @@ void secp256k1_verify_forms() {
     BOOST_TEST(crypto::verify(crypto::schnorr, *schnorr, message, public_key->xonly()).has_value());
     BOOST_TEST(public_key->verify<crypto::backends::secp256k1>(crypto::schnorr, *schnorr, message)
                    .has_value());
+    // BIP340's x-only key takes the signature as bytes too, its size checked before the key: 63
+    // bytes are invalid_signature even with 32 bytes that are no point's x.
+    std::vector<std::uint8_t> const received(schnorr->begin(), schnorr->end());
+    BOOST_TEST(crypto::verify(crypto::schnorr, received, message, public_key->xonly()).has_value());
+    auto const short_one = std::span<std::uint8_t const>(received).first(63);
+    BOOST_TEST(crypto::verify(crypto::schnorr, short_one, message, public_key->xonly()).error() ==
+               crypto::error::invalid_signature);
+    std::array<std::uint8_t, 32> const no_point{};
+    BOOST_TEST(crypto::verify(crypto::schnorr, short_one, message, no_point).error() ==
+               crypto::error::invalid_signature);
+    BOOST_TEST(crypto::verify(crypto::schnorr, received, message, no_point).error() ==
+               crypto::error::invalid_public_key);
     // Each scheme refuses the other's signature.
     BOOST_TEST(public_key->verify(crypto::schnorr, *ecdsa, message).error() ==
                crypto::error::invalid_signature);
     BOOST_TEST(public_key->verify(crypto::ecdsa_sha256, *schnorr, message).error() ==
+               crypto::error::invalid_signature);
+}
+
+/**
+ * secp256k1's recover takes the recoverable signature as bytes of any size: a std::vector of the
+ * 65 bytes gives the signer's key, and 64 or 66 bytes are invalid_signature.
+ */
+void secp256k1_recover_sizes() {
+    auto const made = secp_keypair::make(secret_bytes(1));
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    auto const public_key = made->public_key();
+    auto const recoverable = made->sign(crypto::ecdsa_sha256_recoverable, message);
+    if (!BOOST_TEST(public_key.has_value()) || !BOOST_TEST(recoverable.has_value())) {
+        return;
+    }
+    std::vector<std::uint8_t> const received(recoverable->begin(), recoverable->end());
+    auto const recovered = secp256k1::recover(crypto::ecdsa_sha256_recoverable, received, message);
+    if (BOOST_TEST(recovered.has_value())) {
+        BOOST_TEST(*recovered == *public_key);
+    }
+    auto const short_one = std::span<std::uint8_t const>(received).first(64);
+    std::vector<std::uint8_t> long_one = received;
+    long_one.push_back(0);
+    BOOST_TEST(secp256k1::recover(crypto::ecdsa_sha256_recoverable, short_one, message).error() ==
+               crypto::error::invalid_signature);
+    BOOST_TEST(secp256k1::recover(crypto::ecdsa_sha256_recoverable, long_one, message).error() ==
                crypto::error::invalid_signature);
 }
 
@@ -424,6 +484,7 @@ int main() {
     p256_forms();
     secp256k1_sign_forms();
     secp256k1_verify_forms();
+    secp256k1_recover_sizes();
     public_key_and_resource_forms();
     aead_forms<gcm>();
     aead_forms<chacha>();

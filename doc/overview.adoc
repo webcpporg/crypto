@@ -30,8 +30,9 @@ and SPKI and PKCS#8 keys, through BearSSL.
 `crypto::verify(scheme, signature, input, public_key)` checks the signature,
 the scheme named at every call and a digest given only as
 `+crypto::prehashed{digest}+` (<<crypto-curves-signatures>>). Each operation
-has four forms, the member and its free form, synchronous and asynchronous,
-with one implementation (<<crypto-curves-four-forms>>).
+has the member and its free form, and, where WebCrypto has the algorithm,
+their asynchronous forms, with one implementation
+(<<crypto-curves-four-forms>>).
 * *A constant-time `equal`* for tags and MACs, Boost.Hash2's included.
 * *The AES block cipher,* a building block for the rare case that needs one.
 

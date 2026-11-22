@@ -39,6 +39,7 @@
 //   synchronous and asynchronous, gives the same result: make (the same public key), generate (a
 //   key pair whose signature verifies), sign of a message and of prehashed{digest} (the same
 //   signature, RFC 6979's), verify (each accepts the signature and refuses a changed one with
+//   invalid_signature; each takes the signature as a std::vector, or 63 or 65 bytes,
 //   invalid_signature), agree (the same secret); and the refusals are the same, a short scalar's
 //   invalid_key_size and an empty key pair's invalid_state, each asynchronous completion arriving
 //   after the initiating call returned.
@@ -713,10 +714,11 @@ void check_four_signatures(asio::io_context& context, keypair const& key, Input 
     BOOST_TEST(std::get<0>(*free_async.value) == *member_sync);
 }
 
-// verify in its four forms, of `input`: the same answer.
-template <class Input>
+// verify in its four forms, of `input`: the same answer, the signature given to each as it is
+// given here (an array, a std::vector or a span).
+template <class Signature, class Input>
 void check_four_verifications(asio::io_context& context, public_key const& key,
-                              signature_type const& signature, Input const& input,
+                              Signature const& signature, Input const& input,
                               boost::system::error_code expected_code) {
     auto const code_of = [](boost::system::result<void> const& done) {
         return done ? boost::system::error_code{} : done.error();
@@ -812,6 +814,13 @@ void async_four_forms(asio::io_context& context) {
     check_four_signatures(context, *key, crypto::prehashed{digest}, {});
     check_four_verifications(context, *own, data::rfc6979_test, message, {});
     check_four_verifications(context, *own, data::rfc6979_test, crypto::prehashed{digest}, {});
+    std::vector<std::uint8_t> const received(data::rfc6979_test.begin(), data::rfc6979_test.end());
+    check_four_verifications(context, *own, received, message, {});
+    auto longer = received;
+    longer.push_back(0);
+    check_four_verifications(context, *own, longer, message, crypto::error::invalid_signature);
+    check_four_verifications(context, *own, std::span<std::uint8_t const>(received).first(63),
+                             message, crypto::error::invalid_signature);
     auto changed = data::rfc6979_test;
     changed[10] ^= 1U;
     check_four_verifications(context, *own, changed, message, crypto::error::invalid_signature);

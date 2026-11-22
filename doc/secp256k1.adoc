@@ -43,10 +43,9 @@ contract every curve's keeps (<<crypto-curves-signatures>>).
 Each operation has the member and its free form, with the same work, errors
 and refusals (<<crypto-curves-four-forms>>). It has no asynchronous form:
 secp256k1 is not in WebCrypto, whose algorithms the asynchronous family
-follows, and its calls are cheap enough for a handler. `sign` and
-`crypto::sign` take the 32 bytes of hedged ECDSA's extra entropy or BIP 340's
-auxiliary randomness after the input; `public_key.verify` takes
-`crypto::ecdsa_sha256` and `crypto::schnorr`, and `crypto::verify` with
+follows. `sign` and `crypto::sign` take the 32 bytes of hedged ECDSA's extra
+entropy or BIP 340's auxiliary randomness after the input; `public_key.verify`
+takes `crypto::ecdsa_sha256` and `crypto::schnorr`, and `crypto::verify` with
 `crypto::schnorr` also takes the 32-byte x-only key:
 
 .secp256k1's operations in their two forms

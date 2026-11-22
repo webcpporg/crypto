@@ -397,6 +397,12 @@ The fix: Sign with `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+
 
 The fix: Name the scheme with its tag: `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+` or `+crypto::schnorr+`.
 
+|`+sign_secp256k1_recoverable_digest_48+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto::ecdsa_sha256_recoverable takes a 32-byte digest, SHA-256's: crypto::prehashed{digest} of a std::array<std::uint8_t, 32>.+`
+
+The fix: As `+sign_p256_digest_48+`: give `+crypto::ecdsa_sha256_recoverable+` SHA-256's 32-byte digest, or the message itself, which it hashes.
+
 |`+silent_payments_other_backend+`
 |native, wasip2
 |`+webcpp::crypto: bearssl has no BIP 352 silent payments. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
@@ -417,13 +423,13 @@ The fix: Call `+async_verify+` on a backend that completes by itself: its synchr
 
 |`+verify_ecdsa_bytes_key+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key.+`
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
 The fix: Give `+crypto::ecdsa_sha256+` the public key as a typed object, `+curves::secp256k1::public_key::make(bytes)+` or `+curves::p256::public_key::make(bytes)+`: bytes never choose the curve.
 
 |`+verify_eddsa_bytes_key+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key.+`
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
 The fix: Give `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::make(bytes)+` for a key received as bytes.
 
@@ -432,6 +438,12 @@ The fix: Give `+crypto::eddsa+` the public key as a `+curves::ed25519::public_ke
 |`+webcpp::crypto: verify on this backend completes asynchronously: call async_verify.+`
 
 The fix: As `+verify_asynchronous_backend+`.
+
+|`+verify_free_secp256k1_recoverable+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
+
+The fix: As `+verify_member_secp256k1_recoverable+`: give a recoverable signature to `+curves::secp256k1::recover+`, which gives the signer's key; `+crypto::verify+` takes `+crypto::ecdsa_sha256+` and `+crypto::schnorr+` with a secp256k1 key.
 
 |`+verify_member_ed25519_ecdsa+`
 |native, wasip2, wasip3

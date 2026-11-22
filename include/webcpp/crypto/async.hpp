@@ -118,17 +118,6 @@
 
 namespace webcpp::crypto {
 
-/**
- * The backend of the asynchronous family when a call names none (ruling R-A4): the synchronous
- * function's, `default_backend_t<Family>`, on every target, Emscripten included.
- *
- * The browser's backend is never a default: a program names it in the type to reach WebCrypto.
- *
- * @tparam Family A family tag of `families` that has a default.
- */
-template <class Family>
-using default_async_backend_t = default_backend_t<Family>;
-
 namespace detail {
 
 /**
@@ -449,14 +438,13 @@ auto initiate_verify_ed25519(Executor const& executor, std::span<std::uint8_t co
 
 /**
  * Makes an AES-GCM object, an Ed25519 key pair or a P-256 key pair from its key bytes,
- * asynchronously:
- * `Algorithm::make(key_bytes)` run when the operation is initiated, its result posted to
- * `executor`.
+ * asynchronously: `Algorithm::make(key_bytes)` run when the operation is initiated, its result
+ * posted to `executor`.
  *
  * The free form of `Algorithm::async_make(executor, key_bytes, token)`, which it calls.
  *
- * The key is read before the call returns on a synchronous backend,
- * later on the browser's: it is the caller's until the completion.
+ * The key is read before the call returns on a synchronous backend, later on the browser's: it is
+ * the caller's until the completion.
  *
  * @tparam Algorithm A `ciphers::gcm<Cipher>`, a `curves::ed25519::basic_keypair<Backend>` or a
  * `curves::p256::basic_keypair<Backend>`, on any backend that has it; the other algorithms crypto
@@ -713,9 +701,8 @@ auto async_verify(Executor const& executor, eddsa_t scheme, std::span<std::uint8
 /**
  * Verifies a P-256 ECDSA signature over SHA-256, asynchronously:
  * `crypto::verify(crypto::ecdsa_sha256, signature, input, public_key)` run when the operation is
- * initiated, its result posted to `executor`;
- * the message is hashed with SHA-256, as WebCrypto's ECDSA with SHA-256 verifies, or
- * `crypto::prehashed{digest}` gives its digest.
+ * initiated, its result posted to `executor`; the message is hashed with SHA-256, as WebCrypto's
+ * ECDSA with SHA-256 verifies, or `crypto::prehashed{digest}` gives its digest.
  *
  * The free form of
  * `public_key.async_verify(executor, crypto::ecdsa_sha256, signature, input, token)`, which it
@@ -1016,13 +1003,8 @@ auto curves::p256::basic_public_key<Backend>::async_verify(Executor const& execu
     } else {
         return detail::complete_by_post(
             executor, token,
-            [this, signature,
-             kept = detail::kept_input(input)]() noexcept -> boost::system::result<void> {
-                if (signature.size() != curves::p256::signature_size) {
-                    return error::invalid_signature;
-                }
-                return verify(ecdsa_sha256, signature.first<curves::p256::signature_size>(), kept);
-            });
+            [this, signature, kept = detail::kept_input(input)]() noexcept
+                -> boost::system::result<void> { return verify(ecdsa_sha256, signature, kept); });
     }
 }
 

@@ -511,22 +511,26 @@ inline constexpr bool secp256k1_refuses_others = sizeof(secp256k1_refusal<Family
  *
  * @tparam Backend The backend, libsecp256k1.
  * @tparam Input A message; anything else stops the build.
- * @param signature 64 bytes.
+ * @param signature 64 bytes; its size is checked first.
  * @param message The signed message, as given.
  * @param point_value The signer's point.
- * @return Nothing; `invalid_signature`.
+ * @return Nothing; `invalid_signature` for a signature of another size, and for one that does not
+ * verify.
  */
 template <class Backend, class Input>
 [[nodiscard]] boost::system::result<void> secp256k1_verify_schnorr_key(
-    std::span<std::uint8_t const, 64> signature, Input const& message,
+    std::span<std::uint8_t const> signature, Input const& message,
     secp256k1_pubkey const& point_value) noexcept {
     check_input<schnorr_t, Input, Backend>();
     if constexpr (input_valid_v<schnorr_t, Input, Backend>) {
+        if (signature.size() != 64) {
+            return error::invalid_signature;
+        }
         auto const bytes_of_message = message_bytes(message);
         read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         secp256k1_selftest();
         auto const xonly_key = secp256k1_xonly_of(point_value);
-        return secp256k1_verify_schnorr(signature, bytes_of_message, xonly_key);
+        return secp256k1_verify_schnorr(signature.first<64>(), bytes_of_message, xonly_key);
     } else {
         // Never compiled into a program: check_input stopped the build.
         return error::invalid_signature;
@@ -540,18 +544,21 @@ template <class Backend, class Input>
  *
  * @tparam Backend The backend, libsecp256k1.
  * @tparam Input A message or `crypto::prehashed<32>`; anything else stops the build.
- * @param signature 64 bytes, r then s.
+ * @param signature 64 bytes, r then s; its size is checked first.
  * @param input The signed message, hashed with SHA-256 here, or the marker of its digest.
  * @param point_value The signer's point.
- * @return Nothing; `invalid_signature` for an r or an s not below the group order, a high S, or a
- * signature that does not verify.
+ * @return Nothing; `invalid_signature` for a signature of another size, an r or an s not below the
+ * group order, a high S, or a signature that does not verify.
  */
 template <class Backend, class Input>
 [[nodiscard]] boost::system::result<void> secp256k1_verify_ecdsa(
-    std::span<std::uint8_t const, 64> signature, Input const& input,
+    std::span<std::uint8_t const> signature, Input const& input,
     secp256k1_pubkey const& point_value) noexcept {
     check_input<ecdsa_sha256_t, Input, Backend>();
     if constexpr (input_valid_v<ecdsa_sha256_t, Input, Backend>) {
+        if (signature.size() != 64) {
+            return error::invalid_signature;
+        }
         auto const digest = secp256k1_digest(input);
         read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         secp256k1_selftest();
@@ -703,15 +710,16 @@ public:
      * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
      * empty included; or, for ECDSA, `crypto::prehashed<32>`; anything else stops the build.
      * @param scheme `crypto::ecdsa_sha256` or `crypto::schnorr`.
-     * @param signature 64 bytes: r then s for ECDSA, BIP340's signature for Schnorr.
+     * @param signature 64 bytes, as any bytes: r then s for ECDSA, BIP340's signature for
+     * Schnorr.
      * @param input For ECDSA, the message, hashed with SHA-256 inside the call, or
      * `crypto::prehashed{digest}`; for Schnorr, the message itself.
-     * @return Nothing; `invalid_signature` for an r or an s not below the group order, a high S,
-     * or a signature that does not verify.
+     * @return Nothing; `invalid_signature` for a signature of another size, an r or an s not below
+     * the group order, a high S, or a signature that does not verify.
      */
     template <class Backend = default_backend_t<families::secp256k1>, class Scheme, class Input>
     [[nodiscard]] boost::system::result<void> verify([[maybe_unused]] Scheme scheme,
-                                                     std::span<std::uint8_t const, 64> signature,
+                                                     std::span<std::uint8_t const> signature,
                                                      Input const& input) const noexcept {
         detail::timing_guard const timing;
         static_assert(
@@ -1395,21 +1403,23 @@ namespace webcpp::crypto::curves::secp256k1 {
  * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, or
  * `crypto::prehashed<32>`; anything else stops the build.
  * @param scheme `crypto::ecdsa_sha256_recoverable`.
- * @param recoverable_signature 65 bytes: r, s, then the recovery id, 0 to 3.
+ * @param recoverable_signature 65 bytes, as any bytes: r, s, then the recovery id, 0 to 3.
  * @param input The signed message, hashed with SHA-256 inside the call, or
  * `crypto::prehashed{digest}`, the 32-byte digest signed.
- * @return The key; `invalid_signature` for a recovery id above 3, an r or an s not below the
- * group order, or a signature from which no key is recovered.
+ * @return The key; `invalid_signature` for a signature of another size, a recovery id above 3, an
+ * r or an s not below the group order, or a signature from which no key is recovered.
  */
 template <class Backend = default_backend_t<families::secp256k1>, class Input>
 [[nodiscard]] boost::system::result<public_key> recover(
     [[maybe_unused]] ecdsa_sha256_recoverable_t scheme,
-    std::span<std::uint8_t const, recoverable_signature_size> recoverable_signature,
-    Input const& input) noexcept {
+    std::span<std::uint8_t const> recoverable_signature, Input const& input) noexcept {
     detail::timing_guard const timing;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     detail::check_input<ecdsa_sha256_recoverable_t, Input, Backend>();
     if constexpr (detail::input_valid_v<ecdsa_sha256_recoverable_t, Input, Backend>) {
+        if (recoverable_signature.size() != recoverable_signature_size) {
+            return error::invalid_signature;
+        }
         auto const message_hash = webcpp::crypto::detail::secp256k1_digest(input);
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         // libsecp256k1 checks the id with ARG_CHECK, whose callback aborts: refused first here.
@@ -1610,17 +1620,17 @@ namespace webcpp::crypto {
  * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
  * empty included, or `crypto::prehashed<32>`; anything else stops the build.
  * @param scheme `crypto::ecdsa_sha256`.
- * @param signature 64 bytes, r then s; `curves::secp256k1::from_der` reads DER.
+ * @param signature 64 bytes, r then s, as any bytes; `curves::secp256k1::from_der` reads DER.
  * @param input The signed message, hashed with SHA-256 inside the call; or
  * `crypto::prehashed{digest}`, the 32-byte digest signed (a Bitcoin sighash).
  * @param public_key The signer's public key: a key pair's `public_key()`, or
  * `curves::secp256k1::public_key::make` of its SEC1 bytes.
- * @return Nothing; `invalid_signature` for an r or an s not below the group order, a high S, or
- * a signature that does not verify.
+ * @return Nothing; `invalid_signature` for a signature of another size, an r or an s not below the
+ * group order, a high S, or a signature that does not verify.
  */
 template <class Backend = default_backend_t<families::secp256k1>, class Input>
 [[nodiscard]] boost::system::result<void> verify(
-    [[maybe_unused]] ecdsa_sha256_t scheme, std::span<std::uint8_t const, 64> signature,
+    [[maybe_unused]] ecdsa_sha256_t scheme, std::span<std::uint8_t const> signature,
     Input const& input, curves::secp256k1::public_key const& public_key) noexcept {
     detail::timing_guard const timing;
     static_assert(detail::secp256k1_refuses_others<families::secp256k1, Backend>);
@@ -1636,20 +1646,25 @@ template <class Backend = default_backend_t<families::secp256k1>, class Input>
  * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
  * empty included; a `crypto::prehashed` marker, or anything else, stops the build.
  * @param scheme `crypto::schnorr`.
- * @param signature 64 bytes.
+ * @param signature 64 bytes, as any bytes.
  * @param message The signed message, as given.
  * @param xonly_public_key The signer's 32-byte x-only key (a public key's `xonly()`, a taproot
  * output key, MuSig2's aggregate key).
- * @return Nothing; `invalid_public_key` for 32 bytes that are no point's x; `invalid_signature`.
+ * @return Nothing; `invalid_signature` for a signature of another size, checked before the key;
+ * `invalid_public_key` for 32 bytes that are no point's x; `invalid_signature` for a signature
+ * that does not verify.
  */
 template <class Backend = default_backend_t<families::secp256k1>, class Input>
 [[nodiscard]] boost::system::result<void> verify(
-    [[maybe_unused]] schnorr_t scheme, std::span<std::uint8_t const, 64> signature,
+    [[maybe_unused]] schnorr_t scheme, std::span<std::uint8_t const> signature,
     Input const& message, std::span<std::uint8_t const, 32> xonly_public_key) noexcept {
     detail::timing_guard const timing;
     static_assert(detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     detail::check_input<schnorr_t, Input, Backend>();
     if constexpr (detail::input_valid_v<schnorr_t, Input, Backend>) {
+        if (signature.size() != 64) {
+            return error::invalid_signature;
+        }
         auto const message_bytes = detail::message_bytes(message);
         detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         secp256k1_selftest();
@@ -1658,7 +1673,7 @@ template <class Backend = default_backend_t<families::secp256k1>, class Input>
                                          xonly_public_key.data()) == 0) {
             return error::invalid_public_key;
         }
-        return detail::secp256k1_verify_schnorr(signature, message_bytes, parsed_key);
+        return detail::secp256k1_verify_schnorr(signature.first<64>(), message_bytes, parsed_key);
     } else {
         // Never compiled into a program: check_input stopped the build.
         return error::invalid_signature;
@@ -1674,14 +1689,15 @@ template <class Backend = default_backend_t<families::secp256k1>, class Input>
  * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
  * empty included; a `crypto::prehashed` marker, or anything else, stops the build.
  * @param scheme `crypto::schnorr`.
- * @param signature 64 bytes.
+ * @param signature 64 bytes, as any bytes.
  * @param message The signed message, as given.
  * @param public_key The signer's public key: a key pair's `public_key()`.
- * @return Nothing; `invalid_signature`.
+ * @return Nothing; `invalid_signature` for a signature of another size, and for one that does not
+ * verify.
  */
 template <class Backend = default_backend_t<families::secp256k1>, class Input>
 [[nodiscard]] boost::system::result<void> verify(
-    [[maybe_unused]] schnorr_t scheme, std::span<std::uint8_t const, 64> signature,
+    [[maybe_unused]] schnorr_t scheme, std::span<std::uint8_t const> signature,
     Input const& message, curves::secp256k1::public_key const& public_key) noexcept {
     detail::timing_guard const timing;
     static_assert(detail::secp256k1_refuses_others<families::secp256k1, Backend>);

@@ -77,8 +77,9 @@ Ed25519's, X25519's and P-256's keys leave a program, and enter it, in the stand
 OpenSSL and WebCrypto use, SPKI and PKCS#8, as DER or PEM text (<<crypto-key-formats>>).
 Every curve signs and verifies by the same two names, the scheme named at every
 call, and its key pair keeps one contract (<<crypto-curves-signatures>>); each
-operation has four forms, the member and its free form, synchronous and
-asynchronous (<<crypto-curves-four-forms>>).
+operation has the member and its free form, and, where WebCrypto has the
+algorithm (Ed25519 and P-256), their asynchronous forms
+(<<crypto-curves-four-forms>>).
 
 include::generated/namespace-curves.adoc[]
 
@@ -168,6 +169,14 @@ validated object on both curves, never bytes, so that `crypto::ecdsa_sha256`
 never infers its curve from a number of bytes. BIP 340's keys are bytes on the
 wire, so `crypto::schnorr` also takes the 32-byte x-only key.
 
+The signature is bytes, as it arrives from the network or a file: every
+`verify`, member and free, synchronous and asynchronous, on every curve, and
+secp256k1's `recover` take it as `std::span<std::uint8_t const>`, so a
+`std::array`, a `std::vector` or a span of a received buffer goes to every
+form unchanged. Its size is checked first, before the key and the backend: a
+signature of another size than the table's is `invalid_signature`, never a
+build error.
+
 ECDSA signs low S on both curves, s at most (n - 1) / 2: libsecp256k1 signs
 so, and P-256's RFC 6979 signature is normalized after it is made, n - s
 selected by a mask, without a branch on the secret. Verification differs on
@@ -247,14 +256,15 @@ a completion. Ed25519's `x25519_secret()` is a conversion, not an agreement
 [#crypto-curves-four-forms]
 ==== Four forms of every operation
 
-Every operation of a key pair, a public key and an AEAD has four forms and one
-implementation. The member does the work; its free form, in the namespace
+An operation of a key pair, a public key and an AEAD has up to four forms and
+one implementation: the member and its free form everywhere, and their
+asynchronous forms where WebCrypto has the algorithm. The member does the work; its free form, in the namespace
 `webcpp::crypto`, calls the member in one line (`crypto::verify` calls the
 work the public key's `verify` calls); the asynchronous member and
 its free form share one initiation, which runs the synchronous member when the
 operation is initiated and completes through the event loop
-(<<crypto-async>>). The four give the same bytes, the same errors and the same
-refusals, one set of concepts gating them all, so a program picks the form
+(<<crypto-async>>). The forms take the same arguments and give the same bytes,
+the same errors and the same refusals, one set of concepts gating them all, so a program picks the form
 that reads best where it calls: the member beside the object, the free form in
 generic code, an asynchronous form in an event loop.
 
@@ -332,9 +342,11 @@ not compile, and the compiler says that the member's deduced return type is
 used before it is defined: clang's "function ... with deduced return type
 cannot be used before it is defined", gcc's "use of ... before deduction of
 'auto'", MSVC's C3779; the message and its fix are in
-<<crypto-jamfile-messages>>. On a backend that completes by itself, the
-browser's (<<crypto-async-webcrypto>>), every synchronous form refuses at
-compile time with a message that names its `async_` form.
+<<crypto-jamfile-messages>>. On a backend that completes by itself, as the
+browser's will be (<<crypto-async-webcrypto>>), every synchronous form refuses
+at compile time with a message that names its `async_` form: the refusal is in
+place already, tested with a stand-in backend, since no such backend exists
+yet.
 
 *Example.* P-256's key pair made by `make` and by `crypto::make`, then a
 message signed and the signature verified in the four forms. RFC 6979's nonce

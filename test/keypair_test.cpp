@@ -319,7 +319,8 @@ static_assert(!crypto::keypair<crypto::curves::secp256k1::public_key>);
 namespace {
 
 // Each curve's key pair, used through the contract alone: the key pair made again from its
-// secret() signs what the first one's public key verifies.
+// secret() has the same public key, compared with ==, and signs what the first one's public key
+// verifies.
 template <crypto::keypair Keypair, class Scheme>
 void round_trip(Scheme scheme) {
     auto const key = Keypair::generate();
@@ -328,6 +329,7 @@ void round_trip(Scheme scheme) {
     BOOST_TEST(exported.has_value());
     auto const again = Keypair::make(exported->bytes());
     BOOST_TEST(again.has_value());
+    BOOST_TEST(*again->public_key() == *key->public_key());
     std::array<std::uint8_t, 3> const message{'a', 'b', 'c'};
     auto const signature = again->sign(scheme, message);
     BOOST_TEST(signature.has_value());

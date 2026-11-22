@@ -224,7 +224,8 @@ public:
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
      * "deduced return type used before it is defined".
      *
-     * @tparam Backend The backend; by default the family's.
+     * @tparam Backend The backend; by default the asynchronous family's
+     * (`default_async_backend_t<families::ed25519>`), as the free form's.
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
      * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
      * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
@@ -239,8 +240,8 @@ public:
      * `backend_failure`.
      * @return What the completion token's `async_result` gives.
      */
-    template <class Backend = default_backend_t<families::ed25519>, class Executor, class Scheme,
-              class Input, class CompletionToken>
+    template <class Backend = default_async_backend_t<families::ed25519>, class Executor,
+              class Scheme, class Input, class CompletionToken>
     auto async_verify(Executor const& executor, Scheme scheme,
                       std::span<std::uint8_t const> signature, Input const& message,
                       CompletionToken&& token) const;
@@ -257,7 +258,8 @@ public:
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
      * "deduced return type used before it is defined".
      *
-     * @tparam Backend The backend; by default the family's.
+     * @tparam Backend The backend; by default the asynchronous family's
+     * (`default_async_backend_t<families::ed25519>`), as the free form's.
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
      * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
      * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`.
@@ -271,8 +273,8 @@ public:
      * overload without a policy completes.
      * @return What the completion token's `async_result` gives.
      */
-    template <class Backend = default_backend_t<families::ed25519>, class Executor, class Scheme,
-              class Input, class CompletionToken>
+    template <class Backend = default_async_backend_t<families::ed25519>, class Executor,
+              class Scheme, class Input, class CompletionToken>
     auto async_verify(Executor const& executor, Scheme scheme,
                       std::span<std::uint8_t const> signature, Input const& message,
                       strict_t policy, CompletionToken&& token) const;
@@ -397,8 +399,7 @@ public:
      * @param seed 32 bytes, the caller's until the completion.
      * @param token The completion token, of signature
      * `void(boost::system::error_code, basic_keypair)`; on an error the key pair is empty, and
-     * every member refuses with
-     * `invalid_state` (`invalid_key_size`, `backend_failure`).
+     * every member refuses with `invalid_state` (`invalid_key_size`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
@@ -419,8 +420,7 @@ public:
      * @param executor The executor the completion is posted to.
      * @param token The completion token, of signature
      * `void(boost::system::error_code, basic_keypair)`; on an error the key pair is empty
-     * (`entropy_unavailable`,
-     * `backend_failure`).
+     * (`entropy_unavailable`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>

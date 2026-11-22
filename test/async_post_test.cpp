@@ -6,7 +6,7 @@
 
 // The cheap functions of the asynchronous family on a synchronous backend (ruling R-A4: the
 // default everywhere), through detail::complete_by_post, the initiation each of them makes: the
-// synchronous call runs at once, inside the initiating call, and its result, split by
+// synchronous call runs when the operation is initiated, and its result, split by
 // detail::completion_of, completes through a post, never inside the call (rulings R-A2, R-A3).
 // Three test-only operations, declared as the family's functions are, exercise it on every
 // result shape: async_key (a secret<32> of bytes all `value`), async_block (an array of 64 bytes

@@ -53,7 +53,7 @@ its own, and the handler would run off the program's loop.
 
 The other algorithms of crypto (the ChaCha20-Poly1305 AEADs, the secret boxes,
 secp256k1) are not in WebCrypto, and have no asynchronous function: naming one
-stops the build, with the message "call the synchronous function", whose text
+stops the build with a message that names the synchronous function to call, whose text
 and fix are in <<crypto-jamfile-messages>>. Their synchronous functions are as cheap
 as these, and are called inside a handler.
 
@@ -69,7 +69,7 @@ include::generated/backends-async_x25519.adoc[]
 The functions come in two kinds:
 
 * *The cheap functions*, all of the table above, cost microseconds: they run
-at once and complete through the event loop, never inside the call. They exist
+their work when initiated and complete through the event loop, never inside the call. They exist
 on every target, so that a program written once builds and runs everywhere.
 * *The heavy functions* run their work on another thread, on an executor the
 program gives (the executor of a `webcpp::asio::thread_pool`), and complete on
@@ -88,7 +88,8 @@ a default, so that one program gives the same bytes on every target.
 [#crypto-async-cheap]
 === The cheap functions through the event loop
 
-A cheap function runs the synchronous call at once, its guards first, and posts
+A cheap function runs the synchronous call when the operation is initiated (at the call
+for a callback, at the `co_await` for `use_awaitable`, at the launch for `deferred`), its guards first, and posts
 the completion to the executor the call gives, whence it reaches the handler's
 associated executor. The completion never runs inside the call, so a handler
 written for the browser's WebCrypto, which always completes later, behaves the
@@ -157,7 +158,8 @@ touches the loop's state from it races with it.
 * *The storage is the handler's.* The post allocates with the handler's
 associated allocator (`bind_allocator`), as every Asio operation does; a
 program that counts or pools its allocations binds its own. webcpp's own code
-calls neither `operator new` nor the C allocator in this family.
+calls neither `operator new` nor the C allocator in this family; a backend that allocates at
+`make` (OpenSSL) does so here too, as the synchronous `make` does (see <<crypto-memory>>).
 * *`use_future` without exceptions.* An error completes a future with an
 exception; a program built without exceptions reads errors with a callback or
 `as_tuple`.

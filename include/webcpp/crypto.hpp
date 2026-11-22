@@ -15,6 +15,9 @@
  `ciphers::gcm<ciphers::aes256<backends::openssl>>` on WebAssembly or
  `ciphers::chacha20_poly1305<backends::bearssl>`, or, for the original ChaCha20-Poly1305,
  XChaCha20-Poly1305 and the secret boxes, which libsodium alone has, links libsodium.
+
+ It leaves out `<webcpp/crypto/async.hpp>`, the asynchronous family, which brings webcpp::asio
+ (`<library>/webcpp/asio//asio`): a program includes it by itself.
 */
 #ifndef WEBCPP_CRYPTO_HPP
 #define WEBCPP_CRYPTO_HPP

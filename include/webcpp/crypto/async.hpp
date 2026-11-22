@@ -25,7 +25,8 @@
      (ChaCha20-Poly1305 and its forms, the secret boxes) are not in WebCrypto: call their `seal`.
    - Ed25519: `async_make` (a key pair from its seed), `async_generate`, `async_sign` and
      `async_verify`, over `curves::ed25519::basic_keypair` and `curves::ed25519::verify`. A key
-     pair of an algorithm WebCrypto lacks (secp256k1) is not here: call its own `sign`.
+     pair of an algorithm WebCrypto lacks (secp256k1) is not here: call its own signing function
+     (`sign_ecdsa`, `sign_schnorr`).
    - X25519: `async_agree`, over `curves::x25519::agree`.
  - The heavy functions (design D32's list) take the work executor first (a
    `webcpp::asio::thread_pool`'s): they check their guards on the caller's thread, run the work on
@@ -322,7 +323,7 @@ auto async_seal(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
                 std::span<std::uint8_t const> additional_data_bytes,
                 std::span<std::uint8_t> data_bytes, CompletionToken&& token) {
     detail::timing_guard const timing;
-    if constexpr (!detail::is_gcm_v<Gcm>) {
+    if constexpr (!detail::is_gcm_v<std::remove_cv_t<Gcm>>) {
         static_assert(detail::refused_v<Gcm>,
                       "webcpp::crypto: async_seal takes AES-GCM, the AEAD WebCrypto has: call seal "
                       "for the others.");
@@ -367,7 +368,7 @@ auto async_open(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
                 std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
                 CompletionToken&& token) {
     detail::timing_guard const timing;
-    if constexpr (!detail::is_gcm_v<Gcm>) {
+    if constexpr (!detail::is_gcm_v<std::remove_cv_t<Gcm>>) {
         static_assert(detail::refused_v<Gcm>,
                       "webcpp::crypto: async_open takes AES-GCM, the AEAD WebCrypto has: call open "
                       "for the others.");
@@ -394,7 +395,7 @@ auto async_open(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
  * `key_pair` and `message` are the caller's until the completion.
  *
  * @tparam Keypair A `curves::ed25519::basic_keypair<Backend>`; the other key pairs are not in
- * WebCrypto: call their `sign`.
+ * WebCrypto: call the key pair's own signing function.
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
  * @tparam CompletionToken Any completion token for the signature `token` states.
  * @param executor The executor the completion is posted to.

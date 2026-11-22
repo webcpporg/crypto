@@ -267,7 +267,7 @@
 |<<crypto-p256-keys,[.keep]`+p256_keys.cpp+`>>
 
 |Sign what a browser's WebCrypto verifies and verify what it signs (ECDSA on P-256 with SHA-256), low S where a protocol requires it, as webcpp::trystero's handshakes
-|In `+curves::p256+`: `+keypair::sign_ecdsa+`, `+verify_ecdsa+`, `+normalize_ecdsa+`, `+check_low_s+`; `+to_der+`, `+from_der+` for X.509
+|In `+curves::p256+`: `+keypair::sign(crypto::ecdsa_sha256, message)+`, `+crypto::verify+`, `+is_low_s+`, `+normalize_low_s+`; `+to_der+`, `+from_der+` for X.509
 |BearSSL
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//p256-default+`
@@ -289,7 +289,7 @@
 |<<crypto-p256-formats,[.keep]`+p256_key_formats.cpp+`>>
 
 |Sign a peer-to-peer handshake a browser's WebCrypto verifies, low S, check the peer's, and derive the session key from ECDH (Trystero's protocol is webcpp::trystero's)
-|In `+curves::p256+`: `+keypair::sign_ecdsa+`, `+normalize_ecdsa+`, `+check_low_s+`, `+verify_ecdsa+`, `+keypair::ecdh_x+`; `+webcpp::hash::hkdf+` for the key
+|In `+curves::p256+`: `+keypair::sign(crypto::ecdsa_sha256, crypto::prehashed{digest})+`, `+is_low_s+`, `+crypto::verify+`, `+keypair::ecdh_x+`; `+webcpp::hash::hkdf+` for the key
 |BearSSL
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//p256-default+`

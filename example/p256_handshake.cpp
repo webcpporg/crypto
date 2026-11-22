@@ -7,7 +7,8 @@
 // A signed handshake between two peers on P-256, as a browser's WebCrypto can take part in it:
 // each peer keeps a long-lived identity key pair as its scalar, and makes a fresh key pair for
 // the session; each sends its two public keys raw, signs the SHA-256 digest of the handshake's
-// bytes with its identity, low S, and checks the other's signature, low S first; both derive the
+// bytes with its identity (sign gives low S), and checks the other's signature, low S first, since
+// another implementation, a browser's WebCrypto among them, may sign high S; both derive the
 // session key from ECDH's x through HKDF-SHA-256. Every scalar is fixed, so that the output is;
 // a real program draws its key pairs with keypair::generate(). What is signed, when, and the
 // low-S rule are a protocol's: this one is an example, not webcpp::trystero's.
@@ -15,6 +16,7 @@
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <webcpp/hash/digest.hpp>
 #include <webcpp/hash/hkdf.hpp>
@@ -109,14 +111,11 @@ struct peer {
     }
 
     // tag::sign[]
-    // Signs the transcript's digest with the identity, in the low-S form the protocol requires.
+    // Signs the transcript's digest with the identity; sign gives the low-S form the protocol
+    // requires.
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, p256::signature_size>> sign(
         std::span<std::uint8_t const, p256::digest_size> digest) const {
-        auto const signature = identity.sign_ecdsa(digest);
-        if (!signature) {
-            return signature.error();
-        }
-        return p256::normalize_ecdsa(*signature);
+        return identity.sign(crypto::ecdsa_sha256, crypto::prehashed{digest});
     }
 
     // end::sign[]
@@ -132,10 +131,11 @@ struct peer {
         if (!identity_key) {
             return identity_key.error();
         }
-        if (auto const low = p256::check_low_s(signature); !low) {
-            return low;
+        if (!p256::is_low_s(signature)) {
+            return crypto::error::invalid_signature;
         }
-        return p256::verify_ecdsa(signature, digest, *identity_key);
+        return crypto::verify(crypto::ecdsa_sha256, signature, crypto::prehashed{digest},
+                              *identity_key);
     }
 
     // end::receive[]
@@ -214,16 +214,12 @@ int main() {
     std::printf("bob checks alice: %s; alice checks bob: %s\n", alice_checked ? "ok" : "refused",
                 bob_checked ? "ok" : "refused");
 
-    // The same digest signed without normalize_ecdsa: its S, as the computation gave it, is high
-    // here, so the receiver refuses it before it verifies it, though it would verify.
-    auto const raw = alice->identity.sign_ecdsa(*digest);
-    if (!raw) {
-        std::printf("failed\n");
-        return 1;
-    }
-    auto const refused = peer::check(*alice_hello, *digest, *raw);
+    // Alice's signature with one bit of s flipped on the way: refused.
+    auto tampered = *alice_signature;
+    tampered[40] ^= 0x01U;
+    auto const refused = peer::check(*alice_hello, *digest, tampered);
     std::string const outcome = refused ? std::string("accepted") : refused.error().message();
-    std::printf("not normalized: %s\n", outcome.c_str());
+    std::printf("tampered: %s\n", outcome.c_str());
 
     auto const alice_key = alice->session_key(*bob_hello, *digest);
     auto const bob_key = bob->session_key(*alice_hello, *digest);

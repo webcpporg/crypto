@@ -6,12 +6,14 @@
 
 // P-256's asynchronous functions on BearSSL, on a callback and in a coroutine. async_sign and
 // async_verify take the message and hash it with SHA-256, as WebCrypto's ECDSA with SHA-256 does;
-// the synchronous answers they are checked against are sign_ecdsa and verify_ecdsa of its digest.
+// the synchronous answers they are checked against are sign(ecdsa_sha256, prehashed{digest}) and
+// crypto::verify(ecdsa_sha256, signature, prehashed{digest}, key) of its digest, computed here.
 // - async_rfc6979: RFC 6979 section A.2.5's key through async_make, its messages "sample" and
-//   "test" through async_sign give the RFC's signatures and the synchronous ones, and async_verify
-//   accepts them; each completion arrives after the initiating call returned.
+//   "test" through async_sign give the RFC's signatures in their low-S form ("sample"'s S is high
+//   in the RFC) and the synchronous ones, and async_verify accepts them, and the RFC's high-S
+//   "sample" too; each completion arrives after the initiating call returned.
 // - async_wycheproof_ecdsa: the first 50 valid cases of Wycheproof's ECDSA P-256 SHA-256 file in
-//   WebCrypto's form (IEEE P1363's r || s) verify through async_verify as through verify_ecdsa;
+//   WebCrypto's form (IEEE P1363's r || s) verify through async_verify as through crypto::verify;
 //   with a changed byte of the message both refuse them with invalid_signature.
 // - async_wycheproof_ecdh: the first 50 valid cases of Wycheproof's ECDH P-256 file on points
 //   through async_make and async_agree give the file's shared x and ecdh_x's.
@@ -32,6 +34,7 @@
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/digest.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -195,7 +198,7 @@ void async_rfc6979(asio::io_context& context) {
     }
     BOOST_TEST(own->uncompressed() == data::rfc6979_public);
     for (auto const& [text, expected] : {
-             std::pair{std::string_view("sample"), data::rfc6979_sample},
+             std::pair{std::string_view("sample"), data::rfc6979_sample_low_s},
              std::pair{std::string_view("test"), data::rfc6979_test},
          }) {
         auto const message = bytes_of(text);
@@ -206,10 +209,13 @@ void async_rfc6979(asio::io_context& context) {
         }
         auto const& signature = std::get<0>(*signed_async.value);
         BOOST_TEST(signature == expected);
-        auto const signed_sync = key->sign_ecdsa(sha256(message));
+        auto const signed_sync =
+            key->sign(crypto::ecdsa_sha256, crypto::prehashed{sha256(message)});
         BOOST_TEST(signed_sync.has_value() && *signed_sync == signature);
         BOOST_TEST(!verify_async(context, *own, message, signature));
     }
+    // The RFC's own "sample" signature, whose S is high: accepted too.
+    BOOST_TEST(!verify_async(context, *own, bytes_of("sample"), data::rfc6979_sample));
 }
 
 json::value load(std::string const& name) {
@@ -235,14 +241,16 @@ void check_wycheproof_ecdsa_case(asio::io_context& context, public_key const& ke
     }
     std::span<std::uint8_t const, p256::signature_size> const signature(encoded.data(),
                                                                         encoded.size());
-    auto const verified_sync = p256::verify_ecdsa(signature, sha256(message), key);
+    auto const verified_sync =
+        crypto::verify(crypto::ecdsa_sha256, signature, crypto::prehashed{sha256(message)}, key);
     BOOST_TEST(verified_sync.has_value());
     BOOST_TEST(!verify_async(context, key, message, encoded));
     // A changed byte of the message: both refuse it.
     message.push_back(0);
     message.front() ^= 1U;
-    BOOST_TEST(p256::verify_ecdsa(signature, sha256(message), key).error() ==
-               crypto::error::invalid_signature);
+    BOOST_TEST(
+        crypto::verify(crypto::ecdsa_sha256, signature, crypto::prehashed{sha256(message)}, key)
+            .error() == crypto::error::invalid_signature);
     BOOST_TEST(verify_async(context, key, message, encoded) == crypto::error::invalid_signature);
 }
 
@@ -378,7 +386,9 @@ void generated(asio::io_context& context) {
         return;
     }
     auto const& signature = std::get<0>(*signed_async.value);
-    BOOST_TEST(p256::verify_ecdsa(signature, sha256(message), *own).has_value());
+    BOOST_TEST(
+        crypto::verify(crypto::ecdsa_sha256, signature, crypto::prehashed{sha256(message)}, *own)
+            .has_value());
     auto const verified = complete_code(context, [&](auto const& executor, auto&& token) {
         return crypto::async_verify(executor, *own, message, signature,
                                     std::forward<decltype(token)>(token));
@@ -397,7 +407,7 @@ void check_empty_keypair(asio::io_context& context, keypair const& empty, public
                          std::span<std::uint8_t const> message) {
     BOOST_TEST(empty.public_key().error() == crypto::error::invalid_state);
     BOOST_TEST(empty.secret_scalar().error() == crypto::error::invalid_state);
-    BOOST_TEST(empty.sign_ecdsa(sha256(message)).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.sign(crypto::ecdsa_sha256, message).error() == crypto::error::invalid_state);
     BOOST_TEST(empty.ecdh_x(peer).error() == crypto::error::invalid_state);
     auto const signed_empty = sign_async(context, empty, message);
     BOOST_TEST(signed_empty.code == crypto::error::invalid_state);
@@ -465,7 +475,7 @@ void async_destroyed(asio::io_context& context) {
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST(!sign_code);
-    BOOST_TEST(signature == data::rfc6979_sample);
+    BOOST_TEST(signature == data::rfc6979_sample_low_s);
     BOOST_TEST(!agree_code);
     BOOST_TEST(shared == expected_shared);
 }

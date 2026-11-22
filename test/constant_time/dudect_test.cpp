@@ -23,6 +23,7 @@
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/equal.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <algorithm>
 #include <array>
@@ -155,8 +156,10 @@ bool measure_p256(test::case_results& results, test::case_selection const& selec
         pair.emplace(std::move(*made));
     };
     if (sign) {
-        auto const sign_t =
-            test::twice(p256_count, prepare, [&] { static_cast<void>(pair->sign_ecdsa(digest)); });
+        auto const sign_t = test::twice(p256_count, prepare, [&] {
+            static_cast<void>(
+                pair->sign(webcpp::crypto::ecdsa_sha256, webcpp::crypto::prehashed{digest}));
+        });
         results.record("p256_sign", "p256 sign", sign_t, true,
                        {{"digest", digest.data()}, {"scalar", scalar.data()}, {"object", &*pair}});
     }

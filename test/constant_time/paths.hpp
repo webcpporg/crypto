@@ -51,6 +51,7 @@
 #include <webcpp/crypto/hybrid/box.hpp>
 #include <webcpp/crypto/hybrid/sealed_box.hpp>
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -654,12 +655,12 @@ int bearssl_p256_make() {
 }
 
 /**
- * P-256's ECDSA on BearSSL: a public digest signed with a secret scalar, the signature traced
- * (its s is the scalar's multiple), then made low S and checked low S as a protocol that
- * requires it does with a signature it has just made. BearSSL's own branches on its verdicts,
- * the scalar's decoding and the nonce's retry, are its function's (bearssl_verdicts.supp);
- * `normalize_ecdsa` and `check_low_s` branch only on verdicts the library declassifies, a
- * signature being public once it is made (`detail::p_curve_low_s`).
+ * P-256's ECDSA on BearSSL: a public digest signed with a secret scalar, through the marker,
+ * `sign(ecdsa_sha256, prehashed{digest})`. BearSSL's own branches on its verdicts, the scalar's
+ * decoding and the nonce's retry, are its function's (bearssl_verdicts.supp); `sign` then
+ * declassifies the signature, public once it is made, before it branches on its s to make it low
+ * S, so the signature comes out public; `normalize_low_s` and `is_low_s` of it, as a protocol that
+ * requires low S checks a signature, branch only on that public signature.
  */
 template <class Checker>
 int bearssl_p256_sign() {
@@ -670,18 +671,18 @@ int bearssl_p256_sign() {
     }
     std::array<std::uint8_t, p256::digest_size> digest{};
     digest.fill(0x17);
-    auto const signature = pair->sign_ecdsa(digest);
+    auto const signature = pair->sign(crypto::ecdsa_sha256, crypto::prehashed{digest});
     if (!signature) {
-        return check(false, "P-256's sign_ecdsa on BearSSL");
+        return check(false, "P-256's sign on BearSSL");
     }
-    int const failures =
-        check(carries_mark<Checker>(*signature), "P-256's sign_ecdsa on BearSSL, traced");
-    auto const low = p256::normalize_ecdsa(*signature);
+    int const failures = check(clear_of_mark<Checker>(*signature),
+                               "P-256's sign on BearSSL, its signature declassified");
+    auto const low = p256::normalize_low_s(*signature);
     // Not const: the mark changes the object in the checker's shadow, so it is read again.
     // NOLINTNEXTLINE(misc-const-correctness): see above
-    bool low_verdict = low.has_value() && p256::check_low_s(*low).has_value();
+    bool low_verdict = low.has_value() && p256::is_low_s(*low) && *low == *signature;
     Checker::verdict(low_verdict);
-    return failures + check(low_verdict, "P-256's normalize_ecdsa and check_low_s");
+    return failures + check(low_verdict, "P-256's normalize_low_s and is_low_s");
 }
 
 /**

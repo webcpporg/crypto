@@ -105,10 +105,10 @@ template <class Curve>
 /**
  * Whether an ECDSA signature's s, already checked 0 < s < n, is low: s <= (n - 1) / 2, the borrow
  * of (n - 1) / 2 - s over every byte, the same arithmetic as `p_curve_scalar_valid`'s. The
- * verdict alone is declassified: a signature is public once it is made, but one fresh from
- * `sign_ecdsa` is computed from the secret scalar, and a constant-time checker (memcheck,
- * MemorySanitizer) still holds it secret where `normalize_ecdsa` or `check_low_s` branches on
- * this verdict.
+ * verdict is declassified: a signature is public once it is made, and `sign` declassifies the one
+ * it has just made before it branches on this verdict, but a constant-time checker (memcheck,
+ * MemorySanitizer) may still hold secret a signature that `normalize_low_s` or `is_low_s` is
+ * given.
  *
  * @tparam Curve The curve's family tag.
  * @param s The signature's s, big-endian.

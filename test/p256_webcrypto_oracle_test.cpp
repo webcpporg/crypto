@@ -11,10 +11,11 @@
 //
 // - Signatures: WebCrypto imports encode_pkcs8's bytes ("pkcs8", ECDSA P-256, sign) and the
 //   public key's uncompressed() ("raw", verify). WebCrypto's ECDSA with SHA-256 hashes the message
-//   itself, so ours signs sha256(message). Check one: WebCrypto verifies sign_ecdsa's signature
-//   and its normalize_ecdsa form. Check two: WebCrypto signs the message and verify_ecdsa accepts
-//   its signature with the SHA-256 this program computes. Whether WebCrypto's S is low is
-//   counted and printed, not required: WebCrypto's S is either.
+//   itself, as sign(ecdsa_sha256, message) does. Check one: WebCrypto verifies our signature,
+//   which is low S, and its high-S form, n - s. Check two: WebCrypto signs the message and
+//   crypto::verify accepts its signature, high S or low, given the message and given the SHA-256
+//   this program computes. Whether WebCrypto's S is low (is_low_s) is counted and printed, not
+//   required: WebCrypto's S is either.
 // - ECDH: WebCrypto imports the first scalar's encode_pkcs8 ("pkcs8", ECDH P-256) and the peer's
 //   uncompressed point ("raw") and derives 256 bits, which equal ecdh_x. One check.
 // - Formats: WebCrypto's exportKey of the keys it imported, "pkcs8" of both private keys, "spki"
@@ -34,6 +35,7 @@
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/digest.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -52,6 +54,7 @@
 #include <string>
 #include <vector>
 
+namespace crypto = webcpp::crypto;
 namespace p256 = webcpp::crypto::curves::p256;
 namespace test = webcpp::test;
 
@@ -60,7 +63,7 @@ constexpr std::size_t cases = 200;
 constexpr std::uint64_t seed = 0x503235364e6f6465ULL;
 
 // One case through WebCrypto. In: our PKCS#8 (138 bytes), our point and the peer's (65 bytes
-// each), the message, our signature and its normalized form (64 bytes each). Out: WebCrypto's
+// each), the message, our signature and its high-S form (64 bytes each). Out: WebCrypto's
 // signature of the message (64 bytes, r || s), its 256 ECDH bits, its exports: "pkcs8" of the
 // ECDSA key and of the ECDH key (138 bytes each), "spki" (91 bytes) and "raw" (65 bytes) of the
 // ECDSA public key, whose sizes it writes into `sizes`; and into `verified` 1 when it verifies
@@ -71,7 +74,7 @@ constexpr std::uint64_t seed = 0x503235364e6f6465ULL;
 EM_ASYNC_JS(int, subtle_p256, (const std::uint8_t* pkcs8, const std::uint8_t* point,
                                const std::uint8_t* peer_point, const std::uint8_t* msg,
                                std::size_t msg_size, const std::uint8_t* sig,
-                               const std::uint8_t* normalized, std::uint8_t* oracle_signature,
+                               const std::uint8_t* high_s, std::uint8_t* oracle_signature,
                                std::uint8_t* oracle_shared, std::uint8_t* oracle_ecdsa_pkcs8,
                                std::uint8_t* oracle_ecdh_pkcs8, std::uint8_t* oracle_spki,
                                std::uint8_t* oracle_raw, int* sizes, int* verified), {
@@ -81,7 +84,7 @@ EM_ASYNC_JS(int, subtle_p256, (const std::uint8_t* pkcs8, const std::uint8_t* po
         const peer_raw = HEAPU8.slice(peer_point, peer_point + 65);
         const data = HEAPU8.slice(msg, msg + msg_size);
         const signature = HEAPU8.slice(sig, sig + 64);
-        const low = HEAPU8.slice(normalized, normalized + 64);
+        const high = HEAPU8.slice(high_s, high_s + 64);
         const subtle = globalThis.crypto.subtle;
         const ecdsa = {name: "ECDSA", namedCurve: "P-256"};
         const ecdh = {name: "ECDH", namedCurve: "P-256"};
@@ -89,7 +92,7 @@ EM_ASYNC_JS(int, subtle_p256, (const std::uint8_t* pkcs8, const std::uint8_t* po
         const signer = await subtle.importKey("pkcs8", private_der, ecdsa, true, ["sign"]);
         const verifier = await subtle.importKey("raw", raw, ecdsa, true, ["verify"]);
         const ok = await subtle.verify(with_sha256, verifier, signature, data);
-        const ok_low = await subtle.verify(with_sha256, verifier, low, data);
+        const ok_high = await subtle.verify(with_sha256, verifier, high, data);
         const signed = new Uint8Array(await subtle.sign(with_sha256, signer, data));
         const agreer = await subtle.importKey("pkcs8", private_der, ecdh, true, ["deriveBits"]);
         const peer = await subtle.importKey("raw", peer_raw, ecdh, true, []);
@@ -113,7 +116,7 @@ EM_ASYNC_JS(int, subtle_p256, (const std::uint8_t* pkcs8, const std::uint8_t* po
         HEAP32[(sizes >> 2) + 1] = ecdh_pkcs8.length;
         HEAP32[(sizes >> 2) + 2] = spki.length;
         HEAP32[(sizes >> 2) + 3] = exported_raw.length;
-        HEAP32[verified >> 2] = ok && ok_low ? 1 : 0;
+        HEAP32[verified >> 2] = ok && ok_high ? 1 : 0;
         return 0;
     } catch (e) {
         console.error("subtle (P-256): " + e);
@@ -185,6 +188,23 @@ std::array<std::uint8_t, p256::digest_size> sha256(std::span<std::uint8_t const>
     return out;
 }
 
+/** The high-S form of a low-S signature: r, and n - s. */
+std::array<std::uint8_t, p256::signature_size> high_form(
+    std::array<std::uint8_t, p256::signature_size> const& signature) {
+    // FIPS 186-5 / SEC 2: the group order n.
+    static constexpr auto order =
+        test::hex<32>("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551");
+    auto high = signature;
+    unsigned borrow = 0;
+    for (std::size_t i = order.size(); i-- > 0;) {
+        unsigned const difference =
+            static_cast<unsigned>(order[i]) - signature[order.size() + i] - borrow;
+        high[order.size() + i] = static_cast<std::uint8_t>(difference);
+        borrow = (difference >> 8U) & 1U;
+    }
+    return high;
+}
+
 template <std::size_t N>
 bytes bytes_of(std::array<std::uint8_t, N> const& array) {
     return {array.begin(), array.end()};
@@ -208,7 +228,7 @@ struct our_case {
     bytes message;
     std::array<std::uint8_t, p256::digest_size> digest{};
     std::array<std::uint8_t, p256::signature_size> signature{};
-    std::array<std::uint8_t, p256::signature_size> normalized{};
+    std::array<std::uint8_t, p256::signature_size> high_s{};
     bytes shared_x;
     std::array<std::uint8_t, p256::max_spki_size> spki{};
     std::array<std::uint8_t, p256::max_pkcs8_size> pkcs8{};
@@ -221,7 +241,7 @@ oracle_answer ask(our_case const& ours) {
     oracle_answer answer;
     answer.ran = subtle_p256(
         ours.pkcs8.data(), ours.point.data(), ours.peer_point.data(), ours.message.data(),
-        ours.message.size(), ours.signature.data(), ours.normalized.data(), answer.signature.data(),
+        ours.message.size(), ours.signature.data(), ours.high_s.data(), answer.signature.data(),
         answer.shared.data(), answer.ecdsa_pkcs8.data(), answer.ecdh_pkcs8.data(),
         answer.spki.data(), answer.raw.data(), answer.sizes.data(), &answer.verified);
     BOOST_TEST_EQ(answer.ran, 0);
@@ -234,9 +254,14 @@ void judge(our_case const& ours, oracle_answer const& answer, p256::public_key c
     bool const ran = answer.ran == 0;
     found.check(ran && answer.verified == 1, "WebCrypto verifies ours", index);
     bool const we_verify =
-        ran && p256::verify_ecdsa(answer.signature, ours.digest, public_key).has_value();
+        ran &&
+        crypto::verify(crypto::ecdsa_sha256, answer.signature, ours.message, public_key)
+            .has_value() &&
+        crypto::verify(crypto::ecdsa_sha256, answer.signature, crypto::prehashed{ours.digest},
+                       public_key)
+            .has_value();
     found.check(we_verify, "we verify WebCrypto's", index);
-    if (ran && p256::check_low_s(answer.signature)) {
+    if (ran && p256::is_low_s(answer.signature)) {
         ++found.low_s;
     }
     found.check(ran && bytes_of(answer.shared) == ours.shared_x, "ECDH", index);
@@ -270,21 +295,21 @@ void one_case(std::mt19937_64& rng, std::size_t index, tally& found) {
         return;
     }
     ours.digest = sha256(ours.message);
-    auto const signature = pair->sign_ecdsa(ours.digest);
+    auto const signature = pair->sign(crypto::ecdsa_sha256, ours.message);
     auto const shared = pair->ecdh_x(*peer_public_key);
     BOOST_TEST(p256::encode_spki(*public_key, ours.spki).has_value());
     BOOST_TEST(p256::encode_pkcs8(*pair, ours.pkcs8).has_value());
     if (!BOOST_TEST(signature.has_value()) || !BOOST_TEST(shared.has_value())) {
         return;
     }
-    BOOST_TEST(p256::verify_ecdsa(*signature, ours.digest, *public_key).has_value());
+    BOOST_TEST(p256::is_low_s(*signature));
+    BOOST_TEST(
+        crypto::verify(crypto::ecdsa_sha256, *signature, ours.message, *public_key).has_value());
     ours.signature = *signature;
     if (corrupted && index == corrupted_signature) {
         ours.signature[5] ^= 0x01U;
     }
-    auto const normalized = p256::normalize_ecdsa(ours.signature);
-    BOOST_TEST(normalized.has_value());
-    ours.normalized = normalized ? *normalized : ours.signature;
+    ours.high_s = high_form(ours.signature);
     auto const x = shared->bytes();
     ours.shared_x.assign(x.begin(), x.end());
     if (corrupted && index == corrupted_ecdh) {

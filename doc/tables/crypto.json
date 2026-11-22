@@ -750,11 +750,11 @@
             "id": "p256_ecdsa",
             "family": "p256",
             "free": true,
-            "functions": ["basic_keypair::sign_ecdsa", "verify_ecdsa", "to_der", "from_der", "normalize_ecdsa", "check_low_s"],
+            "functions": ["basic_keypair::sign", "verify", "to_der", "from_der", "normalize_low_s", "is_low_s"],
             "namespace": "curves",
-            "api": "curves::p256::keypair::sign_ecdsa; verify_ecdsa, to_der, from_der, normalize_ecdsa, check_low_s",
+            "api": "curves::p256::keypair::sign; crypto::verify, to_der, from_der, normalize_low_s, is_low_s",
             "header": "<webcpp/crypto/curves/p256.hpp>",
-            "what": "ECDSA over a SHA-256 digest with RFC 6979's nonce, r and s as 64 bytes, verified whatever its S; strict DER both ways; low S as two functions, `normalize_ecdsa` and `check_low_s`, for a protocol that requires it.",
+            "what": "ECDSA over SHA-256 with RFC 6979's nonce, `sign(crypto::ecdsa_sha256, input)` and `crypto::verify(crypto::ecdsa_sha256, signature, input, public_key)`, the input a message hashed inside or `crypto::prehashed{digest}`; r and s as 64 bytes, signed low S, verified whatever its S; strict DER both ways; `normalize_low_s` and `is_low_s` for a signature made elsewhere.",
             "section": "crypto-p256-ecdsa",
             "backends": {
                 "bearssl": {"tests": ["p256_ecdsa_bearssl", "p256_wycheproof_bearssl", "p256_openssl_oracle", "p256_webcrypto_oracle", "allocation_bearssl"]},
@@ -1133,7 +1133,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "bearssl", "tests": ["p256_keys_bearssl", "p256_ecdsa_bearssl", "p256_ecdh_bearssl", "default_backend_none_linked"], "why": "the one backend of the P-curves on all four targets, constant time by design and allocating nothing ({bearssl}); OpenSSL and Botan join in increments 8 and 7"}
             ],
             "backends": {
-                "bearssl": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}, "lane_note": {"memcheck": "the key pair's making, `sign_ecdsa` then `normalize_ecdsa` and `check_low_s` on the fresh signature, `ecdh_x` and `decode_pkcs8`; BearSSL's own branches on its signing's verdicts listed in `bearssl_verdicts.supp`; nothing found with webcpp's fix to BearSSL's decoding of the nonce, whose leak of the nonce's bit length this checker found on 2026-11-21 (Valgrind 3.22, arm64 Linux)", "msan": "the same paths as memcheck's; found the same leak, nothing after the fix (clang 18, arm64 Linux, 2026-11-21)", "dudect": "`sign_ecdsa` and `ecdh_x`, each against the key pair's scalar"}}
+                "bearssl": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}, "lane_note": {"memcheck": "the key pair's making, `sign` of a digest (`crypto::prehashed`), whose signature it declassifies before it makes it low S, then `normalize_low_s` and `is_low_s` on it, `ecdh_x` and `decode_pkcs8`; BearSSL's own branches on its signing's verdicts listed in `bearssl_verdicts.supp`; nothing found with webcpp's fix to BearSSL's decoding of the nonce, whose leak of the nonce's bit length this checker found on 2026-11-21 (Valgrind 3.22, arm64 Linux)", "msan": "the same paths as memcheck's; found the same leak, nothing after the fix (clang 18, arm64 Linux, 2026-11-21)", "dudect": "`sign` of a digest and `ecdh_x`, each against the key pair's scalar"}}
             }
         }
     ],
@@ -1254,10 +1254,10 @@
         {"need": "Let anyone send a message that only the recipient can read, without saying who sent it (anonymous feedback, a drop box)", "namespace": "webcpp::crypto::hybrid", "api": "`sealed_box::seal`, `sealed_box::open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//sealed_box-default", "example": "file_share", "section": "crypto-sealed-box"},
         {"need": "Share a file with someone known only by a public key, as a file-sharing app does", "namespace": "webcpp::crypto", "api": "`ciphers::secretbox<>` for the file under a key drawn for it, `hybrid::sealed_box::seal` for that key", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default /webcpp/crypto//sealed_box-default /webcpp/crypto//x25519-default", "example": "file_share", "section": "crypto-everyday-files"},
         {"need": "Make and keep a P-256 key pair, and import a browser's public key (WebCrypto's raw form), as webcpp::trystero's peers do", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::make`, `keypair::generate`, `keypair::public_key`, `keypair::secret_scalar`, `public_key::make`", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_keys", "section": "crypto-p256-keys"},
-        {"need": "Sign what a browser's WebCrypto verifies and verify what it signs (ECDSA on P-256 with SHA-256), low S where a protocol requires it, as webcpp::trystero's handshakes", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::sign_ecdsa`, `verify_ecdsa`, `normalize_ecdsa`, `check_low_s`; `to_der`, `from_der` for X.509", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_sign", "section": "crypto-p256-ecdsa"},
+        {"need": "Sign what a browser's WebCrypto verifies and verify what it signs (ECDSA on P-256 with SHA-256), low S where a protocol requires it, as webcpp::trystero's handshakes", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::sign(crypto::ecdsa_sha256, message)`, `crypto::verify`, `is_low_s`, `normalize_low_s`; `to_der`, `from_der` for X.509", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_sign", "section": "crypto-p256-ecdsa"},
         {"need": "Agree on a key with a browser's WebCrypto (ECDH on P-256, deriveBits), then derive the session's keys with HKDF, as Trystero 0.27.0's pairwise keys are derived", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::ecdh_x`; `webcpp::hash::hkdf` for the keys", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_ecdh", "section": "crypto-p256-ecdh"},
         {"need": "Export or import a P-256 key in the forms OpenSSL and WebCrypto's spki and pkcs8 use (SPKI, PKCS#8), as DER or PEM text", "namespace": "webcpp::crypto::curves::p256", "api": "`encode_spki`, `decode_spki`, `encode_pkcs8`, `decode_pkcs8`; `webcpp::crypto::pem::armour`, `unarmour`", "backend": "BearSSL, libsodium for PEM", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default /webcpp/crypto//pem-default", "example": "p256_key_formats", "section": "crypto-p256-formats"},
-        {"need": "Sign a peer-to-peer handshake a browser's WebCrypto verifies, low S, check the peer's, and derive the session key from ECDH (Trystero's protocol is webcpp::trystero's)", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::sign_ecdsa`, `normalize_ecdsa`, `check_low_s`, `verify_ecdsa`, `keypair::ecdh_x`; `webcpp::hash::hkdf` for the key", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_handshake", "section": "crypto-p2p-handshake"}
+        {"need": "Sign a peer-to-peer handshake a browser's WebCrypto verifies, low S, check the peer's, and derive the session key from ECDH (Trystero's protocol is webcpp::trystero's)", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::sign(crypto::ecdsa_sha256, crypto::prehashed{digest})`, `is_low_s`, `crypto::verify`, `keypair::ecdh_x`; `webcpp::hash::hkdf` for the key", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_handshake", "section": "crypto-p2p-handshake"}
     ],
     "fixtures": {
         "web": "A web application: AES-256-GCM on BearSSL, the default on WebAssembly.",
@@ -1393,6 +1393,8 @@
         "async_open_xchacha": "Call the AEAD's own `open`: only AES-GCM has `async_open`.",
         "async_sign_secp256k1": "Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `async_sign`.",
         "prehashed_dynamic": "Give `crypto::prehashed` a digest of a fixed size: a `std::array<std::uint8_t, 32>`, a `std::span<std::uint8_t const, 32>` or a `boost::hash2::digest<32>`.",
+        "sign_p256_schnorr": "Sign with `crypto::ecdsa_sha256`, P-256's scheme; BIP340's `crypto::schnorr` is secp256k1's.",
+        "sign_p256_digest_48": "Give `crypto::ecdsa_sha256` SHA-256's 32-byte digest, `crypto::prehashed{digest}` of a `std::array<std::uint8_t, 32>`, or the message itself, which it hashes.",
         "heavy_without_threads_on_emscripten": "As `heavy_without_threads`: on Emscripten, add `<threading>multi`.",
         "chacha_on_ctaes_on_emscripten": "As `chacha_on_ctaes`.",
         "aead_not_a_family_on_emscripten": "As `aead_not_a_family`.",

@@ -24,6 +24,7 @@
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #ifdef WEBCPP_CRYPTO_HAS_SECP256K1
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
@@ -453,7 +454,8 @@ private:
 };
 #endif
 
-// An ECDSA signature of a 32-byte SHA-256 digest on P-256, RFC 6979's nonce, S as computed.
+// An ECDSA signature of a 32-byte SHA-256 digest on P-256, `sign(ecdsa_sha256, prehashed{digest})`:
+// RFC 6979's nonce, made low S.
 template <class Backend>
 class p256 {
 public:
@@ -465,12 +467,14 @@ public:
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
                     "make")) {}
 
-    std::uint8_t run() { return take(key_.sign_ecdsa(digest_), "sign_ecdsa")[0]; }
+    std::uint8_t run() { return take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign")[0]; }
 
     bool check() {
-        auto const signature = take(key_.sign_ecdsa(digest_), "sign_ecdsa");
+        auto const signature = take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign");
         auto const public_key = take(key_.public_key(), "public_key");
-        return curves::p256::verify_ecdsa(signature, digest_, public_key).has_value();
+        return crypto::verify(ecdsa_sha256, signature, prehashed{digest_}, public_key)
+                   .has_value() &&
+               curves::p256::is_low_s(signature);
     }
 
 private:
@@ -478,8 +482,9 @@ private:
     curves::p256::basic_keypair<Backend> key_;
 };
 
-// The verification of an ECDSA signature of a 32-byte SHA-256 digest on P-256; the signature and
-// the public key are made once, outside what is measured.
+// The verification of an ECDSA signature of a 32-byte SHA-256 digest on P-256, `crypto::verify(
+// ecdsa_sha256, signature, prehashed{digest}, public_key)`; the signature and the public key are
+// made once, outside what is measured.
 template <class Backend>
 class p256_verify_ecdsa {
 public:
@@ -491,18 +496,19 @@ public:
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
                     "make")),
           public_key_(take(key_.public_key(), "public_key")),
-          signature_(take(key_.sign_ecdsa(digest_), "sign_ecdsa")) {}
+          signature_(take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign")) {}
 
     std::uint8_t run() {
-        take(curves::p256::verify_ecdsa(signature_, digest_, public_key_), "verify_ecdsa");
+        take(crypto::verify(ecdsa_sha256, signature_, prehashed{digest_}, public_key_), "verify");
         return signature_[0];
     }
 
     bool check() {
         auto other = signature_;
         other[63] ^= 1U;
-        return curves::p256::verify_ecdsa(signature_, digest_, public_key_).has_value() &&
-               !curves::p256::verify_ecdsa(other, digest_, public_key_).has_value();
+        return crypto::verify(ecdsa_sha256, signature_, prehashed{digest_}, public_key_)
+                   .has_value() &&
+               !crypto::verify(ecdsa_sha256, other, prehashed{digest_}, public_key_).has_value();
     }
 
 private:

@@ -277,6 +277,18 @@ The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp2
 
 The fix: Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
 
+|`+sign_p256_digest_48+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto::ecdsa_sha256 takes a 32-byte digest, SHA-256's: crypto::prehashed{digest} of a std::array<std::uint8_t, 32>.+`
+
+The fix: Give `+crypto::ecdsa_sha256+` SHA-256's 32-byte digest, `+crypto::prehashed{digest}+` of a `+std::array<std::uint8_t, 32>+`, or the message itself, which it hashes.
+
+|`+sign_p256_schnorr+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: a P-256 key signs with crypto::ecdsa_sha256.+`
+
+The fix: Sign with `+crypto::ecdsa_sha256+`, P-256's scheme; BIP340's `+crypto::schnorr+` is secp256k1's.
+
 |`+silent_payments_other_backend+`
 |native, wasip2
 |`+webcpp::crypto: bearssl has no BIP 352 silent payments. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`

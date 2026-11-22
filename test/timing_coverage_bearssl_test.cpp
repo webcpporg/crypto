@@ -16,10 +16,11 @@
 //   assignment (ruling R3), seal, open, begin_seal, update, result, and the asynchronous
 //   async_make, async_seal and async_open.
 // - ChaCha20-Poly1305, aead: make, seal, open.
-// - P-256, curves::p256: basic_keypair::make, generate, sign_ecdsa, ecdh_x;
-//   basic_public_key::make (both); verify_ecdsa, to_der, from_der; decode_spki, decode_pkcs8; not
-//   guarded (no BearSSL call): public_key, secret_scalar, uncompressed, encode_spki, encode_pkcs8,
-//   basic_keypair's move constructor and move assignment, and normalize_ecdsa and check_low_s,
+// - P-256, curves::p256: basic_keypair::make, generate, sign (ecdsa_sha256, of a message and of
+//   a digest), ecdh_x; basic_public_key::make (both); crypto::verify (ecdsa_sha256, of a message
+//   and of a digest), to_der, from_der; decode_spki, decode_pkcs8; not guarded (no BearSSL call):
+//   public_key, secret_scalar, uncompressed, encode_spki, encode_pkcs8, basic_keypair's move
+//   constructor and move assignment, and normalize_low_s and is_low_s,
 //   which test/timing_test.cpp calls without a backend; and the asynchronous async_make,
 //   async_generate, async_sign, async_verify and async_agree, all but async_generate (which takes
 //   no input) also refused once before BearSSL.
@@ -34,6 +35,7 @@
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/p256_data.hpp"
@@ -141,9 +143,9 @@ void cover_p256_keypair_moves() {
     }
 }
 
-// P-256's sign_ecdsa on a moved-from key pair: refused with invalid_state before BearSSL, inside
-// its own guard.
-void cover_p256_sign_moved_from(std::span<std::uint8_t const, 32> digest) {
+// P-256's sign on a moved-from key pair: refused with invalid_state before BearSSL, inside its own
+// guard.
+void cover_p256_sign_moved_from(std::array<std::uint8_t, 32> const& digest) {
     namespace p256 = crypto::curves::p256;
     namespace data = webcpp::test::p256;
     using keypair = p256::basic_keypair<bearssl>;
@@ -151,45 +153,54 @@ void cover_p256_sign_moved_from(std::span<std::uint8_t const, 32> digest) {
     if (BOOST_TEST(source.has_value())) {
         keypair const taken = std::move(*source);
         webcpp::test::covered(
-            "p256::basic_keypair::sign_ecdsa moved from on bearssl", [&source, &digest] {
+            "p256::basic_keypair::sign moved from on bearssl", [&source, &digest] {
                 // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): tested
-                BOOST_TEST(source->sign_ecdsa(digest).error() == crypto::error::invalid_state);
+                BOOST_TEST(source->sign(crypto::ecdsa_sha256, crypto::prehashed{digest}).error() ==
+                           crypto::error::invalid_state);
             });
     }
 }
 
-// P-256's ECDSA: the signature, its verification, and DER both ways, each refused once before
-// BearSSL (a moved-from key pair, an r of 0, a short buffer, an empty DER).
-void cover_p256_ecdsa() {
+// SHA-256 of "test" (RFC 6979, section A.2.5), whose signature is data::rfc6979_test.
+constexpr std::array<std::uint8_t, 32> p256_test_digest{
+    0x9f, 0x86, 0xd0, 0x81, 0x88, 0x4c, 0x7d, 0x65, 0x9a, 0x2f, 0xea, 0xa0, 0xc5, 0x5a, 0xd0, 0x15,
+    0xa3, 0xbf, 0x4f, 0x1b, 0x2b, 0x0b, 0x82, 0x2c, 0xd1, 0x5d, 0x6c, 0x15, 0xb0, 0xf0, 0x0a, 0x08,
+};
+// The message "test" itself.
+constexpr std::array<std::uint8_t, 4> p256_test_message{'t', 'e', 's', 't'};
+
+// P-256's crypto::verify of ECDSA over SHA-256, of the message and of its digest, and refused
+// once before BearSSL (an r of 0).
+void cover_p256_verify() {
     namespace p256 = crypto::curves::p256;
     namespace data = webcpp::test::p256;
-    using keypair = p256::basic_keypair<bearssl>;
-    using public_key = p256::basic_public_key<bearssl>;
-    auto const made = keypair::make(data::rfc6979_scalar);
-    auto const key = public_key::make(data::rfc6979_public);
-    if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(key.has_value())) {
+    auto const key = p256::basic_public_key<bearssl>::make(data::rfc6979_public);
+    if (!BOOST_TEST(key.has_value())) {
         return;
     }
-    // SHA-256 of "test" (RFC 6979, section A.2.5), whose signature is data::rfc6979_test.
-    std::array<std::uint8_t, 32> const digest{
-        0x9f, 0x86, 0xd0, 0x81, 0x88, 0x4c, 0x7d, 0x65, 0x9a, 0x2f, 0xea,
-        0xa0, 0xc5, 0x5a, 0xd0, 0x15, 0xa3, 0xbf, 0x4f, 0x1b, 0x2b, 0x0b,
-        0x82, 0x2c, 0xd1, 0x5d, 0x6c, 0x15, 0xb0, 0xf0, 0x0a, 0x08,
-    };
-    webcpp::test::covered("p256::basic_keypair::sign_ecdsa on bearssl", [&made, &digest] {
-        auto const signature = made->sign_ecdsa(digest);
-        BOOST_TEST(signature.has_value() && *signature == data::rfc6979_test);
+    webcpp::test::covered("p256 crypto::verify of a message on bearssl", "crypto::verify", [&key] {
+        BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, data::rfc6979_test, p256_test_message, *key)
+                       .has_value());
     });
-    cover_p256_sign_moved_from(digest);
-    webcpp::test::covered("p256::verify_ecdsa on bearssl", [&key, &digest] {
-        BOOST_TEST(p256::verify_ecdsa(data::rfc6979_test, digest, *key).has_value());
+    webcpp::test::covered("p256 crypto::verify of a digest on bearssl", "crypto::verify", [&key] {
+        BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, data::rfc6979_test,
+                                  crypto::prehashed{p256_test_digest}, *key)
+                       .has_value());
     });
     auto zero_r = data::rfc6979_test;
     std::fill_n(zero_r.begin(), 32, std::uint8_t{0});
-    webcpp::test::covered("p256::verify_ecdsa of r = 0 on bearssl", [&key, &digest, &zero_r] {
-        BOOST_TEST(p256::verify_ecdsa(zero_r, digest, *key).error() ==
-                   crypto::error::invalid_signature);
-    });
+    webcpp::test::covered("p256 crypto::verify of r = 0 on bearssl", "crypto::verify",
+                          [&key, &zero_r] {
+                              BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, zero_r,
+                                                        crypto::prehashed{p256_test_digest}, *key)
+                                             .error() == crypto::error::invalid_signature);
+                          });
+}
+
+// P-256's DER both ways, each refused once before BearSSL (a short buffer, an empty DER).
+void cover_p256_der() {
+    namespace p256 = crypto::curves::p256;
+    namespace data = webcpp::test::p256;
     std::array<std::uint8_t, p256::max_der_size> der{};
     webcpp::test::covered("p256::to_der on bearssl", [&der] {
         BOOST_TEST(p256::to_der<bearssl>(data::rfc6979_test, der).has_value());
@@ -209,6 +220,31 @@ void cover_p256_ecdsa() {
     webcpp::test::covered("p256::from_der of nothing on bearssl", [] {
         BOOST_TEST(p256::from_der<bearssl>({}).error() == crypto::error::invalid_signature);
     });
+}
+
+// P-256's ECDSA: the signature, of the message and of its digest, refused once before BearSSL (a
+// moved-from key pair); its verification; and DER both ways.
+void cover_p256_ecdsa() {
+    namespace p256 = crypto::curves::p256;
+    namespace data = webcpp::test::p256;
+    auto const made = p256::basic_keypair<bearssl>::make(data::rfc6979_scalar);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    webcpp::test::covered(
+        "p256::basic_keypair::sign of a message on bearssl", "p256::basic_keypair::sign", [&made] {
+            auto const signature = made->sign(crypto::ecdsa_sha256, p256_test_message);
+            BOOST_TEST(signature.has_value() && *signature == data::rfc6979_test);
+        });
+    webcpp::test::covered(
+        "p256::basic_keypair::sign of a digest on bearssl", "p256::basic_keypair::sign", [&made] {
+            auto const signature =
+                made->sign(crypto::ecdsa_sha256, crypto::prehashed{p256_test_digest});
+            BOOST_TEST(signature.has_value() && *signature == data::rfc6979_test);
+        });
+    cover_p256_sign_moved_from(p256_test_digest);
+    cover_p256_verify();
+    cover_p256_der();
 }
 
 // P-256's ECDH: the shared x of RFC 6979's key with its own public key, and the same call on a

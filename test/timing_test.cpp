@@ -9,7 +9,7 @@
 // and MSVC; where the CPU has DIT, a guard sets it for its scope and clears it after when it was
 // clear, leaves it set when it was set, and nests; equal enters its own guard. Built with
 // WEBCPP_TEST_TIMING_THREADS (timing_threads, native, with threads), a guard on one thread leaves
-// another's DIT clear. P-256's normalize_ecdsa and check_low_s, which call no backend, enter no
+// another's DIT clear. P-256's normalize_low_s and is_low_s, which call no backend, enter no
 // guard: this program links none, and curves/p256.hpp needs none to declare them.
 
 #include "support/timing_seam.hpp"
@@ -204,12 +204,12 @@ void equal_enters() {
 void p256_low_s_unguarded() {
     namespace p256 = webcpp::crypto::curves::p256;
     namespace data = webcpp::test::p256;
-    webcpp::test::uncovered("p256::normalize_ecdsa", [] {
-        auto const normalized = p256::normalize_ecdsa(data::rfc6979_sample);
+    webcpp::test::uncovered("p256::normalize_low_s", [] {
+        auto const normalized = p256::normalize_low_s(data::rfc6979_sample);
         BOOST_TEST(normalized.has_value() && *normalized == data::rfc6979_sample_low_s);
     });
-    webcpp::test::uncovered("p256::check_low_s",
-                            [] { BOOST_TEST(p256::check_low_s(data::rfc6979_test).has_value()); });
+    webcpp::test::uncovered("p256::is_low_s",
+                            [] { BOOST_TEST(p256::is_low_s(data::rfc6979_test)); });
 }
 
 #ifdef WEBCPP_TEST_TIMING_THREADS

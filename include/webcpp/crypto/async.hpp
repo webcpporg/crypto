@@ -29,9 +29,9 @@
      (`sign_ecdsa`, `sign_schnorr`).
    - X25519: `async_agree`, over `curves::x25519::agree`.
    - P-256: `async_make` (a key pair from its secret scalar), `async_generate`, `async_sign` and
-     `async_verify`, ECDSA over `curves::p256::basic_keypair::sign_ecdsa` and
-     `curves::p256::verify_ecdsa`, each hashing the message with SHA-256 first, as WebCrypto's
-     ECDSA with SHA-256 does; and `async_agree`, ECDH's raw x coordinate (WebCrypto's
+     `async_verify`, ECDSA over `curves::p256::basic_keypair::sign` and `crypto::verify` with
+     `crypto::ecdsa_sha256`, each hashing the message with SHA-256, as WebCrypto's ECDSA with
+     SHA-256 does; and `async_agree`, ECDH's raw x coordinate (WebCrypto's
      `deriveBits`), over `curves::p256::basic_keypair::ecdh_x`.
  - The heavy functions (design D32's list) take the work executor first (a
    `webcpp::asio::thread_pool`'s): they check their guards on the caller's thread, run the work on
@@ -418,8 +418,9 @@ auto async_open(Executor const& executor, Gcm& aead, std::span<std::uint8_t cons
 /**
  * Signs a message with an Ed25519 or a P-256 key pair, asynchronously, when the operation is
  * initiated, its result posted to `executor`: Ed25519's `key_pair.sign(message)`; P-256's ECDSA,
- * `key_pair.sign_ecdsa` of the message's SHA-256 digest, as WebCrypto's ECDSA with SHA-256 signs
- * (RFC 6979's nonce: the same key and message give the same signature).
+ * `key_pair.sign(crypto::ecdsa_sha256, message)`, which hashes the message with SHA-256, as
+ * WebCrypto's ECDSA with SHA-256 signs (RFC 6979's nonce: the same key and message give the same
+ * signature; S low).
  *
  * `key_pair` and `message` are the caller's until the completion.
  *
@@ -452,7 +453,7 @@ auto async_sign(Executor const& executor, Keypair const& key_pair,
                                                        std::forward<CompletionToken>(token));
         } else if constexpr (detail::is_p256_keypair_v<Keypair>) {
             return detail::complete_by_post(executor, token, [&key_pair, message]() noexcept {
-                return key_pair.sign_ecdsa(detail::sha256_of(message));
+                return key_pair.sign(ecdsa_sha256, message);
             });
         } else {
             return detail::complete_by_post(executor, token, [&key_pair, message]() noexcept {
@@ -499,11 +500,12 @@ auto async_verify(Executor const& executor, std::span<std::uint8_t const> public
 }
 
 /**
- * Verifies a P-256 ECDSA signature of a message, asynchronously: `curves::p256::verify_ecdsa` of
- * the message's SHA-256 digest run when the operation is initiated, its result posted to
- * `executor`, as WebCrypto's ECDSA with SHA-256 verifies.
+ * Verifies a P-256 ECDSA signature of a message, asynchronously:
+ * `crypto::verify(crypto::ecdsa_sha256, signature, message, public_key)`, which hashes the message
+ * with SHA-256, run when the operation is initiated, its result posted to `executor`, as
+ * WebCrypto's ECDSA with SHA-256 verifies.
  *
- * A high S and a low S are both accepted, as `verify_ecdsa` and WebCrypto accept them.
+ * A high S and a low S are both accepted, as `crypto::verify` and WebCrypto accept them.
  *
  * The key and the spans are the caller's until the completion.
  *
@@ -536,8 +538,9 @@ auto async_verify(Executor const& executor,
                 if (signature.size() != curves::p256::signature_size) {
                     return error::invalid_signature;
                 }
-                return curves::p256::verify_ecdsa(signature.first<curves::p256::signature_size>(),
-                                                  detail::sha256_of(message), public_key);
+                return ::webcpp::crypto::verify(ecdsa_sha256,
+                                                signature.first<curves::p256::signature_size>(),
+                                                message, public_key);
             });
     }
 }

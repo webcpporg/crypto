@@ -7,9 +7,11 @@
 /**
  P-256, NIST's curve of FIPS 186-5 (secp256r1): a key pair made from its 32-byte scalar or drawn
  from the system's generator, and a public key validated once, as SEC 1's uncompressed point;
- ECDSA over a SHA-256 digest with RFC 6979's nonce, its raw and DER forms, and low S as two
- functions, one that normalizes and one that checks; ECDH's shared point's raw x coordinate, as
- WebCrypto's `deriveBits` gives it.
+ ECDSA over SHA-256 with RFC 6979's nonce, `key.sign(crypto::ecdsa_sha256, input)` and
+ `crypto::verify(crypto::ecdsa_sha256, signature, input, public_key)`, the input a message, hashed
+ inside, or `crypto::prehashed{digest}`: signing gives low S, verification accepts high and low S;
+ the signature's raw and DER forms, and low S as two functions, `normalize_low_s` and `is_low_s`;
+ ECDH's shared point's raw x coordinate, as WebCrypto's `deriveBits` gives it.
 
  The family's default backend, BearSSL on every target, is included when the program links it;
  a program that uses the family without linking it stops where it calls it, with the Jamfile
@@ -24,12 +26,14 @@
 
 #include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
+#include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: random_device draws generate()'s scalar
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -38,6 +42,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <type_traits>
 #include <utility>
 
 namespace webcpp::crypto::curves::p256 {
@@ -286,27 +291,42 @@ public:
     }
 
     /**
-     * Signs a SHA-256 digest with ECDSA, RFC 6979's deterministic nonce (no random number is
-     * drawn: the same key and digest give the same signature), S as the computation gives it,
-     * high or low (`normalize_ecdsa` gives the low form).
+     * Signs with ECDSA over SHA-256 and RFC 6979's deterministic nonce (no random number is
+     * drawn: the same key and input give the same signature), S always low, at most (n - 1) / 2,
+     * as libsecp256k1 signs: the signature is normalized after it is made.
      *
-     * @param digest The 32-byte SHA-256 digest of the message, as WebCrypto's ECDSA with SHA-256
-     * hashes it.
+     * @tparam Scheme `crypto::ecdsa_sha256_t`; another scheme stops the build.
+     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
+     * empty included, or `crypto::prehashed<32>`; anything else stops the build.
+     * @param scheme `crypto::ecdsa_sha256`.
+     * @param input The message, hashed with SHA-256 inside the call, as WebCrypto's ECDSA with
+     * SHA-256 hashes it; or `crypto::prehashed{digest}`, its 32-byte SHA-256 digest, signed as
+     * given.
      * @return 64 bytes, r then s (IEEE P1363, WebCrypto's form); `invalid_state` moved from;
      * `backend_failure`, which a valid key pair cannot cause.
      */
-    [[nodiscard]] boost::system::result<std::array<std::uint8_t, signature_size>> sign_ecdsa(
-        std::span<std::uint8_t const, digest_size> digest) const noexcept {
+    template <class Scheme, class Input>
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, signature_size>> sign(
+        [[maybe_unused]] Scheme scheme, Input const& input) const noexcept {
         detail::timing_guard const timing;
-        if (!keyed_) {
-            return error::invalid_state;
+        static_assert(std::is_same_v<Scheme, ecdsa_sha256_t>,
+                      "webcpp::crypto: a P-256 key signs with crypto::ecdsa_sha256.");
+        if constexpr (std::is_same_v<Scheme, ecdsa_sha256_t>) {
+            detail::check_input<Scheme, Input, Backend>();
+            if constexpr (detail::input_valid_v<Scheme, Input, Backend>) {
+                if constexpr (detail::is_prehashed_v<Input>) {
+                    return signed_digest(input.digest);
+                } else {
+                    return signed_digest(detail::sha256_of(detail::message_bytes(input)));
+                }
+            } else {
+                // Never compiled into a program: check_input stopped the build.
+                return error::backend_failure;
+            }
+        } else {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
         }
-        std::array<std::uint8_t, signature_size> signature{};
-        auto const signed_digest = engine::sign(state_, digest, signature);
-        if (!signed_digest) {
-            return signed_digest.error();
-        }
-        return signature;
     }
 
     /**
@@ -338,43 +358,36 @@ public:
 private:
     basic_keypair() noexcept = default;
 
+    // The work of sign, which holds the guard: RFC 6979's signature of a digest, made low S. The
+    // signature is public once it is made: it is declassified, as the constant-time lane needs,
+    // before the branch on its s.
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, signature_size>> signed_digest(
+        std::span<std::uint8_t const, digest_size> digest) const noexcept {
+        if (!keyed_) {
+            return error::invalid_state;
+        }
+        std::array<std::uint8_t, signature_size> signature{};
+        auto const made = engine::sign(state_, digest, signature);
+        if (!made) {
+            return made.error();
+        }
+        WEBCPP_CRYPTO_DETAIL_DECLASSIFY(signature.data(), signature.size());
+        auto const s = std::span<std::uint8_t const, signature_size>(signature)
+                           .template last<coordinate_size>();
+        if (!detail::p_curve_low_s<families::p256>(s)) {
+            std::array<std::uint8_t, coordinate_size> negated{};
+            detail::p_curve_negate_scalar<families::p256>(s, negated);
+            std::ranges::copy(negated, signature.begin() + coordinate_size);
+        }
+        return signature;
+    }
+
     state_type state_{};
     bool keyed_ = false;
 };
 
 /** The key pair on the default backend. */
 using keypair = basic_keypair<>;
-
-/**
- * Verifies an ECDSA signature of a SHA-256 digest with a public key.
- *
- * A high S and a low S are both accepted, as FIPS 186-5 and WebCrypto accept them; a protocol that
- * requires low S calls `check_low_s` too.
- *
- * @tparam Backend The key's backend, which verifies.
- * @param signature 64 bytes, r then s (IEEE P1363, WebCrypto's form); `from_der` reads DER.
- * @param digest The 32-byte SHA-256 digest of the message.
- * @param key The signer's public key.
- * @return Nothing; `invalid_signature` for an r or an s that is 0 or not below n, refused before
- * the backend, and for a signature that does not verify. A digest whose value modulo n is 0 (32
- * zero bytes, or n itself), which no SHA-256 of a message gives in practice, is refused too:
- * BearSSL's verification refuses a zero multiplier.
- */
-template <class Backend>
-[[nodiscard]] boost::system::result<void> verify_ecdsa(
-    std::span<std::uint8_t const, signature_size> signature,
-    std::span<std::uint8_t const, digest_size> digest,
-    basic_public_key<Backend> const& key) noexcept {
-    detail::timing_guard const timing;
-    using engine = detail::p_curve_engine<families::p256, Backend>;
-    if (!detail::p_curve_signature_in_range<families::p256>(signature)) {
-        return error::invalid_signature;
-    }
-    if (!engine::verify(detail::p_curve_access::point(key), digest, signature)) {
-        return error::invalid_signature;
-    }
-    return {};
-}
 
 /**
  * Encodes a signature as strict DER, the ECDSA-Sig-Value SEQUENCE of two INTEGERs that X.509
@@ -434,15 +447,16 @@ template <class Backend = default_backend_t<families::p256>>
  * The low-S form of a signature: s replaced by n - s when s is above (n - 1) / 2, returned
  * unchanged otherwise.
  *
- * Both forms verify; a protocol that requires low S normalizes what it signs. Arithmetic on public
- * bytes, with no backend.
+ * Both forms verify with `crypto::verify`; `sign` gives the low form already, so this is for a
+ * signature made elsewhere, such as WebCrypto's, whose S may be high. Arithmetic on public bytes,
+ * with no backend.
  *
  * @param signature 64 bytes, r then s.
  * @return 64 bytes, r then s, with s at most (n - 1) / 2; `invalid_signature` when r or s is 0 or
  * not below n.
  */
 [[nodiscard]] inline boost::system::result<std::array<std::uint8_t, signature_size>>
-normalize_ecdsa(std::span<std::uint8_t const, signature_size> signature) noexcept {
+normalize_low_s(std::span<std::uint8_t const, signature_size> signature) noexcept {
     if (!detail::p_curve_signature_in_range<families::p256>(signature)) {
         return error::invalid_signature;
     }
@@ -457,28 +471,125 @@ normalize_ecdsa(std::span<std::uint8_t const, signature_size> signature) noexcep
 }
 
 /**
- * Checks that a signature is in its low-S form, s at most (n - 1) / 2, as a protocol that
- * requires low S checks what it receives.
+ * Whether a signature is in its low-S form, as a protocol that requires low S checks what it
+ * receives before `crypto::verify`, which accepts both forms; `sign` gives the low form.
  *
- * Arithmetic on public bytes, with no backend; it does not verify the signature (`verify_ecdsa`
- * does).
+ * Arithmetic on public bytes, with no backend; it does not verify the signature.
  *
  * @param signature 64 bytes, r then s.
- * @return Nothing; `invalid_signature` when s is above (n - 1) / 2, and when r or s is 0 or not
- * below n.
+ * @return True exactly when 0 < r < n and 0 < s <= (n - 1) / 2.
  */
-[[nodiscard]] inline boost::system::result<void> check_low_s(
+[[nodiscard]] inline bool is_low_s(
     std::span<std::uint8_t const, signature_size> signature) noexcept {
-    if (!detail::p_curve_signature_in_range<families::p256>(signature) ||
-        !detail::p_curve_low_s<families::p256>(signature.last<coordinate_size>())) {
-        return error::invalid_signature;
-    }
-    return {};
+    return detail::p_curve_signature_in_range<families::p256>(signature) &&
+           detail::p_curve_low_s<families::p256>(signature.last<coordinate_size>());
 }
 
 }  // namespace webcpp::crypto::curves::p256
 
+namespace webcpp::crypto {
+
+/**
+ * Verifies an ECDSA signature over SHA-256 with a P-256 public key.
+ *
+ * A high S and a low S are both accepted, as FIPS 186-5 and WebCrypto accept them (WebCrypto's
+ * own signatures may be high); a protocol that requires low S checks `curves::p256::is_low_s`
+ * too.
+ *
+ * @tparam Backend The key's backend, which verifies.
+ * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
+ * empty included, or `crypto::prehashed<32>`; anything else stops the build.
+ * @param scheme `crypto::ecdsa_sha256`.
+ * @param signature 64 bytes, r then s (IEEE P1363, WebCrypto's form); `curves::p256::from_der`
+ * reads DER.
+ * @param input The signed message, hashed with SHA-256 inside the call; or
+ * `crypto::prehashed{digest}`, its 32-byte SHA-256 digest.
+ * @param public_key The signer's public key.
+ * @return Nothing; `invalid_signature` for an r or an s that is 0 or not below n, refused before
+ * the backend, and for a signature that does not verify. A digest whose value modulo n is 0 (32
+ * zero bytes, or n itself), which no SHA-256 of a message gives in practice, is refused too:
+ * BearSSL's verification refuses a zero multiplier.
+ */
+template <class Backend, class Input>
+[[nodiscard]] boost::system::result<void> verify(
+    [[maybe_unused]] ecdsa_sha256_t scheme,
+    std::span<std::uint8_t const, curves::p256::signature_size> signature, Input const& input,
+    curves::p256::basic_public_key<Backend> const& public_key) noexcept {
+    detail::timing_guard const timing;
+    detail::check_input<ecdsa_sha256_t, Input, Backend>();
+    if constexpr (detail::input_valid_v<ecdsa_sha256_t, Input, Backend>) {
+        using engine = detail::p_curve_engine<families::p256, Backend>;
+        std::array<std::uint8_t, curves::p256::digest_size> digest{};
+        if constexpr (detail::is_prehashed_v<Input>) {
+            std::ranges::copy(input.digest, digest.begin());
+        } else {
+            digest = detail::sha256_of(detail::message_bytes(input));
+        }
+        if (!detail::p_curve_signature_in_range<families::p256>(signature)) {
+            return error::invalid_signature;
+        }
+        if (!engine::verify(detail::p_curve_access::point(public_key), digest, signature)) {
+            return error::invalid_signature;
+        }
+        return {};
+    } else {
+        // Never compiled into a program: check_input stopped the build.
+        return error::invalid_signature;
+    }
+}
+
+}  // namespace webcpp::crypto
+
 namespace webcpp::crypto::detail {
+
+/**
+ * A P-256 key pair signs with ECDSA over SHA-256.
+ *
+ * @tparam Backend The key pair's backend.
+ */
+template <class Backend>
+inline constexpr bool key_has_scheme_v<curves::p256::basic_keypair<Backend>, ecdsa_sha256_t> = true;
+
+/**
+ * A P-256 public key verifies ECDSA over SHA-256.
+ *
+ * @tparam Backend The public key's backend.
+ */
+template <class Backend>
+inline constexpr bool key_has_scheme_v<curves::p256::basic_public_key<Backend>, ecdsa_sha256_t> =
+    true;
+
+/**
+ * A P-256 key pair's backend.
+ *
+ * @tparam Backend The key pair's backend.
+ */
+template <class Backend>
+struct key_backend<curves::p256::basic_keypair<Backend>> {
+    /** The backend. */
+    using type = Backend;
+};
+
+/**
+ * A P-256 public key's backend.
+ *
+ * @tparam Backend The public key's backend.
+ */
+template <class Backend>
+struct key_backend<curves::p256::basic_public_key<Backend>> {
+    /** The backend. */
+    using type = Backend;
+};
+
+/**
+ * `crypto::verify` of ECDSA over SHA-256 against a P-256 public key is P-256's, so that the
+ * catch-all steps aside.
+ *
+ * @tparam Backend The public key's backend.
+ */
+template <class Backend>
+inline constexpr bool has_verifier_v<ecdsa_sha256_t, curves::p256::basic_public_key<Backend>> =
+    true;
 
 /**
  * P-256's engine on a backend whose header does not specialise it: the family's refusal, which

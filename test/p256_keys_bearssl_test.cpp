@@ -29,6 +29,7 @@ std::size_t engine_calls = 0;
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/crypto/supports.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -228,7 +229,9 @@ void moved_from() {
     // is what is tested.
     BOOST_TEST(a.public_key().error() == error::invalid_state);
     BOOST_TEST(a.secret_scalar().error() == error::invalid_state);
-    BOOST_TEST(a.sign_ecdsa(std::array<std::uint8_t, p256::digest_size>{}).error() ==
+    std::array<std::uint8_t, p256::digest_size> const digest{};
+    BOOST_TEST(a.sign(crypto::ecdsa_sha256, digest).error() == error::invalid_state);
+    BOOST_TEST(a.sign(crypto::ecdsa_sha256, crypto::prehashed{digest}).error() ==
                error::invalid_state);
     auto const peer = b.public_key();
     BOOST_TEST(peer.has_value() && a.ecdh_x(*peer).error() == error::invalid_state);

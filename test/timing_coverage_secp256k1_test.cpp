@@ -13,6 +13,11 @@
 // A check fails, naming itself, when its call enters no guard or when the first guard it enters is
 // not the one of the function it names (support/timing_seam.hpp), so that a function that forgot
 // its own guard fails although it calls another guarded function.
+// The key pair's sign overloads share one name: the hedged one and the one with Schnorr's
+// randomness given are named with a parameter word, sign(ecdsa_sha256_t and sign(schnorr_t, which
+// clang and GCC print only for those overloads (the generic one prints its parameter as Scheme);
+// MSVC prints the generic one's Scheme as the tag it was given, so there those words match the
+// generic one too, and the check only proves that a guard of some sign was entered first.
 //
 // What it covers, by family; a family libsecp256k1 gains adds its line and its checks:
 // - secp256k1, curves/secp256k1.hpp: public_key's operator== and operator<=>; basic_keypair:

@@ -367,6 +367,22 @@ template <class Input>
     }
 }
 
+/**
+ * The size of a signature of `Scheme` that a secp256k1 key pair's `sign` returns: the scheme's
+ * (65 for `ecdsa_sha256_recoverable`), and 64 for any type that is no scheme of the curve's, so
+ * that such a call reaches `sign`'s assertion of the schemes it has rather than failing to name
+ * a return type.
+ *
+ * @tparam Scheme Any type.
+ */
+template <class Scheme>
+inline constexpr std::size_t secp256k1_signature_size = 64;
+
+/** The size of a recoverable signature: r, s and the recovery id. */
+template <>
+inline constexpr std::size_t secp256k1_signature_size<ecdsa_sha256_recoverable_t> =
+    scheme_traits<ecdsa_sha256_recoverable_t>::signature_size;
+
 extern "C" {
 
 /**
@@ -755,7 +771,7 @@ public:
      */
     template <class Scheme, class Input>
     [[nodiscard]] boost::system::result<
-        std::array<std::uint8_t, detail::scheme_traits<Scheme>::signature_size>>
+        std::array<std::uint8_t, webcpp::crypto::detail::secp256k1_signature_size<Scheme>>>
     sign([[maybe_unused]] Scheme scheme, Input const& input) const noexcept {
         detail::timing_guard const timing;
         constexpr bool has_scheme = std::is_same_v<Scheme, ecdsa_sha256_t> ||
@@ -995,8 +1011,8 @@ private:
     }
 
     /**
-     * A BIP340 signature with the given auxiliary randomness, copied into a buffer wiped when the
-     * call ends.
+     * A BIP340 signature with the caller's auxiliary randomness, copied into a buffer wiped when
+     * the call ends, the one copy crypto makes of it.
      *
      * @param message_bytes The message, of any length.
      * @param aux_random_bytes 32 bytes of auxiliary randomness.
@@ -1005,12 +1021,26 @@ private:
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> signed_schnorr(
         std::span<std::uint8_t const> message_bytes,
         std::span<std::uint8_t const, 32> aux_random_bytes) const noexcept {
+        webcpp::crypto::detail::secp256k1_secret aux_randomness;
+        std::ranges::copy(aux_random_bytes, aux_randomness.bytes.begin());
+        return signed_schnorr(message_bytes, aux_randomness);
+    }
+
+    /**
+     * A BIP340 signature with auxiliary randomness already in a buffer the caller owns and wipes,
+     * read in place: no second copy is made.
+     *
+     * @param message_bytes The message, of any length.
+     * @param aux_randomness The 32 bytes of auxiliary randomness.
+     * @return 64 bytes; `invalid_state`; `backend_failure`.
+     */
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> signed_schnorr(
+        std::span<std::uint8_t const> message_bytes,
+        webcpp::crypto::detail::secp256k1_secret& aux_randomness) const noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-        webcpp::crypto::detail::secp256k1_secret aux_randomness;
-        std::ranges::copy(aux_random_bytes, aux_randomness.bytes.begin());
         secp256k1_schnorrsig_extraparams extra_parameters = SECP256K1_SCHNORRSIG_EXTRAPARAMS_INIT;
         extra_parameters.ndata = aux_randomness.bytes.data();
         std::array<std::uint8_t, 64> output_bytes{};
@@ -1024,7 +1054,7 @@ private:
 
     /**
      * A BIP340 signature with 32 bytes of auxiliary randomness drawn from the system's generator
-     * into a buffer wiped when the call ends.
+     * into a buffer wiped when the call ends, their one home: the signing reads them there.
      *
      * @param message_bytes The message, of any length.
      * @return 64 bytes; `invalid_state` moved from, before any draw; `entropy_unavailable` when
@@ -1041,7 +1071,7 @@ private:
         if (!drawn) {
             return error::entropy_unavailable;
         }
-        return signed_schnorr(message_bytes, aux_randomness.bytes);
+        return signed_schnorr(message_bytes, aux_randomness);
     }
 
     /**

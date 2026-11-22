@@ -1398,6 +1398,7 @@
         "sign_ed25519_prehashed": "Sign the message itself with `crypto::eddsa`, RFC 8032's pure Ed25519, which takes no digest; to sign a message given in pieces, use Ed25519ph, `curves::ed25519::ph<webcpp::hash::sha2_512>`.",
         "sign_schnorr_prehashed": "Sign the message itself with `crypto::schnorr`, BIP340's, which has no prehash mode; a taproot sighash, BIP341's tagged hash, is that message.",
         "sign_secp256k1_eddsa": "Sign with `crypto::ecdsa_sha256`, `crypto::ecdsa_sha256_recoverable` or `crypto::schnorr`, secp256k1's schemes; `crypto::eddsa` is Ed25519's.",
+        "sign_secp256k1_not_a_scheme": "Name the scheme with its tag: `crypto::ecdsa_sha256`, `crypto::ecdsa_sha256_recoverable` or `crypto::schnorr`.",
         "verify_ecdsa_bytes_key": "Give `crypto::ecdsa_sha256` the public key as a parsed object, `curves::secp256k1::parse_public_key(bytes)` or `curves::p256::public_key::make(bytes)`: bytes never choose the curve.",
         "sign_p256_digest_48": "Give `crypto::ecdsa_sha256` SHA-256's 32-byte digest, `crypto::prehashed{digest}` of a `std::array<std::uint8_t, 32>`, or the message itself, which it hashes.",
         "heavy_without_threads_on_emscripten": "As `heavy_without_threads`: on Emscripten, add `<threading>multi`.",

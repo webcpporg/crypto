@@ -313,6 +313,12 @@ The fix: Sign the message itself with `+crypto::schnorr+`, BIP340's, which has n
 
 The fix: Sign with `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+` or `+crypto::schnorr+`, secp256k1's schemes; `+crypto::eddsa+` is Ed25519's.
 
+|`+sign_secp256k1_not_a_scheme+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, crypto::ecdsa_sha256_recoverable or crypto::schnorr.+`
+
+The fix: Name the scheme with its tag: `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+` or `+crypto::schnorr+`.
+
 |`+silent_payments_other_backend+`
 |native, wasip2
 |`+webcpp::crypto: bearssl has no BIP 352 silent payments. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`

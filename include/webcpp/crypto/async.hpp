@@ -48,8 +48,8 @@
  `default_backend_t<Family>` on every target, Emscripten included: the browser's backend is used
  only where a type names it, so that one program gives the same bytes on every target.
 
- What a call reads (the object, the spans) is the caller's until the completion: a synchronous
- backend reads it before the call returns, the browser's later.
+ What a call reads (the object and the bytes its inputs view) is the caller's until the
+ completion: a synchronous backend reads it before the call returns, the browser's later.
 
  The header needs webcpp::asio, `<library>/webcpp/asio//asio` in the program's Jamfile, which
  `<webcpp/crypto.hpp>` does not bring: include it by itself.
@@ -137,17 +137,22 @@ namespace detail {
  * - `seal(executor, aead, iv_bytes, additional_data_bytes, data_bytes, token)` and
  *   `open(executor, aead, iv_bytes, additional_data_bytes, data_bytes, tag_bytes, token)`;
  * - `sign(executor, key_pair, scheme, input, token)`: the scheme tag (`eddsa_t` for Ed25519,
- *   `ecdsa_sha256_t` for P-256) and the message itself, which for P-256 the engine hashes with
- *   SHA-256, as WebCrypto's ECDSA does (a marker never reaches it: `can_sign` refuses one on a
- *   backend that completes by itself);
+ *   `ecdsa_sha256_t` for P-256) and the message itself, as `std::span<std::uint8_t const>`,
+ *   which for P-256 the engine hashes with SHA-256, as WebCrypto's ECDSA does (a marker never
+ *   reaches it: `can_sign` refuses one on a backend that completes by itself);
  * - `verify(executor, scheme, signature, input, public_key, policy, token)` for Ed25519, its
- *   signature and its key spans and its policy `curves::ed25519::strict_t`, and
+ *   signature, its message and its key spans and its policy `curves::ed25519::strict_t`, and
  *   `verify(executor, scheme, signature, input, public_key, token)` for P-256, its key P-256's
- *   `basic_public_key`, the signature a span of any size and the message itself, which the
- *   engine hashes with SHA-256;
+ *   `basic_public_key`, the signature a span of any size and the message itself, as
+ *   `std::span<std::uint8_t const>`, which the engine hashes with SHA-256;
  * - `agree(executor, secret_key, peer_public_key, token)` for X25519, and
  *   `agree(executor, key_pair, peer_public_key, token)` for P-256, its key pair and its peer's
  *   key P-256's types.
+ * A signature's input reaches the engine as a view, by value (`detail::kept_input`), never as a
+ * reference to the caller's argument, which may be a temporary that a `deferred` operation
+ * outlives; the engine keeps by reference only the objects the public function takes by reference
+ * (a key pair, a public key, an AEAD), which, with the bytes the views hold, are the caller's
+ * until the completion, as the public functions say.
  * The signatures of the completions are the public functions'. The function's guard
  * (`detail::timing_guard`) is held by the public function before it calls the engine.
  *
@@ -334,8 +339,9 @@ auto async_verify_ed25519(Executor const& executor, std::span<std::uint8_t const
     if constexpr (!can_verify<eddsa_t, Input, std::span<std::uint8_t const>>) {
         check_input<eddsa_t, Input, Backend>();
     } else if constexpr (asynchronous_backend_v<Backend>) {
-        return async_engine<Backend>::verify(executor, eddsa, signature, message, public_key,
-                                             policy, std::forward<CompletionToken>(token));
+        return async_engine<Backend>::verify(executor, eddsa, signature, kept_input(message),
+                                             public_key, policy,
+                                             std::forward<CompletionToken>(token));
     } else {
         return complete_by_post(
             executor, token, [signature, kept = kept_input(message), public_key]() noexcept {
@@ -560,7 +566,8 @@ auto async_sign(Executor const& executor, Keypair const& key_pair, Scheme scheme
     } else {
         using backend = Keypair::backend_type;
         if constexpr (detail::asynchronous_backend_v<backend>) {
-            return detail::async_engine<backend>::sign(executor, key_pair, scheme, input,
+            return detail::async_engine<backend>::sign(executor, key_pair, scheme,
+                                                       detail::kept_input(input),
                                                        std::forward<CompletionToken>(token));
         } else {
             return detail::complete_by_post(
@@ -673,7 +680,8 @@ auto async_verify(Executor const& executor, [[maybe_unused]] ecdsa_sha256_t sche
     if constexpr (!can_verify<ecdsa_sha256_t, Input, curves::p256::basic_public_key<Backend>>) {
         detail::check_input<ecdsa_sha256_t, Input, Backend>();
     } else if constexpr (detail::asynchronous_backend_v<Backend>) {
-        return detail::async_engine<Backend>::verify(executor, scheme, signature, input, public_key,
+        return detail::async_engine<Backend>::verify(executor, scheme, signature,
+                                                     detail::kept_input(input), public_key,
                                                      std::forward<CompletionToken>(token));
     } else {
         return detail::complete_by_post(executor, token,

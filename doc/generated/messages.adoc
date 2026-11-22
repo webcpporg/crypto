@@ -61,11 +61,23 @@ The fix: Call the AEAD's own `+seal+`: only AES-GCM has `+async_seal+`.
 
 The fix: Give `+async_sign+` the message itself with `+crypto::eddsa+`, RFC 8032's pure Ed25519, which takes no digest, as the synchronous `+sign+` does.
 
+|`+async_sign_p256_eddsa+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_sign: this key pair does not sign with this scheme: an Ed25519 key pair signs with crypto::eddsa, a P-256 key pair with crypto::ecdsa_sha256.+`
+
+The fix: Give `+async_sign+` the key pair's own scheme: `+crypto::ecdsa_sha256+` for a P-256 key pair, `+crypto::eddsa+` for an Ed25519 key pair.
+
 |`+async_sign_secp256k1+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the key pair's synchronous signing function for the others.+`
 
 The fix: Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `+async_sign+`.
+
+|`+async_verify_named_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_verify takes crypto::eddsa with Ed25519's 32-byte key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
+
+The fix: As `+async_verify_wrong_key+`: naming the backend does not add a scheme; call `+crypto::verify+` for `+crypto::schnorr+` and secp256k1's keys.
 
 |`+async_verify_wrong_key+`
 |native, wasip2, wasip3

@@ -16,6 +16,7 @@
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
+#include <webcpp/crypto/detail/p_curves.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/digest.hpp>
@@ -127,6 +128,42 @@ void rfc6979_signatures() {
     if (BOOST_TEST(again.has_value()) && sample.has_value()) {
         BOOST_TEST(*again == *sample);
     }
+}
+
+// sign's normalization after BearSSL signs: RFC 6979's "sample", whose raw S is high, comes out
+// with the same r and n - s; its "test", whose raw S is low, comes out byte for byte as the RFC
+// gives it. And the constant-time mask sign selects with, at its boundary: 0xff exactly above
+// (n - 1) / 2.
+void sign_normalizes_raw_s() {
+    auto const key = keypair::make(data::rfc6979_scalar);
+    if (!BOOST_TEST(key.has_value())) {
+        return;
+    }
+    auto const sample = key->sign(crypto::ecdsa_sha256, text_bytes("sample"));
+    auto const test = key->sign(crypto::ecdsa_sha256, text_bytes("test"));
+    if (BOOST_TEST(sample.has_value()) && BOOST_TEST(test.has_value())) {
+        BOOST_TEST(std::ranges::equal(r_of(*sample), r_of(data::rfc6979_sample)));
+        BOOST_TEST(std::ranges::equal(s_of(*sample), negated(s_of(data::rfc6979_sample))));
+        BOOST_TEST(*test == data::rfc6979_test);
+    }
+
+    using p256_family = crypto::families::p256;
+    auto above_half = data::half_order;
+    ++above_half.back();  // ends with a8: no carry
+    std::array<std::uint8_t, 32> one{};
+    one.back() = 1;
+    auto order_minus_one = data::order;
+    --order_minus_one.back();  // ends with 51: no borrow
+    BOOST_TEST_EQ(crypto::detail::p_curve_high_s_mask<p256_family>(data::half_order),
+                  std::uint8_t{0x00});
+    BOOST_TEST_EQ(crypto::detail::p_curve_high_s_mask<p256_family>(above_half), std::uint8_t{0xff});
+    BOOST_TEST_EQ(crypto::detail::p_curve_high_s_mask<p256_family>(one), std::uint8_t{0x00});
+    BOOST_TEST_EQ(crypto::detail::p_curve_high_s_mask<p256_family>(order_minus_one),
+                  std::uint8_t{0xff});
+    BOOST_TEST_EQ(crypto::detail::p_curve_high_s_mask<p256_family>(s_of(data::rfc6979_sample)),
+                  std::uint8_t{0xff});
+    BOOST_TEST_EQ(crypto::detail::p_curve_high_s_mask<p256_family>(s_of(data::rfc6979_test)),
+                  std::uint8_t{0x00});
 }
 
 // RFC 6979, section A.2.5, the message "sample" itself, hashed inside sign: the section's r, and
@@ -503,6 +540,7 @@ void der_short_integers() {
 int main() {
     rfc6979_signatures();
     rfc6979_sample_message();
+    sign_normalizes_raw_s();
     verify_both_forms();
     message_is_hashed();
     empty_message();

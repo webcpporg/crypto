@@ -29,7 +29,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <span>
-#include <string>
 #include <string_view>
 #include <utility>
 
@@ -70,6 +69,47 @@ struct hello {
     std::array<std::uint8_t, p256::public_key_size> identity{};
     std::array<std::uint8_t, p256::public_key_size> session{};
 };
+
+// What the receiver concludes of a peer's signature.
+enum class verdict : std::uint8_t {
+    ok,
+    bad_identity,
+    high_s,
+    bad_signature,
+};
+
+// The verdict, as the program prints it.
+char const* text_of(verdict found) {
+    switch (found) {
+        case verdict::ok: return "ok";
+        case verdict::bad_identity: return "refused: the identity key is not a P-256 point";
+        case verdict::high_s: return "refused: high S, against the protocol's low-S rule";
+        case verdict::bad_signature: return "refused: the signature does not verify";
+    }
+    return "refused";
+}
+
+// The high-S form of a low-S signature, r || (n - s): as another implementation, a browser's
+// WebCrypto among them, may sign the same digest.
+std::array<std::uint8_t, p256::signature_size> high_s_form(
+    std::span<std::uint8_t const, p256::signature_size> signature) {
+    // FIPS 186-5 / SEC 2: P-256's group order n.
+    constexpr std::array<std::uint8_t, 32> order{
+        0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff,
+        0xff, 0xff, 0xff, 0xff, 0xff, 0xbc, 0xe6, 0xfa, 0xad, 0xa7, 0x17,
+        0x9e, 0x84, 0xf3, 0xb9, 0xca, 0xc2, 0xfc, 0x63, 0x25, 0x51,
+    };
+    std::array<std::uint8_t, p256::signature_size> high{};
+    std::ranges::copy(signature, high.begin());
+    unsigned borrow = 0;
+    for (std::size_t i = order.size(); i-- > 0;) {
+        unsigned const difference =
+            static_cast<unsigned>(order[i]) - signature[order.size() + i] - borrow;
+        high[order.size() + i] = static_cast<std::uint8_t>(difference);
+        borrow = (difference >> 8U) & 1U;
+    }
+    return high;
+}
 
 // tag::transcript[]
 // The handshake's bytes, both hellos in the initiator's order, hashed with SHA-256: the digest
@@ -121,21 +161,25 @@ struct peer {
     // end::sign[]
 
     // tag::receive[]
-    // Checks the other peer's signature of the transcript: low S first, as the protocol requires,
-    // then the signature itself, with the identity key the peer sent, made into a public_key.
-    // A real protocol also checks that this identity is the one it expects.
-    static boost::system::result<void> check(
-        hello const& other, std::span<std::uint8_t const, p256::digest_size> digest,
-        std::span<std::uint8_t const, p256::signature_size> signature) {
+    // Checks the other peer's signature of the transcript: low S first, as the protocol requires
+    // (crypto::verify accepts both forms, as WebCrypto does), then the signature itself, with the
+    // identity key the peer sent, made into a public_key. A real protocol also checks that this
+    // identity is the one it expects.
+    static verdict check(hello const& other,
+                         std::span<std::uint8_t const, p256::digest_size> digest,
+                         std::span<std::uint8_t const, p256::signature_size> signature) {
         auto const identity_key = p256::public_key::make(other.identity);
         if (!identity_key) {
-            return identity_key.error();
+            return verdict::bad_identity;
         }
         if (!p256::is_low_s(signature)) {
-            return crypto::error::invalid_signature;
+            return verdict::high_s;
         }
-        return crypto::verify(crypto::ecdsa_sha256, signature, crypto::prehashed{digest},
-                              *identity_key);
+        if (!crypto::verify(crypto::ecdsa_sha256, signature, crypto::prehashed{digest},
+                            *identity_key)) {
+            return verdict::bad_signature;
+        }
+        return verdict::ok;
     }
 
     // end::receive[]
@@ -209,17 +253,25 @@ int main() {
     }
     print("alice signs", *alice_signature);
     print("bob signs  ", *bob_signature);
-    bool const alice_checked = peer::check(*alice_hello, *digest, *alice_signature).has_value();
-    bool const bob_checked = peer::check(*bob_hello, *digest, *bob_signature).has_value();
-    std::printf("bob checks alice: %s; alice checks bob: %s\n", alice_checked ? "ok" : "refused",
-                bob_checked ? "ok" : "refused");
+    std::printf("bob checks alice: %s; alice checks bob: %s\n",
+                text_of(peer::check(*alice_hello, *digest, *alice_signature)),
+                text_of(peer::check(*bob_hello, *digest, *bob_signature)));
 
-    // Alice's signature with one bit of s flipped on the way: refused.
+    // Alice's signature with one bit of s flipped on the way: refused by the verification.
     auto tampered = *alice_signature;
     tampered[40] ^= 0x01U;
-    auto const refused = peer::check(*alice_hello, *digest, tampered);
-    std::string const outcome = refused ? std::string("accepted") : refused.error().message();
-    std::printf("tampered: %s\n", outcome.c_str());
+    std::printf("tampered: %s\n", text_of(peer::check(*alice_hello, *digest, tampered)));
+
+    // The same digest signed by another implementation in the high-S form: refused by the
+    // protocol's rule before it is verified, though crypto::verify alone accepts it.
+    auto const high = high_s_form(*alice_signature);
+    auto const alice_identity = p256::public_key::make(alice_hello->identity);
+    bool const verifies_alone =
+        alice_identity &&
+        crypto::verify(crypto::ecdsa_sha256, high, crypto::prehashed{*digest}, *alice_identity);
+    std::printf("high S: %s; crypto::verify alone: %s\n",
+                text_of(peer::check(*alice_hello, *digest, high)),
+                verifies_alone ? "verified" : "refused");
 
     auto const alice_key = alice->session_key(*bob_hello, *digest);
     auto const bob_key = bob->session_key(*alice_hello, *digest);

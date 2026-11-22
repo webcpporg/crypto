@@ -4,6 +4,7 @@ alice signs 38c068d42171aed82f025545beef0586cdf30376543f9864da0989be7e17bfd3
 bob signs   cc8dcf4a649d262048a38c8b22d3a42c391d511aec2aa768cd9fc85210255ffe
             43484db9140fe5007791c35016facbfa6c82429d056d4ac4db997ba163fdc736
 bob checks alice: ok; alice checks bob: ok
-tampered: the signature does not verify or is not a valid encoding
+tampered: refused: the signature does not verify
+high S: refused: high S, against the protocol's low-S rule; crypto::verify alone: verified
 session keys agree
 session key 048b5927238ca3e923d3fbadc05deca38404588154e9b52c4b5faa33ef765ed3

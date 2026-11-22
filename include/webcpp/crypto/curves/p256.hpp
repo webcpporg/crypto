@@ -26,7 +26,6 @@
 
 #include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
-#include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
@@ -358,9 +357,10 @@ public:
 private:
     basic_keypair() noexcept = default;
 
-    // The work of sign, which holds the guard: RFC 6979's signature of a digest, made low S. The
-    // signature is public once it is made: it is declassified, as the constant-time lane needs,
-    // before the branch on its s.
+    // The work of sign, which holds the guard: RFC 6979's signature of a digest, made low S in
+    // constant time: n - s is computed always and selected with a mask, with no branch on s and
+    // nothing declassified, so that the signature stays as secret to a constant-time checker as
+    // the engine made it.
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, signature_size>> signed_digest(
         std::span<std::uint8_t const, digest_size> digest) const noexcept {
         if (!keyed_) {
@@ -371,13 +371,15 @@ private:
         if (!made) {
             return made.error();
         }
-        WEBCPP_CRYPTO_DETAIL_DECLASSIFY(signature.data(), signature.size());
         auto const s = std::span<std::uint8_t const, signature_size>(signature)
                            .template last<coordinate_size>();
-        if (!detail::p_curve_low_s<families::p256>(s)) {
-            std::array<std::uint8_t, coordinate_size> negated{};
-            detail::p_curve_negate_scalar<families::p256>(s, negated);
-            std::ranges::copy(negated, signature.begin() + coordinate_size);
+        std::array<std::uint8_t, coordinate_size> negated{};
+        detail::p_curve_negate_scalar<families::p256>(s, negated);
+        unsigned const high = detail::p_curve_high_s_mask<families::p256>(s);
+        for (std::size_t i = 0; i < coordinate_size; ++i) {
+            auto& byte = signature[coordinate_size + i];
+            unsigned const kept = byte;
+            byte = static_cast<std::uint8_t>(kept ^ (high & (kept ^ unsigned{negated[i]})));
         }
         return signature;
     }

@@ -90,6 +90,21 @@ webcpp.compile config_all_off : config_test.cpp
 webcpp.compile config_developer_defined : config_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS <define>WEBCPP_TEST_CRYPTO_DEVELOPER_DEFINED ;
 
+# config.hpp read as MrDocs reads it, __MRDOCS__ defined, as the reference of
+# a library that includes crypto reads it: each macro a build sets stays as
+# the build set it, its value included, and no refusal stops the reference,
+# with the memory option natively without OpenSSL and on WebAssembly, with
+# version 0.1's two defines, and with OpenSSL on Emscripten.
+webcpp.compile reference_config : reference_config_test.cpp : <define>__MRDOCS__ ;
+webcpp.compile reference_config_refusals : reference_config_test.cpp
+  : <define>__MRDOCS__ <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+    <define>WEBCPP_CRYPTO_NO_THREADS <define>WEBCPP_CRYPTO_HAS_SECP256K1=2
+    <define>WEBCPP_TEST_CRYPTO_SECP256K1_VALUE ;
+webcpp.compile reference_config_openssl_on_emscripten : reference_config_test.cpp
+  : <define>__MRDOCS__ <define>WEBCPP_CRYPTO_HAS_OPENSSL=1
+    <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE : emscripten ;
+
 # config.hpp defines WEBCPP_CRYPTO_HAS_THREADS by design D23's rule: natively
 # with b2's threading=single (where Boost.Config's BOOST_HAS_THREADS decides),
 # with threading=multi, and with WEBCPP_CRYPTO_NO_THREADS; on WebAssembly

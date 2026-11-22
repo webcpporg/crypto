@@ -76,9 +76,10 @@ namespace webcpp::crypto {
 /**
  * The resource every allocation of OpenSSL's in the process goes to, from any thread:
  * declared by `<webcpp/crypto/backends/openssl.hpp>` under
- * `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` and defined once by the program. It returns a
- * resource that is never destroyed and is thread-safe whenever OpenSSL may run on two threads
- * at once: OpenSSL frees through it after `main` returns.
+ * `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` and defined once by the program.
+ *
+ * It returns a resource that is never destroyed and is thread-safe whenever OpenSSL may run on
+ * two threads at once: OpenSSL frees through it after `main` returns.
  *
  * It must serve OpenSSL's initialisation, which the first use of OpenSSL in the process runs,
  * usually the first `make`: on an OpenSSL built with threads, which MSVC always builds, a
@@ -267,12 +268,13 @@ struct openssl {
 #ifdef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
     /**
      * Installs webcpp's adapter as OpenSSL's memory functions, so that every allocation of
-     * OpenSSL's in the process goes to `openssl_memory_resource()`. Called as the first
-     * statement of `main`, before any thread starts and anything uses OpenSSL. The first use
-     * of OpenSSL after it, usually the first `make`, runs OpenSSL's initialisation through the
-     * resource: on an OpenSSL built with threads (MSVC's only build) a failure during its
-     * base initialisation makes that call never return; on one built without threads every
-     * `make` then gives `backend_failure`.
+     * OpenSSL's in the process goes to `openssl_memory_resource()`.
+     *
+     * Called as the first statement of `main`, before any thread starts and anything uses
+     * OpenSSL. The first use of OpenSSL after it, usually the first `make`, runs OpenSSL's
+     * initialisation through the resource: on an OpenSSL built with threads (MSVC's only build)
+     * a failure during its base initialisation makes that call never return; on one built
+     * without threads every `make` then gives `backend_failure`.
      *
      * @return Nothing, also when the adapter is installed already;
      * `memory_functions_refused` when another party installed its own functions, or OpenSSL

@@ -18,13 +18,19 @@
 
 #include <webcpp/config.hpp>
 
-// MrDocs parses crypto natively, as a build with exceptions does, where neither
-// macro is defined: these definitions, each undone at once, are the ones the
-// reference lists. WEBCPP_CRYPTO_HAS_OPENSSL stays when the reference's build
-// defines it, linking OpenSSL to read the backend headers (doc/Jamfile), and
-// WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE stays, so that the reference lists the
-// declarations of the memory option too.
+// MrDocs parses crypto as a build with exceptions does: these definitions are the ones the
+// reference lists. WEBCPP_CRYPTO_WEBASSEMBLY and WEBCPP_CRYPTO_HAS_THREADS, which this header sets
+// from the target below, are undone at once. The macros a build sets are left as the build set them
+// (push_macro and pop_macro keep the definition or its absence): WEBCPP_CRYPTO_NO_EXCEPTIONS,
+// WEBCPP_CRYPTO_NO_THREADS, the libraries' WEBCPP_CRYPTO_HAS_<NAME>,
+// WEBCPP_CRYPTO_SECP256K1_SMALL_TABLES and WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE. crypto's
+// doc/Jamfile links every library and defines the memory option, so its reference reads each
+// backend's header and the option's declarations, while the reference of a library that includes
+// crypto reads only what that library's build sets (trystero's, for Emscripten's target, has no
+// memory option for the refusals below to meet).
 #ifdef __MRDOCS__
+#pragma push_macro("WEBCPP_CRYPTO_NO_EXCEPTIONS")
+#undef WEBCPP_CRYPTO_NO_EXCEPTIONS
 /**
  Defined when webcpp::crypto is built without exceptions: when webcpp has none (the
  compiler has none, or the developer defined `WEBCPP_NO_EXCEPTIONS` for every webcpp
@@ -37,7 +43,7 @@
  @see "Exceptions", in the guide.
 */
 #define WEBCPP_CRYPTO_NO_EXCEPTIONS
-#undef WEBCPP_CRYPTO_NO_EXCEPTIONS
+#pragma pop_macro("WEBCPP_CRYPTO_NO_EXCEPTIONS")
 /** Defined on the WebAssembly targets, wasip2, wasip3 and Emscripten. */
 #define WEBCPP_CRYPTO_WEBASSEMBLY 1
 #undef WEBCPP_CRYPTO_WEBASSEMBLY
@@ -55,82 +61,57 @@
 */
 #define WEBCPP_CRYPTO_HAS_THREADS 1
 #undef WEBCPP_CRYPTO_HAS_THREADS
+#pragma push_macro("WEBCPP_CRYPTO_NO_THREADS")
+#undef WEBCPP_CRYPTO_NO_THREADS
 /**
  Defined by a program that wants no threads from webcpp::crypto: `WEBCPP_CRYPTO_HAS_THREADS`
  stays undefined, and the heavy operations' `async_` variants refuse to compile.
 */
 #define WEBCPP_CRYPTO_NO_THREADS
-#undef WEBCPP_CRYPTO_NO_THREADS
-#ifdef WEBCPP_CRYPTO_HAS_BEARSSL
-/** Defined while config.hpp reads a reference's build that links BearSSL (doc/Jamfile). */
-#define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_BEARSSL
-#endif
+#pragma pop_macro("WEBCPP_CRYPTO_NO_THREADS")
+#pragma push_macro("WEBCPP_CRYPTO_HAS_BEARSSL")
+#undef WEBCPP_CRYPTO_HAS_BEARSSL
 /**
  Defined by `/third_party//bearssl` when the program links BearSSL; a program built without
  b2 defines it to 1 itself.
 */
 #define WEBCPP_CRYPTO_HAS_BEARSSL 1
-#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_BEARSSL
-#undef WEBCPP_CRYPTO_HAS_BEARSSL
-#endif
-#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_BEARSSL
-#ifdef WEBCPP_CRYPTO_HAS_OPENSSL
-/** Defined while config.hpp reads a reference's build that links OpenSSL (doc/Jamfile). */
-#define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_OPENSSL
-#endif
+#pragma pop_macro("WEBCPP_CRYPTO_HAS_BEARSSL")
+#pragma push_macro("WEBCPP_CRYPTO_HAS_OPENSSL")
+#undef WEBCPP_CRYPTO_HAS_OPENSSL
 /**
  Defined by `/webcpp/crypto//openssl` when the program links OpenSSL; a program built without
  b2 defines it to 1 itself. Refused on Emscripten, where OpenSSL is not built.
 */
 #define WEBCPP_CRYPTO_HAS_OPENSSL 1
-#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_OPENSSL
-#undef WEBCPP_CRYPTO_HAS_OPENSSL
-#endif
-#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_OPENSSL
-#ifdef WEBCPP_CRYPTO_HAS_CTAES
-/** Defined while config.hpp reads a reference's build that links ctaes (doc/Jamfile). */
-#define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_CTAES
-#endif
+#pragma pop_macro("WEBCPP_CRYPTO_HAS_OPENSSL")
+#pragma push_macro("WEBCPP_CRYPTO_HAS_CTAES")
+#undef WEBCPP_CRYPTO_HAS_CTAES
 /**
  Defined by `/third_party//ctaes` when the program links ctaes; a program built without b2
  defines it to 1 itself, and compiles webcpp's `src/canary_ctaes.c` with ctaes.
 */
 #define WEBCPP_CRYPTO_HAS_CTAES 1
-#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_CTAES
-#undef WEBCPP_CRYPTO_HAS_CTAES
-#endif
-#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_CTAES
-#ifdef WEBCPP_CRYPTO_HAS_SODIUM
-/** Defined while config.hpp reads a reference's build that links libsodium (doc/Jamfile). */
-#define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SODIUM
-#endif
+#pragma pop_macro("WEBCPP_CRYPTO_HAS_CTAES")
+#pragma push_macro("WEBCPP_CRYPTO_HAS_SODIUM")
+#undef WEBCPP_CRYPTO_HAS_SODIUM
 /**
  Defined by `/third_party//sodium` when the program links libsodium; a program built without
  b2 defines it to 1 itself, and links libsodium built with webcpp's `src/canary_sodium.c`.
 */
 #define WEBCPP_CRYPTO_HAS_SODIUM 1
-#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SODIUM
-#undef WEBCPP_CRYPTO_HAS_SODIUM
-#endif
-#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SODIUM
-#ifdef WEBCPP_CRYPTO_HAS_SECP256K1
-/** Defined while config.hpp reads a reference's build that links libsecp256k1 (doc/Jamfile). */
-#define WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SECP256K1
-#endif
+#pragma pop_macro("WEBCPP_CRYPTO_HAS_SODIUM")
+#pragma push_macro("WEBCPP_CRYPTO_HAS_SECP256K1")
+#undef WEBCPP_CRYPTO_HAS_SECP256K1
 /**
  Defined by `/third_party//secp256k1` when the program links libsecp256k1; a program built
  without b2 defines it to 1 itself, and builds libsecp256k1 with webcpp's
  `src/canary_secp256k1.c`.
 */
 #define WEBCPP_CRYPTO_HAS_SECP256K1 1
-#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SECP256K1
-#undef WEBCPP_CRYPTO_HAS_SECP256K1
-#endif
-#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_LINKS_SECP256K1
-#ifdef WEBCPP_CRYPTO_SECP256K1_SMALL_TABLES
-/** Defined while config.hpp reads a reference's build of libsecp256k1's small tables. */
-#define WEBCPP_CRYPTO_DETAIL_REFERENCE_SMALL_TABLES
-#endif
+#pragma pop_macro("WEBCPP_CRYPTO_HAS_SECP256K1")
+#pragma push_macro("WEBCPP_CRYPTO_SECP256K1_SMALL_TABLES")
+#undef WEBCPP_CRYPTO_SECP256K1_SMALL_TABLES
 /**
  Defined by `/third_party//secp256k1` when libsecp256k1 is built with its small precomputed
  tables (`<webcpp-secp256k1-tables>small`, and Emscripten's default); a program built without
@@ -138,10 +119,9 @@
  `COMB_BLOCKS=2`, `COMB_TEETH=5`. The canary refuses a program and a library that disagree.
 */
 #define WEBCPP_CRYPTO_SECP256K1_SMALL_TABLES 1
-#ifndef WEBCPP_CRYPTO_DETAIL_REFERENCE_SMALL_TABLES
-#undef WEBCPP_CRYPTO_SECP256K1_SMALL_TABLES
-#endif
-#undef WEBCPP_CRYPTO_DETAIL_REFERENCE_SMALL_TABLES
+#pragma pop_macro("WEBCPP_CRYPTO_SECP256K1_SMALL_TABLES")
+#pragma push_macro("WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE")
+#undef WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
 /**
  Defined by a native program, in its project's requirements beside `/webcpp/crypto//openssl`, to
  send every allocation of OpenSSL's in the process to a resource of the program's: the program
@@ -152,6 +132,7 @@
  @see "OpenSSL's allocations in your own memory resource", in the guide.
 */
 #define WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+#pragma pop_macro("WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE")
 #endif
 
 #if !defined(WEBCPP_HAS_EXCEPTIONS) && !defined(WEBCPP_CRYPTO_NO_EXCEPTIONS)
@@ -186,23 +167,25 @@
 // #error, so the first error is the instruction; MSVC stops at it. OpenSSL is built for
 // native, wasip2 and wasip3 (/webcpp/crypto//openssl), never for Emscripten; with b2,
 // /webcpp/crypto//openssl stops an Emscripten build first, and these say it without b2.
+// A reference (MrDocs) describes the headers and builds no program, so none of them refuses it.
 // clang-format off
-#if defined(WEBCPP_TARGET_EMSCRIPTEN) && defined(WEBCPP_CRYPTO_HAS_OPENSSL)
+#if !defined(__MRDOCS__) && defined(WEBCPP_TARGET_EMSCRIPTEN) && defined(WEBCPP_CRYPTO_HAS_OPENSSL)
 #error "webcpp::crypto: OpenSSL is not built for Emscripten. In the program's Jamfile, replace /webcpp/crypto//openssl with /third_party//bearssl."
 #endif
 // Version 0.1's two defines chose the default backend; the target alone chooses it now
 // (design D32), and a define the build ignored would change which code a program runs.
-#ifdef WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL
+#if !defined(__MRDOCS__) && defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL)
 #error "webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL no longer chooses a default. Write the backend in the type where the program wants it, as in ciphers::gcm<ciphers::aes256<backends::bearssl>>."
 #endif
-#ifdef WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+#if !defined(__MRDOCS__) && defined(WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL)
 #error "webcpp::crypto: WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL no longer chooses a default. Write the backend in the type where the program wants it, as in ciphers::gcm<ciphers::aes256<backends::openssl>>."
 #endif
-#if defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE) && defined(WEBCPP_CRYPTO_WEBASSEMBLY)
+#if !defined(__MRDOCS__) && defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE) && \
+    defined(WEBCPP_CRYPTO_WEBASSEMBLY)
 #error "webcpp::crypto: WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE is an option of native programs, and this program is built for WebAssembly. Remove that define from the program's Jamfile."
 #endif
-#if defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE) && !defined(WEBCPP_CRYPTO_WEBASSEMBLY) && \
-    !defined(WEBCPP_CRYPTO_HAS_OPENSSL)
+#if !defined(__MRDOCS__) && defined(WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE) && \
+    !defined(WEBCPP_CRYPTO_WEBASSEMBLY) && !defined(WEBCPP_CRYPTO_HAS_OPENSSL)
 #error "webcpp::crypto: WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE routes OpenSSL's allocations, and OpenSSL is not linked. In the program's Jamfile, add /webcpp/crypto//openssl beside /webcpp/crypto//crypto, or remove that define. (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)"
 #endif
 // clang-format on

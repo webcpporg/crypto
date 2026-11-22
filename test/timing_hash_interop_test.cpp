@@ -49,6 +49,7 @@ void hash_timing_entered(std::source_location const& where) noexcept {
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/detail/timing.hpp>
 #include <webcpp/hash/hkdf.hpp>
 #include <webcpp/hash/hmac.hpp>
@@ -209,7 +210,8 @@ void hkdf_beside_crypto() {
         crypto_entries = timing_entries;
         hash_entries = hash_timing_entries;
         webcpp::test::timing_first_entry = nullptr;
-        auto const signature = key->sign(std::span<std::uint8_t const>(info));
+        auto const signature =
+            key->sign(webcpp::crypto::eddsa, std::span<std::uint8_t const>(info));
         BOOST_TEST(signature.has_value());
         BOOST_TEST_EQ(timing_entries, crypto_entries + 1);
         BOOST_TEST(first_is(webcpp::test::timing_first_entry, "basic_keypair::sign"));

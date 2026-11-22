@@ -36,8 +36,9 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/detail/async_access.hpp crypto/detail/timing.hpp crypto/ciphers/aead.hpp
   crypto/ciphers/chacha20_poly1305.hpp crypto/ciphers/secretbox.hpp crypto/pem.hpp ;
 # detail/heavy.hpp compiles alone only with webcpp::asio, which it includes
-# where the build has threads.
-webcpp.headers-alone crypto : ../include : crypto/detail/heavy.hpp
+# where the build has threads; async.hpp, which includes it, only with
+# webcpp::asio on every target.
+webcpp.headers-alone crypto : ../include : crypto/detail/heavy.hpp crypto/async.hpp
   : <library>/webcpp/asio//asio ;
 
 # The backend BearSSL's header and the default backend's, with BearSSL linked,
@@ -108,6 +109,13 @@ crypto-run heavy : heavy_test.cpp
   : <library>/webcpp/asio//asio <threading>multi
     <toolset>emscripten:<linkflags>-sPTHREAD_POOL_SIZE=3
   : native emscripten ;
+# The cheap functions of the asynchronous family on a synchronous backend, on
+# every target: detail::complete_by_post runs the call at once and completes
+# through a post, on the handler's associated executor and in its associated
+# allocator, with every completion token (use_future where exceptions are on).
+crypto-run async_post : async_post_test.cpp
+  : <library>/webcpp/asio//asio <library>/webcpp/crypto//gcm-default
+    <library>/third_party//sodium ;
 # Without threads (WEBCPP_CRYPTO_NO_THREADS natively; WASI has none), a heavy
 # operation's async_ variant that forgets its refusal stops at
 # detail::run_on_work's stand-in, which names the refusal, and with that

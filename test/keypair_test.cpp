@@ -9,7 +9,8 @@
 // with each of its three schemes; a stand-in that has every member meets it, and stand-ins that
 // lack one member each (make, generate, public_key_type, secret), whose make, generate, public_key
 // or secret gives another type, or whose curve declares no scheme, or a scheme they do not sign, do
-// not.
+// not; the contract folds over the list of schemes, detail::all_schemes, so that a test-only
+// scheme added to a list is asked of a stand-in that declares it.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
@@ -168,6 +169,51 @@ struct wrong_make_keypair {
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
 
+// A scheme of this test alone, which no curve has.
+struct test_scheme_t {
+    explicit test_scheme_t() = default;
+};
+
+// Every member, and the test scheme declared with ecdsa_sha256, but no sign of the test scheme.
+struct unsigned_test_scheme_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<unsigned_test_scheme_keypair> make(
+        std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<unsigned_test_scheme_keypair> generate() noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+};
+
+// Every member, and the test scheme declared with ecdsa_sha256 and signed.
+struct test_scheme_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<test_scheme_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<test_scheme_keypair> generate() noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        test_scheme_t, std::span<std::uint8_t const>) const noexcept;
+};
+
+// Every member, and the test scheme alone declared and signed.
+struct only_test_scheme_keypair {
+    using public_key_type = stand_in_public_key;
+    [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
+    static boost::system::result<only_test_scheme_keypair> make(
+        std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<only_test_scheme_keypair> generate() noexcept;
+    [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
+    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
+        test_scheme_t, std::span<std::uint8_t const>) const noexcept;
+};
+
 }  // namespace
 
 namespace webcpp::crypto::detail {
@@ -194,6 +240,16 @@ template <>
 inline constexpr bool signs_with_v<wrong_generate_keypair, ecdsa_sha256_t> = true;
 template <>
 inline constexpr bool signs_with_v<wrong_make_keypair, ecdsa_sha256_t> = true;
+template <>
+inline constexpr bool signs_with_v<unsigned_test_scheme_keypair, ecdsa_sha256_t> = true;
+template <>
+inline constexpr bool signs_with_v<unsigned_test_scheme_keypair, test_scheme_t> = true;
+template <>
+inline constexpr bool signs_with_v<test_scheme_keypair, ecdsa_sha256_t> = true;
+template <>
+inline constexpr bool signs_with_v<test_scheme_keypair, test_scheme_t> = true;
+template <>
+inline constexpr bool signs_with_v<only_test_scheme_keypair, test_scheme_t> = true;
 
 }  // namespace webcpp::crypto::detail
 
@@ -211,6 +267,24 @@ static_assert(!crypto::keypair<wrong_generate_keypair>);
 static_assert(!crypto::keypair<wrong_make_keypair>);
 static_assert(!crypto::keypair<stand_in_public_key>);
 static_assert(!crypto::keypair<int>);
+
+// The contract folds over a list of schemes: crypto::keypair is keypair_over all_schemes, and a
+// list with the test scheme asks its sign of a key pair that declares it.
+using with_test_scheme = crypto::detail::scheme_list<crypto::eddsa_t, crypto::ecdsa_sha256_t,
+                                                     crypto::ecdsa_sha256_recoverable_t,
+                                                     crypto::schnorr_t, test_scheme_t>;
+using test_scheme_alone = crypto::detail::scheme_list<test_scheme_t>;
+static_assert(!crypto::detail::keypair_over<unsigned_test_scheme_keypair, with_test_scheme>);
+static_assert(crypto::detail::keypair_over<test_scheme_keypair, with_test_scheme>);
+static_assert(crypto::detail::keypair_over<complete_keypair, with_test_scheme>);
+static_assert(!crypto::detail::keypair_over<unsigned_scheme_keypair, with_test_scheme>);
+// Outside the list, the test scheme is not asked, and alone it is not a scheme of the library.
+static_assert(crypto::keypair<unsigned_test_scheme_keypair>);
+static_assert(crypto::detail::keypair_over<only_test_scheme_keypair, test_scheme_alone>);
+static_assert(!crypto::keypair<only_test_scheme_keypair>);
+// An empty list has no scheme to sign.
+static_assert(!crypto::detail::keypair_over<complete_keypair, crypto::detail::scheme_list<>>);
+static_assert(crypto::detail::keypair_over<complete_keypair, crypto::detail::all_schemes>);
 
 // The curves' key pairs, on each backend this test links.
 static_assert(crypto::keypair<crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>>);

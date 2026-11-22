@@ -6,7 +6,8 @@
 
 /**
  What every curve's signing shares (design D1 to D3): the scheme tags, `eddsa`, `ecdsa_sha256`,
- `ecdsa_sha256_recoverable` and `schnorr`; the marker of a digest, `prehashed{digest}`; the
+ `ecdsa_sha256_recoverable` and `schnorr`, and the library's one list of them,
+ `detail::all_schemes`; the marker of a digest, `prehashed{digest}`; the
  concepts `can_sign` and `can_verify`, which say which key, scheme and input go together; and the
  catch-all `verify`, which stops the build with the pairs that do.
 
@@ -76,6 +77,51 @@ struct schnorr_t {
     /** Makes the tag; explicit, so that only its name makes one. */
     explicit schnorr_t() = default;
 };
+
+namespace detail {
+
+/**
+ * A list of scheme tags, which the checks that hold for every scheme fold over.
+ *
+ * @tparam Schemes Scheme tags.
+ */
+template <class... Schemes>
+struct scheme_list {};
+
+/**
+ * The library's one list of schemes, every scheme tag: a new scheme is one more tag here, and
+ * `is_scheme_v` and the key pair contract, `crypto::keypair`, take it from this list.
+ */
+using all_schemes = scheme_list<eddsa_t, ecdsa_sha256_t, ecdsa_sha256_recoverable_t, schnorr_t>;
+
+/**
+ * Whether `Type` is a member of the list `List`: false for a type that is not a `scheme_list`.
+ *
+ * @tparam Type Any type.
+ * @tparam List A `scheme_list`.
+ */
+template <class Type, class List>
+inline constexpr bool in_scheme_list_v = false;
+
+/**
+ * Whether `Type` is one of `Schemes`.
+ *
+ * @tparam Type Any type.
+ * @tparam Schemes The list's scheme tags.
+ */
+template <class Type, class... Schemes>
+inline constexpr bool in_scheme_list_v<Type, scheme_list<Schemes...>> =
+    (std::is_same_v<Type, Schemes> || ...);
+
+/**
+ * Whether `Type` is one of the scheme tags, a member of `all_schemes`.
+ *
+ * @tparam Type Any type.
+ */
+template <class Type>
+inline constexpr bool is_scheme_v = in_scheme_list_v<Type, all_schemes>;
+
+}  // namespace detail
 
 /**
  * Ed25519's signature scheme, RFC 8032's pure Ed25519: it signs the message itself, of any
@@ -398,17 +444,6 @@ template <class Input>
     std::copy_n(hashed.data(), digest.size(), digest.begin());
     return digest;
 }
-
-/**
- * Whether `Type` is one of the scheme tags: `eddsa_t`, `ecdsa_sha256_t`,
- * `ecdsa_sha256_recoverable_t` or `schnorr_t`.
- *
- * @tparam Type Any type.
- */
-template <class Type>
-inline constexpr bool is_scheme_v =
-    std::is_same_v<Type, eddsa_t> || std::is_same_v<Type, ecdsa_sha256_t> ||
-    std::is_same_v<Type, ecdsa_sha256_recoverable_t> || std::is_same_v<Type, schnorr_t>;
 
 /**
  * Whether a curve gives `crypto::verify` of `Scheme` for the public key `Key`: false here; each

@@ -220,6 +220,22 @@ static_assert(!catch_all_takes<crypto::prehashed<32>>);
 static_assert(crypto::detail::is_scheme_v<crypto::ecdsa_sha256_recoverable_t>);
 static_assert(!crypto::detail::is_scheme_v<crypto::ecdsa_sha256_t const>);
 
+// The library's one list of schemes: is_scheme_v is true of each of its members, each has its
+// traits, and the list is the four tags.
+template <class... Schemes>
+constexpr bool all_are_schemes(crypto::detail::scheme_list<Schemes...> /*list*/) noexcept {
+    return (crypto::detail::is_scheme_v<Schemes> && ...) &&
+           ((crypto::detail::scheme_traits<Schemes>::signature_size != 0) && ...);
+}
+
+static_assert(all_are_schemes(crypto::detail::all_schemes{}));
+static_assert(std::is_same_v<
+              crypto::detail::all_schemes,
+              crypto::detail::scheme_list<crypto::eddsa_t, crypto::ecdsa_sha256_t,
+                                          crypto::ecdsa_sha256_recoverable_t, crypto::schnorr_t>>);
+static_assert(!crypto::detail::is_scheme_v<crypto::detail::all_schemes>);
+static_assert(!crypto::detail::is_scheme_v<crypto::prehashed<32>>);
+
 // sha256_of is SHA-256: FIPS 180-2's "abc" and the empty message.
 void sha256_of_is_sha256() {
     std::array<std::uint8_t, 3> const abc{'a', 'b', 'c'};

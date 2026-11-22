@@ -163,11 +163,12 @@ webcpp.compile-diagnostic heavy_refusal_forgotten : heavy_refusal_forgotten_test
 
 crypto-run error : error_test.cpp ;
 crypto-run equal : equal_test.cpp ;
-# signing.hpp's tags, prehashed, the input checks and the concepts, over
-# stand-in key types; the catch-all verify; sha256_of.
+# signing.hpp's tags and their one list, prehashed, the input checks and the
+# concepts, over stand-in key types; the catch-all verify; sha256_of.
 crypto-run signing : signing_test.cpp ;
 # The key pair contract, crypto::keypair: Ed25519's, P-256's and secp256k1's
-# key pairs meet it, stand-ins that lack a member do not.
+# key pairs meet it, stand-ins that lack a member do not, and over a list with
+# a test-only scheme, a stand-in that declares it and does not sign it fails.
 crypto-run keypair : keypair_test.cpp
   : <library>/third_party//bearssl <library>/third_party//sodium
     <library>/third_party//secp256k1 ;

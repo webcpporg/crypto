@@ -57,7 +57,11 @@ stops the build, with the message "call the synchronous function", whose text
 and fix are in <<crypto-jamfile-messages>>. Their synchronous functions are as cheap
 as these, and are called inside a handler.
 
-include::generated/backends-async.adoc[]
+include::generated/backends-async_gcm.adoc[]
+
+include::generated/backends-async_ed25519.adoc[]
+
+include::generated/backends-async_x25519.adoc[]
 
 [#crypto-async-kinds]
 === The two kinds

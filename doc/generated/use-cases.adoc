@@ -11,6 +11,22 @@
 |===
 |I need to |Use |Backend |Jamfile |Example
 
+|Seal or open a record inside an event loop without waiting
+|`+async_seal+`, `+async_open+`
+|the default of AES-GCM
+|`+/webcpp/crypto//crypto+` +
+`+/webcpp/crypto//gcm-default+` +
+`+/webcpp/asio//asio+`
+|<<crypto-async,[.keep]`+async_seal.cpp+`>>
+
+|Sign and verify with Ed25519 in a coroutine
+|`+async_sign+`, `+async_verify+`
+|the default of Ed25519
+|`+/webcpp/crypto//crypto+` +
+`+/webcpp/crypto//ed25519-default+` +
+`+/webcpp/asio//asio+`
+|<<crypto-async,[.keep]`+async_sign.cpp+`>>
+
 |Generate a session token, a password-reset link or an API key
 |`+random_device::fill+`
 |the system's generator

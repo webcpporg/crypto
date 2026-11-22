@@ -225,7 +225,7 @@ inline constexpr bool refused_v = false;
 /**
  * Makes an AES-GCM object or an Ed25519 key pair from its key bytes, asynchronously:
  * `Algorithm::make(key_bytes)` run when the operation is initiated, its result posted to
- * `executor` (design D23).
+ * `executor`.
  *
  * The key is read before the call returns on a synchronous backend,
  * later on the browser's: it is the caller's until the completion.

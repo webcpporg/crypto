@@ -16,20 +16,25 @@
 |native, wasip2, wasip3, emscripten
 |`+random_device+`
 
-|`+async_make+`, `+async_seal+`, `+async_open+`, `+async_generate+`, `+async_sign+`, `+async_verify+`, `+async_agree+`
+|`+async_make+`, `+async_seal+`, `+async_open+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
 |`+async_gcm+`
 
-|`+async_make+`, `+async_seal+`, `+async_open+`, `+async_generate+`, `+async_sign+`, `+async_verify+`, `+async_agree+`
+|`+async_make+`, `+async_seal+`, `+async_open+`
 |OpenSSL
 |native, wasip2, wasip3; not on emscripten: `+/webcpp/crypto//openssl+` stops the build there
 |`+async_gcm_openssl+`
 
-|`+async_make+`, `+async_seal+`, `+async_open+`, `+async_generate+`, `+async_sign+`, `+async_verify+`, `+async_agree+`
+|`+async_make+`, `+async_generate+`, `+async_sign+`, `+async_verify+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+async_25519+`, `+async_post+`
+
+|`+async_agree+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+async_25519+`
 
 |`+equal+`
 |no backend
@@ -254,11 +259,23 @@ The same, by target: the backends each operation runs on.
 |the system's generator
 |the system's generator
 
-|`+async_make+`, `+async_seal+`, `+async_open+`, `+async_generate+`, `+async_sign+`, `+async_verify+`, `+async_agree+`
-|BearSSL, OpenSSL, libsodium
-|BearSSL, OpenSSL, libsodium
-|BearSSL, OpenSSL, libsodium
-|BearSSL, libsodium
+|`+async_make+`, `+async_seal+`, `+async_open+`
+|BearSSL, OpenSSL
+|BearSSL, OpenSSL
+|BearSSL, OpenSSL
+|BearSSL
+
+|`+async_make+`, `+async_generate+`, `+async_sign+`, `+async_verify+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+async_agree+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
 
 |`+equal+`
 |no backend

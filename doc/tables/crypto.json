@@ -1203,7 +1203,7 @@
             "title": "webcpp::crypto",
             "columns": ["Name", "What it is for", "Header", "Errors", "Standards and sources", "Choose it when"],
             "rows": [
-                ["`random_device`", "Keys, nonces, tokens, nonces: every secret a program draws", "`<webcpp/crypto/random_device.hpp>`", "`entropy_unavailable`, `errc::not_supported`", "{getentropy}, {bcryptgenrandom}, {getrandomvalues}, {wasi-random}", "you need a random number an attacker must not predict; never `std::mt19937` or `rand` ({cwe338})"],
+                ["`random_device`", "Keys, nonces, tokens: every secret a program draws", "`<webcpp/crypto/random_device.hpp>`", "`entropy_unavailable`, `errc::not_supported`", "{getentropy}, {bcryptgenrandom}, {getrandomvalues}, {wasi-random}", "you need a random number an attacker must not predict; never `std::mt19937` or `rand` ({cwe338})"],
                 ["`constant_time_equal`", "Checking a tag, a MAC or a token", "`<webcpp/crypto/constant_time_equal.hpp>`", "none: it returns `bool`", "{cwe208}", "you compare anything secret; never `==` or `memcmp` on a MAC"],
                 ["`erase_secret`", "Erasing a password, a key or a plaintext from a buffer the program owns", "`<webcpp/crypto/erase_secret.hpp>`", "none", "{cwe14}", "a secret sits in a `std::string`, a `std::vector` or an array of the program's and must not outlive its use; never `memset`, which the optimiser may drop"],
                 ["`error`", "Telling failures apart", "`<webcpp/crypto/error.hpp>`", "its values are the errors", "none", "you branch on a failure: forged data, a wrong size, no entropy"],

@@ -224,8 +224,8 @@ does not verify.
 secp256k1 keeps a third argument where it has a reason of its own: hedged
 ECDSA, `sign(crypto::ecdsa_sha256, input, extra_entropy)`, mixes 32 fresh bytes
 of the caller's into the nonce, and `sign(crypto::schnorr, message,
-auxiliary_random_bytes)` takes BIP 340's auxiliary randomness from the caller, for test
-vectors; `sign(crypto::schnorr, message)` draws it from `random_device`, and
+auxiliary_random_bytes)` takes BIP 340's auxiliary randomness from the caller,
+for test vectors; `sign(crypto::schnorr, message)` draws it from `random_device`, and
 returns `entropy_unavailable` when it cannot. `recover` takes the scheme and
 the inputs of signing, `recover(crypto::ecdsa_sha256_recoverable, signature,
 input)` or `recover(crypto::ecdsa_keccak256_recoverable, signature, input)`
@@ -304,7 +304,8 @@ generic code, an asynchronous form in an event loop.
 | `K::from_secret(secret_bytes)`, `T::from_bytes(bytes)`, `C::from_key(key)`,
 `K::generate()`, `key_pair.sign(scheme, input)`,
 `key_pair.agree(peer)`, `public_key.verify(scheme, signature, input)`,
-`aead.seal(nonce, associated_data, data)`, `aead.open(nonce, associated_data, data, tag)`
+`aead.seal(nonce, associated_data, data)`,
+`aead.open(nonce, associated_data, data, tag)`
 | `K::async_from_secret(executor, secret_bytes, token)`, `C::async_from_key(executor, key,
 token)`, `K::async_generate(executor, token)`,
 `key_pair.async_sign(executor, scheme, input, token)`,

@@ -23,7 +23,7 @@
 |`from_secret`, `from_bytes`, `from_key`, `generate`
 
 |What it is for
-|Keys, nonces, tokens, nonces: every secret a program draws
+|Keys, nonces, tokens: every secret a program draws
 |Checking a tag, a MAC or a token
 |Erasing a password, a key or a plaintext from a buffer the program owns
 |Telling failures apart

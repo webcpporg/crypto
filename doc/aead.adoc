@@ -118,10 +118,10 @@ authentication key and forge tags for every later message
 link:https://eprint.iacr.org/2016/475[Boeck et al., 2016];
 link:https://cwe.mitre.org/data/definitions/323.html[CWE-323]). AES-GCM does
 not resist this misuse: the program must prevent it.
-* *The usage limit.* With random nonces, or nonces other than 12 bytes, at most 2^32^
-messages are sealed under one key (NIST SP 800-38D, section 8.3). A counter nonce
-(message 0, 1, 2 ...) is safe until the counter repeats, which it must never
-do, a restart included. Rotate the key before either limit.
+* *The usage limit.* With random nonces, or nonces other than 12 bytes, at
+most 2^32^ messages are sealed under one key (NIST SP 800-38D, section 8.3). A
+counter nonce (message 0, 1, 2 ...) is safe until the counter repeats, which it
+must never do, a restart included. Rotate the key before either limit.
 * *Nonces of 1 to 128 bytes; 12 recommended.* A nonce of another size than 12
 bytes is hashed into the first counter block, as every backend does; the cap
 of 128 bytes is OpenSSL's, applied on every backend so that a call succeeds or
@@ -204,8 +204,8 @@ machine. A server on ARM keeps the default and links `/webcpp/crypto//openssl`
 ==== Encrypting what does not fit in memory
 
 A 2 GB video before an upload, or a log as it is written, cannot be held whole.
-`begin_seal` takes the nonce and the associated data, `update` encrypts each piece
-in place as it arrives, and `result` returns the tag at the end. The object
+`begin_seal` takes the nonce and the associated data, `update` encrypts each
+piece in place as it arrives, and `result` returns the tag at the end. The object
 refuses another message while one is in progress, and any error abandons the
 message: its pieces have no tag and are not to be sent.
 
@@ -282,8 +282,8 @@ backends compute GCM's hash only while they decrypt. An open in two passes
 costs about two one-shot opens.
 
 *The second pass reads the bytes the first read.* GCM's keystream is the key's
-and the nonce's alone: a byte changed between the passes is decrypted without ever
-being authenticated, and whoever changes it chooses the change in the
+and the nonce's alone: a byte changed between the passes is decrypted without
+ever being authenticated, and whoever changes it chooses the change in the
 plaintext, bit for bit. Only the program can keep the bytes the same: it reads
 a file that no other process writes during the open, never a file another
 party can reach. The object checks only the length: `decrypt` refuses more

@@ -87,6 +87,7 @@ build-project verify_asynchronous_backend ;
 build-project verify_free_asynchronous_backend ;
 build-project sign_asynchronous_backend ;
 build-project agree_asynchronous_backend ;
+build-project x25519_asynchronous_backend ;
 build-project seal_asynchronous_backend ;
 build-project open_asynchronous_backend ;
 build-project verify_member_ed25519_ecdsa ;

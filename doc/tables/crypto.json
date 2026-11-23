@@ -1473,6 +1473,7 @@
         "verify_free_asynchronous_backend": "As `verify_asynchronous_backend`.",
         "sign_asynchronous_backend": "Call `async_sign` on a backend that completes by itself: its synchronous forms cannot wait for it.",
         "agree_asynchronous_backend": "Call `async_agree` on a backend that completes by itself: its synchronous forms cannot wait for it.",
+        "x25519_asynchronous_backend": "Call `async_from_secret`, `async_generate` or `async_agree` on a backend that completes by itself: an X25519 key pair's synchronous forms cannot wait for it.",
         "seal_asynchronous_backend": "Call `async_seal` on a backend that completes by itself: its synchronous forms cannot wait for it.",
         "open_asynchronous_backend": "Call `async_open` on a backend that completes by itself: its synchronous forms cannot wait for it.",
         "async_member_without_async_hpp": "Include `<webcpp/crypto/async.hpp>`, which defines the asynchronous members, and add `<library>/webcpp/asio//asio` to the program's Jamfile.",

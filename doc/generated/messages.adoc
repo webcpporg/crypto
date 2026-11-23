@@ -619,6 +619,12 @@ The fix: Give a P-256 key a `+curves::p256::ecdsa_signature+`, made from the 64 
 
 The fix: Verify a BIP340 signature with `+crypto::schnorr+`, its scheme; `+crypto::ecdsa_sha256+` takes a `+curves::secp256k1::ecdsa_signature+`, which `+sign(crypto::ecdsa_sha256, input)+` gives.
 
+|`+x25519_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: agree on this backend completes asynchronously: call async_agree.+`
+
+The fix: Call `+async_from_secret+`, `+async_generate+` or `+async_agree+` on a backend that completes by itself: an X25519 key pair's synchronous forms cannot wait for it.
+
 |`+x25519_default_not_linked+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: X25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//x25519-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//x25519-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`

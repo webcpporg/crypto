@@ -121,11 +121,11 @@ link:https://github.com/agl/ctgrind[ctgrind] does, and, in a clang build, under
 MemorySanitizer, which only clang has (a gcc build runs memcheck alone): any
 branch or memory index that depends on them fails the run. The lane covers
 `equal`, `is_all_zero` and the wipe of `secret<N>`; BearSSL's AES-GCM and
-ChaCha20-Poly1305 `from_key`, `seal` and `open`; OpenSSL's `from_key` and `seal` of
-both; ctaes's AES; libsodium's Ed25519 key pair and signature, X25519's public
-key and agreement, its three ChaCha20-Poly1305 AEADs and two secret boxes,
-`public_key_encryption::box` in both families, the sealed box's `seal` and `open`, and `kx`;
-libsecp256k1's own `ctime_tests.c`; and webcpp's code around libsecp256k1:
+ChaCha20-Poly1305 `from_key`, `seal` and `open`; OpenSSL's `from_key` and
+`seal` of both; ctaes's AES; libsodium's Ed25519 key pair and signature,
+X25519's public key and agreement, its three ChaCha20-Poly1305 AEADs and two
+secret boxes, `public_key_encryption::box` in both families, the sealed box's
+`seal` and `open`, and `kx`; libsecp256k1's own `ctime_tests.c`; and webcpp's code around libsecp256k1:
 the key pair's making, its BIP 340, recoverable and hedged ECDSA signatures and
 x-only tweak, ECDH in its three forms, the secret key's tweaks and negation,
 PKCS#8's encoding and decoding, ElligatorSwift's `ellswift_create` and
@@ -137,8 +137,9 @@ workspaces; and BearSSL's P-256: the key pair's making, `sign` of a digest
 `decode_pkcs8`. Both checkers run the same paths, written once (`paths.hpp`),
 memcheck OpenSSL's besides. Each check is shown to fail on a planted branch on
 a key byte, and on a copy of P-256's range check of a scalar that returns at
-the first byte that differs, and each path's output is checked to carry the mark, so that the
-path is traced, where the checker's shadow keeps it: MemorySanitizer's loses
+the first byte that differs, and each path's output is checked to carry the
+mark, so that the path is traced, where the checker's shadow keeps it:
+MemorySanitizer's loses
 the mark through a constant-time reduction to one bit, so the result of
 `is_all_zero`, X25519's public key, P-256's public key and `agree` (BearSSL
 selects a window's points with masks of that form) and the bytes a destructor

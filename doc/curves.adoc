@@ -63,9 +63,10 @@ pieces (link:https://www.rfc-editor.org/rfc/rfc8032[RFC 8032];
 <<crypto-ed25519>>). The third is X25519, RFC 7748's key agreement on
 Curve25519, the same curve in another form, with the conversion of an Ed25519
 key to it (link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748];
-<<crypto-x25519>>), and libsodium's key exchange on it, `crypto_kx`
-(<<crypto-kx>>). The fourth is P-256, NIST's curve of FIPS 186-5, the curve of
-browsers' WebCrypto, of passkeys and of TLS certificates, on BearSSL: key pairs
+<<crypto-x25519>>), on which libsodium's key exchange, `crypto_kx`, is built
+in `key_exchange` (<<crypto-key-exchange>>). The fourth is P-256, NIST's curve
+of FIPS 186-5, the curve of browsers' WebCrypto, of passkeys and of TLS
+certificates, on BearSSL: key pairs
 made from a scalar or drawn, public keys validated once, ECDSA over SHA-256
 with RFC 6979's nonce, signed low S, raw and DER, ECDH's raw x
 coordinate, as WebCrypto's `deriveBits` gives it, and its keys as SPKI and

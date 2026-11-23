@@ -83,19 +83,19 @@ static_assert(detail::p256_pkcs8_prefix.size() + secret_key_size + detail::p256_
  * A copy of the key's bytes, with no backend call.
  *
  * @tparam Backend The key's backend.
- * @param key The key.
+ * @param encoded_key The key.
  * @param output_bytes At least `max_spki_size` bytes; nothing is written on an error.
  * @return The number of bytes written, `max_spki_size`; `invalid_input_size` when
  * `output_bytes` is shorter than `max_spki_size`.
  */
 template <class Backend>
 [[nodiscard]] boost::system::result<std::size_t> encode_spki(
-    basic_public_key<Backend> const& key, std::span<std::uint8_t> output_bytes) noexcept {
+    basic_public_key<Backend> const& encoded_key, std::span<std::uint8_t> output_bytes) noexcept {
     if (output_bytes.size() < max_spki_size) {
         return error::invalid_input_size;
     }
-    auto const cursor = std::ranges::copy(detail::p256_spki_prefix, output_bytes.begin()).out;
-    std::ranges::copy(key.uncompressed(), cursor);
+    auto const write_cursor = std::ranges::copy(detail::p256_spki_prefix, output_bytes.begin()).out;
+    std::ranges::copy(encoded_key.uncompressed(), write_cursor);
     return max_spki_size;
 }
 
@@ -118,14 +118,14 @@ template <class Backend = default_backend_t<families::p256>>
         !equal(spki_bytes.first(prefix_size), detail::p256_spki_prefix)) {
         return error::invalid_encoding;
     }
-    auto decoded = basic_public_key<Backend>::make(spki_bytes.subspan(prefix_size));
-    if (!decoded) {
-        if (decoded.error() == error::invalid_public_key) {
+    auto decoded_key = basic_public_key<Backend>::make(spki_bytes.subspan(prefix_size));
+    if (!decoded_key) {
+        if (decoded_key.error() == error::invalid_public_key) {
             return error::invalid_encoding;
         }
-        return decoded.error();
+        return decoded_key.error();
     }
-    return decoded;
+    return decoded_key;
 }
 
 /**
@@ -152,14 +152,14 @@ template <class Backend>
     if (output_bytes.size() < max_pkcs8_size) {
         return error::invalid_input_size;
     }
-    auto const scalar = key_pair.secret_scalar();
-    if (!scalar) {
-        return scalar.error();
+    auto const scalar_bytes = key_pair.secret();
+    if (!scalar_bytes) {
+        return scalar_bytes.error();
     }
-    auto cursor = std::ranges::copy(detail::p256_pkcs8_prefix, output_bytes.begin()).out;
-    cursor = std::ranges::copy(scalar.unsafe_value().bytes(), cursor).out;
-    cursor = std::ranges::copy(detail::p256_pkcs8_infix, cursor).out;
-    std::ranges::copy(public_point.unsafe_value().uncompressed(), cursor);
+    auto write_cursor = std::ranges::copy(detail::p256_pkcs8_prefix, output_bytes.begin()).out;
+    write_cursor = std::ranges::copy(scalar_bytes.unsafe_value().bytes(), write_cursor).out;
+    write_cursor = std::ranges::copy(detail::p256_pkcs8_infix, write_cursor).out;
+    std::ranges::copy(public_point.unsafe_value().uncompressed(), write_cursor);
     return max_pkcs8_size;
 }
 
@@ -187,9 +187,10 @@ template <class Backend = default_backend_t<families::p256>>
         return error::invalid_encoding;
     }
     // The scalar's copy is a secret, wiped when it goes, on every path.
-    secret<secret_key_size> scalar;
-    std::ranges::copy(pkcs8_bytes.subspan(prefix_size, secret_key_size), scalar.writable().begin());
-    auto made_pair = basic_keypair<Backend>::make(scalar.bytes());
+    secret<secret_key_size> scalar_bytes;
+    std::ranges::copy(pkcs8_bytes.subspan(prefix_size, secret_key_size),
+                      scalar_bytes.writable().begin());
+    auto made_pair = basic_keypair<Backend>::make(scalar_bytes.bytes());
     if (!made_pair) {
         if (made_pair.error() == error::invalid_secret_key) {
             return error::invalid_encoding;

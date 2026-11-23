@@ -38,6 +38,36 @@ tag and decrypts `data_bytes` in place;
 * `begin_open`, `authenticate`, `verify`, `decrypt` and `end_open` open a
 message in pieces, in two passes (<<crypto-gcm-incremental-open>>).
 
+`make`, `seal` and `open` have four forms each, the member and its free form,
+synchronous and asynchronous, with the same work, errors and refusals
+(<<crypto-curves-four-forms>>); the pieces' functions are members alone. An
+asynchronous form needs `<webcpp/crypto/async.hpp>` and
+`<library>/webcpp/asio//asio` in the Jamfile (<<crypto-async>>):
+
+.AES-GCM's operations in their four forms
+[cols="1,3,3",options="header"]
+|===
+| Operation | Synchronous: the member; its free form | Asynchronous: the member; its free form
+
+| Make
+| `aes256_gcm::make(key_bytes)` +
+`crypto::make<aes256_gcm>(key_bytes)`
+| `aes256_gcm::async_make(executor, key_bytes, token)` +
+`crypto::async_make<aes256_gcm>(executor, key_bytes, token)`
+
+| Seal
+| `aead.seal(iv, additional_data, data)` +
+`crypto::seal(aead, iv, additional_data, data)`
+| `aead.async_seal(executor, iv, additional_data, data, token)` +
+`crypto::async_seal(executor, aead, iv, additional_data, data, token)`
+
+| Open
+| `aead.open(iv, additional_data, data, tag)` +
+`crypto::open(aead, iv, additional_data, data, tag)`
+| `aead.async_open(executor, iv, additional_data, data, tag, token)` +
+`crypto::async_open(executor, aead, iv, additional_data, data, tag, token)`
+|===
+
 include::generated/backends-gcm.adoc[]
 
 *Example.* A program stores users' API tokens in a database. Each token is

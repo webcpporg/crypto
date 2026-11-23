@@ -6,7 +6,7 @@
 
 // secp256k1's MuSig2 against BIP 327's vectors (bip-0327/vectors/*.json). key_sort: sorting the
 // six parsed keys with public_key's order gives sorted_pubkeys. key_agg: the 4 valid cases'
-// x-only keys; its error cases, three keys parse_public_key refuses and two tweaks the aggregate
+// x-only keys; its error cases, three keys public_key::make refuses and two tweaks the aggregate
 // key refuses, after which the key is unchanged. nonce_agg: the 2 valid sums (the second at
 // infinity, written as 33 zero bytes) and 3 nonces parse_public_nonce refuses. sign_verify: the
 // 4 valid cases whose message is 32 bytes verify their partial signature (the empty and the
@@ -15,19 +15,21 @@
 // cases that need no secret nonce of the vector's are refused at parsing (a sign_error case that
 // needs one is counted as skipped). tweak: the 5 valid cases verify after their tweaks, the
 // error case's tweak is refused. sig_agg: the 4 valid cases give the vector's signature, which
-// verify_schnorr accepts under the aggregate key, and a partial signature not below the group
-// order is refused. The vectors' secret nonces (sign_verify's and tweak's secnonces,
-// det_sign_vectors.json, nonce_gen_vectors.json) are not reachable through crypto's interface
-// by design: a secret_nonce exists only from nonce_gen, with fresh randomness; libsecp256k1's
-// own tests run them in the c-suites lane. Round trips: 2-of-2 and 3-of-3 over seeded key pairs
-// and messages, plain and with an x-only tweak, each partial signature verified, the aggregate
-// verified with verify_schnorr, and a partial signature changed in one bit refused. The nonce:
-// consumed by partial_sign, refused when used again or given to another key pair. The refusals
-// of a moved-from key pair, of sizes and of workspaces; every workspace is zero afterwards.
+// crypto::verify(crypto::schnorr, ...) accepts under the aggregate key, and a partial signature not
+// below the group order is refused. The vectors' secret nonces (sign_verify's and tweak's
+// secnonces, det_sign_vectors.json, nonce_gen_vectors.json) are not reachable through crypto's
+// interface by design: a secret_nonce exists only from nonce_gen, with fresh randomness;
+// libsecp256k1's own tests run them in the c-suites lane. Round trips: 2-of-2 and 3-of-3 over
+// seeded key pairs and messages, plain and with an x-only tweak, each partial signature verified,
+// the aggregate verified with crypto::verify(crypto::schnorr, ...), and a partial signature changed
+// in one bit refused. The nonce: consumed by partial_sign, refused when used again or given to
+// another key pair. The refusals of a moved-from key pair, of sizes and of workspaces; every
+// workspace is zero afterwards.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -132,7 +134,7 @@ bool all_zero(std::span<std::byte const> space) {
 }
 
 secp::public_key parsed_key(json::value const& v) {
-    auto const parsed = secp::parse_public_key(hex(v));
+    auto const parsed = secp::public_key::make(hex(v));
     if (!BOOST_TEST(parsed.has_value())) {
         std::exit(boost::report_errors());
     }
@@ -217,7 +219,7 @@ void key_sort() {
         return;
     }
     for (std::size_t i = 0; i < keys.size(); ++i) {
-        BOOST_TEST(std::ranges::equal(secp::serialize_public_key(keys[i]), hex(sorted.at(i))));
+        BOOST_TEST(std::ranges::equal(keys[i].compressed(), hex(sorted.at(i))));
     }
     std::cout << "key_sort: keys=" << keys.size() << '\n';
 }
@@ -242,7 +244,7 @@ void key_agg() {
             auto const bad =
                 index_at(indices, static_cast<std::size_t>(error.at("signer").as_int64()));
             refused +=
-                static_cast<int>(BOOST_TEST(secp::parse_public_key(hex(keys.at(bad))).error() ==
+                static_cast<int>(BOOST_TEST(secp::public_key::make(hex(keys.at(bad))).error() ==
                                             crypto::error::invalid_public_key));
             continue;
         }
@@ -388,7 +390,7 @@ int sign_verify_errors(json::value const& doc) {
         } else {
             auto const bad = index_at(c.at("key_indices").as_array(), signer);
             refused +=
-                static_cast<int>(BOOST_TEST(secp::parse_public_key(hex(keys.at(bad))).error() ==
+                static_cast<int>(BOOST_TEST(secp::public_key::make(hex(keys.at(bad))).error() ==
                                             crypto::error::invalid_public_key));
         }
     }
@@ -415,7 +417,7 @@ int sign_errors(json::value const& doc, int& skipped) {
             auto const bad = index_at(c.at("key_indices").as_array(),
                                       static_cast<std::size_t>(error.at("signer").as_int64()));
             refused +=
-                static_cast<int>(BOOST_TEST(secp::parse_public_key(hex(keys.at(bad))).error() ==
+                static_cast<int>(BOOST_TEST(secp::public_key::make(hex(keys.at(bad))).error() ==
                                             crypto::error::invalid_public_key));
         }
     }
@@ -508,8 +510,9 @@ void sig_agg() {
             continue;
         }
         BOOST_TEST(std::ranges::equal(*signature, hex(c.at("expected"))));
-        aggregated_count += static_cast<int>(BOOST_TEST(
-            secp::verify_schnorr(*signature, message, key.xonly_public_key()).has_value()));
+        aggregated_count += static_cast<int>(
+            BOOST_TEST(crypto::verify(crypto::schnorr, *signature, message, key.xonly_public_key())
+                           .has_value()));
     }
     int refused = 0;
     for (auto const& c : doc.at("error_test_cases").as_array()) {
@@ -546,12 +549,11 @@ secp::keypair keypair_of(std::span<std::uint8_t const, 32> secret_bytes) {
 }
 
 secp::public_key public_of(secp::keypair const& key) {
-    auto const encoded = key.public_key();
-    auto const parsed = secp::parse_public_key(*encoded);
-    if (!BOOST_TEST(parsed.has_value())) {
+    auto const public_key = key.public_key();
+    if (!BOOST_TEST(public_key.has_value())) {
         std::exit(boost::report_errors());
     }
-    return *parsed;
+    return *public_key;
 }
 
 // Round one: each signer's nonce, in sorted order, the public halves summed. False when a
@@ -605,12 +607,13 @@ void aggregate_verifies(std::span<musig::partial_signature const> parts,
         musig::partial_signature_aggregate(signing_session, parts, signature_space);
     BOOST_TEST(all_zero(signature_space));
     if (BOOST_TEST(signature.has_value())) {
-        BOOST_TEST(secp::verify_schnorr(*signature, message, key.xonly_public_key()).has_value());
+        BOOST_TEST(crypto::verify(crypto::schnorr, *signature, message, key.xonly_public_key())
+                       .has_value());
         auto other_message = message;
         other_message[0] ^= 0x01U;
         BOOST_TEST(
-            secp::verify_schnorr(*signature, other_message, key.xonly_public_key()).error() ==
-            crypto::error::invalid_signature);
+            crypto::verify(crypto::schnorr, *signature, other_message, key.xonly_public_key())
+                .error() == crypto::error::invalid_signature);
     }
 }
 
@@ -833,14 +836,14 @@ void aggregate_key_forms() {
         public_of(keypair_of(draw(generator))),
     };
     auto key = aggregated(keys);
-    auto const full = secp::serialize_public_key(key.full_public_key());
+    auto const full = key.full_public_key().compressed();
     BOOST_TEST(std::ranges::equal(std::span(full).subspan(1), key.xonly_public_key()));
     scalar tweak_bytes{};
     tweak_bytes[31] = 7;
     auto const before = key.full_public_key();
     BOOST_TEST(key.tweak_add(tweak_bytes).has_value());
     secp256k1_pubkey expected{};
-    auto const encoded = secp::serialize_public_key(before);
+    auto const encoded = before.compressed();
     BOOST_TEST(secp256k1_ec_pubkey_parse(secp256k1_context_static, &expected, encoded.data(),
                                          encoded.size()) == 1);
     BOOST_TEST(secp256k1_ec_pubkey_tweak_add(secp256k1_context_static, &expected,
@@ -851,7 +854,7 @@ void aggregate_key_forms() {
     unsigned const flags = SECP256K1_EC_COMPRESSED;
     secp256k1_ec_pubkey_serialize(secp256k1_context_static, expected_bytes.data(), &written,
                                   &expected, flags);
-    BOOST_TEST(secp::serialize_public_key(key.full_public_key()) == expected_bytes);
+    BOOST_TEST(key.full_public_key().compressed() == expected_bytes);
 }
 
 }  // namespace

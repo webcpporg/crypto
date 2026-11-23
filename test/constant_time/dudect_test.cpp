@@ -23,6 +23,7 @@
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/equal.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <algorithm>
 #include <array>
@@ -113,9 +114,9 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
 }
 
 /**
- * Times P-256's ECDSA signing of a fixed digest (case p256_sign) and its ECDH's x with a fixed
- * peer (case p256_ecdh_x), the two classes differing only in the key pair's scalar: a fixed one,
- * against random ones, each key pair made before its measurement, unmeasured.
+ * Times P-256's ECDSA signing of a fixed digest (case p256_sign) and its ECDH's x, `agree`, with a
+ * fixed peer (case p256_ecdh_x), the two classes differing only in the key pair's scalar: a fixed
+ * one, against random ones, each key pair made before its measurement, unmeasured.
  * @param results Where each case measured is recorded.
  * @param selection The cases to measure.
  * @return false when the peer's key pair was refused, which fails the program.
@@ -155,15 +156,17 @@ bool measure_p256(test::case_results& results, test::case_selection const& selec
         pair.emplace(std::move(*made));
     };
     if (sign) {
-        auto const sign_t =
-            test::twice(p256_count, prepare, [&] { static_cast<void>(pair->sign_ecdsa(digest)); });
+        auto const sign_t = test::twice(p256_count, prepare, [&] {
+            static_cast<void>(
+                pair->sign(webcpp::crypto::ecdsa_sha256, webcpp::crypto::prehashed{digest}));
+        });
         results.record("p256_sign", "p256 sign", sign_t, true,
                        {{"digest", digest.data()}, {"scalar", scalar.data()}, {"object", &*pair}});
     }
     if (ecdh_x) {
         auto const ecdh_t =
-            test::twice(p256_count, prepare, [&] { static_cast<void>(pair->ecdh_x(*peer_key)); });
-        results.record("p256_ecdh_x", "p256 ecdh_x", ecdh_t, true,
+            test::twice(p256_count, prepare, [&] { static_cast<void>(pair->agree(*peer_key)); });
+        results.record("p256_ecdh_x", "p256 agree", ecdh_t, true,
                        {{"peer", &*peer_key}, {"scalar", scalar.data()}, {"object", &*pair}});
     }
     return true;

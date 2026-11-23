@@ -107,10 +107,10 @@ include::{examples}/key_formats.expected[]
 * A PKCS#8, as DER or as PEM, is the secret key: kept in a `secret<N>`, as the
 example does, it is wiped when it goes; written to a file or a database, it is
 sealed first, as any secret at rest (<<crypto-wallets>>).
-* `decode_spki` checks the form, not the key: Ed25519's `verify` refuses a
-public key that is not a point of the curve, and X25519's `agree` one of low
-order (`weak_public_key`). A key read from outside is used through those, which
-check it.
+* `decode_spki` checks the form, not the key: `crypto::verify` with
+`crypto::eddsa` refuses a public key that is not a point of the curve, and
+X25519's `agree` one of low order (`weak_public_key`). A key read from outside
+is used through those, which check it.
 * SPKI names the algorithm, the raw 32 bytes do not: an Ed25519 key and an
 X25519 key of the same bytes are different keys, and the identifier keeps a
 program from using one as the other.

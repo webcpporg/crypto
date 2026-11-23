@@ -9,9 +9,10 @@
 // module's `secp256k1_ellswift_create` and `secp256k1_ellswift_decode`, called and linked
 // against `/third_party//secp256k1`. What the C calls give is compared with the wrappers: the
 // key the C API recovers with `recover`'s, and the key ElligatorSwift decodes with
-// `parse_public_key`'s; both with the key pair's.
+// `public_key::make`'s; both with the key pair's.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -27,6 +28,7 @@
 
 namespace {
 
+namespace crypto = webcpp::crypto;
 namespace secp = webcpp::crypto::curves::secp256k1;
 
 using secret_key = std::array<std::uint8_t, 32>;
@@ -75,11 +77,12 @@ void recovery(secp256k1_context const* context, secret_key const& secret,
     std::array<std::uint8_t, secp::recoverable_signature_size> with_id{};
     std::ranges::copy(compact, with_id.begin());
     with_id[64] = static_cast<std::uint8_t>(id);
-    auto const wrapped = secp::recover(with_id, hash);
-    auto const expected_key = secp::parse_public_key(expected);
+    auto const wrapped =
+        secp::recover(crypto::ecdsa_sha256_recoverable, with_id, crypto::prehashed{hash});
+    auto const expected_key = secp::public_key::make(expected);
     if (BOOST_TEST(wrapped && expected_key)) {
         BOOST_TEST(*wrapped == *expected_key);
-        BOOST_TEST(secp::serialize_public_key(*wrapped) == serialised(context, again));
+        BOOST_TEST(wrapped->compressed() == serialised(context, again));
     }
 
     hash.fill(0xa5);
@@ -102,8 +105,8 @@ void ellswift(secp256k1_context const* context, secret_key const& secret,
     BOOST_TEST(serialised(context, decoded) == expected);
 
     // The decoded point, serialised by the C API, parses with the wrapper to the key pair's key.
-    auto const wrapped = secp::parse_public_key(serialised(context, decoded));
-    auto const expected_key = secp::parse_public_key(expected);
+    auto const wrapped = secp::public_key::make(serialised(context, decoded));
+    auto const expected_key = secp::public_key::make(expected);
     if (BOOST_TEST(wrapped && expected_key)) {
         BOOST_TEST(*wrapped == *expected_key);
     }
@@ -118,18 +121,19 @@ int main() {
     if (!BOOST_TEST(key.has_value())) {
         return webcpp::test::exit_status(boost::report_errors());
     }
-    auto const expected = key->public_key();
-    if (!BOOST_TEST(expected.has_value())) {
+    auto const public_key = key->public_key();
+    if (!BOOST_TEST(public_key.has_value())) {
         return webcpp::test::exit_status(boost::report_errors());
     }
+    compressed_key const expected = public_key->compressed();
 
     // NOLINTNEXTLINE(bugprone-signed-bitwise): libsecp256k1's macro shifts a signed constant
     secp256k1_context* const context = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
     if (!BOOST_TEST(context != nullptr)) {
         return webcpp::test::exit_status(boost::report_errors());
     }
-    recovery(context, secret, *expected);
-    ellswift(context, secret, *expected);
+    recovery(context, secret, expected);
+    ellswift(context, secret, expected);
     secp256k1_context_destroy(context);
     return webcpp::test::exit_status(boost::report_errors());
 }

@@ -43,7 +43,7 @@ its own, and the handler would run off the program's loop.
 | `void(error_code, Gcm)` for `async_make`, `void(error_code, tag)` for `async_seal`, `void(error_code)` for `async_open`
 
 | Ed25519 (<<crypto-ed25519>>)
-| `async_make<Keypair>(executor, seed, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, message, token)`, `async_verify(executor, public_key, message, signature, token)`
+| `async_make<Keypair>(executor, seed, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, crypto::eddsa, message, token)`, `async_verify(executor, crypto::eddsa, signature, message, public_key, token)`, the policy optional before the token
 | `void(error_code, Keypair)` for `async_make` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`
 
 | X25519 (<<crypto-x25519>>)
@@ -51,16 +51,39 @@ its own, and the handler would run off the program's loop.
 | `void(error_code, secret<32>)`
 
 | P-256 (<<crypto-p256>>)
-| `async_make<Keypair>(executor, secret_scalar, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, message, token)`, `async_verify(executor, public_key, message, signature, token)`, `async_agree(executor, key_pair, peer_public_key, token)`
+| `async_make<Keypair>(executor, scalar, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, crypto::ecdsa_sha256, input, token)`, `async_verify(executor, crypto::ecdsa_sha256, signature, input, public_key, token)`, `async_agree(executor, key_pair, peer_public_key, token)`
 | `void(error_code, Keypair)` for `async_make` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`, `void(error_code, secret<32>)` for `async_agree`
 |===
 
-P-256's `async_sign` and `async_verify` take the message, not its digest: each
-hashes it with SHA-256 first and calls `sign_ecdsa` or `verify_ecdsa` on the 32
-bytes, as WebCrypto's `+sign({name: "ECDSA", hash: "SHA-256"}, ...)+` hashes and
-signs in one call (link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations[W3C,
-ECDSA's operations]). The signature is r then s, 64 bytes, WebCrypto's form; one
-of another size completes `async_verify` with `invalid_signature`. Their keys are
+Each function but X25519's `async_agree`, X25519 having no key pair class, has
+its member form, which the free function calls, with the same arguments but
+the object: `Keypair::async_make(executor, bytes, token)`,
+`Keypair::async_generate(executor, token)`,
+`key_pair.async_sign(executor, scheme, input, token)`,
+`public_key.async_verify(executor, scheme, signature, input, token)`,
+`key_pair.async_agree(executor, peer, token)` on P-256, and AES-GCM's
+`Gcm::async_make`, `aead.async_seal` and `aead.async_open`. Both forms share
+one initiation, which runs the synchronous member, so the four forms of an
+operation give the same bytes, errors and refusals
+(<<crypto-curves-four-forms>>). The members are declared in their classes and
+defined in `<webcpp/crypto/async.hpp>`: a program that calls one includes it
+and names `/webcpp/asio//asio`, as for the free functions; without the header
+the call does not compile, the compiler saying that the member's deduced
+return type is used before it is defined (<<crypto-jamfile-messages>>).
+
+`async_sign` and `async_verify` take the scheme and the input of the
+synchronous `sign` and `crypto::verify`, and check them as `crypto::can_sign`
+and `crypto::can_verify` do before anything else, so that a pair the
+synchronous call refuses stops the build here too
+(<<crypto-curves-signatures>>). P-256's input is the message, which they hash
+with SHA-256, as WebCrypto's `+sign({name: "ECDSA", hash: "SHA-256"}, ...)+`
+hashes and signs in one call
+(link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations[W3C, ECDSA's
+operations]), or `+crypto::prehashed{digest}+`, signed as given. WebCrypto has no
+prehash mode, so a backend that completes by itself, as the browser's will
+(<<crypto-async-webcrypto>>), refuses the marker at compile time. The signature
+is r then s, 64 bytes, WebCrypto's form, low S as `sign` gives it; one of
+another size completes `async_verify` with `invalid_signature`. Their keys are
 P-256's own types, the key pair and the validated `public_key`, and
 `async_agree` gives the shared point's raw x, as WebCrypto's `deriveBits` does
 (<<crypto-p256-ecdh>>).

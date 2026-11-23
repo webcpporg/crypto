@@ -4,12 +4,14 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// secp256k1's ECDSA encodings: compact to strict DER and back for signatures of sign_ecdsa,
-// the strict decoder against Wycheproof's Bitcoin ECDSA vectors (DER, counted per flag), every
-// refusal of to_der, and low-S normalization of a high-S signature.
+// secp256k1's ECDSA encodings: compact to strict DER and back for signatures of
+// sign(crypto::ecdsa_sha256, message), the strict decoder against Wycheproof's Bitcoin ECDSA
+// vectors (DER, counted per flag), every refusal of to_der, low-S normalization of a high-S
+// signature, and is_low_s's answer on each form and on numbers out of range.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -81,7 +83,7 @@ void round_trips() {
     for (unsigned i = 0; i < 256; ++i) {
         auto const key = key_of(static_cast<std::uint8_t>(i));
         std::array<std::uint8_t, 2> const message{0x6d, static_cast<std::uint8_t>(i)};
-        auto const signature = key.sign_ecdsa(sha256(message));
+        auto const signature = key.sign(crypto::ecdsa_sha256, message);
         BOOST_TEST(signature.has_value());
         std::array<std::uint8_t, secp::max_der_size> der{};
         auto const written = secp::to_der(*signature, der);
@@ -111,7 +113,7 @@ void to_der_refusals() {
     auto const key = key_of(1);
     std::array<std::uint8_t, 32> hash{};
     hash.fill(0x31);
-    auto const signature = *key.sign_ecdsa(hash);
+    auto const signature = *key.sign(crypto::ecdsa_sha256, crypto::prehashed{hash});
 
     // Too short for the longest encoding, even when this one would fit: nothing is written.
     std::array<std::uint8_t, secp::max_der_size - 1> short_out{};
@@ -138,22 +140,69 @@ void normalization() {
     auto const key = key_of(2);
     std::array<std::uint8_t, 32> hash{};
     hash.fill(0x77);
-    auto const signature = *key.sign_ecdsa(hash);
+    crypto::prehashed const digest{hash};
+    auto const signature = *key.sign(crypto::ecdsa_sha256, digest);
     auto const public_key = *key.public_key();
     auto const high = test::negate_s(signature);
     BOOST_TEST(high != signature);
-    BOOST_TEST(secp::verify_ecdsa(high, hash, public_key).error() ==
+    BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, high, digest, public_key).error() ==
                crypto::error::invalid_signature);
-    auto const normalized = secp::normalize_ecdsa(high);
+    auto const normalized = secp::normalize_low_s(high);
     BOOST_TEST(normalized.has_value() && *normalized == signature);
-    BOOST_TEST(normalized.has_value() && secp::verify_ecdsa(*normalized, hash, public_key));
+    BOOST_TEST(normalized.has_value() &&
+               crypto::verify(crypto::ecdsa_sha256, *normalized, digest, public_key));
     // Already low-S: unchanged.
-    auto const again = secp::normalize_ecdsa(signature);
+    auto const again = secp::normalize_low_s(signature);
     BOOST_TEST(again.has_value() && *again == signature);
     // Not a signature.
     std::array<std::uint8_t, 64> overflowing{};
     overflowing.fill(0xff);
-    BOOST_TEST(secp::normalize_ecdsa(overflowing).error() == crypto::error::invalid_signature);
+    BOOST_TEST(secp::normalize_low_s(overflowing).error() == crypto::error::invalid_signature);
+}
+
+// A compact signature of r and s, each a 32-byte big-endian number given in hex.
+std::array<std::uint8_t, 64> compact_of(std::string_view r_hex, std::string_view s_hex) {
+    std::array<std::uint8_t, 64> compact{};
+    auto const r = test::from_hex(r_hex);
+    auto const s = test::from_hex(s_hex);
+    std::ranges::copy(r, compact.begin());
+    std::ranges::copy(s, compact.begin() + 32);
+    return compact;
+}
+
+// is_low_s: true exactly when 0 < r < n and 0 < s <= (n - 1) / 2; the boundary on each side of
+// (n - 1) / 2, and r or s of 0, n or above, are answered without a signature to verify.
+void low_s_answers() {
+    auto const key = key_of(3);
+    std::array<std::uint8_t, 32> hash{};
+    hash.fill(0x51);
+    auto const signature = *key.sign(crypto::ecdsa_sha256, crypto::prehashed{hash});
+    BOOST_TEST(secp::is_low_s(signature));
+    BOOST_TEST(!secp::is_low_s(test::negate_s(signature)));
+    constexpr std::string_view one =
+        "0000000000000000000000000000000000000000000000000000000000000001";
+    constexpr std::string_view zero =
+        "0000000000000000000000000000000000000000000000000000000000000000";
+    constexpr std::string_view half =  // (n - 1) / 2
+        "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0";
+    constexpr std::string_view above_half =  // (n - 1) / 2 + 1
+        "7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a1";
+    constexpr std::string_view order =
+        "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141";
+    constexpr std::string_view below_order =
+        "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364140";
+    BOOST_TEST(secp::is_low_s(compact_of(one, one)));
+    BOOST_TEST(secp::is_low_s(compact_of(one, half)));
+    BOOST_TEST(!secp::is_low_s(compact_of(one, above_half)));
+    BOOST_TEST(!secp::is_low_s(compact_of(one, below_order)));
+    BOOST_TEST(secp::is_low_s(compact_of(below_order, one)));
+    BOOST_TEST(!secp::is_low_s(compact_of(zero, one)));
+    BOOST_TEST(!secp::is_low_s(compact_of(one, zero)));
+    BOOST_TEST(!secp::is_low_s(compact_of(order, one)));
+    BOOST_TEST(!secp::is_low_s(compact_of(one, order)));
+    std::array<std::uint8_t, 64> all_ones{};
+    all_ones.fill(0xff);
+    BOOST_TEST(!secp::is_low_s(all_ones));
 }
 
 // How many of a flag's cases the strict decoder accepts.
@@ -246,6 +295,7 @@ int main() {
     round_trips();
     to_der_refusals();
     normalization();
+    low_s_answers();
     wycheproof();
     return webcpp::test::exit_status(boost::report_errors());
 }

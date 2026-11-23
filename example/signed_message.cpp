@@ -11,6 +11,7 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <boost/hash2/sha2.hpp>
 #include <boost/system/result.hpp>
@@ -75,19 +76,16 @@ int main() {
     if (!author) {
         return 1;
     }
-    auto const public_key = author->xonly_public_key();
+    auto const public_key = author->public_key();
     if (!public_key) {
         return 1;
     }
 
     // tag::sign[]
     auto const id = id_of("meet at noon");
-    // Fresh aux bytes make the signature unpredictable and guard against fault attacks.
-    std::array<std::uint8_t, 32> aux{};
-    if (!crypto::random_device().fill(aux)) {
-        return 1;
-    }
-    auto const signature = author->sign_schnorr(id, aux);
+    // sign draws 32 fresh auxiliary bytes, which make the signature unpredictable and guard
+    // against fault attacks (BIP340).
+    auto const signature = author->sign(crypto::schnorr, id);
     if (!signature) {
         return 1;
     }
@@ -95,11 +93,12 @@ int main() {
 
     // tag::verify[]
     // The reader needs only the message, the signature and the public key.
-    if (!secp256k1::verify_schnorr(*signature, id_of("meet at noon"), *public_key)) {
+    if (!crypto::verify(crypto::schnorr, *signature, id_of("meet at noon"), *public_key)) {
         return 1;
     }
     std::printf("verified\n");
-    auto const altered = secp256k1::verify_schnorr(*signature, id_of("meet at nine"), *public_key);
+    auto const altered =
+        crypto::verify(crypto::schnorr, *signature, id_of("meet at nine"), *public_key);
     if (altered || altered.error() != crypto::error::invalid_signature) {
         return 1;
     }

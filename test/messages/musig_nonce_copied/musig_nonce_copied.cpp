@@ -22,7 +22,7 @@ int main() {
     std::array<std::uint8_t, 32> secret_bytes{};
     secret_bytes.fill(0x11);
     auto const signer = secp::keypair::make(secret_bytes);
-    auto const signer_key = secp::parse_public_key(*signer->public_key());
+    auto const signer_key = signer->public_key();
     std::array<secp::public_key, 1> const keys{*signer_key};
     std::vector<std::byte> space(musig::workspace_size(keys.size()));
     auto const key = musig::key_aggregate(keys, space);

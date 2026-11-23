@@ -16,6 +16,7 @@
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <boost/hash2/sha2.hpp>
 
@@ -100,14 +101,10 @@ int main() {
     }
     // The tweak and the tweaked secret give back the secret: the tweak is wiped too.
     wiped_bytes tweak;
-    payment_tweak(chain_code.bytes, *wallet_public, 7, tweak);
+    payment_tweak(chain_code.bytes, wallet_public->compressed(), 7, tweak);
 
     // The server: the wallet's public key plus the tweak, with no secret anywhere.
-    auto const parsed = secp256k1::parse_public_key(*wallet_public);
-    if (!parsed) {
-        return 1;
-    }
-    auto const watched = secp256k1::pubkey_tweak_add(*parsed, tweak.bytes);
+    auto const watched = secp256k1::pubkey_tweak_add(*wallet_public, tweak.bytes);
 
     // The device: the secret key plus the same tweak, a secret<32> it makes a key pair of.
     auto const tweaked_secret = secp256k1::seckey_tweak_add(secret.bytes, tweak.bytes);
@@ -119,23 +116,21 @@ int main() {
         return 1;
     }
     auto const payment_public = payment_key->public_key();
-    if (!payment_public || secp256k1::serialize_public_key(*watched) != *payment_public) {
+    if (!payment_public || *watched != *payment_public) {
         return 1;
     }
     std::printf("tweaked keys match\n");
 
     // The device signs a spend with the payment's key pair; the server verifies under the
-    // x-only form of the key it derived alone (the compressed key without its prefix byte).
+    // x-only form of the key it derived alone.
     std::array<std::uint8_t, 32> const message{};
     std::array<std::uint8_t, 32> aux{};
     if (!device.fill(aux)) {
         return 1;
     }
-    auto const signature = payment_key->sign_schnorr(message, aux);
-    auto const watched_bytes = secp256k1::serialize_public_key(*watched);
-    std::array<std::uint8_t, 32> xonly{};
-    std::copy_n(watched_bytes.begin() + 1, xonly.size(), xonly.begin());
-    if (!signature || !secp256k1::verify_schnorr(*signature, message, xonly)) {
+    auto const signature = payment_key->sign(crypto::schnorr, message, aux);
+    auto const xonly = watched->xonly();
+    if (!signature || !crypto::verify(crypto::schnorr, *signature, message, xonly)) {
         return 1;
     }
     std::printf("signature verifies under the tweaked public key\n");

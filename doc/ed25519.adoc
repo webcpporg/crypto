@@ -23,22 +23,73 @@ WebCrypto has it too (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]). Bitcoin,
 Ethereum and Nostr sign on secp256k1 instead (<<crypto-secp256k1>>).
 
 A `keypair` is made from a seed with `make(seed)`, or drawn from
-`random_device` with `generate()`; it gives its public key (`public_key`),
-signs (`sign`), and gives its X25519 secret key (`x25519_secret`, a
-`secret<32>`), so that one seed serves for signatures and for key agreement.
-The key pair wipes its secret key when it is moved from and destroyed.
-`verify(public_key, message, signature)` checks a signature with the public key
-alone.
+`random_device` with `generate()`; it gives its public key (`public_key()`),
+its seed back (`secret()`, a `secret<32>`), signs
+(`sign(crypto::eddsa, message)`), and gives its X25519 secret key
+(`x25519_secret`, a `secret<32>`), so that one seed serves for signatures and
+for key agreement. The key pair wipes its secret key when it is moved from and
+destroyed. `crypto::verify(crypto::eddsa, signature, message, public_key)`
+checks a signature with the public key alone. The scheme `crypto::eddsa` signs
+the message itself, of any length: a `crypto::prehashed` digest does not
+compile, and the key pair is a `crypto::keypair`, as every curve's is
+(<<crypto-curves-signatures>>).
+
+A `public_key` is the 32 bytes of RFC 8032's encoded point: `public_key::make`
+makes one from them, checking their size alone, and `bytes()` gives them back.
+Whether the point is canonical and not of small order is the verification
+policy's to judge, so a key that `crypto::verify` refuses can still be made.
+
+Each operation has its four forms, the member and its free form, synchronous
+and asynchronous, with the same work, errors and refusals
+(<<crypto-curves-four-forms>>); `public_key::make(bytes)` and
+`crypto::make<public_key>(bytes)` make the public key, synchronously only.
+Verification takes the policy as an optional last argument, before the token
+in the asynchronous forms. An asynchronous form needs
+`<webcpp/crypto/async.hpp>` and `<library>/webcpp/asio//asio` in the Jamfile:
+
+.Ed25519's operations in their four forms
+[cols="1,3,3",options="header"]
+|===
+| Operation | Synchronous: the member; its free form | Asynchronous: the member; its free form
+
+| Make
+| `keypair::make(seed)` +
+`crypto::make<keypair>(seed)`
+| `keypair::async_make(executor, seed, token)` +
+`crypto::async_make<keypair>(executor, seed, token)`
+
+| Generate
+| `keypair::generate()` +
+`crypto::generate<keypair>()`
+| `keypair::async_generate(executor, token)` +
+`crypto::async_generate<keypair>(executor, token)`
+
+| Sign
+| `key_pair.sign(crypto::eddsa, message)` +
+`crypto::sign(key_pair, crypto::eddsa, message)`
+| `key_pair.async_sign(executor, crypto::eddsa, message, token)` +
+`crypto::async_sign(executor, key_pair, crypto::eddsa, message, token)`
+
+| Verify
+| `public_key.verify(crypto::eddsa, signature, message)` +
+`crypto::verify(crypto::eddsa, signature, message, public_key)`
+| `public_key.async_verify(executor, crypto::eddsa, signature, message, token)` +
+`crypto::async_verify(executor, crypto::eddsa, signature, message, public_key, token)`
+|===
 
 *Ed25519ph* signs the SHA-512 of a message instead of the message: a program
 that signs a large file reads it in pieces, gives each to `update`, and signs
 once at the end. Its type names the hash, `ph<webcpp::hash::sha2_512>`, which
 the header brings with it, since RFC 8032 fixes it; another hash does not
-compile. An Ed25519ph signature is not an Ed25519 signature of the
+compile. It signs with a key pair, `sign(key_pair)`, and verifies with
+`verify(signature, public_key)`, the signature first, as in every `verify`.
+An Ed25519ph signature is not an Ed25519 signature of the
 same message, and neither verifies as the other: a protocol says which of the
 two it uses.
 
 include::generated/backends-ed25519_keypair.adoc[]
+
+include::generated/backends-ed25519_public_key.adoc[]
 
 include::generated/backends-ed25519_verify.adoc[]
 
@@ -59,9 +110,10 @@ include::{examples}/ed25519_sign.expected[]
 
 *Strict verification.* Implementations of Ed25519 disagree on some signatures
 that no honest signer produces: a scalar `S` not reduced below the group order,
-a point encoded in a non-canonical form, a public key of small order. `verify`
-takes a verification policy, `strict` by default and the only one in this
-version: libsodium's rules, which refuse all three
+a point encoded in a non-canonical form, a public key of small order.
+`crypto::verify` takes a verification policy as its last argument,
+`curves::ed25519::strict` by default and the only one in this version:
+libsodium's rules, which refuse all three
 (link:https://doc.libsodium.org/public-key_cryptography/public-key_signatures[libsodium's documentation]).
 Every valid signature of Wycheproof's EdDSA file is accepted and every invalid
 one refused (`ed25519_wycheproof_sodium`).

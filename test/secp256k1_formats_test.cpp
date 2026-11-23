@@ -17,6 +17,7 @@
 #include <webcpp/crypto/curves/secp256k1/formats.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/pem.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -170,22 +171,21 @@ std::pair<secp::keypair, bytes> draw(std::mt19937_64& generator) {
 }
 
 secp::public_key public_of(secp::keypair const& key) {
-    auto const encoded_key = key.public_key();
-    auto const parsed = secp::parse_public_key(*encoded_key);
-    if (!BOOST_TEST(parsed.has_value())) {
+    auto const public_key = key.public_key();
+    if (!BOOST_TEST(public_key.has_value())) {
         std::exit(boost::report_errors());
     }
-    return *parsed;
+    return *public_key;
 }
 
 bytes uncompressed_of(secp::keypair const& key) {
-    auto const point = key.public_key_uncompressed();
-    return {point->begin(), point->end()};
+    auto const point = public_of(key).uncompressed();
+    return {point.begin(), point.end()};
 }
 
 bytes compressed_of(secp::keypair const& key) {
-    auto const point = key.public_key();
-    return {point->begin(), point->end()};
+    auto const point = public_of(key).compressed();
+    return {point.begin(), point.end()};
 }
 
 bytes spki(secp::public_key const& key, secp::point_form form) {
@@ -275,7 +275,8 @@ void pkcs8_round_trip(secp::keypair const& key, bytes const& secret) {
     BOOST_TEST(public_of(*decoded) == public_of(key));
     BOOST_TEST(pkcs8(*decoded) == private_encoding);
     std::array<std::uint8_t, 32> const hash{1, 2, 3};
-    BOOST_TEST(decoded->sign_ecdsa(hash).value() == key.sign_ecdsa(hash).value());
+    BOOST_TEST(decoded->sign(crypto::ecdsa_sha256, crypto::prehashed{hash}).value() ==
+               key.sign(crypto::ecdsa_sha256, crypto::prehashed{hash}).value());
 }
 
 // One key pair's SPKI in both forms and its PKCS#8, armoured as PEM under their labels: the text

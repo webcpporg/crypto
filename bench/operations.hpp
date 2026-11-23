@@ -24,6 +24,7 @@
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #ifdef WEBCPP_CRYPTO_HAS_SECP256K1
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
@@ -185,13 +186,12 @@ public:
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
                     "make")) {}
 
-    std::uint8_t run() { return take(key_.sign_schnorr(message_, aux_), "sign")[0]; }
+    std::uint8_t run() { return take(key_.sign(schnorr, message_, aux_), "sign")[0]; }
 
     bool check() {
-        auto const signature = take(key_.sign_schnorr(message_, aux_), "sign");
-        auto const public_key = take(key_.xonly_public_key(), "xonly_public_key");
-        return curves::secp256k1::verify_schnorr<Backend>(signature, message_, public_key)
-            .has_value();
+        auto const signature = take(key_.sign(schnorr, message_, aux_), "sign");
+        auto const public_key = take(key_.public_key(), "public_key");
+        return crypto::verify(schnorr, signature, message_, public_key).has_value();
     }
 
 private:
@@ -200,7 +200,8 @@ private:
     curves::secp256k1::basic_keypair<Backend> key_;
 };
 
-// The x coordinate of the ECDH shared point of a key pair and a peer's public key, unhashed.
+// The x coordinate of the ECDH shared point of a key pair and a peer's public key, unhashed,
+// agree.
 template <class Backend>
 class secp256k1_ecdh_x {
 public:
@@ -217,21 +218,21 @@ public:
           peer_public_(take(peer_.public_key(), "public_key")) {}
 
     std::uint8_t run() {
-        auto const shared = take(key_.ecdh_x(peer_public_), "ecdh_x");
+        auto const shared = take(key_.agree(peer_public_), "agree");
         return shared.bytes()[0];
     }
 
     bool check() {
         auto const own_public = take(key_.public_key(), "public_key");
-        auto const shared = take(key_.ecdh_x(peer_public_), "ecdh_x");
-        auto const peer_shared = take(peer_.ecdh_x(own_public), "ecdh_x");
+        auto const shared = take(key_.agree(peer_public_), "agree");
+        auto const peer_shared = take(peer_.agree(own_public), "agree");
         return std::ranges::equal(shared.bytes(), peer_shared.bytes());
     }
 
 private:
     curves::secp256k1::basic_keypair<Backend> key_;
     curves::secp256k1::basic_keypair<Backend> peer_;
-    std::array<std::uint8_t, 33> peer_public_{};
+    curves::secp256k1::public_key peer_public_;
 };
 
 // The public key recovered from a recoverable ECDSA signature of a 32-byte hash; the signature
@@ -247,21 +248,20 @@ public:
           key_(take(curves::secp256k1::basic_keypair<Backend>::make(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
                     "make")),
-          signature_(take(key_.sign_recoverable(hash_), "sign_recoverable")) {}
+          signature_(take(key_.sign(ecdsa_sha256_recoverable, prehashed{hash_}), "sign")) {}
 
     std::uint8_t run() {
-        auto const recovered =
-            take(curves::secp256k1::recover<Backend>(signature_, hash_), "recover");
-        return curves::secp256k1::serialize_public_key<curves::secp256k1::point_form::compressed,
-                                                       Backend>(recovered)[1];
+        auto const recovered = take(curves::secp256k1::recover<Backend>(
+                                        ecdsa_sha256_recoverable, signature_, prehashed{hash_}),
+                                    "recover");
+        return recovered.compressed()[1];
     }
 
     bool check() {
-        auto const recovered =
-            take(curves::secp256k1::recover<Backend>(signature_, hash_), "recover");
-        return curves::secp256k1::serialize_public_key<curves::secp256k1::point_form::compressed,
-                                                       Backend>(recovered) ==
-               take(key_.public_key(), "public_key");
+        auto const recovered = take(curves::secp256k1::recover<Backend>(
+                                        ecdsa_sha256_recoverable, signature_, prehashed{hash_}),
+                                    "recover");
+        return recovered == take(key_.public_key(), "public_key");
     }
 
 private:
@@ -338,8 +338,7 @@ public:
     std::uint8_t run() { return sign()[0]; }
 
     bool check() {
-        return curves::secp256k1::verify_schnorr<Backend>(sign(), message_,
-                                                          signers_key_.xonly_public_key())
+        return crypto::verify(schnorr, sign(), message_, signers_key_.xonly_public_key())
             .has_value();
     }
 
@@ -350,10 +349,8 @@ private:
         curves::secp256k1::basic_keypair<Backend> const& first,
         curves::secp256k1::basic_keypair<Backend> const& second, space_type& space) {
         std::array<curves::secp256k1::public_key, 2> const keys{
-            take(curves::secp256k1::parse_public_key<Backend>(take(first.public_key(), "key")),
-                 "parse_public_key"),
-            take(curves::secp256k1::parse_public_key<Backend>(take(second.public_key(), "key")),
-                 "parse_public_key"),
+            take(first.public_key(), "public_key"),
+            take(second.public_key(), "public_key"),
         };
         return take(curves::secp256k1::musig::key_aggregate<Backend>(keys, space), "key_aggregate");
     }
@@ -427,8 +424,7 @@ public:
 private:
     static curves::secp256k1::public_key public_of(
         curves::secp256k1::basic_keypair<Backend> const& key) {
-        return take(curves::secp256k1::parse_public_key<Backend>(take(key.public_key(), "key")),
-                    "parse_public_key");
+        return take(key.public_key(), "public_key");
     }
 
     std::array<std::uint8_t, 32> send() {
@@ -453,7 +449,8 @@ private:
 };
 #endif
 
-// An ECDSA signature of a 32-byte SHA-256 digest on P-256, RFC 6979's nonce, S as computed.
+// An ECDSA signature of a 32-byte SHA-256 digest on P-256, `sign(ecdsa_sha256, prehashed{digest})`:
+// RFC 6979's nonce, made low S.
 template <class Backend>
 class p256 {
 public:
@@ -465,12 +462,14 @@ public:
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
                     "make")) {}
 
-    std::uint8_t run() { return take(key_.sign_ecdsa(digest_), "sign_ecdsa")[0]; }
+    std::uint8_t run() { return take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign")[0]; }
 
     bool check() {
-        auto const signature = take(key_.sign_ecdsa(digest_), "sign_ecdsa");
+        auto const signature = take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign");
         auto const public_key = take(key_.public_key(), "public_key");
-        return curves::p256::verify_ecdsa(signature, digest_, public_key).has_value();
+        return crypto::verify(ecdsa_sha256, signature, prehashed{digest_}, public_key)
+                   .has_value() &&
+               curves::p256::is_low_s(signature);
     }
 
 private:
@@ -478,8 +477,9 @@ private:
     curves::p256::basic_keypair<Backend> key_;
 };
 
-// The verification of an ECDSA signature of a 32-byte SHA-256 digest on P-256; the signature and
-// the public key are made once, outside what is measured.
+// The verification of an ECDSA signature of a 32-byte SHA-256 digest on P-256, `crypto::verify(
+// ecdsa_sha256, signature, prehashed{digest}, public_key)`; the signature and the public key are
+// made once, outside what is measured.
 template <class Backend>
 class p256_verify_ecdsa {
 public:
@@ -491,18 +491,19 @@ public:
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
                     "make")),
           public_key_(take(key_.public_key(), "public_key")),
-          signature_(take(key_.sign_ecdsa(digest_), "sign_ecdsa")) {}
+          signature_(take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign")) {}
 
     std::uint8_t run() {
-        take(curves::p256::verify_ecdsa(signature_, digest_, public_key_), "verify_ecdsa");
+        take(crypto::verify(ecdsa_sha256, signature_, prehashed{digest_}, public_key_), "verify");
         return signature_[0];
     }
 
     bool check() {
         auto other = signature_;
         other[63] ^= 1U;
-        return curves::p256::verify_ecdsa(signature_, digest_, public_key_).has_value() &&
-               !curves::p256::verify_ecdsa(other, digest_, public_key_).has_value();
+        return crypto::verify(ecdsa_sha256, signature_, prehashed{digest_}, public_key_)
+                   .has_value() &&
+               !crypto::verify(ecdsa_sha256, other, prehashed{digest_}, public_key_).has_value();
     }
 
 private:
@@ -512,7 +513,7 @@ private:
     std::array<std::uint8_t, curves::p256::signature_size> signature_{};
 };
 
-// The x coordinate of the ECDH shared point of a P-256 key pair and a peer's public key.
+// The x coordinate of the ECDH shared point of a P-256 key pair and a peer's public key, agree.
 template <class Backend>
 class p256_ecdh_x {
 public:
@@ -529,14 +530,14 @@ public:
           peer_public_(take(peer_.public_key(), "public_key")) {}
 
     std::uint8_t run() {
-        auto const shared = take(key_.ecdh_x(peer_public_), "ecdh_x");
+        auto const shared = take(key_.agree(peer_public_), "agree");
         return shared.bytes()[0];
     }
 
     bool check() {
         auto const own_public = take(key_.public_key(), "public_key");
-        auto const shared = take(key_.ecdh_x(peer_public_), "ecdh_x");
-        auto const peer_shared = take(peer_.ecdh_x(own_public), "ecdh_x");
+        auto const shared = take(key_.agree(peer_public_), "agree");
+        auto const peer_shared = take(peer_.agree(own_public), "agree");
         return std::ranges::equal(shared.bytes(), peer_shared.bytes());
     }
 
@@ -556,13 +557,13 @@ public:
         : message_(filled<32>(static_cast<std::uint8_t>(seed + 4U))),
           key_(take(curves::ed25519::basic_keypair<Backend>::make(filled<32>(seed)), "make")) {}
 
-    std::uint8_t run() { return take(key_.sign(message_), "sign")[0]; }
+    std::uint8_t run() { return take(key_.sign(eddsa, message_), "sign")[0]; }
 
     bool check() {
-        auto const signature = take(key_.sign(message_), "sign");
+        auto const signature = take(key_.sign(eddsa, message_), "sign");
         auto const public_key = take(key_.public_key(), "public_key");
-        return curves::ed25519::verify<curves::ed25519::strict, Backend>(public_key, message_,
-                                                                         signature)
+        return crypto::verify<Backend>(eddsa, signature, message_, public_key,
+                                       curves::ed25519::strict)
             .has_value();
     }
 

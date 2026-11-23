@@ -11,11 +11,10 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
+#include <webcpp/crypto/signing.hpp>
 
-#include <boost/hash2/sha2.hpp>
 #include <boost/system/result.hpp>
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -38,13 +37,10 @@ void wipe(std::span<std::byte> secret) {
     }
 }
 
-std::array<std::uint8_t, 32> sha256(std::string_view text) {
-    boost::hash2::sha2_256 hash;
-    hash.update(text.data(), text.size());
-    auto const digest = hash.result();
-    std::array<std::uint8_t, 32> out{};
-    std::copy_n(digest.data(), out.size(), out.begin());
-    return out;
+// A text's bytes, the message: ECDSA over SHA-256 hashes it inside the call.
+std::span<std::uint8_t const> bytes_of(std::string_view text) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast): a text's bytes
+    return {reinterpret_cast<std::uint8_t const*>(text.data()), text.size()};
 }
 
 boost::system::result<secp256k1::keypair> generate_key() {
@@ -73,22 +69,27 @@ int main() {
         return 1;
     }
     // The compressed public key (33 bytes) is what the program ships with.
-    auto const shipped_key = publisher->public_key();
+    auto const publisher_public = publisher->public_key();
     std::string update = "update v2.1 payload";
-    auto const signature = publisher->sign_ecdsa(sha256(update));
-    if (!shipped_key || !signature) {
+    auto const signature = publisher->sign(crypto::ecdsa_sha256, bytes_of(update));
+    if (!publisher_public || !signature) {
         return 1;
     }
+    auto const shipped_key = publisher_public->compressed();
 
     // tag::verify[]
-    // The program hashes the bytes it downloaded and checks the signature against the hash.
-    if (!secp256k1::verify_ecdsa(*signature, sha256(update), *shipped_key)) {
+    // The program makes the key it ships with once, then checks the signature against the bytes
+    // it downloaded, which crypto::verify hashes with SHA-256.
+    auto const publisher_key = secp256k1::public_key::make(shipped_key);
+    if (!publisher_key ||
+        !crypto::verify(crypto::ecdsa_sha256, *signature, bytes_of(update), *publisher_key)) {
         return 1;
     }
     std::printf("update accepted\n");
 
     update[7] = update[7] == '2' ? '3' : '2';
-    auto const tampered = secp256k1::verify_ecdsa(*signature, sha256(update), *shipped_key);
+    auto const tampered =
+        crypto::verify(crypto::ecdsa_sha256, *signature, bytes_of(update), *publisher_key);
     if (tampered || tampered.error() != crypto::error::invalid_signature) {
         return 1;
     }

@@ -148,7 +148,7 @@ bytes pkcs8_of(std::uint8_t version, bytes const& curve, ec_private_key const& k
 
 // What a key pair holds, as bytes: its scalar and its uncompressed point.
 bytes scalar_of(keypair const& pair) {
-    auto const scalar = pair.secret_scalar();
+    auto const scalar = pair.secret();
     if (!BOOST_TEST(scalar.has_value())) {
         return bytes(32);
     }
@@ -251,7 +251,7 @@ void round_trips() {
 
 // BearSSL's PKCS#8 of a key pair, with its public key or with none (a null br_ec_public_key).
 bytes bearssl_pkcs8(keypair const& pair, bool with_public_key) {
-    auto scalar = pair.secret_scalar();
+    auto scalar = pair.secret();
     if (!BOOST_TEST(scalar.has_value())) {
         return {};
     }
@@ -520,7 +520,7 @@ struct counts {
     int valid_agreed = 0;
     /** Invalid cases refused by decode_spki. */
     int invalid_refused_decoding = 0;
-    /** Invalid cases refused after it, by keypair::make or ecdh_x. */
+    /** Invalid cases refused after it, by keypair::make or agree. */
     int invalid_refused_after = 0;
     /** Acceptable cases whose x agreed. */
     int acceptable_agreed = 0;
@@ -558,7 +558,7 @@ void report(json::value const& t, std::string_view what) {
 }
 
 // The case's ECDH with a key decoded from its SPKI, or the error of the step that refused it:
-// keypair::make or ecdh_x (decode_spki's refusal is the caller's).
+// keypair::make or agree (decode_spki's refusal is the caller's).
 boost::system::result<crypto::secret<32>> derive(json::value const& t, public_key const& peer) {
     auto const scalar = scalar_bytes(test::from_hex(str(t.at("private"))));
     if (scalar.empty()) {
@@ -568,7 +568,7 @@ boost::system::result<crypto::secret<32>> derive(json::value const& t, public_ke
     if (!pair) {
         return pair.error();
     }
-    return pair->ecdh_x(peer);
+    return pair->agree(peer);
 }
 
 // An acceptable case that decode_spki refused: expected when one of its flags is listed, printed

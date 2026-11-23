@@ -1,0 +1,15 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+project : requirements <library>/webcpp/crypto//crypto <library>/webcpp/crypto//p256-default ;
+
+import webcpp ;
+
+# alone: the compiler's error is the compile's only one, so a regression that
+# puts another error before or after it, or a curve's header that includes
+# async.hpp, fails the test.
+webcpp.compile-diagnostic async_member_without_async_hpp : async_member_without_async_hpp.cpp
+  : <library>/webcpp/asio//asio : native wasip2 wasip3 : alone ;

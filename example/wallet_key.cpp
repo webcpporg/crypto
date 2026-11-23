@@ -63,16 +63,17 @@ int main() {
             return 1;
         }
     }
-    auto const xonly = wallet->xonly_public_key();
-    auto const compressed = wallet->public_key();
-    if (!xonly || !compressed) {
+    auto const public_key = wallet->public_key();
+    if (!public_key) {
         return 1;
     }
+    auto const xonly = public_key->xonly();
+    auto const compressed = public_key->compressed();
     std::printf("key pair made\n");
-    std::printf("x-only public key: %zu bytes\n", xonly->size());
+    std::printf("x-only public key: %zu bytes\n", xonly.size());
     // The compressed form starts with 0x02 (even y) or 0x03 (odd y).
-    bool const prefix_ok = (*compressed)[0] == 0x02 || (*compressed)[0] == 0x03;
-    std::printf("compressed public key: %zu bytes, prefix %s\n", compressed->size(),
+    bool const prefix_ok = compressed[0] == 0x02 || compressed[0] == 0x03;
+    std::printf("compressed public key: %zu bytes, prefix %s\n", compressed.size(),
                 prefix_ok ? "ok" : "BAD");
     // end::keygen[]
     if (!prefix_ok) {
@@ -109,8 +110,8 @@ int main() {
     if (!restored) {
         return 1;
     }
-    auto const restored_xonly = restored->xonly_public_key();
-    if (!restored_xonly || !crypto::equal(*xonly, *restored_xonly)) {
+    auto const restored_key = restored->public_key();
+    if (!restored_key || *restored_key != *public_key) {
         return 1;
     }
     std::printf("secret sealed and restored: same public key\n");

@@ -74,12 +74,12 @@ struct algorithm {
         if (secret_key.size() != key_size) {
             return error::invalid_key_size;
         }
-        std::array<std::uint8_t, 32> out{};
-        auto const done = engine::base(secret_key.first<key_size>(), out);
-        if (!done) {
-            return done.error();
+        std::array<std::uint8_t, 32> public_bytes{};
+        auto const engine_done = engine::base(secret_key.first<key_size>(), public_bytes);
+        if (!engine_done) {
+            return engine_done.error();
         }
-        return out;
+        return public_bytes;
     }
 
     /**
@@ -100,23 +100,24 @@ struct algorithm {
         if (peer_public_key.size() != key_size) {
             return error::invalid_public_key;
         }
-        secret<32> shared;
-        auto const done = engine::agree(secret_key.first<key_size>(),
-                                        peer_public_key.first<key_size>(), shared.writable());
-        if (!done) {
-            return done.error();
+        secret<32> shared_bytes;
+        auto const engine_done =
+            engine::agree(secret_key.first<key_size>(), peer_public_key.first<key_size>(),
+                          shared_bytes.writable());
+        if (!engine_done) {
+            return engine_done.error();
         }
         // Every backend gives the same answer: libsodium refuses an all-zero result itself,
         // and the others are checked here, in constant time (design D8). Whether it is all zero
         // is public, since it is reported: marked so for the constant-time checks, and not const,
         // so that the branch reads it again after the mark (detail/declassify.hpp's tip).
         // NOLINTNEXTLINE(misc-const-correctness): see above
-        bool all_zero = detail::is_all_zero(shared.bytes());
+        bool all_zero = detail::is_all_zero(shared_bytes.bytes());
         WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&all_zero, sizeof all_zero);
         if (all_zero) {
             return error::weak_public_key;
         }
-        return shared;
+        return shared_bytes;
     }
 
 private:

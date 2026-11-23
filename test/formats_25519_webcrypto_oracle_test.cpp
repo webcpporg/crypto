@@ -18,6 +18,7 @@
 #include <webcpp/crypto/curves/ed25519/formats.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/curves/x25519/formats.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -35,6 +36,7 @@
 #include <span>
 #include <vector>
 
+namespace crypto = webcpp::crypto;
 namespace ed25519 = webcpp::crypto::curves::ed25519;
 namespace x25519 = webcpp::crypto::curves::x25519;
 namespace test = webcpp::test;
@@ -153,7 +155,7 @@ void ed25519_through_webcrypto(std::mt19937_64& generator) {
             continue;
         }
         auto const public_key = pair->public_key();
-        auto const signature = pair->sign(message);
+        auto const signature = pair->sign(crypto::eddsa, message);
         if (!BOOST_TEST(public_key.has_value() && signature.has_value())) {
             static_cast<void>(std::fprintf(stderr, "Ed25519 key pair failed: seed %s\n",
                                            test::to_hex(seed_bytes).c_str()));
@@ -192,7 +194,7 @@ void ed25519_from_webcrypto() {
             continue;
         }
         auto const its_public = pair->public_key();
-        auto const signature = pair->sign(message);
+        auto const signature = pair->sign(crypto::eddsa, message);
         if (!BOOST_TEST(its_public.has_value() && signature.has_value())) {
             continue;
         }

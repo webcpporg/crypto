@@ -11,6 +11,7 @@
 // tag::program[]
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <boost/hash2/sha2.hpp>
 
@@ -100,7 +101,8 @@ int main() {
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
         reinterpret_cast<std::uint8_t const*>(preimage.data()), preimage.size()));
     auto const sighash = sha256(first);
-    auto const signature = key->sign_ecdsa(sighash);
+    // A digest the library computed is marked as one; ECDSA over SHA-256 signs it as given.
+    auto const signature = key->sign(crypto::ecdsa_sha256, crypto::prehashed{sighash});
     if (!signature) {
         return 1;
     }
@@ -117,7 +119,9 @@ int main() {
         return 1;
     }
     std::printf("strict der round trip ok\n");
-    if (!secp256k1::verify_ecdsa(*signature, sighash, *public_key)) {
+    if (!secp256k1::is_low_s(*signature) ||
+        !crypto::verify(crypto::ecdsa_sha256, *signature, crypto::prehashed{sighash},
+                        *public_key)) {
         return 1;
     }
     std::printf("verified\n");
@@ -127,15 +131,17 @@ int main() {
     auto high = *signature;
     auto const flipped = order_minus(std::span<std::uint8_t const, 64>(high).last<32>());
     std::ranges::copy(flipped, high.begin() + 32);
-    auto const refused = secp256k1::verify_ecdsa(high, sighash, *public_key);
+    auto const refused =
+        crypto::verify(crypto::ecdsa_sha256, high, crypto::prehashed{sighash}, *public_key);
     if (refused || refused.error() != crypto::error::invalid_signature) {
         return 1;
     }
     std::printf("high-S refused: invalid_signature\n");
     // A signature from elsewhere can be brought to the low-S form before it is checked.
-    auto const normalized = secp256k1::normalize_ecdsa(high);
-    if (!normalized || *normalized != *signature ||
-        !secp256k1::verify_ecdsa(*normalized, sighash, *public_key)) {
+    auto const normalized = secp256k1::normalize_low_s(high);
+    if (secp256k1::is_low_s(high) || !normalized || *normalized != *signature ||
+        !crypto::verify(crypto::ecdsa_sha256, *normalized, crypto::prehashed{sighash},
+                        *public_key)) {
         return 1;
     }
     std::printf("normalized to low-S: verified\n");

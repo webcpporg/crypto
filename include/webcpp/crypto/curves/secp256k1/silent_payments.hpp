@@ -91,8 +91,8 @@ extern "C" {
  */
 inline unsigned char const* webcpp_crypto_detail_secp256k1_label_lookup(
     unsigned char const* label_bytes, void const* label_context) noexcept {
-    auto const* const context = static_cast<secp256k1_label_context const*>(label_context);
-    return context->call_lookup(context->lookup_object, label_bytes);
+    auto const* const typed_context = static_cast<secp256k1_label_context const*>(label_context);
+    return typed_context->call_lookup(typed_context->lookup_object, label_bytes);
 }
 
 }  // extern "C"
@@ -252,9 +252,10 @@ namespace webcpp::crypto::detail {
     };
     std::ranges::sort(recipient_pointers, scan_key_order);
     std::size_t group_size = 0;
-    for (std::size_t index = 0; index < recipient_pointers.size(); ++index) {
+    for (std::size_t item_index = 0; item_index < recipient_pointers.size(); ++item_index) {
         bool const same_group =
-            index != 0 && !scan_key_order(recipient_pointers[index - 1], recipient_pointers[index]);
+            item_index != 0 &&
+            !scan_key_order(recipient_pointers[item_index - 1], recipient_pointers[item_index]);
         group_size = same_group ? group_size + 1 : 1;
         if (group_size > curves::secp256k1::silent_payments::group_limit) {
             return true;
@@ -279,13 +280,14 @@ namespace webcpp::crypto::curves::secp256k1::silent_payments {
  * smallest, or the recipient never finds the payment.
  *
  * @tparam Backend The key pairs' backend, `backends::secp256k1`.
- * @param recipients The recipients, at least one; a recipient paid twice is listed twice.
+ * @param recipient_list The recipients, at least one; a recipient paid twice is listed twice.
  * @param smallest_outpoint The smallest outpoint of all the transaction's inputs, serialised.
  * @param taproot_inputs The key pairs of the Taproot inputs.
  * @param plain_inputs The key pairs of the other eligible inputs.
  * @param output_keys One per recipient, where the outputs' x-only keys go.
- * @param pointer_space At least `send_workspace_size(recipients.size(), taproot_inputs.size(),
- * plain_inputs.size())` bytes; zero when the function returns, whatever it returns.
+ * @param pointer_space At least
+ * `send_workspace_size(recipient_list.size(), taproot_inputs.size(), plain_inputs.size())` bytes;
+ * zero when the function returns, whatever it returns.
  * @return Nothing; `invalid_input_size` (no recipient, no input at all, outputs not one per
  * recipient, a short workspace, more than `group_limit` recipients sharing a scan key, which
  * webcpp counts only when there are more recipients than that); `invalid_state` (a moved-from
@@ -295,7 +297,7 @@ namespace webcpp::crypto::curves::secp256k1::silent_payments {
  */
 template <class Backend = default_backend_t<families::secp256k1_silent_payments>>
 [[nodiscard]] boost::system::result<void> create_outputs(
-    std::span<recipient const> recipients,
+    std::span<recipient const> recipient_list,
     std::span<std::uint8_t const, outpoint_size> smallest_outpoint,
     std::span<std::type_identity_t<basic_keypair<Backend>> const* const> taproot_inputs,
     std::span<std::type_identity_t<basic_keypair<Backend>> const* const> plain_inputs,
@@ -306,8 +308,8 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
                                                          Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace, the plain inputs' secrets in it, on every return.
-    webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
-    std::size_t const recipient_count = recipients.size();
+    webcpp::crypto::detail::secp256k1_workspace pointer_carver(pointer_space);
+    std::size_t const recipient_count = recipient_list.size();
     std::size_t const taproot_count = taproot_inputs.size();
     std::size_t const plain_count = plain_inputs.size();
     // libsecp256k1 checks the counts with ARG_CHECK, whose callback aborts: refused first here.
@@ -318,48 +320,50 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
     }
     using access = webcpp::crypto::detail::secp256k1_access;
     // Every pointer is checked before any is used, as libsecp256k1's ARG_CHECKs would.
-    auto const usable = [](basic_keypair<Backend> const* input) {
-        return input != nullptr && access::keyed(*input);
+    auto const usable_input = [](basic_keypair<Backend> const* signing_input) {
+        return signing_input != nullptr && access::keyed(*signing_input);
     };
-    if (!std::ranges::all_of(taproot_inputs, usable) ||
-        !std::ranges::all_of(plain_inputs, usable)) {
+    if (!std::ranges::all_of(taproot_inputs, usable_input) ||
+        !std::ranges::all_of(plain_inputs, usable_input)) {
         return error::invalid_state;
     }
-    auto* const recipient_values = carver.take<secp256k1_silentpayments_recipient>(recipient_count);
+    auto* const recipient_values =
+        pointer_carver.take<secp256k1_silentpayments_recipient>(recipient_count);
     auto* const recipient_pointers =
-        carver.take<secp256k1_silentpayments_recipient const*>(recipient_count);
-    auto* const output_values = carver.take<secp256k1_xonly_pubkey>(recipient_count);
-    auto* const output_pointers = carver.take<secp256k1_xonly_pubkey*>(recipient_count);
+        pointer_carver.take<secp256k1_silentpayments_recipient const*>(recipient_count);
+    auto* const output_values = pointer_carver.take<secp256k1_xonly_pubkey>(recipient_count);
+    auto* const output_pointers = pointer_carver.take<secp256k1_xonly_pubkey*>(recipient_count);
     // Arrays of no elements are nullptr, as libsecp256k1 requires of a side with no input.
-    auto* const taproot_pointers = carver.take<secp256k1_keypair const*>(taproot_count);
-    auto* const plain_secrets = carver.take<std::array<unsigned char, 32>>(plain_count);
-    auto* const plain_pointers = carver.take<unsigned char const*>(plain_count);
+    auto* const taproot_pointers = pointer_carver.take<secp256k1_keypair const*>(taproot_count);
+    auto* const plain_secrets = pointer_carver.take<std::array<unsigned char, 32>>(plain_count);
+    auto* const plain_pointers = pointer_carver.take<unsigned char const*>(plain_count);
     if (recipient_values == nullptr || recipient_pointers == nullptr || output_values == nullptr ||
         output_pointers == nullptr || (taproot_count != 0 && taproot_pointers == nullptr) ||
         (plain_count != 0 && (plain_secrets == nullptr || plain_pointers == nullptr))) {
         return error::invalid_input_size;
     }
-    for (std::size_t index = 0; index < recipient_count; ++index) {
-        recipient_values[index] = secp256k1_silentpayments_recipient{
-            .scan_pubkey = access::point(recipients[index].scan_key),
-            .spend_pubkey = access::point(recipients[index].spend_key),
-            .index = index,
+    for (std::size_t item_index = 0; item_index < recipient_count; ++item_index) {
+        recipient_values[item_index] = secp256k1_silentpayments_recipient{
+            .scan_pubkey = access::point(recipient_list[item_index].scan_key),
+            .spend_pubkey = access::point(recipient_list[item_index].spend_key),
+            .index = item_index,
         };
-        recipient_pointers[index] = &recipient_values[index];
-        output_values[index] = secp256k1_xonly_pubkey{};
-        output_pointers[index] = &output_values[index];
+        recipient_pointers[item_index] = &recipient_values[item_index];
+        output_values[item_index] = secp256k1_xonly_pubkey{};
+        output_pointers[item_index] = &output_values[item_index];
     }
-    for (std::size_t index = 0; index < taproot_count; ++index) {
-        taproot_pointers[index] = &access::pair(*taproot_inputs[index]);
+    for (std::size_t item_index = 0; item_index < taproot_count; ++item_index) {
+        taproot_pointers[item_index] = &access::pair(*taproot_inputs[item_index]);
     }
-    for (std::size_t index = 0; index < plain_count; ++index) {
-        secp256k1_keypair_sec(access::context(*plain_inputs[index]), plain_secrets[index].data(),
-                              &access::pair(*plain_inputs[index]));
-        plain_pointers[index] = plain_secrets[index].data();
+    for (std::size_t item_index = 0; item_index < plain_count; ++item_index) {
+        secp256k1_keypair_sec(access::context(*plain_inputs[item_index]),
+                              plain_secrets[item_index].data(),
+                              &access::pair(*plain_inputs[item_index]));
+        plain_pointers[item_index] = plain_secrets[item_index].data();
     }
-    auto const* const signer = taproot_count != 0 ? taproot_inputs[0] : plain_inputs[0];
+    auto const* const first_signer = taproot_count != 0 ? taproot_inputs[0] : plain_inputs[0];
     if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_silentpayments_sender_create_outputs(
-            access::context(*signer), output_pointers, recipient_pointers, recipient_count,
+            access::context(*first_signer), output_pointers, recipient_pointers, recipient_count,
             smallest_outpoint.data(), taproot_pointers, taproot_count, plain_pointers,
             plain_count))) {
         if (recipient_count > group_limit && webcpp::crypto::detail::secp256k1_over_group_limit(
@@ -368,10 +372,10 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
         }
         return error::invalid_secret_key;
     }
-    for (std::size_t index = 0; index < recipient_count; ++index) {
+    for (std::size_t item_index = 0; item_index < recipient_count; ++item_index) {
         // A made output always serialises: libsecp256k1 returns 1.
         static_cast<void>(secp256k1_xonly_pubkey_serialize(
-            secp256k1_context_static, output_keys[index].data(), &output_values[index]));
+            secp256k1_context_static, output_keys[item_index].data(), &output_values[item_index]));
     }
     return {};
 }
@@ -461,8 +465,9 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
  * @param smallest_outpoint The smallest outpoint of all the transaction's inputs, serialised.
  * @param taproot_input_keys The Taproot inputs' x-only keys.
  * @param plain_input_keys The other eligible inputs' keys.
- * @param pointer_space At least `summary_workspace_size(taproot_input_keys.size(),
- * plain_input_keys.size())` bytes; zero when the function returns, whatever it returns.
+ * @param pointer_space At least
+ * `summary_workspace_size(taproot_input_keys.size(), plain_input_keys.size())` bytes; zero when the
+ * function returns, whatever it returns.
  * @return The summary; `invalid_input_size` for no input key at all or a short workspace (an
  * `ARG_CHECK` in libsecp256k1); `invalid_public_key` when they sum to infinity or a Taproot
  * key does not parse (not a silent payment).
@@ -478,7 +483,7 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
                                                          Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace on every return, a refusal's included.
-    webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
+    webcpp::crypto::detail::secp256k1_workspace pointer_carver(pointer_space);
     std::size_t const taproot_count = taproot_input_keys.size();
     std::size_t const plain_count = plain_input_keys.size();
     // libsecp256k1 checks the counts with ARG_CHECK, whose callback aborts: refused first here.
@@ -489,30 +494,30 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
     // Arrays of no elements are nullptr, as libsecp256k1 requires of a side with no input.
-    auto* const xonly_values = carver.take<secp256k1_xonly_pubkey>(taproot_count);
-    auto* const xonly_pointers = carver.take<secp256k1_xonly_pubkey const*>(taproot_count);
-    auto* const plain_pointers = carver.take<secp256k1_pubkey const*>(plain_count);
+    auto* const xonly_values = pointer_carver.take<secp256k1_xonly_pubkey>(taproot_count);
+    auto* const xonly_pointers = pointer_carver.take<secp256k1_xonly_pubkey const*>(taproot_count);
+    auto* const plain_pointers = pointer_carver.take<secp256k1_pubkey const*>(plain_count);
     if ((taproot_count != 0 && (xonly_values == nullptr || xonly_pointers == nullptr)) ||
         (plain_count != 0 && plain_pointers == nullptr)) {
         return error::invalid_input_size;
     }
-    for (std::size_t index = 0; index < taproot_count; ++index) {
-        if (secp256k1_xonly_pubkey_parse(secp256k1_context_static, &xonly_values[index],
-                                         taproot_input_keys[index].data()) == 0) {
+    for (std::size_t item_index = 0; item_index < taproot_count; ++item_index) {
+        if (secp256k1_xonly_pubkey_parse(secp256k1_context_static, &xonly_values[item_index],
+                                         taproot_input_keys[item_index].data()) == 0) {
             return error::invalid_public_key;
         }
-        xonly_pointers[index] = &xonly_values[index];
+        xonly_pointers[item_index] = &xonly_values[item_index];
     }
-    for (std::size_t index = 0; index < plain_count; ++index) {
-        plain_pointers[index] = &access::point(plain_input_keys[index]);
+    for (std::size_t item_index = 0; item_index < plain_count; ++item_index) {
+        plain_pointers[item_index] = &access::point(plain_input_keys[item_index]);
     }
-    auto summary = access::make_opaque<prevouts_summary>();
+    auto made_summary = access::make_opaque<prevouts_summary>();
     if (secp256k1_silentpayments_recipient_prevouts_summary_create(
-            secp256k1_context_static, &access::native(summary), smallest_outpoint.data(),
+            secp256k1_context_static, &access::native(made_summary), smallest_outpoint.data(),
             xonly_pointers, taproot_count, plain_pointers, plain_count) == 0) {
         return error::invalid_public_key;
     }
-    return summary;
+    return made_summary;
 }
 
 /**
@@ -528,23 +533,24 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
  * @tparam LabelLookup The lookup's type, `no_labels` by default.
  * @param scan_key The scan key pair.
  * @param spend_key The spend key, without a label.
- * @param summary The transaction's prevouts' summary.
+ * @param inputs_summary The transaction's prevouts' summary.
  * @param output_keys The transaction's x-only outputs, in their order.
- * @param found Where the found outputs go, at least as many entries as outputs.
+ * @param found_outputs Where the found outputs go, at least as many entries as outputs.
  * @param pointer_space At least `scan_workspace_size(output_keys.size())` bytes; zero when the
  * function returns, whatever it returns.
  * @param label_lookup The lookup of the recipient's labels.
- * @return The number of outputs found, written to the front of `found` (at least as many
- * entries as outputs); `invalid_input_size` (no output key, `found` shorter than the outputs,
- * a short workspace); `invalid_state`; `invalid_public_key` (an output that is not an x-only
- * key); `backend_failure` should a hash not be a valid scalar, which happens with negligible
+ * @return The number of outputs found, written to the front of `found_outputs` (at least as many
+ * entries as outputs); `invalid_input_size` (no output key, `found_outputs` shorter than the
+ * outputs, a short workspace); `invalid_state`; `invalid_public_key` (an output that is not an
+ * x-only key); `backend_failure` should a hash not be a valid scalar, which happens with negligible
  * probability.
  */
 template <class Backend, label_lookup LabelLookup = no_labels>
 [[nodiscard]] boost::system::result<std::size_t> scan_outputs(
     basic_keypair<Backend> const& scan_key, public_key const& spend_key,
-    prevouts_summary const& summary, std::span<std::array<std::uint8_t, 32> const> output_keys,
-    std::span<found_output> found, workspace pointer_space,
+    prevouts_summary const& inputs_summary,
+    std::span<std::array<std::uint8_t, 32> const> output_keys,
+    std::span<found_output> found_outputs, workspace pointer_space,
     LabelLookup const& label_lookup = {}) noexcept {
     detail::timing_guard const timing;
     static_assert(
@@ -552,10 +558,10 @@ template <class Backend, label_lookup LabelLookup = no_labels>
                                                          Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace, the found tweaks in it, on every return.
-    webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
+    webcpp::crypto::detail::secp256k1_workspace pointer_carver(pointer_space);
     std::size_t const output_count = output_keys.size();
     // libsecp256k1 checks the count with ARG_CHECK, whose callback aborts: refused first here.
-    if (output_count == 0 || found.size() < output_count ||
+    if (output_count == 0 || found_outputs.size() < output_count ||
         pointer_space.size() < scan_workspace_size(output_count)) {
         return error::invalid_input_size;
     }
@@ -564,22 +570,24 @@ template <class Backend, label_lookup LabelLookup = no_labels>
         return error::invalid_state;
     }
     secp256k1_selftest();
-    auto* const output_values = carver.take<secp256k1_xonly_pubkey>(output_count);
-    auto* const output_pointers = carver.take<secp256k1_xonly_pubkey const*>(output_count);
-    auto* const found_values = carver.take<secp256k1_silentpayments_found_output>(output_count);
-    auto* const found_pointers = carver.take<secp256k1_silentpayments_found_output*>(output_count);
+    auto* const output_values = pointer_carver.take<secp256k1_xonly_pubkey>(output_count);
+    auto* const output_pointers = pointer_carver.take<secp256k1_xonly_pubkey const*>(output_count);
+    auto* const found_values =
+        pointer_carver.take<secp256k1_silentpayments_found_output>(output_count);
+    auto* const found_pointers =
+        pointer_carver.take<secp256k1_silentpayments_found_output*>(output_count);
     if (output_values == nullptr || output_pointers == nullptr || found_values == nullptr ||
         found_pointers == nullptr) {
         return error::invalid_input_size;
     }
-    for (std::size_t index = 0; index < output_count; ++index) {
-        if (secp256k1_xonly_pubkey_parse(secp256k1_context_static, &output_values[index],
-                                         output_keys[index].data()) == 0) {
+    for (std::size_t item_index = 0; item_index < output_count; ++item_index) {
+        if (secp256k1_xonly_pubkey_parse(secp256k1_context_static, &output_values[item_index],
+                                         output_keys[item_index].data()) == 0) {
             return error::invalid_public_key;
         }
-        output_pointers[index] = &output_values[index];
-        found_values[index] = secp256k1_silentpayments_found_output{};
-        found_pointers[index] = &found_values[index];
+        output_pointers[item_index] = &output_values[item_index];
+        found_values[item_index] = secp256k1_silentpayments_found_output{};
+        found_pointers[item_index] = &found_values[item_index];
     }
     webcpp::crypto::detail::secp256k1_secret scan_secret;
     secp256k1_keypair_sec(access::context(scan_key), scan_secret.bytes.data(),
@@ -591,8 +599,8 @@ template <class Backend, label_lookup LabelLookup = no_labels>
     if constexpr (std::is_same_v<LabelLookup, no_labels>) {
         scan_status = secp256k1_silentpayments_recipient_scan_outputs(
             access::context(scan_key), found_pointers, &found_count, output_pointers, output_count,
-            scan_secret.bytes.data(), &access::native(summary), &access::point(spend_key), nullptr,
-            nullptr);
+            scan_secret.bytes.data(), &access::native(inputs_summary), &access::point(spend_key),
+            nullptr, nullptr);
     } else {
         webcpp::crypto::detail::secp256k1_label_context const lookup_context{
             .lookup_object = &label_lookup,
@@ -600,15 +608,15 @@ template <class Backend, label_lookup LabelLookup = no_labels>
         };
         scan_status = secp256k1_silentpayments_recipient_scan_outputs(
             access::context(scan_key), found_pointers, &found_count, output_pointers, output_count,
-            scan_secret.bytes.data(), &access::native(summary), &access::point(spend_key),
+            scan_secret.bytes.data(), &access::native(inputs_summary), &access::point(spend_key),
             &webcpp::crypto::detail::webcpp_crypto_detail_secp256k1_label_lookup, &lookup_context);
     }
     if (!webcpp::crypto::detail::secp256k1_accepted(scan_status)) {
         return error::backend_failure;
     }
-    for (std::size_t index = 0; index < found_count; ++index) {
-        auto const& found_value = *found_pointers[index];
-        auto& found_entry = found[index];
+    for (std::size_t item_index = 0; item_index < found_count; ++item_index) {
+        auto const& found_value = *found_pointers[item_index];
+        auto& found_entry = found_outputs[item_index];
         // A found output and its label always serialise: libsecp256k1 returns 1.
         static_cast<void>(secp256k1_xonly_pubkey_serialize(
             secp256k1_context_static, found_entry.output_key.data(), &found_value.output));

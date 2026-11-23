@@ -18,11 +18,14 @@
 # a moved BearSSL pin re-reads br_ecdsa_i31_sign_raw for a new branch on a secret, and the lane
 # builds BearSSL without link-time optimisation, which would inline a callee's jumps into it.
 
-# ec/ecdsa_i31_sign_raw.c, P-256's ECDSA (curves::p256::keypair::sign_ecdsa): whether the scalar
-# decodes below n and is not zero (lines 89 and 92), which webcpp has checked before, and RFC
-# 6979's retry of a nonce that is zero or not below n (lines 121 and 124), which libsecp256k1
-# marks public in its own signing; br_i31_decode_mod, br_i31_iszero and br_i31_sub compute each
-# verdict without a branch, in translation units of their own.
+# ec/ecdsa_i31_sign_raw.c, P-256's ECDSA (curves::p256::basic_keypair::sign with
+# crypto::ecdsa_sha256, through its private signed_digest): whether the scalar decodes below n and
+# is not zero (lines 89 and 92), which webcpp has checked before, and RFC 6979's retry of a nonce
+# that is zero or not below n (lines 121 and 124), which libsecp256k1 marks public in its own
+# signing; br_i31_decode_mod, br_i31_iszero and br_i31_sub compute each verdict without a branch,
+# in translation units of their own. The frame is BearSSL's C function, whose name the move to
+# sign did not change; signed_digest's own branch on the low S follows the signature's
+# declassification.
 {
    bearssl-verdict-ecdsa-sign
    Memcheck:Cond

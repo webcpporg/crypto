@@ -4,12 +4,14 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// secp256k1 against BIP340's test vectors (bip-0340/test-vectors.csv): each row with a
-// secret key gives its public key and its signature, every row verifies as its result says,
-// and the refusals are the error the row's reason names.
+// secp256k1 against BIP340's test vectors (bip-0340/test-vectors.csv), through
+// key.sign(crypto::schnorr, message, aux_rand) and crypto::verify(crypto::schnorr, ...): each row
+// with a secret key gives its public key and its signature, every row verifies as its result
+// says, and the refusals are the error the row's reason names.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -72,9 +74,9 @@ void check_signing(std::vector<std::string> const& f, std::vector<std::uint8_t> 
     if (!key.has_value() || aux.size() != 32) {
         return;
     }
-    auto const xonly = key->xonly_public_key();
-    BOOST_TEST(xonly.has_value() && std::ranges::equal(*xonly, pub));
-    auto const made = key->sign_schnorr(message, std::span<std::uint8_t const, 32>(aux));
+    auto const public_key = key->public_key();
+    BOOST_TEST(public_key.has_value() && std::ranges::equal(public_key->xonly(), pub));
+    auto const made = key->sign(crypto::schnorr, message, std::span<std::uint8_t const, 32>(aux));
     BOOST_TEST(made.has_value());
     if (made.has_value() && !std::ranges::equal(*made, signature)) {
         fail("row " + f[0] + ": signature differs: " + test::to_hex(*made));
@@ -98,8 +100,9 @@ void check_row(std::vector<std::string> const& f, tally& t) {
         ++t.signed_rows;
         check_signing(f, pub, message, signature);
     }
-    auto const result = secp::verify_schnorr(std::span<std::uint8_t const, 64>(signature), message,
-                                             std::span<std::uint8_t const, 32>(pub));
+    auto const result =
+        crypto::verify(crypto::schnorr, std::span<std::uint8_t const, 64>(signature), message,
+                       std::span<std::uint8_t const, 32>(pub));
     if (f[6] == "TRUE") {
         ++t.accepted;
         BOOST_TEST(result.has_value());

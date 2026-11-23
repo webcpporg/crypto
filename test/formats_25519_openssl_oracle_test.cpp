@@ -191,7 +191,7 @@ void ed25519_against_openssl(std::mt19937_64& generator) {
     for (std::size_t round = 0; round < cases; ++round) {
         auto const seed_bytes = drawn(generator);
         auto const pair = ed25519::keypair::make(seed_bytes);
-        boost::system::result<std::array<std::uint8_t, 32>> const public_key =
+        boost::system::result<ed25519::public_key> const public_key =
             pair ? pair->public_key() : crypto::error::backend_failure;
         if (!BOOST_TEST(public_key.has_value())) {
             static_cast<void>(std::fprintf(stderr, "Ed25519 key pair not made: seed %s\n",

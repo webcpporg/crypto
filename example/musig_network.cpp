@@ -16,6 +16,7 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -28,6 +29,7 @@
 #include <string>
 #include <utility>
 
+namespace crypto = webcpp::crypto;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 namespace musig = webcpp::crypto::curves::secp256k1::musig;
 
@@ -78,14 +80,14 @@ boost::system::result<musig::partial_signature> received_part(
 }  // namespace
 
 int main() {
-    // Each device's key pair; each publishes its public key, which every party parses.
+    // Each device's key pair; each publishes its public key, which every party reads.
     auto const phone = secp256k1::keypair::make(repeated(0x11));
     auto const laptop = secp256k1::keypair::make(repeated(0x22));
     if (!phone || !laptop) {
         return 1;
     }
-    auto const phone_key = secp256k1::parse_public_key(*phone->public_key());
-    auto const laptop_key = secp256k1::parse_public_key(*laptop->public_key());
+    auto const phone_key = phone->public_key();
+    auto const laptop_key = laptop->public_key();
     if (!phone_key || !laptop_key) {
         return 1;
     }
@@ -176,7 +178,7 @@ int main() {
     std::array<musig::partial_signature, 2> const parts{*phone_part_in, *laptop_part_in};
     auto const signature = musig::partial_signature_aggregate(*signing_session, parts, space);
     if (!signature ||
-        !secp256k1::verify_schnorr(*signature, message, wallet_key->xonly_public_key())) {
+        !crypto::verify(crypto::schnorr, *signature, message, wallet_key->xonly_public_key())) {
         return 1;
     }
     std::printf("the aggregate signature verifies as one BIP 340 signature: %zu bytes\n",

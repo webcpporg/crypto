@@ -12,13 +12,15 @@
 `webcpp::crypto::curves::secp256k1`. It offers two signature schemes and one
 key agreement:
 
-* *BIP 340 Schnorr signatures*, 64 bytes over a message of any length, with a
-32-byte x-only public key: Bitcoin's Taproot and Nostr's events
+* *BIP 340 Schnorr signatures*, `crypto::schnorr`, 64 bytes over a message of
+any length, with a 32-byte x-only public key: Bitcoin's Taproot and Nostr's
+events
 (link:https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki[BIP 340];
 link:https://github.com/nostr-protocol/nips/blob/master/01.md[NIP-01];
 link:https://en.wikipedia.org/wiki/Schnorr_signature[Wikipedia]);
-* *ECDSA signatures*, 64 bytes over a 32-byte hash, with a 33-byte compressed
-public key: Bitcoin before Taproot and Ethereum
+* *ECDSA signatures*, `crypto::ecdsa_sha256`, 64 bytes over the SHA-256 of a
+message, or over a 32-byte digest given as `+crypto::prehashed{digest}+`, with a
+33-byte compressed public key: Bitcoin before Taproot and Ethereum
 (link:https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm[Wikipedia];
 link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow paper]).
 Each signature's nonce is RFC 6979's, derived from the key and the hash, so
@@ -27,12 +29,50 @@ that no weak generator can leak the key
 form. A signature is also made hedged, with the caller's fresh randomness
 mixed into the nonce, or recoverable, with the id from which a reader finds
 the signer's key (<<crypto-secp256k1-recovery>>);
-* *ECDH*, a shared secret: `ecdh` gives libsecp256k1's hashed form, the
-SHA-256 of the shared point in its 33-byte compressed encoding, one of three
-forms (<<crypto-secp256k1-ecdh>>). It interoperates only with peers that hash
-the same way, such as another program on libsecp256k1's default; `ecdh_x`
-gives the raw x coordinate that Nostr's encrypted messages
-(link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44]) take.
+* *ECDH*, a shared secret: `agree` gives the shared point's raw x coordinate,
+as P-256's `agree` does, which Nostr's encrypted messages
+(link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44]) take;
+`agree_hashed` gives libsecp256k1's hashed form, the SHA-256 of the shared
+point in its 33-byte compressed encoding, which interoperates only with peers
+that hash the same way; `agree_point` gives the point itself
+(<<crypto-secp256k1-ecdh>>).
+
+Each call names its scheme, as on every curve, and the key pair keeps the
+contract every curve's keeps (<<crypto-curves-signatures>>).
+
+Each operation has the member and its free form, with the same work, errors
+and refusals (<<crypto-curves-four-forms>>). It has no asynchronous form:
+secp256k1 is not in WebCrypto, whose algorithms the asynchronous family
+follows. `sign` and `crypto::sign` take the 32 bytes of hedged ECDSA's extra
+entropy or BIP 340's auxiliary randomness after the input; `public_key.verify`
+takes `crypto::ecdsa_sha256` and `crypto::schnorr`, and `crypto::verify` with
+`crypto::schnorr` also takes the 32-byte x-only key:
+
+.secp256k1's operations in their two forms
+[cols="1,3,3",options="header"]
+|===
+| Operation | The member | Its free form
+
+| Make
+| `keypair::make(secret_key)`
+| `crypto::make<keypair>(secret_key)`
+
+| Generate
+| `keypair::generate()`
+| `crypto::generate<keypair>()`
+
+| Sign
+| `key_pair.sign(scheme, input)`
+| `crypto::sign(key_pair, scheme, input)`
+
+| Verify
+| `public_key.verify(scheme, signature, input)`
+| `crypto::verify(scheme, signature, input, public_key)`
+
+| Agree
+| `key_pair.agree(peer)`
+| `crypto::agree(key_pair, peer)`
+|===
 
 A `keypair` is made from a 32-byte secret key with `make(secret)`, or
 generated with `generate()`, which draws the secret key from `random_device`
@@ -42,17 +82,18 @@ given, and randomises it from `random_device`; crypto's own code allocates
 nothing else (<<crypto-memory>>). The namespace's functions, by header:
 
 * `<webcpp/crypto/curves/secp256k1.hpp>`: the key pair's `make` and
-`generate`, its public keys (`xonly_public_key`, `public_key`,
-`public_key_uncompressed`), its signatures (`sign_schnorr`, `sign_ecdsa`,
-hedged or not, and `sign_recoverable`), its ECDH (`ecdh`, `ecdh_x`,
-`ecdh_point`) and its tweak in place (`tweak_xonly`); `verify_schnorr` and
-`verify_ecdsa`, which check a signature with a public key alone; `recover`,
-which finds the key of a recoverable signature
-(<<crypto-secp256k1-recovery>>); `parse_public_key` and
-`serialize_public_key`, which read and write a `public_key`
-(<<crypto-secp256k1-keys>>); `to_der`, `from_der` (strict DER) and
-`normalize_ecdsa`, ECDSA's DER and low-S forms; and `tweak_xonly`, the tweak
-of an x-only public key;
+`generate`, its `public_key()` and its `secret()`, its signatures (`sign` with
+`crypto::schnorr`, its auxiliary randomness drawn or given, with
+`crypto::ecdsa_sha256`, hedged or not, and with
+`crypto::ecdsa_sha256_recoverable`), its ECDH (`agree`, `agree_hashed`,
+`agree_point`) and its tweak in place (`tweak_xonly`); `crypto::verify` with
+`crypto::schnorr` and `crypto::ecdsa_sha256`, which checks a signature with a
+public key alone; `recover`, which finds the key of a recoverable signature
+(<<crypto-secp256k1-recovery>>); the `public_key` type, made from its bytes by
+`public_key::make` and written by `compressed()`, `uncompressed()` and
+`xonly()` (<<crypto-secp256k1-keys>>); `to_der`, `from_der` (strict DER),
+`normalize_low_s` and `is_low_s`, ECDSA's DER and low-S forms; and
+`tweak_xonly`, the tweak of an x-only public key;
 * `<webcpp/crypto/curves/secp256k1/tweak.hpp>`: `seckey_tweak_add`,
 `seckey_tweak_mul` and `seckey_negate`, `pubkey_tweak_add`,
 `pubkey_tweak_mul` and `pubkey_negate`, and `pubkey_combine` with its
@@ -116,13 +157,17 @@ overwhelming probability, but not always: `make` returns
 (<<crypto-wallets-key>>).
 * Keep the secret key out of logs, crash reports and source control: the key
 pair wipes its copy, the program wipes its own.
-* BIP 340's auxiliary randomness is fresh for each signature; a fixed value is
-safe only because the nonce also depends on the key and the message, and the
-examples use zeros only to print fixed signatures.
-* `verify_ecdsa` refuses a high-S signature, as libsecp256k1 does:
-`normalize_ecdsa` gives the low-S form of a signature from a signer that does
-not enforce it. A verifier that normalizes before verifying accepts both forms
-of a signature, so it must not rely on the signature's bytes being unique
+* BIP 340's auxiliary randomness is fresh for each signature:
+`sign(crypto::schnorr, message)` draws it from `random_device`, and returns
+`entropy_unavailable` when it cannot. `sign(crypto::schnorr, message,
+aux_random)` takes the caller's 32 bytes; a fixed value is safe only because
+the nonce also depends on the key and the message, and the examples pass zeros
+only to print fixed signatures.
+* `+crypto::verify(crypto::ecdsa_sha256, ...)+` refuses a high-S signature, as
+libsecp256k1 does: `normalize_low_s` gives the low-S form of a signature from a
+signer that does not enforce it. A verifier that normalizes before verifying
+accepts both forms of a signature, so it must not rely on the signature's bytes
+being unique
 (link:https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki[BIP 146]).
 
 [#crypto-secp256k1-ecdh]
@@ -138,27 +183,28 @@ The shared secret is a point on the curve, the secret key of one side times the
 public key of the other; what a program takes of that point is a choice of the
 protocol, and a key pair gives the three that protocols use:
 
-* `ecdh`: the SHA-256 of the point's compressed encoding, 32 bytes,
+* `agree_hashed`: the SHA-256 of the point's compressed encoding, 32 bytes,
 libsecp256k1's default
 (link:https://github.com/bitcoin-core/secp256k1#readme[libsecp256k1]). Two
 programs on webcpp, or one on libsecp256k1's default, agree on it; it is the
 form of the chat session of <<crypto-p2p-session>>.
-* `ecdh_x`: the point's x coordinate, 32 bytes, unhashed. Nostr's encrypted
+* `agree`: the point's x coordinate, 32 bytes, unhashed, as P-256's `agree`
+and WebCrypto's `deriveBits` give it. Nostr's encrypted
 messages (link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44])
 and Wycheproof's ECDH test vectors
 (link:https://github.com/C2SP/wycheproof[Project Wycheproof, test vectors for
 cryptographic libraries]) take this form; the protocol then hashes it its own
 way.
-* `ecdh_point`: the point itself, 65 bytes in SEC1's uncompressed encoding
+* `agree_point`: the point itself, 65 bytes in SEC1's uncompressed encoding
 (0x04, x, y; link:https://www.secg.org/sec1-v2.pdf[SEC 1, sections 2.3.3 and
 2.3.4]): both coordinates, of which the other two forms keep x alone.
 
 Each is returned as a `secret<N>`, which wipes its bytes when it is destroyed
 or moved from: a program reads it with `bytes()` and makes no copy of its own
-to forget. Each refuses a moved-from key pair with `invalid_state`, and a peer
-key that is not a point of the curve, or not 33 bytes compressed or 65 bytes
-uncompressed with the prefix 04, with `invalid_public_key`. They are members
-of the key pair, whose backends are listed above.
+to forget. Each takes the peer's `public_key`, a point the type guarantees
+(<<crypto-secp256k1-keys>>), and refuses a moved-from key pair with
+`invalid_state`. They are members of the key pair, whose backends are listed
+above.
 
 *Example.* Two key pairs agree on the x coordinate, and a Nostr library's
 first step follows: NIP-44's conversation key, HKDF-extract
@@ -187,8 +233,8 @@ its 256 bits hold less than 256 bits of entropy. A protocol's key derivation
 function (HKDF in NIP-44) turns it into keys. Used directly as an AES key, it
 is the same key in every protocol that uses the same two key pairs that way:
 a key that leaks from one leaks from all of them.
-* Two programs must agree on the form. One that takes `ecdh` and one that
-takes `ecdh_x` derive different keys from the same key pairs, and fail
+* Two programs must agree on the form. One that takes `agree_hashed` and one
+that takes `agree` derive different keys from the same key pairs, and fail
 silently: every message is refused as forged, with nothing pointing at the
 cause. Read the protocol's specification for the form it names.
 * Never use one shared secret as two keys, one per direction or one for
@@ -206,8 +252,10 @@ curve is how invalid-curve attacks begin, in which a key off the curve,
 combined with a secret key, leaks that secret bit by bit, which is why the
 holder of a long-lived secret key validates the other side's public key
 (link:https://en.wikipedia.org/wiki/Elliptic-curve_Diffie%E2%80%93Hellman[Wikipedia]).
-`parse_public_key` makes the only `public_key` there is, so a program that
-holds one holds a valid point.
+`public_key::make` makes a `public_key` from bytes, and the functions that
+return one (a key pair's `public_key()`, `recover`, the tweaks) make the others,
+so a program that holds one holds a valid point. It is the key that
+`crypto::verify` and a key pair's `agree` take.
 
 A point is written in one of two forms
 (link:https://www.secg.org/sec1-v2.pdf[SEC 1, sections 2.3.3 and 2.3.4]):
@@ -219,9 +267,10 @@ keys this way, and its SegWit outputs take no other form by default
 the uncompressed form without its prefix
 (link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow paper]).
 
-`serialize_public_key` writes either (`point_form::compressed`, the default,
-or `point_form::uncompressed`); a key pair gives its own key in both forms,
-`public_key` and `public_key_uncompressed`. Two `public_key` values compare
+`public_key::make` reads either, and a `public_key` writes itself in each:
+`compressed()`, `uncompressed()`, and BIP 340's x-only form, `xonly()`, its x
+coordinate alone, 32 bytes, which `+crypto::verify(crypto::schnorr, ...)+` takes
+as it takes the `public_key` itself. Two `public_key` values compare
 with `==`, and order with `+<=>+` as their compressed encodings do, the order
 MuSig2's key sorting uses
 (link:https://github.com/bitcoin/bips/blob/master/bip-0327.mediawiki[BIP 327]).
@@ -241,7 +290,8 @@ form.
 the same key compressed and uncompressed are different bytes. Parse both and
 compare the `public_key` values.
 * Ethereum's 64-byte key is the uncompressed form without its 04: add the
-prefix before `parse_public_key`, and drop it after `serialize_public_key`.
+prefix before `public_key::make`, and drop it from what `uncompressed()`
+gives.
 
 [#crypto-secp256k1-recovery]
 ==== Recoverable signatures
@@ -253,14 +303,18 @@ made it
 paper, appendix F]). An ECDSA signature fits up to four keys, and the
 recovery id, 0 to 3, names the one that made it
 (link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 4.1.6]).
-`sign_recoverable` writes 65 bytes, r, s and the id, with the same r and s as
-`sign_ecdsa`, and `recover` returns the `public_key` from those 65 bytes and
-the hash. It refuses with `invalid_signature` an id above 3, an r or an s not
-below the group order, and a signature from which no key is recovered.
+`sign(crypto::ecdsa_sha256_recoverable, input)` writes 65 bytes, r, s and the
+id, with the same r and s as `sign(crypto::ecdsa_sha256, input)`, and
+`recover(crypto::ecdsa_sha256_recoverable, signature, input)` returns the
+`public_key` from those 65 bytes and the same input, the message it hashes or
+a digest marked `crypto::prehashed`. It refuses with `invalid_signature` an id
+above 3, an r or an s not below the group order, and a signature from which no
+key is recovered. Ethereum's digest is Keccak-256's, not SHA-256's (how it is
+signed under this scheme: <<crypto-curves-signatures-ethereum>>).
 
 include::generated/backends-recovery.adoc[]
 
-*Example.* A wallet signs a message's hash; a reader that holds no key of the
+*Example.* A wallet signs a message; a reader that holds no key of the
 wallet's recovers the signer's key and compares it with the key the wallet
 published; a changed message recovers a different key:
 
@@ -274,7 +328,8 @@ include::{examples}/recover_signer.cpp[tag=program]
 include::{examples}/recover_signer.expected[]
 ----
 
-`sign_ecdsa` also has a hedged form, which takes 32 more bytes, drawn from
+`sign(crypto::ecdsa_sha256, input, extra_entropy)` is ECDSA's hedged form,
+which takes 32 more bytes, drawn from
 `random_device` and new for each signature, and mixes them into RFC 6979's
 nonce, as the RFC's variant with additional data allows
 (link:https://www.rfc-editor.org/rfc/rfc6979#section-3.6[RFC 6979, section
@@ -567,7 +622,7 @@ randomness drawn inside: a `secret_nonce` to keep and a `public_nonce` to send;
 * `partial_sign` signs this signer's part, consuming its secret nonce;
 `partial_signature_verify` checks one signer's part, and
 `partial_signature_aggregate` adds the parts into 64 bytes that
-`verify_schnorr` checks;
+`+crypto::verify(crypto::schnorr, ...)+` checks;
 * `parse_public_nonce`, `parse_aggregate_nonce` and `parse_partial_signature`
 read what the other signers send, and the `serialize_` functions write it.
 

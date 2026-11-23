@@ -12,6 +12,7 @@
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -57,7 +58,7 @@ void sign_test_1() {
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    auto const signature = made->sign(std::span<std::uint8_t const>());
+    auto const signature = made->sign(webcpp::crypto::eddsa, std::span<std::uint8_t const>());
     if (BOOST_TEST(signature.has_value())) {
         BOOST_TEST(std::ranges::equal(*signature, expected));
     }

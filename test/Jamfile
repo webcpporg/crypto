@@ -35,7 +35,8 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
   crypto/detail/async_access.hpp crypto/detail/timing.hpp crypto/ciphers/aead.hpp
   crypto/ciphers/chacha20_poly1305.hpp crypto/ciphers/secretbox.hpp crypto/pem.hpp
-  crypto/detail/p_curves.hpp ;
+  crypto/detail/p_curves.hpp crypto/signing.hpp crypto/keypair.hpp
+  crypto/make.hpp crypto/detail/asynchronous.hpp ;
 # detail/heavy.hpp compiles alone only with webcpp::asio, which it includes
 # where the build has threads; async.hpp, which includes it, only with
 # webcpp::asio on every target.
@@ -89,6 +90,21 @@ webcpp.compile config_all_off : config_test.cpp
   : <define>WEBCPP_NO_EXCEPTIONS <define>WEBCPP_TEST_CRYPTO_ALL_OFF ;
 webcpp.compile config_developer_defined : config_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS <define>WEBCPP_TEST_CRYPTO_DEVELOPER_DEFINED ;
+
+# config.hpp read as MrDocs reads it, __MRDOCS__ defined, as the reference of
+# a library that includes crypto reads it: each macro a build sets stays as
+# the build set it, its value included, and no refusal stops the reference,
+# with the memory option natively without OpenSSL and on WebAssembly, with
+# version 0.1's two defines, and with OpenSSL on Emscripten.
+webcpp.compile reference_config : reference_config_test.cpp : <define>__MRDOCS__ ;
+webcpp.compile reference_config_refusals : reference_config_test.cpp
+  : <define>__MRDOCS__ <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+    <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_BEARSSL <define>WEBCPP_CRYPTO_DEFAULT_BACKEND_OPENSSL
+    <define>WEBCPP_CRYPTO_NO_THREADS <define>WEBCPP_CRYPTO_HAS_SECP256K1=2
+    <define>WEBCPP_TEST_CRYPTO_SECP256K1_VALUE ;
+webcpp.compile reference_config_openssl_on_emscripten : reference_config_test.cpp
+  : <define>__MRDOCS__ <define>WEBCPP_CRYPTO_HAS_OPENSSL=1
+    <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE : emscripten ;
 
 # config.hpp defines WEBCPP_CRYPTO_HAS_THREADS by design D23's rule: natively
 # with b2's threading=single (where Boost.Config's BOOST_HAS_THREADS decides),
@@ -148,6 +164,26 @@ webcpp.compile-diagnostic heavy_refusal_forgotten : heavy_refusal_forgotten_test
 
 crypto-run error : error_test.cpp ;
 crypto-run equal : equal_test.cpp ;
+# signing.hpp's tags and their one list, prehashed, the input checks and the
+# concepts, over stand-in key types; the catch-all verify; sha256_of.
+crypto-run signing : signing_test.cpp ;
+# The key pair contract, crypto::keypair: Ed25519's, P-256's and secp256k1's
+# key pairs meet it, stand-ins that lack a member do not, and over a list with
+# a test-only scheme, a stand-in that declares it and does not sign it fails.
+crypto-run keypair : keypair_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium
+    <library>/third_party//secp256k1 ;
+# Every curve's crypto::verify in one program: a 32-byte key is BIP340's under
+# schnorr and no key under eddsa, which takes Ed25519's typed key, with no
+# ambiguity.
+crypto-run signing_curves : signing_curves_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium
+    <library>/third_party//secp256k1 ;
+# Each operation's member and free synchronous forms give the same results on
+# every curve, AES-GCM and ChaCha20-Poly1305 (design D9).
+crypto-run synchronous_forms : synchronous_forms_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium
+    <library>/third_party//secp256k1 ;
 # The tests' hex readers: hex<N> at compile time, from_hex and to_hex at run
 # time.
 crypto-run hex : hex_test.cpp ;
@@ -463,7 +499,7 @@ crypto-run p256_formats_bearssl : p256_formats_bearssl_test.cpp
 # OpenSSL as an outside oracle of P-256 on native, wasip2 and wasip3 (linked in
 # the test alone), from a printed seed, 200 cases each: its RFC 6979 signature
 # of a digest equals ours and each side verifies the other's; its ECDH equals
-# ecdh_x; its SPKI and PrivateKeyInfo decode and encode again to its bytes, and
+# agree's; its SPKI and PrivateKeyInfo decode and encode again to its bytes, and
 # ours load in it to the same key. It prints `oracle ok 600`.
 crypto-run p256_openssl_oracle : p256_openssl_oracle_test.cpp
   : <library>/webcpp/crypto//openssl <library>/third_party//bearssl

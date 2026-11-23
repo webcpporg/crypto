@@ -86,12 +86,12 @@
 |native, wasip2, wasip3, emscripten
 |`+secp256k1+`, `+secp256k1_generate+`, `+secp256k1_bip340+`, `+secp256k1_xonly_tweak+`, `+secp256k1_ecdh+`, `+secp256k1_recovery+`
 
-|`+curves::secp256k1::verify_schnorr+`, `+verify_ecdsa+`
+|`+crypto::verify+`, `+curves::secp256k1::recover+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
-|`+secp256k1_bip340+`, `+secp256k1_wycheproof+`
+|`+secp256k1_bip340+`, `+secp256k1_wycheproof+`, `+secp256k1_recovery+`, `+signing_curves+`
 
-|`+curves::secp256k1::to_der+`, `+from_der+`, `+normalize_ecdsa+`
+|`+curves::secp256k1::to_der+`, `+from_der+`, `+normalize_low_s+`, `+is_low_s+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_der+`
@@ -116,7 +116,17 @@
 |native, wasip2, wasip3, emscripten
 |`+ed25519_sodium+`, `+oracle_25519+`
 
-|`+curves::ed25519::verify+`
+|`+curves::ed25519::public_key+`
+|BearSSL
+|refused at compile time
+|`+ed25519_on_bearssl+`
+
+|`+curves::ed25519::public_key+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+ed25519_sodium+`, `+oracle_25519+`
+
+|`+crypto::verify+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+ed25519_sodium+`, `+ed25519_wycheproof_sodium+`, `+ed25519_speccheck+`, `+oracle_25519+`
@@ -221,7 +231,7 @@
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_recovery+`
 
-|`+curves::secp256k1::public_key+`, `+parse_public_key+`, `+serialize_public_key+`
+|`+curves::secp256k1::public_key+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_keys+`
@@ -271,22 +281,22 @@
 |refused at compile time
 |`+p256_on_sodium+`
 
-|`+curves::p256::keypair::sign_ecdsa; verify_ecdsa+`, `+to_der+`, `+from_der+`, `+normalize_ecdsa+`, `+check_low_s+`
+|`+curves::p256::keypair::sign; crypto::verify+`, `+to_der+`, `+from_der+`, `+normalize_low_s+`, `+is_low_s+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
 |`+p256_ecdsa_bearssl+`, `+p256_wycheproof_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`
 
-|`+curves::p256::keypair::sign_ecdsa; verify_ecdsa+`, `+to_der+`, `+from_der+`, `+normalize_ecdsa+`, `+check_low_s+`
+|`+curves::p256::keypair::sign; crypto::verify+`, `+to_der+`, `+from_der+`, `+normalize_low_s+`, `+is_low_s+`
 |libsodium
 |refused at compile time
 |`+p256_on_sodium+`
 
-|`+curves::p256::keypair::ecdh_x+`
+|`+curves::p256::keypair::agree+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
 |`+p256_ecdh_bearssl+`, `+p256_openssl_oracle+`, `+p256_webcrypto_oracle+`, `+allocation_bearssl+`
 
-|`+curves::p256::keypair::ecdh_x+`
+|`+curves::p256::keypair::agree+`
 |libsodium
 |refused at compile time
 |`+p256_on_sodium+`
@@ -368,13 +378,13 @@ The same, by target: the backends each operation runs on.
 |libsecp256k1
 |libsecp256k1
 
-|`+curves::secp256k1::verify_schnorr+`, `+verify_ecdsa+`
+|`+crypto::verify+`, `+curves::secp256k1::recover+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
 
-|`+curves::secp256k1::to_der+`, `+from_der+`, `+normalize_ecdsa+`
+|`+curves::secp256k1::to_der+`, `+from_der+`, `+normalize_low_s+`, `+is_low_s+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
@@ -398,7 +408,13 @@ The same, by target: the backends each operation runs on.
 |libsodium
 |libsodium
 
-|`+curves::ed25519::verify+`
+|`+curves::ed25519::public_key+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+crypto::verify+`
 |libsodium
 |libsodium
 |libsodium
@@ -506,7 +522,7 @@ The same, by target: the backends each operation runs on.
 |libsecp256k1
 |libsecp256k1
 
-|`+curves::secp256k1::public_key+`, `+parse_public_key+`, `+serialize_public_key+`
+|`+curves::secp256k1::public_key+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
@@ -554,13 +570,13 @@ The same, by target: the backends each operation runs on.
 |BearSSL
 |BearSSL
 
-|`+curves::p256::keypair::sign_ecdsa; verify_ecdsa+`, `+to_der+`, `+from_der+`, `+normalize_ecdsa+`, `+check_low_s+`
+|`+curves::p256::keypair::sign; crypto::verify+`, `+to_der+`, `+from_der+`, `+normalize_low_s+`, `+is_low_s+`
 |BearSSL
 |BearSSL
 |BearSSL
 |BearSSL
 
-|`+curves::p256::keypair::ecdh_x+`
+|`+curves::p256::keypair::agree+`
 |BearSSL
 |BearSSL
 |BearSSL

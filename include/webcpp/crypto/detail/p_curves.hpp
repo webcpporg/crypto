@@ -105,10 +105,10 @@ template <class Curve>
 /**
  * Whether an ECDSA signature's s, already checked 0 < s < n, is low: s <= (n - 1) / 2, the borrow
  * of (n - 1) / 2 - s over every byte, the same arithmetic as `p_curve_scalar_valid`'s. The
- * verdict alone is declassified: a signature is public once it is made, but one fresh from
- * `sign_ecdsa` is computed from the secret scalar, and a constant-time checker (memcheck,
- * MemorySanitizer) still holds it secret where `normalize_ecdsa` or `check_low_s` branches on
- * this verdict.
+ * verdict alone is declassified: a signature is public once it is made, but a constant-time
+ * checker (memcheck, MemorySanitizer) still holds secret one computed from the secret scalar where
+ * `normalize_low_s` or `is_low_s` branches on this verdict; `sign` itself normalizes without a
+ * branch, with `p_curve_high_s_mask`.
  *
  * @tparam Curve The curve's family tag.
  * @param s The signature's s, big-endian.
@@ -128,6 +128,28 @@ template <class Curve>
     unsigned high = borrow;
     WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&high, sizeof high);
     return high == 0;
+}
+
+/**
+ * Whether an ECDSA signature's s, already checked 0 < s < n, is high, s > (n - 1) / 2, as a mask:
+ * 0xff when high, 0x00 when low, from the borrow of (n - 1) / 2 - s over every byte, with no branch
+ * and nothing declassified, so that signing can normalize a signature it has just made, still
+ * secret to a constant-time checker, in constant time (libsecp256k1's
+ * `secp256k1_scalar_cond_negate` does the same).
+ *
+ * @tparam Curve The curve's family tag.
+ * @param s The signature's s, big-endian.
+ * @return 0xff when s is above half the group order, 0x00 otherwise.
+ */
+template <class Curve>
+[[nodiscard]] std::uint8_t p_curve_high_s_mask(
+    std::span<std::uint8_t const, p_curve_traits<Curve>::scalar_size> s) noexcept {
+    constexpr auto const& half = p_curve_traits<Curve>::half_order;
+    unsigned borrow = 0;
+    for (std::size_t i = s.size(); i-- > 0;) {
+        borrow = ((static_cast<unsigned>(half[i]) - s[i] - borrow) >> 8U) & 1U;
+    }
+    return static_cast<std::uint8_t>(0U - borrow);
 }
 
 /**

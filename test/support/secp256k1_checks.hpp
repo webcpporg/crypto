@@ -16,6 +16,7 @@
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <boost/core/lightweight_test.hpp>
 
@@ -38,7 +39,7 @@ inline void expect_empty_musig_signer(webcpp::crypto::curves::secp256k1::keypair
                                       webcpp::crypto::curves::secp256k1::keypair const& live,
                                       std::array<std::uint8_t, 32> const& message) {
     namespace secp = webcpp::crypto::curves::secp256k1;
-    auto const live_key = secp::parse_public_key(*live.public_key());
+    auto const live_key = live.public_key();
     if (!BOOST_TEST(live_key.has_value())) {
         return;
     }
@@ -78,7 +79,7 @@ inline void expect_empty_silent_payments(webcpp::crypto::curves::secp256k1::keyp
                                          webcpp::crypto::curves::secp256k1::keypair const& live) {
     namespace secp = webcpp::crypto::curves::secp256k1;
     namespace sp = secp::silent_payments;
-    auto const live_key = secp::parse_public_key(*live.public_key());
+    auto const live_key = live.public_key();
     if (!BOOST_TEST(live_key.has_value())) {
         return;
     }
@@ -122,13 +123,18 @@ inline void expect_empty_keypair(webcpp::crypto::curves::secp256k1::keypair& key
     std::array<std::uint8_t, 32> const message{};
     std::array<std::uint8_t, 32> const aux{};
     std::array<std::uint8_t, 32> const tweak{};
-    BOOST_TEST(key.xonly_public_key().error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.public_key().error() == webcpp::crypto::error::invalid_state);
-    BOOST_TEST(key.sign_schnorr(message, aux).error() == webcpp::crypto::error::invalid_state);
-    BOOST_TEST(key.public_key_uncompressed().error() == webcpp::crypto::error::invalid_state);
-    BOOST_TEST(key.sign_ecdsa(message).error() == webcpp::crypto::error::invalid_state);
-    BOOST_TEST(key.sign_ecdsa(message, aux).error() == webcpp::crypto::error::invalid_state);
-    BOOST_TEST(key.sign_recoverable(message).error() == webcpp::crypto::error::invalid_state);
+    BOOST_TEST(key.secret().error() == webcpp::crypto::error::invalid_state);
+    BOOST_TEST(key.sign(webcpp::crypto::schnorr, message, aux).error() ==
+               webcpp::crypto::error::invalid_state);
+    BOOST_TEST(key.sign(webcpp::crypto::schnorr, message).error() ==
+               webcpp::crypto::error::invalid_state);
+    BOOST_TEST(key.sign(webcpp::crypto::ecdsa_sha256, message).error() ==
+               webcpp::crypto::error::invalid_state);
+    BOOST_TEST(key.sign(webcpp::crypto::ecdsa_sha256, message, aux).error() ==
+               webcpp::crypto::error::invalid_state);
+    BOOST_TEST(key.sign(webcpp::crypto::ecdsa_sha256_recoverable, message).error() ==
+               webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.tweak_xonly(tweak).error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(webcpp::crypto::curves::secp256k1::ellswift_create(key, aux).error() ==
                webcpp::crypto::error::invalid_state);
@@ -141,9 +147,9 @@ inline void expect_empty_keypair(webcpp::crypto::curves::secp256k1::keypair& key
                webcpp::crypto::error::invalid_state);
     if (BOOST_TEST(live.has_value())) {
         auto const peer = *live->public_key();
-        BOOST_TEST(key.ecdh(peer).error() == webcpp::crypto::error::invalid_state);
-        BOOST_TEST(key.ecdh_x(peer).error() == webcpp::crypto::error::invalid_state);
-        BOOST_TEST(key.ecdh_point(peer).error() == webcpp::crypto::error::invalid_state);
+        BOOST_TEST(key.agree_hashed(peer).error() == webcpp::crypto::error::invalid_state);
+        BOOST_TEST(key.agree(peer).error() == webcpp::crypto::error::invalid_state);
+        BOOST_TEST(key.agree_point(peer).error() == webcpp::crypto::error::invalid_state);
         expect_empty_musig_signer(key, *live, message);
         expect_empty_silent_payments(key, *live);
     }

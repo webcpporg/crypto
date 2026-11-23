@@ -7,7 +7,7 @@
 // The twelve Ed25519 edge cases of Chalkias, Garillot and Nikolaenko, "Taming the many EdDSAs"
 // (2020), novifinancial/ed25519-speccheck's cases.json, against every Ed25519 backend linked
 // (design D31): each backend's raw verdict, its own library called directly, and the verdict of
-// curves::ed25519::verify<strict, Backend>, compared with the verdicts committed in
+// crypto::verify<Backend>(crypto::eddsa, ..., strict), compared with the verdicts committed in
 // meta/ed25519_cases.json. Under strict every backend gives libsodium's verdicts. On Emscripten,
 // node's WebCrypto verify (Ed25519) gives the row webcrypto-node, an outside view that is compared
 // with its committed row but never with strict's. A pin move that changes a verdict fails here
@@ -17,6 +17,7 @@
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -168,14 +169,22 @@ void compare(std::string const& label, verdicts const& computed, verdicts const&
 }
 
 // libsodium's raw verdicts, crypto_sign_ed25519_verify_detached called directly, and strict's,
-// curves::ed25519::verify<strict, backends::sodium>, whose refusal is invalid_signature.
+// crypto::verify<backends::sodium>(crypto::eddsa, ..., strict), whose refusal is
+// invalid_signature.
 void sodium_rows(std::vector<edge_case> const& cases, verdicts& raw, verdicts& strict) {
     for (auto const& tested : cases) {
         raw.emplace_back(verdict(crypto_sign_ed25519_verify_detached(
                                      tested.signature.data(), tested.message.data(),
                                      tested.message.size(), tested.public_key.data()) == 0));
-        auto const verified = ed25519::verify<ed25519::strict, crypto::backends::sodium>(
-            tested.public_key, tested.message, tested.signature);
+        // Every case's key is 32 bytes: made, whatever its point (design R16).
+        auto const public_key = ed25519::public_key::make(tested.public_key);
+        BOOST_TEST(public_key.has_value());
+        if (!public_key) {
+            strict.emplace_back(verdict(false));
+            continue;
+        }
+        auto const verified = crypto::verify<crypto::backends::sodium>(
+            crypto::eddsa, tested.signature, tested.message, *public_key, ed25519::strict);
         if (!verified) {
             BOOST_TEST(verified.error() == crypto::error::invalid_signature);
         }

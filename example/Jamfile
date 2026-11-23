@@ -99,6 +99,10 @@ webcpp.example wallet_key.cpp : <library>/third_party//secp256k1 <library>/webcp
 # ECDSA with DER encoding and the low-S rule, as a domain library uses them.
 webcpp.example ecdsa_der.cpp : <library>/third_party//secp256k1 ;
 
+# A Bitcoin legacy or segwit v0 sighash: SHA-256d computed with webcpp::hash,
+# signed as crypto::prehashed under crypto::ecdsa_sha256, verified, as DER.
+webcpp.example bitcoin_sighash.cpp : <library>/third_party//secp256k1 ;
+
 # BIP341 key-path tweak of an internal key and a signature under the output key.
 webcpp.example taproot_tweak.cpp : <library>/third_party//secp256k1 ;
 
@@ -182,3 +186,9 @@ webcpp.example async_seal.cpp : <library>/webcpp/asio//asio
   <library>/webcpp/crypto//gcm-default ;
 webcpp.example async_sign.cpp : <library>/webcpp/asio//asio
   <library>/webcpp/crypto//ed25519-default ;
+
+# One operation's four forms (design D9): P-256's key pair made, a message
+# signed and the signature verified by the member, its free form, the
+# asynchronous member and its free form, on the default; the four agree.
+webcpp.example four_forms.cpp : <library>/webcpp/asio//asio
+  <library>/webcpp/crypto//p256-default ;

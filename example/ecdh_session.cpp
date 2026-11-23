@@ -165,7 +165,7 @@ int main() {
     if (!alice || !bob) {
         return 1;
     }
-    // Each side sends its public key (33 bytes) and keeps its secret.
+    // Each side sends its public key (its 33 compressed bytes) and keeps its secret.
     auto const alice_public = alice->public_key();
     auto const bob_public = bob->public_key();
     if (!alice_public || !bob_public) {
@@ -176,8 +176,8 @@ int main() {
     std::optional<crypto::ciphers::aes256_gcm> alice_cipher;
     std::optional<crypto::ciphers::aes256_gcm> bob_cipher;
     {
-        auto const alice_shared = alice->ecdh(*bob_public);
-        auto const bob_shared = bob->ecdh(*alice_public);
+        auto const alice_shared = alice->agree_hashed(*bob_public);
+        auto const bob_shared = bob->agree_hashed(*alice_public);
         if (!alice_shared || !bob_shared ||
             !crypto::equal(alice_shared->bytes(), bob_shared->bytes())) {
             return 1;

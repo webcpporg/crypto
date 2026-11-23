@@ -51,7 +51,7 @@ int main() {
     }
     auto const public_key = key->public_key();
     // Kept, the scalar stays a secret<32>, wiped when it goes; it makes the same key pair again.
-    auto const kept = key->secret_scalar();
+    auto const kept = key->secret();
     if (!public_key || !kept) {
         std::printf("failed\n");
         return 1;

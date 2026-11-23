@@ -51,6 +51,7 @@
 #include <webcpp/crypto/hybrid/box.hpp>
 #include <webcpp/crypto/hybrid/sealed_box.hpp>
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -199,7 +200,7 @@ int ctaes_block() {
     return check(ok && carries_mark<Checker>(block), "ctaes");
 }
 
-/** Ed25519 on libsodium: make and sign with the seed secret. */
+/** Ed25519 on libsodium: make and sign with the seed secret; the kept seed is traced. */
 template <class Checker>
 int sodium_ed25519() {
     std::array<std::uint8_t, 32> seed{};
@@ -207,9 +208,12 @@ int sodium_ed25519() {
     seed.fill(0x42);
     Checker::mark_secret(seed);
     auto const pair = crypto::curves::ed25519::basic_keypair<sodium>::make(seed);
-    auto const signature = pair->sign(message);
+    auto const signature = pair->sign(crypto::eddsa, message);
+    auto const kept = pair->secret();
     return check(signature.has_value() && carries_mark<Checker>(*signature),
-                 "Ed25519 on libsodium");
+                 "Ed25519 on libsodium") +
+           check(kept.has_value() && carries_mark<Checker>(kept->bytes()),
+                 "Ed25519's secret on libsodium");
 }
 
 /**
@@ -337,16 +341,20 @@ inline boost::system::result<secp256k1_pair> secp256k1_public_pair(std::uint8_t 
     return secp256k1_pair::make(secret_key);
 }
 
-/** A key pair's compressed public key, marked public: it is sent to a peer. */
+/**
+ * A key pair's public key as its peer reads it: its compressed bytes, marked public since they
+ * are sent, made into the peer's `public_key`.
+ */
 template <class Checker>
-std::array<std::uint8_t, 33> secp256k1_sent_key(secp256k1_pair const& pair) {
-    auto const encoded_key = pair.public_key();
+boost::system::result<crypto::curves::secp256k1::public_key> secp256k1_sent_key(
+    secp256k1_pair const& pair) {
+    auto const public_key = pair.public_key();
     std::array<std::uint8_t, 33> sent_key{};
-    if (encoded_key) {
-        sent_key = *encoded_key;
+    if (public_key) {
+        sent_key = public_key->compressed();
     }
     Checker::mark_public(sent_key);
-    return sent_key;
+    return crypto::curves::secp256k1::public_key::make<crypto::backends::secp256k1>(sent_key);
 }
 
 /** The bytes of a caller's workspace, for a checker's primitives. */
@@ -356,8 +364,9 @@ std::span<std::uint8_t const> workspace_bytes(std::array<std::byte, N> const& sp
 }
 
 /**
- * ECDH on libsecp256k1, its three forms: the key pair's secret secret, the peer's key public.
- * Each shared secret is traced.
+ * ECDH on libsecp256k1, its three forms, `agree`, `agree_hashed` and `agree_point`: the key
+ * pair's secret secret, the peer's key public. Each shared secret is traced, and so is the
+ * secret key `secret()` gives back.
  */
 template <class Checker>
 int secp256k1_ecdh() {
@@ -367,21 +376,29 @@ int secp256k1_ecdh() {
         return check(false, "secp256k1's key pairs for ECDH");
     }
     auto const peer_key = secp256k1_sent_key<Checker>(*peer);
-    auto const hashed = pair->ecdh(peer_key);
-    auto const x_only = pair->ecdh_x(peer_key);
-    auto const point = pair->ecdh_point(peer_key);
-    return check(hashed.has_value() && carries_mark<Checker>(hashed->bytes()), "secp256k1's ecdh") +
-           check(x_only.has_value() && carries_mark<Checker>(x_only->bytes()),
-                 "secp256k1's ecdh_x") +
+    if (!peer_key) {
+        return check(false, "secp256k1's peer key for ECDH");
+    }
+    auto const x_only = pair->agree(*peer_key);
+    auto const hashed = pair->agree_hashed(*peer_key);
+    auto const point = pair->agree_point(*peer_key);
+    auto const kept = pair->secret();
+    return check(x_only.has_value() && carries_mark<Checker>(x_only->bytes()),
+                 "secp256k1's agree") +
+           check(hashed.has_value() && carries_mark<Checker>(hashed->bytes()),
+                 "secp256k1's agree_hashed") +
            check(point.has_value() && carries_mark<Checker>(point->bytes()),
-                 "secp256k1's ecdh_point");
+                 "secp256k1's agree_point") +
+           check(kept.has_value() && carries_mark<Checker>(kept->bytes()), "secp256k1's secret");
 }
 
 /**
- * The key pair's signatures, BIP340, the recoverable ECDSA and the hedged one, then its x-only
- * tweak: the key pair's secret, the auxiliary randomness and the extra entropy secret, the hash
- * and the tweak public (libsecp256k1's `ctime_tests.c` holds the tweak public too). Each
- * signature is traced.
+ * The key pair's signatures, BIP340 with its auxiliary randomness given and drawn, the
+ * recoverable ECDSA and the hedged one of a digest, then its x-only tweak: the key pair's
+ * secret, the given auxiliary randomness and the extra entropy secret, the message, the digest
+ * and the tweak public (libsecp256k1's `ctime_tests.c` holds the tweak public too). The drawn
+ * auxiliary randomness comes from the system's generator, unmarked: its signature is traced
+ * through the key pair's secret alone. Each signature is traced.
  */
 template <class Checker>
 int secp256k1_signing() {
@@ -394,18 +411,22 @@ int secp256k1_signing() {
     message_hash.fill(0x17);
     extra_entropy.fill(0x5a);
     Checker::mark_secret(extra_entropy);
-    auto const schnorr = pair->sign_schnorr(message_hash, extra_entropy);
-    auto const recoverable = pair->sign_recoverable(message_hash);
-    auto const hedged = pair->sign_ecdsa(message_hash, extra_entropy);
+    crypto::prehashed const digest{message_hash};
+    auto const schnorr = pair->sign(crypto::schnorr, message_hash, extra_entropy);
+    auto const drawn = pair->sign(crypto::schnorr, message_hash);
+    auto const recoverable = pair->sign(crypto::ecdsa_sha256_recoverable, digest);
+    auto const hedged = pair->sign(crypto::ecdsa_sha256, digest, extra_entropy);
     std::array<std::uint8_t, 32> tweak_bytes{};
     tweak_bytes.fill(0x24);
     auto const tweaked = pair->tweak_xonly(tweak_bytes);
     return check(schnorr.has_value() && carries_mark<Checker>(*schnorr),
-                 "secp256k1's sign_schnorr") +
+                 "secp256k1's sign with schnorr") +
+           check(drawn.has_value() && carries_mark<Checker>(*drawn),
+                 "secp256k1's sign with schnorr, its auxiliary randomness drawn") +
            check(recoverable.has_value() && carries_mark<Checker>(*recoverable),
-                 "secp256k1's sign_recoverable") +
+                 "secp256k1's sign with ecdsa_sha256_recoverable") +
            check(hedged.has_value() && carries_mark<Checker>(*hedged),
-                 "secp256k1's hedged sign_ecdsa") +
+                 "secp256k1's hedged sign with ecdsa_sha256") +
            check(tweaked.has_value(), "secp256k1's tweak_xonly");
 }
 
@@ -500,9 +521,8 @@ int secp256k1_musig() {
     if (!pair || !other) {
         return check(false, "secp256k1's key pairs for MuSig2");
     }
-    auto const own_key = secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*pair));
-    auto const other_key =
-        secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*other));
+    auto const own_key = secp256k1_sent_key<Checker>(*pair);
+    auto const other_key = secp256k1_sent_key<Checker>(*other);
     if (!own_key || !other_key) {
         return check(false, "secp256k1's public keys for MuSig2");
     }
@@ -562,12 +582,9 @@ int secp256k1_silent_payments() {
     if (!scan_pair || !spend_pair || !input_pair) {
         return check(false, "secp256k1's key pairs for silent payments");
     }
-    auto const scan_key =
-        secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*scan_pair));
-    auto const spend_key =
-        secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*spend_pair));
-    auto const input_key =
-        secp256k1::parse_public_key<backend>(secp256k1_sent_key<Checker>(*input_pair));
+    auto const scan_key = secp256k1_sent_key<Checker>(*scan_pair);
+    auto const spend_key = secp256k1_sent_key<Checker>(*spend_pair);
+    auto const input_key = secp256k1_sent_key<Checker>(*input_pair);
     if (!scan_key || !spend_key || !input_key) {
         return check(false, "secp256k1's public keys for silent payments");
     }
@@ -646,7 +663,7 @@ int bearssl_p256_make() {
         return check(false, "P-256's make on BearSSL");
     }
     auto const point = pair->public_key();
-    auto const kept = pair->secret_scalar();
+    auto const kept = pair->secret();
     bool const point_traced = point.has_value() && (!Checker::exact_subtraction ||
                                                     carries_mark<Checker>(point->uncompressed()));
     return check(point_traced && kept.has_value() && carries_mark<Checker>(kept->bytes()),
@@ -654,12 +671,13 @@ int bearssl_p256_make() {
 }
 
 /**
- * P-256's ECDSA on BearSSL: a public digest signed with a secret scalar, the signature traced
- * (its s is the scalar's multiple), then made low S and checked low S as a protocol that
- * requires it does with a signature it has just made. BearSSL's own branches on its verdicts,
- * the scalar's decoding and the nonce's retry, are its function's (bearssl_verdicts.supp);
- * `normalize_ecdsa` and `check_low_s` branch only on verdicts the library declassifies, a
- * signature being public once it is made (`detail::p_curve_low_s`).
+ * P-256's ECDSA on BearSSL: a public digest signed with a secret scalar, through the marker,
+ * `sign(ecdsa_sha256, prehashed{digest})`, the signature traced (its s is the scalar's multiple)
+ * and made low S by `sign` without a branch (`detail::p_curve_high_s_mask`); then made low S and
+ * checked low S again as a protocol that requires it does with a signature it has just made.
+ * BearSSL's own branches on its verdicts, the scalar's decoding and the nonce's retry, are its
+ * function's (bearssl_verdicts.supp); `normalize_low_s` and `is_low_s` branch only on verdicts the
+ * library declassifies, a signature being public once it is made (`detail::p_curve_low_s`).
  */
 template <class Checker>
 int bearssl_p256_sign() {
@@ -670,18 +688,18 @@ int bearssl_p256_sign() {
     }
     std::array<std::uint8_t, p256::digest_size> digest{};
     digest.fill(0x17);
-    auto const signature = pair->sign_ecdsa(digest);
+    auto const signature = pair->sign(crypto::ecdsa_sha256, crypto::prehashed{digest});
     if (!signature) {
-        return check(false, "P-256's sign_ecdsa on BearSSL");
+        return check(false, "P-256's sign on BearSSL");
     }
     int const failures =
-        check(carries_mark<Checker>(*signature), "P-256's sign_ecdsa on BearSSL, traced");
-    auto const low = p256::normalize_ecdsa(*signature);
+        check(carries_mark<Checker>(*signature), "P-256's sign on BearSSL, traced");
+    auto const low = p256::normalize_low_s(*signature);
     // Not const: the mark changes the object in the checker's shadow, so it is read again.
     // NOLINTNEXTLINE(misc-const-correctness): see above
-    bool low_verdict = low.has_value() && p256::check_low_s(*low).has_value();
+    bool low_verdict = low.has_value() && p256::is_low_s(*low);
     Checker::verdict(low_verdict);
-    return failures + check(low_verdict, "P-256's normalize_ecdsa and check_low_s");
+    return failures + check(low_verdict, "P-256's normalize_low_s and is_low_s");
 }
 
 /**
@@ -701,10 +719,10 @@ int bearssl_p256_ecdh() {
     if (!peer_key) {
         return check(false, "P-256's peer key on BearSSL");
     }
-    auto const shared = pair->ecdh_x(*peer_key);
+    auto const shared = pair->agree(*peer_key);
     return check(shared.has_value() &&
                      (!Checker::exact_subtraction || carries_mark<Checker>(shared->bytes())),
-                 "P-256's ecdh_x on BearSSL");
+                 "P-256's agree on BearSSL");
 }
 
 /**
@@ -730,7 +748,7 @@ int bearssl_p256_pkcs8() {
     if (!decoded) {
         return check(false, "P-256's decode_pkcs8 on BearSSL");
     }
-    auto const kept = decoded->secret_scalar();
+    auto const kept = decoded->secret();
     return check(kept.has_value() && carries_mark<Checker>(kept->bytes()),
                  "P-256's decode_pkcs8 on BearSSL");
 }

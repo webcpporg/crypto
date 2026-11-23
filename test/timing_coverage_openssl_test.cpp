@@ -15,8 +15,10 @@
 // - The AES block cipher, aes128, aes192 and aes256: make; basic_aes: encrypt, decrypt.
 // - AES-GCM, gcm<aes128>, gcm<aes192> and gcm<aes256>: make, the move constructor and move
 //   assignment (ruling R3), seal, open, begin_seal, update, result, and the asynchronous
-//   async_make, async_seal and async_open.
-// - ChaCha20-Poly1305, aead: make, seal, open.
+//   async_make, async_seal and async_open, free and member; the free crypto::make, crypto::seal
+//   and crypto::open.
+// - ChaCha20-Poly1305, aead: make, seal, open; the free crypto::make, crypto::seal and
+//   crypto::open.
 
 #include "support/timing_seam.hpp"
 

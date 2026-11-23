@@ -9,6 +9,7 @@
 // key. Prints each key and signature in hex.
 // tag::program[]
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <array>
 #include <cstddef>
@@ -16,6 +17,7 @@
 #include <cstdio>
 #include <span>
 
+namespace crypto = webcpp::crypto;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
@@ -42,17 +44,19 @@ void print(char const* name, std::span<std::uint8_t const> bytes) {
     std::printf("\n");
 }
 
-// Signs message with key and checks the signature under the key's x-only public key.
+// Signs message with key and checks the signature under the key's x-only public key. The
+// auxiliary randomness is BIP340's first vector's, 32 zero bytes, so that the output is the same
+// on every run; sign(crypto::schnorr, message) alone draws fresh bytes, as BIP340 recommends.
 bool sign_and_verify(secp256k1::keypair const& key, std::span<std::uint8_t const> message) {
     std::array<std::uint8_t, 32> const aux{};
-    auto const public_key = key.xonly_public_key();
-    auto const signature = key.sign_schnorr(message, aux);
+    auto const public_key = key.public_key();
+    auto const signature = key.sign(crypto::schnorr, message, aux);
     if (!public_key || !signature) {
         return false;
     }
-    print("public key", *public_key);
+    print("public key", public_key->xonly());
     print("signature ", *signature);
-    return secp256k1::verify_schnorr(*signature, message, *public_key).has_value();
+    return crypto::verify(crypto::schnorr, *signature, message, *public_key).has_value();
 }
 
 }  // namespace

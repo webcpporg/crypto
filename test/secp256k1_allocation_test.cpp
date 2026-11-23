@@ -7,8 +7,10 @@
 // secp256k1's one allocation (spec section 8.5): make allocates the signing context once, in
 // the resource it is given, of libsecp256k1's preallocated size and aligned to max_align_t,
 // and never through operator new nor the C library's allocator where the target lets a
-// program count it; the signatures (hedged and recoverable too), the three forms of ECDH, the
-// public keys in both forms, both verifications, the parsed public key, recovery, the DER and
+// program count it; the signatures of every scheme (of a message and of a digest, hedged,
+// recoverable, Schnorr's with its randomness given and drawn), the three agreements, the
+// public key and the secret key, the public key's three byte forms, both verifications, Schnorr's
+// with the typed key and with x-only bytes, the made public key, recovery, the DER and
 // low-S functions, the x-only tweak, the tweaks, negations and combination of tweak.hpp, the
 // SPKI and PKCS#8 encoders and decoders of formats.hpp, the ElligatorSwift functions of
 // ellswift.hpp, the MuSig2 functions of musig.hpp and the silent payments of
@@ -22,6 +24,7 @@
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/counting.hpp"
@@ -199,20 +202,32 @@ int main() {
         BOOST_TEST_EQ(resource.alignment, alignof(std::max_align_t));
         secp::keypair key = std::move(*made);
 
-        auto const schnorr = key.sign_schnorr(message, aux);
-        auto const ecdsa = key.sign_ecdsa(message);
-        auto const xonly = key.xonly_public_key();
+        crypto::prehashed const digest{message};
+        auto const schnorr = key.sign(crypto::schnorr, message, aux);
+        auto const drawn = key.sign(crypto::schnorr, message);
+        auto const ecdsa = key.sign(crypto::ecdsa_sha256, digest);
+        auto const of_message = key.sign(crypto::ecdsa_sha256, message);
         auto const public_key = key.public_key();
-        auto const shared = key.ecdh(*public_key);
-        auto const shared_x = key.ecdh_x(*public_key);
-        auto const shared_point = key.ecdh_point(*public_key);
-        auto const hedged = key.sign_ecdsa(message, aux);
-        auto const recoverable = key.sign_recoverable(message);
-        auto const uncompressed = key.public_key_uncompressed();
-        BOOST_TEST(schnorr && ecdsa && xonly && public_key && shared && shared_x && shared_point);
-        BOOST_TEST(hedged && recoverable && uncompressed);
-        BOOST_TEST(secp::verify_schnorr(*schnorr, message, *xonly).has_value());
-        BOOST_TEST(secp::verify_ecdsa(*ecdsa, message, *public_key).has_value());
+        auto const secret_key = key.secret();
+        if (!BOOST_TEST(public_key.has_value())) {
+            return webcpp::test::exit_status(boost::report_errors());
+        }
+        auto const xonly = public_key->xonly();
+        auto const shared = key.agree_hashed(*public_key);
+        auto const shared_x = key.agree(*public_key);
+        auto const shared_point = key.agree_point(*public_key);
+        auto const hedged = key.sign(crypto::ecdsa_sha256, digest, aux);
+        auto const recoverable = key.sign(crypto::ecdsa_sha256_recoverable, digest);
+        auto const uncompressed = public_key->uncompressed();
+        auto const compressed = public_key->compressed();
+        auto const verifier = secp::public_key::make(compressed);
+        BOOST_TEST(schnorr && ecdsa && secret_key && shared && shared_x && shared_point);
+        BOOST_TEST(drawn && of_message && hedged && recoverable && verifier);
+        BOOST_TEST(crypto::verify(crypto::schnorr, *schnorr, message, xonly).has_value());
+        BOOST_TEST(crypto::verify(crypto::schnorr, *drawn, message, *public_key).has_value());
+        BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, *ecdsa, digest, *verifier).has_value());
+        BOOST_TEST(
+            crypto::verify(crypto::ecdsa_sha256, *of_message, message, *verifier).has_value());
         BOOST_TEST_EQ(webcpp::test::allocations(), before);
 
         // Each of the DER and low-S functions and the x-only tweak, alone: no allocation.
@@ -232,15 +247,16 @@ int main() {
         });
         auto const encoded = std::span<std::uint8_t const>(der).first(der_size);
         none("from_der", [&] { return secp::from_der(encoded); });
-        none("normalize_ecdsa", [&] { return secp::normalize_ecdsa(*ecdsa); });
-        none("tweak_xonly", [&] { return secp::tweak_xonly(*xonly, message); });
-        auto const parsed = secp::parse_public_key(*uncompressed);
-        none("parse_public_key", [&] { return secp::parse_public_key(*public_key); });
-        none("serialize_public_key", [&] {
-            return secp::serialize_public_key<secp::point_form::uncompressed>(*parsed) ==
-                   *uncompressed;
-        });
-        none("recover", [&] { return secp::recover(*recoverable, message); });
+        none("normalize_low_s", [&] { return secp::normalize_low_s(*ecdsa); });
+        none("is_low_s", [&] { return secp::is_low_s(*ecdsa); });
+        none("tweak_xonly", [&] { return secp::tweak_xonly(xonly, message); });
+        auto const parsed = secp::public_key::make(uncompressed);
+        none("public_key::make", [&] { return secp::public_key::make(compressed); });
+        none("public_key::compressed", [&] { return parsed->compressed() == compressed; });
+        none("public_key::uncompressed", [&] { return parsed->uncompressed() == uncompressed; });
+        none("public_key::xonly", [&] { return parsed->xonly() == xonly; });
+        none("recover",
+             [&] { return secp::recover(crypto::ecdsa_sha256_recoverable, *recoverable, digest); });
         none("public_key <=>", [&] { return (*parsed <=> *parsed) == 0; });
         none("keypair::tweak_xonly", [&] { return key.tweak_xonly(message); });
 
@@ -286,7 +302,7 @@ int main() {
         // musig.hpp: one signer's two rounds, its workspace on the stack, each step alone.
         namespace musig = secp::musig;
         // The key pair was tweaked above: its key now, not the one parsed before.
-        auto const signer_key = secp::parse_public_key(*key.public_key());
+        auto const signer_key = key.public_key();
         if (!BOOST_TEST(signer_key.has_value())) {
             return webcpp::test::exit_status(boost::report_errors());
         }

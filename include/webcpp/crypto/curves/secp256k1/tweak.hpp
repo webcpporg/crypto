@@ -61,11 +61,11 @@ using secp256k1_pubkey_tweak = int (*)(secp256k1_context const*, secp256k1_pubke
     }
     secp256k1_secret working_copy;
     std::ranges::copy(secret_key, working_copy.bytes.begin());
-    int const status =
+    int const tweak_status =
         tweak_bytes == nullptr
             ? secp256k1_ec_seckey_negate(secp256k1_context_static, working_copy.bytes.data())
             : tweak_function(secp256k1_context_static, working_copy.bytes.data(), tweak_bytes);
-    if (!secp256k1_accepted(status)) {
+    if (!secp256k1_accepted(tweak_status)) {
         return error::invalid_secret_key;
     }
     secret<32> tweaked_secret;
@@ -254,14 +254,14 @@ template <class Backend = default_backend_t<families::secp256k1>>
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace on every return, a refusal's included.
-    webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
+    webcpp::crypto::detail::secp256k1_workspace pointer_carver(pointer_space);
     // libsecp256k1 checks the count with ARG_CHECK, whose callback aborts: refused first here.
     if (parsed_keys.empty() || pointer_space.size() < combine_workspace_size(parsed_keys.size())) {
         return error::invalid_input_size;
     }
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
-    auto* const key_pointers = carver.take<secp256k1_pubkey const*>(parsed_keys.size());
+    auto* const key_pointers = pointer_carver.take<secp256k1_pubkey const*>(parsed_keys.size());
     if (key_pointers == nullptr) {
         return error::invalid_input_size;
     }

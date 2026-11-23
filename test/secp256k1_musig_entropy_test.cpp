@@ -66,8 +66,8 @@ int main() {
         return webcpp::test::exit_status(boost::report_errors());
     }
     BOOST_TEST_EQ(calls, 2U);
-    auto const first_key = secp::parse_public_key(*first->public_key());
-    auto const second_key = secp::parse_public_key(*second->public_key());
+    auto const first_key = first->public_key();
+    auto const second_key = second->public_key();
     std::array<secp::public_key, 2> const keys{*first_key, *second_key};
     std::vector<std::byte> space(musig::workspace_size(keys.size()));
     auto const key = musig::key_aggregate(keys, space);

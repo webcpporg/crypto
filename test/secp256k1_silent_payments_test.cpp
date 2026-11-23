@@ -30,6 +30,7 @@
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/bip352_vectors.h"
@@ -155,19 +156,15 @@ secp::keypair keypair_of(std::span<std::uint8_t const, 32> secret_bytes) {
 }
 
 secp::public_key public_of(secp::keypair const& key) {
-    auto const encoded = key.public_key();
-    if (!BOOST_TEST(encoded.has_value())) {
+    auto const public_key = key.public_key();
+    if (!BOOST_TEST(public_key.has_value())) {
         std::exit(boost::report_errors());
     }
-    auto const parsed = secp::parse_public_key(*encoded);
-    if (!BOOST_TEST(parsed.has_value())) {
-        std::exit(boost::report_errors());
-    }
-    return *parsed;
+    return *public_key;
 }
 
 secp::public_key parsed_key(std::span<std::uint8_t const> encoded) {
-    auto const parsed = secp::parse_public_key(encoded);
+    auto const parsed = secp::public_key::make(encoded);
     if (!BOOST_TEST(parsed.has_value())) {
         std::exit(boost::report_errors());
     }
@@ -414,13 +411,13 @@ void check_found(bip352_receive_subtest const& subtest, sp::found_output const& 
         return;
     }
     auto const spending = keypair_of(spend_tweaked->bytes());
-    auto const signature = spending.sign_schnorr(message, aux);
+    auto const signature = spending.sign(crypto::schnorr, message, aux);
     if (BOOST_TEST(signature.has_value())) {
         BOOST_TEST(std::ranges::equal(*signature, subtest.found_signatures[at]));
     }
-    auto const output_of_key = spending.xonly_public_key();
+    auto const output_of_key = spending.public_key();
     if (BOOST_TEST(output_of_key.has_value())) {
-        BOOST_TEST(*output_of_key == output.output_key);
+        BOOST_TEST(output_of_key->xonly() == output.output_key);
     }
 }
 
@@ -516,8 +513,8 @@ void find_labelled(secp::keypair const& scan_key, secp::public_key const& spend_
     BOOST_TEST(found[0].label_point == std::optional(sent_label.point));
     auto const tweaked = secp::seckey_tweak_add(key_bytes(3), found[0].spend_tweak);
     if (BOOST_TEST(tweaked.has_value())) {
-        auto const output_key = keypair_of(tweaked->bytes()).xonly_public_key();
-        BOOST_TEST(output_key.has_value() && *output_key == outputs[0]);
+        auto const output_key = keypair_of(tweaked->bytes()).public_key();
+        BOOST_TEST(output_key.has_value() && output_key->xonly() == outputs[0]);
     }
     std::vector<sp::found_output> unlabelled_found(1);
     auto const unlabelled =
@@ -566,7 +563,7 @@ void labelled_round_trip() {
                crypto::error::invalid_point);
     // A label whose point is the spend key negated: the sum is the point at infinity.
     sp::label opposite = *other;
-    opposite.point = secp::serialize_public_key(secp::pubkey_negate(spend_key).value());
+    opposite.point = secp::pubkey_negate(spend_key).value().compressed();
     BOOST_TEST(sp::create_labeled_spend_key(spend_key, opposite).error() ==
                crypto::error::invalid_public_key);
 }
@@ -654,9 +651,9 @@ void one_kind_of_input(refusal_keys& keys) {
                                   keys.fresh(sp::send_workspace_size(2, 0, 1)))
                    .has_value());
     BOOST_TEST(all_zero(keys.space));
-    auto const taproot_key = keys.second.xonly_public_key();
+    auto const taproot_key = keys.second.public_key();
     if (BOOST_TEST(taproot_key.has_value())) {
-        std::array<xonly, 1> const taproot_keys{*taproot_key};
+        std::array<xonly, 1> const taproot_keys{taproot_key->xonly()};
         BOOST_TEST(sp::make_prevouts_summary(keys.outpoint, taproot_keys, emptied_points,
                                              keys.fresh(sp::summary_workspace_size(1, 0)))
                        .has_value());

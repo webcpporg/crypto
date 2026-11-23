@@ -9,7 +9,7 @@
 // and MSVC; where the CPU has DIT, a guard sets it for its scope and clears it after when it was
 // clear, leaves it set when it was set, and nests; equal enters its own guard. Built with
 // WEBCPP_TEST_TIMING_THREADS (timing_threads, native, with threads), a guard on one thread leaves
-// another's DIT clear. P-256's normalize_ecdsa and check_low_s, which call no backend, enter no
+// another's DIT clear. P-256's normalize_low_s and is_low_s, which call no backend, enter no
 // guard: this program links none, and curves/p256.hpp needs none to declare them.
 
 #include "support/timing_seam.hpp"
@@ -144,6 +144,30 @@ void names_function_spellings() {
     BOOST_TEST(!names("auto __cdecl ns::f::<lambda_1>::operator ()(void) const", "ns::f"));
 }
 
+// MSVC writes the exception specification of a function that may throw after its parameters,
+// clang and GCC none: crypto::make and crypto::generate of secp256k1's key pair, whose memory
+// resource may throw, are read as their own in either spelling.
+void names_function_exception_specifications() {
+    auto const names = [](std::string_view entered, std::string_view spelled) {
+        return webcpp::test::names_function(entered, webcpp::test::function_named(spelled));
+    };
+    BOOST_TEST(
+        names("class ns::result<class ns::kp<struct ns::b>> __cdecl "
+              "ns::crypto::make<class ns::kp<struct ns::b>,const class std::array<unsigned "
+              "char,32>&>(const class std::array<unsigned char,32> &) noexcept(false)",
+              "crypto::make"));
+    BOOST_TEST(
+        names("class ns::result<class ns::kp<struct ns::b>> __cdecl "
+              "ns::crypto::generate<class ns::kp<struct ns::b>,>(void) noexcept(false)",
+              "crypto::generate"));
+    BOOST_TEST(names("int __cdecl ns::pem::armour<struct ns::b>(int) noexcept", "pem::armour"));
+    BOOST_TEST(names("int __cdecl ns::pk::compare(int) const noexcept(true)", "pk::compare(int"));
+    // The specification is not a parameter list: its words never name the function.
+    BOOST_TEST(
+        !names("int __cdecl ns::crypto::make<int>(int) noexcept(false)", "crypto::make(false"));
+    BOOST_TEST(!names("int __cdecl ns::other(int) noexcept(ns::pem::armour(int))", "pem::armour"));
+}
+
 // From clear: set inside a guard, clear after it. Where the guard does not apply, never set.
 void guard_sets_and_clears() {
     force_dit(false);
@@ -204,12 +228,12 @@ void equal_enters() {
 void p256_low_s_unguarded() {
     namespace p256 = webcpp::crypto::curves::p256;
     namespace data = webcpp::test::p256;
-    webcpp::test::uncovered("p256::normalize_ecdsa", [] {
-        auto const normalized = p256::normalize_ecdsa(data::rfc6979_sample);
+    webcpp::test::uncovered("p256::normalize_low_s", [] {
+        auto const normalized = p256::normalize_low_s(data::rfc6979_sample);
         BOOST_TEST(normalized.has_value() && *normalized == data::rfc6979_sample_low_s);
     });
-    webcpp::test::uncovered("p256::check_low_s",
-                            [] { BOOST_TEST(p256::check_low_s(data::rfc6979_test).has_value()); });
+    webcpp::test::uncovered("p256::is_low_s",
+                            [] { BOOST_TEST(p256::is_low_s(data::rfc6979_test)); });
 }
 
 #ifdef WEBCPP_TEST_TIMING_THREADS
@@ -241,6 +265,7 @@ int main() {
     seam_fires();
     seam_names_function();
     names_function_spellings();
+    names_function_exception_specifications();
     guard_sets_and_clears();
     guard_leaves_set_bit();
     nested_guards();

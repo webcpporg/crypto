@@ -51,10 +51,8 @@ int main() {
     auto const initiator_key = initiator->public_key();
     auto const responder_key = responder->public_key();
     if (!initiator_key || !responder_key ||
-        secp256k1::serialize_public_key(secp256k1::ellswift_decode(*initiator_message)) !=
-            *initiator_key ||
-        secp256k1::serialize_public_key(secp256k1::ellswift_decode(*responder_message)) !=
-            *responder_key) {
+        secp256k1::ellswift_decode(*initiator_message) != *initiator_key ||
+        secp256k1::ellswift_decode(*responder_message) != *responder_key) {
         return 1;
     }
     std::printf("each 64-byte message decodes to its sender's key\n");

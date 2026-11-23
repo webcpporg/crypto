@@ -64,16 +64,27 @@ in low-S form, which Bitcoin nodes require to relay a transaction (a policy;
 link:https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki[BIP 146]
 proposed it as a consensus rule).
 
-*The idea.* The domain library computes the signature hash (SHA-256 twice over
-the preimage it serialized); crypto signs it, deterministically and in low-S
-form, and encodes the signature as strict DER. `from_der` decodes strict DER and
-refuses anything else; `normalize_ecdsa` gives the low-S form of a signature
-from a signer that does not enforce it.
+*The idea.* The domain library computes the signature hash, the sighash
+(SHA-256 twice over the preimage it serialized); crypto signs it as
+`+crypto::prehashed{sighash}+` under `crypto::ecdsa_sha256`, which is honest, the
+sighash being the SHA-256 of a SHA-256 (<<crypto-curves-signatures-bitcoin>>).
+It signs deterministically and in low-S form, and `to_der` encodes the
+signature as strict DER:
 
 [source,cpp]
 ----
-include::{examples}/ecdsa_der.cpp[tag=sign,indent=0]
+include::{examples}/bitcoin_sighash.cpp[tag=sighash,indent=0]
 ----
+
+[listing]
+----
+include::{examples}/bitcoin_sighash.expected[]
+----
+
+`from_der` decodes strict DER and refuses anything else. A signature from a
+signer that does not enforce low S is refused by `crypto::verify` as it is;
+`normalize_low_s` gives its low-S form. The same steps in a program of its own,
+then the high-S form of its signature, refused, and normalized:
 
 [source,cpp]
 ----
@@ -154,8 +165,9 @@ candidates; a recoverable signature adds the id, 0 to 3, of the one that
 verifies, so that a reader computes the signer's key from the signature and
 the hash alone. Ethereum finds a transaction's sender this way
 (link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow paper,
-appendix F]). `sign_recoverable` makes the 65 bytes, and `recover` finds the
-key (<<crypto-secp256k1-recovery>>). Recovery finds some key for almost any
+appendix F]). `sign(crypto::ecdsa_sha256_recoverable, input)` makes the 65
+bytes, and `recover(crypto::ecdsa_sha256_recoverable, signature, input)` finds
+the key (<<crypto-secp256k1-recovery>>). Recovery finds some key for almost any
 signature and any hash: what makes it a check is the comparison with the key
 the reader expects.
 
@@ -172,9 +184,11 @@ include::{examples}/recover_signer.expected[]
 Ethereum compares addresses rather than keys, the last 20 bytes of the
 Keccak-256 of the uncompressed key (the yellow paper, appendix F), and a wallet
 signs a message after EIP-191's prefix
-(link:https://eips.ethereum.org/EIPS/eip-191[EIP-191]). Both are the protocol's
-rules, which a domain library built on crypto, such as a future
-webcpp::ethereum, computes; crypto holds the signature and the recovery. This
+(link:https://eips.ethereum.org/EIPS/eip-191[EIP-191]), whose digest is
+Keccak-256's: the library passes it as `+crypto::prehashed{digest}+`, which the
+scheme signs and recovers as given (<<crypto-curves-signatures-ethereum>>).
+Both are the protocol's rules, which a domain library built on crypto, such as
+a future webcpp::ethereum, computes; crypto holds the signature and the recovery. This
 section names no application.
 
 *Mistakes to avoid.* Never trust a recovered key on its own: a changed or

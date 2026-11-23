@@ -775,8 +775,12 @@ void post_gcm_tokens(asio::io_context& context) {
 struct verify_fixture {
     std::vector<std::uint8_t> seed =
         webcpp::test::from_hex("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb");
-    std::vector<std::uint8_t> public_key =
-        webcpp::test::from_hex("3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c");
+    // value(): a key not made throws, or ends the program without exceptions.
+    crypto::curves::ed25519::public_key public_key =
+        crypto::curves::ed25519::public_key::make(
+            webcpp::test::from_hex(
+                "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c"))
+            .value();
     std::vector<std::uint8_t> message = webcpp::test::from_hex("72");
     // clang-format off
     std::vector<std::uint8_t> signature = webcpp::test::from_hex("92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00");
@@ -789,21 +793,21 @@ struct verify_fixture {
 
     auto verify() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_verify(executor, public_key, message, signature,
+            return crypto::async_verify(executor, crypto::eddsa, signature, message, public_key,
                                         std::forward<decltype(token)>(token));
         };
     }
 
     auto verify_refused() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_verify(executor, std::span(public_key).first(31), message,
-                                        signature, std::forward<decltype(token)>(token));
+            return crypto::async_verify(executor, crypto::eddsa, std::span(signature).first(63),
+                                        message, public_key, std::forward<decltype(token)>(token));
         };
     }
 
     auto sign() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_sign(executor, key_pair, message,
+            return crypto::async_sign(executor, key_pair, crypto::eddsa, message,
                                       std::forward<decltype(token)>(token));
         };
     }
@@ -854,8 +858,8 @@ void post_verify_inline(asio::io_context& context) {
     auto const refused = complete_later<>(context, fixture.verify());
     BOOST_TEST(refused.code == crypto::error::invalid_signature);
     --fixture.signature[3];
-    auto const short_key = complete_later<>(context, fixture.verify_refused());
-    BOOST_TEST(short_key.code == crypto::error::invalid_public_key);
+    auto const short_signature = complete_later<>(context, fixture.verify_refused());
+    BOOST_TEST(short_signature.code == crypto::error::invalid_signature);
     // The value shapes: a signature (an array) and a shared secret, and an error's empty value.
     auto const signed_message = complete_later<block>(context, fixture.sign());
     BOOST_TEST(!signed_message.code);
@@ -887,7 +891,7 @@ void post_verify_allocator(asio::io_context& context) {
     BOOST_TEST_EQ(verified.news, 0U);
     allocator_call refused;
     start_counted<>(context, fixture.verify_refused(), refused);
-    BOOST_TEST(refused.code == crypto::error::invalid_public_key);
+    BOOST_TEST(refused.code == crypto::error::invalid_signature);
     BOOST_TEST_EQ(refused.held_at_call, 0);
     BOOST_TEST_GE(refused.taken, 1);
     BOOST_TEST_EQ(refused.news, 0U);
@@ -911,7 +915,7 @@ void post_verify_tokens(asio::io_context& context) {
     try {
         future_refused.get();
     } catch (boost::system::system_error const& failure) {
-        thrown = failure.code() == crypto::error::invalid_public_key;
+        thrown = failure.code() == crypto::error::invalid_signature;
     }
     BOOST_TEST(thrown);
 #endif
@@ -936,7 +940,7 @@ void post_verify_tokens(asio::io_context& context) {
     fixture.verify_refused()(executor,
                              asio::as_tuple([&](std::tuple<boost::system::error_code> done) {
                                  ++tuples;
-                                 BOOST_TEST(std::get<0>(done) == crypto::error::invalid_public_key);
+                                 BOOST_TEST(std::get<0>(done) == crypto::error::invalid_signature);
                              }));
     fixture.agree_refused()(executor,
                             asio::as_tuple([&](std::tuple<boost::system::error_code, key> done) {
@@ -963,7 +967,7 @@ void post_verify_tokens(asio::io_context& context) {
             BOOST_TEST(std::ranges::equal(signature, fixture.signature));
             auto [refused_code] =
                 co_await fixture.verify_refused()(coro, asio::as_tuple(asio::use_awaitable));
-            BOOST_TEST(refused_code == crypto::error::invalid_public_key);
+            BOOST_TEST(refused_code == crypto::error::invalid_signature);
             done = true;
         },
         [](std::exception_ptr const& failure) { BOOST_TEST(!failure); });

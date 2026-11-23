@@ -1,0 +1,11 @@
+make: free = member    yes
+signature efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf3716
+          0834e36ad29a83bf2bc9385e491d6099c8fdf9d1ed67aa7ea5f51f93782857a9
+sign: free             yes
+sign: async member     yes
+sign: async free       yes
+verify: member         yes
+verify: free           yes
+verify: async member   yes
+verify: async free     yes
+the four forms agree

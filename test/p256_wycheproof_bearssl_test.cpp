@@ -5,14 +5,17 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // P-256 ECDSA on BearSSL against Wycheproof (spec 8.1): the SHA-256 vectors in the raw form,
-// IEEE P1363's r || s, through verify_ecdsa, and in DER through from_der then verify_ecdsa. A
-// valid case verifies, an invalid one is refused, and an acceptable one, which neither file has
-// at its pinned commit, fails the test so that it is read. The valid cases whose S is high are
-// counted: verify_ecdsa accepts both forms, as FIPS 186-5 and WebCrypto do (design D36).
+// IEEE P1363's r || s, through crypto::verify(ecdsa_sha256, ...), and in DER through from_der
+// then crypto::verify, each case verified from its message and from its digest, with the same
+// verdict. A valid case verifies, an invalid one is refused, and an acceptable one, which neither
+// file has at its pinned commit, fails the test so that it is read. The valid cases whose S is
+// high (is_low_s false) are counted: crypto::verify accepts both forms, as FIPS 186-5 and
+// WebCrypto do (design D36).
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/digest.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -69,17 +72,6 @@ std::array<std::uint8_t, p256::digest_size> sha256(std::span<std::uint8_t const>
     return out;
 }
 
-// Whether s is above (n - 1) / 2, the half order, compared byte by byte: public values.
-bool high_s(signature const& value) {
-    static constexpr auto half = crypto::detail::p_curve_traits<crypto::families::p256>::half_order;
-    for (std::size_t i = 0; i < half.size(); ++i) {
-        if (value[32 + i] != half[i]) {
-            return value[32 + i] > half[i];
-        }
-    }
-    return false;
-}
-
 // The counts of one file.
 struct counts {
     /** Cases read. */
@@ -91,6 +83,20 @@ struct counts {
     /** Valid cases whose S is high. */
     int valid_high_s = 0;
 };
+
+// Whether a signature verifies, from the message and from its digest: a case whose two verdicts
+// differ is reported.
+bool verified_both_ways(std::string const& name, json::value const& t, signature const& value,
+                        std::span<std::uint8_t const> message, p256::public_key const& key) {
+    bool const verified = crypto::verify(crypto::ecdsa_sha256, value, message, key).has_value();
+    bool const verified_digest =
+        crypto::verify(crypto::ecdsa_sha256, value, crypto::prehashed{sha256(message)}, key)
+            .has_value();
+    if (verified != verified_digest) {
+        report(name, t, "message and digest verified differently");
+    }
+    return verified;
+}
 
 // One file's cases: `decode` turns a case's signature into the raw form, or refuses it; a valid
 // case must decode and verify, an invalid one must be refused at either step.
@@ -107,17 +113,15 @@ counts run(std::string const& name, Decode decode) {
         for (auto const& t : group.at("tests").as_array()) {
             ++seen.total;
             auto const message = test::from_hex(str(t.at("msg")));
-            auto const hash = sha256(message);
-            auto const encoded = test::from_hex(str(t.at("sig")));
-            auto const decoded = decode(encoded);
+            auto const decoded = decode(test::from_hex(str(t.at("sig"))));
             bool const verified =
-                decoded.has_value() && p256::verify_ecdsa(*decoded, hash, *key).has_value();
+                decoded.has_value() && verified_both_ways(name, t, *decoded, message, *key);
             auto const verdict = str(t.at("result"));
             if (verdict == "valid") {
                 ++seen.valid;
                 if (!verified) {
                     report(name, t, "valid signature refused");
-                } else if (high_s(*decoded)) {
+                } else if (!p256::is_low_s(*decoded)) {
                     ++seen.valid_high_s;
                 }
             } else if (verdict == "invalid") {
@@ -138,7 +142,8 @@ counts run(std::string const& name, Decode decode) {
 }
 
 void p1363() {
-    // A signature of another size than 64 bytes is refused before verify_ecdsa, which takes 64.
+    // A signature of another size than 64 bytes is refused before crypto::verify, which takes
+    // 64.
     auto const seen =
         run("ecdsa_secp256r1_sha256_p1363_test",
             [](std::vector<std::uint8_t> const& encoded) -> boost::system::result<signature> {

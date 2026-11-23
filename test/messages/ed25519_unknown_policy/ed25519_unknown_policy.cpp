@@ -4,8 +4,8 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// A program that names a policy of its own in Ed25519's verify, on its default backend linked,
-// stops where it calls it, with the one policy there is.
+// A program that names a policy of its own in Ed25519's crypto::verify, on its default backend
+// linked, stops where it calls it, with the one policy there is.
 
 // clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
 // whole text stays on one line.
@@ -14,9 +14,11 @@
 // clang-format on
 
 #include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <array>
 #include <cstdint>
+#include <span>
 
 namespace {
 
@@ -26,7 +28,12 @@ struct lenient {};
 }  // namespace
 
 int main() {
-    std::array<std::uint8_t, 32> const public_key{};
+    auto const public_key =
+        webcpp::crypto::curves::ed25519::public_key::make(std::array<std::uint8_t, 32>{});
     std::array<std::uint8_t, 64> const signature{};
-    return webcpp::crypto::curves::ed25519::verify<lenient>(public_key, {}, signature) ? 0 : 1;
+    return public_key &&
+                   webcpp::crypto::verify(webcpp::crypto::eddsa, signature,
+                                          std::span<std::uint8_t const>{}, *public_key, lenient{})
+               ? 0
+               : 1;
 }

@@ -5,8 +5,8 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // async_sign on a key pair of an algorithm WebCrypto lacks, secp256k1's, stops with the key pair's
-// own signing to call instead, and with that error alone, while the key pair's sign_ecdsa
-// compiles.
+// own signing to call instead, and with that error alone, while the key pair's
+// sign(crypto::ecdsa_sha256, message) compiles.
 
 // clang-format off
 // expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the key pair's synchronous signing function for the others.}}
@@ -30,11 +30,11 @@ int main() {
         return 1;
     }
     // The synchronous signing compiles.
-    if (!made->sign_ecdsa(message)) {
+    if (!made->sign(crypto::ecdsa_sha256, message)) {
         return 1;
     }
     webcpp::asio::io_context context;
-    crypto::async_sign(context.get_executor(), *made, message,
+    crypto::async_sign(context.get_executor(), *made, crypto::ecdsa_sha256, message,
                        [](boost::system::error_code, std::array<std::uint8_t, 64>) {});
     return 0;
 }

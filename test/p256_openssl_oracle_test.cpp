@@ -11,10 +11,12 @@
 //   scalar, its public point d * G computed by OpenSSL's EC_POINT_mul, then OSSL_PARAM_BLD and
 //   EVP_PKEY_fromdata), OpenSSL's point equal to ours; a random 32-byte digest; OpenSSL signs it
 //   with RFC 6979's nonce over SHA-256 (the parameters `nonce-type` 1 and `digest` "SHA256",
-//   OpenSSL 3.2 and later), and its DER signature through from_der equals sign_ecdsa's bytes;
-//   OpenSSL verifies to_der of ours, and verify_ecdsa accepts OpenSSL's.
+//   OpenSSL 3.2 and later), and its DER signature through from_der, made low S by
+//   normalize_low_s, equals the bytes of sign(ecdsa_sha256, prehashed{digest}), which signs low
+//   S; OpenSSL verifies to_der of ours, and crypto::verify accepts OpenSSL's as it signed it,
+//   high S or low.
 // - ECDH: two random key pairs; EVP_PKEY_derive of the first with the second's public key equals
-//   ecdh_x.
+//   agree.
 // - Formats: OpenSSL's i2d_PUBKEY and its PrivateKeyInfo (an OSSL_ENCODER, DER) decode with
 //   decode_spki and decode_pkcs8 and encode again to the same bytes; encode_spki's and
 //   encode_pkcs8's bytes load in OpenSSL (d2i_PUBKEY, d2i_AutoPrivateKey) to the same key, its
@@ -29,6 +31,7 @@
 #include <webcpp/crypto/curves/p256/formats.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -312,7 +315,9 @@ bool signature_case(std::mt19937_64& generator, std::size_t index) {
     auto const digest = drawn_digest(generator);
     auto const pair = p256::keypair::make(scalar);
     auto const public_key = pair ? pair->public_key() : webcpp::crypto::error::backend_failure;
-    auto const ours = pair ? pair->sign_ecdsa(digest) : webcpp::crypto::error::backend_failure;
+    auto const ours =
+        pair ? pair->sign(webcpp::crypto::ecdsa_sha256, webcpp::crypto::prehashed{digest})
+             : webcpp::crypto::error::backend_failure;
     pkey_ptr const key = openssl_key(scalar);
     if (!BOOST_TEST(public_key.has_value()) || !BOOST_TEST(ours.has_value()) || !BOOST_TEST(key)) {
         return false;
@@ -321,14 +326,18 @@ bool signature_case(std::mt19937_64& generator, std::size_t index) {
         BOOST_TEST(openssl_point(key.get()) == bytes_of(public_key->uncompressed()));
     bytes const theirs_der = openssl_sign(key.get(), digest);
     auto const theirs = p256::from_der(theirs_der);
-    bool const same_signature = BOOST_TEST(theirs.has_value()) && BOOST_TEST(*theirs == *ours);
+    auto const theirs_low = theirs ? p256::normalize_low_s(*theirs) : theirs;
+    bool const same_signature =
+        BOOST_TEST(theirs_low.has_value()) && BOOST_TEST(*theirs_low == *ours);
     std::array<std::uint8_t, p256::max_der_size> der{};
     auto const der_size = p256::to_der(*ours, der);
     bool const openssl_verifies_ours =
         BOOST_TEST(der_size.has_value()) &&
         BOOST_TEST(openssl_verifies(key.get(), std::span(der).first(*der_size), digest));
     bool const we_verify_theirs =
-        BOOST_TEST(theirs && p256::verify_ecdsa(*theirs, digest, *public_key).has_value());
+        BOOST_TEST(theirs && webcpp::crypto::verify(webcpp::crypto::ecdsa_sha256, *theirs,
+                                                    webcpp::crypto::prehashed{digest}, *public_key)
+                                 .has_value());
     bool const agrees = same_point && same_signature && openssl_verifies_ours && we_verify_theirs;
     if (!agrees) {
         static_cast<void>(std::fprintf(stderr,
@@ -347,7 +356,7 @@ bool ecdh_case(std::mt19937_64& generator, std::size_t index) {
     auto const pair = p256::keypair::make(scalar);
     auto const peer = p256::keypair::make(peer_scalar);
     auto const peer_public_key = peer ? peer->public_key() : webcpp::crypto::error::backend_failure;
-    auto const shared = pair && peer_public_key ? pair->ecdh_x(*peer_public_key)
+    auto const shared = pair && peer_public_key ? pair->agree(*peer_public_key)
                                                 : webcpp::crypto::error::backend_failure;
     pkey_ptr const key = openssl_key(scalar);
     pkey_ptr const peer_key = openssl_key(peer_scalar);

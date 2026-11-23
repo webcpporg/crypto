@@ -4,12 +4,13 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Signs the SHA-256 digest of "sample" with RFC 6979's P-256 key and prints the signature, the
-// RFC's own bytes, in the raw form WebCrypto uses; then its low-S form, which a protocol that
-// requires low S sends, and its DER encoding, which X.509 carries; and verifies both forms with
-// the public key alone, and refuses the digest of another message.
+// Signs "sample" with RFC 6979's P-256 key and prints the signature in the raw form WebCrypto
+// uses, low S (the RFC's r, and n minus the RFC's high s); then its DER encoding, which X.509
+// carries; and verifies the signature read back from DER with the public key alone, given the
+// message and given its SHA-256 digest, and refuses another message.
 // tag::program[]
 #include <webcpp/crypto/curves/p256.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <webcpp/hash/digest.hpp>
 
@@ -21,6 +22,7 @@
 #include <string>
 #include <string_view>
 
+namespace crypto = webcpp::crypto;
 namespace p256 = webcpp::crypto::curves::p256;
 
 namespace {
@@ -60,47 +62,40 @@ int main() {
         return 1;
     }
     // tag::sign[]
-    // What is signed is the message's SHA-256 digest, as WebCrypto's ECDSA with SHA-256 signs.
-    std::array<std::uint8_t, p256::digest_size> digest{};
-    auto const hashed =
-        webcpp::hash::digest_of<webcpp::hash::digests::sha2_256>(digest, bytes_of("sample"));
-    // RFC 6979's nonce: no random number, the same signature for the same key and digest.
-    auto const signature = hashed ? key->sign_ecdsa(digest) : hashed.error();
+    // The message itself: ECDSA over SHA-256 hashes it inside, as WebCrypto's ECDSA with SHA-256
+    // signs. RFC 6979's nonce: no random number, the same signature for the same key and message.
+    auto const signature = key->sign(crypto::ecdsa_sha256, bytes_of("sample"));
     // end::sign[]
     if (!signature) {
         std::printf("failed\n");
         return 1;
     }
     print("signature ", *signature);
-
-    // This S is high: a protocol that requires low S sends the normalized form instead.
-    std::printf("low S      %s\n", p256::check_low_s(*signature) ? "yes" : "no");
-    auto const low = p256::normalize_ecdsa(*signature);
-    if (!low) {
-        std::printf("failed\n");
-        return 1;
-    }
-    print("low-S form", *low);
+    // Always low S: the RFC's own S is high, and sign gives n - s.
+    std::printf("low S      %s\n", p256::is_low_s(*signature) ? "yes" : "no");
 
     // DER, for X.509 and OpenSSL: at most max_der_size bytes, its length returned.
     std::array<std::uint8_t, p256::max_der_size> der{};
-    auto const length = p256::to_der(*low, der);
+    auto const length = p256::to_der(*signature, der);
     if (!length) {
         std::printf("failed\n");
         return 1;
     }
     print("DER       ", std::span(der).first(*length));
 
-    // The verifier holds the public key, the digest and the signature; nothing secret.
+    // The verifier holds the public key, the message and the signature; nothing secret. A digest
+    // computed elsewhere is marked as one, crypto::prehashed{digest}.
     auto const decoded = p256::from_der(std::span(der).first(*length));
-    bool const both = p256::verify_ecdsa(*signature, digest, *public_key) && decoded &&
-                      p256::verify_ecdsa(*decoded, digest, *public_key);
-    std::printf("verified   %s\n", both ? "both forms" : "FAILED");
-    std::array<std::uint8_t, p256::digest_size> other_digest{};
-    auto const other_hashed =
-        webcpp::hash::digest_of<webcpp::hash::digests::sha2_256>(other_digest, bytes_of("test"));
+    std::array<std::uint8_t, p256::digest_size> digest{};
+    auto const hashed =
+        webcpp::hash::digest_of<webcpp::hash::digests::sha2_256>(digest, bytes_of("sample"));
+    bool const both =
+        decoded && hashed &&
+        crypto::verify(crypto::ecdsa_sha256, *decoded, bytes_of("sample"), *public_key) &&
+        crypto::verify(crypto::ecdsa_sha256, *decoded, crypto::prehashed{digest}, *public_key);
+    std::printf("verified   %s\n", both ? "message and digest" : "FAILED");
     auto const other =
-        other_hashed ? p256::verify_ecdsa(*signature, other_digest, *public_key) : other_hashed;
+        crypto::verify(crypto::ecdsa_sha256, *signature, bytes_of("test"), *public_key);
     std::string const outcome = other ? std::string("verified") : other.error().message();
     std::printf("other text %s\n", outcome.c_str());
     return 0;

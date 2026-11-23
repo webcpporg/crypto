@@ -48,9 +48,10 @@ template <class Family, class Backend>
 struct box_state {};
 
 /**
- * The work of a box on a backend, whose specialisation provides `init(state&, secret_key,
- * peer_public_key)`, `seal(state&, iv, data, tag&)`, `open(state&, iv, data, tag const&)`,
- * `move(to, from)` and `reset(state&)`; the primary refuses (defined at the end of this header).
+ * The work of a box on a backend, whose specialisation provides
+ * `init(state&, secret_key, peer_public_key)`, `seal(state&, iv, data, tag&)`,
+ * `open(state&, iv, data, tag const&)`, `move(to, from)` and `reset(state&)`; the primary refuses
+ * (defined at the end of this header).
  */
 template <class Family, class Backend>
 struct box_engine;

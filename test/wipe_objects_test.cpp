@@ -202,7 +202,7 @@ constexpr region box_key{
 crypto::curves::secp256k1::musig::secret_nonce nonce_of(std::uint8_t first) {
     namespace secp = crypto::curves::secp256k1;
     auto const signer = keyed<secp::keypair>(first);
-    auto const signer_key = secp::parse_public_key(*signer.public_key());
+    auto const signer_key = signer.public_key();
     webcpp::test::require(signer_key.has_value());
     std::array<secp::public_key, 1> const keys{*signer_key};
     std::array<std::byte, secp::musig::workspace_size(1)> space{};

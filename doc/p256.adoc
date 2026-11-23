@@ -46,9 +46,9 @@ EVP_SIGNATURE-ECDSA]), and gives the same signature; each side verifies the
 other's; its ECDH gives the same x; its SPKI and its PKCS#8 are the bytes the
 encoders write, and it reads theirs as the same key. node's WebCrypto, on
 Emscripten (`p256_webcrypto_oracle`, the ECDSA and ECDH that Trystero's peers
-run): it verifies the signature of `sign_ecdsa` and its low-S form, its own
-signatures verify with `verify_ecdsa`, whatever their S, its `deriveBits` gives
-the bytes of `ecdh_x`, and its `exportKey` of the keys it imported gives the
+run): it verifies the signatures of `sign`, which are low S, its own
+signatures verify with `crypto::verify`, whatever their S, its `deriveBits` gives
+the bytes of `agree`, and its `exportKey` of the keys it imported gives the
 bytes of `encode_spki`, of `encode_pkcs8` and of `uncompressed()`, byte for
 byte.
 `p256_webcrypto_oracle_corrupted` flips one bit of one signature and of one
@@ -64,11 +64,12 @@ curve's generator (link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS
 and refuses a scalar of another size with `invalid_key_size` and a scalar 0,
 n or above with `invalid_secret_key`: that check runs in webcpp, in time
 independent of the scalar, before BearSSL sees it. `keypair::generate()` draws
-the scalar from `random_device`. `secret_scalar()` gives the scalar back as a
+the scalar from `random_device`. `secret()` gives the scalar back as a
 `secret<32>`, which wipes itself, and `make` of it gives the same key pair: the
 way a program stores a key pair and loads it again. The key pair computes its
 public point once, when it is made, wipes the scalar when it is moved from and
-destroyed, and answers `invalid_state` moved from.
+destroyed, and answers `invalid_state` moved from. It is a `crypto::keypair`,
+as every curve's is (<<crypto-curves-signatures>>).
 
 A `public_key` is a point that the type guarantees valid, kept as SEC 1's
 *uncompressed* form, 65 bytes: 04, then x and y
@@ -81,6 +82,49 @@ coordinates, as a JSON Web Key carries them, and `uncompressed()` writes the
 `invalid_public_key`: another size, another first byte, a coordinate not below
 the field prime p, a point off the curve. A `public_key` holds nothing secret
 and is copied freely.
+
+Each operation has its four forms, the member and its free form, synchronous
+and asynchronous, with the same work, errors and refusals
+(<<crypto-curves-four-forms>>); `public_key::make` and
+`crypto::make<public_key>` make the public key, synchronously only. An
+asynchronous form needs `<webcpp/crypto/async.hpp>` and
+`<library>/webcpp/asio//asio` in the Jamfile:
+
+.P-256's operations in their four forms
+[cols="1,3,3",options="header"]
+|===
+| Operation | Synchronous: the member; its free form | Asynchronous: the member; its free form
+
+| Make
+| `keypair::make(scalar)` +
+`crypto::make<keypair>(scalar)`
+| `keypair::async_make(executor, scalar, token)` +
+`crypto::async_make<keypair>(executor, scalar, token)`
+
+| Generate
+| `keypair::generate()` +
+`crypto::generate<keypair>()`
+| `keypair::async_generate(executor, token)` +
+`crypto::async_generate<keypair>(executor, token)`
+
+| Sign
+| `key_pair.sign(crypto::ecdsa_sha256, input)` +
+`crypto::sign(key_pair, crypto::ecdsa_sha256, input)`
+| `key_pair.async_sign(executor, crypto::ecdsa_sha256, input, token)` +
+`crypto::async_sign(executor, key_pair, crypto::ecdsa_sha256, input, token)`
+
+| Verify
+| `public_key.verify(crypto::ecdsa_sha256, signature, input)` +
+`crypto::verify(crypto::ecdsa_sha256, signature, input, public_key)`
+| `public_key.async_verify(executor, crypto::ecdsa_sha256, signature, input, token)` +
+`crypto::async_verify(executor, crypto::ecdsa_sha256, signature, input, public_key, token)`
+
+| Agree
+| `key_pair.agree(peer)` +
+`crypto::agree(key_pair, peer)`
+| `key_pair.async_agree(executor, peer, token)` +
+`crypto::async_agree(executor, key_pair, peer, token)`
+|===
 
 include::generated/backends-p256_keypair.adoc[]
 
@@ -104,7 +148,7 @@ include::{examples}/p256_keys.expected[]
 *Pitfalls.*
 
 * A scalar stored outside a `secret<32>` outlives the key pair: the key pair
-and the `secret<32>` that `secret_scalar` returns wipe their bytes, but a copy in a string, a log or
+and the `secret<32>` that `secret()` returns wipe their bytes, but a copy in a string, a log or
 a file stays where it was written. What webcpp wipes is what it owns: BearSSL's
 own signing keeps the scalar, the nonce and the state that derives the nonce in
 its stack frame and returns without zeroing them
@@ -129,13 +173,15 @@ takes; a key a tool sends compressed is decompressed by that tool first.
 
 ECDSA signs bytes so that anyone who holds the public key, a browser's
 WebCrypto included, can check who signed them and that nothing changed: a
-handshake, a token, a record a peer sends on. It signs a *digest*, not a
-message: the program hashes the message with
-SHA-256, then `keypair::sign_ecdsa(digest)` signs those 32 bytes, as
-WebCrypto's `+sign({name: "ECDSA", hash: "SHA-256"}, ...)+` hashes and signs in one
-call (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]) and passkeys' ES256 does
+handshake, a token, a record a peer sends on. It signs the SHA-256 of a
+message: `keypair::sign(crypto::ecdsa_sha256, message)` hashes the message
+inside the call and signs those 32 bytes, as WebCrypto's
+`+sign({name: "ECDSA", hash: "SHA-256"}, ...)+` hashes and signs in one call
+(link:https://www.w3.org/TR/WebCryptoAPI/[W3C]) and passkeys' ES256 does
 (link:https://www.w3.org/TR/webauthn-2/#sctn-alg-identifier[W3C Web
-Authentication]):
+Authentication]). A digest computed elsewhere is given as
+`+crypto::prehashed{digest}+`, 32 bytes, and signed as given; a message is never
+read as a digest, whatever its size (<<crypto-curves-signatures>>):
 
 [source,cpp]
 ----
@@ -148,18 +194,19 @@ number, a weak generator cannot leak the key, and the same key and digest give
 the same signature. Every verifier accepts it, WebCrypto's and OpenSSL's
 included: a verifier cannot tell how a nonce was made, and the signature is an
 ordinary ECDSA signature (link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS
-186-5]). `verify_ecdsa(signature, digest, public_key)` succeeds or returns
+186-5]). `crypto::verify(crypto::ecdsa_sha256, signature, input, public_key)`,
+the input the message or the marked digest, succeeds or returns
 `invalid_signature`, also for an r or an s that is 0 or not below the group
 order n, refused before BearSSL sees it.
 
-In an event loop, `async_sign(executor, key_pair, message, token)` and
-`async_verify(executor, public_key, message, signature, token)` do the same
-through a completion (<<crypto-async>>); they take the *message* and hash it
-with SHA-256 themselves, as WebCrypto does.
+In an event loop, `async_sign(executor, key_pair, crypto::ecdsa_sha256, input,
+token)` and `async_verify(executor, crypto::ecdsa_sha256, signature, input,
+public_key, token)` do the same through a completion, with the same inputs
+(<<crypto-async>>).
 
 A signature has two forms. The *raw* form, 64 bytes, r then s at 32 bytes each
 (link:https://standards.ieee.org/ieee/1363/2049/[IEEE 1363]), is the one
-`sign_ecdsa` and `verify_ecdsa` take: what WebCrypto signs and verifies
+`sign` gives and `crypto::verify` takes: what WebCrypto signs and verifies
 (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]) and what a JSON Web Token's
 ES256 carries (link:https://www.rfc-editor.org/rfc/rfc7518#section-3.4[RFC
 7518, section 3.4]). *DER*, 8 to 72 bytes: a SEQUENCE of two INTEGERs, is the
@@ -176,24 +223,26 @@ include::generated/backends-p256_ecdsa.adoc[]
 same digest too: anyone can turn one into the other without the key. That is
 *malleability*, harmless for most programs, since both say the same signer
 signed the same digest, but a protocol that names a message by its signature's
-bytes sees two names for one message. FIPS 186-5 and WebCrypto accept both
-forms (link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5];
-link:https://www.w3.org/TR/WebCryptoAPI/[W3C]), and so does `verify_ecdsa`;
-`sign_ecdsa` returns S as RFC 6979 computes it, high or low. Some protocols
-accept only the *low-S* form, s at most (n - 1) / 2: Bitcoin's
+bytes sees two names for one message. FIPS 186-5 and WebCrypto accept both forms
+(link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS 186-5];
+link:https://www.w3.org/TR/WebCryptoAPI/[W3C]), and so does `crypto::verify`.
+`sign` gives the *low-S* form, s at most (n - 1) / 2: RFC 6979's S is replaced
+by n - s when it is high, without a branch on the secret, as libsecp256k1 signs.
+Some protocols accept only the low-S form: Bitcoin's
 (link:https://github.com/bitcoin/bips/blob/master/bip-0146.mediawiki[BIP 146])
 and Trystero's, which normalizes what it signs and refuses a high S in what it
 reads
 (link:https://github.com/dmotz/trystero/blob/0.27.0/packages/core/src/crypto.ts[Trystero
-0.27.0]). Such a policy has two halves, and crypto offers each:
-`normalize_ecdsa(signature)` returns the low-S form, the same signature when S
-is already low, before the signature is sent; `check_low_s(signature)` returns
-`invalid_signature` for a high S, before the signature received is verified.
-Neither calls BearSSL: both are arithmetic on public bytes.
+0.27.0]). What such a protocol sends, `sign` already gives; what it receives, it
+checks with `is_low_s(signature)`, true exactly when r is between 1 and n - 1
+and s between 1 and (n - 1) / 2, before the signature is verified.
+`normalize_low_s(signature)` returns the low-S form of a signature made
+elsewhere, such as WebCrypto's, whose S may be high, and the same signature when
+S is already low. Neither calls BearSSL: both are arithmetic on public bytes.
 
-*Example.* RFC 6979's key signs the SHA-256 of "sample", which gives the RFC's
-own signature, whose S is high; its low-S form, its DER, both forms verified,
-and another message's digest refused:
+*Example.* RFC 6979's key signs "sample", whose signature in the RFC has a
+high S: `sign` gives its low-S form. Its DER, the signature verified with the
+message and with its digest marked as one, and another message refused:
 
 [source,cpp]
 ----
@@ -207,23 +256,26 @@ include::{examples}/p256_sign.expected[]
 
 *Pitfalls.*
 
-* A protocol that requires low S and forgets `normalize_ecdsa` fails about one
-signature in two: the S of `sign_ecdsa` is high half the time, and
-`check_low_s` on the peer's side refuses those. The tests that sign a fixed message may pass
-every time, the signature being the same; a program sees it at the first
-handshake whose S is high. Normalize every signature such a protocol sends,
-and check every one it receives.
-* `check_low_s` does not verify: a forged signature can have a low S. Check low
+* A protocol that requires low S and forgets `is_low_s` accepts both forms of
+every signature it receives: `crypto::verify` accepts a high S, as WebCrypto
+does. Tests with webcpp on both sides pass every time, `sign` giving the low
+form; a program sees it at the first peer whose S is high, which a WebCrypto
+peer's is about one signature in two. Check every signature such a protocol
+receives.
+* `is_low_s` does not verify: a forged signature can have a low S. Check low
 S, then verify, and accept the signature only when both succeed.
-* Signing a message instead of its digest does not compile: `sign_ecdsa` takes
-exactly 32 bytes. A digest of another hash than SHA-256, or a message cut to 32
-bytes, signs, and no WebCrypto peer verifies it, since WebCrypto's ECDSA with
-SHA-256 hashes what it verifies with SHA-256 itself.
+* A 32-byte message is a message: `sign(crypto::ecdsa_sha256, message)`
+hashes it, and only `+crypto::prehashed{digest}+` is signed as given. A digest
+of another hash than SHA-256, marked as one, signs, and no WebCrypto peer
+verifies it, since WebCrypto's ECDSA with SHA-256 hashes what it verifies with
+SHA-256 itself; a marked digest of another size than 32 bytes does not
+compile.
 * A passkey's ES256 is ECDSA on P-256 with SHA-256, and its assertion's
 signature arrives in DER
 (link:https://www.w3.org/TR/webauthn-2/#sctn-signature-attestation-types[W3C
-Web Authentication, section 6.5.5]): `from_der`, then `verify_ecdsa` of the
-SHA-256 of what the authenticator signed. Reading the COSE key and building
+Web Authentication, section 6.5.5]): `from_der`, then
+`+crypto::verify(crypto::ecdsa_sha256, ...)+` of what the authenticator signed,
+which it hashes with SHA-256. Reading the COSE key and building
 those signed bytes are WebAuthn's, and stay outside crypto.
 
 [#crypto-p256-ecdh]
@@ -235,7 +287,7 @@ compute, and key their encryption with it: that is elliptic-curve
 Diffie-Hellman, ECDH (link:https://www.secg.org/sec1-v2.pdf[SEC 1, section
 3.3.1]). Each side multiplies the other's public point by its own scalar, and
 both arrive at the same point, d~A~ times d~B~ times the generator.
-`keypair::ecdh_x(peer)` returns that point's x coordinate, 32 bytes big-endian,
+`keypair::agree(peer)` returns that point's x coordinate, 32 bytes big-endian,
 as a `secret<32>`, which wipes itself:
 
 [source,cpp]
@@ -259,7 +311,7 @@ keys HKDF with SHA-256 with them
 its scale manager generates an ECDH P-256 key pair
 (link:https://github.com/dmotz/trystero/blob/8d3f57ef42c3d622840eec479784c99deeeb2d05/packages/core/src/scale/manager.ts#L306[packages/core/src/scale/manager.ts,
 line 306]). The peer's key is a `public_key`, validated when it was made, so
-`ecdh_x` never sees a point off the curve; it refuses a moved-from key pair
+`agree` never sees a point off the curve; it refuses a moved-from key pair
 with `invalid_state`. The `secret<32>` and webcpp's own copy of the point are
 wiped, but BearSSL's multiplication leaves the values it computes from the
 scalar in its stack frame, as its signing does (<<crypto-p256-keys>>, its
@@ -282,7 +334,7 @@ which webcpp::hash provides, and with the salt and the info the protocol names:
 include::{examples}/p256_ecdh.cpp[tag=derive,indent=0]
 ----
 
-Unlike secp256k1, whose `ecdh` hashes the point (<<crypto-secp256k1-ecdh>>),
+Unlike secp256k1, whose `agree_hashed` hashes the point (<<crypto-secp256k1-ecdh>>),
 P-256 offers no hashed form: no browser computes one, and the derivation, its
 hash, its salt and its info belong to the protocol, not to the primitive. A
 program that hashed the point some other way would agree with no WebCrypto
@@ -317,7 +369,7 @@ fails to open with nothing pointing at the cause: read the protocol's
 derivation, byte for byte.
 * A `deriveBits` length below 256 in the browser gives the first bits of the x
 alone (link:https://www.w3.org/TR/WebCryptoAPI/#ecdh-operations[W3C, ECDH's
-operations]); the program then takes the same leading bytes of what `ecdh_x`
+operations]); the program then takes the same leading bytes of what `agree`
 returns, or the two sides hash different inputs.
 
 [#crypto-p256-formats]

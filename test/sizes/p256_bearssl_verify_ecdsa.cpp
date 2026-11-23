@@ -4,8 +4,10 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// The size of P-256's verify_ecdsa on BearSSL: bench/operations.hpp's p256_verify_ecdsa, once
-// (test/sizes/Jamfile).
+// The size of P-256's ECDSA verification of a digest on BearSSL,
+// crypto::verify(ecdsa_sha256, signature, prehashed{digest}, public_key): bench/operations.hpp's
+// p256_verify_ecdsa, once (test/sizes/Jamfile); the program keeps its name, crypto.json's
+// sized operation `verify_ecdsa`.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 

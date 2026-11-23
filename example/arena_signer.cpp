@@ -9,6 +9,7 @@
 // limits knows exactly what the library needs and that it never reaches for the heap.
 // tag::program[]
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/signing.hpp>
 
 #include <array>
 #include <cstddef>
@@ -17,6 +18,7 @@
 #include <memory_resource>
 #include <span>
 
+namespace crypto = webcpp::crypto;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
@@ -80,9 +82,10 @@ int main() {
     std::array<std::uint8_t, 32> message{};
     message.fill(0x17);
     std::array<std::uint8_t, 32> const aux{};
-    auto const public_key = key->xonly_public_key();
-    auto const signature = key->sign_schnorr(message, aux);
-    if (!public_key || !signature || !secp256k1::verify_schnorr(*signature, message, *public_key)) {
+    auto const public_key = key->public_key();
+    auto const signature = key->sign(crypto::schnorr, message, aux);
+    if (!public_key || !signature ||
+        !crypto::verify(crypto::schnorr, *signature, message, *public_key)) {
         return 1;
     }
     std::printf("allocations in the arena: %zu\n", counting.allocations());

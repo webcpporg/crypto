@@ -7,10 +7,10 @@
 // On BearSSL nothing allocates (spec section 3.2): make, seal, open, the incremental seal,
 // equal and random_device's fill, ChaCha20-Poly1305's make, seal, open (good and failed)
 // and move, and P-256's key pair make and generate, public key make (of a point and of
-// coordinates), sign_ecdsa, verify_ecdsa, to_der, from_der, normalize_ecdsa, check_low_s,
-// ecdh_x, encode_spki, decode_spki, encode_pkcs8 and decode_pkcs8 make no call of operator new,
-// nor of the C library's allocator where the target lets a program count it; a control proves the
-// counter moves.
+// coordinates), sign(ecdsa_sha256, ...) and crypto::verify of a message and of a digest, to_der,
+// from_der, normalize_low_s, is_low_s, agree, encode_spki, decode_spki, encode_pkcs8 and
+// decode_pkcs8 make no call of operator new, nor of the C library's allocator where the target lets
+// a program count it; a control proves the counter moves.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
@@ -18,6 +18,7 @@
 #include <webcpp/crypto/curves/p256/formats.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: a test
+#include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/counting.hpp"
@@ -37,7 +38,8 @@
 namespace {
 
 // P-256's functions, each called once: the key pair's make and generate, the public key's two
-// make, ECDSA's six, ECDH's ecdh_x and the formats' four.
+// make, ECDSA's eight (sign and verify each of a message and of a digest), ECDH's agree and the
+// formats' four.
 void p256_calls() {
     namespace crypto = webcpp::crypto;
     namespace p256 = crypto::curves::p256;
@@ -54,20 +56,24 @@ void p256_calls() {
     if (!BOOST_TEST(pair.has_value())) {
         return;
     }
-    auto const signature = pair->sign_ecdsa(digest);
+    auto const signature = pair->sign(crypto::ecdsa_sha256, crypto::prehashed{digest});
+    auto const of_message = pair->sign(crypto::ecdsa_sha256, digest);
     auto const key = public_key::make(point);
-    if (!BOOST_TEST(signature.has_value()) || !BOOST_TEST(key.has_value())) {
+    if (!BOOST_TEST(signature.has_value()) || !BOOST_TEST(of_message.has_value()) ||
+        !BOOST_TEST(key.has_value())) {
         return;
     }
-    BOOST_TEST(p256::verify_ecdsa(*signature, digest, *key).has_value());
+    BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, *signature, crypto::prehashed{digest}, *key)
+                   .has_value());
+    BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, *of_message, digest, *key).has_value());
     std::array<std::uint8_t, p256::max_der_size> der{};
     auto const written = p256::to_der(*signature, der);
     if (BOOST_TEST(written.has_value())) {
         BOOST_TEST(p256::from_der(std::span(der).first(*written)).has_value());
     }
-    BOOST_TEST(p256::normalize_ecdsa(*signature).has_value());
-    BOOST_TEST(p256::check_low_s(data::rfc6979_test).has_value());
-    BOOST_TEST(pair->ecdh_x(*key).has_value());
+    BOOST_TEST(p256::normalize_low_s(*signature).has_value());
+    BOOST_TEST(p256::is_low_s(data::rfc6979_test));
+    BOOST_TEST(pair->agree(*key).has_value());
     std::array<std::uint8_t, p256::max_spki_size> spki{};
     std::array<std::uint8_t, p256::max_pkcs8_size> pkcs8{};
     BOOST_TEST(p256::encode_spki(*key, spki).has_value());

@@ -135,7 +135,7 @@ std::array<std::uint8_t, N> fixed(std::string const& hex) {
 
 // The x coordinate of a key, in hex: its compressed form without the prefix.
 std::string x_of(secp::public_key const& key) {
-    auto const compressed = secp::serialize_public_key(key);
+    auto const compressed = key.compressed();
     return test::to_hex(std::span<std::uint8_t const>(compressed).subspan(1));
 }
 
@@ -148,12 +148,11 @@ secp::keypair keypair_of(std::span<std::uint8_t const, 32> secret_bytes) {
 }
 
 secp::public_key public_of(secp::keypair const& key) {
-    auto const encoded = key.public_key();
-    auto const parsed = secp::parse_public_key(*encoded);
-    if (!BOOST_TEST(parsed.has_value())) {
+    auto const public_key = key.public_key();
+    if (!BOOST_TEST(public_key.has_value())) {
         std::exit(boost::report_errors());
     }
-    return *parsed;
+    return *public_key;
 }
 
 void decode_vectors() {

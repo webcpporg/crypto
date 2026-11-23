@@ -146,6 +146,18 @@ void names_function_spellings() {
     BOOST_TEST(!names("auto __cdecl ns::f::<lambda_1>::operator ()(void) const", "ns::f"));
 }
 
+// GCC writes a trailing requires-clause after the parameter list, before the template arguments:
+// its parentheses are not the function's own.
+void names_function_requires_clause() {
+    constexpr std::string_view entered =
+        "auto ns::to_x25519(const Value&) requires requires(const Value& v) {v->to_x25519();} "
+        "[with Value = ns::pk]";
+    BOOST_TEST(
+        webcpp::test::names_function(entered, webcpp::test::function_named("ns::to_x25519")));
+    BOOST_TEST(
+        !webcpp::test::names_function(entered, webcpp::test::function_named("pk::to_x25519")));
+}
+
 // MSVC writes the exception specification of a function that may throw after its parameters,
 // clang and GCC none: crypto::from_secret and crypto::generate of secp256k1's key pair, whose
 // memory resource may throw, are read as their own in either spelling.
@@ -284,6 +296,7 @@ int main() {
     seam_fires();
     seam_names_function();
     names_function_spellings();
+    names_function_requires_clause();
     names_function_exception_specifications();
     guard_sets_and_clears();
     guard_leaves_set_bit();

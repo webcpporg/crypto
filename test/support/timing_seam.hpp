@@ -145,15 +145,18 @@ inline std::size_t exception_specification_of(std::string_view text) {
 
 /**
  * A `function_name()` in one spelling for clang, GCC and MSVC: the template arguments clang and
- * GCC append (` [B = ...]`, ` [with B = ...]`) cut, the exception specification MSVC appends to a
- * function that may throw or whose `noexcept` depends on its arguments (` noexcept(false)`) cut,
- * and the space MSVC puts between `operator` and its symbol (`operator ==`) removed.
+ * GCC append (` [B = ...]`, ` [with B = ...]`) cut, the trailing requires-clause GCC writes after
+ * the parameter list (` requires requires(...) {...}`) cut, the exception specification MSVC
+ * appends to a function that may throw or whose `noexcept` depends on its arguments
+ * (` noexcept(false)`) cut, and the space MSVC puts between `operator` and its symbol
+ * (`operator ==`) removed.
  *
  * @param entered A `function_name()`.
  * @return The same function, spelled for the search of `names_function`.
  */
 inline std::string normalized_function_name(std::string_view entered) {
-    std::string_view const cut = entered.substr(0, entered.find(" ["));
+    std::string_view cut = entered.substr(0, entered.find(" ["));
+    cut = cut.substr(0, cut.find(" requires "));
     std::string normal(cut.substr(0, exception_specification_of(cut)));
     constexpr std::string_view operator_word = "operator ";
     for (std::size_t found = normal.find(operator_word); found != std::string::npos;

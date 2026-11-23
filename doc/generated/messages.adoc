@@ -221,7 +221,7 @@ The fix: Call `+crypto::constant_time_equal+`, the same comparison of two spans 
 |native, wasip2, wasip3
 |`+webcpp::crypto: erase_secret zeroes a buffer the program may write, of trivially copyable elements: a std::vector<std::uint8_t>, a std::string, a std::array, a std::span<std::byte>; this range's elements are const or not trivially copyable.+`
 
-The fix: Erase the buffer the secret was written to, through a non-const reference to it (`+std::string&+`, `+std::span<std::byte>+`), of bytes or other trivially copyable elements; a const view cannot be erased.
+The fix: Erase the buffer the secret was written to, through a non-const reference to it (`+std::string&+`, `+std::span<std::byte>+`): a const view cannot be erased. Its elements must be trivially copyable, bytes or integers; a range of `+std::string+` or of another type with its own storage cannot be erased as bytes, so erase each element's buffer instead.
 
 |`+gcm_default_openssl_not_linked+`
 |native

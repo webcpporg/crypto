@@ -59,7 +59,11 @@
 
 // A backend that completes by itself, as part B's browser backend will: its types are named, never
 // made.
+namespace {
+
 struct stand_in_browser {};
+
+}  // namespace
 
 template <>
 inline constexpr bool webcpp::crypto::detail::asynchronous_backend_v<stand_in_browser> = true;

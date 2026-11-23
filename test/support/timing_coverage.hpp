@@ -167,9 +167,9 @@ void cover_aes(std::string const& family, std::string const& backend) {
 template <class Gcm>
 struct gcm_coverage_message {
     /** An IV of the size gcm takes. */
-    std::array<std::uint8_t, Gcm::iv_size> iv{};
+    std::array<std::uint8_t, Gcm::iv_size> nonce{};
     /** Four bytes of additional data. */
-    std::array<std::uint8_t, 4> additional_data{1, 2, 3, 4};
+    std::array<std::uint8_t, 4> associated_data{1, 2, 3, 4};
     /** The data, sealed and opened in place. */
     std::array<std::uint8_t, 40> data{};
     /** The tag of the last seal. */
@@ -191,42 +191,42 @@ void cover_gcm_one_shot(Gcm& made, gcm_coverage_message<Gcm>& message, std::stri
                         std::string const& on) {
     covered(family + " crypto::seal" + on, "crypto::seal", [&] {
         auto const sealed =
-            webcpp::crypto::seal(made, message.iv, message.additional_data, message.data);
+            webcpp::crypto::seal(made, message.nonce, message.associated_data, message.data);
         if (BOOST_TEST(sealed.has_value())) {
             message.tag = *sealed;
         }
     });
     covered(family + " crypto::open" + on, "crypto::open", [&] {
-        BOOST_TEST(webcpp::crypto::open(made, message.iv, message.additional_data, message.data,
+        BOOST_TEST(webcpp::crypto::open(made, message.nonce, message.associated_data, message.data,
                                         std::span(message.tag.data(), message.tag.size()))
                        .has_value());
     });
     covered(family + " crypto::seal with an empty IV" + on, "crypto::seal", [&] {
-        BOOST_TEST(webcpp::crypto::seal(made, {}, message.additional_data, message.data).error() ==
+        BOOST_TEST(webcpp::crypto::seal(made, {}, message.associated_data, message.data).error() ==
                    webcpp::crypto::error::invalid_iv_size);
     });
     covered(family + " crypto::open with an empty IV" + on, "crypto::open", [&] {
-        BOOST_TEST(webcpp::crypto::open(made, {}, message.additional_data, message.data,
+        BOOST_TEST(webcpp::crypto::open(made, {}, message.associated_data, message.data,
                                         std::span(message.tag.data(), message.tag.size()))
                        .error() == webcpp::crypto::error::invalid_iv_size);
     });
     covered(family + "::seal" + on, "gcm::seal", [&] {
-        auto const sealed = made.seal(message.iv, message.additional_data, message.data);
+        auto const sealed = made.seal(message.nonce, message.associated_data, message.data);
         if (BOOST_TEST(sealed.has_value())) {
             message.tag = *sealed;
         }
     });
     covered(family + "::open" + on, "gcm::open", [&] {
-        BOOST_TEST(made.open(message.iv, message.additional_data, message.data,
+        BOOST_TEST(made.open(message.nonce, message.associated_data, message.data,
                              std::span(message.tag.data(), message.tag.size()))
                        .has_value());
     });
     covered(family + "::seal with an empty IV" + on, "gcm::seal", [&] {
-        BOOST_TEST(made.seal({}, message.additional_data, message.data).error() ==
+        BOOST_TEST(made.seal({}, message.associated_data, message.data).error() ==
                    webcpp::crypto::error::invalid_iv_size);
     });
     covered(family + "::open with an empty IV" + on, "gcm::open", [&] {
-        BOOST_TEST(made.open({}, message.additional_data, message.data,
+        BOOST_TEST(made.open({}, message.associated_data, message.data,
                              std::span(message.tag.data(), message.tag.size()))
                        .error() == webcpp::crypto::error::invalid_iv_size);
     });
@@ -244,14 +244,15 @@ void cover_gcm_one_shot(Gcm& made, gcm_coverage_message<Gcm>& message, std::stri
 template <class Gcm>
 void cover_gcm_incremental_seal(Gcm& made, gcm_coverage_message<Gcm>& message,
                                 std::string const& family, std::string const& on) {
-    covered(family + "::begin_seal" + on, "gcm::begin_seal",
-            [&] { BOOST_TEST(made.begin_seal(message.iv, message.additional_data).has_value()); });
+    covered(family + "::begin_seal" + on, "gcm::begin_seal", [&] {
+        BOOST_TEST(made.begin_seal(message.nonce, message.associated_data).has_value());
+    });
     covered(family + "::update" + on, "gcm::update",
             [&] { BOOST_TEST(made.update(message.data).has_value()); });
     covered(family + "::result" + on, "gcm::result",
             [&] { BOOST_TEST(made.result().has_value()); });
     covered(family + "::begin_seal with an empty IV" + on, "gcm::begin_seal", [&] {
-        BOOST_TEST(made.begin_seal({}, message.additional_data).error() ==
+        BOOST_TEST(made.begin_seal({}, message.associated_data).error() ==
                    webcpp::crypto::error::invalid_iv_size);
     });
     covered(family + "::update without a message" + on, "gcm::update", [&] {
@@ -274,8 +275,9 @@ void cover_gcm_incremental_seal(Gcm& made, gcm_coverage_message<Gcm>& message,
 template <class Gcm>
 void cover_gcm_incremental_open(Gcm& made, gcm_coverage_message<Gcm>& message,
                                 std::string const& family, std::string const& on) {
-    covered(family + "::begin_open" + on, "gcm::begin_open",
-            [&] { BOOST_TEST(made.begin_open(message.iv, message.additional_data).has_value()); });
+    covered(family + "::begin_open" + on, "gcm::begin_open", [&] {
+        BOOST_TEST(made.begin_open(message.nonce, message.associated_data).has_value());
+    });
     covered(family + "::authenticate" + on, "gcm::authenticate",
             [&] { BOOST_TEST(made.authenticate(message.data).has_value()); });
     covered(family + "::verify" + on, "gcm::verify", [&] {
@@ -286,7 +288,7 @@ void cover_gcm_incremental_open(Gcm& made, gcm_coverage_message<Gcm>& message,
     covered(family + "::end_open" + on, "gcm::end_open",
             [&] { BOOST_TEST(made.end_open().has_value()); });
     covered(family + "::begin_open with an empty IV" + on, "gcm::begin_open", [&] {
-        BOOST_TEST(made.begin_open({}, message.additional_data).error() ==
+        BOOST_TEST(made.begin_open({}, message.associated_data).error() ==
                    webcpp::crypto::error::invalid_iv_size);
     });
     covered(family + "::authenticate without a message" + on, "gcm::authenticate", [&] {
@@ -335,7 +337,7 @@ void cover_gcm_messages(Gcm& made, std::string const& family, std::string const&
 template <class Gcm>
 void cover_gcm_moves(std::string const& family, std::string const& on) {
     auto const key = coverage_key<Gcm::key_size>();
-    std::array<std::uint8_t, Gcm::iv_size> const iv{};
+    std::array<std::uint8_t, Gcm::iv_size> const nonce{};
     auto keyed = Gcm::from_key(key);
     auto other_keyed = Gcm::from_key(key);
     auto target = Gcm::from_key(key);
@@ -345,9 +347,9 @@ void cover_gcm_moves(std::string const& family, std::string const& on) {
     if (!BOOST_TEST(keyed.has_value()) || !BOOST_TEST(other_keyed.has_value()) ||
         !BOOST_TEST(target.has_value()) || !BOOST_TEST(in_message.has_value()) ||
         !BOOST_TEST(in_other_message.has_value()) || !BOOST_TEST(in_open.has_value()) ||
-        !BOOST_TEST(in_message->begin_seal(iv, {}).has_value()) ||
-        !BOOST_TEST(in_other_message->begin_seal(iv, {}).has_value()) ||
-        !BOOST_TEST(in_open->begin_open(iv, {}).has_value())) {
+        !BOOST_TEST(in_message->begin_seal(nonce, {}).has_value()) ||
+        !BOOST_TEST(in_other_message->begin_seal(nonce, {}).has_value()) ||
+        !BOOST_TEST(in_open->begin_open(nonce, {}).has_value())) {
         return;
     }
     covered(family + "::gcm(gcm&&) of a keyed object" + on, "gcm::gcm",
@@ -473,39 +475,39 @@ void cover_async_gcm(std::string const& family, std::string const& backend) {
     }
     gcm_coverage_message<Gcm> message;
     covered(family + "::async_seal" + on, "crypto::async_seal", [&] {
-        crypto::async_seal(executor, *made, message.iv, message.additional_data, message.data,
+        crypto::async_seal(executor, *made, message.nonce, message.associated_data, message.data,
                            keeping);
         deliver();
     });
     covered(family + "::async_open" + on, "crypto::async_open", [&] {
-        crypto::async_open(executor, *made, message.iv, message.additional_data, message.data,
+        crypto::async_open(executor, *made, message.nonce, message.associated_data, message.data,
                            std::span(kept.data(), kept.size()), counted);
         deliver();
     });
     covered(family + "::async_seal with an empty IV" + on, "crypto::async_seal", [&] {
-        crypto::async_seal(executor, *made, {}, message.additional_data, message.data, counted);
+        crypto::async_seal(executor, *made, {}, message.associated_data, message.data, counted);
         deliver();
     });
     covered(family + "::async_open with an empty IV" + on, "crypto::async_open", [&] {
-        crypto::async_open(executor, *made, {}, message.additional_data, message.data,
+        crypto::async_open(executor, *made, {}, message.associated_data, message.data,
                            std::span(kept.data(), kept.size()), counted);
         deliver();
     });
     covered(family + "::async_seal, the member," + on, "gcm::async_seal", [&] {
-        made->async_seal(executor, message.iv, message.additional_data, message.data, keeping);
+        made->async_seal(executor, message.nonce, message.associated_data, message.data, keeping);
         deliver();
     });
     covered(family + "::async_open, the member," + on, "gcm::async_open", [&] {
-        made->async_open(executor, message.iv, message.additional_data, message.data,
+        made->async_open(executor, message.nonce, message.associated_data, message.data,
                          std::span(kept.data(), kept.size()), counted);
         deliver();
     });
     covered(family + "::async_seal, the member, with an empty IV" + on, "gcm::async_seal", [&] {
-        made->async_seal(executor, {}, message.additional_data, message.data, counted);
+        made->async_seal(executor, {}, message.associated_data, message.data, counted);
         deliver();
     });
     covered(family + "::async_open, the member, with an empty IV" + on, "gcm::async_open", [&] {
-        made->async_open(executor, {}, message.additional_data, message.data,
+        made->async_open(executor, {}, message.associated_data, message.data,
                          std::span(kept.data(), kept.size()), counted);
         deliver();
     });
@@ -739,26 +741,25 @@ void cover_aead_free_forms(std::string const& family, std::string const& on) {
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    std::array<std::uint8_t, Aead::iv_size> const iv{};
+    std::array<std::uint8_t, Aead::iv_size> const nonce{};
     std::array<std::uint8_t, 40> data{};
     typename Aead::result_type tag{};
     covered(family + " crypto::seal" + on, "crypto::seal", [&] {
-        auto const sealed = webcpp::crypto::seal(*made, iv, {}, data);
+        auto const sealed = webcpp::crypto::seal(*made, nonce, {}, data);
         if (BOOST_TEST(sealed.has_value())) {
             tag = *sealed;
         }
     });
     covered(family + " crypto::open" + on, "crypto::open", [&] {
-        BOOST_TEST(webcpp::crypto::open(*made, iv, {}, data, std::span(tag.data(), tag.size()))
+        BOOST_TEST(webcpp::crypto::open(*made, nonce, {}, data, std::span(tag.data(), tag.size()))
                        .has_value());
     });
     covered(family + " crypto::seal with a short nonce" + on, "crypto::seal", [&] {
-        BOOST_TEST(
-            webcpp::crypto::seal(*made, std::span(iv).first(Aead::iv_size - 1), {}, data).error() ==
-            webcpp::crypto::error::invalid_iv_size);
+        BOOST_TEST(webcpp::crypto::seal(*made, std::span(nonce).first(Aead::iv_size - 1), {}, data)
+                       .error() == webcpp::crypto::error::invalid_iv_size);
     });
     covered(family + " crypto::open with a short nonce" + on, "crypto::open", [&] {
-        BOOST_TEST(webcpp::crypto::open(*made, std::span(iv).first(Aead::iv_size - 1), {}, data,
+        BOOST_TEST(webcpp::crypto::open(*made, std::span(nonce).first(Aead::iv_size - 1), {}, data,
                                         std::span(tag.data(), tag.size()))
                        .error() == webcpp::crypto::error::invalid_iv_size);
     });
@@ -787,24 +788,24 @@ void cover_aead(std::string const& family, std::string const& backend) {
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    std::array<std::uint8_t, Aead::iv_size> const iv{};
+    std::array<std::uint8_t, Aead::iv_size> const nonce{};
     std::array<std::uint8_t, 40> data{};
     typename Aead::result_type tag{};
     covered(family + "::seal" + on, "aead::seal", [&] {
-        auto const sealed = made->seal(iv, {}, data);
+        auto const sealed = made->seal(nonce, {}, data);
         if (BOOST_TEST(sealed.has_value())) {
             tag = *sealed;
         }
     });
     covered(family + "::open" + on, "aead::open", [&] {
-        BOOST_TEST(made->open(iv, {}, data, std::span(tag.data(), tag.size())).has_value());
+        BOOST_TEST(made->open(nonce, {}, data, std::span(tag.data(), tag.size())).has_value());
     });
     covered(family + "::seal with a short nonce" + on, "aead::seal", [&] {
-        BOOST_TEST(made->seal(std::span(iv).first(Aead::iv_size - 1), {}, data).error() ==
+        BOOST_TEST(made->seal(std::span(nonce).first(Aead::iv_size - 1), {}, data).error() ==
                    webcpp::crypto::error::invalid_iv_size);
     });
     covered(family + "::open with a short nonce" + on, "aead::open", [&] {
-        BOOST_TEST(made->open(std::span(iv).first(Aead::iv_size - 1), {}, data,
+        BOOST_TEST(made->open(std::span(nonce).first(Aead::iv_size - 1), {}, data,
                               std::span(tag.data(), tag.size()))
                        .error() == webcpp::crypto::error::invalid_iv_size);
     });

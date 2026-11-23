@@ -54,9 +54,9 @@ struct box_state {};
 
 /**
  * The work of a box on a backend, whose specialisation provides
- * `init(state&, secret_key, peer_public_key)`, `seal(state&, iv, data, tag&)`,
- * `open(state&, iv, data, tag const&)`, `move(to, from)` and `reset(state&)`; the primary refuses
- * (defined at the end of this header).
+ * `init(state&, secret_key, peer_public_key)`, `seal(state&, nonce, data, tag&)`,
+ * `open(state&, nonce, data, tag const&)`, `move(to, from)` and `reset(state&)`; the primary
+ * refuses (defined at the end of this header).
  */
 template <class Family, class Backend>
 struct box_engine;
@@ -95,7 +95,7 @@ namespace webcpp::crypto::public_key_encryption {
  * them, not which.
  *
  * An object holds the agreed key, the state that every message uses: it is used by one thread
- * at a time, moved and not copied, and wiped when moved from and destroyed. A nonce (the IV) is
+ * at a time, moved and not copied, and wiped when moved from and destroyed. A nonce is
  * never repeated for one pair of keys, in either direction: two messages under one pair and
  * one nonce reveal the XOR of their plaintexts and let an attacker forge tags. Its 24 bytes are
  * safe to draw at random for every message.
@@ -217,21 +217,21 @@ public:
      * When the backend fails, `data_bytes` is zeroed, as a failed open's is: neither the
      * plaintext nor bytes that look sealed are left; a guard's refusal leaves it untouched.
      *
-     * @param iv_bytes The nonce, `iv_size` bytes, never repeated for this pair of keys.
+     * @param nonce_bytes The nonce, `iv_size` bytes, never repeated for this pair of keys.
      * @param data_bytes The message.
      * @return The tag; `invalid_state` moved from; `invalid_iv_size`; `message_too_long`;
      * `backend_failure`.
      */
     [[nodiscard]] boost::system::result<result_type> seal(
-        std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t> data_bytes) noexcept {
+        std::span<std::uint8_t const> nonce_bytes, std::span<std::uint8_t> data_bytes) noexcept {
         detail::timing_guard const timing_scope;
-        auto const guard_result = guard_message(iv_bytes, data_bytes.size(), tag_size);
+        auto const guard_result = guard_message(nonce_bytes, data_bytes.size(), tag_size);
         if (!guard_result) {
             return guard_result.error();
         }
         result_type tag_bytes{};
         auto const seal_result =
-            engine::seal(state_, iv_bytes.first<iv_size>(), data_bytes, tag_bytes);
+            engine::seal(state_, nonce_bytes.first<iv_size>(), data_bytes, tag_bytes);
         if (!seal_result) {
             detail::wipe(data_bytes.data(), data_bytes.size());
             return seal_result.error();
@@ -246,7 +246,7 @@ public:
      * When the tag does not match, or the backend fails, `data_bytes` is zeroed; a guard's
      * refusal leaves it untouched.
      *
-     * @param iv_bytes The nonce of the seal, which may lie in `data_bytes`.
+     * @param nonce_bytes The nonce of the seal, which may lie in `data_bytes`.
      * @param data_bytes The ciphertext.
      * @param tag_bytes The seal's tag, `tag_size` bytes, which may lie anywhere, `data_bytes`
      * included.
@@ -254,10 +254,10 @@ public:
      * `message_too_long`; `authentication_failed`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<void> open(
-        std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t> data_bytes,
+        std::span<std::uint8_t const> nonce_bytes, std::span<std::uint8_t> data_bytes,
         std::span<std::uint8_t const> tag_bytes) noexcept {
         detail::timing_guard const timing_scope;
-        auto const guard_result = guard_message(iv_bytes, data_bytes.size(), tag_bytes.size());
+        auto const guard_result = guard_message(nonce_bytes, data_bytes.size(), tag_bytes.size());
         if (!guard_result) {
             return guard_result.error();
         }
@@ -265,7 +265,7 @@ public:
         std::array<std::uint8_t, tag_size> expected_tag{};
         std::ranges::copy(tag_bytes, expected_tag.begin());
         auto const open_result =
-            engine::open(state_, iv_bytes.first<iv_size>(), data_bytes, expected_tag);
+            engine::open(state_, nonce_bytes.first<iv_size>(), data_bytes, expected_tag);
         if (!open_result) {
             detail::wipe(data_bytes.data(), data_bytes.size());
             return open_result.error();
@@ -278,13 +278,13 @@ private:
 
     // Every guard of a message, in the documented order: the state, the nonce, the tag (open's;
     // seal passes tag_size), the length. None reads a byte of the spans.
-    [[nodiscard]] boost::system::result<void> guard_message(std::span<std::uint8_t const> iv_bytes,
-                                                            std::size_t byte_count,
-                                                            std::size_t tag_bytes) const noexcept {
+    [[nodiscard]] boost::system::result<void> guard_message(
+        std::span<std::uint8_t const> nonce_bytes, std::size_t byte_count,
+        std::size_t tag_bytes) const noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
-        if (iv_bytes.size() != iv_size) {
+        if (nonce_bytes.size() != iv_size) {
             return error::invalid_iv_size;
         }
         if (tag_bytes != tag_size) {

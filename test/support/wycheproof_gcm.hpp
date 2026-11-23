@@ -52,9 +52,9 @@ struct wycheproof_gcm_test {
     /** The key, 16, 24 or 32 bytes. */
     std::vector<std::uint8_t> key;
     /** The IV. */
-    std::vector<std::uint8_t> iv;
+    std::vector<std::uint8_t> nonce;
     /** The additional data. */
-    std::vector<std::uint8_t> additional_data;
+    std::vector<std::uint8_t> associated_data;
     /** The plaintext. */
     std::vector<std::uint8_t> message;
     /** The ciphertext. */
@@ -70,17 +70,17 @@ template <class Aead>
 void check_wycheproof_gcm_test(Aead& made, wycheproof_gcm_test const& t,
                                wycheproof_gcm_counts& counts) {
     auto data = t.ciphertext;
-    auto const opened = made.open(t.iv, t.additional_data, data, t.tag);
-    if (t.iv.empty() || t.iv.size() > Aead::max_iv_size) {
+    auto const opened = made.open(t.nonce, t.associated_data, data, t.tag);
+    if (t.nonce.empty() || t.nonce.size() > Aead::max_iv_size) {
         BOOST_TEST(opened.error() == crypto::error::invalid_iv_size);
         BOOST_TEST(data == t.ciphertext);
         // Sealed as well (spec section 2.4: the 257-byte IV is refused by seal too), and the
         // data is left as it was.
         auto plaintext = t.message;
-        BOOST_TEST(made.seal(t.iv, t.additional_data, plaintext).error() ==
+        BOOST_TEST(made.seal(t.nonce, t.associated_data, plaintext).error() ==
                    crypto::error::invalid_iv_size);
         BOOST_TEST(plaintext == t.message);
-        ++(t.iv.empty() ? counts.empty_iv : counts.over_cap);
+        ++(t.nonce.empty() ? counts.empty_iv : counts.over_cap);
         return;
     }
     if (!t.valid) {
@@ -92,11 +92,11 @@ void check_wycheproof_gcm_test(Aead& made, wycheproof_gcm_test const& t,
     BOOST_TEST(opened.has_value());
     BOOST_TEST(data == t.message);
     auto sealed_data = t.message;
-    auto const sealed = made.seal(t.iv, t.additional_data, sealed_data);
+    auto const sealed = made.seal(t.nonce, t.associated_data, sealed_data);
     BOOST_TEST(sealed_data == t.ciphertext);
     BOOST_TEST(sealed && to_hex(*sealed) == to_hex(t.tag));
     // Sealed incrementally as well, in pieces of every size (I4).
-    check_every_piece(made, t.iv, t.additional_data, t.message, to_hex(t.ciphertext),
+    check_every_piece(made, t.nonce, t.associated_data, t.message, to_hex(t.ciphertext),
                       to_hex(t.tag));
     ++counts.valid;
 }
@@ -111,8 +111,8 @@ void check_wycheproof_gcm() {
         for (auto const& test : group.at("tests").as_array()) {
             wycheproof_gcm_test const t{
                 .key = wycheproof_bytes(test, "key"),
-                .iv = wycheproof_bytes(test, "iv"),
-                .additional_data = wycheproof_bytes(test, "aad"),
+                .nonce = wycheproof_bytes(test, "iv"),
+                .associated_data = wycheproof_bytes(test, "aad"),
                 .message = wycheproof_bytes(test, "msg"),
                 .ciphertext = wycheproof_bytes(test, "ct"),
                 .tag = wycheproof_bytes(test, "tag"),

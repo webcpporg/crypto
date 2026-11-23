@@ -162,8 +162,8 @@ plain_completion complete_plain(asio::io_context& context, Start start) {
 template <class Gcm>
 void run_case(asio::io_context& context, webcpp::test::gcm_case const& spec) {
     auto const key = webcpp::test::from_hex(spec.key);
-    auto const iv = webcpp::test::from_hex(spec.iv);
-    auto const additional_data = webcpp::test::from_hex(spec.additional_data);
+    auto const nonce = webcpp::test::from_hex(spec.nonce);
+    auto const associated_data = webcpp::test::from_hex(spec.associated_data);
     auto const plaintext = webcpp::test::from_hex(spec.plaintext);
     auto const ciphertext = webcpp::test::from_hex(spec.ciphertext);
     auto const tag = webcpp::test::from_hex(spec.tag);
@@ -180,7 +180,7 @@ void run_case(asio::io_context& context, webcpp::test::gcm_case const& spec) {
     std::vector<std::uint8_t> data = plaintext;
     auto sealed =
         complete<typename Gcm::result_type>(context, [&](auto const& executor, auto&& token) {
-            crypto::async_seal(executor, aead, iv, additional_data, data,
+            crypto::async_seal(executor, aead, nonce, associated_data, data,
                                std::forward<decltype(token)>(token));
         });
     BOOST_TEST(!sealed.code);
@@ -190,7 +190,7 @@ void run_case(asio::io_context& context, webcpp::test::gcm_case const& spec) {
     }
 
     auto const opened = complete_plain(context, [&](auto const& executor, auto&& token) {
-        crypto::async_open(executor, aead, iv, additional_data, data, tag,
+        crypto::async_open(executor, aead, nonce, associated_data, data, tag,
                            std::forward<decltype(token)>(token));
     });
     BOOST_TEST(!opened.code);
@@ -220,12 +220,12 @@ gcm256 keyed(asio::io_context& context) {
 
 void async_wrong_tag(asio::io_context& context) {
     gcm256 aead = keyed(context);
-    std::array<std::uint8_t, 12> const iv{};
-    std::array<std::uint8_t, 4> const additional_data{1, 2, 3, 4};
+    std::array<std::uint8_t, 12> const nonce{};
+    std::array<std::uint8_t, 4> const associated_data{1, 2, 3, 4};
     std::array<std::uint8_t, 40> data{};
     data.fill(0x5a);
     auto sealed = complete<gcm256::result_type>(context, [&](auto const& executor, auto&& token) {
-        crypto::async_seal(executor, aead, iv, additional_data, data,
+        crypto::async_seal(executor, aead, nonce, associated_data, data,
                            std::forward<decltype(token)>(token));
     });
     BOOST_TEST(!sealed.code);
@@ -236,7 +236,7 @@ void async_wrong_tag(asio::io_context& context) {
     std::ranges::copy(*sealed.value, tag.begin());
     tag[7] ^= 1U;
     auto const opened = complete_plain(context, [&](auto const& executor, auto&& token) {
-        crypto::async_open(executor, aead, iv, additional_data, data, tag,
+        crypto::async_open(executor, aead, nonce, associated_data, data, tag,
                            std::forward<decltype(token)>(token));
     });
     BOOST_TEST(opened.code == crypto::error::authentication_failed);
@@ -245,13 +245,13 @@ void async_wrong_tag(asio::io_context& context) {
 
 void async_long_iv(asio::io_context& context) {
     gcm256 aead = keyed(context);
-    std::array<std::uint8_t, 129> const iv{};
+    std::array<std::uint8_t, 129> const nonce{};
     std::array<std::uint8_t, 40> data{};
     data.fill(0x6c);
     auto const untouched = data;
     std::array<std::uint8_t, 16> const tag{};
     auto sealed = complete<gcm256::result_type>(context, [&](auto const& executor, auto&& token) {
-        crypto::async_seal(executor, aead, iv, {}, data, std::forward<decltype(token)>(token));
+        crypto::async_seal(executor, aead, nonce, {}, data, std::forward<decltype(token)>(token));
     });
     BOOST_TEST(sealed.code == crypto::error::invalid_iv_size);
     BOOST_TEST(same_bytes(data, untouched));
@@ -259,7 +259,8 @@ void async_long_iv(asio::io_context& context) {
         BOOST_TEST(all_zero(std::span(sealed.value->data(), sealed.value->size())));
     }
     auto const opened = complete_plain(context, [&](auto const& executor, auto&& token) {
-        crypto::async_open(executor, aead, iv, {}, data, tag, std::forward<decltype(token)>(token));
+        crypto::async_open(executor, aead, nonce, {}, data, tag,
+                           std::forward<decltype(token)>(token));
     });
     BOOST_TEST(opened.code == crypto::error::invalid_iv_size);
     BOOST_TEST(same_bytes(data, untouched));
@@ -276,23 +277,23 @@ void async_from_key_refused(asio::io_context& context) {
     }
     // The empty gcm refuses every member, and leaves data untouched.
     gcm256& empty = *made.value;
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     std::array<std::uint8_t, 16> data{};
     data.fill(0x6c);
     auto const untouched = data;
     std::array<std::uint8_t, 16> const tag{};
-    BOOST_TEST(empty.seal(iv, {}, data).error() == crypto::error::invalid_state);
-    BOOST_TEST(empty.open(iv, {}, data, tag).error() == crypto::error::invalid_state);
-    BOOST_TEST(empty.begin_seal(iv, {}).error() == crypto::error::invalid_state);
-    BOOST_TEST(empty.begin_open(iv, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.seal(nonce, {}, data).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.open(nonce, {}, data, tag).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.begin_seal(nonce, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.begin_open(nonce, {}).error() == crypto::error::invalid_state);
     BOOST_TEST(empty.update(data).error() == crypto::error::invalid_state);
     BOOST_TEST(empty.result().error() == crypto::error::invalid_state);
     BOOST_TEST(same_bytes(data, untouched));
     // Through the asynchronous functions too.
-    auto const sealed =
-        complete<gcm256::result_type>(context, [&](auto const& executor, auto&& token) {
-            crypto::async_seal(executor, empty, iv, {}, data, std::forward<decltype(token)>(token));
-        });
+    auto const sealed = complete<gcm256::result_type>(context, [&](auto const& executor,
+                                                                   auto&& token) {
+        crypto::async_seal(executor, empty, nonce, {}, data, std::forward<decltype(token)>(token));
+    });
     BOOST_TEST(sealed.code == crypto::error::invalid_state);
     BOOST_TEST(same_bytes(data, untouched));
 }
@@ -301,15 +302,15 @@ void async_from_key_refused(asio::io_context& context) {
 // The object and the key destroyed after the initiating call and before the completion: a
 // synchronous backend has sealed already, so the tag and the ciphertext are the synchronous ones.
 void async_destroyed(asio::io_context& context) {
-    std::array<std::uint8_t, 12> const iv{};
-    std::array<std::uint8_t, 4> const additional_data{1, 2, 3, 4};
+    std::array<std::uint8_t, 12> const nonce{};
+    std::array<std::uint8_t, 4> const associated_data{1, 2, 3, 4};
     std::array<std::uint8_t, 40> data{};
     data.fill(0x5a);
     auto expected_data = data;
     gcm256::result_type expected_tag{};
     {
         gcm256 reference = keyed(context);
-        auto const sealed = reference.seal(iv, additional_data, expected_data);
+        auto const sealed = reference.seal(nonce, associated_data, expected_data);
         if (!BOOST_TEST(sealed.has_value())) {
             return;
         }
@@ -319,7 +320,7 @@ void async_destroyed(asio::io_context& context) {
     boost::system::error_code code;
     {
         gcm256 aead = keyed(context);
-        crypto::async_seal(context.get_executor(), aead, iv, additional_data, data,
+        crypto::async_seal(context.get_executor(), aead, nonce, associated_data, data,
                            [&](boost::system::error_code done_code, gcm256::result_type done) {
                                code = done_code;
                                tag = done;
@@ -339,8 +340,8 @@ void async_coroutine(asio::io_context& context) {
         [&]() -> asio::awaitable<void> {
             auto const executor = co_await asio::this_coro::executor;
             std::array<std::uint8_t, 32> const key{};
-            std::array<std::uint8_t, 12> const iv{};
-            std::array<std::uint8_t, 4> const additional_data{9, 8, 7, 6};
+            std::array<std::uint8_t, 12> const nonce{};
+            std::array<std::uint8_t, 4> const associated_data{9, 8, 7, 6};
             std::array<std::uint8_t, 40> data{};
             data.fill(0x33);
             auto const plaintext = data;
@@ -349,10 +350,10 @@ void async_coroutine(asio::io_context& context) {
             auto& [made_code, aead] = made_code_result;
             BOOST_TEST(!made_code);
             auto [code, tag] = co_await crypto::async_seal(
-                executor, aead, iv, additional_data, data, asio::as_tuple(asio::use_awaitable));
+                executor, aead, nonce, associated_data, data, asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(!code);
             BOOST_TEST(!same_bytes(data, plaintext));
-            auto [open_code] = co_await crypto::async_open(executor, aead, iv, additional_data,
+            auto [open_code] = co_await crypto::async_open(executor, aead, nonce, associated_data,
                                                            data, std::span(tag.data(), tag.size()),
                                                            asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(!open_code);
@@ -369,15 +370,15 @@ void async_coroutine(asio::io_context& context) {
 // message.
 struct four_forms_message {
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, 12> iv{};
-    std::array<std::uint8_t, 4> additional_data{1, 2, 3, 4};
+    std::array<std::uint8_t, 12> nonce{};
+    std::array<std::uint8_t, 4> associated_data{1, 2, 3, 4};
     std::array<std::uint8_t, 40> plaintext{};
 
     four_forms_message() {
         for (std::size_t index = 0; index < key.size(); ++index) {
             key[index] = static_cast<std::uint8_t>((index * 7U) + 1U);
         }
-        iv.fill(0x24);
+        nonce.fill(0x24);
         plaintext.fill(0x5a);
     }
 };
@@ -409,7 +410,7 @@ void four_forms_from_key(asio::io_context& context, four_forms_message const& me
     // Each object seals the message as the first does.
     auto const tag_of = [&message](gcm256 aead) {
         auto data = message.plaintext;
-        auto const sealed = aead.seal(message.iv, message.additional_data, data);
+        auto const sealed = aead.seal(message.nonce, message.associated_data, data);
         BOOST_TEST(sealed.has_value());
         return sealed ? *sealed : gcm256::result_type{};
     };
@@ -447,16 +448,16 @@ std::array<sealed_message, 4> four_seals(asio::io_context& context, gcm256& aead
             one.tag = *done;
         }
     };
-    keep(sealed[0], aead.seal(message.iv, message.additional_data, sealed[0].data));
-    keep(sealed[1], crypto::seal(aead, message.iv, message.additional_data, sealed[1].data));
+    keep(sealed[0], aead.seal(message.nonce, message.associated_data, sealed[0].data));
+    keep(sealed[1], crypto::seal(aead, message.nonce, message.associated_data, sealed[1].data));
     auto const member_async =
         complete<gcm256::result_type>(context, [&](auto const& executor, auto&& token) {
-            return aead.async_seal(executor, message.iv, message.additional_data, sealed[2].data,
+            return aead.async_seal(executor, message.nonce, message.associated_data, sealed[2].data,
                                    std::forward<decltype(token)>(token));
         });
     auto const free_async =
         complete<gcm256::result_type>(context, [&](auto const& executor, auto&& token) {
-            return crypto::async_seal(executor, aead, message.iv, message.additional_data,
+            return crypto::async_seal(executor, aead, message.nonce, message.associated_data,
                                       sealed[3].data, std::forward<decltype(token)>(token));
         });
     sealed[2].code = member_async.code;
@@ -482,16 +483,16 @@ void check_four_opens(asio::io_context& context, gcm256& aead, four_forms_messag
     auto const code_of = [](boost::system::result<void> const& done) {
         return done ? boost::system::error_code{} : done.error();
     };
-    BOOST_TEST(code_of(aead.open(message.iv, message.additional_data, data[0], tag)) ==
+    BOOST_TEST(code_of(aead.open(message.nonce, message.associated_data, data[0], tag)) ==
                expected_code);
-    BOOST_TEST(code_of(crypto::open(aead, message.iv, message.additional_data, data[1], tag)) ==
+    BOOST_TEST(code_of(crypto::open(aead, message.nonce, message.associated_data, data[1], tag)) ==
                expected_code);
     BOOST_TEST(complete_plain(context, [&](auto const& executor, auto&& token) {
-                   return aead.async_open(executor, message.iv, message.additional_data, data[2],
+                   return aead.async_open(executor, message.nonce, message.associated_data, data[2],
                                           tag, std::forward<decltype(token)>(token));
                }).code == expected_code);
     BOOST_TEST(complete_plain(context, [&](auto const& executor, auto&& token) {
-                   return crypto::async_open(executor, aead, message.iv, message.additional_data,
+                   return crypto::async_open(executor, aead, message.nonce, message.associated_data,
                                              data[3], tag, std::forward<decltype(token)>(token));
                }).code == expected_code);
     for (auto const& opened : data) {
@@ -510,13 +511,13 @@ void async_member_deferred(asio::io_context& context) {
         return;
     }
     auto expected_data = message.plaintext;
-    auto const expected_tag = aead->seal(message.iv, message.additional_data, expected_data);
+    auto const expected_tag = aead->seal(message.nonce, message.associated_data, expected_data);
     if (!BOOST_TEST(expected_tag.has_value())) {
         return;
     }
     auto data = message.plaintext;
-    auto operation = aead->async_seal(context.get_executor(), message.iv, message.additional_data,
-                                      data, asio::deferred);
+    auto operation = aead->async_seal(context.get_executor(), message.nonce,
+                                      message.associated_data, data, asio::deferred);
     // Nothing runs before the operation is launched.
     BOOST_TEST(data == message.plaintext);
     int calls = 0;

@@ -12,7 +12,8 @@
 // of what it sealed, a verification of what it signed, both sides of an agreement). An operation
 // the library refuses ends the program: a figure measured on a failure would be a wrong one.
 // `operation` names what is measured, the text crypto.json's family states (bench/collect.py
-// checks that the two agree). A seal repeats under one key and one IV: a measurement, never a use.
+// checks that the two agree). A seal repeats under one key and one nonce: a measurement, never a
+// use.
 
 #ifndef WEBCPP_CRYPTO_BENCH_OPERATIONS_HPP
 #define WEBCPP_CRYPTO_BENCH_OPERATIONS_HPP
@@ -127,28 +128,28 @@ private:
     Cipher cipher_;
 };
 
-// The seal of 16 KiB, in place, without additional data.
+// The seal of 16 KiB, in place, without associated data.
 template <class Aead>
 class aead_seal {
 public:
     static constexpr std::string_view operation = "seal of 16 KiB, 256-bit key";
 
     explicit aead_seal(std::uint8_t seed)
-        : iv_(filled<Aead::iv_size>(static_cast<std::uint8_t>(seed + 2U))),
+        : nonce_(filled<Aead::iv_size>(static_cast<std::uint8_t>(seed + 2U))),
           data_(filled<message_size>(seed)),
           aead_(take(Aead::from_key(filled<Aead::key_size>(seed)), "from_key")) {}
 
-    std::uint8_t run() { return take(aead_.seal(iv_, {}, data_), "seal").data()[0]; }
+    std::uint8_t run() { return take(aead_.seal(nonce_, {}, data_), "seal").data()[0]; }
 
     bool check() {
         auto const plain = data_;
-        auto const tag = take(aead_.seal(iv_, {}, data_), "seal");
+        auto const tag = take(aead_.seal(nonce_, {}, data_), "seal");
         bool const changed = data_ != plain;
-        return changed && aead_.open(iv_, {}, data_, tag).has_value() && data_ == plain;
+        return changed && aead_.open(nonce_, {}, data_, tag).has_value() && data_ == plain;
     }
 
 private:
-    std::array<std::uint8_t, Aead::iv_size> iv_{};
+    std::array<std::uint8_t, Aead::iv_size> nonce_{};
     std::array<std::uint8_t, message_size> data_{};
     Aead aead_;
 };

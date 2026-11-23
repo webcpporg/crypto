@@ -155,22 +155,22 @@ struct gcm_engine<backends::bearssl, KeySize> {
     }
 
     /**
-     * Starts a message: the IV, then the whole additional data.
+     * Starts a message: the nonce, then the whole associated data.
      *
      * @param engine_state A keyed state.
      * @param is_sealing Whether the message is sealed or opened.
-     * @param iv_bytes 1 to 128 bytes.
-     * @param additional_data_bytes Read whole before this returns.
+     * @param nonce_bytes 1 to 128 bytes.
+     * @param associated_data_bytes Read whole before this returns.
      * @return Nothing.
      */
     [[nodiscard]] static boost::system::result<void> start(
-        state& engine_state, bool is_sealing, std::span<std::uint8_t const> iv_bytes,
-        std::span<std::uint8_t const> additional_data_bytes) noexcept {
+        state& engine_state, bool is_sealing, std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         engine_state.sealing = is_sealing;
-        br_gcm_reset(&engine_state.context, iv_bytes.data(), iv_bytes.size());
-        br_gcm_aad_inject(&engine_state.context, additional_data_bytes.data(),
-                          additional_data_bytes.size());
+        br_gcm_reset(&engine_state.context, nonce_bytes.data(), nonce_bytes.size());
+        br_gcm_aad_inject(&engine_state.context, associated_data_bytes.data(),
+                          associated_data_bytes.size());
         br_gcm_flip(&engine_state.context);
         return {};
     }
@@ -329,24 +329,24 @@ struct aead_engine<families::chacha20_poly1305, backends::bearssl> {
 
     /**
      * Encrypts `data_bytes` in place and writes the tag. BearSSL reads the nonce before it
-     * writes a byte of the data, and the additional data after it encrypts (`aead` forbids
+     * writes a byte of the data, and the associated data after it encrypts (`aead` forbids
      * their overlap).
      *
      * @param engine_state A keyed state.
-     * @param iv_bytes 12 bytes.
-     * @param additional_data_bytes Authenticated, not encrypted.
+     * @param nonce_bytes 12 bytes.
+     * @param associated_data_bytes Authenticated, not encrypted.
      * @param data_bytes The message.
      * @param tag_bytes The tag.
      * @return Nothing.
      */
     [[nodiscard]] static boost::system::result<void> seal(
-        state& engine_state, std::span<std::uint8_t const> iv_bytes,
-        std::span<std::uint8_t const> additional_data_bytes, std::span<std::uint8_t> data_bytes,
+        state& engine_state, std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
         boost::hash2::digest<16>& tag_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
-        bearssl_poly1305()(engine_state.key.data(), iv_bytes.data(), data_bytes.data(),
-                           data_bytes.size(), additional_data_bytes.data(),
-                           additional_data_bytes.size(), tag_bytes.data(), bearssl_chacha20(), 1);
+        bearssl_poly1305()(engine_state.key.data(), nonce_bytes.data(), data_bytes.data(),
+                           data_bytes.size(), associated_data_bytes.data(),
+                           associated_data_bytes.size(), tag_bytes.data(), bearssl_chacha20(), 1);
         return {};
     }
 
@@ -355,21 +355,21 @@ struct aead_engine<families::chacha20_poly1305, backends::bearssl> {
      * constant time; `aead` zeroes the data when they differ.
      *
      * @param engine_state A keyed state.
-     * @param iv_bytes 12 bytes.
-     * @param additional_data_bytes The additional data of the seal.
+     * @param nonce_bytes 12 bytes.
+     * @param associated_data_bytes The associated data of the seal.
      * @param data_bytes The ciphertext.
      * @param tag_bytes The expected tag.
      * @return Nothing; `authentication_failed`.
      */
     [[nodiscard]] static boost::system::result<void> open(
-        state& engine_state, std::span<std::uint8_t const> iv_bytes,
-        std::span<std::uint8_t const> additional_data_bytes, std::span<std::uint8_t> data_bytes,
+        state& engine_state, std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
         std::array<std::uint8_t, 16> const& tag_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         std::array<std::uint8_t, 16> computed_tag{};
-        bearssl_poly1305()(engine_state.key.data(), iv_bytes.data(), data_bytes.data(),
-                           data_bytes.size(), additional_data_bytes.data(),
-                           additional_data_bytes.size(), computed_tag.data(), bearssl_chacha20(),
+        bearssl_poly1305()(engine_state.key.data(), nonce_bytes.data(), data_bytes.data(),
+                           data_bytes.size(), associated_data_bytes.data(),
+                           associated_data_bytes.size(), computed_tag.data(), bearssl_chacha20(),
                            0);
         // The verdict is public by design (a failed open is reported): declassified here,
         // where webcpp's code first branches on it, for the constant-time checks.

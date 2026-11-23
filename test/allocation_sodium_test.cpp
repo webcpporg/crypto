@@ -54,20 +54,20 @@ template <class Aead>
 void expect_no_allocation() {
     std::array<std::uint8_t, Aead::key_size> key{};
     key.fill(3);
-    std::array<std::uint8_t, Aead::iv_size> const iv{};
+    std::array<std::uint8_t, Aead::iv_size> const nonce{};
     std::array<std::uint8_t, 13> const some_additional_data{};
-    auto const additional_data = std::span<std::uint8_t const>(some_additional_data)
+    auto const associated_data = std::span<std::uint8_t const>(some_additional_data)
                                      .first(Aead::max_additional_data_size == 0 ? 0 : 13);
     std::array<std::uint8_t, 4096> data{};
     std::size_t const before = webcpp::test::allocations();
     {
         auto made = Aead::from_key(key);
         BOOST_TEST(made.has_value());
-        auto const tag = made->seal(iv, additional_data, data);
+        auto const tag = made->seal(nonce, associated_data, data);
         BOOST_TEST(tag.has_value());
-        BOOST_TEST(made->open(iv, additional_data, data, *tag).has_value());
+        BOOST_TEST(made->open(nonce, associated_data, data, *tag).has_value());
         std::array<std::uint8_t, Aead::tag_size> const forged{};
-        BOOST_TEST(made->open(iv, additional_data, data, forged).error() ==
+        BOOST_TEST(made->open(nonce, associated_data, data, forged).error() ==
                    crypto::error::authentication_failed);
         Aead const moved = std::move(*made);
     }
@@ -197,7 +197,7 @@ void expect_no_allocation_box() {
     std::array<std::uint8_t, 32> bob{};
     bob.fill(9);
     std::array<std::uint8_t, 32> const low_order{};
-    std::array<std::uint8_t, Box::iv_size> const iv{};
+    std::array<std::uint8_t, Box::iv_size> const nonce{};
     std::array<std::uint8_t, 4096> data{};
     auto const alice_public = x25519_public_of(alice);
     auto const bob_public = x25519_public_of(bob);
@@ -206,11 +206,11 @@ void expect_no_allocation_box() {
         auto sender = Box::from_keys(alice, bob_public);
         auto receiver = Box::from_keys(bob, alice_public);
         BOOST_TEST(sender.has_value() && receiver.has_value());
-        auto const tag = sender->seal(iv, data);
+        auto const tag = sender->seal(nonce, data);
         BOOST_TEST(tag.has_value());
-        BOOST_TEST(receiver->open(iv, data, *tag).has_value());
+        BOOST_TEST(receiver->open(nonce, data, *tag).has_value());
         std::array<std::uint8_t, Box::tag_size> const forged{};
-        BOOST_TEST(receiver->open(iv, data, forged).error() ==
+        BOOST_TEST(receiver->open(nonce, data, forged).error() ==
                    crypto::error::authentication_failed);
         BOOST_TEST(Box::from_keys(alice, low_order).error() == crypto::error::weak_public_key);
         Box const moved = std::move(*sender);

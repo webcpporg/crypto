@@ -46,8 +46,8 @@ template <class Family, class Backend>
 struct aead_state;
 /**
  * The work of a `ciphers::aead` of the family `Family` on a backend, whose specialisation
- * provides `init(state&, key)`, `seal(state&, iv, additional_data, data, tag&)`,
- * `open(state&, iv, additional_data, data, tag const&)`, `move(to, from)` and `reset(state&)`
+ * provides `init(state&, key)`, `seal(state&, nonce, associated_data, data, tag&)`,
+ * `open(state&, nonce, associated_data, data, tag const&)`, `move(to, from)` and `reset(state&)`
  * (see @ref block_state).
  */
 template <class Family, class Backend>

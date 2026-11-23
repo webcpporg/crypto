@@ -32,7 +32,7 @@ webcpp.example failure_reasons.cpp : <library>/webcpp/crypto//gcm-default ;
 # A reset token and a one-time code from random_device; no backend.
 webcpp.example reset_token.cpp ;
 
-# An API token stored in a row, bound to the user id as additional data.
+# An API token stored in a row, bound to the user id as associated data.
 webcpp.example store_token.cpp : <library>/webcpp/crypto//gcm-default ;
 
 # The incremental seal, and records bound to their numbers.

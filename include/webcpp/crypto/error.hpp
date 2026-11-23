@@ -35,7 +35,7 @@ namespace webcpp::crypto {
 enum class error : int {
     /** A key of another size than the algorithm's `key_size`, or a secret key not of 32 bytes. */
     invalid_key_size = 1,
-    /** A GCM IV that is empty or longer than 128 bytes. */
+    /** A GCM nonce that is empty or longer than 128 bytes. */
     invalid_iv_size = 2,
     /** A tag given to `open` or `verify` that is not of 16 bytes. */
     invalid_tag_size = 3,
@@ -45,9 +45,9 @@ enum class error : int {
      * open's `decrypt` past the authenticated length and `end_open` short of it.
      */
     invalid_input_size = 4,
-    /** A message or additional data longer than the algorithm allows. */
+    /** A message or associated data longer than the algorithm allows. */
     message_too_long = 5,
-    /** The tag does not match: the message or its additional data changed, or the key differs. */
+    /** The tag does not match: the message or its associated data changed, or the key differs. */
     authentication_failed = 6,
     /** An object moved from, or the incremental seal or open called out of order. */
     invalid_state = 7,

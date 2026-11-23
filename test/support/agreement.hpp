@@ -60,8 +60,8 @@ bool agree_gcm_once(std::mt19937_64& generator, std::size_t message_size, std::u
     namespace ciphers = crypto::ciphers;
     auto const key = random_bytes(generator, CipherA::key_size);
     auto const iv_size = generator() % 2 == 0 ? 12 : 1 + (generator() % 64);
-    auto const iv = random_bytes(generator, iv_size);
-    auto const additional_data = random_bytes(generator, generator() % 65);
+    auto const nonce = random_bytes(generator, iv_size);
+    auto const associated_data = random_bytes(generator, generator() % 65);
     auto const message = random_bytes(generator, message_size);
     auto a = ciphers::gcm<CipherA>::from_key(key);
     auto b = ciphers::gcm<CipherB>::from_key(key);
@@ -70,15 +70,15 @@ bool agree_gcm_once(std::mt19937_64& generator, std::size_t message_size, std::u
     }
     auto data_a = message;
     auto data_b = message;
-    auto const tag_a = a->seal(iv, additional_data, data_a);
-    auto const tag_b = b->seal(iv, additional_data, data_b);
+    auto const tag_a = a->seal(nonce, associated_data, data_a);
+    auto const tag_b = b->seal(nonce, associated_data, data_b);
     bool const same = tag_a && tag_b && data_a == data_b && *tag_a == *tag_b;
     if (!BOOST_TEST(same)) {
         print_disagreement(seed, "AES-GCM", CipherA::key_size, message_size);
         return false;
     }
-    bool const opened = BOOST_TEST(b->open(iv, additional_data, data_a, *tag_a).has_value()) &&
-                        BOOST_TEST(a->open(iv, additional_data, data_b, *tag_b).has_value()) &&
+    bool const opened = BOOST_TEST(b->open(nonce, associated_data, data_a, *tag_a).has_value()) &&
+                        BOOST_TEST(a->open(nonce, associated_data, data_b, *tag_b).has_value()) &&
                         BOOST_TEST(data_a == message && data_b == message);
     if (!opened) {
         print_disagreement(seed, "AES-GCM", CipherA::key_size, message_size);
@@ -170,8 +170,8 @@ template <class A, class B>
 bool agree_chacha_once(std::mt19937_64& generator, std::size_t message_size, std::uint64_t seed) {
     namespace ciphers = crypto::ciphers;
     auto const key = random_bytes(generator, 32);
-    auto const iv = random_bytes(generator, 12);
-    auto const additional_data = random_bytes(generator, generator() % 65);
+    auto const nonce = random_bytes(generator, 12);
+    auto const associated_data = random_bytes(generator, generator() % 65);
     auto const message = random_bytes(generator, message_size);
     auto a = ciphers::chacha20_poly1305<A>::from_key(key);
     auto b = ciphers::chacha20_poly1305<B>::from_key(key);
@@ -180,15 +180,15 @@ bool agree_chacha_once(std::mt19937_64& generator, std::size_t message_size, std
     }
     auto data_a = message;
     auto data_b = message;
-    auto const tag_a = a->seal(iv, additional_data, data_a);
-    auto const tag_b = b->seal(iv, additional_data, data_b);
+    auto const tag_a = a->seal(nonce, associated_data, data_a);
+    auto const tag_b = b->seal(nonce, associated_data, data_b);
     bool const same = tag_a && tag_b && data_a == data_b && *tag_a == *tag_b;
     if (!BOOST_TEST(same)) {
         print_disagreement(seed, "ChaCha20-Poly1305", 32, message_size);
         return false;
     }
-    bool const opened = BOOST_TEST(b->open(iv, additional_data, data_a, *tag_a).has_value()) &&
-                        BOOST_TEST(a->open(iv, additional_data, data_b, *tag_b).has_value()) &&
+    bool const opened = BOOST_TEST(b->open(nonce, associated_data, data_a, *tag_a).has_value()) &&
+                        BOOST_TEST(a->open(nonce, associated_data, data_b, *tag_b).has_value()) &&
                         BOOST_TEST(data_a == message && data_b == message);
     if (!opened) {
         print_disagreement(seed, "ChaCha20-Poly1305", 32, message_size);

@@ -64,7 +64,7 @@ int main() {
     // Before anything: OpenSSL allocates through the test's functions from here on.
     BOOST_TEST(CRYPTO_set_mem_functions(&counting_malloc, &counting_realloc, &counting_free) == 1);
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, 12> iv{};
+    std::array<std::uint8_t, 12> nonce{};
     std::array<std::uint8_t, 4096> data{};
     std::array<std::uint8_t, 16> block{};
 
@@ -91,26 +91,27 @@ int main() {
 
     std::size_t const own_before = openssl_allocations.load();
     std::size_t const before = webcpp::test::allocations();
-    auto const tag = made->seal(iv, {}, data);
+    auto const tag = made->seal(nonce, {}, data);
     bool const sealed = tag.has_value();
-    bool const opened = sealed && made->open(iv, {}, data, *tag).has_value();
+    bool const opened = sealed && made->open(nonce, {}, data, *tag).has_value();
     std::array<std::uint8_t, 16> wrong{};
-    bool const refused = !made->open(iv, {}, data, wrong).has_value();
-    bool const begun = made->begin_seal(iv, {}).has_value();
+    bool const refused = !made->open(nonce, {}, data, wrong).has_value();
+    bool const begun = made->begin_seal(nonce, {}).has_value();
     bool const updated = made->update(data).has_value();
     bool const resulted = made->result().has_value();
     // The two-pass open; verify restarts the OpenSSL context with EVP_CipherInit_ex.
-    auto const open_tag = made->seal(iv, {}, data);
-    bool const two_pass = open_tag.has_value() && made->begin_open(iv, {}).has_value() &&
+    auto const open_tag = made->seal(nonce, {}, data);
+    bool const two_pass = open_tag.has_value() && made->begin_open(nonce, {}).has_value() &&
                           made->authenticate(data).has_value() &&
                           made->verify(*open_tag).has_value() && made->decrypt(data).has_value() &&
                           made->end_open().has_value();
     bool const encrypted = second->encrypt(block).has_value();
     bool const decrypted = second->decrypt(block).has_value();
-    auto const chacha_tag = chacha->seal(iv, iv, data);
+    auto const chacha_tag = chacha->seal(nonce, nonce, data);
     bool const chacha_sealed = chacha_tag.has_value();
-    bool const chacha_opened = chacha_sealed && chacha->open(iv, iv, data, *chacha_tag).has_value();
-    bool const chacha_refused = !chacha->open(iv, iv, data, wrong).has_value();
+    bool const chacha_opened =
+        chacha_sealed && chacha->open(nonce, nonce, data, *chacha_tag).has_value();
+    bool const chacha_refused = !chacha->open(nonce, nonce, data, wrong).has_value();
     std::size_t const after = webcpp::test::allocations();
     std::size_t const own_after = openssl_allocations.load();
     BOOST_TEST(sealed);

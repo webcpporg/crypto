@@ -474,8 +474,8 @@ template <class Aead>
 void aead_forms() {
     std::array<std::uint8_t, Aead::key_size> key{};
     std::ranges::copy(secret_bytes(3), key.begin());
-    std::array<std::uint8_t, Aead::iv_size> const iv{9};
-    std::array<std::uint8_t, 4> const additional_data{'h', 'e', 'a', 'd'};
+    std::array<std::uint8_t, Aead::iv_size> const nonce{9};
+    std::array<std::uint8_t, 4> const associated_data{'h', 'e', 'a', 'd'};
     auto member_made = Aead::from_key(key);
     auto free_made = crypto::from_key<Aead>(key);
     static_assert(std::is_same_v<decltype(free_made), decltype(member_made)>);
@@ -484,8 +484,8 @@ void aead_forms() {
     }
     std::array<std::uint8_t, 24> member_data{1, 2, 3};
     std::array<std::uint8_t, 24> free_data = member_data;
-    auto const member_tag = member_made->seal(iv, additional_data, member_data);
-    auto const free_tag = crypto::seal(*free_made, iv, additional_data, free_data);
+    auto const member_tag = member_made->seal(nonce, associated_data, member_data);
+    auto const free_tag = crypto::seal(*free_made, nonce, associated_data, free_data);
     static_assert(std::is_same_v<decltype(free_tag), decltype(member_tag)>);
     if (!BOOST_TEST(member_tag.has_value()) || !BOOST_TEST(free_tag.has_value())) {
         return;
@@ -495,8 +495,8 @@ void aead_forms() {
 
     auto const tag = std::span<std::uint8_t const>(member_tag->data(), member_tag->size());
     auto opened_by_member = member_data;
-    BOOST_TEST(member_made->open(iv, additional_data, opened_by_member, tag).has_value());
-    BOOST_TEST(crypto::open(*free_made, iv, additional_data, free_data, tag).has_value());
+    BOOST_TEST(member_made->open(nonce, associated_data, opened_by_member, tag).has_value());
+    BOOST_TEST(crypto::open(*free_made, nonce, associated_data, free_data, tag).has_value());
     BOOST_TEST(free_data == opened_by_member);
     BOOST_TEST(free_data[0] == 1 && free_data[1] == 2 && free_data[2] == 3);
 
@@ -505,11 +505,11 @@ void aead_forms() {
     auto const wrong = std::span<std::uint8_t const>(wrong_tag.data(), wrong_tag.size());
     std::array<std::uint8_t, 24> sealed{1, 2, 3};
     std::array<std::uint8_t, 24> const zeros{};
-    BOOST_TEST(member_made->seal(iv, additional_data, sealed).has_value());
+    BOOST_TEST(member_made->seal(nonce, associated_data, sealed).has_value());
     auto refused_by_member = sealed;
-    BOOST_TEST(member_made->open(iv, additional_data, refused_by_member, wrong).error() ==
+    BOOST_TEST(member_made->open(nonce, associated_data, refused_by_member, wrong).error() ==
                crypto::error::authentication_failed);
-    BOOST_TEST(crypto::open(*free_made, iv, additional_data, sealed, wrong).error() ==
+    BOOST_TEST(crypto::open(*free_made, nonce, associated_data, sealed, wrong).error() ==
                crypto::error::authentication_failed);
     BOOST_TEST(sealed == zeros);
     BOOST_TEST(refused_by_member == zeros);

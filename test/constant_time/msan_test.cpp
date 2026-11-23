@@ -78,7 +78,7 @@ struct memory_sanitizer {
  */
 int bearssl_gcm() {
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     std::array<std::uint8_t, 64> data{};
     __msan_poison(key.data(), key.size());
     __msan_poison(data.data(), data.size());
@@ -89,10 +89,10 @@ int bearssl_gcm() {
 #endif
     auto made =
         crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>::from_key(key);
-    auto tag = made->seal(iv, {}, data);
+    auto tag = made->seal(nonce, {}, data);
     __msan_poison(tag->data(), tag->size());
     // The verdict is declassified inside the engine (WEBCPP_CRYPTO_DETAIL_DECLASSIFY).
-    auto const opened = made->open(iv, {}, data, *tag);
+    auto const opened = made->open(nonce, {}, data, *tag);
     // And the verdict is checked initialised here, the twin of ctgrind_test.cpp's check: an
     // optimiser may turn the engine's branch on it into a select, and neither the select nor
     // what main passes on and returns is reported (-fno-sanitize-memory-param-retval). The mark's

@@ -5,11 +5,10 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // An audit record sealed and opened through an event loop: the GCM specification's test case 16
-// (AES-256, 12-byte IV, additional data), a published key, never a real one. Each completion runs
-// from the loop's run, after the call that started it has returned, on every target; the handler
-// of the seal prints the tag and starts the open, the handler of the open compares the plaintext.
-// The loop ends when no operation is pending: nothing waits for a time.
-// tag::program[]
+// (AES-256, 12-byte nonce, associated data), a published key, never a real one. Each completion
+// runs from the loop's run, after the call that started it has returned, on every target; the
+// handler of the seal prints the tag and starts the open, the handler of the open compares the
+// plaintext. The loop ends when no operation is pending: nothing waits for a time. tag::program[]
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 
@@ -58,15 +57,15 @@ void print(char const* name, std::span<std::uint8_t const> bytes) {
 
 int main() {
     auto const key = bytes_of("feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308");
-    auto const iv = bytes_of("cafebabefacedbaddecaf888");
-    auto const additional_data = bytes_of("feedfacedeadbeeffeedfacedeadbeefabaddad2");
+    auto const nonce = bytes_of("cafebabefacedbaddecaf888");
+    auto const associated_data = bytes_of("feedfacedeadbeeffeedfacedeadbeefabaddad2");
     auto const record = bytes_of(
         "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449"
         "a6b525b16aedf5aa0de657ba637b39");
 
     asio::io_context loop;
-    // What a call reads and writes is the program's until the completion: the key, the IV, the
-    // additional data and the record outlive the loop's run. The record is sealed in place.
+    // What a call reads and writes is the program's until the completion: the key, the nonce, the
+    // associated data and the record outlive the loop's run. The record is sealed in place.
     std::vector<std::uint8_t> data = record;
     std::optional<aead_type> aead;
     bool returned = false;
@@ -81,7 +80,7 @@ int main() {
             aead.emplace(std::move(keyed));
             std::printf("made after the call returned: %s\n", returned ? "yes" : "no");
             crypto::async_seal(
-                loop.get_executor(), *aead, iv, additional_data, data,
+                loop.get_executor(), *aead, nonce, associated_data, data,
                 [&](boost::system::error_code sealed, aead_type::result_type digest) {
                     if (sealed) {
                         std::printf("seal: %s\n", sealed.message().c_str());
@@ -91,8 +90,8 @@ int main() {
                     std::ranges::copy(digest, tag.begin());
                     print("tag", tag);
                     // The ciphertext replaced the record, and the tag opens it back.
-                    crypto::async_open(loop.get_executor(), *aead, iv, additional_data, data, tag,
-                                       [&](boost::system::error_code opened) {
+                    crypto::async_open(loop.get_executor(), *aead, nonce, associated_data, data,
+                                       tag, [&](boost::system::error_code opened) {
                                            if (opened) {
                                                std::printf("open: %s\n", opened.message().c_str());
                                                return;

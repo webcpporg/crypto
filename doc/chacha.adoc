@@ -10,7 +10,7 @@
 *ChaCha20-Poly1305* is authenticated encryption built from two of Daniel J.
 Bernstein's designs: the stream cipher ChaCha20 encrypts, and the one-time
 authenticator Poly1305 computes a 16-byte tag over the ciphertext and the
-additional data
+associated data
 (link:https://en.wikipedia.org/wiki/ChaCha20-Poly1305[Wikipedia];
 link:https://www.rfc-editor.org/rfc/rfc8439[RFC 8439]). A chat app seals each
 message with it, a password manager each entry of its vault: whoever copies
@@ -44,11 +44,11 @@ program that draws each nonce at random has nothing to count and nothing to
 store, on the web and natively alike.
 
 Each is made with `from_key(key_bytes)` and works in place, as AES-GCM's one-shot
-calls do: `seal(iv_bytes, additional_data_bytes, data_bytes)` encrypts
-`data_bytes` and returns the 16-byte tag; `open(iv_bytes,
-additional_data_bytes, data_bytes, tag_bytes)` checks the tag and decrypts.
+calls do: `seal(nonce_bytes, associated_data_bytes, data_bytes)` encrypts
+`data_bytes` and returns the 16-byte tag; `open(nonce_bytes,
+associated_data_bytes, data_bytes, tag_bytes)` checks the tag and decrypts.
 A failed `open` zeroes `data_bytes`; a guard's refusal leaves it untouched.
-The nonce may lie in `data_bytes`, and the additional data may touch it, as a
+The nonce may lie in `data_bytes`, and the associated data may touch it, as a
 wire format that puts it just before the message does, but not overlap it.
 
 RFC 8439's form also runs on BearSSL, on every target, and on OpenSSL,
@@ -72,7 +72,7 @@ would reveal both plaintexts' XOR and let tags be forged:
 
 A program changes keys periodically. A large message is no reason to improvise:
 splitting a message into chunks is safe only when each chunk's tag also
-covers its number and a flag marking the last chunk, in the additional data or
+covers its number and a flag marking the last chunk, in the associated data or
 in a nonce built from them, and a reader refuses chunks out of order and a
 stream that ends without the last flag: otherwise whoever holds the ciphertext
 reorders, drops, repeats or truncates chunks and each one still opens. The
@@ -82,7 +82,7 @@ Rogaway and Vizár, 2015]) and libsodium's secretstream
 documentation]) do this; this version of crypto offers neither.
 
 *Example.* A chat app's messages under one conversation key, each sealed with
-a nonce drawn for it and the conversation's id as additional data, so that a
+a nonce drawn for it and the conversation's id as associated data, so that a
 message moved to another conversation does not open:
 
 [source,cpp]
@@ -143,9 +143,9 @@ every later message
 With `xchacha20_poly1305` draw 24 bytes at random per message; with
 `chacha20_poly1305` count, a restart included, or draw at random within the
 limit above; with the original form, count.
-* The tag covers the ciphertext and the additional data, nothing else: what
+* The tag covers the ciphertext and the associated data, nothing else: what
 the message belongs to (a conversation, a user, a record's id) goes in the
-additional data, or a message can be moved there unnoticed.
+associated data, or a message can be moved there unnoticed.
 * A failed `open` zeroes the data: keep the ciphertext if it is needed after a
 failure, and never act on a message before `open` succeeds.
 

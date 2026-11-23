@@ -76,7 +76,7 @@ keys' `spki`, `pkcs8` and `raw` exports (`p256_webcrypto_oracle`, `oracle ok
 800`, and its corrupted twin); and against OpenSSL natively and on WASI, 200
 cases each of RFC 6979 signatures, ECDH and SPKI and PKCS#8
 (`p256_openssl_oracle`, `oracle ok 600`) (<<crypto-p256>>).
-* *The backends against each other,* on random keys, IVs, additional data and
+* *The backends against each other,* on random keys, nonces, associated data and
 messages of every size around a block's: BearSSL and OpenSSL seal the same
 bytes with AES-GCM and each opens what the other sealed, with BearSSL on its
 x86-64 instructions and on its portable code; ctaes and OpenSSL encrypt the

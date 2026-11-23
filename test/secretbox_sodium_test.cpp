@@ -75,8 +75,8 @@ static_assert(secretbox::max_additional_data_size == 0 &&
 constexpr std::array<webcpp::test::aead_case, 1> secretbox_cases{
     webcpp::test::aead_case{
         .key = "1b27556473e985d462cd51197a9a46c76009549eac6474f206c4ee0844f68389",
-        .iv = "69696ee955b62b73cd62bda875fc73d68219e0036b7a0b37",
-        .additional_data = "",
+        .nonce = "69696ee955b62b73cd62bda875fc73d68219e0036b7a0b37",
+        .associated_data = "",
         .plaintext =
             "be075fc53c81f2d5cf141316ebeb0c7b5228c52a4c62cbd44b66849b64244ffce5ecbaaf33bd751a1ac7"
             "28d45e6c61296cdc3c01233561f41db66cce314adb310e3be8250c46f06dceea3a7fa1348057e2f6556a"
@@ -100,8 +100,8 @@ constexpr std::array<webcpp::test::aead_case, 1> secretbox_cases{
 constexpr std::array<webcpp::test::aead_case, 3> secretbox_xchacha_cases{
     webcpp::test::aead_case{
         .key = "d3c71d54e6b13506e07aa2e7b412a17a7a1f34df3d3148cd3f45b91ccaa5f4d9",
-        .iv = "943b454a853aa514c63cf99b1e197bbb99da24b2e2d93e47",
-        .additional_data = "",
+        .nonce = "943b454a853aa514c63cf99b1e197bbb99da24b2e2d93e47",
+        .associated_data = "",
         .plaintext = "76bd706e07741e713d90efdb34ad202067263f984942aae8bda159f30dfccc72200f8093520b"
                      "85c5ad124ff7c8b2d920946e5cfff4b819abf84c7b35a6205ca72c9f8747c3044dd73fb4beb"
                      "da1b476",
@@ -112,16 +112,16 @@ constexpr std::array<webcpp::test::aead_case, 3> secretbox_xchacha_cases{
     },
     webcpp::test::aead_case{
         .key = "065ff46a9dddb1ab047ee5914d6d575a828b8cc1f454b24e8cd0f57efdc49a34",
-        .iv = "f83262646ce01293b9923a65a073df78c54b2e799cd6c4e5",
-        .additional_data = "",
+        .nonce = "f83262646ce01293b9923a65a073df78c54b2e799cd6c4e5",
+        .associated_data = "",
         .plaintext = "",
         .ciphertext = "",
         .tag = "4c72340416339dcdea01b760db5adaf7",
     },
     webcpp::test::aead_case{
         .key = "10c0ad4054b48d7d1de1d9ab6f782ca883d886573e9d18c1d47b6ee6b5208189",
-        .iv = "977edf57428d0e0247a3c88c9a9ec321bbaae1a4da8353b5",
-        .additional_data = "",
+        .nonce = "977edf57428d0e0247a3c88c9a9ec321bbaae1a4da8353b5",
+        .associated_data = "",
         .plaintext = "518e4a27949812424b2a381c3efea6055ee5e75eff",
         .ciphertext = "b05a15f8edb68b35773e81ac2aca18e9be53416f9a",
         .tag = "0c801a037c2ed0500d6ef68e8d195ece",

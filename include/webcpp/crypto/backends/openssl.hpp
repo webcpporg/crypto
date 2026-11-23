@@ -440,27 +440,27 @@ struct gcm_engine<backends::openssl, KeySize> {
 
     // Each message re-initialises the context with a null key, which keeps the expanded one,
     // and switches its direction.
-    /** Starts a message: its direction, its IV and its additional data. */
+    /** Starts a message: its direction, its nonce and its associated data. */
     [[nodiscard]] static boost::system::result<void> start(
-        state& engine_state, bool is_sealing, std::span<std::uint8_t const> iv_bytes,
-        std::span<std::uint8_t const> additional_data_bytes) noexcept {
+        state& engine_state, bool is_sealing, std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes) noexcept {
         int const cipher_direction = is_sealing ? 1 : 0;
         if (EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, nullptr,
                               cipher_direction) != 1 ||
             EVP_CIPHER_CTX_ctrl(engine_state.context, EVP_CTRL_GCM_SET_IVLEN,
-                                static_cast<int>(iv_bytes.size()), nullptr) != 1 ||
-            EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, iv_bytes.data(),
+                                static_cast<int>(nonce_bytes.size()), nullptr) != 1 ||
+            EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, nonce_bytes.data(),
                               cipher_direction) != 1) {
             return openssl_failed();
         }
         // A null output makes EVP_CipherUpdate take additional data; none is fed as no call.
-        for (std::size_t piece_start = 0; piece_start < additional_data_bytes.size();
+        for (std::size_t piece_start = 0; piece_start < associated_data_bytes.size();
              piece_start += openssl_piece) {
             std::size_t const piece_size =
-                (std::min)(openssl_piece, additional_data_bytes.size() - piece_start);
+                (std::min)(openssl_piece, associated_data_bytes.size() - piece_start);
             int written_count = 0;
             if (EVP_CipherUpdate(engine_state.context, nullptr, &written_count,
-                                 additional_data_bytes.data() + piece_start,
+                                 associated_data_bytes.data() + piece_start,
                                  static_cast<int>(piece_size)) != 1) {
                 return openssl_failed();
             }
@@ -524,13 +524,13 @@ struct gcm_engine<backends::openssl, KeySize> {
     // every failure of a message does (openssl_failed).
     /** Ends a message without its tag, leaving nothing of it in the context. */
     static void abandon(state& engine_state) noexcept {
-        std::array<std::uint8_t, 12> const zero_iv_bytes{};
+        std::array<std::uint8_t, 12> const zero_nonce_bytes{};
         std::array<std::uint8_t, 1> padding_byte{};
         int written_count = 0;
         if (EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, nullptr, 1) != 1 ||
             EVP_CIPHER_CTX_ctrl(engine_state.context, EVP_CTRL_GCM_SET_IVLEN, 12, nullptr) != 1 ||
-            EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, zero_iv_bytes.data(),
-                              1) != 1 ||
+            EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr,
+                              zero_nonce_bytes.data(), 1) != 1 ||
             EVP_CipherUpdate(engine_state.context, padding_byte.data(), &written_count,
                              padding_byte.data(), 1) != 1) {
             ERR_clear_error();  // as openssl_failed does for every failure of a message
@@ -603,19 +603,19 @@ struct aead_engine<families::chacha20_poly1305, backends::openssl> {
      * Encrypts `data_bytes` in place and gives the tag.
      *
      * @param engine_state A keyed state.
-     * @param iv_bytes 12 bytes.
-     * @param additional_data_bytes Authenticated, not encrypted.
+     * @param nonce_bytes 12 bytes.
+     * @param associated_data_bytes Authenticated, not encrypted.
      * @param data_bytes The message.
      * @param tag_bytes The tag.
      * @return Nothing; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> seal(
-        state& engine_state, std::span<std::uint8_t const> iv_bytes,
-        std::span<std::uint8_t const> additional_data_bytes, std::span<std::uint8_t> data_bytes,
+        state& engine_state, std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
         boost::hash2::digest<16>& tag_bytes) noexcept {
         sequence::state sequence_view{engine_state.context};
         auto const start_result =
-            sequence::start(sequence_view, true, iv_bytes, additional_data_bytes);
+            sequence::start(sequence_view, true, nonce_bytes, associated_data_bytes);
         if (!start_result) {
             return start_result;
         }
@@ -631,19 +631,19 @@ struct aead_engine<families::chacha20_poly1305, backends::openssl> {
      * match.
      *
      * @param engine_state A keyed state.
-     * @param iv_bytes 12 bytes.
-     * @param additional_data_bytes The additional data of the seal.
+     * @param nonce_bytes 12 bytes.
+     * @param associated_data_bytes The associated data of the seal.
      * @param data_bytes The ciphertext.
      * @param tag_bytes The expected tag.
      * @return Nothing; `authentication_failed`; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> open(
-        state& engine_state, std::span<std::uint8_t const> iv_bytes,
-        std::span<std::uint8_t const> additional_data_bytes, std::span<std::uint8_t> data_bytes,
+        state& engine_state, std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
         std::array<std::uint8_t, 16> const& tag_bytes) noexcept {
         sequence::state sequence_view{engine_state.context};
         auto const start_result =
-            sequence::start(sequence_view, false, iv_bytes, additional_data_bytes);
+            sequence::start(sequence_view, false, nonce_bytes, associated_data_bytes);
         if (!start_result) {
             return start_result;
         }

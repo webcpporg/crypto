@@ -166,21 +166,21 @@ int secret_wipe() {
 template <class Checker, class Aead>
 int seal_and_open(char const* what) {
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, Aead::iv_size> const iv{};
+    std::array<std::uint8_t, Aead::iv_size> const nonce{};
     std::array<std::uint8_t, 64> data{};
     key.fill(0x42);
     data.fill(0x17);
     Checker::mark_secret(key);
     Checker::mark_secret(data);
     auto made = Aead::from_key(key);
-    auto tag = made->seal(iv, {}, data);
+    auto tag = made->seal(nonce, {}, data);
     int const failures =
         check(tag.has_value() && carries_mark<Checker>(data) && carries_mark<Checker>(*tag), what);
     Checker::mark_secret(*tag);
-    auto const opened = made->open(iv, {}, data, *tag);
+    auto const opened = made->open(nonce, {}, data, *tag);
     bool const opened_verdict = opened.has_value();
     Checker::verdict(opened_verdict);
-    auto const none = made->open(iv, {}, std::span<std::uint8_t>{}, *tag);
+    auto const none = made->open(nonce, {}, std::span<std::uint8_t>{}, *tag);
     bool const none_verdict = none.has_value();
     Checker::verdict(none_verdict);
     return failures + check(opened_verdict && !none_verdict, what);
@@ -261,18 +261,18 @@ int sodium_box(char const* what) {
     auto const peer =
         crypto::curves::x25519::basic_keypair<sodium>::from_secret(peer_secret)->public_key();
     std::array<std::uint8_t, 32> secret_key{};
-    std::array<std::uint8_t, Box::iv_size> const iv{};
+    std::array<std::uint8_t, Box::iv_size> const nonce{};
     std::array<std::uint8_t, 64> data{};
     secret_key.fill(0x42);
     data.fill(0x17);
     Checker::mark_secret(secret_key);
     Checker::mark_secret(data);
     auto made = Box::from_keys(secret_key, peer->bytes());
-    auto tag = made->seal(iv, data);
+    auto tag = made->seal(nonce, data);
     int const failures =
         check(tag.has_value() && carries_mark<Checker>(data) && carries_mark<Checker>(*tag), what);
     Checker::mark_secret(*tag);
-    auto const opened = made->open(iv, data, *tag);
+    auto const opened = made->open(nonce, data, *tag);
     bool const opened_verdict = opened.has_value();
     Checker::verdict(opened_verdict);
     return failures + check(opened_verdict, what);

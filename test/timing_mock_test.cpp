@@ -52,8 +52,8 @@ struct aead_engine<families::chacha20_poly1305, test::timing_stand_in> {
     /** Records whether DIT is set, then succeeds. */
     [[nodiscard]] static boost::system::result<void> seal(
         aead_state<families::chacha20_poly1305, test::timing_stand_in>& /*state*/,
-        std::span<std::uint8_t const> /*iv_bytes*/,
-        std::span<std::uint8_t const> /*additional_data_bytes*/, std::span<std::uint8_t> /*data*/,
+        std::span<std::uint8_t const> /*nonce_bytes*/,
+        std::span<std::uint8_t const> /*associated_data_bytes*/, std::span<std::uint8_t> /*data*/,
         boost::hash2::digest<16>& /*tag*/) noexcept {
         test::dit_during_seal = dit_is_set();
         return {};
@@ -62,8 +62,8 @@ struct aead_engine<families::chacha20_poly1305, test::timing_stand_in> {
     /** Succeeds. */
     [[nodiscard]] static boost::system::result<void> open(
         aead_state<families::chacha20_poly1305, test::timing_stand_in>& /*state*/,
-        std::span<std::uint8_t const> /*iv_bytes*/,
-        std::span<std::uint8_t const> /*additional_data_bytes*/, std::span<std::uint8_t> /*data*/,
+        std::span<std::uint8_t const> /*nonce_bytes*/,
+        std::span<std::uint8_t const> /*associated_data_bytes*/, std::span<std::uint8_t> /*data*/,
         std::array<std::uint8_t, 16> const& /*tag*/) noexcept {
         return {};
     }
@@ -95,11 +95,12 @@ void backend_runs_with_dit() {
         return;
     }
     BOOST_TEST(!crypto::detail::dit_is_set());
-    std::array<std::uint8_t, aead::iv_size> const iv{};
+    std::array<std::uint8_t, aead::iv_size> const nonce{};
     std::array<std::uint8_t, 8> data{};
     webcpp::test::dit_during_seal = !crypto::detail::cpu_has_dit();
-    webcpp::test::require_enters(
-        "aead::seal", [&made, &iv, &data] { BOOST_TEST(made->seal(iv, {}, data).has_value()); });
+    webcpp::test::require_enters("aead::seal", [&made, &nonce, &data] {
+        BOOST_TEST(made->seal(nonce, {}, data).has_value());
+    });
     BOOST_TEST_EQ(webcpp::test::dit_during_seal, crypto::detail::cpu_has_dit());
     BOOST_TEST(!crypto::detail::dit_is_set());
 }

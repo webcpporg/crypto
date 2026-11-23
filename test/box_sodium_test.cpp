@@ -122,8 +122,8 @@ constexpr std::array<webcpp::test::aead_case, 2> box_cases{
     webcpp::test::aead_case{
         .key = "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"
                "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f",
-        .iv = nacl_nonce,
-        .additional_data = "",
+        .nonce = nacl_nonce,
+        .associated_data = "",
         .plaintext = nacl_message,
         .ciphertext =
             "8e993b9f48681273c29650ba32fc76ce48332ea7164d96a4476fb8c531a1186ac0dfc17c98dce87b4da7"
@@ -135,8 +135,8 @@ constexpr std::array<webcpp::test::aead_case, 2> box_cases{
     webcpp::test::aead_case{
         .key = "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"
                "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a",
-        .iv = nacl_nonce,
-        .additional_data = "",
+        .nonce = nacl_nonce,
+        .associated_data = "",
         .plaintext = nacl_message,
         .ciphertext =
             "8e993b9f48681273c29650ba32fc76ce48332ea7164d96a4476fb8c531a1186ac0dfc17c98dce87b4da7"
@@ -156,8 +156,8 @@ constexpr std::array<webcpp::test::aead_case, 2> box_xchacha_cases{
     webcpp::test::aead_case{
         .key = "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"
                "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f",
-        .iv = nacl_nonce,
-        .additional_data = "",
+        .nonce = nacl_nonce,
+        .associated_data = "",
         .plaintext = nacl_message,
         .ciphertext =
             "ef2c6061b7bcec0cfd723055f61f1ccca2946d5a04dbf83151f4894223ac9bc790c660e19dc64cc0d7f9"
@@ -169,8 +169,8 @@ constexpr std::array<webcpp::test::aead_case, 2> box_xchacha_cases{
     webcpp::test::aead_case{
         .key = "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"
                "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a",
-        .iv = nacl_nonce,
-        .additional_data = "",
+        .nonce = nacl_nonce,
+        .associated_data = "",
         .plaintext = nacl_message,
         .ciphertext =
             "ef2c6061b7bcec0cfd723055f61f1ccca2946d5a04dbf83151f4894223ac9bc790c660e19dc64cc0d7f9"
@@ -208,17 +208,17 @@ struct box_calls {
         return Box::from_keys(key.first(split), key.subspan(split));
     }
 
-    static auto seal(Box& made, std::span<std::uint8_t const> iv,
-                     std::span<std::uint8_t const> additional_data, std::span<std::uint8_t> data) {
-        BOOST_TEST(additional_data.empty());
-        return made.seal(iv, data);
+    static auto seal(Box& made, std::span<std::uint8_t const> nonce,
+                     std::span<std::uint8_t const> associated_data, std::span<std::uint8_t> data) {
+        BOOST_TEST(associated_data.empty());
+        return made.seal(nonce, data);
     }
 
-    static auto open(Box& made, std::span<std::uint8_t const> iv,
-                     std::span<std::uint8_t const> additional_data, std::span<std::uint8_t> data,
+    static auto open(Box& made, std::span<std::uint8_t const> nonce,
+                     std::span<std::uint8_t const> associated_data, std::span<std::uint8_t> data,
                      std::span<std::uint8_t const> tag) {
-        BOOST_TEST(additional_data.empty());
-        return made.open(iv, data, tag);
+        BOOST_TEST(associated_data.empty());
+        return made.open(nonce, data, tag);
     }
 };
 
@@ -255,11 +255,11 @@ void check_box_is_secretbox(std::string_view key) {
     if (!BOOST_TEST(made_box.has_value()) || !BOOST_TEST(made_secretbox.has_value())) {
         return;
     }
-    auto const iv = from_hex(nacl_nonce);
+    auto const nonce = from_hex(nacl_nonce);
     auto by_box = from_hex(nacl_message);
     auto by_secretbox = by_box;
-    auto const box_tag = made_box->seal(iv, by_box);
-    auto const secretbox_tag = made_secretbox->seal(iv, {}, by_secretbox);
+    auto const box_tag = made_box->seal(nonce, by_box);
+    auto const secretbox_tag = made_secretbox->seal(nonce, {}, by_secretbox);
     BOOST_TEST(box_tag && secretbox_tag && to_hex(*box_tag) == to_hex(*secretbox_tag));
     BOOST_TEST(by_box == by_secretbox);
 }

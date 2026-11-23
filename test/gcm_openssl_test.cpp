@@ -50,13 +50,13 @@ void check_abandon_forgets_the_message() {
     if (!BOOST_TEST(engine::init(state, key).has_value())) {
         return;
     }
-    std::array<std::uint8_t, 20> iv{};
-    iv.fill(0x11);
-    std::array<std::uint8_t, 21> additional_data{};
-    additional_data.fill(0x22);
+    std::array<std::uint8_t, 20> nonce{};
+    nonce.fill(0x11);
+    std::array<std::uint8_t, 21> associated_data{};
+    associated_data.fill(0x22);
     std::array<std::uint8_t, 37> data{};
     data.fill(0x33);
-    BOOST_TEST(engine::start(state, true, iv, additional_data).has_value());
+    BOOST_TEST(engine::start(state, true, nonce, associated_data).has_value());
     BOOST_TEST(engine::run(state, data).has_value());
     engine::abandon(state);
     boost::hash2::digest<16> left{};

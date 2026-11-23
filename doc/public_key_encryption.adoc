@@ -45,9 +45,9 @@ include::generated/namespace-public_key_encryption.adoc[]
 link:https://doc.libsodium.org/public-key_cryptography/authenticated_encryption[libsodium's documentation]).
 `box::from_keys(secret_key, peer_public_key)` agrees a key from the own X25519
 secret key and the peer's public key, once for the pair (libsodium's
-`beforenm`); the box then works in place, as an AEAD without additional data:
-`seal(iv_bytes, data_bytes)` encrypts and returns the 16-byte tag, and
-`open(iv_bytes, data_bytes, tag_bytes)` checks it and decrypts, zeroing the
+`beforenm`); the box then works in place, as an AEAD without associated data:
+`seal(nonce_bytes, data_bytes)` encrypts and returns the 16-byte tag, and
+`open(nonce_bytes, data_bytes, tag_bytes)` checks it and decrypts, zeroing the
 data when it does not match. Alice's box made from her secret key and Bob's
 public key, and Bob's made from his secret key and Alice's public key, hold
 the same key: what one seals the other opens. `box_xchacha20poly1305` is

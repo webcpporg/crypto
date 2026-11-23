@@ -4,7 +4,7 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Shows the three ways AES-GCM can refuse a message: a tampered ciphertext, an IV of the wrong
+// Shows the three ways AES-GCM can refuse a message: a tampered ciphertext, a nonce of the wrong
 // size and a tag of the wrong size. A program must tell the first from the others: only
 // authentication_failed means someone changed the data, and open then wipes the plaintext so
 // that no unauthenticated bytes are ever used.
@@ -42,12 +42,12 @@ bool all_zero(std::span<std::uint8_t const> bytes) {
 }  // namespace
 
 int main() {
-    // A demonstration key and IV, so that the output is the same on every run; a real program
-    // draws the key from random_device and never reuses an IV under it.
+    // A demonstration key and nonce, so that the output is the same on every run; a real program
+    // draws the key from random_device and never reuses a nonce under it.
     std::array<std::uint8_t, 32> key{};
     key.fill(0x2a);
-    std::array<std::uint8_t, 12> iv{};
-    iv.fill(0x07);
+    std::array<std::uint8_t, 12> nonce{};
+    nonce.fill(0x07);
     std::string_view const text = "attack at dawn!";
     std::array<std::uint8_t, 15> sealed{};
     std::ranges::copy(text, sealed.begin());
@@ -57,7 +57,7 @@ int main() {
     if (!aead) {
         return 1;
     }
-    auto const tag = aead->seal(iv, {}, sealed);
+    auto const tag = aead->seal(nonce, {}, sealed);
     if (!tag) {
         return 1;
     }
@@ -66,7 +66,7 @@ int main() {
     // (a) One flipped bit in the ciphertext.
     auto tampered = sealed;
     tampered[3] ^= 1U;
-    auto const opened = aead->open(iv, {}, tampered, tag_bytes);
+    auto const opened = aead->open(nonce, {}, tampered, tag_bytes);
     // tag::branch[]
     if (opened) {
         return 1;
@@ -86,16 +86,16 @@ int main() {
         return 1;
     }
 
-    // (b) An empty IV is refused before anything is touched.
+    // (b) An empty nonce is refused before anything is touched.
     auto copy = sealed;
-    auto const no_iv = aead->open({}, {}, copy, tag_bytes);
-    if (no_iv || no_iv.error() != crypto::error::invalid_iv_size || copy != sealed) {
+    auto const no_nonce = aead->open({}, {}, copy, tag_bytes);
+    if (no_nonce || no_nonce.error() != crypto::error::invalid_iv_size || copy != sealed) {
         return 1;
     }
     std::printf("empty iv: invalid_iv_size, data untouched\n");
 
     // (c) A tag of 15 bytes instead of 16.
-    auto const short_tag = aead->open(iv, {}, copy, tag_bytes.first(15));
+    auto const short_tag = aead->open(nonce, {}, copy, tag_bytes.first(15));
     if (short_tag || short_tag.error() != crypto::error::invalid_tag_size) {
         return 1;
     }

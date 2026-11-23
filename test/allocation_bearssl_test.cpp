@@ -99,7 +99,7 @@ int main() {
         std::printf("the C library's allocations are not counted on this target\n");
     }
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, 12> iv{};
+    std::array<std::uint8_t, 12> nonce{};
     std::array<std::uint8_t, 4096> data{};
     std::size_t const before = webcpp::test::allocations();
     {
@@ -108,15 +108,15 @@ int main() {
         auto made =
             crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>::from_key(key);
         BOOST_TEST(made.has_value());
-        auto const tag = made->seal(iv, {}, data);
+        auto const tag = made->seal(nonce, {}, data);
         BOOST_TEST(tag.has_value());
-        BOOST_TEST(made->open(iv, {}, data, *tag).has_value());
-        BOOST_TEST(made->begin_seal(iv, {}).has_value());
+        BOOST_TEST(made->open(nonce, {}, data, *tag).has_value());
+        BOOST_TEST(made->begin_seal(nonce, {}).has_value());
         BOOST_TEST(made->update(data).has_value());
         BOOST_TEST(made->result().has_value());
-        auto const open_tag = made->seal(iv, {}, data);
+        auto const open_tag = made->seal(nonce, {}, data);
         BOOST_TEST(open_tag.has_value());
-        BOOST_TEST(made->begin_open(iv, {}).has_value());
+        BOOST_TEST(made->begin_open(nonce, {}).has_value());
         BOOST_TEST(made->authenticate(data).has_value());
         BOOST_TEST(made->verify(*open_tag).has_value());
         BOOST_TEST(made->decrypt(data).has_value());
@@ -125,11 +125,11 @@ int main() {
         using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::bearssl>;
         auto sealer = chacha::from_key(key);
         BOOST_TEST(sealer.has_value());
-        auto const sealed = sealer->seal(iv, iv, data);
+        auto const sealed = sealer->seal(nonce, nonce, data);
         BOOST_TEST(sealed.has_value());
-        BOOST_TEST(sealer->open(iv, iv, data, *sealed).has_value());
+        BOOST_TEST(sealer->open(nonce, nonce, data, *sealed).has_value());
         std::array<std::uint8_t, 16> const forged{};
-        BOOST_TEST(sealer->open(iv, iv, data, forged).error() ==
+        BOOST_TEST(sealer->open(nonce, nonce, data, forged).error() ==
                    crypto::error::authentication_failed);
         chacha const moved = std::move(*sealer);
         p256_calls();

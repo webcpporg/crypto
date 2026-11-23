@@ -10,7 +10,7 @@
 A *cryptographically secure random number generator* produces numbers that an
 attacker cannot predict, even after seeing many of them
 (link:https://en.wikipedia.org/wiki/Cryptographically_secure_pseudorandom_number_generator[Wikipedia]).
-Every secret a program makes starts there: a key, an IV, a session token, a
+Every secret a program makes starts there: a key, a nonce, a session token, a
 password-reset link. A general-purpose generator such as `std::mt19937` or
 `rand` is built to look random, not to resist an attacker: a few outputs reveal
 its state and every output after them

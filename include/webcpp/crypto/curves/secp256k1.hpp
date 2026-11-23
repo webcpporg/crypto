@@ -1171,17 +1171,17 @@ public:
      * `crypto::prehashed` marker, or anything else, stops the build.
      * @param signing_scheme `crypto::schnorr`.
      * @param message_input The message, of any length, signed as given.
-     * @param aux_random 32 bytes of fresh randomness, the caller's.
+     * @param auxiliary_random_bytes 32 bytes of fresh randomness, the caller's.
      * @return The signature; `invalid_state` moved from; `backend_failure`.
      */
     template <class Input>
     [[nodiscard]] boost::system::result<schnorr_signature> sign(
         [[maybe_unused]] schnorr_t signing_scheme, Input const& message_input,
-        std::span<std::uint8_t const, 32> aux_random) const noexcept {
+        std::span<std::uint8_t const, 32> auxiliary_random_bytes) const noexcept {
         detail::timing_guard const timing_scope;
         detail::check_input<schnorr_t, Input, Backend>();
         if constexpr (detail::input_valid_v<schnorr_t, Input, Backend>) {
-            return signed_schnorr(detail::message_bytes(message_input), aux_random);
+            return signed_schnorr(detail::message_bytes(message_input), auxiliary_random_bytes);
         } else {
             // Never compiled into a program: check_input stopped the build.
             return error::backend_failure;
@@ -1331,15 +1331,15 @@ private:
      * the call ends, the one copy crypto makes of it.
      *
      * @param message_bytes The message, of any length.
-     * @param aux_random_bytes 32 bytes of auxiliary randomness.
+     * @param auxiliary_random_bytes 32 bytes of auxiliary randomness.
      * @return The signature; `invalid_state`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<schnorr_signature> signed_schnorr(
         std::span<std::uint8_t const> message_bytes,
-        std::span<std::uint8_t const, 32> aux_random_bytes) const noexcept {
-        webcpp::crypto::detail::secp256k1_secret aux_randomness;
-        std::ranges::copy(aux_random_bytes, aux_randomness.bytes.begin());
-        return signed_schnorr(message_bytes, aux_randomness);
+        std::span<std::uint8_t const, 32> auxiliary_random_bytes) const noexcept {
+        webcpp::crypto::detail::secp256k1_secret auxiliary_randomness;
+        std::ranges::copy(auxiliary_random_bytes, auxiliary_randomness.bytes.begin());
+        return signed_schnorr(message_bytes, auxiliary_randomness);
     }
 
     /**
@@ -1347,18 +1347,18 @@ private:
      * read in place: no second copy is made.
      *
      * @param message_bytes The message, of any length.
-     * @param aux_randomness The 32 bytes of auxiliary randomness.
+     * @param auxiliary_randomness The 32 bytes of auxiliary randomness.
      * @return The signature; `invalid_state`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<schnorr_signature> signed_schnorr(
         std::span<std::uint8_t const> message_bytes,
-        webcpp::crypto::detail::secp256k1_secret& aux_randomness) const noexcept {
+        webcpp::crypto::detail::secp256k1_secret& auxiliary_randomness) const noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         secp256k1_schnorrsig_extraparams extra_parameters = SECP256K1_SCHNORRSIG_EXTRAPARAMS_INIT;
-        extra_parameters.ndata = aux_randomness.bytes.data();
+        extra_parameters.ndata = auxiliary_randomness.bytes.data();
         std::array<std::uint8_t, 64> output_bytes{};
         if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_schnorrsig_sign_custom(
                 context_, output_bytes.data(), message_bytes.data(), message_bytes.size(),
@@ -1381,13 +1381,13 @@ private:
         if (!keyed_) {
             return error::invalid_state;
         }
-        webcpp::crypto::detail::secp256k1_secret aux_randomness;
+        webcpp::crypto::detail::secp256k1_secret auxiliary_randomness;
         auto const entropy_drawn =
-            random_device().fill(aux_randomness.bytes);  // lint-world: BIP340's aux randomness
+            random_device().fill(auxiliary_randomness.bytes);  // lint-world: BIP340's aux_rand
         if (!entropy_drawn) {
             return error::entropy_unavailable;
         }
-        return signed_schnorr(message_bytes, aux_randomness);
+        return signed_schnorr(message_bytes, auxiliary_randomness);
     }
 
     /**

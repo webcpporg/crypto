@@ -45,18 +45,18 @@ void check_wycheproof_aead_test(boost::json::value const& test, wycheproof_aead_
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    auto const iv = wycheproof_bytes(test, "iv");
-    auto const additional_data = wycheproof_bytes(test, "aad");
+    auto const nonce = wycheproof_bytes(test, "iv");
+    auto const associated_data = wycheproof_bytes(test, "aad");
     auto const message = wycheproof_bytes(test, "msg");
     auto const ciphertext = wycheproof_bytes(test, "ct");
     auto const tag = wycheproof_bytes(test, "tag");
     auto data = ciphertext;
-    auto const opened = made->open(iv, additional_data, data, tag);
-    if (iv.size() != Aead::iv_size) {
+    auto const opened = made->open(nonce, associated_data, data, tag);
+    if (nonce.size() != Aead::iv_size) {
         BOOST_TEST(opened.error() == crypto::error::invalid_iv_size);
         BOOST_TEST(data == ciphertext);
         auto plaintext = message;
-        BOOST_TEST(made->seal(iv, additional_data, plaintext).error() ==
+        BOOST_TEST(made->seal(nonce, associated_data, plaintext).error() ==
                    crypto::error::invalid_iv_size);
         BOOST_TEST(plaintext == message);
         ++counts.other_iv;
@@ -71,7 +71,7 @@ void check_wycheproof_aead_test(boost::json::value const& test, wycheproof_aead_
     BOOST_TEST(opened.has_value());
     BOOST_TEST(data == message);
     auto sealed_data = message;
-    auto const sealed = made->seal(iv, additional_data, sealed_data);
+    auto const sealed = made->seal(nonce, associated_data, sealed_data);
     BOOST_TEST(sealed_data == ciphertext);
     BOOST_TEST(sealed && to_hex(*sealed) == to_hex(tag));
     ++counts.valid;

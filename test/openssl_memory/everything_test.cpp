@@ -35,16 +35,16 @@ using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::open
 using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::openssl>;
 
 void messages(aead& made) {
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     std::array<std::uint8_t, 64> data{};
     auto const& resource = webcpp::test::the_counting_resource();
     std::size_t const before = resource.allocations();
-    auto const tag = made.seal(iv, {}, data);
+    auto const tag = made.seal(nonce, {}, data);
     BOOST_TEST(tag.has_value());
-    BOOST_TEST(made.open(iv, {}, data, *tag).has_value());
+    BOOST_TEST(made.open(nonce, {}, data, *tag).has_value());
     std::array<std::uint8_t, 16> const bad{};
-    BOOST_TEST(made.open(iv, {}, data, bad).error() == crypto::error::authentication_failed);
-    BOOST_TEST(made.begin_seal(iv, {}).has_value());
+    BOOST_TEST(made.open(nonce, {}, data, bad).error() == crypto::error::authentication_failed);
+    BOOST_TEST(made.begin_seal(nonce, {}).has_value());
     BOOST_TEST(made.update(data).has_value());
     BOOST_TEST(made.result().has_value());
     BOOST_TEST_EQ(resource.allocations(), before);
@@ -52,15 +52,15 @@ void messages(aead& made) {
 
 // ChaCha20-Poly1305's seal, good open and failed open, which allocate nothing anywhere.
 void messages(chacha& made) {
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     std::array<std::uint8_t, 64> data{};
     auto const& resource = webcpp::test::the_counting_resource();
     std::size_t const before = resource.allocations();
-    auto const tag = made.seal(iv, {}, data);
+    auto const tag = made.seal(nonce, {}, data);
     BOOST_TEST(tag.has_value());
-    BOOST_TEST(made.open(iv, {}, data, *tag).has_value());
+    BOOST_TEST(made.open(nonce, {}, data, *tag).has_value());
     std::array<std::uint8_t, 16> const bad{};
-    BOOST_TEST(made.open(iv, {}, data, bad).error() == crypto::error::authentication_failed);
+    BOOST_TEST(made.open(nonce, {}, data, bad).error() == crypto::error::authentication_failed);
     BOOST_TEST_EQ(resource.allocations(), before);
 }
 

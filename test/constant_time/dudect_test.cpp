@@ -61,7 +61,7 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
                   char const* open_label, char const* control, char const* control_label) {
     std::array<std::uint8_t, 32> const zero_key{};
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, Aead::iv_size> const iv{};
+    std::array<std::uint8_t, Aead::iv_size> const nonce{};
     std::array<std::uint8_t, 64> data{};
     std::optional<Aead> made;
 
@@ -72,7 +72,7 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
                 test::choose(which, generator, zero_key, key);
                 made.emplace(*Aead::from_key(key));
             },
-            [&] { static_cast<void>(made->seal(iv, {}, data)); });
+            [&] { static_cast<void>(made->seal(nonce, {}, data)); });
         results.record(seal_name, seal_label, seal, true,
                        {{"data", data.data()}, {"key", key.data()}, {"object", &*made}});
     }
@@ -86,7 +86,7 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
     made.emplace(*Aead::from_key(key));
     std::array<std::uint8_t, 64> const plaintext{};
     std::array<std::uint8_t, 64> ciphertext = plaintext;
-    auto const right = *made->seal(iv, {}, ciphertext);
+    auto const right = *made->seal(nonce, {}, ciphertext);
     std::array<std::uint8_t, 16> nearly_right{};
     std::copy(right.data(), right.data() + right.size(), nearly_right.begin());
     nearly_right[15] ^= 1U;
@@ -101,7 +101,7 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
                     tag[15] ^= 1U;  // a random tag equal to the right one, which never happens
                 }
             },
-            [&] { static_cast<void>(made->open(iv, {}, data, tag)); });
+            [&] { static_cast<void>(made->open(nonce, {}, data, tag)); });
     };
     if (open) {
         results.record(open_name, open_label, measure_open.template operator()<false>(), true,

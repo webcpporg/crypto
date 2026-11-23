@@ -193,15 +193,15 @@ int main() {
     }
     // end::agree[]
 
-    std::array<std::uint8_t, 12> iv{};
-    if (!crypto::random_device().fill(iv)) {
+    std::array<std::uint8_t, 12> nonce{};
+    if (!crypto::random_device().fill(nonce)) {
         return 1;
     }
     std::string_view const text = "hello bob";
     std::array<std::uint8_t, 9> message{};
     std::ranges::copy(text, message.begin());
-    auto const tag = alice_cipher->seal(iv, {}, message);
-    if (!tag || !bob_cipher->open(iv, {}, message, std::span<std::uint8_t const>(*tag))) {
+    auto const tag = alice_cipher->seal(nonce, {}, message);
+    if (!tag || !bob_cipher->open(nonce, {}, message, std::span<std::uint8_t const>(*tag))) {
         return 1;
     }
     std::printf("bob read: %.*s\n", static_cast<int>(message.size()),

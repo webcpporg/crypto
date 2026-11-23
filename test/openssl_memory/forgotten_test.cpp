@@ -45,9 +45,9 @@ int main() {
     {
         auto made = aead::from_key(key);
         BOOST_TEST(made.has_value());
-        std::array<std::uint8_t, 12> const iv{};
+        std::array<std::uint8_t, 12> const nonce{};
         std::array<std::uint8_t, 64> data{};
-        BOOST_TEST(made.has_value() && made->seal(iv, {}, data).has_value());
+        BOOST_TEST(made.has_value() && made->seal(nonce, {}, data).has_value());
     }
     BOOST_TEST(!resource.foreign_free());
     if (int const errors = boost::report_errors(); errors != 0) {

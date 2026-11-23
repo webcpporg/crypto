@@ -83,8 +83,8 @@ int main() {
     // tag::seal[]
     // The device key is separate from the wallet and lives elsewhere, such as the OS keystore.
     std::array<std::uint8_t, 32> device_key{};
-    std::array<std::uint8_t, 12> iv{};
-    if (!device.fill(device_key) || !device.fill(iv)) {
+    std::array<std::uint8_t, 12> nonce{};
+    if (!device.fill(device_key) || !device.fill(nonce)) {
         return 1;
     }
     auto aead = crypto::ciphers::aes256_gcm::from_key(device_key);
@@ -95,13 +95,13 @@ int main() {
     auto stored = secret;
     wipe(std::as_writable_bytes(std::span(secret)));
     // "wallet v1" ties the ciphertext to its purpose and format version.
-    auto const tag = aead->seal(iv, bytes_of("wallet v1"), stored);
+    auto const tag = aead->seal(nonce, bytes_of("wallet v1"), stored);
     if (!tag) {
         return 1;
     }
 
     // Later: open the stored secret and make the key pair again.
-    if (!aead->open(iv, bytes_of("wallet v1"), stored,
+    if (!aead->open(nonce, bytes_of("wallet v1"), stored,
                     std::span<std::uint8_t const>(tag->data(), tag->size()))) {
         return 1;
     }

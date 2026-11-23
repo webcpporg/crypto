@@ -6,7 +6,7 @@
 
 /**
  `secretbox` and `secretbox_xchacha20poly1305`, NaCl's and libsodium's secret boxes as `aead`s
- without additional data, each on its family's default backend unless the type names another:
+ without associated data, each on its family's default backend unless the type names another:
  libsodium on every target, whose header it includes when the program links it
  (`default_backend_t`). A program that uses them without linking the default stops where it
  calls them, with the Jamfile line that links it.
@@ -31,7 +31,7 @@ namespace webcpp::crypto::ciphers {
 
 /**
  * NaCl's and libsodium's `crypto_secretbox`, XSalsa20-Poly1305: a 32-byte key, a 24-byte nonce
- * safe to draw at random, a 16-byte tag, and no additional data, which `seal` and `open` refuse
+ * safe to draw at random, a 16-byte tag, and no associated data, which `seal` and `open` refuse
  * unless empty (`invalid_input_size`).
  *
  * @tparam Backend The backend; the default is the family's.
@@ -41,7 +41,7 @@ using secretbox = aead<families::secretbox_xsalsa20poly1305, Backend>;
 
 /**
  * libsodium's `crypto_secretbox_xchacha20poly1305`: the secret box with XChaCha20 in place of
- * XSalsa20, of the same sizes and without additional data.
+ * XSalsa20, of the same sizes and without associated data.
  *
  * @tparam Backend The backend; the default is the family's.
  */

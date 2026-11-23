@@ -63,7 +63,7 @@ back on an unencrypted copy. A sealed box says nothing of who sent it: an app
 where the sender matters signs the upload (<<crypto-ed25519>>) or uses a box
 between the two key pairs (<<crypto-box>>). A large file cut into
 separate boxes is safe only when each chunk's tag also covers its number and a
-flag marking the last chunk, in the additional data or in a nonce built from
+flag marking the last chunk, in the associated data or in a nonce built from
 them, and a reader refuses chunks out of order and a stream that ends without
 the last flag: otherwise whoever holds the ciphertext reorders, drops, repeats
 or truncates chunks and each one still opens. The
@@ -102,7 +102,7 @@ Boost.Hash2 and compares with `constant_time_equal`, never `==`:
 
 Data stored where someone else may read it, a database, a cookie, a cloud
 bucket, is sealed with AES-GCM, with what it belongs to (the user's id, the
-cookie's name, the file's path) as additional data, so that it cannot be moved
+cookie's name, the file's path) as associated data, so that it cannot be moved
 to another place: <<crypto-gcm>>. A large file is sealed in records:
 <<crypto-gcm-incremental>>.
 

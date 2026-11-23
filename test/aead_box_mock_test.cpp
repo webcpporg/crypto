@@ -63,8 +63,8 @@ struct aead_engine<families::chacha20_poly1305, test::aead_stand_in> {
     /** Writes the data, then answers. */
     [[nodiscard]] static boost::system::result<void> seal(
         aead_state<families::chacha20_poly1305, test::aead_stand_in>& /*state*/,
-        std::span<std::uint8_t const> /*iv_bytes*/,
-        std::span<std::uint8_t const> /*additional_data_bytes*/, std::span<std::uint8_t> data,
+        std::span<std::uint8_t const> /*nonce_bytes*/,
+        std::span<std::uint8_t const> /*associated_data_bytes*/, std::span<std::uint8_t> data,
         boost::hash2::digest<16>& /*tag*/) noexcept {
         return test::write_then_answer(data);
     }
@@ -72,8 +72,8 @@ struct aead_engine<families::chacha20_poly1305, test::aead_stand_in> {
     /** Writes the data, then answers. */
     [[nodiscard]] static boost::system::result<void> open(
         aead_state<families::chacha20_poly1305, test::aead_stand_in>& /*state*/,
-        std::span<std::uint8_t const> /*iv_bytes*/,
-        std::span<std::uint8_t const> /*additional_data_bytes*/, std::span<std::uint8_t> data,
+        std::span<std::uint8_t const> /*nonce_bytes*/,
+        std::span<std::uint8_t const> /*associated_data_bytes*/, std::span<std::uint8_t> data,
         std::array<std::uint8_t, 16> const& /*tag*/) noexcept {
         return test::write_then_answer(data);
     }
@@ -102,7 +102,7 @@ struct box_engine<families::box_xsalsa20poly1305, test::aead_stand_in> {
     /** Writes the data, then answers. */
     [[nodiscard]] static boost::system::result<void> seal(
         box_state<families::box_xsalsa20poly1305, test::aead_stand_in>& /*state*/,
-        std::span<std::uint8_t const, 24> /*iv_bytes*/, std::span<std::uint8_t> data,
+        std::span<std::uint8_t const, 24> /*nonce_bytes*/, std::span<std::uint8_t> data,
         boost::hash2::digest<16>& /*tag*/) noexcept {
         return test::write_then_answer(data);
     }
@@ -110,7 +110,7 @@ struct box_engine<families::box_xsalsa20poly1305, test::aead_stand_in> {
     /** Writes the data, then answers. */
     [[nodiscard]] static boost::system::result<void> open(
         box_state<families::box_xsalsa20poly1305, test::aead_stand_in>& /*state*/,
-        std::span<std::uint8_t const, 24> /*iv_bytes*/, std::span<std::uint8_t> data,
+        std::span<std::uint8_t const, 24> /*nonce_bytes*/, std::span<std::uint8_t> data,
         std::array<std::uint8_t, 16> const& /*tag*/) noexcept {
         return test::write_then_answer(data);
     }
@@ -149,16 +149,16 @@ void check_failures(Seal seal, Open open) {
                crypto::error::invalid_iv_size);
     BOOST_TEST(all_equal(data, 0x11));
 
-    std::array<std::uint8_t, 24> const iv{};
-    BOOST_TEST(seal(iv, data).error() == failed);
+    std::array<std::uint8_t, 24> const nonce{};
+    BOOST_TEST(seal(nonce, data).error() == failed);
     BOOST_TEST(all_equal(data, 0));
     data.fill(0x11);
-    BOOST_TEST(open(iv, data).error() == failed);
+    BOOST_TEST(open(nonce, data).error() == failed);
     BOOST_TEST(all_equal(data, 0));
 
     webcpp::test::aead_stand_in_error = {};
     data.fill(0x11);
-    BOOST_TEST(seal(iv, data).has_value());
+    BOOST_TEST(seal(nonce, data).has_value());
     BOOST_TEST(all_equal(data, webcpp::test::written_byte));
 }
 
@@ -171,11 +171,11 @@ void check_aead() {
     }
     std::array<std::uint8_t, aead::tag_size> const tag{};
     check_failures(
-        [&made](std::span<std::uint8_t const> iv, std::span<std::uint8_t> data) {
-            return made->seal(iv.first(std::min(iv.size(), aead::iv_size)), {}, data);
+        [&made](std::span<std::uint8_t const> nonce, std::span<std::uint8_t> data) {
+            return made->seal(nonce.first(std::min(nonce.size(), aead::iv_size)), {}, data);
         },
-        [&made, &tag](std::span<std::uint8_t const> iv, std::span<std::uint8_t> data) {
-            return made->open(iv.first(aead::iv_size), {}, data, tag);
+        [&made, &tag](std::span<std::uint8_t const> nonce, std::span<std::uint8_t> data) {
+            return made->open(nonce.first(aead::iv_size), {}, data, tag);
         });
 }
 
@@ -188,11 +188,13 @@ void check_box() {
         return;
     }
     std::array<std::uint8_t, box::tag_size> const tag{};
-    check_failures([&made](std::span<std::uint8_t const> iv,
-                           std::span<std::uint8_t> data) { return made->seal(iv, data); },
-                   [&made, &tag](std::span<std::uint8_t const> iv, std::span<std::uint8_t> data) {
-                       return made->open(iv, data, tag);
-                   });
+    check_failures(
+        [&made](std::span<std::uint8_t const> nonce, std::span<std::uint8_t> data) {
+            return made->seal(nonce, data);
+        },
+        [&made, &tag](std::span<std::uint8_t const> nonce, std::span<std::uint8_t> data) {
+            return made->open(nonce, data, tag);
+        });
 }
 
 }  // namespace

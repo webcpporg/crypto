@@ -224,7 +224,7 @@ does not verify.
 secp256k1 keeps a third argument where it has a reason of its own: hedged
 ECDSA, `sign(crypto::ecdsa_sha256, input, extra_entropy)`, mixes 32 fresh bytes
 of the caller's into the nonce, and `sign(crypto::schnorr, message,
-aux_random)` takes BIP 340's auxiliary randomness from the caller, for test
+auxiliary_random_bytes)` takes BIP 340's auxiliary randomness from the caller, for test
 vectors; `sign(crypto::schnorr, message)` draws it from `random_device`, and
 returns `entropy_unavailable` when it cannot. `recover` takes the scheme and
 the inputs of signing, `recover(crypto::ecdsa_sha256_recoverable, signature,
@@ -304,30 +304,30 @@ generic code, an asynchronous form in an event loop.
 | `K::from_secret(secret_bytes)`, `T::from_bytes(bytes)`, `C::from_key(key)`,
 `K::generate()`, `key_pair.sign(scheme, input)`,
 `key_pair.agree(peer)`, `public_key.verify(scheme, signature, input)`,
-`aead.seal(iv, additional_data, data)`, `aead.open(iv, additional_data, data, tag)`
+`aead.seal(nonce, associated_data, data)`, `aead.open(nonce, associated_data, data, tag)`
 | `K::async_from_secret(executor, secret_bytes, token)`, `C::async_from_key(executor, key,
 token)`, `K::async_generate(executor, token)`,
 `key_pair.async_sign(executor, scheme, input, token)`,
 `key_pair.async_agree(executor, peer, token)`,
 `public_key.async_verify(executor, scheme, signature, input, token)`,
-`aead.async_seal(executor, iv, additional_data, data, token)`,
-`aead.async_open(executor, iv, additional_data, data, tag, token)`
+`aead.async_seal(executor, nonce, associated_data, data, token)`,
+`aead.async_open(executor, nonce, associated_data, data, tag, token)`
 
 | Free, in `webcpp::crypto`
 | `crypto::from_secret<K>(secret_bytes)`, `crypto::from_bytes<T>(bytes)`,
 `crypto::from_key<C>(key)`, `crypto::generate<K>()`,
 `crypto::sign(key_pair, scheme, input)`, `crypto::agree(key_pair, peer)`,
 `crypto::verify(scheme, signature, input, public_key)`,
-`crypto::seal(aead, iv, additional_data, data)`,
-`crypto::open(aead, iv, additional_data, data, tag)`
+`crypto::seal(aead, nonce, associated_data, data)`,
+`crypto::open(aead, nonce, associated_data, data, tag)`
 | `crypto::async_from_secret<K>(executor, secret_bytes, token)`,
 `crypto::async_from_key<C>(executor, key, token)`,
 `crypto::async_generate<K>(executor, token)`,
 `crypto::async_sign(executor, key_pair, scheme, input, token)`,
 `crypto::async_agree(executor, key_pair, peer, token)`,
 `crypto::async_verify(executor, scheme, signature, input, public_key, token)`,
-`crypto::async_seal(executor, aead, iv, additional_data, data, token)`,
-`crypto::async_open(executor, aead, iv, additional_data, data, tag, token)`
+`crypto::async_seal(executor, aead, nonce, associated_data, data, token)`,
+`crypto::async_open(executor, aead, nonce, associated_data, data, tag, token)`
 |===
 
 The synchronous forms exist wherever the member does: on Ed25519's, P-256's

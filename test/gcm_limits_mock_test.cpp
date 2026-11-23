@@ -36,7 +36,7 @@ using aead = crypto::ciphers::gcm<crypto::ciphers::aes128<mock>>;
 // limit is accepted.
 void check_summed_limit() {
     std::array<std::uint8_t, 16> const key{};
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     auto made = aead::from_key(key);
     constexpr auto half = std::size_t{1} << 35U;
     auto const piece = webcpp::test::reserved(half);
@@ -44,17 +44,17 @@ void check_summed_limit() {
         return;
     }
     mock_control.skip_data = true;
-    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    BOOST_TEST(made->begin_seal(nonce, {}).has_value());
     BOOST_TEST(made->update(piece).has_value());
     BOOST_TEST(made->update(piece).error() == crypto::error::message_too_long);
     BOOST_TEST(made->update({}).error() == crypto::error::invalid_state);
 
-    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    BOOST_TEST(made->begin_seal(nonce, {}).has_value());
     BOOST_TEST(made->update(piece).has_value());
     BOOST_TEST(made->update(piece.first(half - 32)).has_value());  // exactly the limit
     BOOST_TEST(made->update(piece.first(1)).error() == crypto::error::message_too_long);
 
-    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    BOOST_TEST(made->begin_seal(nonce, {}).has_value());
     BOOST_TEST(made->update(piece).has_value());
     BOOST_TEST(made->update(piece.first(half - 32)).has_value());
     BOOST_TEST(made->update({}).has_value());  // an empty piece at the limit

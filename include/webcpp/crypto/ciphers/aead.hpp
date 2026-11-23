@@ -7,10 +7,10 @@
 /**
  `aead<Family, Backend>`, one-shot authenticated encryption in place, and the families it
  takes: ChaCha20-Poly1305, its original form and XChaCha20-Poly1305, and libsodium's
- `crypto_secretbox`, XSalsa20-Poly1305 and XChaCha20-Poly1305 without additional data; and the
+ `crypto_secretbox`, XSalsa20-Poly1305 and XChaCha20-Poly1305 without associated data; and the
  free synchronous forms of every AEAD's members, AES-GCM's included (design D9, R23),
- `crypto::seal(aead, iv, additional_data, data)` and
- `crypto::open(aead, iv, additional_data, data, tag)`.
+ `crypto::seal(aead, nonce, associated_data, data)` and
+ `crypto::open(aead, nonce, associated_data, data, tag)`.
 
  @see "ChaCha20-Poly1305" and "Secret boxes", in the guide.
 */
@@ -50,7 +50,7 @@ struct chacha20_poly1305 {
     static constexpr std::size_t tag_size = 16;
     /** The longest message, 2^38 - 64 bytes: ChaCha20's 32-bit block counter (section 2.8). */
     static constexpr std::uint64_t max_message_size = (std::uint64_t{1} << 38U) - 64;
-    /** The longest additional data, 2^64 - 1 bytes (section 2.8). */
+    /** The longest associated data, 2^64 - 1 bytes (section 2.8). */
     static constexpr std::uint64_t max_additional_data_size = ~std::uint64_t{0};
 };
 
@@ -67,7 +67,7 @@ struct chacha20_poly1305_original {
     static constexpr std::size_t tag_size = 16;
     /** The longest message, 2^64 - 17 bytes. */
     static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
-    /** The longest additional data, 2^64 - 1 bytes. */
+    /** The longest associated data, 2^64 - 1 bytes. */
     static constexpr std::uint64_t max_additional_data_size = ~std::uint64_t{0};
 };
 
@@ -81,13 +81,13 @@ struct xchacha20_poly1305 {
     static constexpr std::size_t tag_size = 16;
     /** The longest message, 2^64 - 17 bytes. */
     static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
-    /** The longest additional data, 2^64 - 1 bytes. */
+    /** The longest associated data, 2^64 - 1 bytes. */
     static constexpr std::uint64_t max_additional_data_size = ~std::uint64_t{0};
 };
 
 /**
  * NaCl's and libsodium's `crypto_secretbox`, XSalsa20-Poly1305: a 32-byte key, a 24-byte nonce
- * safe to draw at random, a 16-byte tag, and no additional data.
+ * safe to draw at random, a 16-byte tag, and no associated data.
  */
 struct secretbox_xsalsa20poly1305 {
     /** The key's size. */
@@ -104,13 +104,13 @@ struct secretbox_xsalsa20poly1305 {
      * message there can be, since the 4 GiB of memory also hold the program.
      */
     static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
-    /** No additional data: `aead` refuses a non-empty one with `invalid_input_size`. */
+    /** No associated data: `aead` refuses a non-empty one with `invalid_input_size`. */
     static constexpr std::uint64_t max_additional_data_size = 0;
 };
 
 /**
  * libsodium's `crypto_secretbox_xchacha20poly1305`: `crypto_secretbox` with XChaCha20 in place
- * of XSalsa20, a 24-byte nonce safe to draw at random, and no additional data.
+ * of XSalsa20, a 24-byte nonce safe to draw at random, and no associated data.
  */
 struct secretbox_xchacha20poly1305 {
     /** The key's size. */
@@ -121,7 +121,7 @@ struct secretbox_xchacha20poly1305 {
     static constexpr std::size_t tag_size = 16;
     /** The longest message, 2^64 - 17 bytes. */
     static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
-    /** No additional data: `aead` refuses a non-empty one with `invalid_input_size`. */
+    /** No associated data: `aead` refuses a non-empty one with `invalid_input_size`. */
     static constexpr std::uint64_t max_additional_data_size = 0;
 };
 
@@ -152,11 +152,11 @@ inline constexpr bool aead_family<families::chacha20_poly1305_original> = true;
 template <>
 inline constexpr bool aead_family<families::xchacha20_poly1305> = true;
 
-/** `crypto_secretbox`, XSalsa20-Poly1305, is an AEAD family without additional data. */
+/** `crypto_secretbox`, XSalsa20-Poly1305, is an AEAD family without associated data. */
 template <>
 inline constexpr bool aead_family<families::secretbox_xsalsa20poly1305> = true;
 
-/** `crypto_secretbox_xchacha20poly1305` is an AEAD family without additional data. */
+/** `crypto_secretbox_xchacha20poly1305` is an AEAD family without associated data. */
 template <>
 inline constexpr bool aead_family<families::secretbox_xchacha20poly1305> = true;
 
@@ -266,7 +266,7 @@ namespace webcpp::crypto::ciphers {
  * An AEAD of the family `Family` on `Backend`, one shot: authenticated encryption in place,
  * the tag apart.
  *
- * An object holds a key: it is used by one thread at a time. A nonce (the IV) is never
+ * An object holds a key: it is used by one thread at a time. A nonce is never
  * repeated under one key: two messages under one key and one nonce reveal the XOR of their
  * plaintexts and let an attacker forge tags. Drawn at random, ChaCha20-Poly1305's 12-byte
  * nonce lets a key seal at most 2^32 messages, and the original's 8 bytes are too few: a
@@ -275,7 +275,7 @@ namespace webcpp::crypto::ciphers {
  *
  * @tparam Family `families::chacha20_poly1305`, `families::chacha20_poly1305_original`,
  * `families::xchacha20_poly1305`, or the secret boxes' `families::secretbox_xsalsa20poly1305`
- * and `families::secretbox_xchacha20poly1305`, which take no additional data.
+ * and `families::secretbox_xchacha20poly1305`, which take no associated data.
  * @tparam Backend The backend; `ciphers::chacha20_poly1305<>`, its two siblings and
  * `ciphers::secretbox<>` and its twin name the family's default.
  */
@@ -309,7 +309,7 @@ public:
     static constexpr std::size_t tag_size = sizes::tag_size;
     /** The longest message. */
     static constexpr std::uint64_t max_message_size = sizes::max_message_size;
-    /** The longest additional data; 0 for a family that takes none. */
+    /** The longest associated data; 0 for a family that takes none. */
     static constexpr std::uint64_t max_additional_data_size = sizes::max_additional_data_size;
 
     /**
@@ -384,25 +384,26 @@ public:
      * after.
      *
      * The nonce is read before the first byte of `data_bytes` is written, so it may lie in
-     * `data_bytes`. The additional data may touch `data_bytes`, as a wire format that puts it
+     * `data_bytes`. The associated data may touch `data_bytes`, as a wire format that puts it
      * just before the message does, but not overlap it: BearSSL's ChaCha20-Poly1305 reads it
      * after it encrypts, in one call over the whole message, so an overlap would authenticate
-     * other bytes than the caller's additional data; the backends would give different tags,
-     * and an open with the original additional data would fail.
+     * other bytes than the caller's associated data; the backends would give different tags,
+     * and an open with the original associated data would fail.
      *
      * When the backend fails, `data_bytes` is zeroed, as a failed open's is: a backend may fail
      * after it began to encrypt, and neither the plaintext nor bytes that look sealed are left;
      * a guard's refusal leaves it untouched.
      *
-     * @param iv_bytes The nonce, `iv_size` bytes, never repeated under this key.
-     * @param additional_data_bytes Authenticated, not encrypted; empty for a family that takes
+     * @param nonce_bytes The nonce, `iv_size` bytes, never repeated under this key.
+     * @param associated_data_bytes Authenticated, not encrypted; empty for a family that takes
      * none (`max_additional_data_size` 0).
      * @param data_bytes The message.
      * @return The tag; `invalid_state` moved from; `invalid_iv_size`; `invalid_input_size` for
-     * additional data given to a family that takes none; `message_too_long`; `backend_failure`.
+     * associated data given to a family that takes none; `message_too_long`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<result_type> seal(
-        std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
+        std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes,
         std::span<std::uint8_t> data_bytes) noexcept {
         detail::timing_guard const timing_scope;
         static_assert(
@@ -413,13 +414,13 @@ public:
             return error::backend_failure;
         } else {
             auto const guard_result =
-                guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_size);
+                guard_message(nonce_bytes, associated_data_bytes, data_bytes.size(), tag_size);
             if (!guard_result) {
                 return guard_result.error();
             }
             result_type tag_bytes{};
             auto const seal_result =
-                engine::seal(state_, iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
+                engine::seal(state_, nonce_bytes, associated_data_bytes, data_bytes, tag_bytes);
             if (!seal_result) {
                 detail::wipe(data_bytes.data(), data_bytes.size());
                 return seal_result.error();
@@ -435,18 +436,19 @@ public:
      * When the tag does not match, or the backend fails, `data_bytes` is zeroed; a guard's
      * refusal leaves it untouched.
      *
-     * @param iv_bytes The nonce of the seal.
-     * @param additional_data_bytes The additional data of the seal.
+     * @param nonce_bytes The nonce of the seal.
+     * @param associated_data_bytes The associated data of the seal.
      * @param data_bytes The ciphertext.
      * @param tag_bytes The seal's tag, `tag_size` bytes, which may lie anywhere, `data_bytes`
      * included.
      * @return Nothing; `invalid_state` moved from; `invalid_iv_size`; `invalid_tag_size`;
-     * `invalid_input_size` for additional data given to a family that takes none;
+     * `invalid_input_size` for associated data given to a family that takes none;
      * `message_too_long`; `authentication_failed`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<void> open(
-        std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
-        std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes) noexcept {
+        std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
+        std::span<std::uint8_t const> tag_bytes) noexcept {
         detail::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<Backend>,
@@ -455,8 +457,8 @@ public:
             // Never compiled into a program: the assertion above stopped the build.
             return error::backend_failure;
         } else {
-            auto const guard_result =
-                guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_bytes.size());
+            auto const guard_result = guard_message(nonce_bytes, associated_data_bytes,
+                                                    data_bytes.size(), tag_bytes.size());
             if (!guard_result) {
                 return guard_result.error();
             }
@@ -464,7 +466,7 @@ public:
             std::array<std::uint8_t, tag_size> expected_tag{};
             std::ranges::copy(tag_bytes, expected_tag.begin());
             auto const open_result =
-                engine::open(state_, iv_bytes, additional_data_bytes, data_bytes, expected_tag);
+                engine::open(state_, nonce_bytes, associated_data_bytes, data_bytes, expected_tag);
             if (!open_result) {
                 detail::wipe(data_bytes.data(), data_bytes.size());
                 return open_result.error();
@@ -477,27 +479,28 @@ private:
     aead() noexcept = default;
 
     // Every guard of a message, in the documented order: the state, the nonce, the tag
-    // (open's; seal passes tag_size), additional data given to a family that takes none, the
+    // (open's; seal passes tag_size), associated data given to a family that takes none, the
     // lengths. None reads a byte of the spans.
     [[nodiscard]] boost::system::result<void> guard_message(
-        std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
-        std::size_t byte_count, std::size_t tag_bytes) const noexcept {
+        std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes, std::size_t byte_count,
+        std::size_t tag_bytes) const noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
-        if (iv_bytes.size() != iv_size) {
+        if (nonce_bytes.size() != iv_size) {
             return error::invalid_iv_size;
         }
         if (tag_bytes != tag_size) {
             return error::invalid_tag_size;
         }
         if constexpr (max_additional_data_size == 0) {
-            if (!additional_data_bytes.empty()) {
+            if (!associated_data_bytes.empty()) {
                 return error::invalid_input_size;
             }
         }
         if (detail::exceeds(byte_count, max_message_size) ||
-            detail::exceeds(additional_data_bytes.size(), max_additional_data_size)) {
+            detail::exceeds(associated_data_bytes.size(), max_additional_data_size)) {
             return error::message_too_long;
         }
         return {};
@@ -512,14 +515,14 @@ private:
 namespace webcpp::crypto {
 
 /**
- * Seals a message in place, `keyed_aead.seal(iv_bytes, additional_data_bytes, data_bytes)`: the
+ * Seals a message in place, `keyed_aead.seal(nonce_bytes, associated_data_bytes, data_bytes)`: the
  * free form of the AEAD's own `seal`, which it calls, with its results and its errors.
  *
  * @tparam Aead A type whose `seal` takes these arguments: `ciphers::gcm<Cipher>` or
  * `ciphers::aead<Family, Backend>`.
  * @param keyed_aead The keyed object.
- * @param iv_bytes The IV or nonce, never reused under this key.
- * @param additional_data_bytes Authenticated, not encrypted.
+ * @param nonce_bytes The nonce, never reused under this key.
+ * @param associated_data_bytes Authenticated, not encrypted.
  * @param data_bytes The message, the ciphertext after.
  * @return What `keyed_aead.seal` returns: the tag, or its error.
  */
@@ -530,26 +533,26 @@ template <class Aead>
                                    std::declval<std::span<std::uint8_t>&>());
     }
 [[nodiscard]] auto seal(
-    Aead& keyed_aead, std::span<std::uint8_t const> iv_bytes,
-    std::span<std::uint8_t const> additional_data_bytes,
-    std::span<std::uint8_t> data_bytes) noexcept(noexcept(keyed_aead.seal(iv_bytes,
-                                                                          additional_data_bytes,
+    Aead& keyed_aead, std::span<std::uint8_t const> nonce_bytes,
+    std::span<std::uint8_t const> associated_data_bytes,
+    std::span<std::uint8_t> data_bytes) noexcept(noexcept(keyed_aead.seal(nonce_bytes,
+                                                                          associated_data_bytes,
                                                                           data_bytes)))
-    -> decltype(keyed_aead.seal(iv_bytes, additional_data_bytes, data_bytes)) {
+    -> decltype(keyed_aead.seal(nonce_bytes, associated_data_bytes, data_bytes)) {
     detail::timing_guard const timing_scope;
-    return keyed_aead.seal(iv_bytes, additional_data_bytes, data_bytes);
+    return keyed_aead.seal(nonce_bytes, associated_data_bytes, data_bytes);
 }
 
 /**
  * Opens a message in place,
- * `keyed_aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)`: the free form of the
- * AEAD's own `open`, which it calls, with its results and its errors.
+ * `keyed_aead.open(nonce_bytes, associated_data_bytes, data_bytes, tag_bytes)`: the free form of
+ * the AEAD's own `open`, which it calls, with its results and its errors.
  *
  * @tparam Aead A type whose `open` takes these arguments: `ciphers::gcm<Cipher>` or
  * `ciphers::aead<Family, Backend>`.
  * @param keyed_aead The keyed object.
- * @param iv_bytes The IV or nonce of the seal.
- * @param additional_data_bytes The additional data of the seal.
+ * @param nonce_bytes The nonce of the seal.
+ * @param associated_data_bytes The associated data of the seal.
  * @param data_bytes The ciphertext, the plaintext after.
  * @param tag_bytes The seal's tag.
  * @return What `keyed_aead.open` returns: nothing, or its error (`authentication_failed`, which
@@ -562,16 +565,16 @@ template <class Aead>
                                    std::declval<std::span<std::uint8_t>&>(),
                                    std::declval<std::span<std::uint8_t const>&>());
     }
-[[nodiscard]] auto open(Aead& keyed_aead, std::span<std::uint8_t const> iv_bytes,
-                        std::span<std::uint8_t const> additional_data_bytes,
+[[nodiscard]] auto open(Aead& keyed_aead, std::span<std::uint8_t const> nonce_bytes,
+                        std::span<std::uint8_t const> associated_data_bytes,
                         std::span<std::uint8_t> data_bytes,
                         std::span<std::uint8_t const>
-                            tag_bytes) noexcept(noexcept(keyed_aead.open(iv_bytes,
-                                                                         additional_data_bytes,
+                            tag_bytes) noexcept(noexcept(keyed_aead.open(nonce_bytes,
+                                                                         associated_data_bytes,
                                                                          data_bytes, tag_bytes)))
-    -> decltype(keyed_aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)) {
+    -> decltype(keyed_aead.open(nonce_bytes, associated_data_bytes, data_bytes, tag_bytes)) {
     detail::timing_guard const timing_scope;
-    return keyed_aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
+    return keyed_aead.open(nonce_bytes, associated_data_bytes, data_bytes, tag_bytes);
 }
 
 }  // namespace webcpp::crypto

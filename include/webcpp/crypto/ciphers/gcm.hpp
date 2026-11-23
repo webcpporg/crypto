@@ -115,8 +115,8 @@ namespace webcpp::crypto::ciphers {
  * (`default_backend_t<families::gcm>`), not the block cipher's.
  *
  * An object holds a key and the state of one message: it is used by one thread at a time,
- * and it is not shareable. An IV is never reused under one key, and with random IVs, or IVs
- * other than 12 bytes, a key seals at most 2^32 messages (NIST SP 800-38D section 8.3).
+ * and it is not shareable. A nonce is never reused under one key, and with random nonces, or
+ * nonces other than 12 bytes, a key seals at most 2^32 messages (NIST SP 800-38D section 8.3).
  *
  * The incremental open reads the ciphertext twice: `authenticate` every piece, `verify` the
  * tag, then `decrypt` the same pieces; no plaintext reaches the caller before the tag matched.
@@ -150,13 +150,13 @@ public:
     static constexpr std::size_t key_size = Cipher::key_size;
     /** The tag's size. */
     static constexpr std::size_t tag_size = 16;
-    /** The recommended IV size. */
+    /** The recommended nonce size. */
     static constexpr std::size_t iv_size = 12;
-    /** The longest IV accepted, OpenSSL's limit, applied on every backend. */
+    /** The longest nonce accepted, OpenSSL's limit, applied on every backend. */
     static constexpr std::size_t max_iv_size = 128;
     /** The longest message, 2^36 - 32 bytes (NIST SP 800-38D section 5.2.1.1). */
     static constexpr std::uint64_t max_message_size = (std::uint64_t{1} << 36U) - 32;
-    /** The longest additional data, 2^61 - 1 bytes (the same section, 2^64 - 1 bits). */
+    /** The longest associated data, 2^61 - 1 bytes (the same section, 2^64 - 1 bits). */
     static constexpr std::uint64_t max_additional_data_size = (std::uint64_t{1} << 61U) - 1;
 
     /**
@@ -262,20 +262,21 @@ public:
     /**
      * Seals a message in place: `data_bytes` holds the plaintext before and the ciphertext after.
      *
-     * The IV and the additional data are read before the first byte of `data_bytes` is written, so
-     * they may lie in `data_bytes`.
+     * The nonce and the associated data are read before the first byte of `data_bytes` is written,
+     * so they may lie in `data_bytes`.
      *
      * When the backend fails, `data_bytes` is zeroed, as a failed open's is; a guard's refusal
      * leaves it untouched.
      *
-     * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key; 12 recommended.
-     * @param additional_data_bytes Authenticated, not encrypted.
+     * @param nonce_bytes 1 to `max_iv_size` bytes, never reused under this key; 12 recommended.
+     * @param associated_data_bytes Authenticated, not encrypted.
      * @param data_bytes The message.
      * @return The tag; `invalid_state` moved from or during an incremental message, which
      * goes on; `invalid_iv_size`; `message_too_long`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<result_type> seal(
-        std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
+        std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes,
         std::span<std::uint8_t> data_bytes) noexcept {
         detail::timing_guard const timing_scope;
         static_assert(
@@ -286,11 +287,12 @@ public:
             return error::backend_failure;
         } else {
             auto const guard_result =
-                guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_size);
+                guard_message(nonce_bytes, associated_data_bytes, data_bytes.size(), tag_size);
             if (!guard_result) {
                 return guard_result.error();
             }
-            auto const start_result = engine::start(state_, true, iv_bytes, additional_data_bytes);
+            auto const start_result =
+                engine::start(state_, true, nonce_bytes, associated_data_bytes);
             auto const run_result = start_result ? engine::run(state_, data_bytes) : start_result;
             result_type tag_bytes{};
             auto const tag_result = run_result ? engine::tag(state_, tag_bytes) : run_result;
@@ -308,7 +310,7 @@ public:
     /**
      * Seals a message in place, asynchronously: `seal` run when the operation is initiated, its
      * result posted to `completion_executor`; the member form of
-     * `crypto::async_seal(executor, aead, iv_bytes, additional_data_bytes, data_bytes, token)`,
+     * `crypto::async_seal(executor, aead, nonce_bytes, associated_data_bytes, data_bytes, token)`,
      * which calls it.
      *
      * The object and the spans are the caller's until the completion; `data_bytes` holds the
@@ -321,8 +323,8 @@ public:
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
      * @tparam CompletionToken Any completion token for the signature `completion_token` states.
      * @param completion_executor The executor the completion is posted to.
-     * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key.
-     * @param additional_data_bytes Authenticated, not encrypted.
+     * @param nonce_bytes 1 to `max_iv_size` bytes, never reused under this key.
+     * @param associated_data_bytes Authenticated, not encrypted.
      * @param data_bytes The message.
      * @param completion_token The completion token, of signature
      * `void(boost::system::error_code, result_type)`: the tag; on an error the zeroed tag (the
@@ -330,8 +332,8 @@ public:
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
-    auto async_seal(Executor const& completion_executor, std::span<std::uint8_t const> iv_bytes,
-                    std::span<std::uint8_t const> additional_data_bytes,
+    auto async_seal(Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
+                    std::span<std::uint8_t const> associated_data_bytes,
                     std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token);
 
     /**
@@ -341,8 +343,8 @@ public:
      * tag does not match, or the backend fails, `data_bytes` is zeroed. A guard's refusal leaves it
      * untouched.
      *
-     * @param iv_bytes The IV of the seal.
-     * @param additional_data_bytes The additional data of the seal.
+     * @param nonce_bytes The nonce of the seal.
+     * @param associated_data_bytes The associated data of the seal.
      * @param data_bytes The ciphertext.
      * @param tag_bytes The seal's tag, 16 bytes, which may lie anywhere, `data_bytes` included.
      * @return Nothing; `invalid_state` moved from or during an incremental message, which
@@ -350,8 +352,9 @@ public:
      * `authentication_failed`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<void> open(
-        std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
-        std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes) noexcept {
+        std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
+        std::span<std::uint8_t const> tag_bytes) noexcept {
         detail::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<backend>,
@@ -360,15 +363,16 @@ public:
             // Never compiled into a program: the assertion above stopped the build.
             return error::backend_failure;
         } else {
-            auto const guard_result =
-                guard_message(iv_bytes, additional_data_bytes, data_bytes.size(), tag_bytes.size());
+            auto const guard_result = guard_message(nonce_bytes, associated_data_bytes,
+                                                    data_bytes.size(), tag_bytes.size());
             if (!guard_result) {
                 return guard_result.error();
             }
             // The tag may lie in data, which decryption overwrites: a copy is checked.
             std::array<std::uint8_t, tag_size> expected_tag{};
             std::ranges::copy(tag_bytes, expected_tag.begin());
-            auto const start_result = engine::start(state_, false, iv_bytes, additional_data_bytes);
+            auto const start_result =
+                engine::start(state_, false, nonce_bytes, associated_data_bytes);
             auto const open_result = start_result ? engine::run(state_, data_bytes) : start_result;
             auto const tag_check_result =
                 open_result ? engine::check(state_, expected_tag) : open_result;
@@ -396,8 +400,8 @@ public:
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
      * @tparam CompletionToken Any completion token for the signature `completion_token` states.
      * @param completion_executor The executor the completion is posted to.
-     * @param iv_bytes The IV of the seal.
-     * @param additional_data_bytes The additional data of the seal.
+     * @param nonce_bytes The nonce of the seal.
+     * @param associated_data_bytes The associated data of the seal.
      * @param data_bytes The ciphertext.
      * @param tag_bytes The seal's tag, 16 bytes.
      * @param completion_token The completion token, of signature `void(boost::system::error_code)`
@@ -405,26 +409,26 @@ public:
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
-    auto async_open(Executor const& completion_executor, std::span<std::uint8_t const> iv_bytes,
-                    std::span<std::uint8_t const> additional_data_bytes,
+    auto async_open(Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
+                    std::span<std::uint8_t const> associated_data_bytes,
                     std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
                     CompletionToken&& completion_token);
 
     /**
-     * Begins an incremental seal: the IV and the whole additional data first, both read
+     * Begins an incremental seal: the nonce and the whole associated data first, both read
      * before this returns.
      *
      * Any error of `begin_seal`, `update` or `result` ends the message, which is abandoned:
      * the pieces already encrypted have no tag and are not to be sent.
      *
-     * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key.
-     * @param additional_data_bytes Authenticated, not encrypted.
+     * @param nonce_bytes 1 to `max_iv_size` bytes, never reused under this key.
+     * @param associated_data_bytes Authenticated, not encrypted.
      * @return Nothing; `invalid_state` moved from or with a message in progress, which ends
      * it; `invalid_iv_size`; `message_too_long`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<void> begin_seal(
-        std::span<std::uint8_t const> iv_bytes,
-        std::span<std::uint8_t const> additional_data_bytes) noexcept {
+        std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes) noexcept {
         detail::timing_guard const timing_scope;
         if (!keyed_) {
             return error::invalid_state;
@@ -433,11 +437,11 @@ public:
             abandon();
             return error::invalid_state;
         }
-        auto const guard_result = guard_message(iv_bytes, additional_data_bytes, 0, tag_size);
+        auto const guard_result = guard_message(nonce_bytes, associated_data_bytes, 0, tag_size);
         if (!guard_result) {
             return guard_result.error();
         }
-        auto const start_result = engine::start(state_, true, iv_bytes, additional_data_bytes);
+        auto const start_result = engine::start(state_, true, nonce_bytes, associated_data_bytes);
         if (!start_result) {
             engine::abandon(state_);
             return start_result.error();
@@ -501,21 +505,21 @@ public:
     }
 
     /**
-     * Begins an incremental open: the IV and the whole additional data first, both read before
-     * this returns, the IV kept for the second pass.
+     * Begins an incremental open: the nonce and the whole associated data first, both read before
+     * this returns, the nonce kept for the second pass.
      *
      * The open takes two passes over the ciphertext: `authenticate` reads every piece, `verify`
      * checks the tag, and only then `decrypt` turns the same pieces into plaintext, which
      * `end_open` ends. Any error of these calls ends the message.
      *
-     * @param iv_bytes The IV of the seal, 1 to `max_iv_size` bytes.
-     * @param additional_data_bytes The additional data of the seal.
+     * @param nonce_bytes The nonce of the seal, 1 to `max_iv_size` bytes.
+     * @param associated_data_bytes The associated data of the seal.
      * @return Nothing; `invalid_state` moved from or with a message in progress, which ends
      * it; `invalid_iv_size`; `message_too_long`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<void> begin_open(
-        std::span<std::uint8_t const> iv_bytes,
-        std::span<std::uint8_t const> additional_data_bytes) noexcept {
+        std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes) noexcept {
         detail::timing_guard const timing_scope;
         if (!keyed_) {
             return error::invalid_state;
@@ -524,13 +528,13 @@ public:
             abandon();
             return error::invalid_state;
         }
-        auto const guard_result = guard_message(iv_bytes, additional_data_bytes, 0, tag_size);
+        auto const guard_result = guard_message(nonce_bytes, associated_data_bytes, 0, tag_size);
         if (!guard_result) {
             return guard_result.error();
         }
-        std::ranges::copy(iv_bytes, iv_.begin());
-        iv_size_ = iv_bytes.size();
-        auto const start_result = engine::start(state_, false, iv_bytes, additional_data_bytes);
+        std::ranges::copy(nonce_bytes, nonce_.begin());
+        iv_size_ = nonce_bytes.size();
+        auto const start_result = engine::start(state_, false, nonce_bytes, associated_data_bytes);
         if (!start_result) {
             engine::abandon(state_);
             end_message();
@@ -609,10 +613,11 @@ public:
             abandon();
             return check_result.error();
         }
-        // GCM's keystream depends on the key and the IV alone: the second pass needs no
-        // additional data, and the tag the engine computes in it is never read.
+        // GCM's keystream depends on the key and the nonce alone: the second pass needs no
+        // associated data, and the tag the engine computes in it is never read.
         engine::abandon(state_);
-        auto const start_result = engine::start(state_, false, std::span(iv_).first(iv_size_), {});
+        auto const start_result =
+            engine::start(state_, false, std::span(nonce_).first(iv_size_), {});
         if (!start_result) {
             abandon();
             return start_result.error();
@@ -717,31 +722,32 @@ private:
         }
     }
 
-    // Every guard of a message, in the documented order: the state, the IV, the tag
+    // Every guard of a message, in the documented order: the state, the nonce, the tag
     // (open's; seal passes tag_size), the lengths. None reads a byte of the spans.
     [[nodiscard]] boost::system::result<void> guard_message(
-        std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
-        std::size_t byte_count, std::size_t tag_bytes) const noexcept {
+        std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes, std::size_t byte_count,
+        std::size_t tag_bytes) const noexcept {
         if (!keyed_ || phase_ != phase::none) {
             return error::invalid_state;
         }
-        if (iv_bytes.empty() || iv_bytes.size() > max_iv_size) {
+        if (nonce_bytes.empty() || nonce_bytes.size() > max_iv_size) {
             return error::invalid_iv_size;
         }
         if (tag_bytes != tag_size) {
             return error::invalid_tag_size;
         }
         if (detail::exceeds(byte_count, max_message_size) ||
-            detail::exceeds(additional_data_bytes.size(), max_additional_data_size)) {
+            detail::exceeds(associated_data_bytes.size(), max_additional_data_size)) {
             return error::message_too_long;
         }
         return {};
     }
 
-    // No message is in progress; the kept IV is wiped and the counters zeroed.
+    // No message is in progress; the kept nonce is wiped and the counters zeroed.
     void end_message() noexcept {
         phase_ = phase::none;
-        detail::wipe(iv_.data(), iv_.size());
+        detail::wipe(nonce_.data(), nonce_.size());
         iv_size_ = 0;
         message_bytes_ = 0;
         decrypted_bytes_ = 0;
@@ -750,8 +756,8 @@ private:
     state_type state_{};
     bool keyed_ = false;
     phase phase_ = phase::none;
-    // The open's IV, kept for its second pass.
-    std::array<std::uint8_t, max_iv_size> iv_{};
+    // The open's nonce, kept for its second pass.
+    std::array<std::uint8_t, max_iv_size> nonce_{};
     std::size_t iv_size_ = 0;
     // The bytes sealed, or authenticated by the open's first pass.
     std::uint64_t message_bytes_ = 0;

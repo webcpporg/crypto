@@ -39,7 +39,7 @@ its own, and the handler would run off the program's loop.
 | Algorithm | Functions | Completion
 
 | AES-GCM (<<crypto-gcm>>)
-| `async_from_key<Gcm>(executor, key, token)`, `async_seal(executor, aead, iv, additional_data, data, token)`, `async_open(executor, aead, iv, additional_data, data, tag, token)`
+| `async_from_key<Gcm>(executor, key, token)`, `async_seal(executor, aead, nonce, associated_data, data, token)`, `async_open(executor, aead, nonce, associated_data, data, tag, token)`
 | `void(error_code, Gcm)` for `async_from_key`, `void(error_code, tag)` for `async_seal`, `void(error_code)` for `async_open`
 
 | Ed25519 (<<crypto-ed25519>>)
@@ -179,7 +179,7 @@ refuses is untouched; a failed `async_seal` or `async_open` zeroes it, as
 *Pitfalls.*
 
 * *The object and the spans are the caller's until the completion.* The
-key, the IV, the additional data, the data, the message and the signature are
+key, the nonce, the associated data, the data, the message and the signature are
 read and written by the call, which on a synchronous backend finishes before
 it returns; the browser's backend reads them later. A program written
 for either keeps them alive, and does not touch the data, until the handler

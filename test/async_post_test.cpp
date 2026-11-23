@@ -503,8 +503,8 @@ void post_error_value(asio::io_context& context) {
 struct gcm_fixture {
     using gcm = crypto::ciphers::aes256_gcm;
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, 12> iv{};
-    std::array<std::uint8_t, 4> additional_data{1, 2, 3, 4};
+    std::array<std::uint8_t, 12> nonce{};
+    std::array<std::uint8_t, 4> associated_data{1, 2, 3, 4};
     std::array<std::uint8_t, 40> data{};
     std::array<std::uint8_t, 129> long_iv{};
     std::array<std::uint8_t, 16> tag{};
@@ -514,28 +514,28 @@ struct gcm_fixture {
 
     auto seal() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_seal(executor, aead, iv, additional_data, data,
+            return crypto::async_seal(executor, aead, nonce, associated_data, data,
                                       std::forward<decltype(token)>(token));
         };
     }
 
     auto seal_refused() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_seal(executor, aead, long_iv, additional_data, data,
+            return crypto::async_seal(executor, aead, long_iv, associated_data, data,
                                       std::forward<decltype(token)>(token));
         };
     }
 
     auto open() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_open(executor, aead, iv, additional_data, data, tag,
+            return crypto::async_open(executor, aead, nonce, associated_data, data, tag,
                                       std::forward<decltype(token)>(token));
         };
     }
 
     auto open_refused() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_open(executor, aead, long_iv, additional_data, data, tag,
+            return crypto::async_open(executor, aead, long_iv, associated_data, data, tag,
                                       std::forward<decltype(token)>(token));
         };
     }
@@ -615,7 +615,7 @@ void post_gcm_inline(asio::io_context& context) {
 void post_gcm_bound_executor() {
     gcm_fixture fixture;
     // The open needs a sealed message.
-    auto const sealed = fixture.aead.seal(fixture.iv, fixture.additional_data, fixture.data);
+    auto const sealed = fixture.aead.seal(fixture.nonce, fixture.associated_data, fixture.data);
     if (BOOST_TEST(sealed.has_value())) {
         std::ranges::copy(*sealed, fixture.tag.begin());
     }
@@ -657,14 +657,14 @@ void post_gcm_allocator(asio::io_context& context) {
 void post_gcm_future_token(asio::io_context& context, gcm_fixture& fixture,
                            std::array<std::uint8_t, 40> const& plaintext) {
     auto const executor = context.get_executor();
-    auto future_tag = crypto::async_seal(executor, fixture.aead, fixture.iv,
-                                         fixture.additional_data, fixture.data, asio::use_future);
+    auto future_tag = crypto::async_seal(executor, fixture.aead, fixture.nonce,
+                                         fixture.associated_data, fixture.data, asio::use_future);
     context.restart();
     context.run();  // lint-run: the test's event loop
     std::ranges::copy(future_tag.get(), fixture.tag.begin());
     BOOST_TEST(fixture.data != plaintext);
     auto future_open =
-        crypto::async_open(executor, fixture.aead, fixture.iv, fixture.additional_data,
+        crypto::async_open(executor, fixture.aead, fixture.nonce, fixture.associated_data,
                            fixture.data, fixture.tag, asio::use_future);
     context.restart();
     context.run();  // lint-run: the test's event loop
@@ -691,8 +691,8 @@ void post_gcm_deferred_token(asio::io_context& context, gcm_fixture& fixture,
                              std::array<std::uint8_t, 40> const& plaintext) {
     auto const executor = context.get_executor();
     // deferred: the synchronous call runs when the operation is launched, not when it is made.
-    auto operation = crypto::async_seal(executor, fixture.aead, fixture.iv, fixture.additional_data,
-                                        fixture.data, asio::deferred);
+    auto operation = crypto::async_seal(executor, fixture.aead, fixture.nonce,
+                                        fixture.associated_data, fixture.data, asio::deferred);
     BOOST_TEST(fixture.data == plaintext);
     int deferred_calls = 0;
     std::move(operation)([&](boost::system::error_code code, gcm_tag tag) {
@@ -712,12 +712,12 @@ void post_gcm_tuple_token(asio::io_context& context, gcm_fixture& fixture,
     auto const executor = context.get_executor();
     // as_tuple: the code and the value in one argument; the open, the code alone.
     int tuples = 0;
-    crypto::async_open(executor, fixture.aead, fixture.iv, fixture.additional_data, fixture.data,
+    crypto::async_open(executor, fixture.aead, fixture.nonce, fixture.associated_data, fixture.data,
                        fixture.tag, asio::as_tuple([&](std::tuple<boost::system::error_code> done) {
                            ++tuples;
                            BOOST_TEST(!std::get<0>(done));
                        }));
-    crypto::async_seal(executor, fixture.aead, fixture.long_iv, fixture.additional_data,
+    crypto::async_seal(executor, fixture.aead, fixture.long_iv, fixture.associated_data,
                        fixture.data,
                        asio::as_tuple([&](std::tuple<boost::system::error_code, gcm_tag> done) {
                            ++tuples;
@@ -742,15 +742,15 @@ void post_gcm_awaitable_token(asio::io_context& context, gcm_fixture& fixture,
                 coro, std::span(fixture.key).first(31), asio::as_tuple(asio::use_awaitable));
             auto& [made_code, made] = made_code_result;
             BOOST_TEST(made_code == crypto::error::invalid_key_size);
-            BOOST_TEST(made.seal(fixture.iv, {}, fixture.data).error() ==
+            BOOST_TEST(made.seal(fixture.nonce, {}, fixture.data).error() ==
                        crypto::error::invalid_state);
-            auto [seal_code, tag] =
-                co_await crypto::async_seal(coro, fixture.aead, fixture.iv, fixture.additional_data,
-                                            fixture.data, asio::as_tuple(asio::use_awaitable));
+            auto [seal_code, tag] = co_await crypto::async_seal(
+                coro, fixture.aead, fixture.nonce, fixture.associated_data, fixture.data,
+                asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(!seal_code);
             BOOST_TEST(fixture.data != plaintext);
             auto [open_code] = co_await crypto::async_open(
-                coro, fixture.aead, fixture.iv, fixture.additional_data, fixture.data,
+                coro, fixture.aead, fixture.nonce, fixture.associated_data, fixture.data,
                 std::span(tag.data(), tag.size()), asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(!open_code);
             BOOST_TEST(fixture.data == plaintext);

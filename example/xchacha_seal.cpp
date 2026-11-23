@@ -6,7 +6,7 @@
 
 // A chat app, in the browser and natively alike, encrypts each message of a conversation under
 // the conversation's key with XChaCha20-Poly1305, a fresh 24-byte nonce drawn at random per
-// message and the conversation's id as additional data; a message changed on the way, or moved
+// message and the conversation's id as associated data; a message changed on the way, or moved
 // to another conversation, does not open. Prints what the recipient reads.
 // tag::program[]
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>

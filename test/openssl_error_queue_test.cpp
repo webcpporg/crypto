@@ -43,7 +43,7 @@ std::size_t drain(unsigned long& first) {
  * is the queue's one entry afterwards.
  */
 template <class Aead>
-void check_queue(std::span<std::uint8_t const> key, std::span<std::uint8_t const> iv) {
+void check_queue(std::span<std::uint8_t const> key, std::span<std::uint8_t const> nonce) {
     std::array<std::uint8_t, 32> data{};
     // NOLINTNEXTLINE(bugprone-signed-bitwise): OpenSSL's reason macro ORs signed flags
     ERR_raise(ERR_LIB_USER, ERR_R_PASSED_INVALID_ARGUMENT);
@@ -53,11 +53,11 @@ void check_queue(std::span<std::uint8_t const> key, std::span<std::uint8_t const
     if (!made) {
         return;
     }
-    auto const tag = made->seal(iv, {}, data);
+    auto const tag = made->seal(nonce, {}, data);
     BOOST_TEST(tag.has_value());
-    BOOST_TEST(tag && made->open(iv, {}, data, *tag).has_value());
+    BOOST_TEST(tag && made->open(nonce, {}, data, *tag).has_value());
     std::array<std::uint8_t, Aead::tag_size> const bad{};
-    BOOST_TEST(made->open(iv, {}, data, bad).error() == crypto::error::authentication_failed);
+    BOOST_TEST(made->open(nonce, {}, data, bad).error() == crypto::error::authentication_failed);
     unsigned long first = 0;
     BOOST_TEST_EQ(drain(first), 1U);
     BOOST_TEST_EQ(first, ours);
@@ -69,7 +69,7 @@ int main() {
     using gcm = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::openssl>>;
     using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::openssl>;
     std::array<std::uint8_t, 32> const key{};
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
 
     // OpenSSL's first fetch and its initialisation leave nothing behind either.
     BOOST_TEST_EQ(ERR_peek_error(), 0UL);
@@ -80,7 +80,7 @@ int main() {
     BOOST_TEST(chacha::from_key(key).has_value());
     BOOST_TEST_EQ(ERR_peek_error(), 0UL);
 
-    check_queue<gcm>(key, iv);
-    check_queue<chacha>(key, iv);
+    check_queue<gcm>(key, nonce);
+    check_queue<chacha>(key, nonce);
     return webcpp::test::exit_status(boost::report_errors());
 }

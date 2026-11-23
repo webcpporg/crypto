@@ -64,7 +64,7 @@ void check_make_failures() {
 // its data, a guard's refusal does not, and the object works once the engine does.
 void check_one_shot_failures(webcpp::test::gcm_cases cases) {
     std::array<std::uint8_t, 32> const key{};
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     auto made = aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
@@ -80,7 +80,7 @@ void check_one_shot_failures(webcpp::test::gcm_cases cases) {
         auto const abandons = mock_control.abandons;
         std::array<std::uint8_t, 16> data{};
         data.fill(0x5A);
-        BOOST_TEST(made->seal(iv, {}, data).error() == failed);
+        BOOST_TEST(made->seal(nonce, {}, data).error() == failed);
         BOOST_TEST(webcpp::test::all_zero(data));
         webcpp::test::mock_clear();
         BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
@@ -99,7 +99,7 @@ void check_one_shot_failures(webcpp::test::gcm_cases cases) {
         *knob = failed;
         auto const abandons = mock_control.abandons;
         auto data = ciphertext;
-        BOOST_TEST(made->open(iv, {}, data, tag).error() == failed);
+        BOOST_TEST(made->open(nonce, {}, data, tag).error() == failed);
         BOOST_TEST(webcpp::test::all_zero(data));
         webcpp::test::mock_clear();
         BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
@@ -110,36 +110,37 @@ void check_one_shot_failures(webcpp::test::gcm_cases cases) {
         auto data = ciphertext;
         auto wrong = tag;
         wrong[0] ^= 1U;
-        BOOST_TEST(made->open(iv, {}, data, wrong).error() == crypto::error::authentication_failed);
+        BOOST_TEST(made->open(nonce, {}, data, wrong).error() ==
+                   crypto::error::authentication_failed);
         BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
     }
     // A guard refuses before the engine fails: the data is untouched.
     mock_control.start = failed;
     auto data = ciphertext;
-    BOOST_TEST(made->open(iv, {}, data, std::span(tag).first(8)).error() ==
+    BOOST_TEST(made->open(nonce, {}, data, std::span(tag).first(8)).error() ==
                crypto::error::invalid_tag_size);
     BOOST_TEST(data == ciphertext);
     webcpp::test::mock_clear();
 
-    BOOST_TEST(made->open(iv, {}, data, tag).has_value());
+    BOOST_TEST(made->open(nonce, {}, data, tag).has_value());
     BOOST_TEST(webcpp::test::all_zero(data));  // case 14's plaintext, one zero block
 }
 
 // An engine error in begin_seal, update or result ends the message, abandoned through the
 // engine: update's piece is zeroed.
-void check_seal_engine_failures(aead& made, std::span<std::uint8_t const> iv) {
+void check_seal_engine_failures(aead& made, std::span<std::uint8_t const> nonce) {
     boost::system::error_code const failed = crypto::error::backend_failure;
     std::array<std::uint8_t, 16> data{};
 
     auto abandons = mock_control.abandons;
     mock_control.start = failed;
-    BOOST_TEST(made.begin_seal(iv, {}).error() == failed);
+    BOOST_TEST(made.begin_seal(nonce, {}).error() == failed);
     webcpp::test::mock_clear();
     BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
     BOOST_TEST(made.update(data).error() == crypto::error::invalid_state);
 
     abandons = mock_control.abandons;
-    BOOST_TEST(made.begin_seal(iv, {}).has_value());
+    BOOST_TEST(made.begin_seal(nonce, {}).has_value());
     mock_control.run = failed;
     data.fill(0x5A);
     BOOST_TEST(made.update(data).error() == failed);
@@ -151,7 +152,7 @@ void check_seal_engine_failures(aead& made, std::span<std::uint8_t const> iv) {
     BOOST_TEST(made.result().error() == crypto::error::invalid_state);
 
     abandons = mock_control.abandons;
-    BOOST_TEST(made.begin_seal(iv, {}).has_value());
+    BOOST_TEST(made.begin_seal(nonce, {}).has_value());
     mock_control.tag = failed;
     BOOST_TEST(made.result().error() == failed);
     webcpp::test::mock_clear();
@@ -163,12 +164,12 @@ void check_seal_engine_failures(aead& made, std::span<std::uint8_t const> iv) {
 // engine, and the object begins the next one.
 void check_incremental_failures(webcpp::test::gcm_cases cases) {
     std::array<std::uint8_t, 32> const key{};
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     auto made = aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    check_seal_engine_failures(*made, iv);
+    check_seal_engine_failures(*made, nonce);
     std::array<std::uint8_t, 16> data{};
 
 #if !defined(__wasi__) && !defined(__EMSCRIPTEN__)
@@ -177,7 +178,7 @@ void check_incremental_failures(webcpp::test::gcm_cases cases) {
     if constexpr (sizeof(std::size_t) == 8) {
         auto const huge =
             webcpp::test::reserved(static_cast<std::size_t>(aead::max_message_size) + 1);
-        if (BOOST_TEST(!huge.empty()) && BOOST_TEST(made->begin_seal(iv, {}).has_value())) {
+        if (BOOST_TEST(!huge.empty()) && BOOST_TEST(made->begin_seal(nonce, {}).has_value())) {
             BOOST_TEST(made->update(huge).error() == crypto::error::message_too_long);
             BOOST_TEST(made->result().error() == crypto::error::invalid_state);
         }
@@ -186,12 +187,12 @@ void check_incremental_failures(webcpp::test::gcm_cases cases) {
 
     // A refused begin_seal during a message abandons it through the engine as well.
     auto const abandons = mock_control.abandons;
-    BOOST_TEST(made->begin_seal(iv, {}).has_value());
-    BOOST_TEST(made->begin_seal(iv, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST(made->begin_seal(nonce, {}).has_value());
+    BOOST_TEST(made->begin_seal(nonce, {}).error() == crypto::error::invalid_state);
     BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
 
     data.fill(0);
-    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    BOOST_TEST(made->begin_seal(nonce, {}).has_value());
     BOOST_TEST(made->update(data).has_value());
     auto const tag = made->result();
     BOOST_TEST_EQ(webcpp::test::to_hex(data), cases[13].ciphertext);
@@ -203,7 +204,7 @@ void check_incremental_failures(webcpp::test::gcm_cases cases) {
 // an object in a message.
 void check_move_abandons(webcpp::test::gcm_cases cases) {
     std::array<std::uint8_t, 32> const key{};
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     auto made = aead::from_key(key);
     auto other = aead::from_key(key);
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(other.has_value())) {
@@ -213,14 +214,14 @@ void check_move_abandons(webcpp::test::gcm_cases cases) {
     auto const carried = mock_control.carried;
 
     auto abandons = mock_control.abandons;
-    BOOST_TEST(made->begin_seal(iv, {}).has_value());
+    BOOST_TEST(made->begin_seal(nonce, {}).has_value());
     BOOST_TEST(made->update(std::span(data).first(5)).has_value());
     aead moved = std::move(*made);
     BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
     BOOST_TEST_EQ(mock_control.carried, carried);
 
     abandons = mock_control.abandons;
-    BOOST_TEST(other->begin_seal(iv, {}).has_value());
+    BOOST_TEST(other->begin_seal(nonce, {}).has_value());
     BOOST_TEST(other->update(std::span(data).first(7)).has_value());
     moved = std::move(*other);
     BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
@@ -228,7 +229,7 @@ void check_move_abandons(webcpp::test::gcm_cases cases) {
 
     // The destination's next message is whole: case 14's answer.
     data.fill(0);
-    BOOST_TEST(moved.begin_seal(iv, {}).has_value());
+    BOOST_TEST(moved.begin_seal(nonce, {}).has_value());
     BOOST_TEST(moved.update(data).has_value());
     auto const tag = moved.result();
     BOOST_TEST_EQ(webcpp::test::to_hex(data), cases[13].ciphertext);
@@ -238,21 +239,21 @@ void check_move_abandons(webcpp::test::gcm_cases cases) {
 // An engine error before the first pass ends ends the message, abandoned through the engine:
 // in begin_open; in authenticate, the caller's piece unchanged; in verify, the check's error or
 // the second start's returned, and decrypt refused with its piece unchanged.
-void check_first_pass_failures(aead& made, std::span<std::uint8_t const> iv,
+void check_first_pass_failures(aead& made, std::span<std::uint8_t const> nonce,
                                std::vector<std::uint8_t> const& ciphertext,
                                std::vector<std::uint8_t> const& tag) {
     boost::system::error_code const failed = crypto::error::backend_failure;
 
     auto abandons = mock_control.abandons;
     mock_control.start = failed;
-    BOOST_TEST(made.begin_open(iv, {}).error() == failed);
+    BOOST_TEST(made.begin_open(nonce, {}).error() == failed);
     webcpp::test::mock_clear();
     BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
     BOOST_TEST(made.authenticate(ciphertext).error() == crypto::error::invalid_state);
 
     abandons = mock_control.abandons;
     auto piece = ciphertext;
-    BOOST_TEST(made.begin_open(iv, {}).has_value());
+    BOOST_TEST(made.begin_open(nonce, {}).has_value());
     mock_control.run = failed;
     BOOST_TEST(made.authenticate(piece).error() == failed);
     webcpp::test::mock_clear();
@@ -262,7 +263,7 @@ void check_first_pass_failures(aead& made, std::span<std::uint8_t const> iv,
 
     for (auto* knob : {&mock_control.check, &mock_control.start}) {
         abandons = mock_control.abandons;
-        BOOST_TEST(made.begin_open(iv, {}).has_value());
+        BOOST_TEST(made.begin_open(nonce, {}).has_value());
         BOOST_TEST(made.authenticate(ciphertext).has_value());
         *knob = failed;
         BOOST_TEST(made.verify(tag).error() == failed);
@@ -280,7 +281,7 @@ void check_first_pass_failures(aead& made, std::span<std::uint8_t const> iv,
 // verify, the check's error or the second start's is returned. The object opens afresh.
 void check_open_failures(webcpp::test::gcm_cases cases) {
     std::array<std::uint8_t, 32> const key{};
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     auto made = aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
@@ -289,11 +290,11 @@ void check_open_failures(webcpp::test::gcm_cases cases) {
     auto const ciphertext = webcpp::test::from_hex(one_block.ciphertext);
     auto const tag = webcpp::test::from_hex(one_block.tag);
     boost::system::error_code const failed = crypto::error::backend_failure;
-    check_first_pass_failures(*made, iv, ciphertext, tag);
+    check_first_pass_failures(*made, nonce, ciphertext, tag);
 
     auto const abandons = mock_control.abandons;
     auto piece = ciphertext;
-    BOOST_TEST(made->begin_open(iv, {}).has_value());
+    BOOST_TEST(made->begin_open(nonce, {}).has_value());
     BOOST_TEST(made->authenticate(ciphertext).has_value());
     BOOST_TEST(made->verify(tag).has_value());
     mock_control.run = failed;
@@ -305,7 +306,7 @@ void check_open_failures(webcpp::test::gcm_cases cases) {
     BOOST_TEST(made->end_open().error() == crypto::error::invalid_state);
 
     piece = ciphertext;
-    BOOST_TEST(made->begin_open(iv, {}).has_value());
+    BOOST_TEST(made->begin_open(nonce, {}).has_value());
     BOOST_TEST(made->authenticate(piece).has_value());
     BOOST_TEST(made->verify(tag).has_value());
     BOOST_TEST(made->decrypt(piece).has_value());
@@ -316,7 +317,7 @@ void check_open_failures(webcpp::test::gcm_cases cases) {
 // A move during the open abandons it through the engine before it moves the state.
 void check_open_move_abandons(webcpp::test::gcm_cases cases) {
     std::array<std::uint8_t, 32> const key{};
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     auto made = aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
@@ -325,14 +326,14 @@ void check_open_move_abandons(webcpp::test::gcm_cases cases) {
     auto const tag = webcpp::test::from_hex(cases[13].tag);
     auto const carried = mock_control.carried;
     auto const abandons = mock_control.abandons;
-    BOOST_TEST(made->begin_open(iv, {}).has_value());
+    BOOST_TEST(made->begin_open(nonce, {}).has_value());
     BOOST_TEST(made->authenticate(std::span(ciphertext).first(5)).has_value());
     aead moved = std::move(*made);
     BOOST_TEST_EQ(mock_control.abandons, abandons + 1);
     BOOST_TEST_EQ(mock_control.carried, carried);
     BOOST_TEST(moved.verify(tag).error() == crypto::error::invalid_state);
     auto data = ciphertext;
-    BOOST_TEST(moved.begin_open(iv, {}).has_value());
+    BOOST_TEST(moved.begin_open(nonce, {}).has_value());
     BOOST_TEST(moved.authenticate(data).has_value());
     BOOST_TEST(moved.verify(tag).has_value());
     BOOST_TEST(moved.decrypt(data).has_value());

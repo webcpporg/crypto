@@ -26,7 +26,7 @@
 |the same
 |to seal, the recipient's 32-byte public key; to open, the recipient's key pair
 
-|Nonce (IV)
+|Nonce
 |24 bytes, safe to draw at random (link:https://cr.yp.to/snuffle/xsalsa-20081128.pdf[D. J. Bernstein, Extending the Salsa20 nonce, 2008])
 |24 bytes, safe to draw at random
 |none: derived from the two public keys

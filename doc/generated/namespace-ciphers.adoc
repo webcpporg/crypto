@@ -24,12 +24,12 @@
 |16, 24 or 32 bytes
 |16, 24 or 32 bytes
 
-|Nonce (IV)
+|Nonce
 |1 to 128 bytes; 12 recommended
 |none
 
 |Nonce misuse
-|not resistant: a repeated IV under one key reveals the plaintexts' XOR and lets tags be forged (link:https://csrc.nist.gov/csrc/media/projects/block-cipher-techniques/documents/bcm/comments/800-38-series-drafts/gcm/joux_comments.pdf[A. Joux, Authentication Failures in NIST version of GCM, 2006], link:https://eprint.iacr.org/2016/475[H. Boeck et al., Nonce-Disrespecting Adversaries, 2016])
+|not resistant: a repeated nonce under one key reveals the plaintexts' XOR and lets tags be forged (link:https://csrc.nist.gov/csrc/media/projects/block-cipher-techniques/documents/bcm/comments/800-38-series-drafts/gcm/joux_comments.pdf[A. Joux, Authentication Failures in NIST version of GCM, 2006], link:https://eprint.iacr.org/2016/475[H. Boeck et al., Nonce-Disrespecting Adversaries, 2016])
 |none: a block cipher takes no nonce, and equal blocks give equal ciphertext
 
 |Speed, with and without hardware support
@@ -57,7 +57,7 @@
 |no raw block cipher (link:https://www.w3.org/TR/WebCryptoAPI/[W3C Web Cryptography API])
 
 |Choose it when
-|a protocol, a browser's WebCrypto or a standard names AES-GCM, or the CPU has AES instructions; at most 2^32 messages per key with random IVs, otherwise a counter
+|a protocol, a browser's WebCrypto or a standard names AES-GCM, or the CPU has AES instructions; at most 2^32 messages per key with random nonces, otherwise a counter
 |you need one keyed permutation of a 16-byte block, such as an opaque identifier; for data, use an AEAD
 |===
 
@@ -81,7 +81,7 @@
 |32 bytes
 |32 bytes
 
-|Nonce (IV)
+|Nonce
 |12 bytes
 |8 bytes, too short to draw at random: a counter
 |24 bytes, safe to draw at random for every message
@@ -137,14 +137,14 @@
 |`secretbox_xchacha20poly1305`
 
 |AEAD
-|yes, without additional data
-|yes, without additional data
+|yes, without associated data
+|yes, without associated data
 
 |Key
 |32 bytes
 |32 bytes
 
-|Nonce (IV)
+|Nonce
 |24 bytes, safe to draw at random
 |24 bytes, safe to draw at random
 
@@ -177,6 +177,6 @@
 |no (link:https://www.w3.org/TR/WebCryptoAPI/[W3C Web Cryptography API])
 
 |Choose it when
-|the data must be read by a program on NaCl's or libsodium's `crypto_secretbox`; otherwise XChaCha20-Poly1305, which also authenticates additional data
+|the data must be read by a program on NaCl's or libsodium's `crypto_secretbox`; otherwise XChaCha20-Poly1305, which also authenticates associated data
 |the peer writes libsodium's `crypto_secretbox_xchacha20poly1305`; otherwise `xchacha20_poly1305`
 |===

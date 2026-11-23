@@ -32,7 +32,7 @@ order), `from_secret` says so and the wallet draws again. At rest, the secret is
 with AES-GCM under a key the device keeps elsewhere (a platform keystore, or a
 key derived from the user's passphrase by a password hash, a hashing
 library's job rather than crypto's), with the wallet's format version as
-additional data.
+associated data.
 
 [source,cpp]
 ----

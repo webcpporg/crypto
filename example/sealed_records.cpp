@@ -6,9 +6,9 @@
 
 // Seals data in pieces two ways: one message in chunks with the incremental seal, and a stream
 // as separate records, each bound to its position and to whether it is the last. The number in
-// the additional data stops records from being reordered or replayed at another position, and
+// the associated data stops records from being reordered or replayed at another position, and
 // the last-record flag stops a stream from being cut short without being noticed. Each stream has
-// a key of its own, drawn when the stream starts: the counter IVs 0, 1, 2 of one stream are safe
+// a key of its own, drawn when the stream starts: the counter nonces 0, 1, 2 of one stream are safe
 // only because no other stream seals under its key.
 // tag::program[]
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
@@ -47,7 +47,7 @@ struct record {
     std::array<std::uint8_t, 16> tag{};
 };
 
-// The record number, big-endian: the IV's last 8 bytes, and the additional data's first 8.
+// The record number, big-endian: the nonce's last 8 bytes, and the associated data's first 8.
 std::array<std::uint8_t, 8> number_bytes(std::uint64_t number) {
     std::array<std::uint8_t, 8> out{};
     for (std::size_t i = 0; i < out.size(); ++i) {
@@ -56,15 +56,15 @@ std::array<std::uint8_t, 8> number_bytes(std::uint64_t number) {
     return out;
 }
 
-// A counter IV is safe because no number is ever used twice under one key.
+// A counter nonce is safe because no number is ever used twice under one key.
 std::array<std::uint8_t, 12> counter_iv(std::uint64_t number) {
-    std::array<std::uint8_t, 12> iv{};
+    std::array<std::uint8_t, 12> nonce{};
     auto const bytes = number_bytes(number);
-    std::ranges::copy(bytes, iv.begin() + 4);
-    return iv;
+    std::ranges::copy(bytes, nonce.begin() + 4);
+    return nonce;
 }
 
-// The additional data of a record: its number, then 1 for the last record of the stream and 0
+// The associated data of a record: its number, then 1 for the last record of the stream and 0
 // for every other, so that a stream cut after any record fails to open.
 std::array<std::uint8_t, 9> record_data(std::uint64_t number, bool last) {
     std::array<std::uint8_t, 9> out{};
@@ -92,8 +92,8 @@ boost::system::result<std::string> open_stream(aead_type& aead, std::span<record
 
 bool incremental() {
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, 12> iv{};
-    if (!crypto::random_device().fill(key) || !crypto::random_device().fill(iv)) {
+    std::array<std::uint8_t, 12> nonce{};
+    if (!crypto::random_device().fill(key) || !crypto::random_device().fill(nonce)) {
         return false;
     }
     auto aead = aead_type::from_key(key);
@@ -109,7 +109,7 @@ bool incremental() {
 
     // tag::incremental[]
     // The header is authenticated up front, then the buffer is encrypted chunk by chunk in place.
-    if (!aead->begin_seal(iv, header)) {
+    if (!aead->begin_seal(nonce, header)) {
         return false;
     }
     std::span<std::uint8_t> const whole(buffer);
@@ -125,7 +125,7 @@ bool incremental() {
     }
     // The receiver has no need of the chunks: one open does the whole buffer.
     std::span<std::uint8_t const> const tag_bytes(tag->data(), tag->size());
-    if (!aead->open(iv, header, buffer, tag_bytes) || buffer != original) {
+    if (!aead->open(nonce, header, buffer, tag_bytes) || buffer != original) {
         return false;
     }
     std::printf("incremental seal opened whole: 3 chunks\n");
@@ -137,7 +137,7 @@ bool records() {
 
     // tag::records[]
     // The stream's own key, drawn for it alone: every stream numbers its records from 0, so two
-    // streams under one key would seal record 0 twice with one IV. The receiver gets this key
+    // streams under one key would seal record 0 twice with one nonce. The receiver gets this key
     // from the protocol, for example sealed under a long-lived key or agreed with ECDH.
     std::array<std::uint8_t, 32> key{};
     if (!crypto::random_device().fill(key)) {

@@ -13,7 +13,7 @@ Encryption alone does not: with counter mode alone, flipping a bit of a
 ciphertext flips the same bit of the plaintext, and the receiver cannot tell; a
 forged "amount" field in an encrypted cookie goes through. *AES-GCM*
 (Galois/Counter Mode) encrypts with AES in counter mode and computes a 16-byte
-*tag* over the ciphertext and over *additional data* that travels in clear
+*tag* over the ciphertext and over *associated data* that travels in clear
 (link:https://en.wikipedia.org/wiki/Galois/Counter_Mode[Wikipedia];
 link:https://csrc.nist.gov/pubs/sp/800/38/d/final[NIST SP 800-38D]). Opening
 recomputes the tag and returns the plaintext only if it matches; on a mismatch
@@ -29,11 +29,11 @@ AES: BearSSL or OpenSSL. `aes128_gcm` and `aes256_gcm`, in
 OpenSSL natively and BearSSL on WebAssembly. It is
 made with `from_key(key_bytes)`, and works in place:
 
-* `seal(iv_bytes, additional_data_bytes, data_bytes)` encrypts `data_bytes`
+* `seal(nonce_bytes, associated_data_bytes, data_bytes)` encrypts `data_bytes`
 in place and returns its 16-byte tag, a `boost::hash2::digest<16>`;
-* `open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)` checks the
+* `open(nonce_bytes, associated_data_bytes, data_bytes, tag_bytes)` checks the
 tag and decrypts `data_bytes` in place;
-* `begin_seal(iv_bytes, additional_data_bytes)`, `update(data_bytes)` and
+* `begin_seal(nonce_bytes, associated_data_bytes)`, `update(data_bytes)` and
 `result()` seal a message in pieces;
 * `begin_open`, `authenticate`, `verify`, `decrypt` and `end_open` open a
 message in pieces, in two passes (<<crypto-gcm-incremental-open>>).
@@ -56,22 +56,22 @@ asynchronous form needs `<webcpp/crypto/async.hpp>` and
 `crypto::async_from_key<aes256_gcm>(executor, key_bytes, token)`
 
 | Seal
-| `aead.seal(iv, additional_data, data)` +
-`crypto::seal(aead, iv, additional_data, data)`
-| `aead.async_seal(executor, iv, additional_data, data, token)` +
-`crypto::async_seal(executor, aead, iv, additional_data, data, token)`
+| `aead.seal(nonce, associated_data, data)` +
+`crypto::seal(aead, nonce, associated_data, data)`
+| `aead.async_seal(executor, nonce, associated_data, data, token)` +
+`crypto::async_seal(executor, aead, nonce, associated_data, data, token)`
 
 | Open
-| `aead.open(iv, additional_data, data, tag)` +
-`crypto::open(aead, iv, additional_data, data, tag)`
-| `aead.async_open(executor, iv, additional_data, data, tag, token)` +
-`crypto::async_open(executor, aead, iv, additional_data, data, tag, token)`
+| `aead.open(nonce, associated_data, data, tag)` +
+`crypto::open(aead, nonce, associated_data, data, tag)`
+| `aead.async_open(executor, nonce, associated_data, data, tag, token)` +
+`crypto::async_open(executor, aead, nonce, associated_data, data, tag, token)`
 |===
 
 include::generated/backends-gcm.adoc[]
 
 *Example.* A program stores users' API tokens in a database. Each token is
-sealed under a storage key with the user's id as additional data, so that the
+sealed under a storage key with the user's id as associated data, so that the
 row opens only for that user: a row copied onto another user's record does not
 open.
 
@@ -111,18 +111,18 @@ include::{examples}/aes256_gcm_bearssl.expected[]
 
 Each rule is how crypto behaves, and what it asks of the program.
 
-* *Never reuse an IV under one key.* Two messages under one key and one IV
+* *Never reuse a nonce under one key.* Two messages under one key and one nonce
 reveal the XOR of their plaintexts, and let an attacker recover the
 authentication key and forge tags for every later message
 (link:https://csrc.nist.gov/csrc/media/projects/block-cipher-techniques/documents/bcm/comments/800-38-series-drafts/gcm/joux_comments.pdf[Joux, 2006];
 link:https://eprint.iacr.org/2016/475[Boeck et al., 2016];
 link:https://cwe.mitre.org/data/definitions/323.html[CWE-323]). AES-GCM does
 not resist this misuse: the program must prevent it.
-* *The usage limit.* With random IVs, or IVs other than 12 bytes, at most 2^32^
-messages are sealed under one key (NIST SP 800-38D, section 8.3). A counter IV
+* *The usage limit.* With random nonces, or nonces other than 12 bytes, at most 2^32^
+messages are sealed under one key (NIST SP 800-38D, section 8.3). A counter nonce
 (message 0, 1, 2 ...) is safe until the counter repeats, which it must never
 do, a restart included. Rotate the key before either limit.
-* *IVs of 1 to 128 bytes; 12 recommended.* An IV of another size than 12
+* *Nonces of 1 to 128 bytes; 12 recommended.* A nonce of another size than 12
 bytes is hashed into the first counter block, as every backend does; the cap
 of 128 bytes is OpenSSL's, applied on every backend so that a call succeeds or
 fails the same way everywhere.
@@ -177,7 +177,7 @@ pass; `decrypt` or `end_open` before `verify` matched |`invalid_state`
 |an empty IV, or one longer than `max_iv_size`, 128 bytes |`invalid_iv_size`
 |`open` or `verify`: a tag of another size than 16 |`invalid_tag_size`
 |a message longer than `max_message_size`, 2^36^ - 32 bytes, in one call or
-summed over `update` or `authenticate`, or additional data longer than 2^61^ -
+summed over `update` or `authenticate`, or associated data longer than 2^61^ -
 1 bytes (NIST SP 800-38D, section 5.2.1.1) |`message_too_long`
 |`decrypt`: more bytes than `authenticate` read; `end_open`: fewer
 |`invalid_input_size`
@@ -204,7 +204,7 @@ machine. A server on ARM keeps the default and links `/webcpp/crypto//openssl`
 ==== Encrypting what does not fit in memory
 
 A 2 GB video before an upload, or a log as it is written, cannot be held whole.
-`begin_seal` takes the IV and the additional data, `update` encrypts each piece
+`begin_seal` takes the nonce and the associated data, `update` encrypts each piece
 in place as it arrives, and `result` returns the tag at the end. The object
 refuses another message while one is in progress, and any error abandons the
 message: its pieces have no tag and are not to be sent.
@@ -217,8 +217,8 @@ include::{examples}/sealed_records.cpp[tag=incremental,indent=0]
 What is sealed in pieces is opened whole, or, when the receiver can read the
 ciphertext twice, in two passes (<<crypto-gcm-incremental-open>>). To open a
 stream piece by piece as it arrives, split it into *records*, each sealed alone
-with its own IV, and with two things
-in its additional data: its number, so that a record cannot be reordered or
+with its own nonce, and with two things
+in its associated data: its number, so that a record cannot be reordered or
 replayed at another position, and a flag that is 1 for the last record and 0
 for every other, so that a stream cut after any record does not open: the
 receiver opens the last record it got as the last, and a record that was not
@@ -226,15 +226,15 @@ sealed as the last fails. The STREAM construction binds the same two
 (link:https://eprint.iacr.org/2015/189[Hoang, Reyhanitabar, Rogaway and Vizár,
 2015]).
 
-The record's number is its IV, so *each stream has a key of its own*. Every
+The record's number is its nonce, so *each stream has a key of its own*. Every
 stream numbers its records from 0: two files sealed under one key would both
-seal record 0 with the same IV, which reveals the XOR of the two records and
+seal record 0 with the same nonce, which reveals the XOR of the two records and
 lets an attacker forge tags under that key (<<crypto-gcm-rules>>), and a
 record of one file could be spliced into the other at the same position. The
 example draws a fresh random key per stream. A program that keeps one
 long-lived storage key derives the stream's key from it, for example with HKDF
 of the storage key and a random salt of 32 bytes stored in the file's header
-(link:https://www.rfc-editor.org/rfc/rfc5869[RFC 5869]); or it makes the IV's
+(link:https://www.rfc-editor.org/rfc/rfc5869[RFC 5869]); or it makes the nonce's
 first 8 bytes a random identifier drawn for the stream and its last 4 the
 record number, and counts every record against the key's usage limit of 2^32^
 messages, since the identifiers are random.
@@ -258,7 +258,7 @@ Never send the pieces of an abandoned message.
 
 A message sealed whole, too large to hold in memory, is opened in two passes
 when its ciphertext lies where the program can read it twice: a file on the
-program's own disk. `begin_open` takes the IV and the additional data;
+program's own disk. `begin_open` takes the nonce and the associated data;
 `authenticate` reads each piece of the ciphertext and writes none of it;
 `verify` checks the tag. Only once the tag matched does `decrypt` turn the same
 pieces into plaintext, in place, and `end_open` ends the message. No byte of
@@ -282,7 +282,7 @@ backends compute GCM's hash only while they decrypt. An open in two passes
 costs about two one-shot opens.
 
 *The second pass reads the bytes the first read.* GCM's keystream is the key's
-and the IV's alone: a byte changed between the passes is decrypted without ever
+and the nonce's alone: a byte changed between the passes is decrypted without ever
 being authenticated, and whoever changes it chooses the change in the
 plaintext, bit for bit. Only the program can keep the bytes the same: it reads
 a file that no other process writes during the open, never a file another

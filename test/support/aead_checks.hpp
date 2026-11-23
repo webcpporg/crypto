@@ -51,9 +51,9 @@ struct aead_case {
     /** The key. */
     std::string_view key;
     /** The IV (the nonce). */
-    std::string_view iv;
+    std::string_view nonce;
     /** The additional data. */
-    std::string_view additional_data;
+    std::string_view associated_data;
     /** The plaintext. */
     std::string_view plaintext;
     /** The ciphertext. */
@@ -75,8 +75,8 @@ inline constexpr std::string_view sunscreen =
 inline constexpr std::array<aead_case, 3> chacha20_poly1305_cases{
     aead_case{
         .key = "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
-        .iv = "070000004041424344454647",
-        .additional_data = "50515253c0c1c2c3c4c5c6c7",
+        .nonce = "070000004041424344454647",
+        .associated_data = "50515253c0c1c2c3c4c5c6c7",
         .plaintext = sunscreen,
         .ciphertext =
             "d31a8d34648e60db7b86afbc53ef7ec2a4aded51296e08fea9e2b5a736ee62d63dbea45e8ca9671282fa"
@@ -86,8 +86,8 @@ inline constexpr std::array<aead_case, 3> chacha20_poly1305_cases{
     },
     aead_case{
         .key = "1c9240a5eb55d38af333888604f6b5f0473917c1402b80099dca5cbc207075c0",
-        .iv = "000000000102030405060708",
-        .additional_data = "f33388860000000000004e91",
+        .nonce = "000000000102030405060708",
+        .associated_data = "f33388860000000000004e91",
         .plaintext =
             "496e7465726e65742d4472616674732061726520647261667420646f63756d656e74732076616c696420"
             "666f722061206d6178696d756d206f6620736978206d6f6e74687320616e64206d617920626520757064"
@@ -108,8 +108,8 @@ inline constexpr std::array<aead_case, 3> chacha20_poly1305_cases{
     },
     aead_case{
         .key = "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
-        .iv = "070000004041424344454647",
-        .additional_data = "",
+        .nonce = "070000004041424344454647",
+        .associated_data = "",
         .plaintext = sunscreen,
         .ciphertext =
             "d31a8d34648e60db7b86afbc53ef7ec2a4aded51296e08fea9e2b5a736ee62d63dbea45e8ca9671282fa"
@@ -126,16 +126,16 @@ inline constexpr std::array<aead_case, 3> chacha20_poly1305_cases{
 inline constexpr std::array<aead_case, 2> chacha20_poly1305_original_cases{
     aead_case{
         .key = "4290bcb154173531f314af57f3be3b5006da371ece272afa1b5dbdd1100a1007",
-        .iv = "cd7cf67be39c794a",
-        .additional_data = "87e229d4500845a079c0",
+        .nonce = "cd7cf67be39c794a",
+        .associated_data = "87e229d4500845a079c0",
         .plaintext = "86d09974840bded2a5ca",
         .ciphertext = "e3e446f7ede9a19b62a4",
         .tag = "677dabf4e3d24b876bb284753896e1d6",
     },
     aead_case{
         .key = "4290bcb154173531f314af57f3be3b5006da371ece272afa1b5dbdd1100a1007",
-        .iv = "cd7cf67be39c794a",
-        .additional_data = "",
+        .nonce = "cd7cf67be39c794a",
+        .associated_data = "",
         .plaintext = "86d09974840bded2a5ca",
         .ciphertext = "e3e446f7ede9a19b62a4",
         .tag = "69e7789bcd954e658ed38423e23161dc",
@@ -149,8 +149,8 @@ inline constexpr std::array<aead_case, 2> chacha20_poly1305_original_cases{
 inline constexpr std::array<aead_case, 3> xchacha20_poly1305_cases{
     aead_case{
         .key = "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
-        .iv = "404142434445464748494a4b4c4d4e4f5051525354555657",
-        .additional_data = "50515253c0c1c2c3c4c5c6c7",
+        .nonce = "404142434445464748494a4b4c4d4e4f5051525354555657",
+        .associated_data = "50515253c0c1c2c3c4c5c6c7",
         .plaintext = sunscreen,
         .ciphertext =
             "bd6d179d3e83d43b9576579493c0e939572a1700252bfaccbed2902c21396cbb731c7f1b0b4aa6440bf3"
@@ -160,8 +160,8 @@ inline constexpr std::array<aead_case, 3> xchacha20_poly1305_cases{
     },
     aead_case{
         .key = "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
-        .iv = "07000000404142434445464748494a4b4c4d4e4f50515253",
-        .additional_data = "50515253c0c1c2c3c4c5c6c7",
+        .nonce = "07000000404142434445464748494a4b4c4d4e4f50515253",
+        .associated_data = "50515253c0c1c2c3c4c5c6c7",
         .plaintext = sunscreen,
         .ciphertext =
             "f8ebea4875044066fc162a0604e171feecfb3d20425248563bcfd5a155dcc47bbda70b86e5ab9b55002b"
@@ -171,8 +171,8 @@ inline constexpr std::array<aead_case, 3> xchacha20_poly1305_cases{
     },
     aead_case{
         .key = "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
-        .iv = "07000000404142434445464748494a4b4c4d4e4f50515253",
-        .additional_data = "",
+        .nonce = "07000000404142434445464748494a4b4c4d4e4f50515253",
+        .associated_data = "",
         .plaintext = sunscreen,
         .ciphertext =
             "f8ebea4875044066fc162a0604e171feecfb3d20425248563bcfd5a155dcc47bbda70b86e5ab9b55002b"
@@ -185,8 +185,8 @@ inline constexpr std::array<aead_case, 3> xchacha20_poly1305_cases{
 /**
  * How the checks reach a `ciphers::aead`: made from `key_size` bytes, its calls its own. The
  * checks take such an adapter, so that an object of another shape runs those that apply to it:
- * `Calls` gives the object's type `object`, its sizes, `from_key(key)`, `seal(object&, iv,
- * additional_data, data)` and `open(object&, iv, additional_data, data, tag)`, and says whether
+ * `Calls` gives the object's type `object`, its sizes, `from_key(key)`, `seal(object&, nonce,
+ * associated_data, data)` and `open(object&, nonce, associated_data, data, tag)`, and says whether
  * the object takes additional data (`has_additional_data`), whether it is made of one key of
  * `key_size` bytes (`one_key`, whose sizes the guards check) and whether its calls take
  * additional data at all (`takes_additional_data`, false for one whose calls have none).
@@ -214,16 +214,16 @@ struct aead_calls {
     static auto from_key(std::span<std::uint8_t const> key) { return Aead::from_key(key); }
 
     /** `seal`. */
-    static auto seal(Aead& made, std::span<std::uint8_t const> iv,
-                     std::span<std::uint8_t const> additional_data, std::span<std::uint8_t> data) {
-        return made.seal(iv, additional_data, data);
+    static auto seal(Aead& made, std::span<std::uint8_t const> nonce,
+                     std::span<std::uint8_t const> associated_data, std::span<std::uint8_t> data) {
+        return made.seal(nonce, associated_data, data);
     }
 
     /** `open`. */
-    static auto open(Aead& made, std::span<std::uint8_t const> iv,
-                     std::span<std::uint8_t const> additional_data, std::span<std::uint8_t> data,
+    static auto open(Aead& made, std::span<std::uint8_t const> nonce,
+                     std::span<std::uint8_t const> associated_data, std::span<std::uint8_t> data,
                      std::span<std::uint8_t const> tag) {
-        return made.open(iv, additional_data, data, tag);
+        return made.open(nonce, associated_data, data, tag);
     }
 };
 
@@ -245,17 +245,17 @@ void check_aead_cases(std::span<aead_case const> cases) {
         if (!BOOST_TEST(made.has_value())) {
             continue;
         }
-        auto const iv = from_hex(c.iv);
-        auto const additional_data = from_hex(c.additional_data);
+        auto const nonce = from_hex(c.nonce);
+        auto const associated_data = from_hex(c.associated_data);
         auto const plaintext = from_hex(c.plaintext);
         auto const tag = from_hex(c.tag);
         auto data = plaintext;
-        auto const sealed = Calls::seal(*made, iv, additional_data, data);
+        auto const sealed = Calls::seal(*made, nonce, associated_data, data);
         BOOST_TEST(sealed.has_value());
         BOOST_TEST_EQ(to_hex(data), c.ciphertext);
         BOOST_TEST(sealed &&
                    crypto::constant_time_equal(*sealed, std::span<std::uint8_t const>(tag)));
-        BOOST_TEST(Calls::open(*made, iv, additional_data, data, tag).has_value());
+        BOOST_TEST(Calls::open(*made, nonce, associated_data, data, tag).has_value());
         BOOST_TEST_EQ(to_hex(data), c.plaintext);
     }
 }
@@ -272,7 +272,7 @@ void check_aead_key_sizes() {
 /** The IV's size, then the tag's: each refused, the IV's before the tag's. */
 template <class Calls>
 void check_aead_iv_and_tag_sizes(typename Calls::object& made, std::span<std::uint8_t> data) {
-    std::vector<std::uint8_t> const iv(Calls::iv_size, 9);
+    std::vector<std::uint8_t> const nonce(Calls::iv_size, 9);
     std::array<std::uint8_t, Calls::tag_size> const tag{};
     // Every IV size but the family's: none, one byte less and more, and the other families'.
     std::array<std::size_t, 6> const sizes{0, Calls::iv_size - 1, Calls::iv_size + 1, 8, 12, 24};
@@ -287,7 +287,7 @@ void check_aead_iv_and_tag_sizes(typename Calls::object& made, std::span<std::ui
     }
     for (std::size_t const size : {std::size_t{0}, Calls::tag_size - 1, Calls::tag_size + 1}) {
         std::vector<std::uint8_t> const wrong_tag(size);
-        BOOST_TEST(Calls::open(made, iv, {}, data, wrong_tag).error() ==
+        BOOST_TEST(Calls::open(made, nonce, {}, data, wrong_tag).error() ==
                    crypto::error::invalid_tag_size);
     }
     // The IV is checked before the tag: both wrong gives the IV's error.
@@ -301,16 +301,16 @@ void check_aead_iv_and_tag_sizes(typename Calls::object& made, std::span<std::ui
  */
 template <class Calls>
 void check_aead_no_additional_data(typename Calls::object& made, std::span<std::uint8_t> data) {
-    std::vector<std::uint8_t> const iv(Calls::iv_size, 9);
+    std::vector<std::uint8_t> const nonce(Calls::iv_size, 9);
     std::array<std::uint8_t, Calls::tag_size> const tag{};
-    std::array<std::uint8_t, 1> const additional_data{5};
-    BOOST_TEST(Calls::seal(made, iv, additional_data, data).error() ==
+    std::array<std::uint8_t, 1> const associated_data{5};
+    BOOST_TEST(Calls::seal(made, nonce, associated_data, data).error() ==
                crypto::error::invalid_input_size);
-    BOOST_TEST(Calls::open(made, iv, additional_data, data, tag).error() ==
+    BOOST_TEST(Calls::open(made, nonce, associated_data, data, tag).error() ==
                crypto::error::invalid_input_size);
-    BOOST_TEST(Calls::seal(made, {}, additional_data, data).error() ==
+    BOOST_TEST(Calls::seal(made, {}, associated_data, data).error() ==
                crypto::error::invalid_iv_size);
-    BOOST_TEST(Calls::open(made, iv, additional_data, data, std::span(tag).first(1)).error() ==
+    BOOST_TEST(Calls::open(made, nonce, associated_data, data, std::span(tag).first(1)).error() ==
                crypto::error::invalid_tag_size);
 }
 
@@ -344,10 +344,10 @@ void check_aead_guards() {
     BOOST_TEST(Calls::open(*made, {}, {}, data, {}).error() == crypto::error::invalid_state);
     if constexpr (Calls::takes_additional_data && !Calls::has_additional_data) {
         // And before the additional data a family that takes none refuses.
-        std::array<std::uint8_t, 1> const additional_data{5};
-        BOOST_TEST(Calls::seal(*made, {}, additional_data, data).error() ==
+        std::array<std::uint8_t, 1> const associated_data{5};
+        BOOST_TEST(Calls::seal(*made, {}, associated_data, data).error() ==
                    crypto::error::invalid_state);
-        BOOST_TEST(Calls::open(*made, {}, additional_data, data, {}).error() ==
+        BOOST_TEST(Calls::open(*made, {}, associated_data, data, {}).error() ==
                    crypto::error::invalid_state);
     }
     BOOST_TEST(data == untouched);
@@ -355,10 +355,10 @@ void check_aead_guards() {
 
 /** An open of a changed message fails with authentication_failed and zeroes the data. */
 template <class Calls>
-void expect_aead_tampered(typename Calls::object& made, std::span<std::uint8_t const> iv,
-                          std::span<std::uint8_t const> additional_data,
+void expect_aead_tampered(typename Calls::object& made, std::span<std::uint8_t const> nonce,
+                          std::span<std::uint8_t const> associated_data,
                           std::span<std::uint8_t> data, std::span<std::uint8_t const> tag) {
-    BOOST_TEST(Calls::open(made, iv, additional_data, data, tag).error() ==
+    BOOST_TEST(Calls::open(made, nonce, associated_data, data, tag).error() ==
                crypto::error::authentication_failed);
     BOOST_TEST(all_zero(data));
 }
@@ -371,19 +371,19 @@ void expect_aead_tampered(typename Calls::object& made, std::span<std::uint8_t c
 template <class Calls>
 void check_aead_tampering(aead_case const& c) {
     auto const key = from_hex(c.key);
-    auto const iv = from_hex(c.iv);
-    auto const additional_data = from_hex(c.additional_data);
+    auto const nonce = from_hex(c.nonce);
+    auto const associated_data = from_hex(c.associated_data);
     auto const ciphertext = from_hex(c.ciphertext);
     auto const tag = from_hex(c.tag);
     auto made = Calls::from_key(key);
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(!ciphertext.empty()) ||
-        !BOOST_TEST(additional_data.empty() != Calls::has_additional_data)) {
+        !BOOST_TEST(associated_data.empty() != Calls::has_additional_data)) {
         return;
     }
     for (std::size_t i = 0; i < ciphertext.size(); ++i) {
         auto data = ciphertext;
         data[i] ^= 1U;
-        expect_aead_tampered<Calls>(*made, iv, additional_data, data, tag);
+        expect_aead_tampered<Calls>(*made, nonce, associated_data, data, tag);
     }
     // The tag, the additional data and the IV are each copied once, and each byte of the copy
     // is changed, then changed back.
@@ -392,52 +392,52 @@ void check_aead_tampering(aead_case const& c) {
         for (std::size_t i = 0; i < bad.size(); ++i) {
             auto data = ciphertext;
             bad[i] ^= 0x80U;
-            expect_aead_tampered<Calls>(*made, iv, additional_data, data, bad);
+            expect_aead_tampered<Calls>(*made, nonce, associated_data, data, bad);
             bad[i] ^= 0x80U;
         }
     }
     {
-        auto bad = additional_data;
+        auto bad = associated_data;
         for (std::size_t i = 0; i < bad.size(); ++i) {
             auto data = ciphertext;
             bad[i] ^= 2U;
-            expect_aead_tampered<Calls>(*made, iv, bad, data, tag);
+            expect_aead_tampered<Calls>(*made, nonce, bad, data, tag);
             bad[i] ^= 2U;
         }
     }
     {
-        auto bad = iv;
+        auto bad = nonce;
         for (std::size_t i = 0; i < bad.size(); ++i) {
             auto data = ciphertext;
             bad[i] ^= 4U;
-            expect_aead_tampered<Calls>(*made, bad, additional_data, data, tag);
+            expect_aead_tampered<Calls>(*made, bad, associated_data, data, tag);
             bad[i] ^= 4U;
         }
     }
     {
         auto data = ciphertext;
-        expect_aead_tampered<Calls>(*made, iv, additional_data,
+        expect_aead_tampered<Calls>(*made, nonce, associated_data,
                                     std::span(data).first(data.size() - 1), tag);
     }
     if constexpr (Calls::has_additional_data) {
         // Without its additional data, the message does not open either.
         auto data = ciphertext;
-        expect_aead_tampered<Calls>(*made, iv, {}, data, tag);
+        expect_aead_tampered<Calls>(*made, nonce, {}, data, tag);
     }
     auto data = ciphertext;
-    BOOST_TEST(Calls::open(*made, iv, additional_data, data, tag).has_value());
+    BOOST_TEST(Calls::open(*made, nonce, associated_data, data, tag).has_value());
     BOOST_TEST_EQ(to_hex(data), c.plaintext);
 }
 
 /** Every call of an empty AEAD is refused with invalid_state, and leaves the data untouched. */
 template <class Calls>
-void expect_aead_refused(typename Calls::object& empty, std::span<std::uint8_t const> iv,
+void expect_aead_refused(typename Calls::object& empty, std::span<std::uint8_t const> nonce,
                          std::span<std::uint8_t> data, std::span<std::uint8_t const> tag,
                          std::span<std::uint8_t const> untouched) {
-    BOOST_TEST(Calls::seal(empty, iv, {}, data).error() == crypto::error::invalid_state);
-    BOOST_TEST(Calls::open(empty, iv, {}, data, tag).error() == crypto::error::invalid_state);
-    BOOST_TEST(Calls::seal(empty, iv, {}, {}).error() == crypto::error::invalid_state);
-    BOOST_TEST(Calls::open(empty, iv, {}, {}, tag).error() == crypto::error::invalid_state);
+    BOOST_TEST(Calls::seal(empty, nonce, {}, data).error() == crypto::error::invalid_state);
+    BOOST_TEST(Calls::open(empty, nonce, {}, data, tag).error() == crypto::error::invalid_state);
+    BOOST_TEST(Calls::seal(empty, nonce, {}, {}).error() == crypto::error::invalid_state);
+    BOOST_TEST(Calls::open(empty, nonce, {}, {}, tag).error() == crypto::error::invalid_state);
     BOOST_TEST(std::ranges::equal(data, untouched));
 }
 
@@ -449,8 +449,8 @@ void expect_aead_refused(typename Calls::object& empty, std::span<std::uint8_t c
 template <class Calls>
 void check_aead_moves(aead_case const& c) {
     using object = Calls::object;
-    auto const iv = from_hex(c.iv);
-    auto const additional_data = from_hex(c.additional_data);
+    auto const nonce = from_hex(c.nonce);
+    auto const associated_data = from_hex(c.associated_data);
     auto const plaintext = from_hex(c.plaintext);
     auto made = Calls::from_key(from_hex(c.key));
     if (!BOOST_TEST(made.has_value())) {
@@ -459,7 +459,7 @@ void check_aead_moves(aead_case const& c) {
     // Seals the case's plaintext with an AEAD, which gives the case's ciphertext and tag.
     auto const seals_the_case = [&](object& aead) {
         auto data = plaintext;
-        auto const sealed = Calls::seal(aead, iv, additional_data, data);
+        auto const sealed = Calls::seal(aead, nonce, associated_data, data);
         return sealed && to_hex(data) == c.ciphertext && to_hex(*sealed) == c.tag;
     };
     object moved = std::move(*made);
@@ -468,7 +468,7 @@ void check_aead_moves(aead_case const& c) {
     data.fill(0x6c);  // a guard's refusal leaves this pattern, not only zeroes, untouched
     auto const untouched = data;
     auto const all_refused = [&](object& empty) {
-        expect_aead_refused<Calls>(empty, iv, data, tag, untouched);
+        expect_aead_refused<Calls>(empty, nonce, data, tag, untouched);
     };
     all_refused(*made);
     BOOST_TEST(seals_the_case(moved));
@@ -509,49 +509,51 @@ void check_aead_moves(aead_case const& c) {
  * alone seals and opens (the additional data alone where the family has it).
  */
 template <class Calls>
-void check_aead_empty(typename Calls::object& made, std::span<std::uint8_t const> iv) {
+void check_aead_empty(typename Calls::object& made, std::span<std::uint8_t const> nonce) {
     auto const empty =
-        Calls::seal(made, iv, std::span<std::uint8_t const>(), std::span<std::uint8_t>());
+        Calls::seal(made, nonce, std::span<std::uint8_t const>(), std::span<std::uint8_t>());
     BOOST_TEST(empty.has_value());
-    BOOST_TEST(empty && Calls::open(made, iv, {}, std::span<std::uint8_t>(), *empty).has_value());
+    BOOST_TEST(empty &&
+               Calls::open(made, nonce, {}, std::span<std::uint8_t>(), *empty).has_value());
     std::array<std::uint8_t, Calls::tag_size> const zero_tag{};
-    BOOST_TEST(Calls::open(made, iv, {}, std::span<std::uint8_t>(), zero_tag).error() ==
+    BOOST_TEST(Calls::open(made, nonce, {}, std::span<std::uint8_t>(), zero_tag).error() ==
                crypto::error::authentication_failed);
     if constexpr (Calls::has_additional_data) {
-        std::array<std::uint8_t, 5> const additional_data{1, 2, 3, 4, 5};
+        std::array<std::uint8_t, 5> const associated_data{1, 2, 3, 4, 5};
         auto const only_additional =
-            Calls::seal(made, iv, additional_data, std::span<std::uint8_t>());
+            Calls::seal(made, nonce, associated_data, std::span<std::uint8_t>());
         BOOST_TEST(only_additional && empty &&
                    !crypto::constant_time_equal(*only_additional, *empty));
-        BOOST_TEST(only_additional && Calls::open(made, iv, additional_data,
+        BOOST_TEST(only_additional && Calls::open(made, nonce, associated_data,
                                                   std::span<std::uint8_t>(), *only_additional)
                                           .has_value());
-        BOOST_TEST(only_additional &&
-                   Calls::open(made, iv, {}, std::span<std::uint8_t>(), *only_additional).error() ==
-                       crypto::error::authentication_failed);
+        BOOST_TEST(
+            only_additional &&
+            Calls::open(made, nonce, {}, std::span<std::uint8_t>(), *only_additional).error() ==
+                crypto::error::authentication_failed);
     }
     std::array<std::uint8_t, 7> data{};
     data.fill(0x42);
     auto const original = data;
-    auto const only_data = Calls::seal(made, iv, {}, data);
+    auto const only_data = Calls::seal(made, nonce, {}, data);
     BOOST_TEST(only_data.has_value() && data != original);
-    BOOST_TEST(only_data && Calls::open(made, iv, {}, data, *only_data).has_value());
+    BOOST_TEST(only_data && Calls::open(made, nonce, {}, data, *only_data).has_value());
     BOOST_TEST(data == original);
 }
 
 /** A tag right after the data in one buffer: the open leaves the tag's bytes as they were. */
 template <class Calls>
-void check_aead_wire_tag(typename Calls::object& made, std::span<std::uint8_t const> iv) {
+void check_aead_wire_tag(typename Calls::object& made, std::span<std::uint8_t const> nonce) {
     std::array<std::uint8_t, 16 + Calls::tag_size> wire{};
     std::fill(wire.begin(), wire.begin() + 16, 0x33);
-    auto const sealed = Calls::seal(made, iv, {}, std::span(wire).first(16));
+    auto const sealed = Calls::seal(made, nonce, {}, std::span(wire).first(16));
     if (!BOOST_TEST(sealed.has_value())) {
         return;
     }
     std::ranges::copy(*sealed, wire.begin() + 16);
-    BOOST_TEST(
-        Calls::open(made, iv, {}, std::span(wire).first(16), std::span(wire).last(Calls::tag_size))
-            .has_value());
+    BOOST_TEST(Calls::open(made, nonce, {}, std::span(wire).first(16),
+                           std::span(wire).last(Calls::tag_size))
+                   .has_value());
     BOOST_TEST(
         std::all_of(wire.begin(), wire.begin() + 16, [](std::uint8_t b) { return b == 0x33; }));
     BOOST_TEST(std::equal(sealed->begin(), sealed->end(), wire.begin() + 16));
@@ -562,10 +564,10 @@ void check_aead_wire_tag(typename Calls::object& made, std::span<std::uint8_t co
  * the bytes after the data, which only the tag covers, are as they were.
  */
 template <class Calls>
-void check_aead_overlap(typename Calls::object& made, std::span<std::uint8_t const> iv) {
+void check_aead_overlap(typename Calls::object& made, std::span<std::uint8_t const> nonce) {
     std::array<std::uint8_t, 24> overlap{};
     overlap.fill(0x5a);
-    BOOST_TEST(Calls::open(made, iv, {}, std::span(overlap).first(20),
+    BOOST_TEST(Calls::open(made, nonce, {}, std::span(overlap).first(20),
                            std::span(overlap).last(Calls::tag_size))
                    .error() == crypto::error::authentication_failed);
     BOOST_TEST(all_zero(std::span(overlap).first(20)));
@@ -648,11 +650,11 @@ void check_aead_edges() {
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    std::array<std::uint8_t, Calls::iv_size> iv{};
-    iv.fill(0x24);
-    check_aead_empty<Calls>(*made, iv);
-    check_aead_wire_tag<Calls>(*made, iv);
-    check_aead_overlap<Calls>(*made, iv);
+    std::array<std::uint8_t, Calls::iv_size> nonce{};
+    nonce.fill(0x24);
+    check_aead_empty<Calls>(*made, nonce);
+    check_aead_wire_tag<Calls>(*made, nonce);
+    check_aead_overlap<Calls>(*made, nonce);
     check_aead_in_place<Calls>(*made);
     check_aead_wire_open<Calls>(*made);
 }
@@ -689,20 +691,20 @@ void check_aead_limits() {
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(!huge.empty())) {
         return;
     }
-    std::array<std::uint8_t, Aead::iv_size> const iv{};
+    std::array<std::uint8_t, Aead::iv_size> const nonce{};
     std::array<std::uint8_t, Aead::tag_size> const tag{};
-    BOOST_TEST(made->seal(iv, {}, huge).error() == crypto::error::message_too_long);
-    BOOST_TEST(made->open(iv, {}, huge, tag).error() == crypto::error::message_too_long);
+    BOOST_TEST(made->seal(nonce, {}, huge).error() == crypto::error::message_too_long);
+    BOOST_TEST(made->open(nonce, {}, huge, tag).error() == crypto::error::message_too_long);
     // The IV and the tag are checked before the length.
     BOOST_TEST(made->seal({}, {}, huge).error() == crypto::error::invalid_iv_size);
-    BOOST_TEST(made->open(iv, {}, huge, std::span(tag).first(Aead::tag_size - 1)).error() ==
+    BOOST_TEST(made->open(nonce, {}, huge, std::span(tag).first(Aead::tag_size - 1)).error() ==
                crypto::error::invalid_tag_size);
     // The error ends nothing: the object seals afterwards.
     std::array<std::uint8_t, 16> data{};
-    BOOST_TEST(made->seal(iv, {}, data).has_value());
+    BOOST_TEST(made->seal(nonce, {}, data).has_value());
     // The state is checked before the length.
     Aead const moved = std::move(*made);
-    BOOST_TEST(made->seal(iv, {}, huge).error() == crypto::error::invalid_state);
+    BOOST_TEST(made->seal(nonce, {}, huge).error() == crypto::error::invalid_state);
 }
 #endif
 

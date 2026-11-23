@@ -80,14 +80,14 @@
  // A coroutine makes a key and seals in place on the default backend; each completion, the error
  // code and the value, is posted to the coroutine's executor.
  asio::awaitable<void> seal_message(std::span<std::uint8_t const> key,
-                                    std::span<std::uint8_t const> iv,
-                                    std::span<std::uint8_t const> additional_data,
+                                    std::span<std::uint8_t const> nonce,
+                                    std::span<std::uint8_t const> associated_data,
                                     std::span<std::uint8_t> data) {
      auto const executor = co_await asio::this_coro::executor;
      auto [made_code, aead] =
          co_await crypto::async_from_key<gcm>(executor, key, asio::as_tuple(asio::use_awaitable));
      if (made_code) { co_return; }
-     auto [code, tag] = co_await crypto::async_seal(executor, aead, iv, additional_data, data,
+     auto [code, tag] = co_await crypto::async_seal(executor, aead, nonce, associated_data, data,
                                                     asio::as_tuple(asio::use_awaitable));
      // `data` holds the ciphertext and `tag` the tag when `code` is clear.
  }
@@ -141,8 +141,8 @@ namespace detail {
  * - `from_secret<Keypair>(executor, secret_bytes, token)`: a key pair from its secret bytes;
  * - `from_key<Cipher>(executor, key_bytes, token)`: AES-GCM from its key;
  * - `generate<Keypair>(executor, token)`;
- * - `seal(executor, aead, iv_bytes, additional_data_bytes, data_bytes, token)` and
- *   `open(executor, aead, iv_bytes, additional_data_bytes, data_bytes, tag_bytes, token)`;
+ * - `seal(executor, aead, nonce_bytes, associated_data_bytes, data_bytes, token)` and
+ *   `open(executor, aead, nonce_bytes, associated_data_bytes, data_bytes, tag_bytes, token)`;
  * - `sign(executor, key_pair, scheme, input, token)`: the scheme tag (`eddsa_t` for Ed25519,
  *   `ecdsa_sha256_t` for P-256) and the message itself, as `std::span<std::uint8_t const>`,
  *   which for P-256 the engine hashes with SHA-256, as WebCrypto's ECDSA does (a marker never
@@ -639,8 +639,8 @@ auto async_generate(Executor const& completion_executor, CompletionToken&& compl
  * @tparam CompletionToken Any completion token for the signature `completion_token` states.
  * @param completion_executor The executor the completion is posted to.
  * @param aead_cipher The keyed object.
- * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key.
- * @param additional_data_bytes Authenticated, not encrypted.
+ * @param nonce_bytes 1 to `max_iv_size` bytes, never reused under this key.
+ * @param associated_data_bytes Authenticated, not encrypted.
  * @param data_bytes The message.
  * @param completion_token The completion token, of signature
  * `void(boost::system::error_code, Gcm::result_type)`: the tag; on an error the zeroed tag.
@@ -648,8 +648,8 @@ auto async_generate(Executor const& completion_executor, CompletionToken&& compl
  */
 template <class Gcm, class Executor, class CompletionToken>
 auto async_seal(Executor const& completion_executor, Gcm& aead_cipher,
-                std::span<std::uint8_t const> iv_bytes,
-                std::span<std::uint8_t const> additional_data_bytes,
+                std::span<std::uint8_t const> nonce_bytes,
+                std::span<std::uint8_t const> associated_data_bytes,
                 std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (!detail::is_gcm_v<std::remove_cv_t<Gcm>>) {
@@ -657,7 +657,7 @@ auto async_seal(Executor const& completion_executor, Gcm& aead_cipher,
                       "webcpp::crypto: async_seal takes AES-GCM, the AEAD WebCrypto has: call seal "
                       "for the others.");
     } else {
-        return aead_cipher.async_seal(completion_executor, iv_bytes, additional_data_bytes,
+        return aead_cipher.async_seal(completion_executor, nonce_bytes, associated_data_bytes,
                                       data_bytes, std::forward<CompletionToken>(completion_token));
     }
 }
@@ -678,8 +678,8 @@ auto async_seal(Executor const& completion_executor, Gcm& aead_cipher,
  * @tparam CompletionToken Any completion token for the signature `completion_token` states.
  * @param completion_executor The executor the completion is posted to.
  * @param aead_cipher The keyed object.
- * @param iv_bytes The IV of the seal.
- * @param additional_data_bytes The additional data of the seal.
+ * @param nonce_bytes The nonce of the seal.
+ * @param associated_data_bytes The associated data of the seal.
  * @param data_bytes The ciphertext.
  * @param tag_bytes The seal's tag, 16 bytes.
  * @param completion_token The completion token, of signature `void(boost::system::error_code)`.
@@ -687,8 +687,8 @@ auto async_seal(Executor const& completion_executor, Gcm& aead_cipher,
  */
 template <class Gcm, class Executor, class CompletionToken>
 auto async_open(Executor const& completion_executor, Gcm& aead_cipher,
-                std::span<std::uint8_t const> iv_bytes,
-                std::span<std::uint8_t const> additional_data_bytes,
+                std::span<std::uint8_t const> nonce_bytes,
+                std::span<std::uint8_t const> associated_data_bytes,
                 std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
                 CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
@@ -697,7 +697,7 @@ auto async_open(Executor const& completion_executor, Gcm& aead_cipher,
                       "webcpp::crypto: async_open takes AES-GCM, the AEAD WebCrypto has: call open "
                       "for the others.");
     } else {
-        return aead_cipher.async_open(completion_executor, iv_bytes, additional_data_bytes,
+        return aead_cipher.async_open(completion_executor, nonce_bytes, associated_data_bytes,
                                       data_bytes, tag_bytes,
                                       std::forward<CompletionToken>(completion_token));
     }
@@ -1087,20 +1087,20 @@ auto ciphers::gcm<Cipher>::async_from_key(Executor const& completion_executor,
 template <class Cipher>
 template <class Executor, class CompletionToken>
 auto ciphers::gcm<Cipher>::async_seal(Executor const& completion_executor,
-                                      std::span<std::uint8_t const> iv_bytes,
-                                      std::span<std::uint8_t const> additional_data_bytes,
+                                      std::span<std::uint8_t const> nonce_bytes,
+                                      std::span<std::uint8_t const> associated_data_bytes,
                                       std::span<std::uint8_t> data_bytes,
                                       CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<backend>) {
-        return detail::async_engine<backend>::seal(completion_executor, *this, iv_bytes,
-                                                   additional_data_bytes, data_bytes,
+        return detail::async_engine<backend>::seal(completion_executor, *this, nonce_bytes,
+                                                   associated_data_bytes, data_bytes,
                                                    std::forward<CompletionToken>(completion_token));
     } else {
         return detail::complete_by_post(
             completion_executor, completion_token,
-            [this, iv_bytes, additional_data_bytes, data_bytes]() noexcept {
-                return seal(iv_bytes, additional_data_bytes, data_bytes);
+            [this, nonce_bytes, associated_data_bytes, data_bytes]() noexcept {
+                return seal(nonce_bytes, associated_data_bytes, data_bytes);
             });
     }
 }
@@ -1108,21 +1108,21 @@ auto ciphers::gcm<Cipher>::async_seal(Executor const& completion_executor,
 template <class Cipher>
 template <class Executor, class CompletionToken>
 auto ciphers::gcm<Cipher>::async_open(Executor const& completion_executor,
-                                      std::span<std::uint8_t const> iv_bytes,
-                                      std::span<std::uint8_t const> additional_data_bytes,
+                                      std::span<std::uint8_t const> nonce_bytes,
+                                      std::span<std::uint8_t const> associated_data_bytes,
                                       std::span<std::uint8_t> data_bytes,
                                       std::span<std::uint8_t const> tag_bytes,
                                       CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<backend>) {
-        return detail::async_engine<backend>::open(completion_executor, *this, iv_bytes,
-                                                   additional_data_bytes, data_bytes, tag_bytes,
+        return detail::async_engine<backend>::open(completion_executor, *this, nonce_bytes,
+                                                   associated_data_bytes, data_bytes, tag_bytes,
                                                    std::forward<CompletionToken>(completion_token));
     } else {
         return detail::complete_by_post(
             completion_executor, completion_token,
-            [this, iv_bytes, additional_data_bytes, data_bytes, tag_bytes]() noexcept {
-                return open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
+            [this, nonce_bytes, associated_data_bytes, data_bytes, tag_bytes]() noexcept {
+                return open(nonce_bytes, associated_data_bytes, data_bytes, tag_bytes);
             });
     }
 }

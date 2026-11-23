@@ -13,7 +13,7 @@ reports the failure with an `error` of the category `webcpp.crypto`, as a
 and never reused, so a program may store them.
 
 A program tells failures apart because they call for different answers.
-`authentication_failed` means the data, its additional data or its tag changed
+`authentication_failed` means the data, its associated data or its tag changed
 since it was sealed, or the key is another: someone may be attacking, and the
 message is dropped. A size error means the caller or the wire format is wrong:
 a bug to fix, not an attack. `entropy_unavailable` means there is no safe
@@ -30,8 +30,8 @@ of 32 bytes.
 |4 |`invalid_input_size` |Data given to a block cipher that is not a whole number of blocks, a
 DER output shorter than `max_der_size`, or the incremental open's `decrypt` past the
 authenticated length and `end_open` short of it.
-|5 |`message_too_long` |A message or additional data longer than the algorithm allows.
-|6 |`authentication_failed` |The tag does not match: the message or its additional data changed, or
+|5 |`message_too_long` |A message or associated data longer than the algorithm allows.
+|6 |`authentication_failed` |The tag does not match: the message or its associated data changed, or
 the key differs.
 |7 |`invalid_state` |An object moved from, or the incremental seal or open called out of order.
 |8 |`entropy_unavailable` |The system's or the browser's generator failed, or secp256k1's `generate`
@@ -69,7 +69,7 @@ means and what to do.
 include::generated/backends-error.adoc[]
 
 *Example.* A message is sealed, then opened three ways: with a flipped bit,
-with an empty IV and with a short tag. Only the first is an attack, and only
+with an empty nonce and with a short tag. Only the first is an attack, and only
 the first decrypted anything, which `open` has zeroed:
 
 [source,cpp]

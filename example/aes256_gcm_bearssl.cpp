@@ -23,10 +23,10 @@ namespace crypto = webcpp::crypto;
 using aead_type = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>;
 
 int main() {
-    // The test vector's zero key and IV: a real program draws its key from random_device and
-    // never reuses an IV under it.
+    // The test vector's zero key and nonce: a real program draws its key from random_device and
+    // never reuses a nonce under it.
     std::array<std::uint8_t, 32> const key{};
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     std::array<std::uint8_t, 16> data{};
     std::array<std::uint8_t, 16> const expected_cipher{
         0xce, 0xa7, 0x40, 0x3d, 0x4d, 0x60, 0x6b, 0x6e,
@@ -42,13 +42,13 @@ int main() {
         return 1;
     }
     // Seal encrypts in place and returns the tag.
-    auto const tag = aead->seal(iv, {}, data);
+    auto const tag = aead->seal(nonce, {}, data);
     if (!tag || data != expected_cipher || !crypto::constant_time_equal(*tag, expected_tag)) {
         return 1;
     }
     // Open decrypts in place and checks the tag; on a mismatch it zeroes data and returns
     // authentication_failed.
-    if (!aead->open(iv, {}, data, expected_tag) || data != std::array<std::uint8_t, 16>{}) {
+    if (!aead->open(nonce, {}, data, expected_tag) || data != std::array<std::uint8_t, 16>{}) {
         return 1;
     }
     auto const name = aead_type::backend_type::name;

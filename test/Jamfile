@@ -160,14 +160,19 @@ crypto-run heavy : heavy_test.cpp
 crypto-run async_post : async_post_test.cpp
   : <library>/webcpp/asio//asio <library>/webcpp/crypto//gcm-default
     <library>/third_party//sodium ;
-# AES-GCM's asynchronous functions, async_make, async_seal and async_open, on
-# BearSSL (every target) and on OpenSSL (where it is built): the specification's
-# cases, a wrong tag, a long IV, a refused key, a coroutine.
+# AES-GCM's asynchronous functions, async_from_key, async_seal and async_open,
+# on BearSSL (every target) and on OpenSSL (where it is built): the
+# specification's cases, a wrong tag, a long nonce, a refused key, a coroutine.
 crypto-run async_gcm : async_gcm_test.cpp
   : <library>/webcpp/asio//asio <library>/third_party//bearssl ;
 crypto-run async_gcm_openssl : async_gcm_test.cpp
   : <library>/webcpp/asio//asio <library>/webcpp/crypto//openssl
     <define>WEBCPP_TEST_ASYNC_GCM_OPENSSL : native wasip2 wasip3 ;
+# The asynchronous seal, open and from_key of the AEADs and boxes WebCrypto
+# lacks, on libsodium, every target: the synchronous answers, free and member,
+# never inline, a wrong tag, a refused key.
+crypto-run async_aead : async_aead_test.cpp
+  : <library>/third_party//sodium <library>/webcpp/asio//asio ;
 # Ed25519's and X25519's asynchronous functions on libsodium, every target:
 # RFC 8032's and RFC 7748's cases, a changed byte, a generated key pair, a
 # refused seed, a weak peer key, a coroutine.

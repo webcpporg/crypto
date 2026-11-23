@@ -14,15 +14,21 @@
  pair without a key, whose every member refuses with `invalid_state`); one without a value completes
  with `void(boost::system::error_code)`.
 
- - The cheap functions exist on every target, for the algorithms the browser's WebCrypto has.
-   Each takes the executor its completion is posted to first. On a synchronous backend, their
+ - The cheap functions exist on every target, for the algorithms the browser's WebCrypto has,
+   and, on a native backend, for every AEAD and box (design D6). Each takes the executor its
+   completion is posted to first. On a synchronous backend, their
    default, they run the synchronous call when the operation is initiated (its guards and its
    work, on the thread that initiates it: the caller's for a callback or `use_awaitable`, the one
    that launches the operation for `deferred`) and complete through a post to that executor,
    whence the completion reaches the handler's associated executor, never inside the initiating
    call.
-   - AES-GCM: `async_from_key`, `async_seal` and `async_open`, over `ciphers::gcm`. The other AEADs
-     (ChaCha20-Poly1305 and its forms, the secret boxes) are not in WebCrypto: call their `seal`.
+   - AES-GCM: `async_from_key`, `secret_key_encryption::aead::async_seal` and `async_open`, over
+     `ciphers::gcm`, on every backend, the browser's included.
+   - The AEADs and boxes WebCrypto lacks, on a native backend: `async_from_key`,
+     `secret_key_encryption::aead::async_seal` and `async_open` for ChaCha20-Poly1305 and its
+     forms; `async_from_key` for a secret box, and the box forms
+     `secret_key_encryption::async_seal` and `async_open` for a secret box and a crypto_box. On a
+     backend that completes by itself each stops the build: only AES-GCM is asynchronous there.
    - Ed25519: `async_from_secret` (a key pair from its seed), `async_generate`,
      `async_sign(executor, key_pair, crypto::eddsa, message, token)` and
      `async_verify(executor, crypto::eddsa, signature, message, public_key[, policy], token)`,
@@ -55,11 +61,11 @@
  `C::async_from_key(executor, key_bytes, token)`, `K::async_generate(executor, token)`,
  `key_pair.async_sign(executor, scheme, input, token)`,
  `key_pair.async_agree(executor, peer, token)` (X25519, P-256),
- `public_key.async_verify(executor, scheme, signature, input[, policy], token)` and AES-GCM's
- `aead.async_seal` and `aead.async_open`. The classes declare them and this header defines them,
- so that a curve's or a cipher's header never includes Asio; the free function calls the member,
- which runs the synchronous member, so that the four forms of an operation share their guards,
- refusals and errors.
+ `public_key.async_verify(executor, scheme, signature, input[, policy], token)`, and every AEAD's
+ and box's `aead.async_seal` and `aead.async_open`. The classes declare them and this header
+ defines them, so that a curve's or a cipher's header never includes Asio; the free function calls
+ the member, which runs the synchronous member, so that the four forms of an operation share their
+ guards, refusals and errors.
 
  The default backend of each is the synchronous function's, `default_async_backend_t<Family>`,
  `default_backend_t<Family>` on every target, Emscripten included: the browser's backend is used
@@ -87,8 +93,8 @@
      auto [made_code, aead] =
          co_await crypto::async_from_key<gcm>(executor, key, asio::as_tuple(asio::use_awaitable));
      if (made_code) { co_return; }
-     auto [code, tag] = co_await crypto::async_seal(executor, aead, nonce, associated_data, data,
-                                                    asio::as_tuple(asio::use_awaitable));
+     auto [code, tag] = co_await crypto::secret_key_encryption::aead::async_seal(
+         executor, aead, nonce, associated_data, data, asio::as_tuple(asio::use_awaitable));
      // `data` holds the ciphertext and `tag` the tag when `code` is clear.
  }
  @endcode
@@ -100,6 +106,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/ciphers/aead.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
@@ -109,7 +116,11 @@
 #include <webcpp/crypto/detail/heavy.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/keypair.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/secret_key_encryption/aead.hpp>
+#include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/crypto/signing.hpp>
 
 #include <webcpp/asio/append.hpp>
@@ -144,7 +155,9 @@ namespace detail {
  * - `from_key<Cipher>(executor, key_bytes, token)`: AES-GCM from its key;
  * - `generate<Keypair>(executor, token)`;
  * - `seal(executor, aead, nonce_bytes, associated_data_bytes, data_bytes, token)` and
- *   `open(executor, aead, nonce_bytes, associated_data_bytes, data_bytes, tag_bytes, token)`;
+ *   `open(executor, aead, nonce_bytes, associated_data_bytes, data_bytes, tag_bytes, token)`,
+ *   for AES-GCM, the one AEAD WebCrypto has: every other AEAD and box refuses a backend that
+ *   completes by itself before it names this struct (design D6);
  * - `sign(executor, key_pair, scheme, input, token)`: the scheme tag (`eddsa_t` for Ed25519,
  *   `ecdsa_sha256_t` for P-256) and the message itself, as `std::span<std::uint8_t const>`,
  *   which for P-256 the engine hashes with SHA-256, as WebCrypto's ECDSA does (a marker never
@@ -254,6 +267,43 @@ inline constexpr bool is_gcm_v = false;
 
 template <class Cipher>
 inline constexpr bool is_gcm_v<ciphers::gcm<Cipher>> = true;
+
+/** Whether `Type` is a secret box, `secret_key_encryption::basic_secretbox<Family, Backend>`. */
+template <class Type>
+inline constexpr bool is_secretbox_v = false;
+
+template <class Family, class Backend>
+inline constexpr bool is_secretbox_v<secret_key_encryption::basic_secretbox<Family, Backend>> =
+    true;
+
+/**
+ * Whether the asynchronous forms of an AEAD or a box refuse it (design D6, ruling P12): its
+ * backend completes by itself, as the browser's does, and it is not AES-GCM, the one AEAD
+ * WebCrypto has.
+ *
+ * @tparam Type A `secret_key_encryption::aead::cipher` or a
+ * `secret_key_encryption::authenticated_box`, without its qualifiers.
+ */
+template <class Type>
+inline constexpr bool refuses_async_aead_v =
+    !is_gcm_v<Type> && asynchronous_backend_v<typename Type::backend_type>;
+
+/**
+ * Stops the build: the asynchronous `seal`, `open` or `from_key` of an AEAD or a box WebCrypto
+ * lacks, asked of a backend that completes by itself (design D6).
+ *
+ * Every such function, member and free, calls it first after its guard, before any member of the
+ * type is named (ruling P12), so that its text is the build's one message and is written once.
+ *
+ * @tparam Refused The type or its backend, which makes the refusal dependent.
+ */
+template <class Refused>
+constexpr void refuse_async_aead_on_asynchronous_backend() noexcept {
+    static_assert(refused_v<Refused>,
+                  "webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, "
+                  "secret box or crypto_box: their async_seal, async_open and async_from_key run "
+                  "on a native backend; on the browser's backend only AES-GCM is asynchronous.");
+}
 
 /** Whether `Type` is an Ed25519 key pair, `curves::ed25519::basic_keypair<Backend>`. */
 template <class Type>
@@ -602,17 +652,19 @@ auto async_from_secret(Executor const& completion_executor,
 }
 
 /**
- * Makes an AES-GCM object from its key bytes, asynchronously: `Cipher::from_key(key_bytes)` run
- * when the operation is initiated, its result posted to `completion_executor`.
+ * Makes an AEAD or a secret box from its key bytes, asynchronously: `Cipher::from_key(key_bytes)`
+ * run when the operation is initiated, its result posted to `completion_executor`.
  *
  * The free form of `Cipher::async_from_key(completion_executor, key_bytes, completion_token)`,
  * which it calls.
  *
  * The key is read before the call returns on a synchronous backend, later on the browser's: it is
- * the caller's until the completion.
+ * the caller's until the completion. On a backend that completes by itself only AES-GCM is
+ * offered: any other type stops the build (design D6).
  *
- * @tparam Cipher A `ciphers::gcm<BlockCipher>`, on any backend that has it; the other AEADs crypto
- * has are not in WebCrypto: call their `from_key`.
+ * @tparam Cipher A `secret_key_encryption::aead::cipher` (`ciphers::gcm<BlockCipher>`,
+ * ChaCha20-Poly1305 and its forms) or a `secret_key_encryption::basic_secretbox`, on any backend
+ * that has it; a crypto_box is made by `from_keys`, synchronously.
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
  * @tparam CompletionToken Any completion token for the signature `completion_token` states.
  * @param completion_executor The executor the completion is posted to.
@@ -626,10 +678,13 @@ template <class Cipher, class Executor, class CompletionToken>
 auto async_from_key(Executor const& completion_executor, std::span<std::uint8_t const> key_bytes,
                     CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
-    if constexpr (!detail::is_gcm_v<Cipher>) {
+    if constexpr (!secret_key_encryption::aead::cipher<Cipher> && !detail::is_secretbox_v<Cipher>) {
         static_assert(detail::refused_v<Cipher>,
-                      "webcpp::crypto: async_from_key takes AES-GCM, the AEAD WebCrypto has: call "
-                      "from_key for the others.");
+                      "webcpp::crypto: async_from_key takes an AEAD (a "
+                      "secret_key_encryption::aead::cipher) or a secret box: a crypto_box is made "
+                      "by from_keys.");
+    } else if constexpr (detail::refuses_async_aead_v<Cipher>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Cipher>();
     } else {
         return Cipher::async_from_key(completion_executor, key_bytes,
                                       std::forward<CompletionToken>(completion_token));
@@ -670,40 +725,41 @@ auto async_generate(Executor const& completion_executor, CompletionToken&& compl
     }
 }
 
+namespace secret_key_encryption::aead {
+
 /**
- * Seals a message in place, asynchronously: `aead_cipher.seal` run when the operation is initiated,
- * its result posted to `completion_executor`.
+ * Seals a message in place, asynchronously: `aead_cipher.seal` run when the operation is
+ * initiated, its result posted to `completion_executor`.
  *
- * The free form of the member `aead_cipher.async_seal`, with the same arguments, which it
- * calls.
+ * The free form of the member `aead_cipher.async_seal`, which it calls with the arguments after
+ * `aead_cipher`.
  *
  * `aead_cipher` and the spans are the caller's until the completion: a synchronous backend reads
  * and writes them before the call returns, the browser's later. `data_bytes` holds the ciphertext
  * at the completion. A guard's refusal (`invalid_nonce_size`, `message_too_long`, `invalid_state`)
- * leaves it untouched, a backend's failure zeroes it, as `seal` does.
+ * leaves it untouched, a backend's failure zeroes it, as `seal` does. On a backend that completes
+ * by itself only AES-GCM is offered: any other AEAD stops the build (design D6).
  *
- * @tparam Gcm A `ciphers::gcm<Cipher>`; the other AEADs are not in WebCrypto: call their `seal`.
+ * @tparam Cipher A `cipher`: AES-GCM, ChaCha20-Poly1305 or one of its forms.
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
  * @tparam CompletionToken Any completion token for the signature `completion_token` states.
  * @param completion_executor The executor the completion is posted to.
  * @param aead_cipher The keyed object.
- * @param nonce_bytes 1 to `max_nonce_size` bytes, never reused under this key.
+ * @param nonce_bytes The nonce, of a size the AEAD accepts, never reused under this key.
  * @param associated_data_bytes Authenticated, not encrypted.
  * @param data_bytes The message.
  * @param completion_token The completion token, of signature
- * `void(boost::system::error_code, Gcm::result_type)`: the tag; on an error the zeroed tag.
+ * `void(boost::system::error_code, Cipher::result_type)`: the tag; on an error the zeroed tag.
  * @return What the completion token's `async_result` gives.
  */
-template <class Gcm, class Executor, class CompletionToken>
-auto async_seal(Executor const& completion_executor, Gcm& aead_cipher,
+template <class Executor, cipher Cipher, class CompletionToken>
+auto async_seal(Executor const& completion_executor, Cipher& aead_cipher,
                 std::span<std::uint8_t const> nonce_bytes,
                 std::span<std::uint8_t const> associated_data_bytes,
                 std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
-    if constexpr (!detail::is_gcm_v<std::remove_cv_t<Gcm>>) {
-        static_assert(detail::refused_v<Gcm>,
-                      "webcpp::crypto: async_seal takes AES-GCM, the AEAD WebCrypto has: call seal "
-                      "for the others.");
+    if constexpr (detail::refuses_async_aead_v<Cipher>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Cipher>();
     } else {
         return aead_cipher.async_seal(completion_executor, nonce_bytes, associated_data_bytes,
                                       data_bytes, std::forward<CompletionToken>(completion_token));
@@ -711,17 +767,18 @@ auto async_seal(Executor const& completion_executor, Gcm& aead_cipher,
 }
 
 /**
- * Opens a message in place, asynchronously: `aead_cipher.open` run when the operation is initiated,
- * its result posted to `completion_executor`.
+ * Opens a message in place, asynchronously: `aead_cipher.open` run when the operation is
+ * initiated, its result posted to `completion_executor`.
  *
- * The free form of the member `aead_cipher.async_open`, with the same arguments, which it
- * calls.
+ * The free form of the member `aead_cipher.async_open`, which it calls with the arguments after
+ * `aead_cipher`.
  *
  * `aead_cipher` and the spans are the caller's until the completion. `data_bytes` holds the
  * plaintext at a successful completion; a wrong tag (`authentication_failed`) or a backend's
- * failure zeroes it, a guard's refusal leaves it untouched, as `open` does.
+ * failure zeroes it, a guard's refusal leaves it untouched, as `open` does. On a backend that
+ * completes by itself only AES-GCM is offered: any other AEAD stops the build (design D6).
  *
- * @tparam Gcm A `ciphers::gcm<Cipher>`; the other AEADs are not in WebCrypto: call their `open`.
+ * @tparam Cipher A `cipher`: AES-GCM, ChaCha20-Poly1305 or one of its forms.
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
  * @tparam CompletionToken Any completion token for the signature `completion_token` states.
  * @param completion_executor The executor the completion is posted to.
@@ -733,23 +790,143 @@ auto async_seal(Executor const& completion_executor, Gcm& aead_cipher,
  * @param completion_token The completion token, of signature `void(boost::system::error_code)`.
  * @return What the completion token's `async_result` gives.
  */
-template <class Gcm, class Executor, class CompletionToken>
-auto async_open(Executor const& completion_executor, Gcm& aead_cipher,
+template <class Executor, cipher Cipher, class CompletionToken>
+auto async_open(Executor const& completion_executor, Cipher& aead_cipher,
                 std::span<std::uint8_t const> nonce_bytes,
                 std::span<std::uint8_t const> associated_data_bytes,
                 std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
                 CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
-    if constexpr (!detail::is_gcm_v<std::remove_cv_t<Gcm>>) {
-        static_assert(detail::refused_v<Gcm>,
-                      "webcpp::crypto: async_open takes AES-GCM, the AEAD WebCrypto has: call open "
-                      "for the others.");
+    if constexpr (detail::refuses_async_aead_v<Cipher>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Cipher>();
     } else {
         return aead_cipher.async_open(completion_executor, nonce_bytes, associated_data_bytes,
                                       data_bytes, tag_bytes,
                                       std::forward<CompletionToken>(completion_token));
     }
 }
+
+/**
+ * A box given to the AEAD form of `async_seal`, which takes associated data: refused, naming the
+ * box form.
+ *
+ * Never called: the refusal stops the build where it is instantiated.
+ *
+ * @tparam Executor The executor's type.
+ * @tparam Box An `authenticated_box`, which is no `cipher`.
+ * @tparam CompletionToken The completion token's type.
+ * @return Never returns to a program: it does not compile.
+ */
+template <class Executor, authenticated_box Box, class CompletionToken>
+void async_seal(Executor const& /*completion_executor*/, Box& /*keyed_box*/,
+                std::span<std::uint8_t const> /*nonce_bytes*/,
+                std::span<std::uint8_t const> /*associated_data_bytes*/,
+                std::span<std::uint8_t> /*data_bytes*/, CompletionToken&& /*completion_token*/) {
+    static_assert(detail::dependent_false<Box>,
+                  "webcpp::crypto: async_seal: a secret box or a crypto_box takes no associated "
+                  "data: secret_key_encryption::async_seal(executor, box, nonce, data, token).");
+}
+
+/**
+ * A box given to the AEAD form of `async_open`, which takes associated data: refused, naming the
+ * box form.
+ *
+ * Never called: the refusal stops the build where it is instantiated.
+ *
+ * @tparam Executor The executor's type.
+ * @tparam Box An `authenticated_box`, which is no `cipher`.
+ * @tparam CompletionToken The completion token's type.
+ * @return Never returns to a program: it does not compile.
+ */
+template <class Executor, authenticated_box Box, class CompletionToken>
+void async_open(Executor const& /*completion_executor*/, Box& /*keyed_box*/,
+                std::span<std::uint8_t const> /*nonce_bytes*/,
+                std::span<std::uint8_t const> /*associated_data_bytes*/,
+                std::span<std::uint8_t> /*data_bytes*/, std::span<std::uint8_t const> /*tag_bytes*/,
+                CompletionToken&& /*completion_token*/) {
+    static_assert(detail::dependent_false<Box>,
+                  "webcpp::crypto: async_open: a secret box or a crypto_box takes no associated "
+                  "data: secret_key_encryption::async_open(executor, box, nonce, data, tag, "
+                  "token).");
+}
+
+}  // namespace secret_key_encryption::aead
+
+namespace secret_key_encryption {
+
+/**
+ * Seals a message in place with a box, asynchronously: `keyed_box.seal` run when the operation is
+ * initiated, its result posted to `completion_executor`.
+ *
+ * The free form of the member `keyed_box.async_seal`, which it calls with the arguments after
+ * `keyed_box`, for a secret box and a crypto_box alike (design R21).
+ *
+ * `keyed_box` and the spans are the caller's until the completion. `data_bytes` holds the
+ * ciphertext at the completion; a guard's refusal leaves it untouched, a backend's failure zeroes
+ * it, as `seal` does. WebCrypto has neither: on a backend that completes by itself the call stops
+ * the build (design D6).
+ *
+ * @tparam Box An `authenticated_box`: a secret box or a crypto_box.
+ * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+ * @param completion_executor The executor the completion is posted to.
+ * @param keyed_box The keyed box.
+ * @param nonce_bytes The nonce, `Box::nonce_size` bytes, never reused under this key.
+ * @param data_bytes The message.
+ * @param completion_token The completion token, of signature
+ * `void(boost::system::error_code, Box::result_type)`: the tag; on an error the zeroed tag.
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Executor, authenticated_box Box, class CompletionToken>
+auto async_seal(Executor const& completion_executor, Box& keyed_box,
+                std::span<std::uint8_t const> nonce_bytes, std::span<std::uint8_t> data_bytes,
+                CompletionToken&& completion_token) {
+    detail::timing_guard const timing_scope;
+    if constexpr (detail::refuses_async_aead_v<Box>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Box>();
+    } else {
+        return keyed_box.async_seal(completion_executor, nonce_bytes, data_bytes,
+                                    std::forward<CompletionToken>(completion_token));
+    }
+}
+
+/**
+ * Opens a message in place with a box, asynchronously: `keyed_box.open` run when the operation is
+ * initiated, its result posted to `completion_executor`.
+ *
+ * The free form of the member `keyed_box.async_open`, which it calls with the arguments after
+ * `keyed_box`, for a secret box and a crypto_box alike (design R21).
+ *
+ * `keyed_box` and the spans are the caller's until the completion. `data_bytes` holds the
+ * plaintext at a successful completion; a wrong tag (`authentication_failed`) or a backend's
+ * failure zeroes it, a guard's refusal leaves it untouched, as `open` does. WebCrypto has neither:
+ * on a backend that completes by itself the call stops the build (design D6).
+ *
+ * @tparam Box An `authenticated_box`: a secret box or a crypto_box.
+ * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+ * @param completion_executor The executor the completion is posted to.
+ * @param keyed_box The keyed box.
+ * @param nonce_bytes The nonce of the seal.
+ * @param data_bytes The ciphertext.
+ * @param tag_bytes The seal's tag, `Box::tag_size` bytes.
+ * @param completion_token The completion token, of signature `void(boost::system::error_code)`.
+ * @return What the completion token's `async_result` gives.
+ */
+template <class Executor, authenticated_box Box, class CompletionToken>
+auto async_open(Executor const& completion_executor, Box& keyed_box,
+                std::span<std::uint8_t const> nonce_bytes, std::span<std::uint8_t> data_bytes,
+                std::span<std::uint8_t const> tag_bytes, CompletionToken&& completion_token) {
+    detail::timing_guard const timing_scope;
+    if constexpr (detail::refuses_async_aead_v<Box>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Box>();
+    } else {
+        return keyed_box.async_open(completion_executor, nonce_bytes, data_bytes, tag_bytes,
+                                    std::forward<CompletionToken>(completion_token));
+    }
+}
+
+}  // namespace secret_key_encryption
 
 /**
  * Signs with an Ed25519 or a P-256 key pair, asynchronously:
@@ -1211,6 +1388,139 @@ auto ciphers::gcm<Cipher>::async_open(Executor const& completion_executor,
             [this, nonce_bytes, associated_data_bytes, data_bytes, tag_bytes]() noexcept {
                 return open(nonce_bytes, associated_data_bytes, data_bytes, tag_bytes);
             });
+    }
+}
+
+template <class Family, class Backend>
+template <class Executor, class CompletionToken>
+auto ciphers::aead<Family, Backend>::async_from_key(Executor const& completion_executor,
+                                                    std::span<std::uint8_t const> key_bytes,
+                                                    CompletionToken&& completion_token) {
+    detail::timing_guard const timing_scope;
+    if constexpr (detail::asynchronous_backend_v<Backend>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+    } else {
+        return detail::complete_by_post(
+            completion_executor, completion_token,
+            [key_bytes]() noexcept { return aead::from_key(key_bytes); });
+    }
+}
+
+template <class Family, class Backend>
+template <class Executor, class CompletionToken>
+auto ciphers::aead<Family, Backend>::async_seal(Executor const& completion_executor,
+                                                std::span<std::uint8_t const> nonce_bytes,
+                                                std::span<std::uint8_t const> associated_data_bytes,
+                                                std::span<std::uint8_t> data_bytes,
+                                                CompletionToken&& completion_token) {
+    detail::timing_guard const timing_scope;
+    if constexpr (detail::asynchronous_backend_v<Backend>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+    } else {
+        return detail::complete_by_post(
+            completion_executor, completion_token,
+            [this, nonce_bytes, associated_data_bytes, data_bytes]() noexcept {
+                return seal(nonce_bytes, associated_data_bytes, data_bytes);
+            });
+    }
+}
+
+template <class Family, class Backend>
+template <class Executor, class CompletionToken>
+auto ciphers::aead<Family, Backend>::async_open(Executor const& completion_executor,
+                                                std::span<std::uint8_t const> nonce_bytes,
+                                                std::span<std::uint8_t const> associated_data_bytes,
+                                                std::span<std::uint8_t> data_bytes,
+                                                std::span<std::uint8_t const> tag_bytes,
+                                                CompletionToken&& completion_token) {
+    detail::timing_guard const timing_scope;
+    if constexpr (detail::asynchronous_backend_v<Backend>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+    } else {
+        return detail::complete_by_post(
+            completion_executor, completion_token,
+            [this, nonce_bytes, associated_data_bytes, data_bytes, tag_bytes]() noexcept {
+                return open(nonce_bytes, associated_data_bytes, data_bytes, tag_bytes);
+            });
+    }
+}
+
+template <class Family, class Backend>
+template <class Executor, class CompletionToken>
+auto secret_key_encryption::basic_secretbox<Family, Backend>::async_from_key(
+    Executor const& completion_executor, std::span<std::uint8_t const> key_bytes,
+    CompletionToken&& completion_token) {
+    detail::timing_guard const timing_scope;
+    if constexpr (detail::asynchronous_backend_v<Backend>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+    } else {
+        return detail::complete_by_post(
+            completion_executor, completion_token,
+            [key_bytes]() noexcept { return basic_secretbox::from_key(key_bytes); });
+    }
+}
+
+template <class Family, class Backend>
+template <class Executor, class CompletionToken>
+auto secret_key_encryption::basic_secretbox<Family, Backend>::async_seal(
+    Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
+    std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token) {
+    detail::timing_guard const timing_scope;
+    if constexpr (detail::asynchronous_backend_v<Backend>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+    } else {
+        return detail::complete_by_post(
+            completion_executor, completion_token,
+            [this, nonce_bytes, data_bytes]() noexcept { return seal(nonce_bytes, data_bytes); });
+    }
+}
+
+template <class Family, class Backend>
+template <class Executor, class CompletionToken>
+auto secret_key_encryption::basic_secretbox<Family, Backend>::async_open(
+    Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
+    std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
+    CompletionToken&& completion_token) {
+    detail::timing_guard const timing_scope;
+    if constexpr (detail::asynchronous_backend_v<Backend>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+    } else {
+        return detail::complete_by_post(completion_executor, completion_token,
+                                        [this, nonce_bytes, data_bytes, tag_bytes]() noexcept {
+                                            return open(nonce_bytes, data_bytes, tag_bytes);
+                                        });
+    }
+}
+
+template <class Family, class Backend>
+template <class Executor, class CompletionToken>
+auto public_key_encryption::basic_box<Family, Backend>::async_seal(
+    Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
+    std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token) {
+    detail::timing_guard const timing_scope;
+    if constexpr (detail::asynchronous_backend_v<Backend>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+    } else {
+        return detail::complete_by_post(
+            completion_executor, completion_token,
+            [this, nonce_bytes, data_bytes]() noexcept { return seal(nonce_bytes, data_bytes); });
+    }
+}
+
+template <class Family, class Backend>
+template <class Executor, class CompletionToken>
+auto public_key_encryption::basic_box<Family, Backend>::async_open(
+    Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
+    std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
+    CompletionToken&& completion_token) {
+    detail::timing_guard const timing_scope;
+    if constexpr (detail::asynchronous_backend_v<Backend>) {
+        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+    } else {
+        return detail::complete_by_post(completion_executor, completion_token,
+                                        [this, nonce_bytes, data_bytes, tag_bytes]() noexcept {
+                                            return open(nonce_bytes, data_bytes, tag_bytes);
+                                        });
     }
 }
 

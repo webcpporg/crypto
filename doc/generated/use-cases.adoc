@@ -12,7 +12,7 @@
 |I need to |Use |Backend |Jamfile |Example
 
 |Seal or open a record inside an event loop without waiting
-|`+async_seal+`, `+async_open+`
+|`+secret_key_encryption::aead::async_seal+`, `+async_open+`
 |the default of AES-GCM
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//gcm-default+` +

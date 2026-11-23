@@ -253,13 +253,14 @@
             "free": true,
             "functions": ["async_from_key", "async_seal", "async_open"],
             "namespace": "root",
-            "api": "async_from_key, async_seal, async_open",
+            "api": "async_from_key, secret_key_encryption::aead::async_seal, secret_key_encryption::aead::async_open",
             "header": "<webcpp/crypto/async.hpp>",
-            "what": "AES-GCM's asynchronous from_key, seal and open, each completing through a post to the executor the call gives, with any Asio completion token.",
+            "what": "The asynchronous from_key, seal and open of AES-GCM on every backend, and on a native backend of every other AEAD and secret box, with the box forms `secret_key_encryption::async_seal` and `async_open` of a secret box or a crypto_box, each completing through a post to the executor the call gives, with any Asio completion token.",
             "section": "crypto-async",
             "backends": {
                 "bearssl": {"tests": ["async_gcm"]},
-                "openssl": {"tests": ["async_gcm_openssl"]}
+                "openssl": {"tests": ["async_gcm_openssl"]},
+                "sodium": {"tests": ["async_aead"]}
             }
         },
         {
@@ -566,7 +567,8 @@
         {
             "id": "chacha20_poly1305",
             "family": "chacha20_poly1305",
-            "functions": ["from_key", "seal", "open"],
+            "functions": ["from_key", "aead::async_from_key", "seal", "aead::async_seal", "open",
+                          "aead::async_open"],
             "namespace": "ciphers",
             "api": "ciphers::chacha20_poly1305",
             "header": "<webcpp/crypto/ciphers/chacha20_poly1305.hpp>, <webcpp/crypto/ciphers/aead.hpp>",
@@ -587,7 +589,8 @@
         {
             "id": "chacha20_poly1305_original",
             "family": "chacha20_poly1305_original",
-            "functions": ["from_key", "seal", "open"],
+            "functions": ["from_key", "aead::async_from_key", "seal", "aead::async_seal", "open",
+                          "aead::async_open"],
             "namespace": "ciphers",
             "api": "ciphers::chacha20_poly1305_original",
             "header": "<webcpp/crypto/ciphers/chacha20_poly1305.hpp>, <webcpp/crypto/ciphers/aead.hpp>",
@@ -599,7 +602,8 @@
         {
             "id": "xchacha20_poly1305",
             "family": "xchacha20_poly1305",
-            "functions": ["from_key", "seal", "open"],
+            "functions": ["from_key", "aead::async_from_key", "seal", "aead::async_seal", "open",
+                          "aead::async_open"],
             "namespace": "ciphers",
             "api": "ciphers::xchacha20_poly1305",
             "header": "<webcpp/crypto/ciphers/chacha20_poly1305.hpp>, <webcpp/crypto/ciphers/aead.hpp>",
@@ -611,7 +615,8 @@
         {
             "id": "secretbox",
             "family": "secretbox_xsalsa20poly1305",
-            "functions": ["from_key", "seal", "open"],
+            "functions": ["from_key", "basic_secretbox::async_from_key", "seal",
+                          "basic_secretbox::async_seal", "open", "basic_secretbox::async_open"],
             "namespace": "secret_key_encryption",
             "api": "secret_key_encryption::secretbox",
             "header": "<webcpp/crypto/secret_key_encryption/secretbox.hpp>, <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>",
@@ -623,7 +628,8 @@
         {
             "id": "secretbox_xchacha20poly1305",
             "family": "secretbox_xchacha20poly1305",
-            "functions": ["from_key", "seal", "open"],
+            "functions": ["from_key", "basic_secretbox::async_from_key", "seal",
+                          "basic_secretbox::async_seal", "open", "basic_secretbox::async_open"],
             "namespace": "secret_key_encryption",
             "api": "secret_key_encryption::secretbox_xchacha20poly1305",
             "header": "<webcpp/crypto/secret_key_encryption/secretbox.hpp>, <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>",
@@ -635,7 +641,7 @@
         {
             "id": "box",
             "family": "box_xsalsa20poly1305",
-            "functions": ["from_keys", "seal", "open"],
+            "functions": ["from_keys", "seal", "basic_box::async_seal", "open", "basic_box::async_open"],
             "namespace": "public_key_encryption",
             "api": "public_key_encryption::box",
             "header": "<webcpp/crypto/public_key_encryption/box.hpp>",
@@ -647,7 +653,7 @@
         {
             "id": "box_xchacha20poly1305",
             "family": "box_xchacha20poly1305",
-            "functions": ["from_keys", "seal", "open"],
+            "functions": ["from_keys", "seal", "basic_box::async_seal", "open", "basic_box::async_open"],
             "namespace": "public_key_encryption",
             "api": "public_key_encryption::box_xchacha20poly1305",
             "header": "<webcpp/crypto/public_key_encryption/box.hpp>",
@@ -1277,7 +1283,7 @@
         }
     },
     "use_cases": [
-        {"need": "Seal or open a record inside an event loop without waiting", "namespace": "webcpp::crypto", "api": "`async_seal`, `async_open`", "backend": "the default of AES-GCM", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//gcm-default /webcpp/asio//asio", "example": "async_seal", "section": "crypto-async", "operations": ["async_gcm"]},
+        {"need": "Seal or open a record inside an event loop without waiting", "namespace": "webcpp::crypto", "api": "`secret_key_encryption::aead::async_seal`, `async_open`", "backend": "the default of AES-GCM", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//gcm-default /webcpp/asio//asio", "example": "async_seal", "section": "crypto-async", "operations": ["async_gcm"]},
         {"need": "Sign and verify with Ed25519 in a coroutine", "namespace": "webcpp::crypto", "api": "`async_sign`, `async_verify`", "backend": "the default of Ed25519", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default /webcpp/asio//asio", "example": "async_sign", "section": "crypto-async", "operations": ["async_ed25519"]},
         {"need": "Generate a session token, a password-reset link or an API key", "namespace": "webcpp::crypto", "api": "`random_device::fill`", "backend": "the system's generator", "jamfile": "/webcpp/crypto//crypto", "example": "reset_token", "section": "crypto-entropy"},
         {"need": "Draw an unbiased number in a range, such as a six-digit code", "namespace": "webcpp::crypto", "api": "`random_device` with `std::uniform_int_distribution`", "backend": "the system's generator", "jamfile": "/webcpp/crypto//crypto", "example": "reset_token", "section": "crypto-entropy"},
@@ -1449,13 +1455,13 @@
         "ed25519_default_not_linked_on_emscripten": "As `ed25519_default_not_linked`.",
         "heavy_without_threads": "Call the synchronous operation the message names, or build with threads: natively without `WEBCPP_CRYPTO_NO_THREADS`, on Emscripten with `-pthread`; WASI has none.",
         "heavy_without_threads_first": "As `heavy_without_threads`.",
-        "async_from_key_xchacha": "Call the synchronous `from_key`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.",
+        "async_from_key_xchacha": "Name a native backend, such as `backends::sodium`, for `async_from_key`, or call the synchronous `from_key` there: WebCrypto has no XChaCha20-Poly1305, so on the browser's backend only AES-GCM is asynchronous.",
         "async_from_secret_secp256k1": "Call the synchronous `from_secret`: secp256k1 is not in WebCrypto, so only Ed25519's, X25519's and P-256's key pairs have `async_from_secret`.",
         "make_removed": "Call the factory named by its input, member or free: `from_secret` for a key pair, `from_bytes` for a public key, `from_key` for a cipher (`crypto::from_secret<K>(bytes)`, `K::from_secret(bytes)`); `make` is gone, with no alias.",
         "hybrid_header_removed": "Include `<webcpp/crypto/public_key_encryption/box.hpp>` for `box` and `box_xchacha20poly1305`, `<webcpp/crypto/public_key_encryption/sealed_box.hpp>` for `sealed_box`, `<webcpp/crypto/key_exchange/kx.hpp>` for `kx_keypair`; the old directory is kept free for post-quantum hybrids.",
         "hybrid_names_removed": "Name `crypto::public_key_encryption::box`, `box_xchacha20poly1305` and `sealed_box`, and `crypto::key_exchange::kx_keypair` and `session_keys`; `crypto::hybrid` and the names in `curves::x25519` are gone, with no alias.",
-        "async_seal_xchacha": "Call the AEAD's own `seal`: only AES-GCM has `async_seal`.",
-        "async_open_xchacha": "Call the AEAD's own `open`: only AES-GCM has `async_open`.",
+        "async_seal_xchacha": "Name a native backend, such as `backends::sodium`, for `async_seal`, or seal with AES-GCM on the browser's backend: WebCrypto has no XChaCha20-Poly1305.",
+        "async_open_xchacha": "Name a native backend, such as `backends::sodium`, for `async_open`, or open with AES-GCM on the browser's backend: WebCrypto has no XChaCha20-Poly1305.",
         "async_sign_secp256k1": "Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `async_sign`.",
         "async_sign_ed25519_prehashed": "Give `async_sign` the message itself with `crypto::eddsa`, RFC 8032's pure Ed25519, which takes no digest, as the synchronous `sign` does; a message's SHA-512 is signed with `crypto::eddsa_prehashed` (Ed25519ph), on a native backend.",
         "async_sign_p256_eddsa": "Give `async_sign` the key pair's own scheme: `crypto::ecdsa_sha256` for a P-256 key pair, `crypto::eddsa` or `crypto::eddsa_prehashed` for an Ed25519 key pair.",
@@ -1535,6 +1541,9 @@
         "secretbox_removed": "Name `crypto::secret_key_encryption::secretbox` and `secretbox_xchacha20poly1305`, the secret boxes' namespace; `ciphers::secretbox` is gone, with no alias.",
         "secretbox_removed_call": "As `secretbox_removed`: name `crypto::secret_key_encryption::secretbox<>` and `secretbox_xchacha20poly1305<>`, the names clang offers.",
         "seal_removed_call": "As `seal_removed`: call crypto::secret_key_encryption::aead::seal and open, which the cipher's header brings.",
+        "async_seal_removed": "Call crypto::secret_key_encryption::aead::async_seal and async_open.",
+        "async_seal_removed_declaration": "As `async_seal_removed`: call crypto::secret_key_encryption::aead::async_seal and async_open, in <webcpp/crypto/async.hpp>.",
+        "async_seal_box_associated_data": "Call the box form, `secret_key_encryption::async_seal(executor, box, nonce, data, token)`, or the box's own `async_seal(executor, nonce, data, token)`: a secret box or a crypto_box takes no associated data.",
         "seal_removed_call_wasi": "As `seal_removed_call`: call crypto::secret_key_encryption::aead::seal and open; clang's offer of the C library's fopen is not the AEAD's open.",
         "erase_secret_const_range": "Erase the buffer the secret was written to, through a non-const reference to it (`std::string&`, `std::span<std::byte>`): a const view cannot be erased. Its elements must be trivially copyable, bytes or integers; a range of `std::string` or of another type with its own storage cannot be erased as bytes, so erase each element's buffer instead.",
         "chacha_default_not_linked_on_emscripten": "As `chacha_default_not_linked`.",

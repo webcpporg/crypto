@@ -16,15 +16,20 @@
 |native, wasip2, wasip3, emscripten
 |`+random_device+`
 
-|`+async_from_key+`, `+async_seal+`, `+async_open+`
+|`+async_from_key+`, `+secret_key_encryption::aead::async_seal+`, `+secret_key_encryption::aead::async_open+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
 |`+async_gcm+`
 
-|`+async_from_key+`, `+async_seal+`, `+async_open+`
+|`+async_from_key+`, `+secret_key_encryption::aead::async_seal+`, `+secret_key_encryption::aead::async_open+`
 |OpenSSL
 |native, wasip2, wasip3; not on emscripten: `+/webcpp/crypto//openssl+` stops the build there
 |`+async_gcm_openssl+`
+
+|`+async_from_key+`, `+secret_key_encryption::aead::async_seal+`, `+secret_key_encryption::aead::async_open+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+async_aead+`
 
 |`+async_from_secret+`, `+async_generate+`, `+async_sign+`, `+async_verify+`
 |libsodium
@@ -329,11 +334,11 @@ The same, by target: the backends each operation runs on.
 |the system's generator
 |the system's generator
 
-|`+async_from_key+`, `+async_seal+`, `+async_open+`
-|BearSSL, OpenSSL
-|BearSSL, OpenSSL
-|BearSSL, OpenSSL
-|BearSSL
+|`+async_from_key+`, `+secret_key_encryption::aead::async_seal+`, `+secret_key_encryption::aead::async_open+`
+|BearSSL, OpenSSL, libsodium
+|BearSSL, OpenSSL, libsodium
+|BearSSL, OpenSSL, libsodium
+|BearSSL, libsodium
 
 |`+async_from_secret+`, `+async_generate+`, `+async_sign+`, `+async_verify+`
 |libsodium

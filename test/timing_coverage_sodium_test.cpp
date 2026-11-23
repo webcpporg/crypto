@@ -14,11 +14,14 @@
 //
 // What it covers, by family; a family libsodium gains adds its line and its checks:
 // - ChaCha20-Poly1305, its original form and XChaCha20-Poly1305, aead: from_key, seal, open; the
-//   free crypto::from_key, secret_key_encryption::aead::seal and secret_key_encryption::aead::open.
+//   free crypto::from_key, secret_key_encryption::aead::seal and secret_key_encryption::aead::open;
+//   the asynchronous async_from_key, async_seal and async_open, member and free.
 // - Both secret boxes, basic_secretbox: from_key, seal, open; the free crypto::from_key and the
-//   box forms secret_key_encryption::seal and secret_key_encryption::open.
+//   box forms secret_key_encryption::seal and secret_key_encryption::open; the asynchronous
+//   async_from_key, async_seal and async_open, member and free.
 // - Both boxes, basic_box: from_keys, of a moved-from key pair too, seal, open; the box forms
-//   secret_key_encryption::seal and secret_key_encryption::open. The sealed box, basic_sealed_box:
+//   secret_key_encryption::seal and secret_key_encryption::open; the asynchronous async_seal and
+//   async_open, member and free. The sealed box, basic_sealed_box:
 //   seal, open, of a moved-from key pair too.
 // - PEM: algorithm::armour, algorithm::unarmour, and the free armour and unarmour, which forward.
 // - Ed25519, basic_keypair: from_secret, generate, public_key, secret, sign, to_x25519;
@@ -130,6 +133,121 @@ void cover_box_forms(Box& made, std::string const& family, std::string const& on
 }
 
 /**
+ * A box's asynchronous `async_seal` and `async_open` (design D6), the box forms
+ * (`secret_key_encryption::async_seal` and `async_open`) and the members, each a nonce of the
+ * wrong size included, an `io_context` run after each call so that its completion is delivered.
+ *
+ * @tparam Box An `authenticated_box`: a secret box or a crypto_box.
+ * @param made A keyed box.
+ * @param family The family's name, as the public alias spells it.
+ * @param on ` on <backend>`, which ends each name.
+ * @param members The class that declares the members, `basic_secretbox` or `basic_box`.
+ */
+template <class Box>
+void cover_async_box_forms(Box& made, std::string const& family, std::string const& on,
+                           std::string const& members) {
+    webcpp::asio::io_context context;
+    auto const executor = context.get_executor();
+    std::array<std::uint8_t, Box::nonce_size> const nonce{};
+    auto const short_nonce = std::span(nonce).first(Box::nonce_size - 1);
+    std::array<std::uint8_t, 40> data{};
+    int completions = 0;
+    typename Box::result_type kept{};
+    webcpp::test::async_completion_counter<typename Box::result_type> const counted{
+        .completions = &completions,
+    };
+    webcpp::test::async_completion_counter<typename Box::result_type> const keeping{
+        .completions = &completions,
+        .tag = &kept,
+    };
+    auto const deliver = [&context] {
+        context.restart();
+        context.run();  // lint-run: the test's event loop
+    };
+    auto const tag = [&kept] { return std::span<std::uint8_t const>(kept.data(), kept.size()); };
+    covered(family + " secret_key_encryption::async_seal" + on, "secret_key_encryption::async_seal",
+            [&] {
+                crypto::secret_key_encryption::async_seal(executor, made, nonce, data, keeping);
+                deliver();
+            });
+    covered(family + " secret_key_encryption::async_open" + on, "secret_key_encryption::async_open",
+            [&] {
+                crypto::secret_key_encryption::async_open(executor, made, nonce, data, tag(),
+                                                          counted);
+                deliver();
+            });
+    covered(family + " secret_key_encryption::async_seal with a short nonce" + on,
+            "secret_key_encryption::async_seal", [&] {
+                crypto::secret_key_encryption::async_seal(executor, made, short_nonce, data,
+                                                          counted);
+                deliver();
+            });
+    covered(family + " secret_key_encryption::async_open with a short nonce" + on,
+            "secret_key_encryption::async_open", [&] {
+                crypto::secret_key_encryption::async_open(executor, made, short_nonce, data, tag(),
+                                                          counted);
+                deliver();
+            });
+    covered(family + "::async_seal" + on, members + "::async_seal", [&] {
+        made.async_seal(executor, nonce, data, keeping);
+        deliver();
+    });
+    covered(family + "::async_open" + on, members + "::async_open", [&] {
+        made.async_open(executor, nonce, data, tag(), counted);
+        deliver();
+    });
+    covered(family + "::async_seal with a short nonce" + on, members + "::async_seal", [&] {
+        made.async_seal(executor, short_nonce, data, counted);
+        deliver();
+    });
+    covered(family + "::async_open with a short nonce" + on, members + "::async_open", [&] {
+        made.async_open(executor, short_nonce, data, tag(), counted);
+        deliver();
+    });
+    BOOST_TEST_EQ(completions, 8);
+}
+
+/**
+ * A secret box's `async_from_key`, free and member, a key of the wrong size included.
+ *
+ * @tparam Secretbox `basic_secretbox<Family, sodium>`.
+ * @param family The family's name, as the public alias spells it.
+ * @param on ` on <backend>`, which ends each name.
+ */
+template <class Secretbox>
+void cover_async_secretbox_from_key(std::string const& family, std::string const& on) {
+    webcpp::asio::io_context context;
+    auto const executor = context.get_executor();
+    auto const key = webcpp::test::coverage_key<Secretbox::key_size>();
+    auto const short_key = std::span(key).first(Secretbox::key_size - 1);
+    int completions = 0;
+    webcpp::test::async_completion_counter<> const counted{.completions = &completions};
+    auto const deliver = [&context] {
+        context.restart();
+        context.run();  // lint-run: the test's event loop
+    };
+    covered(family + " crypto::async_from_key" + on, "crypto::async_from_key", [&] {
+        crypto::async_from_key<Secretbox>(executor, key, counted);
+        deliver();
+    });
+    covered(family + " crypto::async_from_key with a short key" + on, "crypto::async_from_key",
+            [&] {
+                crypto::async_from_key<Secretbox>(executor, short_key, counted);
+                deliver();
+            });
+    covered(family + "::async_from_key" + on, "basic_secretbox::async_from_key", [&] {
+        Secretbox::async_from_key(executor, key, counted);
+        deliver();
+    });
+    covered(family + "::async_from_key with a short key" + on, "basic_secretbox::async_from_key",
+            [&] {
+                Secretbox::async_from_key(executor, short_key, counted);
+                deliver();
+            });
+    BOOST_TEST_EQ(completions, 4);
+}
+
+/**
  * A secret box's guarded functions: `from_key`, a key of the wrong size included, member and
  * free; `seal` and `open`, a nonce of the wrong size included; and the box forms
  * (`cover_box_forms`).
@@ -175,6 +293,8 @@ void cover_secretbox(std::string const& family) {
                        .error() == crypto::error::invalid_nonce_size);
     });
     cover_box_forms(*made, family, on);
+    cover_async_box_forms(*made, family, on, "basic_secretbox");
+    cover_async_secretbox_from_key<Secretbox>(family, on);
 }
 
 /** ChaCha20-Poly1305, its original form, XChaCha20-Poly1305 and both secret boxes. */
@@ -270,6 +390,7 @@ void cover_box(std::string const& family) {
                        .error() == crypto::error::invalid_nonce_size);
     });
     cover_box_forms(*made, family, on);
+    cover_async_box_forms(*made, family, on, "basic_box");
 }
 
 /**

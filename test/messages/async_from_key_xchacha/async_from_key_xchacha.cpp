@@ -4,39 +4,53 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// async_from_key on an AEAD WebCrypto lacks, XChaCha20-Poly1305, stops with the synchronous call
-// to from_key instead, and with that error alone, while the AEAD's own seal compiles.
+// crypto::async_from_key of an AEAD WebCrypto lacks, XChaCha20-Poly1305, on a backend that
+// completes by itself (a stand-in whose detail::asynchronous_backend_v is true), stops with the
+// refusal that sends it to a native backend (design D6), and with that error alone: it fires before
+// any member of the AEAD is named (ruling P12).
 
+// clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
+// whole text stays on one line.
 // clang-format off
-// expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: async_from_key takes AES-GCM, the AEAD WebCrypto has: call from_key for the others.}}
+// expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: their async_seal, async_open and async_from_key run on a native backend; on the browser's backend only AES-GCM is asynchronous.}}
 // clang-format on
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 
 #include <webcpp/asio/io_context.hpp>
 
-#include <boost/hash2/digest.hpp>
 #include <boost/system/error_code.hpp>
 
 #include <array>
 #include <cstdint>
 
-int main() {
-    namespace crypto = webcpp::crypto;
+namespace {
+
+/** A backend that completes by itself, as part B's browser backend will. */
+struct stand_in_browser {};
+
+}  // namespace
+
+template <>
+inline constexpr bool webcpp::crypto::detail::asynchronous_backend_v<stand_in_browser> = true;
+
+/** XChaCha20-Poly1305 on the stand-in. */
+using stand_in_xchacha = webcpp::crypto::ciphers::xchacha20_poly1305<stand_in_browser>;
+
+namespace {
+
+/** Makes an object of the stand-in's asynchronously. */
+void made() {
     std::array<std::uint8_t, 32> const key{};
-    auto made = crypto::ciphers::xchacha20_poly1305<>::from_key(key);
-    if (!made) {
-        return 1;
-    }
-    std::array<std::uint8_t, 24> const iv{};
-    std::array<std::uint8_t, 16> data{};
-    // The synchronous seal compiles.
-    if (!made->seal(iv, {}, data)) {
-        return 1;
-    }
     webcpp::asio::io_context context;
-    crypto::async_from_key<crypto::ciphers::xchacha20_poly1305<>>(
-        context.get_executor(), key,
-        [](boost::system::error_code, crypto::ciphers::xchacha20_poly1305<>) {});
+    webcpp::crypto::async_from_key<stand_in_xchacha>(
+        context.get_executor(), key, [](boost::system::error_code, stand_in_xchacha) {});
+}
+
+}  // namespace
+
+// The function is compiled, which is the test; it is never run.
+int main() {
+    static_cast<void>(&made);
     return 0;
 }

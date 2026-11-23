@@ -75,9 +75,9 @@ The fix: As `+agree_free_wrong_peer+`: give `+async_agree+` the peer's typed pub
 
 |`+async_from_key_xchacha+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_from_key takes AES-GCM, the AEAD WebCrypto has: call from_key for the others.+`
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: their async_seal, async_open and async_from_key run on a native backend; on the browser's backend only AES-GCM is asynchronous.+`
 
-The fix: Call the synchronous `+from_key+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
+The fix: Name a native backend, such as `+backends::sodium+`, for `+async_from_key+`, or call the synchronous `+from_key+` there: WebCrypto has no XChaCha20-Poly1305, so on the browser's backend only AES-GCM is asynchronous.
 
 |`+async_from_secret_secp256k1+`
 |native, wasip2, wasip3
@@ -93,15 +93,33 @@ The fix: Include `+<webcpp/crypto/async.hpp>+`, which defines the asynchronous m
 
 |`+async_open_xchacha+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_open takes AES-GCM, the AEAD WebCrypto has: call open for the others.+`
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: their async_seal, async_open and async_from_key run on a native backend; on the browser's backend only AES-GCM is asynchronous.+`
 
-The fix: Call the AEAD's own `+open+`: only AES-GCM has `+async_open+`.
+The fix: Name a native backend, such as `+backends::sodium+`, for `+async_open+`, or open with AES-GCM on the browser's backend: WebCrypto has no XChaCha20-Poly1305.
+
+|`+async_seal_box_associated_data+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_seal: a secret box or a crypto_box takes no associated data: secret_key_encryption::async_seal(executor, box, nonce, data, token).+`
+
+The fix: Call the box form, `+secret_key_encryption::async_seal(executor, box, nonce, data, token)+`, or the box's own `+async_seal(executor, nonce, data, token)+`: a secret box or a crypto_box takes no associated data.
+
+|`+async_seal_removed+`
+|native, wasip2, wasip3
+|`+no matching function for call to 'async_open'+`
+
+The fix: Call crypto::secret_key_encryption::aead::async_seal and async_open.
+
+|`+async_seal_removed_declaration+`
+|native, wasip2, wasip3
+|`+no member named 'async_open' in namespace 'webcpp::crypto'+`
+
+The fix: As `+async_seal_removed+`: call crypto::secret_key_encryption::aead::async_seal and async_open, in <webcpp/crypto/async.hpp>.
 
 |`+async_seal_xchacha+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_seal takes AES-GCM, the AEAD WebCrypto has: call seal for the others.+`
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: their async_seal, async_open and async_from_key run on a native backend; on the browser's backend only AES-GCM is asynchronous.+`
 
-The fix: Call the AEAD's own `+seal+`: only AES-GCM has `+async_seal+`.
+The fix: Name a native backend, such as `+backends::sodium+`, for `+async_seal+`, or seal with AES-GCM on the browser's backend: WebCrypto has no XChaCha20-Poly1305.
 
 |`+async_sign_ed25519_prehashed+`
 |native, wasip2, wasip3
@@ -1392,7 +1410,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+async_from_key_xchacha+`
 |the compile
-|Call the synchronous `+from_key+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
+|Name a native backend, such as `+backends::sodium+`, for `+async_from_key+`, or call the synchronous `+from_key+` there: WebCrypto has no XChaCha20-Poly1305, so on the browser's backend only AES-GCM is asynchronous.
 
 |`+async_from_secret_secp256k1+`
 |the compile
@@ -1400,11 +1418,11 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+async_open_xchacha+`
 |the compile
-|Call the AEAD's own `+open+`: only AES-GCM has `+async_open+`.
+|Name a native backend, such as `+backends::sodium+`, for `+async_open+`, or open with AES-GCM on the browser's backend: WebCrypto has no XChaCha20-Poly1305.
 
 |`+async_seal_xchacha+`
 |the compile
-|Call the AEAD's own `+seal+`: only AES-GCM has `+async_seal+`.
+|Name a native backend, such as `+backends::sodium+`, for `+async_seal+`, or seal with AES-GCM on the browser's backend: WebCrypto has no XChaCha20-Poly1305.
 
 |`+async_sign_secp256k1+`
 |the compile

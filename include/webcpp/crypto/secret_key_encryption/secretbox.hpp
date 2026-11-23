@@ -25,6 +25,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/asynchronous.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
@@ -266,6 +267,32 @@ public:
     }
 
     /**
+     * Makes a box under a key, asynchronously: `from_key` run when the operation is initiated,
+     * its result posted to `completion_executor`; the member form of
+     * `crypto::async_from_key<basic_secretbox>(executor, key_bytes, token)`, which calls it.
+     *
+     * On a native backend only: WebCrypto has no secret box, and on a backend that completes by
+     * itself the call stops the build (design D6).
+     *
+     * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
+     * "deduced return type used before it is defined".
+     *
+     * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+     * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+     * @param completion_executor The executor the completion is posted to.
+     * @param key_bytes `key_size` bytes, the caller's until the completion.
+     * @param completion_token The completion token, of signature
+     * `void(boost::system::error_code, basic_secretbox)`; on an error the box is empty, and every
+     * member refuses with `invalid_state` (`invalid_key_size`, `backend_failure`).
+     * @return What the completion token's `async_result` gives.
+     */
+    template <class Executor, class CompletionToken>
+    static auto async_from_key(Executor const& completion_executor,
+                               std::span<std::uint8_t const> key_bytes,
+                               CompletionToken&& completion_token);
+
+    /**
      * Moves the key; the source is wiped and empty.
      *
      * Moving an empty box gives an empty one.
@@ -345,6 +372,33 @@ public:
     }
 
     /**
+     * Seals a message in place, asynchronously: `seal` run when the operation is initiated, its
+     * result posted to `completion_executor`; the member form of
+     * `secret_key_encryption::async_seal(executor, box, nonce_bytes, data_bytes, token)`, which
+     * calls it.
+     *
+     * The box and the spans are the caller's until the completion; `data_bytes` holds the
+     * ciphertext at the completion. On a native backend only: on a backend that completes by
+     * itself the call stops the build (design D6).
+     *
+     * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile.
+     *
+     * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+     * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+     * @param completion_executor The executor the completion is posted to.
+     * @param nonce_bytes The nonce, `nonce_size` bytes, never repeated under this key.
+     * @param data_bytes The message.
+     * @param completion_token The completion token, of signature
+     * `void(boost::system::error_code, result_type)`: the tag; on an error the zeroed tag (the
+     * errors of `seal`).
+     * @return What the completion token's `async_result` gives.
+     */
+    template <class Executor, class CompletionToken>
+    auto async_seal(Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
+                    std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token);
+
+    /**
      * Opens a message in place: `data_bytes` holds the ciphertext before and the plaintext
      * after.
      *
@@ -387,7 +441,38 @@ public:
         }
     }
 
+    /**
+     * Opens a message in place, asynchronously: `open` run when the operation is initiated, its
+     * result posted to `completion_executor`; the member form of
+     * `secret_key_encryption::async_open(executor, box, nonce_bytes, data_bytes, tag_bytes,
+     * token)`, which calls it.
+     *
+     * The box and the spans are the caller's until the completion; `data_bytes` holds the
+     * plaintext at a successful completion, and is zeroed by a wrong tag. On a native backend
+     * only: on a backend that completes by itself the call stops the build (design D6).
+     *
+     * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
+     * it, with `<library>/webcpp/asio//asio` in its Jamfile.
+     *
+     * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+     * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+     * @param completion_executor The executor the completion is posted to.
+     * @param nonce_bytes The nonce of the seal.
+     * @param data_bytes The ciphertext.
+     * @param tag_bytes The seal's tag, `tag_size` bytes.
+     * @param completion_token The completion token, of signature `void(boost::system::error_code)`
+     * (`open`'s errors).
+     * @return What the completion token's `async_result` gives.
+     */
+    template <class Executor, class CompletionToken>
+    auto async_open(Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
+                    std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
+                    CompletionToken&& completion_token);
+
 private:
+    // The asynchronous family's error completions make the empty object a move leaves.
+    friend struct detail::async_access;
+
     basic_secretbox() noexcept = default;
 
     // Every guard of a message, in the documented order: the state, the nonce, the tag (open's;

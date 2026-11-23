@@ -229,11 +229,11 @@ void cover_gcm_one_shot(Gcm& made, gcm_coverage_message<Gcm>& message, std::stri
                              std::span(message.tag.data(), message.tag.size()))
                        .has_value());
     });
-    covered(family + "::seal with an empty IV" + on, "gcm::seal", [&] {
+    covered(family + "::seal with an empty nonce" + on, "gcm::seal", [&] {
         BOOST_TEST(made.seal({}, message.associated_data, message.data).error() ==
                    webcpp::crypto::error::invalid_nonce_size);
     });
-    covered(family + "::open with an empty IV" + on, "gcm::open", [&] {
+    covered(family + "::open with an empty nonce" + on, "gcm::open", [&] {
         BOOST_TEST(made.open({}, message.associated_data, message.data,
                              std::span(message.tag.data(), message.tag.size()))
                        .error() == webcpp::crypto::error::invalid_nonce_size);
@@ -259,7 +259,7 @@ void cover_gcm_incremental_seal(Gcm& made, gcm_coverage_message<Gcm>& message,
             [&] { BOOST_TEST(made.update(message.data).has_value()); });
     covered(family + "::result" + on, "gcm::result",
             [&] { BOOST_TEST(made.result().has_value()); });
-    covered(family + "::begin_seal with an empty IV" + on, "gcm::begin_seal", [&] {
+    covered(family + "::begin_seal with an empty nonce" + on, "gcm::begin_seal", [&] {
         BOOST_TEST(made.begin_seal({}, message.associated_data).error() ==
                    webcpp::crypto::error::invalid_nonce_size);
     });
@@ -295,7 +295,7 @@ void cover_gcm_incremental_open(Gcm& made, gcm_coverage_message<Gcm>& message,
             [&] { BOOST_TEST(made.decrypt(message.data).has_value()); });
     covered(family + "::end_open" + on, "gcm::end_open",
             [&] { BOOST_TEST(made.end_open().has_value()); });
-    covered(family + "::begin_open with an empty IV" + on, "gcm::begin_open", [&] {
+    covered(family + "::begin_open with an empty nonce" + on, "gcm::begin_open", [&] {
         BOOST_TEST(made.begin_open({}, message.associated_data).error() ==
                    webcpp::crypto::error::invalid_nonce_size);
     });
@@ -482,25 +482,32 @@ void cover_async_gcm(std::string const& family, std::string const& backend) {
         return;
     }
     gcm_coverage_message<Gcm> message;
-    covered(family + "::async_seal" + on, "crypto::async_seal", [&] {
-        crypto::async_seal(executor, *made, message.nonce, message.associated_data, message.data,
-                           keeping);
-        deliver();
-    });
-    covered(family + "::async_open" + on, "crypto::async_open", [&] {
-        crypto::async_open(executor, *made, message.nonce, message.associated_data, message.data,
-                           std::span(kept.data(), kept.size()), counted);
-        deliver();
-    });
-    covered(family + "::async_seal with an empty IV" + on, "crypto::async_seal", [&] {
-        crypto::async_seal(executor, *made, {}, message.associated_data, message.data, counted);
-        deliver();
-    });
-    covered(family + "::async_open with an empty IV" + on, "crypto::async_open", [&] {
-        crypto::async_open(executor, *made, {}, message.associated_data, message.data,
-                           std::span(kept.data(), kept.size()), counted);
-        deliver();
-    });
+    covered(family + " secret_key_encryption::aead::async_seal" + on,
+            "secret_key_encryption::aead::async_seal", [&] {
+                crypto::secret_key_encryption::aead::async_seal(
+                    executor, *made, message.nonce, message.associated_data, message.data, keeping);
+                deliver();
+            });
+    covered(family + " secret_key_encryption::aead::async_open" + on,
+            "secret_key_encryption::aead::async_open", [&] {
+                crypto::secret_key_encryption::aead::async_open(
+                    executor, *made, message.nonce, message.associated_data, message.data,
+                    std::span(kept.data(), kept.size()), counted);
+                deliver();
+            });
+    covered(family + "::async_seal with an empty nonce" + on,
+            "secret_key_encryption::aead::async_seal", [&] {
+                crypto::secret_key_encryption::aead::async_seal(
+                    executor, *made, {}, message.associated_data, message.data, counted);
+                deliver();
+            });
+    covered(family + "::async_open with an empty nonce" + on,
+            "secret_key_encryption::aead::async_open", [&] {
+                crypto::secret_key_encryption::aead::async_open(
+                    executor, *made, {}, message.associated_data, message.data,
+                    std::span(kept.data(), kept.size()), counted);
+                deliver();
+            });
     covered(family + "::async_seal, the member," + on, "gcm::async_seal", [&] {
         made->async_seal(executor, message.nonce, message.associated_data, message.data, keeping);
         deliver();
@@ -510,11 +517,11 @@ void cover_async_gcm(std::string const& family, std::string const& backend) {
                          std::span(kept.data(), kept.size()), counted);
         deliver();
     });
-    covered(family + "::async_seal, the member, with an empty IV" + on, "gcm::async_seal", [&] {
+    covered(family + "::async_seal, the member, with an empty nonce" + on, "gcm::async_seal", [&] {
         made->async_seal(executor, {}, message.associated_data, message.data, counted);
         deliver();
     });
-    covered(family + "::async_open, the member, with an empty IV" + on, "gcm::async_open", [&] {
+    covered(family + "::async_open, the member, with an empty nonce" + on, "gcm::async_open", [&] {
         made->async_open(executor, {}, message.associated_data, message.data,
                          std::span(kept.data(), kept.size()), counted);
         deliver();
@@ -783,9 +790,102 @@ void cover_aead_free_forms(std::string const& family, std::string const& on) {
 }
 
 /**
+ * ciphers::aead's asynchronous functions (design D6): `crypto::async_from_key` and the static
+ * `async_from_key`, a key of the wrong size included, and `async_seal` and `async_open`, free
+ * (`secret_key_encryption::aead`) and member, a nonce of the wrong size included, an `io_context`
+ * run after each call so that its completion is delivered. The first guard each enters is its own.
+ *
+ * @tparam Aead `aead<Family, Backend>`: ChaCha20-Poly1305 and its forms.
+ * @param family The family's name, as the public alias spells it.
+ * @param on ` on <backend>`, which ends each name.
+ */
+template <class Aead>
+void cover_async_aead(std::string const& family, std::string const& on) {
+    namespace aead = webcpp::crypto::secret_key_encryption::aead;
+    webcpp::asio::io_context context;
+    auto const executor = context.get_executor();
+    auto const key = coverage_key<Aead::key_size>();
+    auto const short_key = std::span(key).first(Aead::key_size - 1);
+    int completions = 0;
+    typename Aead::result_type kept{};
+    async_completion_counter<typename Aead::result_type> const counted{.completions = &completions};
+    async_completion_counter<typename Aead::result_type> const keeping{
+        .completions = &completions,
+        .tag = &kept,
+    };
+    auto const deliver = [&context] {
+        context.restart();
+        context.run();  // lint-run: the test's event loop
+    };
+    covered(family + " crypto::async_from_key" + on, "crypto::async_from_key", [&] {
+        webcpp::crypto::async_from_key<Aead>(executor, key, counted);
+        deliver();
+    });
+    covered(family + " crypto::async_from_key with a short key" + on, "crypto::async_from_key",
+            [&] {
+                webcpp::crypto::async_from_key<Aead>(executor, short_key, counted);
+                deliver();
+            });
+    covered(family + "::async_from_key" + on, "ciphers::aead::async_from_key", [&] {
+        Aead::async_from_key(executor, key, counted);
+        deliver();
+    });
+    covered(family + "::async_from_key with a short key" + on, "ciphers::aead::async_from_key",
+            [&] {
+                Aead::async_from_key(executor, short_key, counted);
+                deliver();
+            });
+    auto made = Aead::from_key(key);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    std::array<std::uint8_t, Aead::nonce_size> const nonce{};
+    auto const short_nonce = std::span(nonce).first(Aead::nonce_size - 1);
+    std::array<std::uint8_t, 40> data{};
+    auto const tag = [&kept] { return std::span<std::uint8_t const>(kept.data(), kept.size()); };
+    covered(family + " secret_key_encryption::aead::async_seal" + on,
+            "secret_key_encryption::aead::async_seal", [&] {
+                aead::async_seal(executor, *made, nonce, {}, data, keeping);
+                deliver();
+            });
+    covered(family + " secret_key_encryption::aead::async_open" + on,
+            "secret_key_encryption::aead::async_open", [&] {
+                aead::async_open(executor, *made, nonce, {}, data, tag(), counted);
+                deliver();
+            });
+    covered(family + " secret_key_encryption::aead::async_seal with a short nonce" + on,
+            "secret_key_encryption::aead::async_seal", [&] {
+                aead::async_seal(executor, *made, short_nonce, {}, data, counted);
+                deliver();
+            });
+    covered(family + " secret_key_encryption::aead::async_open with a short nonce" + on,
+            "secret_key_encryption::aead::async_open", [&] {
+                aead::async_open(executor, *made, short_nonce, {}, data, tag(), counted);
+                deliver();
+            });
+    covered(family + "::async_seal" + on, "ciphers::aead::async_seal", [&] {
+        made->async_seal(executor, nonce, {}, data, keeping);
+        deliver();
+    });
+    covered(family + "::async_open" + on, "ciphers::aead::async_open", [&] {
+        made->async_open(executor, nonce, {}, data, tag(), counted);
+        deliver();
+    });
+    covered(family + "::async_seal with a short nonce" + on, "ciphers::aead::async_seal", [&] {
+        made->async_seal(executor, short_nonce, {}, data, counted);
+        deliver();
+    });
+    covered(family + "::async_open with a short nonce" + on, "ciphers::aead::async_open", [&] {
+        made->async_open(executor, short_nonce, {}, data, tag(), counted);
+        deliver();
+    });
+    BOOST_TEST_EQ(completions, 12);
+}
+
+/**
  * ciphers::aead's guarded functions: `from_key`, a key of the wrong size included, `seal` and
  * `open`, a nonce of the wrong size included, and the free forms that call them
- * (`cover_aead_free_forms`).
+ * (`cover_aead_free_forms`), and their asynchronous forms (`cover_async_aead`).
  *
  * @tparam Aead `aead<Family, Backend>`: ChaCha20-Poly1305 and its forms.
  * @param family The family's name, as the public alias spells it.
@@ -827,6 +927,7 @@ void cover_aead(std::string const& family, std::string const& backend) {
                        .error() == webcpp::crypto::error::invalid_nonce_size);
     });
     cover_aead_free_forms<Aead>(family, on);
+    cover_async_aead<Aead>(family, on);
 }
 
 }  // namespace webcpp::test

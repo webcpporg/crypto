@@ -61,13 +61,13 @@ asynchronous form needs `<webcpp/crypto/async.hpp>` and
 | `aead.seal(nonce, associated_data, data)` +
 `secret_key_encryption::aead::seal(aead, nonce, associated_data, data)`
 | `aead.async_seal(executor, nonce, associated_data, data, token)` +
-`crypto::async_seal(executor, aead, nonce, associated_data, data, token)`
+`secret_key_encryption::aead::async_seal(executor, aead, nonce, associated_data, data, token)`
 
 | Open
 | `aead.open(nonce, associated_data, data, tag)` +
 `secret_key_encryption::aead::open(aead, nonce, associated_data, data, tag)`
 | `aead.async_open(executor, nonce, associated_data, data, tag, token)` +
-`crypto::async_open(executor, aead, nonce, associated_data, data, tag, token)`
+`secret_key_encryption::aead::async_open(executor, aead, nonce, associated_data, data, tag, token)`
 |===
 
 include::generated/backends-gcm.adoc[]

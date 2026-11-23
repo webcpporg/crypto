@@ -312,8 +312,8 @@ public:
     /**
      * Seals a message in place, asynchronously: `seal` run when the operation is initiated, its
      * result posted to `completion_executor`; the member form of
-     * `crypto::async_seal(executor, aead, nonce_bytes, associated_data_bytes, data_bytes, token)`,
-     * which calls it.
+     * `secret_key_encryption::aead::async_seal(executor, aead, nonce_bytes, associated_data_bytes,
+     * data_bytes, token)`, which calls it.
      *
      * The object and the spans are the caller's until the completion; `data_bytes` holds the
      * ciphertext at the completion.
@@ -389,8 +389,9 @@ public:
 
     /**
      * Opens a message in place, asynchronously: `open` run when the operation is initiated, its
-     * result posted to `completion_executor`; the member form of `crypto::async_open`, which calls
-     * it with the executor and the object before this function's arguments.
+     * result posted to `completion_executor`; the member form of
+     * `secret_key_encryption::aead::async_open`, which calls it with the executor and the object
+     * before this function's arguments.
      *
      * The object and the spans are the caller's until the completion; `data_bytes` holds the
      * plaintext at a successful completion.

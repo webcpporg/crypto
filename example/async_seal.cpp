@@ -79,7 +79,7 @@ int main() {
             }
             aead.emplace(std::move(keyed));
             std::printf("made after the call returned: %s\n", returned ? "yes" : "no");
-            crypto::async_seal(
+            crypto::secret_key_encryption::aead::async_seal(
                 loop.get_executor(), *aead, nonce, associated_data, data,
                 [&](boost::system::error_code sealed, aead_type::result_type digest) {
                     if (sealed) {
@@ -90,17 +90,17 @@ int main() {
                     std::ranges::copy(digest, tag.begin());
                     print("tag", tag);
                     // The ciphertext replaced the record, and the tag opens it back.
-                    crypto::async_open(loop.get_executor(), *aead, nonce, associated_data, data,
-                                       tag, [&](boost::system::error_code opened) {
-                                           if (opened) {
-                                               std::printf("open: %s\n", opened.message().c_str());
-                                               return;
-                                           }
-                                           bool const same = std::ranges::equal(data, record);
-                                           std::printf("opened, the record is back: %s\n",
-                                                       same ? "yes" : "no");
-                                           status = same ? 0 : 1;
-                                       });
+                    crypto::secret_key_encryption::aead::async_open(
+                        loop.get_executor(), *aead, nonce, associated_data, data, tag,
+                        [&](boost::system::error_code opened) {
+                            if (opened) {
+                                std::printf("open: %s\n", opened.message().c_str());
+                                return;
+                            }
+                            bool const same = std::ranges::equal(data, record);
+                            std::printf("opened, the record is back: %s\n", same ? "yes" : "no");
+                            status = same ? 0 : 1;
+                        });
                 });
         });
     returned = true;

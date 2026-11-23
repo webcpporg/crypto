@@ -15,10 +15,12 @@
 // - The AES block cipher, aes128, aes192 and aes256: from_key; basic_aes: encrypt, decrypt.
 // - AES-GCM, gcm<aes128>, gcm<aes192> and gcm<aes256>: from_key, the move constructor and move
 //   assignment (ruling R3), seal, open, begin_seal, update, result, and the asynchronous
-//   async_from_key, async_seal and async_open, free and member; the free crypto::from_key,
-//   secret_key_encryption::aead::seal and secret_key_encryption::aead::open.
+//   async_from_key, async_seal and async_open, free (secret_key_encryption::aead's) and member;
+//   the free crypto::from_key, secret_key_encryption::aead::seal and
+//   secret_key_encryption::aead::open.
 // - ChaCha20-Poly1305, aead: from_key, seal, open; the free crypto::from_key,
-//   secret_key_encryption::aead::seal and secret_key_encryption::aead::open.
+//   secret_key_encryption::aead::seal and secret_key_encryption::aead::open; the asynchronous
+//   async_from_key, async_seal and async_open, member and free.
 
 #include "support/timing_seam.hpp"
 

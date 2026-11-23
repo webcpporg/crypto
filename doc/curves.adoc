@@ -225,8 +225,8 @@ secp256k1 keeps a third argument where it has a reason of its own: hedged
 ECDSA, `sign(crypto::ecdsa_sha256, input, extra_entropy)`, mixes 32 fresh bytes
 of the caller's into the nonce, and `sign(crypto::schnorr, message,
 auxiliary_random_bytes)` takes BIP 340's auxiliary randomness from the caller,
-for test vectors; `sign(crypto::schnorr, message)` draws it from `random_device`, and
-returns `entropy_unavailable` when it cannot. `recover` takes the scheme and
+for test vectors; `sign(crypto::schnorr, message)` draws it from
+`random_device`, and returns `entropy_unavailable` when it cannot. `recover` takes the scheme and
 the inputs of signing, `recover(crypto::ecdsa_sha256_recoverable, signature,
 input)` or `recover(crypto::ecdsa_keccak256_recoverable, signature, input)`
 (<<crypto-secp256k1-recovery>>).

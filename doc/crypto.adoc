@@ -40,6 +40,8 @@ include::entropy.adoc[]
 
 include::equal.adoc[]
 
+include::erase_secret.adoc[]
+
 include::errors.adoc[]
 
 include::ciphers.adoc[]

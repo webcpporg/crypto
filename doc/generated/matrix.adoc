@@ -46,6 +46,11 @@
 |native, wasip2, wasip3, emscripten
 |`+equal+`
 
+|`+erase_secret+`
+|no backend
+|native, wasip2, wasip3, emscripten
+|`+erase_secret+`
+
 |`+error+`
 |no backend
 |native, wasip2, wasip3, emscripten
@@ -349,6 +354,12 @@ The same, by target: the backends each operation runs on.
 |BearSSL
 
 |`+equal+`
+|no backend
+|no backend
+|no backend
+|no backend
+
+|`+erase_secret+`
 |no backend
 |no backend
 |no backend

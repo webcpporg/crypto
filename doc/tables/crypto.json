@@ -1,7 +1,7 @@
 {
     "comment": "The data of crypto's generated tables and of llms.txt; doc/tables/generate.py reads it with the test Jamfiles, the message tests and the superproject's Jamfile fixtures, and writes doc/generated/, doc/llms.txt, include/webcpp/crypto/detail/capabilities.hpp, include/webcpp/crypto/detail/defaults.hpp and test/capabilities_test.cpp. The capability table is `families`: per family its algorithms, the targets on which each backend has it (each claimed only where a test of the family's operations on that backend runs), constant time per target where it differs from the backend's own `constant_time` (X25519 on wasip2, an open finding, and natively without arm64's DIT, the cause of both), with `constant_time_checker` naming the checker that measured it where that is not every checker of the target, and the default per target, one whatever the program links (design D32), with its reason and the tests that fix it (a row of some of `compilers` restates its target's default for them, with a reason of their own, and each compiler of a target has one row), from which come include/webcpp/crypto/detail/defaults.hpp and the refusal that says what a program whose default is not linked needs; a backend with `targets`, where it is built, is a tag of `backends`. A name in a text is written between backticks, as Markdown writes code: the tables show it as code and llms.txt keeps the backticks. A comparison table's cell {speed:<family>} or {constant_time:<family>} is written from doc/performance.json or from the family's `constant_time`, and each cell of a column a namespace lists in `cited` cites a source or begins with \"none\". Edit this file, then run python3 libs/crypto/doc/tables/generate.py; the doc build runs it with --check.",
     "page": "https://webcpporg.github.io/libs/crypto/",
-    "llms": "Cryptographic primitives for C++20 on native, wasip2, wasip3 and Emscripten: AES-GCM, the AES block cipher, secp256k1 (BIP 340 Schnorr, ECDSA and recoverable signatures, ECDH, tweaks, ElligatorSwift, MuSig2, silent payments), Ed25519 and Ed25519ph (RFC 8032), X25519 (RFC 7748), their keys in SPKI, PKCS#8 (RFC 8410) and PEM, P-256 key pairs, ECDSA and ECDH on BearSSL, libsodium's crypto_kx, the ChaCha20-Poly1305 AEADs, libsodium's secret boxes, boxes and sealed boxes, a random_device on the system's generator and a constant-time equal, each over a widely used, reviewed C library (BearSSL, OpenSSL, ctaes, libsecp256k1, libsodium) that the program names in its Jamfile. Hashing and HMAC are Boost.Hash2's; HKDF and password hashing are webcpp::hash's. Every failure is a boost::system::result value. Protocols (Bitcoin, Ethereum, Nostr) belong to domain libraries built on these primitives.",
+    "llms": "Cryptographic primitives for C++20 on native, wasip2, wasip3 and Emscripten: AES-GCM, the AES block cipher, secp256k1 (BIP 340 Schnorr, ECDSA and recoverable signatures, ECDH, tweaks, ElligatorSwift, MuSig2, silent payments), Ed25519 and Ed25519ph (RFC 8032), X25519 (RFC 7748), their keys in SPKI, PKCS#8 (RFC 8410) and PEM, P-256 key pairs, ECDSA and ECDH on BearSSL, libsodium's crypto_kx, the ChaCha20-Poly1305 AEADs, libsodium's secret boxes, boxes and sealed boxes, a random_device on the system's generator, a constant-time equal and an erase_secret whose stores the optimiser keeps, each over a widely used, reviewed C library (BearSSL, OpenSSL, ctaes, libsecp256k1, libsodium) that the program names in its Jamfile. Hashing and HMAC are Boost.Hash2's; HKDF and password hashing are webcpp::hash's. Every failure is a boost::system::result value. Protocols (Bitcoin, Ethereum, Nostr) belong to domain libraries built on these primitives.",
     "targets": ["native", "wasip2", "wasip3", "emscripten"],
     "compilers": {"clang": "Clang", "gcc": "GCC", "msvc": "MSVC"},
     "checkers": {"memcheck": "Valgrind's memcheck (Linux)", "msan": "MemorySanitizer (Linux, clang)", "dudect": "dudect (judged; on a runner GitHub hosts, by two of three runs)"},
@@ -33,6 +33,7 @@
         "rfc2104": ["RFC 2104, HMAC", "https://www.rfc-editor.org/rfc/rfc2104"],
         "rfc4231": ["RFC 4231, HMAC-SHA-256 test vectors", "https://www.rfc-editor.org/rfc/rfc4231"],
         "cwe208": ["CWE-208, observable timing discrepancy", "https://cwe.mitre.org/data/definitions/208.html"],
+        "cwe14": ["CWE-14, compiler removal of code to clear buffers", "https://cwe.mitre.org/data/definitions/14.html"],
         "cwe338": ["CWE-338, a weak generator used for security", "https://cwe.mitre.org/data/definitions/338.html"],
         "cwe323": ["CWE-323, a nonce reused in encryption", "https://cwe.mitre.org/data/definitions/323.html"],
         "getentropy": ["POSIX.1-2024, getentropy", "https://pubs.opengroup.org/onlinepubs/9799919799/functions/getentropy.html"],
@@ -222,7 +223,7 @@
         "none": {
             "title": "no backend",
             "jamfile": "/webcpp/crypto//crypto",
-            "header": "<webcpp/crypto/equal.hpp>, <webcpp/crypto/error.hpp>",
+            "header": "<webcpp/crypto/equal.hpp>, <webcpp/crypto/erase_secret.hpp>, <webcpp/crypto/error.hpp>",
             "library": "webcpp's own header-only code",
             "licence": "BSL-1.0",
             "own_api": "none",
@@ -309,6 +310,16 @@
             "what": "Compares two tags or MACs in constant time.",
             "section": "crypto-equal",
             "backends": {"none": {"tests": ["equal"]}}
+        },
+        {
+            "id": "erase_secret",
+            "functions": ["erase_secret"],
+            "namespace": "root",
+            "api": "erase_secret",
+            "header": "<webcpp/crypto/erase_secret.hpp>",
+            "what": "Zeroes a buffer the program owns, a password, a key or a plaintext, with stores the optimiser keeps.",
+            "section": "crypto-erase-secret",
+            "backends": {"none": {"tests": ["erase_secret"]}}
         },
         {
             "id": "error",
@@ -1192,6 +1203,7 @@
             "rows": [
                 ["`random_device`", "Keys, IVs, tokens, nonces: every secret a program draws", "`<webcpp/crypto/random_device.hpp>`", "`entropy_unavailable`, `errc::not_supported`", "{getentropy}, {bcryptgenrandom}, {getrandomvalues}, {wasi-random}", "you need a random number an attacker must not predict; never `std::mt19937` or `rand` ({cwe338})"],
                 ["`equal`", "Checking a tag, a MAC or a token", "`<webcpp/crypto/equal.hpp>`", "none: it returns `bool`", "{cwe208}", "you compare anything secret; never `==` or `memcmp` on a MAC"],
+                ["`erase_secret`", "Erasing a password, a key or a plaintext from a buffer the program owns", "`<webcpp/crypto/erase_secret.hpp>`", "none", "{cwe14}", "a secret sits in a `std::string`, a `std::vector` or an array of the program's and must not outlive its use; never `memset`, which the optimiser may drop"],
                 ["`error`", "Telling failures apart", "`<webcpp/crypto/error.hpp>`", "its values are the errors", "none", "you branch on a failure: forged data, a wrong size, no entropy"],
                 ["`pem`", "A key's SPKI or PKCS#8 as text, to paste, store or exchange with OpenSSL", "`<webcpp/crypto/pem.hpp>`", "`invalid_encoding`, `invalid_input_size`", "{rfc7468}, {libsodium-base64}", "a key goes to or comes from a file, a form or a tool as `-----BEGIN PUBLIC KEY-----` text; with the `encode_spki` and `encode_pkcs8` of `curves::ed25519`, `curves::x25519`, `curves::secp256k1` or `curves::p256`"],
                 ["`openssl_memory_resource`", "Keeping every allocation of OpenSSL's in the program's own resource, natively", "`<webcpp/crypto/backends/openssl.hpp>`", "`memory_functions_refused`, `memory_functions_not_installed`", "{openssl-mem}", "a native program on OpenSSL must allocate only from its own arena; on WebAssembly, BearSSL allocates nothing"],
@@ -1472,6 +1484,7 @@
         "chacha_unknown_backend": "Name a backend of `webcpp::crypto::backends` that has the family, as `backends::bearssl`, or leave the backend out for the family's default: `chacha20_poly1305<>`.",
         "ed25519_unknown_policy": "Leave the policy out, as in `crypto::verify(crypto::eddsa, signature, message, public_key)`, or name `curves::ed25519::strict`.",
         "secret_of_no_bytes": "Give `secret` the number of bytes it holds, at least one, as in `secret<32>`.",
+        "erase_secret_const_range": "Erase the buffer the secret was written to, through a non-const reference to it (`std::string&`, `std::span<std::byte>`), of bytes or other trivially copyable elements; a const view cannot be erased.",
         "chacha_default_not_linked_on_emscripten": "As `chacha_default_not_linked`.",
         "box_default_not_linked_on_emscripten": "As `box_default_not_linked`.",
         "kx_default_not_linked_on_emscripten": "As `kx_default_not_linked`.",

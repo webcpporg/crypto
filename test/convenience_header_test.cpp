@@ -5,10 +5,10 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // The convenience header with no backend linked compiles, links and runs (spec section 2.1): this
-// program includes <webcpp/crypto.hpp> alone, names no backend, links none, and calls equal. The
-// headers whose families name a default backend it does not link are there all the same: P-256's
-// key pair names BearSSL. The convenience header leaves the asynchronous family out:
-// <webcpp/crypto/async.hpp> needs webcpp::asio, which the program would then link.
+// program includes <webcpp/crypto.hpp> alone, names no backend, links none, and calls equal and
+// erase_secret. The headers whose families name a default backend it does not link are there all
+// the same: P-256's key pair names BearSSL. The convenience header leaves the asynchronous family
+// out: <webcpp/crypto/async.hpp> needs webcpp::asio, which the program would then link.
 
 #include <webcpp/crypto.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -49,5 +49,7 @@ int main() {
     BOOST_TEST(!webcpp::crypto::equal(zero, other));
     boost::hash2::digest<16> const digest{};
     BOOST_TEST(webcpp::crypto::equal(digest, digest));
+    webcpp::crypto::erase_secret(other);
+    BOOST_TEST(webcpp::crypto::equal(zero, other));
     return webcpp::test::exit_status(boost::report_errors());
 }

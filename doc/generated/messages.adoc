@@ -205,6 +205,12 @@ The fix: Name `+curves::ed25519::ph<webcpp::hash::sha2_512>+`: RFC 8032 defines 
 
 The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::ellswift_decode(encoded_key)+`.
 
+|`+erase_secret_const_range+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: erase_secret zeroes a buffer the program may write, of trivially copyable elements: a std::vector<std::uint8_t>, a std::string, a std::array, a std::span<std::byte>; this range's elements are const or not trivially copyable.+`
+
+The fix: Erase the buffer the secret was written to, through a non-const reference to it (`+std::string&+`, `+std::span<std::byte>+`), of bytes or other trivially copyable elements; a const view cannot be erased.
+
 |`+gcm_default_openssl_not_linked+`
 |native
 |`+webcpp::crypto: AES-GCM's default backend on this target is OpenSSL, which is not linked. Add /webcpp/crypto//gcm-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//gcm-default ; or name another backend in the type, as in ciphers::gcm<ciphers::aes256<backends::bearssl>>. The backends that have it: bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_OPENSSL=1 and link libcrypto)+`

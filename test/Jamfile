@@ -28,8 +28,8 @@ rule crypto-run ( name : sources + : requirements * : targets * )
 OPTIMISED = <optimization>speed <toolset>emscripten:<debug-symbols>off ;
 
 webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
-  crypto/equal.hpp crypto/error.hpp crypto/ciphers/aes.hpp crypto/ciphers/gcm.hpp
-  crypto/random_device.hpp crypto/detail/bytes.hpp crypto/detail/declassify.hpp
+  crypto/equal.hpp crypto/erase_secret.hpp crypto/error.hpp crypto/ciphers/aes.hpp
+  crypto/ciphers/gcm.hpp crypto/random_device.hpp crypto/detail/bytes.hpp crypto/detail/declassify.hpp
   crypto/detail/engines.hpp crypto/detail/entropy.hpp crypto/detail/limits.hpp
   crypto/detail/windows.hpp crypto/detail/wipe.hpp crypto/secret.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
@@ -247,6 +247,10 @@ crypto-run wipe : wipe_test.cpp ;
 # the storage: optimised, with every call inlined (<inlining>full), where a
 # wipe the compiler could drop as a dead store would be dropped.
 crypto-run secret : secret_test.cpp : $(OPTIMISED) <inlining>full ;
+# crypto::erase_secret zeroes the bytes of any contiguous range the program may
+# write, and a buffer erased as its scope ends stays zero: optimised, with every
+# call inlined, as secret's.
+crypto-run erase_secret : erase_secret_test.cpp : $(OPTIMISED) <inlining>full ;
 
 # A destroyed or moved-from key schedule is zero in its storage, read at -O2
 # where a dropped store would show: one program per keyed type, one source.

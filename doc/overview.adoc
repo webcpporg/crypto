@@ -33,7 +33,9 @@ the scheme named at every call and a digest given only as
 has the member and its free form, and, where WebCrypto has the algorithm,
 their asynchronous forms, with one implementation
 (<<crypto-curves-four-forms>>).
-* *A constant-time `equal`* for tags and MACs, Boost.Hash2's included.
+* *A constant-time `equal`* for tags and MACs, Boost.Hash2's included, and
+*`erase_secret`*, which zeroes a buffer of the program's with stores the
+optimiser keeps.
 * *The AES block cipher,* a building block for the rare case that needs one.
 
 The algorithms are not webcpp's. Each runs on a backend, a C library that
@@ -68,8 +70,8 @@ Nostr rule) belongs to a domain library, which <<crypto-wallets>> shows how to
 build. Its names are grouped by kind, one chapter each, and the headers mirror
 the namespaces as `<webcpp/crypto/<group>/<name>.hpp>`:
 
-* `webcpp::crypto`: `random_device`, `equal`, `error` and the configuration;
-the signatures' schemes, `prehashed`, `sign` and `verify`
+* `webcpp::crypto`: `random_device`, `equal`, `erase_secret`, `error` and the
+configuration; the signatures' schemes, `prehashed`, `sign` and `verify`
 (`<webcpp/crypto/signing.hpp>`), the key pair contract and `agree`
 (`<webcpp/crypto/keypair.hpp>`), the factories `from_secret`, `from_bytes`,
 `from_key` and `generate` (`<webcpp/crypto/factories.hpp>`), and the asynchronous family

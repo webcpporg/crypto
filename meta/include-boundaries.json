@@ -7,6 +7,7 @@
                 "include/webcpp/crypto/config.hpp",
                 "include/webcpp/crypto/detail/*.hpp",
                 "include/webcpp/crypto/equal.hpp",
+                "include/webcpp/crypto/erase_secret.hpp",
                 "include/webcpp/crypto/error.hpp",
                 "include/webcpp/crypto/factories.hpp",
                 "include/webcpp/crypto/random_device.hpp",

@@ -158,7 +158,7 @@ bool ed25519_case(std::mt19937_64& rng, std::size_t index) {
     auto const key_seed = random_array<32>(rng);
     // The first message is empty; the others cross SHA-512's block of 128 bytes.
     bytes const message = index == 0 ? bytes{} : random_bytes(rng, 1, 300);
-    auto const pair = ed25519::keypair::make(key_seed);
+    auto const pair = ed25519::keypair::from_secret(key_seed);
     BOOST_TEST(pair.has_value());
     if (!pair) {
         return false;

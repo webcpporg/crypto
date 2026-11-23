@@ -120,7 +120,7 @@ boost::system::result<secp256k1::keypair> generate_key() {
         if (!filled) {
             return filled.error();
         }
-        auto key = secp256k1::keypair::make(secret);
+        auto key = secp256k1::keypair::from_secret(secret);
         if (key || key.error() != crypto::error::invalid_secret_key) {
             // The key pair keeps its own copy, which it wipes; this one goes now.
             wipe(std::as_writable_bytes(std::span(secret)));
@@ -134,7 +134,7 @@ boost::system::result<secp256k1::keypair> generate_key() {
 boost::system::result<crypto::ciphers::aes256_gcm> session_cipher(
     crypto::secret<32> const& shared) {
     auto key = hkdf_sha256<32>(shared.bytes(), {}, bytes_of("example chat v1 session key"));
-    auto cipher = crypto::ciphers::aes256_gcm::make(key);
+    auto cipher = crypto::ciphers::aes256_gcm::from_key(key);
     // The cipher keeps its own copy of the key, which it wipes; this one goes now.
     wipe(std::as_writable_bytes(std::span(key)));
     return cipher;

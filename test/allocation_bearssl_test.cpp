@@ -4,11 +4,11 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// On BearSSL nothing allocates (spec section 3.2): make, seal, open, the incremental seal,
-// equal and random_device's fill, ChaCha20-Poly1305's make, seal, open (good and failed)
-// and move, and P-256's key pair make and generate, public key make (of a point and of
-// coordinates), sign(ecdsa_sha256, ...) and crypto::verify of a message and of a digest, to_der,
-// from_der, normalize_low_s, is_low_s, agree, encode_spki, decode_spki, encode_pkcs8 and
+// On BearSSL nothing allocates (spec section 3.2): from_key, seal, open, the incremental seal,
+// equal and random_device's fill, ChaCha20-Poly1305's from_key, seal, open (good and failed)
+// and move, and P-256's key pair from_secret and generate, public key from_bytes and
+// from_coordinates, sign(ecdsa_sha256, ...) and crypto::verify of a message and of a digest,
+// to_der, from_der, normalize_low_s, is_low_s, agree, encode_spki, decode_spki, encode_pkcs8 and
 // decode_pkcs8 make no call of operator new, nor of the C library's allocator where the target lets
 // a program count it; a control proves the counter moves.
 
@@ -37,20 +37,21 @@
 
 namespace {
 
-// P-256's functions, each called once: the key pair's make and generate, the public key's two
-// make, ECDSA's eight (sign and verify each of a message and of a digest), ECDH's agree and the
-// formats' four.
+// P-256's functions, each called once: the key pair's from_secret and generate, the public key's
+// from_bytes and from_coordinates, ECDSA's eight (sign and verify each of a message and of a
+// digest), ECDH's agree and the formats' four.
 void p256_calls() {
     namespace crypto = webcpp::crypto;
     namespace p256 = crypto::curves::p256;
     namespace data = webcpp::test::p256;
     using keypair = p256::basic_keypair<crypto::backends::bearssl>;
     using public_key = p256::basic_public_key<crypto::backends::bearssl>;
-    auto const pair = keypair::make(data::rfc6979_scalar);
+    auto const pair = keypair::from_secret(data::rfc6979_scalar);
     BOOST_TEST(keypair::generate().has_value());
     std::span<std::uint8_t const, 65> const point(data::rfc6979_public);
-    BOOST_TEST(public_key::make(point).has_value());
-    BOOST_TEST(public_key::make(point.subspan<1, 32>(), point.subspan<33, 32>()).has_value());
+    BOOST_TEST(public_key::from_bytes(point).has_value());
+    BOOST_TEST(
+        public_key::from_coordinates(point.subspan<1, 32>(), point.subspan<33, 32>()).has_value());
     std::array<std::uint8_t, p256::digest_size> digest{};
     digest.fill(0x5a);
     if (!BOOST_TEST(pair.has_value())) {
@@ -58,7 +59,7 @@ void p256_calls() {
     }
     auto const signature = pair->sign(crypto::ecdsa_sha256, crypto::prehashed{digest});
     auto const of_message = pair->sign(crypto::ecdsa_sha256, digest);
-    auto const key = public_key::make(point);
+    auto const key = public_key::from_bytes(point);
     if (!BOOST_TEST(signature.has_value()) || !BOOST_TEST(of_message.has_value()) ||
         !BOOST_TEST(key.has_value())) {
         return;
@@ -105,7 +106,7 @@ int main() {
         crypto::random_device device;  // lint-world: a test
         BOOST_TEST(device.fill(key).has_value());
         auto made =
-            crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>::make(key);
+            crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>::from_key(key);
         BOOST_TEST(made.has_value());
         auto const tag = made->seal(iv, {}, data);
         BOOST_TEST(tag.has_value());
@@ -122,7 +123,7 @@ int main() {
         BOOST_TEST(made->end_open().has_value());
         BOOST_TEST(crypto::equal(*tag, *tag));
         using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::bearssl>;
-        auto sealer = chacha::make(key);
+        auto sealer = chacha::from_key(key);
         BOOST_TEST(sealer.has_value());
         auto const sealed = sealer->seal(iv, iv, data);
         BOOST_TEST(sealed.has_value());

@@ -202,14 +202,14 @@ template <class Backend = default_backend_t<families::secp256k1>>
 
 /**
  * The key pair of a PKCS#8 that is exactly what `encode_pkcs8` writes for its secret, made as
- * `basic_keypair::make` makes it.
+ * `basic_keypair::from_secret` makes it.
  *
  * @tparam Backend The backend, `backends::secp256k1`.
  * @param pkcs8_bytes The PKCS#8, exactly: nothing may follow it.
- * @param memory_resource The resource of the key pair's signing context, as `make` takes it.
+ * @param memory_resource The resource of the key pair's signing context, as `from_secret` takes it.
  * @return The key pair; `invalid_encoding` for any other bytes, a secret zero or not below the
  * group order and a public key not the secret's included; `entropy_unavailable` and
- * `backend_failure` as `make` reports them.
+ * `backend_failure` as `from_secret` reports them.
  */
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<basic_keypair<Backend>> decode_pkcs8(
@@ -227,7 +227,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
     webcpp::crypto::detail::secp256k1_secret secret_bytes;
     std::ranges::copy(pkcs8_bytes.subspan(prefix_size, secret_bytes.bytes.size()),
                       secret_bytes.bytes.begin());
-    auto made_pair = basic_keypair<Backend>::make(secret_bytes.bytes, memory_resource);
+    auto made_pair = basic_keypair<Backend>::from_secret(secret_bytes.bytes, memory_resource);
     if (!made_pair) {
         if (made_pair.error() == error::invalid_secret_key) {
             return error::invalid_encoding;

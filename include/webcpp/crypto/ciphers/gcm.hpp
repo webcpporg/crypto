@@ -7,8 +7,8 @@
 /**
  `gcm<Cipher>`, AES-GCM over the cipher's backend.
 
- Its free synchronous forms (design D9, R23), `crypto::make<A>(key)`, `crypto::seal` and
- `crypto::open`, are declared in `make.hpp` and `ciphers/aead.hpp`, which it includes.
+ Its free synchronous forms (design D9, R23), `crypto::from_key<C>(key)`, `crypto::seal` and
+ `crypto::open`, are declared in `factories.hpp` and `ciphers/aead.hpp`, which it includes.
 
  @see "AES-GCM", in the guide.
 */
@@ -27,7 +27,7 @@
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/make.hpp>  // crypto::make, which serves its make (design R23)
+#include <webcpp/crypto/factories.hpp>  // crypto::from_key, which serves its from_key (design R23)
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
@@ -165,12 +165,12 @@ public:
      * @param key_bytes `key_size` bytes.
      * @return The object; `invalid_key_size`, `errc::not_enough_memory` or `backend_failure`.
      */
-    [[nodiscard]] static boost::system::result<gcm> make(
+    [[nodiscard]] static boost::system::result<gcm> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
         detail::timing_guard const timing_scope;
-        static_assert(
-            !detail::asynchronous_backend_v<backend>,
-            "webcpp::crypto: make on this backend completes asynchronously: call async_make.");
+        static_assert(!detail::asynchronous_backend_v<backend>,
+                      "webcpp::crypto: from_key on this backend completes asynchronously: call "
+                      "async_from_key.");
         if constexpr (detail::asynchronous_backend_v<backend>) {
             // Never compiled into a program: the assertion above stopped the build.
             return error::backend_failure;
@@ -189,9 +189,9 @@ public:
     }
 
     /**
-     * Expands a key into a new object, asynchronously: `make` run when the operation is
+     * Expands a key into a new object, asynchronously: `from_key` run when the operation is
      * initiated, its result posted to `completion_executor`; the member form of
-     * `crypto::async_make<gcm>(executor, key_bytes, token)`, which calls it.
+     * `crypto::async_from_key<gcm>(executor, key_bytes, token)`, which calls it.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
@@ -207,9 +207,9 @@ public:
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
-    static auto async_make(Executor const& completion_executor,
-                           std::span<std::uint8_t const> key_bytes,
-                           CompletionToken&& completion_token);
+    static auto async_from_key(Executor const& completion_executor,
+                               std::span<std::uint8_t const> key_bytes,
+                               CompletionToken&& completion_token);
 
     /**
      * Moves the key; a message in progress is abandoned, and the source is wiped and empty.

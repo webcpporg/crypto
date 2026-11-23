@@ -6,6 +6,6 @@
 
 import webcpp ;
 
-webcpp.compile-fail async_make_xchacha : app.cpp
+webcpp.compile-fail async_from_key_xchacha : app.cpp
   : <library>/webcpp/crypto//crypto <library>/webcpp/asio//asio <library>/third_party//sodium
   : native ;

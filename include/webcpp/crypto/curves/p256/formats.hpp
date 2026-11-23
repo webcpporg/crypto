@@ -101,7 +101,7 @@ template <class Backend>
 
 /**
  * The public key of an SPKI that is exactly what `encode_spki` writes, its point checked as
- * `basic_public_key::make` checks it.
+ * `basic_public_key::from_bytes` checks it.
  *
  * @tparam Backend The backend that checks the point; by default the family's.
  * @param spki_bytes The SPKI, exactly: nothing may follow it.
@@ -118,7 +118,7 @@ template <class Backend = default_backend_t<families::p256>>
         !equal(spki_bytes.first(prefix_size), detail::p256_spki_prefix)) {
         return error::invalid_encoding;
     }
-    auto decoded_key = basic_public_key<Backend>::make(spki_bytes.subspan(prefix_size));
+    auto decoded_key = basic_public_key<Backend>::from_bytes(spki_bytes.subspan(prefix_size));
     if (!decoded_key) {
         if (decoded_key.error() == error::invalid_public_key) {
             return error::invalid_encoding;
@@ -165,13 +165,13 @@ template <class Backend>
 
 /**
  * The key pair of a PKCS#8 that is exactly what `encode_pkcs8` writes for its scalar, made as
- * `basic_keypair::make` makes it.
+ * `basic_keypair::from_secret` makes it.
  *
  * @tparam Backend The backend; by default the family's.
  * @param pkcs8_bytes The PKCS#8, exactly: nothing may follow it.
  * @return The key pair; `invalid_encoding` for any other bytes: another version, another curve,
  * no public key, [0] parameters inside the ECPrivateKey, a scalar 0 or not below n, a public key
- * that is not the scalar's; `backend_failure` as `make` reports it.
+ * that is not the scalar's; `backend_failure` as `from_secret` reports it.
  */
 template <class Backend = default_backend_t<families::p256>>
 [[nodiscard]] boost::system::result<basic_keypair<Backend>> decode_pkcs8(
@@ -190,7 +190,7 @@ template <class Backend = default_backend_t<families::p256>>
     secret<secret_key_size> scalar_bytes;
     std::ranges::copy(pkcs8_bytes.subspan(prefix_size, secret_key_size),
                       scalar_bytes.writable().begin());
-    auto made_pair = basic_keypair<Backend>::make(scalar_bytes.bytes());
+    auto made_pair = basic_keypair<Backend>::from_secret(scalar_bytes.bytes());
     if (!made_pair) {
         if (made_pair.error() == error::invalid_secret_key) {
             return error::invalid_encoding;

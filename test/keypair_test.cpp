@@ -7,10 +7,11 @@
 // The key pair contract, crypto::keypair (design D8): Ed25519's, P-256's and secp256k1's key pairs
 // meet it, on libsodium, BearSSL and libsecp256k1, each through the contract alone, secp256k1's
 // with each of its three schemes; a stand-in that has every member meets it, and stand-ins that
-// lack one member each (make, generate, public_key_type, secret), whose make, generate, public_key
-// or secret gives another type, or whose curve declares no scheme, or a scheme they do not sign, do
-// not; the contract folds over the list of schemes, detail::all_schemes, so that a test-only
-// scheme added to a list is asked of a stand-in that declares it.
+// lack one member each (from_secret, generate, public_key_type, secret), whose from_secret,
+// generate, public_key or secret gives another type, or whose curve declares no scheme, or a
+// scheme they do not sign, do not; the contract folds over the list of schemes,
+// detail::all_schemes, so that a test-only scheme added to a list is asked of a stand-in that
+// declares it.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
@@ -43,7 +44,8 @@ struct stand_in_public_key {};
 struct complete_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<complete_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<complete_keypair> from_secret(
+        std::span<std::uint8_t const>) noexcept;
     static boost::system::result<complete_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
     [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
@@ -55,7 +57,8 @@ struct complete_keypair {
 struct no_secret_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<no_secret_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<no_secret_keypair> from_secret(
+        std::span<std::uint8_t const>) noexcept;
     static boost::system::result<no_secret_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
@@ -66,7 +69,8 @@ struct no_secret_keypair {
 struct wrong_secret_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<wrong_secret_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<wrong_secret_keypair> from_secret(
+        std::span<std::uint8_t const>) noexcept;
     static boost::system::result<wrong_secret_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
     [[nodiscard]] boost::system::result<crypto::secret<64>> secret() const noexcept;
@@ -78,7 +82,8 @@ struct wrong_secret_keypair {
 struct byte_public_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<byte_public_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<byte_public_keypair> from_secret(
+        std::span<std::uint8_t const>) noexcept;
     static boost::system::result<byte_public_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> public_key() const noexcept;
     [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
@@ -90,7 +95,8 @@ struct byte_public_keypair {
 struct no_generate_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<no_generate_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<no_generate_keypair> from_secret(
+        std::span<std::uint8_t const>) noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
     [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
@@ -101,7 +107,8 @@ struct no_generate_keypair {
 struct no_scheme_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<no_scheme_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<no_scheme_keypair> from_secret(
+        std::span<std::uint8_t const>) noexcept;
     static boost::system::result<no_scheme_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
     [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
@@ -113,7 +120,7 @@ struct no_scheme_keypair {
 struct unsigned_scheme_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<unsigned_scheme_keypair> make(
+    static boost::system::result<unsigned_scheme_keypair> from_secret(
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<unsigned_scheme_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
@@ -122,11 +129,11 @@ struct unsigned_scheme_keypair {
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
 
-// No make().
-struct no_make_keypair {
+// No from_secret().
+struct no_from_secret_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<no_make_keypair> generate() noexcept;
+    static boost::system::result<no_from_secret_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
     [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
@@ -136,7 +143,7 @@ struct no_make_keypair {
 // No public_key_type.
 struct no_public_key_type_keypair {
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<no_public_key_type_keypair> make(
+    static boost::system::result<no_public_key_type_keypair> from_secret(
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<no_public_key_type_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
@@ -149,7 +156,7 @@ struct no_public_key_type_keypair {
 struct wrong_generate_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<wrong_generate_keypair> make(
+    static boost::system::result<wrong_generate_keypair> from_secret(
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<int> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
@@ -158,12 +165,12 @@ struct wrong_generate_keypair {
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
 
-// A make() that gives the key pair itself, not result<K>.
-struct wrong_make_keypair {
+// A from_secret() that gives the key pair itself, not result<K>.
+struct wrong_from_secret_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static wrong_make_keypair make(std::span<std::uint8_t const>) noexcept;
-    static boost::system::result<wrong_make_keypair> generate() noexcept;
+    static wrong_from_secret_keypair from_secret(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<wrong_from_secret_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
     [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
@@ -179,7 +186,7 @@ struct test_scheme_t {
 struct unsigned_test_scheme_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<unsigned_test_scheme_keypair> make(
+    static boost::system::result<unsigned_test_scheme_keypair> from_secret(
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<unsigned_test_scheme_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
@@ -192,7 +199,8 @@ struct unsigned_test_scheme_keypair {
 struct test_scheme_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<test_scheme_keypair> make(std::span<std::uint8_t const>) noexcept;
+    static boost::system::result<test_scheme_keypair> from_secret(
+        std::span<std::uint8_t const>) noexcept;
     static boost::system::result<test_scheme_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
     [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
@@ -206,7 +214,7 @@ struct test_scheme_keypair {
 struct only_test_scheme_keypair {
     using public_key_type = stand_in_public_key;
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
-    static boost::system::result<only_test_scheme_keypair> make(
+    static boost::system::result<only_test_scheme_keypair> from_secret(
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<only_test_scheme_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
@@ -234,13 +242,13 @@ inline constexpr bool signs_with_v<unsigned_scheme_keypair, ecdsa_sha256_t> = tr
 template <>
 inline constexpr bool signs_with_v<unsigned_scheme_keypair, schnorr_t> = true;
 template <>
-inline constexpr bool signs_with_v<no_make_keypair, ecdsa_sha256_t> = true;
+inline constexpr bool signs_with_v<no_from_secret_keypair, ecdsa_sha256_t> = true;
 template <>
 inline constexpr bool signs_with_v<no_public_key_type_keypair, ecdsa_sha256_t> = true;
 template <>
 inline constexpr bool signs_with_v<wrong_generate_keypair, ecdsa_sha256_t> = true;
 template <>
-inline constexpr bool signs_with_v<wrong_make_keypair, ecdsa_sha256_t> = true;
+inline constexpr bool signs_with_v<wrong_from_secret_keypair, ecdsa_sha256_t> = true;
 template <>
 inline constexpr bool signs_with_v<unsigned_test_scheme_keypair, ecdsa_sha256_t> = true;
 template <>
@@ -262,10 +270,10 @@ static_assert(!crypto::keypair<byte_public_keypair>);
 static_assert(!crypto::keypair<no_generate_keypair>);
 static_assert(!crypto::keypair<no_scheme_keypair>);
 static_assert(!crypto::keypair<unsigned_scheme_keypair>);
-static_assert(!crypto::keypair<no_make_keypair>);
+static_assert(!crypto::keypair<no_from_secret_keypair>);
 static_assert(!crypto::keypair<no_public_key_type_keypair>);
 static_assert(!crypto::keypair<wrong_generate_keypair>);
-static_assert(!crypto::keypair<wrong_make_keypair>);
+static_assert(!crypto::keypair<wrong_from_secret_keypair>);
 static_assert(!crypto::keypair<stand_in_public_key>);
 static_assert(!crypto::keypair<int>);
 
@@ -327,7 +335,7 @@ void round_trip(Scheme scheme) {
     BOOST_TEST(key.has_value());
     auto const exported = key->secret();
     BOOST_TEST(exported.has_value());
-    auto const again = Keypair::make(exported->bytes());
+    auto const again = Keypair::from_secret(exported->bytes());
     BOOST_TEST(again.has_value());
     BOOST_TEST(*again->public_key() == *key->public_key());
     std::array<std::uint8_t, 3> const message{'a', 'b', 'c'};

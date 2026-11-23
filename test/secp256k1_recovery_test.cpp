@@ -48,13 +48,13 @@ static_assert(std::is_same_v<decltype(secp::recover(crypto::ecdsa_sha256_recover
                                                     crypto::prehashed<32>(hash_bytes{}))),
                              boost::system::result<secp::public_key>>);
 
-// A key pair from the generator: a secret make refuses is drawn again.
+// A key pair from the generator: a secret from_secret refuses is drawn again.
 secp::keypair draw(std::mt19937_64& generator, hash_bytes& secret) {
     for (;;) {
         for (auto& octet : secret) {
             octet = static_cast<std::uint8_t>(generator());
         }
-        auto made = secp::keypair::make(secret);
+        auto made = secp::keypair::from_secret(secret);
         if (made) {
             return std::move(*made);
         }
@@ -130,7 +130,7 @@ bool round_trip(std::mt19937_64& generator) {
 // A message signed with ecdsa_sha256_recoverable is recovered from the same message, and from its
 // SHA-256 marked as a digest; the message's own bytes marked as a digest find another key.
 void message_round_trip() {
-    auto const made = secp::keypair::make(std::array<std::uint8_t, 32>{0x31});
+    auto const made = secp::keypair::from_secret(std::array<std::uint8_t, 32>{0x31});
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -335,7 +335,7 @@ void hedged() {
 // A moved-from key pair answers invalid_state from the new members, as from every other.
 // NOLINTBEGIN(bugprone-use-after-move)
 void moved_from() {
-    auto made = secp::keypair::make(std::array<std::uint8_t, 32>{7});
+    auto made = secp::keypair::from_secret(std::array<std::uint8_t, 32>{7});
     if (!BOOST_TEST(made.has_value())) {
         return;
     }

@@ -74,7 +74,7 @@ std::size_t on_fresh_thread(Step step) {
 void abandon_on_fresh_threads() {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -119,7 +119,7 @@ void work(std::uint8_t seed, std::latch& start, outcome& out) {
     // GCM test case 13: the zero key, the zero IV, nothing sealed.
     std::array<std::uint8_t, 32> key{};
     std::array<std::uint8_t, 12> const zero_iv{};
-    if (auto zero = aead::make(key)) {
+    if (auto zero = aead::from_key(key)) {
         auto const tag = zero->seal(zero_iv, {}, std::span<std::uint8_t>());
         constexpr std::array<std::uint8_t, 16> case_13{
             0x53, 0x0f, 0x8a, 0xfb, 0xc7, 0x45, 0x36, 0xb9,
@@ -128,7 +128,7 @@ void work(std::uint8_t seed, std::latch& start, outcome& out) {
         out.known_answer = tag && std::equal(tag->begin(), tag->end(), case_13.begin());
     }
     key.fill(seed);
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     if (made) {
         ++out.made;
         std::array<std::uint8_t, 1024> plain{};

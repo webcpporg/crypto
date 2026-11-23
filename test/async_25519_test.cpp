@@ -7,18 +7,18 @@
 // Ed25519's and X25519's asynchronous functions on libsodium, on a callback and in a coroutine.
 // async_sign and async_verify take the scheme, crypto::eddsa, and the synchronous calls' inputs,
 // the message and, for async_verify, the policy before the token, strict by default:
-// - async_rfc8032: RFC 8032 section 7.1's tests 1, 2 and 3 through async_make and async_sign give
-//   the RFC's signatures and the synchronous ones, and async_verify accepts them, with the backend
-//   named and its policy given, and with the defaults; each completion arrives after the
+// - async_rfc8032: RFC 8032 section 7.1's tests 1, 2 and 3 through async_from_secret and async_sign
+//   give the RFC's signatures and the synchronous ones, and async_verify accepts them, with the
+//   backend named and its policy given, and with the defaults; each completion arrives after the
 //   initiating call returned.
 // - async_verify_changed: a changed byte of the signature or of the message completes with
 //   invalid_signature, a signature of 63 bytes too, and the key's bytes where the signature goes,
 //   as the order before the signature came first (key, message, signature) put them.
 // - async_generate: async_generate gives a key pair whose signature verifies, on the default
 //   backend and on libsodium named.
-// - async_make_refused: a seed of 31 bytes completes with invalid_key_size and an empty key pair,
-//   which refuses every member with invalid_state (review focus 5), async_sign on it too, with
-//   a signature of zeros.
+// - async_from_secret_refused: a seed of 31 bytes completes with invalid_key_size and an empty key
+//   pair, which refuses every member with invalid_state (review focus 5), async_sign on it too,
+//   with a signature of zeros.
 // - async_rfc7748: section 6.1's Alice and Bob through async_agree give the RFC's shared secret;
 //   a peer key of low order completes with weak_public_key and a secret of zeros; a short key
 //   with invalid_key_size.
@@ -28,21 +28,21 @@
 //   caller's until the completion, as the documentation says).
 // - async_coroutine: the same in one coroutine of the context.
 // - async_four_forms: each Ed25519 operation in its four forms (design D9), the member and the
-//   free, synchronous and asynchronous, gives the same result: make (the same public key, and the
-//   same refusal of a short seed), generate (a key pair whose signature verifies), sign (RFC 8032's
-//   signature, and an empty key pair's invalid_state and zeros), verify with the defaults and with
-//   the backend and the policy named (each accepts the signature and refuses a changed one with
-//   invalid_signature; each takes the signature as a std::vector, a dynamic span of 64 bytes, or
-//   one of 63 or 65 bytes, invalid_signature); each asynchronous completion arrives after the
-//   initiating call returned.
+//   free, synchronous and asynchronous, gives the same result: from_secret (the same public key,
+//   and the same refusal of a short seed), generate (a key pair whose signature verifies), sign
+//   (RFC 8032's signature, and an empty key pair's invalid_state and zeros), verify with the
+//   defaults and with the backend and the policy named (each accepts the signature and refuses a
+//   changed one with invalid_signature; each takes the signature as a std::vector, a dynamic span
+//   of 64 bytes, or one of 63 or 65 bytes, invalid_signature); each asynchronous completion arrives
+//   after the initiating call returned.
 
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/keypair.hpp>
-#include <webcpp/crypto/make.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -172,7 +172,7 @@ static_assert(
  * the program) through `value()`.
  */
 ed25519::public_key key_of(std::string_view hex) {
-    auto const made = ed25519::public_key::make(test::from_hex(hex));
+    auto const made = ed25519::public_key::from_bytes(test::from_hex(hex));
     BOOST_TEST(made.has_value());
     return made.value();
 }
@@ -191,8 +191,8 @@ void async_rfc8032(asio::io_context& context) {
         auto const expected = test::from_hex(tested.signature);
 
         auto made = complete<keypair>(context, [&](auto const& executor, auto&& token) {
-            return crypto::async_make<keypair>(executor, seed,
-                                               std::forward<decltype(token)>(token));
+            return crypto::async_from_secret<keypair>(executor, seed,
+                                                      std::forward<decltype(token)>(token));
         });
         BOOST_TEST(!made.code);
         if (!BOOST_TEST(made.value.has_value())) {
@@ -292,11 +292,11 @@ void async_generate(asio::io_context& context) {
     generated<keypair>(context);
 }
 
-void async_make_refused(asio::io_context& context) {
+void async_from_secret_refused(asio::io_context& context) {
     std::array<std::uint8_t, 32> const seed{7};
     auto const made = complete<keypair>(context, [&](auto const& executor, auto&& token) {
-        return crypto::async_make<keypair>(executor, std::span(seed).first(31),
-                                           std::forward<decltype(token)>(token));
+        return crypto::async_from_secret<keypair>(executor, std::span(seed).first(31),
+                                                  std::forward<decltype(token)>(token));
     });
     BOOST_TEST(made.code == crypto::error::invalid_key_size);
     if (!BOOST_TEST(made.value.has_value())) {
@@ -373,7 +373,7 @@ void async_destroyed(asio::io_context& context) {
     boost::system::error_code agree_code;
     std::array<std::uint8_t, 32> shared{};
     {
-        auto key = keypair::make(test::from_hex(tested.secret_key));
+        auto key = keypair::from_secret(test::from_hex(tested.secret_key));
         auto const message =
             std::make_unique<std::vector<std::uint8_t>>(test::from_hex(tested.message));
         auto secret_key = std::make_unique<std::vector<std::uint8_t>>(
@@ -415,7 +415,7 @@ void async_coroutine(asio::io_context& context) {
             auto const seed = test::from_hex(tested.secret_key);
             auto const public_key = key_of(tested.public_key);
             auto const message = test::from_hex(tested.message);
-            auto made_code_result = co_await crypto::async_make<keypair>(
+            auto made_code_result = co_await crypto::async_from_secret<keypair>(
                 executor, seed, asio::as_tuple(asio::use_awaitable));
             auto& [made_code, key] = made_code_result;
             BOOST_TEST(!made_code);
@@ -450,16 +450,17 @@ void async_coroutine(asio::io_context& context) {
     BOOST_TEST(done);
 }
 
-// make in its four forms: the same key pair, and the same refusal of a short seed.
-void four_forms_make(asio::io_context& context, std::span<std::uint8_t const> seed,
-                     ed25519::public_key const& expected) {
-    auto const member_sync = keypair::make(seed);
-    auto const free_sync = crypto::make<keypair>(seed);
+// from_secret in its four forms: the same key pair, and the same refusal of a short seed.
+void four_forms_from_secret(asio::io_context& context, std::span<std::uint8_t const> seed,
+                            ed25519::public_key const& expected) {
+    auto const member_sync = keypair::from_secret(seed);
+    auto const free_sync = crypto::from_secret<keypair>(seed);
     auto const member_async = complete<keypair>(context, [&](auto const& executor, auto&& token) {
-        return keypair::async_make(executor, seed, std::forward<decltype(token)>(token));
+        return keypair::async_from_secret(executor, seed, std::forward<decltype(token)>(token));
     });
     auto const free_async = complete<keypair>(context, [&](auto const& executor, auto&& token) {
-        return crypto::async_make<keypair>(executor, seed, std::forward<decltype(token)>(token));
+        return crypto::async_from_secret<keypair>(executor, seed,
+                                                  std::forward<decltype(token)>(token));
     });
     BOOST_TEST(!member_async.code);
     BOOST_TEST(!free_async.code);
@@ -471,15 +472,15 @@ void four_forms_make(asio::io_context& context, std::span<std::uint8_t const> se
     BOOST_TEST(free_async.value.has_value() &&
                public_of(std::get<0>(*free_async.value)) == expected);
     auto const short_seed = seed.first(31);
-    BOOST_TEST(keypair::make(short_seed).error() == crypto::error::invalid_key_size);
-    BOOST_TEST(crypto::make<keypair>(short_seed).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(keypair::from_secret(short_seed).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(crypto::from_secret<keypair>(short_seed).error() == crypto::error::invalid_key_size);
     BOOST_TEST(complete<keypair>(context, [&](auto const& executor, auto&& token) {
-                   return keypair::async_make(executor, short_seed,
-                                              std::forward<decltype(token)>(token));
+                   return keypair::async_from_secret(executor, short_seed,
+                                                     std::forward<decltype(token)>(token));
                }).code == crypto::error::invalid_key_size);
     BOOST_TEST(complete<keypair>(context, [&](auto const& executor, auto&& token) {
-                   return crypto::async_make<keypair>(executor, short_seed,
-                                                      std::forward<decltype(token)>(token));
+                   return crypto::async_from_secret<keypair>(executor, short_seed,
+                                                             std::forward<decltype(token)>(token));
                }).code == crypto::error::invalid_key_size);
 }
 
@@ -591,9 +592,9 @@ void async_four_forms(asio::io_context& context) {
     auto const public_key = key_of(tested.public_key);
     auto const message = test::from_hex(tested.message);
     auto signature = test::from_hex(tested.signature);
-    four_forms_make(context, seed, public_key);
+    four_forms_from_secret(context, seed, public_key);
     four_forms_generate(context);
-    auto key = keypair::make(seed);
+    auto key = keypair::from_secret(seed);
     if (!BOOST_TEST(key.has_value())) {
         return;
     }
@@ -623,7 +624,7 @@ int main() {
     async_rfc8032(context);
     async_verify_changed(context);
     async_generate(context);
-    async_make_refused(context);
+    async_from_secret_refused(context);
     async_rfc7748(context);
     async_destroyed(context);
     async_coroutine(context);

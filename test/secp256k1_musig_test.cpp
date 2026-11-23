@@ -6,9 +6,9 @@
 
 // secp256k1's MuSig2 against BIP 327's vectors (bip-0327/vectors/*.json). key_sort: sorting the
 // six parsed keys with public_key's order gives sorted_pubkeys. key_agg: the 4 valid cases'
-// x-only keys; its error cases, three keys public_key::make refuses and two tweaks the aggregate
-// key refuses, after which the key is unchanged. nonce_agg: the 2 valid sums (the second at
-// infinity, written as 33 zero bytes) and 3 nonces parse_public_nonce refuses. sign_verify: the
+// x-only keys; its error cases, three keys public_key::from_bytes refuses and two tweaks the
+// aggregate key refuses, after which the key is unchanged. nonce_agg: the 2 valid sums (the second
+// at infinity, written as 33 zero bytes) and 3 nonces parse_public_nonce refuses. sign_verify: the
 // 4 valid cases whose message is 32 bytes verify their partial signature (the empty and the
 // 38-byte message are counted as skipped: libsecp256k1 signs 32-byte messages); the 3
 // verify_fail cases, over the aggregate of their nonces, do not; the verify_error and sign_error
@@ -134,7 +134,7 @@ bool all_zero(std::span<std::byte const> space) {
 }
 
 secp::public_key parsed_key(json::value const& v) {
-    auto const parsed = secp::public_key::make(hex(v));
+    auto const parsed = secp::public_key::from_bytes(hex(v));
     if (!BOOST_TEST(parsed.has_value())) {
         std::exit(boost::report_errors());
     }
@@ -243,9 +243,9 @@ void key_agg() {
             // The signer's key does not parse.
             auto const bad =
                 index_at(indices, static_cast<std::size_t>(error.at("signer").as_int64()));
-            refused +=
-                static_cast<int>(BOOST_TEST(secp::public_key::make(hex(keys.at(bad))).error() ==
-                                            crypto::error::invalid_public_key));
+            refused += static_cast<int>(
+                BOOST_TEST(secp::public_key::from_bytes(hex(keys.at(bad))).error() ==
+                           crypto::error::invalid_public_key));
             continue;
         }
         // A tweak not below the group order, or one that gives the point at infinity: refused,
@@ -389,9 +389,9 @@ int sign_verify_errors(json::value const& doc) {
                            crypto::error::invalid_point));
         } else {
             auto const bad = index_at(c.at("key_indices").as_array(), signer);
-            refused +=
-                static_cast<int>(BOOST_TEST(secp::public_key::make(hex(keys.at(bad))).error() ==
-                                            crypto::error::invalid_public_key));
+            refused += static_cast<int>(
+                BOOST_TEST(secp::public_key::from_bytes(hex(keys.at(bad))).error() ==
+                           crypto::error::invalid_public_key));
         }
     }
     return refused;
@@ -416,9 +416,9 @@ int sign_errors(json::value const& doc, int& skipped) {
         } else {
             auto const bad = index_at(c.at("key_indices").as_array(),
                                       static_cast<std::size_t>(error.at("signer").as_int64()));
-            refused +=
-                static_cast<int>(BOOST_TEST(secp::public_key::make(hex(keys.at(bad))).error() ==
-                                            crypto::error::invalid_public_key));
+            refused += static_cast<int>(
+                BOOST_TEST(secp::public_key::from_bytes(hex(keys.at(bad))).error() ==
+                           crypto::error::invalid_public_key));
         }
     }
     return refused;
@@ -541,7 +541,7 @@ scalar draw(std::mt19937_64& generator) {
 }
 
 secp::keypair keypair_of(std::span<std::uint8_t const, 32> secret_bytes) {
-    auto made = secp::keypair::make(secret_bytes);
+    auto made = secp::keypair::from_secret(secret_bytes);
     if (!BOOST_TEST(made.has_value())) {
         std::exit(boost::report_errors());
     }

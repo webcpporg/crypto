@@ -24,7 +24,7 @@ int main() {
     namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> scalar{};
     scalar.back() = 1;
-    auto const key = crypto::curves::p256::keypair::make(scalar);
+    auto const key = crypto::curves::p256::keypair::from_secret(scalar);
     std::array<std::uint8_t, 65> const peer{0x04};
     return key && crypto::agree(*key, peer) ? 0 : 1;
 }

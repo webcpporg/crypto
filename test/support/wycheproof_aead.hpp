@@ -41,7 +41,7 @@ struct wycheproof_aead_counts {
 /** Runs one Wycheproof test through `Aead` and counts how it ended. */
 template <class Aead>
 void check_wycheproof_aead_test(boost::json::value const& test, wycheproof_aead_counts& counts) {
-    auto made = Aead::make(wycheproof_bytes(test, "key"));
+    auto made = Aead::from_key(wycheproof_bytes(test, "key"));
     if (!BOOST_TEST(made.has_value())) {
         return;
     }

@@ -8,7 +8,7 @@
  The backend OpenSSL: OpenSSL 3.5.9 built from `third_party/libs/openssl` by
  `/webcpp/crypto//openssl`, static, on native, wasip2 and wasip3; never on Emscripten. It
  serves `ciphers::aes128/192/256<backends::openssl>`, `ciphers::gcm<...<backends::openssl>>` and
- `ciphers::chacha20_poly1305<backends::openssl>`. Its `make` allocates through OpenSSL's own
+ `ciphers::chacha20_poly1305<backends::openssl>`. Its `from_key` allocates through OpenSSL's own
  functions, unless a native program sets `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, which sends every
  allocation of OpenSSL's to `openssl_memory_resource()`. On MSVC, wasip2 and wasip3 OpenSSL is
  compiled without assembly: table-driven AES and 4-bit GHASH, no AES-NI, not constant time.
@@ -82,12 +82,12 @@ namespace webcpp::crypto {
  * two threads at once: OpenSSL frees through it after `main` returns.
  *
  * It must serve OpenSSL's initialisation, which the first use of OpenSSL in the process runs,
- * usually the first `make`: on an OpenSSL built with threads, which MSVC always builds, a
+ * usually the first `from_key`: on an OpenSSL built with threads, which MSVC always builds, a
  * resource that fails during OpenSSL's base initialisation makes OpenSSL re-enter it, and that
  * call never returns: the process aborts on macOS, deadlocks on Linux and spins on Windows. Only on
- * an OpenSSL built without threads does it return, and every `make` then gives `backend_failure`.
- * On Windows a thread that used OpenSSL keeps its blocks in the resource until the process ends
- * unless it calls `OPENSSL_thread_stop()` before it ends.
+ * an OpenSSL built without threads does it return, and every `from_key` then gives
+ * `backend_failure`. On Windows a thread that used OpenSSL keeps its blocks in the resource until
+ * the process ends unless it calls `OPENSSL_thread_stop()` before it ends.
  *
  * A resource that cannot allocate fails as the standard has `do_allocate` fail, by throwing,
  * never by returning null: libc++ and libstdc++ declare `allocate` never to return null, so an
@@ -115,7 +115,7 @@ inline constexpr std::size_t openssl_block_alignment =
 
 // The adapter: three C functions given to OpenSSL, with C linkage since OpenSSL calls
 // them as C, inline with external linkage so that every file of the program sees one
-// function, which the install and make recognise by its address.
+// function, which the install and from_key recognise by its address.
 extern "C" {
 
 /**
@@ -246,7 +246,7 @@ inline bool openssl_defaults_installed() noexcept {
 namespace webcpp::crypto::detail {
 
 /**
- * The check every OpenSSL `make` runs first, before any call into OpenSSL that allocates:
+ * The check every OpenSSL `from_key` runs first, before any call into OpenSSL that allocates:
  * with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, `memory_functions_not_installed` unless the
  * adapter is installed; without it, nothing.
  *
@@ -276,10 +276,10 @@ struct openssl {
      * OpenSSL's in the process goes to `openssl_memory_resource()`.
      *
      * Called as the first statement of `main`, before any thread starts and anything uses
-     * OpenSSL. The first use of OpenSSL after it, usually the first `make`, runs OpenSSL's
+     * OpenSSL. The first use of OpenSSL after it, usually the first `from_key`, runs OpenSSL's
      * initialisation through the resource: on an OpenSSL built with threads (MSVC's only build)
      * a failure during its base initialisation makes that call never return; on one built
-     * without threads every `make` then gives `backend_failure`.
+     * without threads every `from_key` then gives `backend_failure`.
      *
      * @return Nothing, also when the adapter is installed already;
      * `memory_functions_refused` when another party installed its own functions, or OpenSSL

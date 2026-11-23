@@ -17,7 +17,9 @@
 
 namespace webcpp::test {
 
-/** The size of the key an algorithm's `make` takes: its `key_size`, else a secret key's 32. */
+/**
+ * The size of the key an algorithm's factory takes: its `key_size`, else a secret key's 32.
+ */
 template <class Algorithm>
 constexpr std::size_t key_size_of() {
     if constexpr (requires { Algorithm::key_size; }) {
@@ -28,8 +30,9 @@ constexpr std::size_t key_size_of() {
 }
 
 /**
- * Makes an algorithm, through the type a program names, from a key whose bytes are all 1, or,
- * for one made of a secret key and a peer's public key (a box), from that key twice, or, for
+ * Makes an algorithm, through the type a program names, from a key whose bytes are all 1 (its
+ * `from_key`, a key pair's `from_secret`, `crypto_kx`'s `derive_from_seed`), or, for one made of a
+ * secret key and a peer's public key (a box, `from_keys`), from that key twice, or, for
  * one keyed by no key of its own (Ed25519ph's signer), begins it, or, for sealed boxes, seals
  * an empty message to that key as a public key, or, for PEM, armours that key as a public key's
  * DER, or, for one of free functions alone (X25519), gives that key's public key: a cell the
@@ -41,7 +44,7 @@ constexpr std::size_t key_size_of() {
  * @tparam Family Its family's tag.
  * @tparam Name Its algorithm's tag.
  * @tparam Backend Its backend.
- * @return Whether `make`, `begin`, `seal`, `armour` or `public_key` succeeded.
+ * @return Whether the factory, `begin`, `seal`, `armour` or `public_key` succeeded.
  */
 template <class Algorithm, class Family, class Name, class Backend>
 [[nodiscard]] bool made() {
@@ -52,10 +55,14 @@ template <class Algorithm, class Family, class Name, class Backend>
     key_bytes.fill(1);
     if constexpr (requires { Algorithm::begin(); }) {
         return Algorithm::begin().has_value();
-    } else if constexpr (requires { Algorithm::make(key_bytes); }) {
-        return Algorithm::make(key_bytes).has_value();
-    } else if constexpr (requires { Algorithm::make(key_bytes, key_bytes); }) {
-        return Algorithm::make(key_bytes, key_bytes).has_value();
+    } else if constexpr (requires { Algorithm::from_key(key_bytes); }) {
+        return Algorithm::from_key(key_bytes).has_value();
+    } else if constexpr (requires { Algorithm::from_secret(key_bytes); }) {
+        return Algorithm::from_secret(key_bytes).has_value();
+    } else if constexpr (requires { Algorithm::derive_from_seed(key_bytes); }) {
+        return Algorithm::derive_from_seed(key_bytes).has_value();
+    } else if constexpr (requires { Algorithm::from_keys(key_bytes, key_bytes); }) {
+        return Algorithm::from_keys(key_bytes, key_bytes).has_value();
     } else if constexpr (requires { Algorithm::overhead; }) {
         std::array<std::uint8_t, Algorithm::overhead> sealed{};
         return Algorithm::seal(key_bytes, {}, sealed).has_value();

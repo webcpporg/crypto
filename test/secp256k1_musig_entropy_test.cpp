@@ -6,8 +6,8 @@
 
 // MuSig2's nonce with the system's source failing (the test seam
 // WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY, a whole-program define, hence a program of its own): the
-// planted source answers the key pairs' context seeds, which keypair::make draws from the same
-// source, then fails; nonce_gen returns entropy_unavailable, without aborting, after drawing
+// planted source answers the key pairs' context seeds, which keypair::from_secret draws from the
+// same source, then fails; nonce_gen returns entropy_unavailable, without aborting, after drawing
 // exactly once and calling nothing after the failure. That the buffer the draw wrote is zero
 // on that failure is random_device::fill's contract, tested by random_device_failing; the wipe
 // after a successful draw is detail::secp256k1_secret's destructor's.
@@ -60,8 +60,8 @@ int main() {
     first_secret.fill(0x11);
     std::array<std::uint8_t, 32> second_secret{};
     second_secret.fill(0x22);
-    auto const first = secp::keypair::make(first_secret);
-    auto const second = secp::keypair::make(second_secret);
+    auto const first = secp::keypair::from_secret(first_secret);
+    auto const second = secp::keypair::from_secret(second_secret);
     if (!BOOST_TEST(first && second)) {
         return webcpp::test::exit_status(boost::report_errors());
     }

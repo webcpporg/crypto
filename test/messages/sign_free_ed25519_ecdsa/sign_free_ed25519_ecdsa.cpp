@@ -21,7 +21,7 @@
 int main() {
     namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> const seed{};
-    auto const key = crypto::curves::ed25519::keypair::make(seed);
+    auto const key = crypto::curves::ed25519::keypair::from_secret(seed);
     std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
     return key && crypto::sign(*key, crypto::ecdsa_sha256, message) ? 0 : 1;
 }

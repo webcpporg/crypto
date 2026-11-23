@@ -84,7 +84,7 @@ int main() {
     // (RFC 6979), so the same key and hash always give the same signature.
     std::array<std::uint8_t, 32> secret{};
     secret.fill(0x11);
-    auto key = secp256k1::keypair::make(secret);
+    auto key = secp256k1::keypair::from_secret(secret);
     wipe(std::as_writable_bytes(std::span(secret)));
     if (!key) {
         return 1;

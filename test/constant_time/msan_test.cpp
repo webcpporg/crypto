@@ -73,7 +73,7 @@ struct memory_sanitizer {
 };
 
 /**
- * make, seal and open of BearSSL's AES-GCM with the key, the data and the tag poisoned. The
+ * from_key, seal and open of BearSSL's AES-GCM with the key, the data and the tag poisoned. The
  * planted leak, a branch on a key byte, is here.
  */
 int bearssl_gcm() {
@@ -87,7 +87,8 @@ int bearssl_gcm() {
         std::printf("planted\n");
     }
 #endif
-    auto made = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>::make(key);
+    auto made =
+        crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>::from_key(key);
     auto tag = made->seal(iv, {}, data);
     __msan_poison(tag->data(), tag->size());
     // The verdict is declassified inside the engine (WEBCPP_CRYPTO_DETAIL_DECLASSIFY).

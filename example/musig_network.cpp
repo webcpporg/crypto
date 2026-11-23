@@ -81,8 +81,8 @@ boost::system::result<musig::partial_signature> received_part(
 
 int main() {
     // Each device's key pair; each publishes its public key, which every party reads.
-    auto const phone = secp256k1::keypair::make(repeated(0x11));
-    auto const laptop = secp256k1::keypair::make(repeated(0x22));
+    auto const phone = secp256k1::keypair::from_secret(repeated(0x11));
+    auto const laptop = secp256k1::keypair::from_secret(repeated(0x22));
     if (!phone || !laptop) {
         return 1;
     }

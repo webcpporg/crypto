@@ -42,12 +42,12 @@ std::array<std::uint8_t, Cipher::key_size> block_key() {
 template <class Cipher>
 void check_block_guards() {
     std::array<std::uint8_t, Cipher::key_size + 1> const long_key{};
-    BOOST_TEST(Cipher::make(std::span(long_key).first(Cipher::key_size - 1)).error() ==
+    BOOST_TEST(Cipher::from_key(std::span(long_key).first(Cipher::key_size - 1)).error() ==
                webcpp::crypto::error::invalid_key_size);
-    BOOST_TEST(Cipher::make(long_key).error() == webcpp::crypto::error::invalid_key_size);
-    BOOST_TEST(Cipher::make({}).error() == webcpp::crypto::error::invalid_key_size);
+    BOOST_TEST(Cipher::from_key(long_key).error() == webcpp::crypto::error::invalid_key_size);
+    BOOST_TEST(Cipher::from_key({}).error() == webcpp::crypto::error::invalid_key_size);
 
-    auto made = Cipher::make(block_key<Cipher>());
+    auto made = Cipher::from_key(block_key<Cipher>());
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -70,7 +70,7 @@ void check_block_guards() {
 /** Encryption changes the blocks, decryption gives them back, and blocks are independent. */
 template <class Cipher>
 void check_block_round_trip() {
-    auto made = Cipher::make(block_key<Cipher>());
+    auto made = Cipher::from_key(block_key<Cipher>());
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -94,7 +94,7 @@ void check_block_round_trip() {
     // Another key gives other blocks.
     auto other_key = block_key<Cipher>();
     other_key[0] ^= 1U;
-    auto other = Cipher::make(other_key);
+    auto other = Cipher::from_key(other_key);
     if (!BOOST_TEST(other.has_value())) {
         return;
     }
@@ -106,7 +106,7 @@ void check_block_round_trip() {
 /** A moved-from cipher answers invalid_state to everything but assignment and destruction. */
 template <class Cipher>
 void check_block_moved_from() {
-    auto made = Cipher::make(block_key<Cipher>());
+    auto made = Cipher::from_key(block_key<Cipher>());
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -174,7 +174,7 @@ void check_block_cipher() {
 template <class Cipher>
 void check_answer(std::span<std::uint8_t const> key, std::string_view plain,
                   std::string_view expected) {
-    auto made = Cipher::make(key);
+    auto made = Cipher::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }

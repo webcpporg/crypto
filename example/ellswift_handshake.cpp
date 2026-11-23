@@ -34,8 +34,8 @@ std::array<std::uint8_t, 32> repeated(std::uint8_t value) {
 
 int main() {
     // Each peer's key pair and the randomness of its encoding (random_device in a real program).
-    auto const initiator = secp256k1::keypair::make(repeated(0x11));
-    auto const responder = secp256k1::keypair::make(repeated(0x22));
+    auto const initiator = secp256k1::keypair::from_secret(repeated(0x11));
+    auto const responder = secp256k1::keypair::from_secret(repeated(0x22));
     if (!initiator || !responder) {
         return 1;
     }

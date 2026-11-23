@@ -90,7 +90,7 @@ using aead =
 void backend_runs_with_dit() {
     BOOST_TEST(!crypto::detail::dit_is_set());
     std::array<std::uint8_t, aead::key_size> const key{};
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -109,8 +109,8 @@ void backend_runs_with_dit() {
 void early_error_restores_state() {
     BOOST_TEST(!crypto::detail::dit_is_set());
     std::array<std::uint8_t, aead::key_size - 1> const short_key{};
-    webcpp::test::require_enters("aead::make with a 31-byte key", [&short_key] {
-        BOOST_TEST(aead::make(short_key).error() == crypto::error::invalid_key_size);
+    webcpp::test::require_enters("aead::from_key with a 31-byte key", [&short_key] {
+        BOOST_TEST(aead::from_key(short_key).error() == crypto::error::invalid_key_size);
     });
     BOOST_TEST(!crypto::detail::dit_is_set());
 }

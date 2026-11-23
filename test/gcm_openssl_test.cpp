@@ -37,7 +37,7 @@ void check_abandon_forgets_the_message() {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const zero_iv{};
     std::array<std::uint8_t, 1> one_byte{};
-    auto fresh = crypto::ciphers::gcm<crypto::ciphers::aes256<openssl>>::make(key);
+    auto fresh = crypto::ciphers::gcm<crypto::ciphers::aes256<openssl>>::from_key(key);
     if (!BOOST_TEST(fresh.has_value())) {
         return;
     }

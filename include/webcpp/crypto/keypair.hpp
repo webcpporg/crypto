@@ -6,17 +6,17 @@
 
 /**
  The contract every curve's key pair meets (design D8), the concept `crypto::keypair`: made from
- its secret bytes by `make` or drawn by `generate`, its typed public key, which goes straight into
- `crypto::verify`, its secret bytes back by `secret()`, and `sign(scheme, input)` for every scheme
- its curve declares, at least one, of the library's one list of schemes, `detail::all_schemes`
- in `signing.hpp`.
+ its secret bytes by `from_secret` or drawn by `generate`, its typed public key, which goes straight
+ into `crypto::verify`, its secret bytes back by `secret()`, and `sign(scheme, input)` for every
+ scheme its curve declares, at least one, of the library's one list of schemes,
+ `detail::all_schemes` in `signing.hpp`.
 
  Each curve's header checks its own key pair with a `static_assert` where its default backend is
  linked.
 
  Beside it, the free synchronous form of the key pairs' `agree`, `crypto::agree(key_pair, peer)`
- (design D9, R23), and, through `make.hpp`, which it includes, `crypto::make<A>(bytes)` and
- `crypto::generate<K>()`.
+ (design D9, R23), and, through `factories.hpp`, which it includes, `crypto::from_secret<K>(bytes)`,
+ `crypto::from_bytes<T>(bytes)`, `crypto::from_key<C>(key)` and `crypto::generate<K>()`.
 
  @see "Signatures: the scheme and the input", in the guide.
 */
@@ -26,7 +26,7 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/detail/timing.hpp>
-#include <webcpp/crypto/make.hpp>
+#include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 
@@ -106,7 +106,7 @@ template <class Keypair, class List>
 concept keypair_over = signs_some_scheme_v<Keypair, List> && requires {
     typename Keypair::public_key_type;
     {
-        Keypair::make(std::declval<std::span<std::uint8_t const>&>())
+        Keypair::from_secret(std::declval<std::span<std::uint8_t const>&>())
     } -> std::same_as<boost::system::result<Keypair>>;
     { Keypair::generate() } -> std::same_as<boost::system::result<Keypair>>;
     {
@@ -121,10 +121,11 @@ concept keypair_over = signs_some_scheme_v<Keypair, List> && requires {
 
 /**
  * Whether `Keypair` is a key pair of the library's contract (design D8):
- * - `Keypair::make(secret_bytes)` and `Keypair::generate()` give `result<Keypair>`;
+ * - `Keypair::from_secret(secret_bytes)` and `Keypair::generate()` give `result<Keypair>`;
  * - `key.public_key()` gives `result<typename Keypair::public_key_type>`, the curve's typed
  *   public key, which `crypto::verify` takes;
- * - `key.secret()` gives `result<secret<Keypair::secret_key_size>>`, the bytes `make` takes back;
+ * - `key.secret()` gives `result<secret<Keypair::secret_key_size>>`, the bytes `from_secret`
+ *   takes back;
  * - `key.sign(scheme, message)` is valid for every scheme its curve declares for it
  *   (`detail::signs_with_v`), and it declares at least one; the schemes asked are the library's
  *   one list of them, `detail::all_schemes`, which the concept folds over

@@ -9,10 +9,10 @@
 // sign(crypto::eddsa, message) and accepted by crypto::verify(crypto::eddsa, signature, message,
 // public_key), the key pair's typed public key or one made from the RFC's bytes, its policy and
 // backend deduced and named; secret() gives the seed back, which makes the same key pair;
-// public_key::make checks the size alone; the empty message; the arguments of the order before
-// it (key, message, signature) refused as a signature; speccheck's small-order key refused under
-// strict; the guards (a seed of 31 bytes, a moved-from key pair, a signature changed in one bit,
-// keys and signatures of other sizes); generate() under the planted entropy source of the test
+// public_key::from_bytes checks the size alone; the empty message; the arguments of the order
+// before it (key, message, signature) refused as a signature; speccheck's small-order key refused
+// under strict; the guards (a seed of 31 bytes, a moved-from key pair, a signature changed in one
+// bit, keys and signatures of other sizes); generate() under the planted entropy source of the test
 // seam WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY, failing and answering; and x25519_secret(), whose
 // public key is crypto_sign_ed25519_pk_to_curve25519's of the Ed25519 public key.
 
@@ -112,14 +112,14 @@ void rfc8032() {
         auto const message = test::from_hex(tested.message);
         auto const expected_signature = test::from_hex(tested.signature);
 
-        auto const key = ed25519::keypair::make(seed);
+        auto const key = ed25519::keypair::from_secret(seed);
         BOOST_TEST(key.has_value());
         if (!key) {
             continue;
         }
         auto const public_key = key->public_key();
         BOOST_TEST(public_key && std::ranges::equal(public_key->bytes(), expected_public_key));
-        auto const expected_key = ed25519::public_key::make(expected_public_key);
+        auto const expected_key = ed25519::public_key::from_bytes(expected_public_key);
         BOOST_TEST(expected_key && public_key && *expected_key == *public_key);
         auto const signature = key->sign(crypto::eddsa, message);
         BOOST_TEST(signature && std::ranges::equal(*signature, expected_signature));
@@ -142,15 +142,15 @@ void guards() {
     auto const message = test::from_hex(rfc8032_cases[1].message);
 
     // A seed of 31 or 33 bytes is not a seed.
-    auto const short_seed = ed25519::keypair::make(std::span(seed).first(31));
+    auto const short_seed = ed25519::keypair::from_secret(std::span(seed).first(31));
     BOOST_TEST(short_seed.has_error() && short_seed.error() == crypto::error::invalid_key_size);
     std::vector<std::uint8_t> long_seed(seed);
     long_seed.push_back(0);
-    auto const long_made = ed25519::keypair::make(long_seed);
+    auto const long_made = ed25519::keypair::from_secret(long_seed);
     BOOST_TEST(long_made.has_error() && long_made.error() == crypto::error::invalid_key_size);
 
     // A moved-from key pair is empty: every member says invalid_state; the target works.
-    auto made = ed25519::keypair::make(seed);
+    auto made = ed25519::keypair::from_secret(seed);
     BOOST_TEST(made.has_value());
     if (!made) {
         return;
@@ -169,7 +169,7 @@ void guards() {
                std::ranges::equal(*signature, test::from_hex(rfc8032_cases[1].signature)));
 
     // Moved over: the target takes the key, the source is empty.
-    auto other = ed25519::keypair::make(test::from_hex(rfc8032_cases[0].secret_key));
+    auto other = ed25519::keypair::from_secret(test::from_hex(rfc8032_cases[0].secret_key));
     BOOST_TEST(other.has_value());
     if (other) {
         target = std::move(*other);
@@ -184,7 +184,8 @@ void guards() {
 void refusals() {
     auto const message = test::from_hex(rfc8032_cases[1].message);
     // A signature changed in one bit, of R or of S, and a message changed in one bit.
-    auto const made_key = ed25519::public_key::make(test::from_hex(rfc8032_cases[1].public_key));
+    auto const made_key =
+        ed25519::public_key::from_bytes(test::from_hex(rfc8032_cases[1].public_key));
     BOOST_TEST(made_key.has_value());
     if (!made_key) {
         return;
@@ -223,7 +224,7 @@ void old_order_fails_closed() {
     std::array<std::uint8_t, 64> signature{};
     std::ranges::copy(test::from_hex(rfc8032_cases[1].signature), signature.begin());
     static_assert(!crypto::detail::has_verifier_v<crypto::eddsa_t, std::array<std::uint8_t, 64>>);
-    auto const public_key = ed25519::public_key::make(key_bytes);
+    auto const public_key = ed25519::public_key::from_bytes(key_bytes);
     BOOST_TEST(public_key.has_value());
     if (!public_key) {
         return;
@@ -237,17 +238,17 @@ void old_order_fails_closed() {
 // invalid_public_key; a key of small order is made, and strict verification refuses it.
 void public_keys() {
     auto const bytes = test::from_hex(rfc8032_cases[1].public_key);
-    auto const made = ed25519::public_key::make(bytes);
+    auto const made = ed25519::public_key::from_bytes(bytes);
     BOOST_TEST(made && std::ranges::equal(made->bytes(), bytes));
-    auto const short_key = ed25519::public_key::make(std::span(bytes).first(31));
+    auto const short_key = ed25519::public_key::from_bytes(std::span(bytes).first(31));
     BOOST_TEST(short_key.has_error() && short_key.error() == crypto::error::invalid_public_key);
     std::vector<std::uint8_t> long_bytes(bytes);
     long_bytes.push_back(0);
-    auto const long_key = ed25519::public_key::make(long_bytes);
+    auto const long_key = ed25519::public_key::from_bytes(long_bytes);
     BOOST_TEST(long_key.has_error() && long_key.error() == crypto::error::invalid_public_key);
-    auto const empty_key = ed25519::public_key::make(std::span<std::uint8_t const>{});
+    auto const empty_key = ed25519::public_key::from_bytes(std::span<std::uint8_t const>{});
     BOOST_TEST(empty_key.has_error() && empty_key.error() == crypto::error::invalid_public_key);
-    auto const other = ed25519::public_key::make(test::from_hex(rfc8032_cases[0].public_key));
+    auto const other = ed25519::public_key::from_bytes(test::from_hex(rfc8032_cases[0].public_key));
     BOOST_TEST(made && other && !(*made == *other) && *made != *other);
 }
 
@@ -256,7 +257,7 @@ void public_keys() {
 void secret_round_trip() {
     for (auto const& tested : rfc8032_cases) {
         auto const seed = test::from_hex(tested.secret_key);
-        auto const key = ed25519::keypair::make(seed);
+        auto const key = ed25519::keypair::from_secret(seed);
         BOOST_TEST(key.has_value());
         if (!key) {
             continue;
@@ -268,7 +269,7 @@ void secret_round_trip() {
         if (!exported) {
             continue;
         }
-        auto const again = ed25519::keypair::make(exported->bytes());
+        auto const again = ed25519::keypair::from_secret(exported->bytes());
         BOOST_TEST(again && *again->public_key() == *key->public_key());
         auto const message = test::from_hex(tested.message);
         BOOST_TEST(again &&
@@ -279,7 +280,7 @@ void secret_round_trip() {
 // The empty message is a message: signed and verified, its signature RFC 8032's test 1, and
 // refused for a message of one byte.
 void empty_message() {
-    auto const key = ed25519::keypair::make(test::from_hex(rfc8032_cases[0].secret_key));
+    auto const key = ed25519::keypair::from_secret(test::from_hex(rfc8032_cases[0].secret_key));
     BOOST_TEST(key.has_value());
     if (!key) {
         return;
@@ -311,7 +312,7 @@ void small_order_key() {
         "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a"
         "0000000000000000000000000000000000000000000000000000000000000000");
     // Made, since the size is right: the policy judges the point.
-    auto const key = ed25519::public_key::make(public_key);
+    auto const key = ed25519::public_key::from_bytes(public_key);
     BOOST_TEST(key.has_value());
     if (!key) {
         return;
@@ -339,7 +340,7 @@ void generated() {
     auto const drawn = ed25519::keypair::generate();
     std::array<std::uint8_t, 32> seed{};
     seed.fill(0x42);
-    auto const made = ed25519::keypair::make(seed);
+    auto const made = ed25519::keypair::from_secret(seed);
     BOOST_TEST(drawn.has_value() && made.has_value());
     if (drawn && made) {
         auto const drawn_key = drawn->public_key();
@@ -350,7 +351,7 @@ void generated() {
 
 void conversion() {
     for (auto const& tested : rfc8032_cases) {
-        auto const key = ed25519::keypair::make(test::from_hex(tested.secret_key));
+        auto const key = ed25519::keypair::from_secret(test::from_hex(tested.secret_key));
         BOOST_TEST(key.has_value());
         if (!key) {
             continue;

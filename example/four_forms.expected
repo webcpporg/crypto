@@ -1,4 +1,4 @@
-make: free = member    yes
+from_secret: free      yes
 signature efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf3716
           0834e36ad29a83bf2bc9385e491d6099c8fdf9d1ed67aa7ea5f51f93782857a9
 sign: free             yes

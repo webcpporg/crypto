@@ -147,7 +147,7 @@ public:
      * @return The public key; `invalid_public_key` for another size, another first byte (the
      * compressed form included), a coordinate not below p or a point off the curve.
      */
-    [[nodiscard]] static boost::system::result<basic_public_key> make(
+    [[nodiscard]] static boost::system::result<basic_public_key> from_bytes(
         std::span<std::uint8_t const> uncompressed_point) noexcept {
         detail::timing_guard const timing_scope;
         if (uncompressed_point.size() != public_key_size || uncompressed_point[0] != 0x04) {
@@ -164,7 +164,7 @@ public:
      * @return The public key; `invalid_public_key` for a coordinate not below p or a point off
      * the curve.
      */
-    [[nodiscard]] static boost::system::result<basic_public_key> make(
+    [[nodiscard]] static boost::system::result<basic_public_key> from_coordinates(
         std::span<std::uint8_t const, coordinate_size> x_coordinate,
         std::span<std::uint8_t const, coordinate_size> y_coordinate) noexcept {
         detail::timing_guard const timing_scope;
@@ -266,7 +266,7 @@ private:
     basic_public_key() noexcept = default;
 
     // The backend's check of a point whose size and first byte are checked, and the key made of
-    // it: the work of both make, which hold their own guards.
+    // it: the work of `from_bytes` and `from_coordinates`, which hold their own guards.
     [[nodiscard]] static boost::system::result<basic_public_key> checked(
         std::span<std::uint8_t const, public_key_size> point_bytes) noexcept {
         if (!engine::valid_point(point_bytes)) {
@@ -307,7 +307,7 @@ public:
     using backend_type = Backend;
     /** The public key's type, which `crypto::verify` and `agree` take. */
     using public_key_type = basic_public_key<Backend>;
-    /** The size of the secret scalar, which `make` takes and `secret()` gives. */
+    /** The size of the secret scalar, which `from_secret` takes and `secret()` gives. */
     static constexpr std::size_t secret_key_size = p256::secret_key_size;
     /** The size of the public key, SEC 1's uncompressed point. */
     static constexpr std::size_t public_key_size = p256::public_key_size;
@@ -319,12 +319,12 @@ public:
      * @return The key pair; `invalid_key_size`; `invalid_secret_key` for a scalar 0 or not below
      * n, refused before the backend; `backend_failure`.
      */
-    [[nodiscard]] static boost::system::result<basic_keypair> make(
+    [[nodiscard]] static boost::system::result<basic_keypair> from_secret(
         std::span<std::uint8_t const> secret_scalar) noexcept {
         detail::timing_guard const timing_scope;
-        static_assert(
-            !detail::asynchronous_backend_v<Backend>,
-            "webcpp::crypto: make on this backend completes asynchronously: call async_make.");
+        static_assert(!detail::asynchronous_backend_v<Backend>,
+                      "webcpp::crypto: from_secret on this backend completes asynchronously: call "
+                      "async_from_secret.");
         if constexpr (detail::asynchronous_backend_v<Backend>) {
             // Never compiled into a program: the assertion above stopped the build.
             return error::backend_failure;
@@ -337,7 +337,7 @@ public:
                 return error::invalid_secret_key;
             }
             basic_keypair made_pair;
-            auto const engine_keyed = engine::make(made_pair.state_, scalar_bytes);
+            auto const engine_keyed = engine::import_secret(made_pair.state_, scalar_bytes);
             if (!engine_keyed) {
                 return engine_keyed.error();
             }
@@ -371,15 +371,15 @@ public:
                     return error::entropy_unavailable;
                 }
             } while (!detail::p_curve_scalar_valid(scalar_bytes.bytes(), traits::order));
-            return make(scalar_bytes.bytes());
+            return from_secret(scalar_bytes.bytes());
         }
     }
 
     /**
-     * Makes a key pair from its secret scalar, asynchronously: `make` run when the operation is
-     * initiated, its result posted to `completion_executor`; the member form of
-     * `crypto::async_make<basic_keypair>(completion_executor, secret_scalar, completion_token)`,
-     * which calls it.
+     * Makes a key pair from its secret scalar, asynchronously: `from_secret` run when the operation
+     * is initiated, its result posted to `completion_executor`; the member form of
+     * `crypto::async_from_secret<basic_keypair>(completion_executor, secret_scalar,
+     * completion_token)`, which calls it.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
@@ -396,9 +396,9 @@ public:
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
-    static auto async_make(Executor const& completion_executor,
-                           std::span<std::uint8_t const> secret_scalar,
-                           CompletionToken&& completion_token);
+    static auto async_from_secret(Executor const& completion_executor,
+                                  std::span<std::uint8_t const> secret_scalar,
+                                  CompletionToken&& completion_token);
 
     /**
      * Makes a key pair from a fresh scalar, asynchronously: `generate` run when the operation is
@@ -472,7 +472,8 @@ public:
     }
 
     /**
-     * The secret scalar, for a program that keeps the key pair and makes it again with `make`.
+     * The secret scalar, for a program that keeps the key pair and makes it again with
+     * `from_secret`.
      *
      * @return 32 secret bytes, big-endian; `invalid_state` moved from.
      */
@@ -862,7 +863,8 @@ struct p_curve_engine<families::p256, Backend> {
 
     /** Never called; fails closed. */
     template <class... Arguments>
-    [[nodiscard]] static boost::system::result<void> make(Arguments&&... /*arguments*/) noexcept {
+    [[nodiscard]] static boost::system::result<void> import_secret(
+        Arguments&&... /*arguments*/) noexcept {
         return error::backend_failure;
     }
 

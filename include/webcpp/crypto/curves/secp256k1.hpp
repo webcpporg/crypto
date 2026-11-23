@@ -7,7 +7,7 @@
 /**
  secp256k1 on libsecp256k1: a key pair made from its 32-byte secret key, which `secret()` gives
  back, and its typed public key, `curves::secp256k1::public_key`, made from SEC1 bytes by
- `public_key::make` and giving its compressed, uncompressed and x-only forms;
+ `public_key::from_bytes` and giving its compressed, uncompressed and x-only forms;
  `key.sign(scheme, input)` with `crypto::ecdsa_sha256` (hedged too),
  `crypto::ecdsa_sha256_recoverable` and `crypto::schnorr` (BIP340), the input a message or, for
  ECDSA, `crypto::prehashed{digest}`; `crypto::verify` of ECDSA against the public key and of
@@ -623,10 +623,10 @@ inline constexpr std::size_t recoverable_signature_size = 65;
  * `secp256k1_pubkey`), which `crypto::verify` takes, of ECDSA and of Schnorr, and a key pair's
  * `agree` takes as its peer.
  *
- * It holds nothing secret and is copied freely; it is made only by `make` and by the functions
- * that return one (a key pair's `public_key()`, `recover`, the tweaks), so that it is always
- * valid. It gives its bytes in each of its forms: `compressed()` (33, Bitcoin's), `uncompressed()`
- * (65, Ethereum's) and `xonly()` (32, BIP340's).
+ * It holds nothing secret and is copied freely; it is made only by `from_bytes` and by the
+ * functions that return one (a key pair's `public_key()`, `recover`, the tweaks), so that it is
+ * always valid. It gives its bytes in each of its forms: `compressed()` (33, Bitcoin's),
+ * `uncompressed()` (65, Ethereum's) and `xonly()` (32, BIP340's).
  */
 class public_key {
 public:
@@ -642,7 +642,7 @@ public:
      * curve.
      */
     template <class Backend = default_backend_t<families::secp256k1>>
-    [[nodiscard]] static boost::system::result<public_key> make(
+    [[nodiscard]] static boost::system::result<public_key> from_bytes(
         std::span<std::uint8_t const> encoded_key) noexcept {
         detail::timing_guard const timing_scope;
         static_assert(
@@ -835,7 +835,7 @@ public:
     using name_type = families::secp256k1;
     /** The public key's type, which `crypto::verify` and `agree` take. */
     using public_key_type = ::webcpp::crypto::curves::secp256k1::public_key;
-    /** The size of the secret key, which `make` takes and `secret()` gives. */
+    /** The size of the secret key, which `from_secret` takes and `secret()` gives. */
     static constexpr std::size_t secret_key_size = 32;
     /** The most draws `generate` makes: 32 bytes that are not a secret key are drawn again. */
     static constexpr int max_draws = 4;
@@ -854,7 +854,7 @@ public:
      * `secp256k1_keypair_create` only on a secret `secp256k1_ec_seckey_verify` refuses). A
      * failed allocation is the resource's to report; the seed is wiped then too.
      */
-    [[nodiscard]] static boost::system::result<basic_keypair> make(
+    [[nodiscard]] static boost::system::result<basic_keypair> from_secret(
         std::span<std::uint8_t const> secret_bytes,
         std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource()) {
         detail::timing_guard const timing_scope;
@@ -898,7 +898,7 @@ public:
      * @param memory_resource The resource of the signing context, the one allocation; it must
      * outlive the key pair.
      * @return The key pair; `entropy_unavailable` when the system's generator fails, there is
-     * none, or four draws were not a secret key; `backend_failure` as `make` returns it.
+     * none, or four draws were not a secret key; `backend_failure` as `from_secret` returns it.
      */
     [[nodiscard]] static boost::system::result<basic_keypair> generate(
         std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource()) {
@@ -912,7 +912,7 @@ public:
                 // failure for a key pair: one error to handle.
                 return error::entropy_unavailable;
             }
-            auto made_pair = make(secret_key.bytes(), memory_resource);
+            auto made_pair = from_secret(secret_key.bytes(), memory_resource);
             if (made_pair || made_pair.error() != error::invalid_secret_key) {
                 return made_pair;
             }
@@ -980,7 +980,7 @@ public:
 
     /**
      * The secret key (`secp256k1_keypair_sec`), for a program that keeps the key pair and makes it
-     * again with `make`, or exports it.
+     * again with `from_secret`, or exports it.
      *
      * @return 32 secret bytes, big-endian; `invalid_state` moved from.
      */
@@ -1629,7 +1629,7 @@ namespace webcpp::crypto {
  * @param signing_input The signed message, hashed with SHA-256 inside the call; or
  * `crypto::prehashed{digest}`, the 32-byte digest signed (a Bitcoin sighash).
  * @param public_key The signer's public key: a key pair's `public_key()`, or
- * `curves::secp256k1::public_key::make` of its SEC1 bytes.
+ * `curves::secp256k1::public_key::from_bytes` of its SEC1 bytes.
  * @return Nothing; `invalid_signature` for a signature of another size, an r or an s not below the
  * group order, a high S, or a signature that does not verify.
  */

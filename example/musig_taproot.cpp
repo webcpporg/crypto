@@ -64,8 +64,8 @@ std::array<std::uint8_t, 32> tagged_hash(std::string_view tag, std::span<std::ui
 
 int main() {
     // Each device's key pair; each sends the other its public key.
-    auto const phone = secp256k1::keypair::make(repeated(0x11));
-    auto const laptop = secp256k1::keypair::make(repeated(0x22));
+    auto const phone = secp256k1::keypair::from_secret(repeated(0x11));
+    auto const laptop = secp256k1::keypair::from_secret(repeated(0x22));
     if (!phone || !laptop) {
         return 1;
     }

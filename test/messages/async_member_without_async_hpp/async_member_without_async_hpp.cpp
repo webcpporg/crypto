@@ -28,7 +28,7 @@ int main() {
     namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> const scalar{1};
     std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
-    auto const made = crypto::curves::p256::keypair::make(scalar);
+    auto const made = crypto::curves::p256::keypair::from_secret(scalar);
     if (!made || !made->sign(crypto::ecdsa_sha256, message)) {
         return 1;
     }

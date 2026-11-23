@@ -70,7 +70,7 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
             count,
             [&](int which, auto& generator) {
                 test::choose(which, generator, zero_key, key);
-                made.emplace(*Aead::make(key));
+                made.emplace(*Aead::from_key(key));
             },
             [&] { static_cast<void>(made->seal(iv, {}, data)); });
         results.record(seal_name, seal_label, seal, true,
@@ -83,7 +83,7 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
         return;
     }
     key.fill(0x42);
-    made.emplace(*Aead::make(key));
+    made.emplace(*Aead::from_key(key));
     std::array<std::uint8_t, 64> const plaintext{};
     std::array<std::uint8_t, 64> ciphertext = plaintext;
     auto const right = *made->seal(iv, {}, ciphertext);
@@ -139,7 +139,7 @@ bool measure_p256(test::case_results& results, test::case_selection const& selec
     digest.fill(0x17);
     std::array<std::uint8_t, 32> peer_scalar{};
     peer_scalar.fill(0x24);
-    auto const peer = keypair::make(peer_scalar);
+    auto const peer = keypair::from_secret(peer_scalar);
     auto const peer_key = peer ? peer->public_key() : peer.error();
     if (!peer_key) {
         std::printf("the peer's key pair was refused\n");
@@ -149,9 +149,9 @@ bool measure_p256(test::case_results& results, test::case_selection const& selec
     auto const prepare = [&](int which, auto& generator) {
         test::choose(which, generator, fixed, scalar);
         // A random scalar is 0 or not below n only with probability about 2^-32.
-        auto made = keypair::make(scalar);
+        auto made = keypair::from_secret(scalar);
         if (!made) {
-            made = keypair::make(fixed);
+            made = keypair::from_secret(fixed);
         }
         pair.emplace(std::move(*made));
     };
@@ -213,7 +213,7 @@ int main(int argc, char** argv) {
             count,
             [&](int which, auto& generator) {
                 test::choose(which, generator, zero_key, key);
-                block_made.emplace(*block_cipher::make(key));
+                block_made.emplace(*block_cipher::from_key(key));
                 block.fill(0);
             },
             [&] { static_cast<void>(block_made->encrypt(block)); });

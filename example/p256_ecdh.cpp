@@ -59,7 +59,7 @@ std::span<std::uint8_t const> bytes_of(std::string_view text) {
 boost::system::result<p256::keypair> from_byte(std::uint8_t fill) {
     std::array<std::uint8_t, p256::secret_key_size> scalar{};
     scalar.fill(fill);
-    return p256::keypair::make(scalar);
+    return p256::keypair::from_secret(scalar);
 }
 
 }  // namespace

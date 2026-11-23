@@ -84,7 +84,7 @@ namespace webcpp::crypto::hybrid {
 /**
  * `crypto_box`: authenticated encryption between two key pairs.
  *
- * `make` agrees a key from the own secret key and the peer's public key, once per pair of keys
+ * `from_keys` agrees a key from the own secret key and the peer's public key, once per pair of keys
  * (libsodium's `beforenm`); `seal` and `open` then work in place, the tag apart, under that key.
  * Either party of the pair can have written a message: the box proves that it comes from one of
  * them, not which.
@@ -144,7 +144,7 @@ public:
      * size; `weak_public_key` for a peer key of small order, whose shared secret an attacker
      * knows; `backend_failure` when the backend cannot start.
      */
-    [[nodiscard]] static boost::system::result<basic_box> make(
+    [[nodiscard]] static boost::system::result<basic_box> from_keys(
         std::span<std::uint8_t const> secret_key,
         std::span<std::uint8_t const> peer_public_key) noexcept {
         detail::timing_guard const timing_scope;

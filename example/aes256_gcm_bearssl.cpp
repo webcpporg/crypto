@@ -37,7 +37,7 @@ int main() {
         0x26, 0x5b, 0x98, 0xb5, 0xd4, 0x8a, 0xb9, 0x19,
     };
 
-    auto aead = aead_type::make(key);
+    auto aead = aead_type::from_key(key);
     if (!aead) {
         return 1;
     }

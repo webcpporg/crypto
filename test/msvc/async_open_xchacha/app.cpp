@@ -20,7 +20,7 @@
 int main() {
     namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> const key{};
-    auto made = crypto::ciphers::xchacha20_poly1305<>::make(key);
+    auto made = crypto::ciphers::xchacha20_poly1305<>::from_key(key);
     if (!made) {
         return 1;
     }

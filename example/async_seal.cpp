@@ -72,10 +72,10 @@ int main() {
     bool returned = false;
     int status = 1;
 
-    crypto::async_make<aead_type>(
+    crypto::async_from_key<aead_type>(
         loop.get_executor(), key, [&](boost::system::error_code made, aead_type keyed) {
             if (made) {
-                std::printf("make: %s\n", made.message().c_str());
+                std::printf("from_key: %s\n", made.message().c_str());
                 return;
             }
             aead.emplace(std::move(keyed));

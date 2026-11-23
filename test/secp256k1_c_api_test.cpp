@@ -9,7 +9,7 @@
 // module's `secp256k1_ellswift_create` and `secp256k1_ellswift_decode`, called and linked
 // against `/third_party//secp256k1`. What the C calls give is compared with the wrappers: the
 // key the C API recovers with `recover`'s, and the key ElligatorSwift decodes with
-// `public_key::make`'s; both with the key pair's.
+// `public_key::from_bytes`'s; both with the key pair's.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/signing.hpp>
@@ -79,7 +79,7 @@ void recovery(secp256k1_context const* context, secret_key const& secret,
     with_id[64] = static_cast<std::uint8_t>(id);
     auto const wrapped =
         secp::recover(crypto::ecdsa_sha256_recoverable, with_id, crypto::prehashed{hash});
-    auto const expected_key = secp::public_key::make(expected);
+    auto const expected_key = secp::public_key::from_bytes(expected);
     if (BOOST_TEST(wrapped && expected_key)) {
         BOOST_TEST(*wrapped == *expected_key);
         BOOST_TEST(wrapped->compressed() == serialised(context, again));
@@ -105,8 +105,8 @@ void ellswift(secp256k1_context const* context, secret_key const& secret,
     BOOST_TEST(serialised(context, decoded) == expected);
 
     // The decoded point, serialised by the C API, parses with the wrapper to the key pair's key.
-    auto const wrapped = secp::public_key::make(serialised(context, decoded));
-    auto const expected_key = secp::public_key::make(expected);
+    auto const wrapped = secp::public_key::from_bytes(serialised(context, decoded));
+    auto const expected_key = secp::public_key::from_bytes(expected);
     if (BOOST_TEST(wrapped && expected_key)) {
         BOOST_TEST(*wrapped == *expected_key);
     }
@@ -117,7 +117,7 @@ void ellswift(secp256k1_context const* context, secret_key const& secret,
 int main() {
     secret_key secret{};
     secret.fill(0x33);
-    auto const key = secp::keypair::make(secret);
+    auto const key = secp::keypair::from_secret(secret);
     if (!BOOST_TEST(key.has_value())) {
         return webcpp::test::exit_status(boost::report_errors());
     }

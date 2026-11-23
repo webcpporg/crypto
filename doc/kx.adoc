@@ -30,7 +30,7 @@ names X25519 and a KDF of its own, as TLS 1.3's key schedule does
 uses `agree` instead.
 
 `kx_keypair<>::generate()` draws the key pair's 32-byte seed with
-`random_device`; `kx_keypair<>::make(seed)` makes the same key pair from the
+`random_device`; `kx_keypair<>::derive_from_seed(seed)` makes the same key pair from the
 same seed, as a program that keeps its seed does. A peer's public key of low
 order makes the X25519 secret all zero, whatever the secret key: both
 functions refuse it with `weak_public_key`, as libsodium does (design D8).

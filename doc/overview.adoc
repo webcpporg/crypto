@@ -71,8 +71,8 @@ the namespaces as `<webcpp/crypto/<group>/<name>.hpp>`:
 * `webcpp::crypto`: `random_device`, `equal`, `error` and the configuration;
 the signatures' schemes, `prehashed`, `sign` and `verify`
 (`<webcpp/crypto/signing.hpp>`), the key pair contract and `agree`
-(`<webcpp/crypto/keypair.hpp>`), `make` and `generate`
-(`<webcpp/crypto/make.hpp>`), and the asynchronous family
+(`<webcpp/crypto/keypair.hpp>`), the factories `from_secret`, `from_bytes`,
+`from_key` and `generate` (`<webcpp/crypto/factories.hpp>`), and the asynchronous family
 (`<webcpp/crypto/async.hpp>`; <<crypto-root>>, <<crypto-curves-four-forms>>,
 <<crypto-async>>);
 * `webcpp::crypto::ciphers`: `aes128`, `aes192`, `aes256`, `gcm`, `aes128_gcm`

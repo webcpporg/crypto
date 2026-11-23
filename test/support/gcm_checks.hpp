@@ -57,9 +57,9 @@ inline bool all_zero(std::span<std::uint8_t const> bytes) {
 template <class Backend, class F>
 void with_gcm(std::span<std::uint8_t const> key, F&& f) {
     switch (key.size()) {
-        case 16: f(crypto::ciphers::gcm<crypto::ciphers::aes128<Backend>>::make(key)); break;
-        case 24: f(crypto::ciphers::gcm<crypto::ciphers::aes192<Backend>>::make(key)); break;
-        default: f(crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>::make(key)); break;
+        case 16: f(crypto::ciphers::gcm<crypto::ciphers::aes128<Backend>>::from_key(key)); break;
+        case 24: f(crypto::ciphers::gcm<crypto::ciphers::aes192<Backend>>::from_key(key)); break;
+        default: f(crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>::from_key(key)); break;
     }
 }
 
@@ -93,13 +93,13 @@ template <class Backend>
 void check_guards() {
     using checked_aead = crypto::ciphers::gcm<crypto::ciphers::aes256<Backend>>;
     std::array<std::uint8_t, 31> const short_key{};
-    BOOST_TEST(checked_aead::make(short_key).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(checked_aead::from_key(short_key).error() == crypto::error::invalid_key_size);
     std::array<std::uint8_t, 16> const key16{};
-    BOOST_TEST(checked_aead::make(key16).error() == crypto::error::invalid_key_size);
-    BOOST_TEST(checked_aead::make({}).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(checked_aead::from_key(key16).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(checked_aead::from_key({}).error() == crypto::error::invalid_key_size);
 
     std::array<std::uint8_t, 32> const key{};
-    auto made = checked_aead::make(key);
+    auto made = checked_aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -158,7 +158,7 @@ void check_tampering(gcm_cases cases = gcm_spec_cases) {
     auto const additional_data = from_hex(c.additional_data);
     auto const ciphertext = from_hex(c.ciphertext);
     auto const tag = from_hex(c.tag);
-    auto made = checked_aead::make(key);
+    auto made = checked_aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -229,7 +229,7 @@ void check_moved_from(gcm_cases cases = gcm_spec_cases) {
     }
     auto const& one_block = cases[13];  // case 14: AES-256, one zero block
     std::array<std::uint8_t, 32> const key{};
-    auto made = checked_aead::make(key);
+    auto made = checked_aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -381,7 +381,7 @@ void check_edges(gcm_cases cases = gcm_spec_cases) {
         return;
     }
     std::array<std::uint8_t, 32> const key{};
-    auto made = checked_aead::make(key);
+    auto made = checked_aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -620,7 +620,7 @@ void check_machine_moves(Aead& made, std::span<std::uint8_t const> key,
     expect_fresh_message(made, iv, one_block);
 
     // A move assignment from an object in a message: the same for its source.
-    auto other = Aead::make(key);
+    auto other = Aead::from_key(key);
     if (!BOOST_TEST(other.has_value())) {
         return;
     }
@@ -632,7 +632,7 @@ void check_machine_moves(Aead& made, std::span<std::uint8_t const> key,
 
     // A move assignment over an object in a message abandons that message too.
     BOOST_TEST(made.begin_seal(iv, {}).has_value());
-    auto third = Aead::make(key);
+    auto third = Aead::from_key(key);
     if (!BOOST_TEST(third.has_value())) {
         return;
     }
@@ -655,7 +655,7 @@ void check_machine(gcm_cases cases = gcm_spec_cases) {
     auto const& one_block = cases[13];  // case 14: AES-256, one zero block
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = checked_aead::make(key);
+    auto made = checked_aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -674,7 +674,7 @@ void check_one_shot_during_message(gcm_cases cases = gcm_spec_cases) {
     auto const& one_block = cases[13];  // case 14: AES-256, one zero block
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = checked_aead::make(key);
+    auto made = checked_aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -1031,7 +1031,7 @@ void check_limits() {
     static_assert(sizeof(std::size_t) == 8, "the limits are reachable only with 64-bit sizes");
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = checked_aead::make(key);
+    auto made = checked_aead::from_key(key);
     auto const huge = reserved(static_cast<std::size_t>(checked_aead::max_message_size) + 1);
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(!huge.empty())) {
         return;

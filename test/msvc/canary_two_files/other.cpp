@@ -28,6 +28,6 @@ bool seal_other() {
     std::array<std::uint8_t, 12> const iv{};
     std::array<std::uint8_t, 16> data{};
     auto aead = webcpp::crypto::ciphers::gcm<
-        webcpp::crypto::ciphers::aes256<webcpp::crypto::backends::bearssl>>::make(key);
+        webcpp::crypto::ciphers::aes256<webcpp::crypto::backends::bearssl>>::from_key(key);
     return aead && aead->seal(iv, {}, data);
 }

@@ -7,10 +7,13 @@
 // Each operation's member and free synchronous forms (design D9, R21 to R23) give the same results
 // on every curve and on AES-GCM and ChaCha20-Poly1305, since the free form calls the member, or
 // both call one worker:
-// - make: K::make(bytes) and crypto::make<K>(bytes) give the same key (its secret, or its seal),
-//   of the same type, on every key pair, AEAD and public key (P-256's of its coordinates too),
-//   secp256k1's with a memory resource; generate: crypto::generate<K>() gives a key pair whose
-//   signature verifies.
+// - the factories, named by their input (design D3c): K::from_secret(bytes) and
+//   crypto::from_secret<K>(bytes) give the same key pair (its secret and its public key back), of
+//   the same type, on every curve, secp256k1's with a memory resource; T::from_bytes(bytes) and
+//   crypto::from_bytes<T>(bytes) the same public key, on every curve, and P-256's
+//   from_coordinates(x, y) the key from_bytes makes of 04 || x || y; C::from_key(key) and
+//   crypto::from_key<C>(key) the same AEAD, its seal; generate: crypto::generate<K>() gives a key
+//   pair whose signature verifies.
 // - sign: key.sign(scheme, input[, extra]) and crypto::sign(key, scheme, input[, extra]) give the
 //   same signature, on every scheme of every curve, secp256k1's hedged ECDSA and BIP340 with
 //   auxiliary randomness included, each the same type.
@@ -111,18 +114,20 @@ std::array<std::uint8_t, N> changed(std::array<std::uint8_t, N> signature) {
 }
 
 /**
- * A key pair's make, member and free: the same type, and the same key (its secret back).
+ * A key pair's from_secret, member and free: the same type, and the same key pair (its secret
+ * back, and the member's public key).
  *
  * @tparam Keypair A key pair's type.
  */
 template <class Keypair>
-void make_forms() {
+void from_secret_forms() {
     auto const secret_key = secret_bytes(1);
-    auto const member_made = Keypair::make(secret_key);
-    auto const free_made = crypto::make<Keypair>(secret_key);
+    auto const member_made = Keypair::from_secret(secret_key);
+    auto const free_made = crypto::from_secret<Keypair>(secret_key);
     static_assert(std::is_same_v<decltype(free_made), decltype(member_made)>);
     if (BOOST_TEST(member_made.has_value()) && BOOST_TEST(free_made.has_value())) {
         BOOST_TEST(same_secret(*free_made->secret(), *member_made->secret()));
+        BOOST_TEST(*free_made->public_key() == *member_made->public_key());
     }
 }
 
@@ -155,8 +160,8 @@ void generate_forms(Scheme scheme) {
  */
 template <class Keypair>
 void agree_forms() {
-    auto const made = Keypair::make(secret_bytes(1));
-    auto const peer = Keypair::make(secret_bytes(2));
+    auto const made = Keypair::from_secret(secret_bytes(1));
+    auto const peer = Keypair::from_secret(secret_bytes(2));
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(peer.has_value())) {
         return;
     }
@@ -212,7 +217,7 @@ void verify_forms(Scheme scheme, std::array<std::uint8_t, 64> const& signature, 
 
 /** Ed25519: sign and verify, member and free; Ed25519's policy and backend named on both. */
 void ed25519_forms() {
-    auto const made = ed25519_keypair::make(secret_bytes(1));
+    auto const made = ed25519_keypair::from_secret(secret_bytes(1));
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -240,7 +245,7 @@ void ed25519_forms() {
 
 /** P-256: sign and verify, member and free, of a message and of a marker of its digest. */
 void p256_forms() {
-    auto const made = p256_keypair::make(secret_bytes(1));
+    auto const made = p256_keypair::from_secret(secret_bytes(1));
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -280,7 +285,7 @@ void same_result(Member const& member, Free const& free) {
 
 /** secp256k1: every sign, member and free, the same signatures and types. */
 void secp256k1_sign_forms() {
-    auto const made = secp_keypair::make(secret_bytes(1));
+    auto const made = secp_keypair::from_secret(secret_bytes(1));
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -298,45 +303,45 @@ void secp256k1_sign_forms() {
 }
 
 /**
- * The public keys' make, member and free, on every curve (P-256's of a point and of its
- * coordinates), and secp256k1's key pair make and generate with a memory resource.
+ * The public keys' from_bytes, member and free, on every curve, P-256's from_coordinates the key
+ * from_bytes makes of 04 || x || y, and secp256k1's key pair from_secret and generate with a
+ * memory resource.
  */
 void public_key_and_resource_forms() {
-    auto const ed25519_made = ed25519_keypair::make(secret_bytes(1));
-    auto const p256_made = p256_keypair::make(secret_bytes(1));
-    auto const secp_made = secp_keypair::make(secret_bytes(1));
+    auto const ed25519_made = ed25519_keypair::from_secret(secret_bytes(1));
+    auto const p256_made = p256_keypair::from_secret(secret_bytes(1));
+    auto const secp_made = secp_keypair::from_secret(secret_bytes(1));
     if (!BOOST_TEST(ed25519_made.has_value()) || !BOOST_TEST(p256_made.has_value()) ||
         !BOOST_TEST(secp_made.has_value())) {
         return;
     }
     auto const ed25519_bytes = ed25519_made->public_key()->bytes();
-    same_result(ed25519::public_key::make(ed25519_bytes),
-                crypto::make<ed25519::public_key>(ed25519_bytes));
+    same_result(ed25519::public_key::from_bytes(ed25519_bytes),
+                crypto::from_bytes<ed25519::public_key>(ed25519_bytes));
 
     using p256_public_key = p256::basic_public_key<crypto::backends::bearssl>;
     auto const point = p256_made->public_key()->uncompressed();
-    auto const member_point = p256_public_key::make(point);
-    auto const free_point = crypto::make<p256_public_key>(point);
-    static_assert(std::is_same_v<decltype(free_point), decltype(member_point)>);
-    std::span<std::uint8_t const, 32> const x(point.data() + 1, 32);
-    std::span<std::uint8_t const, 32> const y(point.data() + 33, 32);
-    auto const free_coordinates = crypto::make<p256_public_key>(x, y);
-    if (BOOST_TEST(member_point.has_value()) && BOOST_TEST(free_point.has_value()) &&
-        BOOST_TEST(free_coordinates.has_value())) {
-        BOOST_TEST(free_point->uncompressed() == member_point->uncompressed());
-        BOOST_TEST(free_coordinates->uncompressed() == point);
-    }
+    same_result(p256_public_key::from_bytes(point), crypto::from_bytes<p256_public_key>(point));
+    std::span<std::uint8_t const, 32> const x_bytes(point.data() + 1, 32);
+    std::span<std::uint8_t const, 32> const y_bytes(point.data() + 33, 32);
+    std::array<std::uint8_t, 65> joined{0x04};
+    std::ranges::copy(x_bytes, joined.begin() + 1);
+    std::ranges::copy(y_bytes, joined.begin() + 33);
+    same_result(p256_public_key::from_bytes(joined),
+                p256_public_key::from_coordinates(x_bytes, y_bytes));
+    BOOST_TEST(*p256_public_key::from_coordinates(x_bytes, y_bytes) == *p256_made->public_key());
 
     auto const compressed = secp_made->public_key()->compressed();
-    same_result(secp256k1::public_key::make(compressed),
-                crypto::make<secp256k1::public_key>(compressed));
+    same_result(secp256k1::public_key::from_bytes(compressed),
+                crypto::from_bytes<secp256k1::public_key>(compressed));
 
     std::pmr::memory_resource* const resource = std::pmr::new_delete_resource();
-    auto const member_made = secp_keypair::make(secret_bytes(1), resource);
-    auto const free_made = crypto::make<secp_keypair>(secret_bytes(1), resource);
+    auto const member_made = secp_keypair::from_secret(secret_bytes(1), resource);
+    auto const free_made = crypto::from_secret<secp_keypair>(secret_bytes(1), resource);
     static_assert(std::is_same_v<decltype(free_made), decltype(member_made)>);
     if (BOOST_TEST(member_made.has_value()) && BOOST_TEST(free_made.has_value())) {
         BOOST_TEST(same_secret(*free_made->secret(), *member_made->secret()));
+        BOOST_TEST(*free_made->public_key() == *secp_made->public_key());
     }
     auto const generated = crypto::generate<secp_keypair>(resource);
     static_assert(
@@ -346,7 +351,7 @@ void public_key_and_resource_forms() {
 
 /** secp256k1: both verify schemes, member and free, ECDSA of a marker and Schnorr drawn too. */
 void secp256k1_verify_forms() {
-    auto const made = secp_keypair::make(secret_bytes(1));
+    auto const made = secp_keypair::from_secret(secret_bytes(1));
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -394,7 +399,7 @@ void secp256k1_verify_forms() {
  * 65 bytes gives the signer's key, and 64 or 66 bytes are invalid_signature.
  */
 void secp256k1_recover_sizes() {
-    auto const made = secp_keypair::make(secret_bytes(1));
+    auto const made = secp_keypair::from_secret(secret_bytes(1));
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -418,7 +423,7 @@ void secp256k1_recover_sizes() {
 }
 
 /**
- * An AEAD's make, seal and open, member and free: the same ciphertext and tag, and the same
+ * An AEAD's from_key, seal and open, member and free: the same ciphertext and tag, and the same
  * refusal of a changed tag.
  *
  * @tparam Aead `gcm` or `chacha`.
@@ -429,8 +434,8 @@ void aead_forms() {
     std::ranges::copy(secret_bytes(3), key.begin());
     std::array<std::uint8_t, Aead::iv_size> const iv{9};
     std::array<std::uint8_t, 4> const additional_data{'h', 'e', 'a', 'd'};
-    auto member_made = Aead::make(key);
-    auto free_made = crypto::make<Aead>(key);
+    auto member_made = Aead::from_key(key);
+    auto free_made = crypto::from_key<Aead>(key);
     static_assert(std::is_same_v<decltype(free_made), decltype(member_made)>);
     if (!BOOST_TEST(member_made.has_value()) || !BOOST_TEST(free_made.has_value())) {
         return;
@@ -471,9 +476,9 @@ void aead_forms() {
 }  // namespace
 
 int main() {
-    make_forms<ed25519_keypair>();
-    make_forms<p256_keypair>();
-    make_forms<secp_keypair>();
+    from_secret_forms<ed25519_keypair>();
+    from_secret_forms<p256_keypair>();
+    from_secret_forms<secp_keypair>();
     generate_forms<ed25519_keypair>(crypto::eddsa);
     generate_forms<p256_keypair>(crypto::ecdsa_sha256);
     generate_forms<secp_keypair>(crypto::schnorr);

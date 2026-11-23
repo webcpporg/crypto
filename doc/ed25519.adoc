@@ -22,7 +22,7 @@ specifications]) and of Solana's accounts
 WebCrypto has it too (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]). Bitcoin,
 Ethereum and Nostr sign on secp256k1 instead (<<crypto-secp256k1>>).
 
-A `keypair` is made from a seed with `make(seed)`, or drawn from
+A `keypair` is made from a seed with `from_secret(seed)`, or drawn from
 `random_device` with `generate()`; it gives its public key (`public_key()`),
 its seed back (`secret()`, a `secret<32>`), signs
 (`sign(crypto::eddsa, message)`), and gives its X25519 secret key
@@ -34,15 +34,15 @@ the message itself, of any length: a `crypto::prehashed` digest does not
 compile, and the key pair is a `crypto::keypair`, as every curve's is
 (<<crypto-curves-signatures>>).
 
-A `public_key` is the 32 bytes of RFC 8032's encoded point: `public_key::make`
+A `public_key` is the 32 bytes of RFC 8032's encoded point: `public_key::from_bytes`
 makes one from them, checking their size alone, and `bytes()` gives them back.
 Whether the point is canonical and not of small order is the verification
 policy's to judge, so a key that `crypto::verify` refuses can still be made.
 
 Each operation has its four forms, the member and its free form, synchronous
 and asynchronous, with the same work, errors and refusals
-(<<crypto-curves-four-forms>>); `public_key::make(bytes)` and
-`crypto::make<public_key>(bytes)` make the public key, synchronously only.
+(<<crypto-curves-four-forms>>); `public_key::from_bytes(bytes)` and
+`crypto::from_bytes<public_key>(bytes)` make the public key, synchronously only.
 Verification takes the policy as an optional last argument, before the token
 in the asynchronous forms. An asynchronous form needs
 `<webcpp/crypto/async.hpp>` and `<library>/webcpp/asio//asio` in the Jamfile:
@@ -53,10 +53,10 @@ in the asynchronous forms. An asynchronous form needs
 | Operation | Synchronous: the member; its free form | Asynchronous: the member; its free form
 
 | Make
-| `keypair::make(seed)` +
-`crypto::make<keypair>(seed)`
-| `keypair::async_make(executor, seed, token)` +
-`crypto::async_make<keypair>(executor, seed, token)`
+| `keypair::from_secret(seed)` +
+`crypto::from_secret<keypair>(seed)`
+| `keypair::async_from_secret(executor, seed, token)` +
+`crypto::async_from_secret<keypair>(executor, seed, token)`
 
 | Generate
 | `keypair::generate()` +

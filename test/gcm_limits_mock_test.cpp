@@ -37,7 +37,7 @@ using aead = crypto::ciphers::gcm<crypto::ciphers::aes128<mock>>;
 void check_summed_limit() {
     std::array<std::uint8_t, 16> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     constexpr auto half = std::size_t{1} << 35U;
     auto const piece = webcpp::test::reserved(half);
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(!piece.empty())) {

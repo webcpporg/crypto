@@ -63,22 +63,22 @@ std::uint64_t random_seed() {
 #endif
 }
 
-// A key pair from the generator: a scalar make refuses (0, or not below n, about once in 2^32)
-// is drawn again, 16 times at most; a make that keeps failing fails the test, which goes on with
-// RFC 6979's key rather than hang.
+// A key pair from the generator: a scalar from_secret refuses (0, or not below n, about once in
+// 2^32) is drawn again, 16 times at most; a from_secret that keeps failing fails the test, which
+// goes on with RFC 6979's key rather than hang.
 keypair draw(std::mt19937_64& generator) {
     for (int attempt = 0; attempt < 16; ++attempt) {
         scalar drawn{};
         std::ranges::generate(drawn,
                               [&generator] { return static_cast<std::uint8_t>(generator()); });
-        auto made = keypair::make(drawn);
+        auto made = keypair::from_secret(drawn);
         if (made) {
             return std::move(*made);
         }
         BOOST_TEST(made.error() == error::invalid_secret_key);
     }
-    BOOST_ERROR("draw: keypair::make refused 16 drawn scalars");
-    return *keypair::make(data::rfc6979_scalar);
+    BOOST_ERROR("draw: keypair::from_secret refused 16 drawn scalars");
+    return *keypair::from_secret(data::rfc6979_scalar);
 }
 
 // a + b mod n, for a and b below n, big-endian bytes: the sum is below 2n, so one subtraction of
@@ -129,7 +129,7 @@ std::array<std::uint8_t, 32> public_x(keypair const& pair) {
 }
 
 void types() {
-    auto const a = keypair::make(data::rfc6979_scalar);
+    auto const a = keypair::from_secret(data::rfc6979_scalar);
     if (!BOOST_TEST(a.has_value())) {
         return;
     }
@@ -175,9 +175,9 @@ void modular_arithmetic() {
 // One scalar d: ECDH with its own public key, d * (d * G), is the public point of d * d mod n,
 // and with 2 * G, d * (2 * G), the public point of 2 * d mod n; their x coordinates compared.
 void fixed_points(scalar const& d, public_key const& two_g) {
-    auto const a = keypair::make(d);
-    auto const squared = keypair::make(mul_mod_n(d, d));
-    auto const doubled = keypair::make(add_mod_n(d, d));
+    auto const a = keypair::from_secret(d);
+    auto const squared = keypair::from_secret(mul_mod_n(d, d));
+    auto const doubled = keypair::from_secret(add_mod_n(d, d));
     if (!BOOST_TEST(a.has_value()) || !BOOST_TEST(squared.has_value()) ||
         !BOOST_TEST(doubled.has_value())) {
         return;
@@ -201,7 +201,7 @@ void own_key(std::mt19937_64& generator) {
     modular_arithmetic();
     scalar two{};
     two.back() = 2;
-    auto const doubler = keypair::make(two);
+    auto const doubler = keypair::from_secret(two);
     auto const two_g = doubler ? doubler->public_key() : doubler.error();
     if (!BOOST_TEST(two_g.has_value())) {
         return;
@@ -220,7 +220,7 @@ void own_key(std::mt19937_64& generator) {
 // NOLINTBEGIN(bugprone-use-after-move,clang-analyzer-cplusplus.Move): the moved-from state is what
 // is tested.
 void moved_from() {
-    auto made = keypair::make(data::rfc6979_scalar);
+    auto made = keypair::from_secret(data::rfc6979_scalar);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -257,7 +257,7 @@ struct counts {
     int invalid = 0;
     /** Acceptable cases. */
     int acceptable = 0;
-    /** Valid or acceptable cases with a compressed point, refused by public_key::make. */
+    /** Valid or acceptable cases with a compressed point, refused by public_key::from_bytes. */
     int compressed_refused = 0;
 };
 
@@ -281,19 +281,19 @@ std::vector<std::uint8_t> scalar_bytes(std::vector<std::uint8_t> const& integer)
     return padded;
 }
 
-// The case's own ECDH, or the error of the step that refused it: keypair::make, public_key::make
-// or agree.
+// The case's own ECDH, or the error of the step that refused it: keypair::from_secret,
+// public_key::from_bytes or agree.
 boost::system::result<crypto::secret<32>> derive(std::vector<std::uint8_t> const& integer,
                                                  std::vector<std::uint8_t> const& point) {
     auto const padded = scalar_bytes(integer);
     if (padded.empty()) {
         return error::invalid_secret_key;
     }
-    auto const pair = keypair::make(padded);
+    auto const pair = keypair::from_secret(padded);
     if (!pair) {
         return pair.error();
     }
-    auto const peer = public_key::make(point);
+    auto const peer = public_key::from_bytes(point);
     if (!peer) {
         return peer.error();
     }
@@ -315,7 +315,7 @@ constexpr std::string_view compressed_reason =
     "BearSSL decodes uncompressed points alone, design D36";
 
 // One case: an invalid one is refused at one of the three steps; a valid or acceptable one agrees
-// with its shared x, unless its point is compressed, an expected refusal of public_key::make,
+// with its shared x, unless its point is compressed, an expected refusal of public_key::from_bytes,
 // printed with its reason; any other outcome fails.
 void ecpoint_case(json::value const& t, counts& seen) {
     ++seen.total;
@@ -323,8 +323,8 @@ void ecpoint_case(json::value const& t, counts& seen) {
     auto const point = test::from_hex(str(t.at("public")));
     auto const derived = derive(test::from_hex(str(t.at("private"))), point);
     if (verdict == "invalid") {
-        // Every invalid case of the file is a defect of its point: refused by public_key::make,
-        // never by BearSSL's multiplication.
+        // Every invalid case of the file is a defect of its point: refused by
+        // public_key::from_bytes, never by BearSSL's multiplication.
         if (derived.has_value()) {
             report(t, "invalid case derived a shared x");
         } else if (derived.error() != error::invalid_public_key) {
@@ -341,10 +341,10 @@ void ecpoint_case(json::value const& t, counts& seen) {
     seen.acceptable += verdict == "acceptable" ? 1 : 0;
     bool const compressed =
         point.size() == 33 && (flagged(t, "CompressedPoint") || flagged(t, "CompressedPublic"));
-    if (compressed && public_key::make(point).error() == error::invalid_public_key) {
+    if (compressed && public_key::from_bytes(point).error() == error::invalid_public_key) {
         ++seen.compressed_refused;
         std::cout << "ecdh_secp256r1_ecpoint_test tcId " << t.at("tcId").to_number<std::int64_t>()
-                  << " " << verdict << ", refused by public_key::make: " << compressed_reason
+                  << " " << verdict << ", refused by public_key::from_bytes: " << compressed_reason
                   << '\n';
         return;
     }

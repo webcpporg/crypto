@@ -36,7 +36,7 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/detail/async_access.hpp crypto/detail/timing.hpp crypto/ciphers/aead.hpp
   crypto/ciphers/chacha20_poly1305.hpp crypto/ciphers/secretbox.hpp crypto/pem.hpp
   crypto/detail/p_curves.hpp crypto/signing.hpp crypto/keypair.hpp
-  crypto/make.hpp crypto/detail/asynchronous.hpp ;
+  crypto/factories.hpp crypto/detail/asynchronous.hpp ;
 # detail/heavy.hpp compiles alone only with webcpp::asio, which it includes
 # where the build has threads; async.hpp, which includes it, only with
 # webcpp::asio on every target.
@@ -265,10 +265,10 @@ crypto-run wipe_objects_sodium : wipe_objects_test.cpp
 # thread and a new one.
 crypto-run counting : counting_test.cpp ;
 
-# A message on OpenSSL allocates nothing after make.
+# A message on OpenSSL allocates nothing after from_key.
 crypto-run allocation_openssl : allocation_openssl_test.cpp
   : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
-# A message on BearSSL allocates nothing after make.
+# A message on BearSSL allocates nothing after from_key.
 crypto-run allocation_bearssl : allocation_bearssl_test.cpp
   : <library>/third_party//bearssl ;
 crypto-run bearssl_seeder : bearssl_seeder_test.cpp
@@ -640,7 +640,7 @@ crypto-run allocation_sodium : allocation_sodium_test.cpp : <library>/third_part
 # XChaCha20 twin, libsodium's cases and every check of support/aead_checks.hpp
 # that applies to a family without additional data; hybrid::box and its
 # XChaCha20 twin, NaCl's case both ways, the same checks through an adapter,
-# make's guards and a peer key of small order; and sealed boxes, opened by
+# from_keys' guards and a peer key of small order; and sealed boxes, opened by
 # their recipient alone and refused, the output zeroed, otherwise.
 crypto-run secretbox_sodium : secretbox_sodium_test.cpp : <library>/third_party//sodium ;
 crypto-run box_sodium : box_sodium_test.cpp : <library>/third_party//sodium ;

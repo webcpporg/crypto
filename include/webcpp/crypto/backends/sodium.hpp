@@ -403,7 +403,7 @@ struct ed25519_engine<families::ed25519, backends::sodium> {
      *
      * @return Nothing; `backend_failure`.
      */
-    [[nodiscard]] static boost::system::result<void> make(
+    [[nodiscard]] static boost::system::result<void> seed_keypair(
         state& keyed_state, std::span<std::uint8_t const, 32> seed_bytes) noexcept {
         auto const library_ready = sodium_ready();
         if (!library_ready) {
@@ -1120,7 +1120,7 @@ struct kx_engine<families::kx, backends::sodium> {
      *
      * @return Nothing; `backend_failure`.
      */
-    [[nodiscard]] static boost::system::result<void> make(
+    [[nodiscard]] static boost::system::result<void> seed_keypair(
         state& keyed_state,
         std::span<std::uint8_t const, crypto_kx_SEEDBYTES> seed_bytes) noexcept {
         auto const library_ready = sodium_ready();

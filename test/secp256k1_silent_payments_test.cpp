@@ -15,7 +15,7 @@
 // is found: invalid_input_size with no input key, invalid_public_key for keys that sum to
 // infinity), the labels of label_integers with create_label, scan_outputs with a lookup over
 // them; where full_check is set, every found output's key and spend tweak are among the case's,
-// and the BIP 340 signature by keypair::make(seckey_tweak_add(spend secret, spend tweak)) of
+// and the BIP 340 signature by keypair::from_secret(seckey_tweak_add(spend secret, spend tweak)) of
 // SHA-256("message") with the auxiliary randomness SHA-256("random auxiliary data") equals the
 // case's; the found count equals the case's; an output found with a label has a label the lookup
 // knows, one found without has none. Then a labelled address round trip, and every refusal:
@@ -148,7 +148,7 @@ bool all_zero(std::span<std::byte const> space) {
 }
 
 secp::keypair keypair_of(std::span<std::uint8_t const, 32> secret_bytes) {
-    auto made = secp::keypair::make(secret_bytes);
+    auto made = secp::keypair::from_secret(secret_bytes);
     if (!BOOST_TEST(made.has_value())) {
         std::exit(boost::report_errors());
     }
@@ -164,7 +164,7 @@ secp::public_key public_of(secp::keypair const& key) {
 }
 
 secp::public_key parsed_key(std::span<std::uint8_t const> encoded) {
-    auto const parsed = secp::public_key::make(encoded);
+    auto const parsed = secp::public_key::from_bytes(encoded);
     if (!BOOST_TEST(parsed.has_value())) {
         std::exit(boost::report_errors());
     }

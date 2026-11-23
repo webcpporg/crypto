@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // The coverage of detail::timing_guard by the families every backend shares: each public function
-// of the AES block cipher, gcm and ciphers::aead, and the free crypto::make, crypto::seal and
+// of the AES block cipher, gcm and ciphers::aead, and the free crypto::from_key, crypto::seal and
 // crypto::open that call gcm's and aead's, called once with valid input and once with input
 // refused before the backend is reached, must enter a guard and leave the thread's DIT as
 // it found it. Each backend's timing_coverage_<backend>_test.cpp calls these on the algorithms
@@ -84,7 +84,7 @@ std::array<std::uint8_t, Size> coverage_key() {
 }
 
 /**
- * The AES block cipher's guarded functions: `make`, a key of the wrong size included, `encrypt`
+ * The AES block cipher's guarded functions: `from_key`, a key of the wrong size included, `encrypt`
  * and `decrypt`, a partial block included.
  *
  * @tparam Cipher `aes128<Backend>`, `aes192<Backend>` or `aes256<Backend>`.
@@ -95,12 +95,12 @@ template <class Cipher>
 void cover_aes(std::string const& family, std::string const& backend) {
     std::string const on = " on " + backend;
     auto const key = coverage_key<Cipher::key_size>();
-    covered(family + "::make" + on, [&key] { BOOST_TEST(Cipher::make(key).has_value()); });
-    covered(family + "::make with a short key" + on, [&key] {
-        BOOST_TEST(Cipher::make(std::span(key).first(Cipher::key_size - 1)).error() ==
+    covered(family + "::from_key" + on, [&key] { BOOST_TEST(Cipher::from_key(key).has_value()); });
+    covered(family + "::from_key with a short key" + on, [&key] {
+        BOOST_TEST(Cipher::from_key(std::span(key).first(Cipher::key_size - 1)).error() ==
                    webcpp::crypto::error::invalid_key_size);
     });
-    auto made = Cipher::make(key);
+    auto made = Cipher::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -297,12 +297,12 @@ template <class Gcm>
 void cover_gcm_moves(std::string const& family, std::string const& on) {
     auto const key = coverage_key<Gcm::key_size>();
     std::array<std::uint8_t, Gcm::iv_size> const iv{};
-    auto keyed = Gcm::make(key);
-    auto other_keyed = Gcm::make(key);
-    auto target = Gcm::make(key);
-    auto in_message = Gcm::make(key);
-    auto in_other_message = Gcm::make(key);
-    auto in_open = Gcm::make(key);
+    auto keyed = Gcm::from_key(key);
+    auto other_keyed = Gcm::from_key(key);
+    auto target = Gcm::from_key(key);
+    auto in_message = Gcm::from_key(key);
+    auto in_other_message = Gcm::from_key(key);
+    auto in_open = Gcm::from_key(key);
     if (!BOOST_TEST(keyed.has_value()) || !BOOST_TEST(other_keyed.has_value()) ||
         !BOOST_TEST(target.has_value()) || !BOOST_TEST(in_message.has_value()) ||
         !BOOST_TEST(in_other_message.has_value()) || !BOOST_TEST(in_open.has_value()) ||
@@ -324,8 +324,8 @@ void cover_gcm_moves(std::string const& family, std::string const& on) {
 }
 
 /**
- * gcm's guarded functions: `make` and the free `crypto::make`, a key of the wrong size included;
- * those on a message (`cover_gcm_messages`); and the moves (`cover_gcm_moves`).
+ * gcm's guarded functions: `from_key` and the free `crypto::from_key`, a key of the wrong size
+ * included; those on a message (`cover_gcm_messages`); and the moves (`cover_gcm_moves`).
  *
  * @tparam Gcm `gcm<aes128<Backend>>`, `gcm<aes192<Backend>>` or `gcm<aes256<Backend>>`.
  * @param family The algorithm's name, `aes128_gcm` or `aes256_gcm`.
@@ -335,19 +335,19 @@ template <class Gcm>
 void cover_gcm(std::string const& family, std::string const& backend) {
     std::string const on = " on " + backend;
     auto const key = coverage_key<Gcm::key_size>();
-    covered(family + "::make" + on, "gcm::make",
-            [&key] { BOOST_TEST(Gcm::make(key).has_value()); });
-    covered(family + "::make with a short key" + on, "gcm::make", [&key] {
-        BOOST_TEST(Gcm::make(std::span(key).first(Gcm::key_size - 1)).error() ==
+    covered(family + "::from_key" + on, "gcm::from_key",
+            [&key] { BOOST_TEST(Gcm::from_key(key).has_value()); });
+    covered(family + "::from_key with a short key" + on, "gcm::from_key", [&key] {
+        BOOST_TEST(Gcm::from_key(std::span(key).first(Gcm::key_size - 1)).error() ==
                    webcpp::crypto::error::invalid_key_size);
     });
-    covered(family + " crypto::make" + on, "crypto::make",
-            [&key] { BOOST_TEST(webcpp::crypto::make<Gcm>(key).has_value()); });
-    covered(family + " crypto::make with a short key" + on, "crypto::make", [&key] {
-        BOOST_TEST(webcpp::crypto::make<Gcm>(std::span(key).first(Gcm::key_size - 1)).error() ==
+    covered(family + " crypto::from_key" + on, "crypto::from_key",
+            [&key] { BOOST_TEST(webcpp::crypto::from_key<Gcm>(key).has_value()); });
+    covered(family + " crypto::from_key with a short key" + on, "crypto::from_key", [&key] {
+        BOOST_TEST(webcpp::crypto::from_key<Gcm>(std::span(key).first(Gcm::key_size - 1)).error() ==
                    webcpp::crypto::error::invalid_key_size);
     });
-    auto made = Gcm::make(key);
+    auto made = Gcm::from_key(key);
     if (BOOST_TEST(made.has_value())) {
         cover_gcm_messages(*made, family, on);
     }
@@ -382,8 +382,8 @@ struct async_completion_counter {
 };
 
 /**
- * gcm's asynchronous functions, `async_make`, `async_seal` and `async_open`, free and member, each
- * called with valid input and with input refused before the backend, an `io_context` run after
+ * gcm's asynchronous functions, `async_from_key`, `async_seal` and `async_open`, free and member,
+ * each called with valid input and with input refused before the backend, an `io_context` run after
  * each call so that its completion is delivered. The first guard each enters is its own (the
  * member a free one calls, and the synchronous call the member makes, hold others, which run
  * after).
@@ -411,23 +411,24 @@ void cover_async_gcm(std::string const& family, std::string const& backend) {
         context.restart();
         context.run();  // lint-run: the test's event loop
     };
-    covered(family + "::async_make" + on, "crypto::async_make", [&] {
-        crypto::async_make<Gcm>(executor, key, counted);
+    covered(family + " crypto::async_from_key" + on, "crypto::async_from_key", [&] {
+        crypto::async_from_key<Gcm>(executor, key, counted);
         deliver();
     });
-    covered(family + "::async_make with a short key" + on, "crypto::async_make", [&] {
-        crypto::async_make<Gcm>(executor, std::span(key).first(Gcm::key_size - 1), counted);
+    covered(
+        family + " crypto::async_from_key with a short key" + on, "crypto::async_from_key", [&] {
+            crypto::async_from_key<Gcm>(executor, std::span(key).first(Gcm::key_size - 1), counted);
+            deliver();
+        });
+    covered(family + "::async_from_key" + on, "gcm::async_from_key", [&] {
+        Gcm::async_from_key(executor, key, counted);
         deliver();
     });
-    covered(family + "::async_make, the member," + on, "gcm::async_make", [&] {
-        Gcm::async_make(executor, key, counted);
+    covered(family + "::async_from_key with a short key" + on, "gcm::async_from_key", [&] {
+        Gcm::async_from_key(executor, std::span(key).first(Gcm::key_size - 1), counted);
         deliver();
     });
-    covered(family + "::async_make, the member, with a short key" + on, "gcm::async_make", [&] {
-        Gcm::async_make(executor, std::span(key).first(Gcm::key_size - 1), counted);
-        deliver();
-    });
-    auto made = Gcm::make(key);
+    auto made = Gcm::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -473,7 +474,7 @@ void cover_async_gcm(std::string const& family, std::string const& backend) {
 }
 
 /**
- * Ed25519's asynchronous functions, `async_make`, `async_generate`, `async_sign` and
+ * Ed25519's asynchronous functions, `async_from_secret`, `async_generate`, `async_sign` and
  * `async_verify` (both overloads, without and with the policy), free and member, each called with
  * valid input and with input refused before the backend (a seed of 31 bytes, a signature of 63, a
  * moved-from key pair), an `io_context` run after each call so that its completion is delivered.
@@ -505,32 +506,34 @@ void cover_async_ed25519(std::string const& backend) {
         context.restart();
         context.run();  // lint-run: the test's event loop
     };
-    covered("ed25519::async_make" + on, "crypto::async_make", [&] {
-        crypto::async_make<Keypair>(executor, seed, counted);
+    covered("ed25519 crypto::async_from_secret" + on, "crypto::async_from_secret", [&] {
+        crypto::async_from_secret<Keypair>(executor, seed, counted);
         deliver();
     });
-    covered("ed25519::async_make with a short seed" + on, "crypto::async_make", [&] {
-        crypto::async_make<Keypair>(executor, std::span(seed).first(Keypair::seed_size - 1),
-                                    counted);
-        deliver();
-    });
+    covered("ed25519 crypto::async_from_secret with a short seed" + on, "crypto::async_from_secret",
+            [&] {
+                crypto::async_from_secret<Keypair>(
+                    executor, std::span(seed).first(Keypair::seed_size - 1), counted);
+                deliver();
+            });
     covered("ed25519::async_generate" + on, "crypto::async_generate", [&] {
         crypto::async_generate<Keypair>(executor, counted);
         deliver();
     });
-    covered("ed25519::basic_keypair::async_make" + on, [&] {
-        Keypair::async_make(executor, seed, counted);
+    covered("ed25519::basic_keypair::async_from_secret" + on, [&] {
+        Keypair::async_from_secret(executor, seed, counted);
         deliver();
     });
-    covered("ed25519::basic_keypair::async_make with a short seed" + on, [&] {
-        Keypair::async_make(executor, std::span(seed).first(Keypair::seed_size - 1), counted);
+    covered("ed25519::basic_keypair::async_from_secret with a short seed" + on, [&] {
+        Keypair::async_from_secret(executor, std::span(seed).first(Keypair::seed_size - 1),
+                                   counted);
         deliver();
     });
     covered("ed25519::basic_keypair::async_generate" + on, [&] {
         Keypair::async_generate(executor, counted);
         deliver();
     });
-    auto made = Keypair::make(seed);
+    auto made = Keypair::from_secret(seed);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -627,7 +630,7 @@ void cover_async_x25519(std::string const& backend) {
 }
 
 /**
- * The free `crypto::make`, `crypto::seal` and `crypto::open` over a `ciphers::aead`, each
+ * The free `crypto::from_key`, `crypto::seal` and `crypto::open` over a `ciphers::aead`, each
  * entering its own guard before the member's, a key and a nonce of the wrong size included.
  *
  * @tparam Aead `aead<Family, Backend>`: ChaCha20-Poly1305 and its forms, or a secret box.
@@ -637,13 +640,14 @@ void cover_async_x25519(std::string const& backend) {
 template <class Aead>
 void cover_aead_free_forms(std::string const& family, std::string const& on) {
     auto const key = coverage_key<Aead::key_size>();
-    covered(family + " crypto::make" + on, "crypto::make",
-            [&key] { BOOST_TEST(webcpp::crypto::make<Aead>(key).has_value()); });
-    covered(family + " crypto::make with a short key" + on, "crypto::make", [&key] {
-        BOOST_TEST(webcpp::crypto::make<Aead>(std::span(key).first(Aead::key_size - 1)).error() ==
-                   webcpp::crypto::error::invalid_key_size);
+    covered(family + " crypto::from_key" + on, "crypto::from_key",
+            [&key] { BOOST_TEST(webcpp::crypto::from_key<Aead>(key).has_value()); });
+    covered(family + " crypto::from_key with a short key" + on, "crypto::from_key", [&key] {
+        BOOST_TEST(
+            webcpp::crypto::from_key<Aead>(std::span(key).first(Aead::key_size - 1)).error() ==
+            webcpp::crypto::error::invalid_key_size);
     });
-    auto made = Aead::make(key);
+    auto made = Aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -673,7 +677,7 @@ void cover_aead_free_forms(std::string const& family, std::string const& on) {
 }
 
 /**
- * ciphers::aead's guarded functions: `make`, a key of the wrong size included, `seal` and
+ * ciphers::aead's guarded functions: `from_key`, a key of the wrong size included, `seal` and
  * `open`, a nonce of the wrong size included, and the free forms that call them
  * (`cover_aead_free_forms`).
  *
@@ -685,13 +689,13 @@ template <class Aead>
 void cover_aead(std::string const& family, std::string const& backend) {
     std::string const on = " on " + backend;
     auto const key = coverage_key<Aead::key_size>();
-    covered(family + "::make" + on, "aead::make",
-            [&key] { BOOST_TEST(Aead::make(key).has_value()); });
-    covered(family + "::make with a short key" + on, "aead::make", [&key] {
-        BOOST_TEST(Aead::make(std::span(key).first(Aead::key_size - 1)).error() ==
+    covered(family + "::from_key" + on, "aead::from_key",
+            [&key] { BOOST_TEST(Aead::from_key(key).has_value()); });
+    covered(family + "::from_key with a short key" + on, "aead::from_key", [&key] {
+        BOOST_TEST(Aead::from_key(std::span(key).first(Aead::key_size - 1)).error() ==
                    webcpp::crypto::error::invalid_key_size);
     });
-    auto made = Aead::make(key);
+    auto made = Aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }

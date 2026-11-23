@@ -115,7 +115,7 @@ scalar draw(std::mt19937_64& generator) {
 
 // P(x): the public key of the secret x, through a key pair.
 secp::public_key public_of(std::span<std::uint8_t const, 32> secret_bytes) {
-    auto const key = secp::keypair::make(secret_bytes);
+    auto const key = secp::keypair::from_secret(secret_bytes);
     if (!BOOST_TEST(key.has_value())) {
         std::exit(boost::report_errors());
     }

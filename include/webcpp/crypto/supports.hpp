@@ -23,7 +23,7 @@ namespace webcpp::crypto {
  * `true` exactly where the capability table says that `Backend` has `Algorithm` on the target
  * being compiled.
  *
- * A cell decided at run time is `true` too: its `make` then reports `not_supported` on a
+ * A cell decided at run time is `true` too: its factory then reports `not_supported` on a
  * machine that lacks it. It needs no backend's header and no library: a program asks it of a
  * backend it does not link.
  *

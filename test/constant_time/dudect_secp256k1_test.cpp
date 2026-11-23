@@ -59,9 +59,9 @@ void measure_agree(test::case_results& results, char const* name, char const* la
         [&](int which, auto& generator) {
             test::choose<Control>(which, generator, fixed, secret_key);
             // A random secret key is refused only with probability about 2^-128.
-            auto made = keypair::make(secret_key);
+            auto made = keypair::from_secret(secret_key);
             if (!made) {
-                made = keypair::make(fixed);
+                made = keypair::from_secret(fixed);
             }
             pair.emplace(std::move(*made));
         },
@@ -84,7 +84,7 @@ int main(int argc, char** argv) {
     test::report_machine();
     std::array<std::uint8_t, 32> peer_secret{};
     peer_secret.fill(0x24);
-    auto const peer = keypair::make(peer_secret);
+    auto const peer = keypair::from_secret(peer_secret);
     if (!peer) {
         std::printf("the peer's key pair was refused\n");
         return 1;

@@ -20,6 +20,6 @@ int main() {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
     std::array<std::uint8_t, 16> data{};
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     return made && made->seal(iv, {}, data) ? 0 : 1;
 }

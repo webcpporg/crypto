@@ -77,7 +77,7 @@ int main() {
     if (!device.fill(key.writable())) {
         return 1;
     }
-    auto cipher = xchacha::make(key.bytes());
+    auto cipher = xchacha::from_key(key.bytes());
     if (!cipher) {
         return 1;
     }

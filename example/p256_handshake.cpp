@@ -60,7 +60,7 @@ std::span<std::uint8_t const> bytes_of(std::string_view text) {
 boost::system::result<p256::keypair> from_byte(std::uint8_t fill) {
     std::array<std::uint8_t, p256::secret_key_size> scalar{};
     scalar.fill(fill);
-    return p256::keypair::make(scalar);
+    return p256::keypair::from_secret(scalar);
 }
 
 // What a peer sends: its identity's public key and its session key pair's, raw, as WebCrypto's
@@ -168,7 +168,7 @@ struct peer {
     static verdict check(hello const& other,
                          std::span<std::uint8_t const, p256::digest_size> digest,
                          std::span<std::uint8_t const, p256::signature_size> signature) {
-        auto const identity_key = p256::public_key::make(other.identity);
+        auto const identity_key = p256::public_key::from_bytes(other.identity);
         if (!identity_key) {
             return verdict::bad_identity;
         }
@@ -189,7 +189,7 @@ struct peer {
     // transcript's digest as the salt, so that the key is bound to this handshake.
     [[nodiscard]] boost::system::result<crypto::secret<32>> session_key(
         hello const& other, std::span<std::uint8_t const, p256::digest_size> digest) const {
-        auto const other_key = p256::public_key::make(other.session);
+        auto const other_key = p256::public_key::from_bytes(other.session);
         if (!other_key) {
             return other_key.error();
         }
@@ -217,7 +217,7 @@ boost::system::result<peer> peer_from(std::uint8_t identity_fill, std::uint8_t s
     if (!kept) {
         return kept.error();
     }
-    auto identity = p256::keypair::make(kept->bytes());
+    auto identity = p256::keypair::from_secret(kept->bytes());
     auto session = from_byte(session_fill);
     if (!identity || !session) {
         return crypto::error::backend_failure;
@@ -265,7 +265,7 @@ int main() {
     // The same digest signed by another implementation in the high-S form: refused by the
     // protocol's rule before it is verified, though crypto::verify alone accepts it.
     auto const high = high_s_form(*alice_signature);
-    auto const alice_identity = p256::public_key::make(alice_hello->identity);
+    auto const alice_identity = p256::public_key::from_bytes(alice_hello->identity);
     bool const verifies_alone =
         alice_identity &&
         crypto::verify(crypto::ecdsa_sha256, high, crypto::prehashed{*digest}, *alice_identity);

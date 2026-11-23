@@ -54,7 +54,7 @@ int main() {
         if (!device.fill(secret)) {
             return 1;
         }
-        wallet = secp256k1::keypair::make(secret);
+        wallet = secp256k1::keypair::from_secret(secret);
         // A secret that is zero or too large is refused: draw again. Other errors are real.
         if (wallet) {
             break;
@@ -87,7 +87,7 @@ int main() {
     if (!device.fill(device_key) || !device.fill(iv)) {
         return 1;
     }
-    auto aead = crypto::ciphers::aes256_gcm::make(device_key);
+    auto aead = crypto::ciphers::aes256_gcm::from_key(device_key);
     wipe(std::as_writable_bytes(std::span(device_key)));
     if (!aead) {
         return 1;
@@ -105,7 +105,7 @@ int main() {
                     std::span<std::uint8_t const>(tag->data(), tag->size()))) {
         return 1;
     }
-    auto restored = secp256k1::keypair::make(stored);
+    auto restored = secp256k1::keypair::from_secret(stored);
     wipe(std::as_writable_bytes(std::span(stored)));
     if (!restored) {
         return 1;

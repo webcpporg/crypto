@@ -60,12 +60,12 @@ shared x, and passes only when WebCrypto disagrees on exactly those two.
 A P-256 secret key is a number, the *scalar* d, 32 bytes big-endian, between 1
 and the group order n minus 1; the public key is the point d times the
 curve's generator (link:https://csrc.nist.gov/pubs/fips/186-5/final[FIPS
-186-5]). `keypair::make(scalar)` makes a key pair from a scalar a program kept,
+186-5]). `keypair::from_secret(scalar)` makes a key pair from a scalar a program kept,
 and refuses a scalar of another size with `invalid_key_size` and a scalar 0,
 n or above with `invalid_secret_key`: that check runs in webcpp, in time
 independent of the scalar, before BearSSL sees it. `keypair::generate()` draws
 the scalar from `random_device`. `secret()` gives the scalar back as a
-`secret<32>`, which wipes itself, and `make` of it gives the same key pair: the
+`secret<32>`, which wipes itself, and `from_secret` of it gives the same key pair: the
 way a program stores a key pair and loads it again. The key pair computes its
 public point once, when it is made, wipes the scalar when it is moved from and
 destroyed, and answers `invalid_state` moved from. It is a `crypto::keypair`,
@@ -75,8 +75,8 @@ A `public_key` is a point that the type guarantees valid, kept as SEC 1's
 *uncompressed* form, 65 bytes: 04, then x and y
 (link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 2.3.3]), the bytes
 WebCrypto's `exportKey("raw")` writes and `importKey("raw")` reads
-(link:https://www.w3.org/TR/WebCryptoAPI/[W3C]). `public_key::make(bytes)`
-makes one from those 65 bytes, `public_key::make(x, y)` from the two
+(link:https://www.w3.org/TR/WebCryptoAPI/[W3C]). `public_key::from_bytes(bytes)`
+makes one from those 65 bytes, `public_key::from_coordinates(x, y)` from the two
 coordinates, as a JSON Web Key carries them, and `uncompressed()` writes the
 65 bytes back; the key pair's `public_key()` gives its own. A point refused is
 `invalid_public_key`: another size, another first byte, a coordinate not below
@@ -85,8 +85,8 @@ and is copied freely.
 
 Each operation has its four forms, the member and its free form, synchronous
 and asynchronous, with the same work, errors and refusals
-(<<crypto-curves-four-forms>>); `public_key::make` and
-`crypto::make<public_key>` make the public key, synchronously only. An
+(<<crypto-curves-four-forms>>); `public_key::from_bytes` and
+`crypto::from_bytes<public_key>` make the public key, synchronously only. An
 asynchronous form needs `<webcpp/crypto/async.hpp>` and
 `<library>/webcpp/asio//asio` in the Jamfile:
 
@@ -96,10 +96,10 @@ asynchronous form needs `<webcpp/crypto/async.hpp>` and
 | Operation | Synchronous: the member; its free form | Asynchronous: the member; its free form
 
 | Make
-| `keypair::make(scalar)` +
-`crypto::make<keypair>(scalar)`
-| `keypair::async_make(executor, scalar, token)` +
-`crypto::async_make<keypair>(executor, scalar, token)`
+| `keypair::from_secret(scalar)` +
+`crypto::from_secret<keypair>(scalar)`
+| `keypair::async_from_secret(executor, scalar, token)` +
+`crypto::async_from_secret<keypair>(executor, scalar, token)`
 
 | Generate
 | `keypair::generate()` +
@@ -165,8 +165,8 @@ begin, which is why SEC 1 has a peer's public key validated before it is used
 * The compressed form, 33 bytes that start with 02 or 03
 (link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 2.3.3]), is refused with
 `invalid_public_key`: BearSSL decodes uncompressed points alone. WebCrypto's
-raw export is uncompressed, so a browser's key arrives in the form `make`
-takes; a key a tool sends compressed is decompressed by that tool first.
+raw export is uncompressed, so a browser's key arrives in the form
+`from_bytes` takes; a key a tool sends compressed is decompressed by that tool first.
 
 [#crypto-p256-ecdsa]
 ==== ECDSA
@@ -394,7 +394,7 @@ uncompressed point. That is the SPKI WebCrypto exports, the named curve and the
 uncompressed form
 (link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations-export-key[W3C,
 ECDSA's export]); `decode_spki(bytes)` reads it back into a `public_key`, its
-point checked as `public_key::make` checks it.
+point checked as `public_key::from_bytes` checks it.
 * `encode_pkcs8(keypair, output)` writes 138 bytes: version 0, the same
 algorithm, and an ECPrivateKey of version 1 with the scalar and the
 uncompressed public key, without the curve inside it. That is the form OpenSSL
@@ -402,7 +402,7 @@ writes for a key in its default uncompressed form
 (link:https://docs.openssl.org/master/man7/EVP_PKEY-EC/[OpenSSL's EVP_PKEY-EC]),
 and BearSSL's own encoder, `br_encode_ec_pkcs8_der`, writes the same bytes,
 which the tests compare; `decode_pkcs8(bytes)` reads it into a key pair, made
-as `keypair::make` makes one.
+as `keypair::from_secret` makes one.
 
 `max_spki_size` and `max_pkcs8_size`, 91 and 138, size the caller's buffers.
 The encoders copy what the key and the key pair hold, call no BearSSL code,

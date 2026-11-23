@@ -103,7 +103,7 @@ int script_pub_keys(json::value const& doc) {
 void check_input(json::value const& input, int index) {
     auto const& given = input.at("given");
     auto const& intermediary = input.at("intermediary");
-    auto key = *secp::keypair::make(fixed<32>(given.at("internalPrivkey")));
+    auto key = *secp::keypair::from_secret(fixed<32>(given.at("internalPrivkey")));
     auto const internal = fixed<32>(intermediary.at("internalPubkey"));
     BOOST_TEST(key.public_key()->xonly() == internal);
     auto const tweak = tap_tweak(internal, hex_or_empty(given.at("merkleRoot")));
@@ -111,7 +111,8 @@ void check_input(json::value const& input, int index) {
 
     // The tweaked pair is the vector's tweaked secret key: the same SEC1 public key, its parity
     // included.
-    auto const reference = *secp::keypair::make(fixed<32>(intermediary.at("tweakedPrivkey")));
+    auto const reference =
+        *secp::keypair::from_secret(fixed<32>(intermediary.at("tweakedPrivkey")));
     BOOST_TEST(*key.public_key() == *reference.public_key());
     auto const output = secp::tweak_xonly(internal, tweak);
     BOOST_TEST(output.has_value());
@@ -157,7 +158,7 @@ int key_path_inputs(json::value const& doc) {
 void refusals() {
     std::array<std::uint8_t, 32> secret{};
     secret.fill(0x11);
-    auto key = *secp::keypair::make(secret);
+    auto key = *secp::keypair::from_secret(secret);
     auto const internal = key.public_key()->xonly();
     std::array<std::uint8_t, 32> const zero{};
     // A tweak of zero leaves the key as it is.
@@ -170,7 +171,7 @@ void refusals() {
     std::array<std::uint8_t, 32> const not_a_point{};  // x = 0 has no point
     BOOST_TEST(secp::tweak_xonly(not_a_point, zero).error() == crypto::error::invalid_public_key);
     {
-        auto refused = *secp::keypair::make(secret);
+        auto refused = *secp::keypair::from_secret(secret);
         BOOST_TEST(refused.tweak_xonly(over).error() == crypto::error::invalid_secret_key);
         // Refused, the pair is wiped and empty, as moved from: every operation says so.
         test::expect_empty_keypair(refused);

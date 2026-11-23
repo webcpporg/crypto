@@ -12,7 +12,7 @@
 // tag::program[]
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
-#include <webcpp/crypto/make.hpp>
+#include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/signing.hpp>
 
 #include <webcpp/asio/io_context.hpp>
@@ -67,18 +67,18 @@ int main() {
     };
     auto const message = bytes_of("sample");
 
-    // tag::make[]
+    // tag::from_secret[]
     // The member and its free form make the same key pair from the same scalar.
-    auto const key = p256::keypair::make(scalar);
-    auto const same_key = crypto::make<p256::keypair>(scalar);
-    // end::make[]
+    auto const key = p256::keypair::from_secret(scalar);
+    auto const same_key = crypto::from_secret<p256::keypair>(scalar);
+    // end::from_secret[]
     auto const public_key = key ? key->public_key() : key.error();
     auto const same_public_key = same_key ? same_key->public_key() : same_key.error();
     if (!public_key || !same_public_key) {
         std::printf("failed\n");
         return 1;
     }
-    report("make: free = member", public_key->uncompressed() == same_public_key->uncompressed());
+    report("from_secret: free", public_key->uncompressed() == same_public_key->uncompressed());
 
     // tag::sign[]
     // Synchronous: the member, and its free form, which calls it.

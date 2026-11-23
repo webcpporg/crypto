@@ -90,7 +90,7 @@ int main() {
     if (!device.fill(secret.bytes) || !device.fill(chain_code.bytes)) {
         return 1;
     }
-    auto const wallet = secp256k1::keypair::make(secret.bytes);
+    auto const wallet = secp256k1::keypair::from_secret(secret.bytes);
     if (!wallet) {
         // A secret not below the group order: negligible, and a real wallet draws again.
         return 1;
@@ -111,7 +111,7 @@ int main() {
     if (!watched || !tweaked_secret) {
         return 1;
     }
-    auto const payment_key = secp256k1::keypair::make(tweaked_secret->bytes());
+    auto const payment_key = secp256k1::keypair::from_secret(tweaked_secret->bytes());
     if (!payment_key) {
         return 1;
     }

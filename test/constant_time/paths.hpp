@@ -159,7 +159,7 @@ int secret_wipe() {
 }
 
 /**
- * make, seal and open of an AEAD or a secret box with the key, the data and the tag secret: an
+ * from_key, seal and open of an AEAD or a secret box with the key, the data and the tag secret: an
  * open of the message, then an open of no message under the same tag, which fails. Each verdict
  * must be public: the engine or the library marks it so, and only it.
  */
@@ -172,7 +172,7 @@ int seal_and_open(char const* what) {
     data.fill(0x17);
     Checker::mark_secret(key);
     Checker::mark_secret(data);
-    auto made = Aead::make(key);
+    auto made = Aead::from_key(key);
     auto tag = made->seal(iv, {}, data);
     int const failures =
         check(tag.has_value() && carries_mark<Checker>(data) && carries_mark<Checker>(*tag), what);
@@ -186,7 +186,7 @@ int seal_and_open(char const* what) {
     return failures + check(opened_verdict && !none_verdict, what);
 }
 
-/** make, encrypt and decrypt of ctaes with the key and the block secret. */
+/** from_key, encrypt and decrypt of ctaes with the key and the block secret. */
 template <class Checker>
 int ctaes_block() {
     std::array<std::uint8_t, 32> key{};
@@ -195,19 +195,19 @@ int ctaes_block() {
     block.fill(0x17);
     Checker::mark_secret(key);
     Checker::mark_secret(block);
-    auto made = crypto::ciphers::aes256<crypto::backends::ctaes>::make(key);
+    auto made = crypto::ciphers::aes256<crypto::backends::ctaes>::from_key(key);
     bool const ok = made && made->encrypt(block) && made->decrypt(block);
     return check(ok && carries_mark<Checker>(block), "ctaes");
 }
 
-/** Ed25519 on libsodium: make and sign with the seed secret; the kept seed is traced. */
+/** Ed25519 on libsodium: from_secret and sign with the seed secret; the kept seed is traced. */
 template <class Checker>
 int sodium_ed25519() {
     std::array<std::uint8_t, 32> seed{};
     std::array<std::uint8_t, 64> const message{};
     seed.fill(0x42);
     Checker::mark_secret(seed);
-    auto const pair = crypto::curves::ed25519::basic_keypair<sodium>::make(seed);
+    auto const pair = crypto::curves::ed25519::basic_keypair<sodium>::from_secret(seed);
     auto const signature = pair->sign(crypto::eddsa, message);
     auto const kept = pair->secret();
     return check(signature.has_value() && carries_mark<Checker>(*signature),
@@ -242,7 +242,7 @@ int sodium_x25519() {
 }
 
 /**
- * A box on libsodium: make with the secret key secret, then seal and open as an AEAD's. The
+ * A box on libsodium: from_keys with the secret key secret, then seal and open as an AEAD's. The
  * agreement's verdict is libsodium's own branch (sodium_verdicts.supp).
  */
 template <class Checker, class Box>
@@ -257,7 +257,7 @@ int sodium_box(char const* what) {
     data.fill(0x17);
     Checker::mark_secret(secret_key);
     Checker::mark_secret(data);
-    auto made = Box::make(secret_key, *peer);
+    auto made = Box::from_keys(secret_key, *peer);
     auto tag = made->seal(iv, data);
     int const failures =
         check(tag.has_value() && carries_mark<Checker>(data) && carries_mark<Checker>(*tag), what);
@@ -307,8 +307,8 @@ int sodium_kx() {
     server_seed.fill(0x24);
     Checker::mark_secret(client_seed);
     Checker::mark_secret(server_seed);
-    auto const client = keypair::make(client_seed);
-    auto const server = keypair::make(server_seed);
+    auto const client = keypair::from_secret(client_seed);
+    auto const server = keypair::from_secret(server_seed);
     auto const client_key = *client->public_key();
     auto const server_key = *server->public_key();
     // The public keys are public: sent to the peer.
@@ -331,14 +331,14 @@ boost::system::result<secp256k1_pair> secp256k1_secret_pair(std::uint8_t value) 
     std::array<std::uint8_t, 32> secret_key{};
     secret_key.fill(value);
     Checker::mark_secret(secret_key);
-    return secp256k1_pair::make(secret_key);
+    return secp256k1_pair::from_secret(secret_key);
 }
 
 /** A key pair made from 32 public bytes of `value`: a peer's. */
 inline boost::system::result<secp256k1_pair> secp256k1_public_pair(std::uint8_t value) {
     std::array<std::uint8_t, 32> secret_key{};
     secret_key.fill(value);
-    return secp256k1_pair::make(secret_key);
+    return secp256k1_pair::from_secret(secret_key);
 }
 
 /**
@@ -354,7 +354,7 @@ boost::system::result<crypto::curves::secp256k1::public_key> secp256k1_sent_key(
         sent_key = public_key->compressed();
     }
     Checker::mark_public(sent_key);
-    return crypto::curves::secp256k1::public_key::make<crypto::backends::secp256k1>(sent_key);
+    return crypto::curves::secp256k1::public_key::from_bytes<crypto::backends::secp256k1>(sent_key);
 }
 
 /** The bytes of a caller's workspace, for a checker's primitives. */
@@ -636,14 +636,14 @@ boost::system::result<p256_pair> p256_secret_pair(std::uint8_t value) {
     std::array<std::uint8_t, 32> scalar{};
     scalar.fill(value);
     Checker::mark_secret(scalar);
-    return p256_pair::make(scalar);
+    return p256_pair::from_secret(scalar);
 }
 
 /** A P-256 key pair made from 32 public bytes of `value`: a peer's. */
 inline boost::system::result<p256_pair> p256_public_pair(std::uint8_t value) {
     std::array<std::uint8_t, 32> scalar{};
     scalar.fill(value);
-    return p256_pair::make(scalar);
+    return p256_pair::from_secret(scalar);
 }
 
 /**
@@ -660,14 +660,14 @@ int bearssl_p256_make() {
     bool made = pair.has_value();  // NOLINT(misc-const-correctness)
     Checker::verdict(made);
     if (!made) {
-        return check(false, "P-256's make on BearSSL");
+        return check(false, "P-256's from_secret on BearSSL");
     }
     auto const point = pair->public_key();
     auto const kept = pair->secret();
     bool const point_traced = point.has_value() && (!Checker::exact_subtraction ||
                                                     carries_mark<Checker>(point->uncompressed()));
     return check(point_traced && kept.has_value() && carries_mark<Checker>(kept->bytes()),
-                 "P-256's make on BearSSL");
+                 "P-256's from_secret on BearSSL");
 }
 
 /**

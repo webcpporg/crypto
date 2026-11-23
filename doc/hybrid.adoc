@@ -38,7 +38,7 @@ include::generated/namespace-hybrid.adoc[]
 `hybrid::box`, in `<webcpp/crypto/hybrid/box.hpp>`, is NaCl's `crypto_box`
 (link:https://nacl.cr.yp.to/box.html[NaCl];
 link:https://doc.libsodium.org/public-key_cryptography/authenticated_encryption[libsodium's documentation]).
-`box::make(secret_key, peer_public_key)` agrees a key from the own X25519
+`box::from_keys(secret_key, peer_public_key)` agrees a key from the own X25519
 secret key and the peer's public key, once for the pair (libsodium's
 `beforenm`); the box then works in place, as an AEAD without additional data:
 `seal(iv_bytes, data_bytes)` encrypts and returns the 16-byte tag, and
@@ -51,7 +51,7 @@ XChaCha20-Poly1305. A box is moved and not copied, and wipes its key when
 moved from and destroyed.
 
 A peer's public key of small order makes the shared secret one an attacker
-knows: `make` refuses it with `weak_public_key`, as libsodium's `beforenm`
+knows: `from_keys` refuses it with `weak_public_key`, as libsodium's `beforenm`
 does.
 
 include::generated/backends-box.adoc[]
@@ -62,9 +62,9 @@ include::generated/backends-box_xchacha20poly1305.adoc[]
 |===
 |Condition |Error
 
-|`make`: a secret key of another size than 32 bytes |`invalid_key_size`
-|`make`: a peer key of another size than 32 bytes |`invalid_public_key`
-|`make`: a peer key of small order |`weak_public_key`
+|`from_keys`: a secret key of another size than 32 bytes |`invalid_key_size`
+|`from_keys`: a peer key of another size than 32 bytes |`invalid_public_key`
+|`from_keys`: a peer key of small order |`weak_public_key`
 |`seal`, `open`: the object was moved from |`invalid_state`
 |a nonce of another size than 24 bytes |`invalid_iv_size`
 |`open`: a tag of another size than 16 |`invalid_tag_size`

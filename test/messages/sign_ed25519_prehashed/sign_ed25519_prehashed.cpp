@@ -23,6 +23,6 @@ int main() {
     namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> const seed{};
     std::array<std::uint8_t, 64> const digest{};
-    auto const key = crypto::curves::ed25519::keypair::make(seed);
+    auto const key = crypto::curves::ed25519::keypair::from_secret(seed);
     return key && key->sign(crypto::eddsa, crypto::prehashed{digest}) ? 0 : 1;
 }

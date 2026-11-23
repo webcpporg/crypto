@@ -18,6 +18,6 @@ int main() {
     using aead = webcpp::crypto::ciphers::gcm<
         webcpp::crypto::ciphers::aes256<webcpp::crypto::backends::ctaes>>;
     aead* unused = nullptr;
-    auto made = aead::make({});
+    auto made = aead::from_key({});
     return unused == nullptr && !made ? 0 : 1;
 }

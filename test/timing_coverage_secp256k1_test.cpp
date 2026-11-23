@@ -8,11 +8,10 @@
 // leaves the thread's DIT as it found it, on every target, also where DIT does not apply, each
 // with valid input and, where it has one, with input refused before the backend
 // (support/timing_coverage.hpp). One section per header. With exceptions, a memory resource that
-// throws in basic_keypair::make and decode_pkcs8 unwinds through the guard, which leaves DIT clear
-// from clear and set from set.
-// A check fails, naming itself, when its call enters no guard or when the first guard it enters is
-// not the one of the function it names (support/timing_seam.hpp), so that a function that forgot
-// its own guard fails although it calls another guarded function.
+// throws in basic_keypair::from_secret and decode_pkcs8 unwinds through the guard, which leaves DIT
+// clear from clear and set from set. A check fails, naming itself, when its call enters no guard or
+// when the first guard it enters is not the one of the function it names (support/timing_seam.hpp),
+// so that a function that forgot its own guard fails although it calls another guarded function.
 // The key pair's sign overloads share one name: the hedged one and the one with Schnorr's
 // randomness given are named with a parameter word, sign(ecdsa_sha256_t and sign(schnorr_t, which
 // clang and GCC print only for those overloads (the generic one prints its parameter as Scheme);
@@ -20,16 +19,17 @@
 // generic one too, and the check only proves that a guard of some sign was entered first.
 //
 // What it covers, by family; a family libsecp256k1 gains adds its line and its checks:
-// - secp256k1, curves/secp256k1.hpp: public_key's make, compressed, uncompressed, xonly,
-//   operator== and operator<=>; basic_keypair: make, public_key, secret, sign with each scheme
-//   (ecdsa_sha256 of a message and of a digest, ecdsa_sha256_recoverable, schnorr with its
+// - secp256k1, curves/secp256k1.hpp: public_key's from_bytes, compressed, uncompressed, xonly,
+//   operator== and operator<=>; basic_keypair: from_secret, public_key, secret, sign with each
+//   scheme (ecdsa_sha256 of a message and of a digest, ecdsa_sha256_recoverable, schnorr with its
 //   auxiliary randomness drawn), sign hedged, sign with Schnorr's auxiliary randomness given,
 //   agree, agree_hashed, agree_point, tweak_xonly; public_key::verify of ecdsa_sha256 and of
 //   schnorr; the free recover, crypto::verify of ecdsa_sha256 and of schnorr (against the typed
 //   key and against x-only bytes), to_der, from_der, normalize_low_s, is_low_s, tweak_xonly; the
-//   free synchronous forms of the members, crypto::make (of a key pair and of a public key),
-//   crypto::generate, crypto::sign (with each scheme, Schnorr's randomness drawn and given, and
-//   hedged) and crypto::agree, which enter their own guard before the member's. Its
+//   free synchronous forms of the members, crypto::from_secret, crypto::generate, crypto::sign
+//   (with each scheme, Schnorr's randomness drawn and given, and hedged) and crypto::agree, which
+//   enter their own guard before the member's, and crypto::from_bytes of a public key, which holds
+//   none (the member's is its first). Its
 //   formats: encode_spki, decode_spki, encode_pkcs8, decode_pkcs8. Its tweaks: seckey_tweak_add,
 //   seckey_tweak_mul, seckey_negate, pubkey_tweak_add, pubkey_tweak_mul, pubkey_negate,
 //   pubkey_combine.
@@ -96,7 +96,7 @@ bytes32 secret_bytes(std::uint8_t fill) {
 
 /** The key pair of the secret key of 32 bytes `fill`, made outside a check. */
 secp::keypair keypair_of(std::uint8_t fill) {
-    auto made = secp::keypair::make(secret_bytes(fill));
+    auto made = secp::keypair::from_secret(secret_bytes(fill));
     if (!BOOST_TEST(made.has_value())) {
         std::exit(boost::report_errors());
     }
@@ -135,15 +135,15 @@ std::vector<std::byte> lent(std::size_t size) {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * basic_keypair::make, a secret of the wrong size included, generate, and public_key's two
+ * basic_keypair::from_secret, a secret of the wrong size included, generate, and public_key's two
  * operators.
  */
 void cover_make_and_compare() {
     auto const secret_key = secret_bytes(0x11);
-    covered("secp256k1::basic_keypair::make on secp256k1",
-            [&] { BOOST_TEST(secp::keypair::make(secret_key).has_value()); });
-    covered("secp256k1::basic_keypair::make with a short secret on secp256k1", [&] {
-        BOOST_TEST(secp::keypair::make(std::span(secret_key).first(31)).error() ==
+    covered("secp256k1::basic_keypair::from_secret on secp256k1",
+            [&] { BOOST_TEST(secp::keypair::from_secret(secret_key).has_value()); });
+    covered("secp256k1::basic_keypair::from_secret with a short secret on secp256k1", [&] {
+        BOOST_TEST(secp::keypair::from_secret(std::span(secret_key).first(31)).error() ==
                    crypto::error::invalid_key_size);
     });
     // The system's source answers here; the refused draws are secp256k1_generate's, the program
@@ -249,14 +249,14 @@ void cover_keypair_agreement() {
             [&] { BOOST_TEST(empty.tweak_xonly(tweak).error() == crypto::error::invalid_state); });
 }
 
-/** public_key::make, a key of the wrong size included, and the key's three byte forms. */
+/** public_key::from_bytes, a key of the wrong size included, and the key's three byte forms. */
 void cover_public_keys() {
     auto const parsed = public_of(keypair_of(0x41));
     auto const encoded = parsed.compressed();
-    covered("secp256k1::public_key::make on secp256k1",
-            [&] { BOOST_TEST(secp::public_key::make(encoded).has_value()); });
-    covered("secp256k1::public_key::make of a short key on secp256k1", [&] {
-        BOOST_TEST(secp::public_key::make(std::span(encoded).first(32)).error() ==
+    covered("secp256k1::public_key::from_bytes on secp256k1",
+            [&] { BOOST_TEST(secp::public_key::from_bytes(encoded).has_value()); });
+    covered("secp256k1::public_key::from_bytes of a short key on secp256k1", [&] {
+        BOOST_TEST(secp::public_key::from_bytes(std::span(encoded).first(32)).error() ==
                    crypto::error::invalid_public_key);
     });
     covered("secp256k1::public_key::compressed on secp256k1",
@@ -348,27 +348,31 @@ void cover_public_key_verify() {
 }
 
 /**
- * The free crypto::make, of a key pair and of a public key, and crypto::generate, each entering
- * its own guard before the member's, and refused once before the backend (a short secret, a short
- * key).
+ * The free crypto::from_secret and crypto::generate, each entering its own guard before the
+ * member's, and crypto::from_bytes of a public key, which holds none, so that the member's is the
+ * first it enters; each refused once before the backend (a short secret, a short key).
  */
-void cover_free_make_forms() {
+void cover_free_factories() {
     auto const secret_key = secret_bytes(0x61);
-    covered("secp256k1 crypto::make on secp256k1", "crypto::make",
-            [&] { BOOST_TEST(crypto::make<secp::keypair>(secret_key).has_value()); });
-    covered("secp256k1 crypto::make with a short secret on secp256k1", "crypto::make", [&] {
-        BOOST_TEST(crypto::make<secp::keypair>(std::span(secret_key).first(31)).error() ==
-                   crypto::error::invalid_key_size);
-    });
+    covered("secp256k1 crypto::from_secret on secp256k1", "crypto::from_secret",
+            [&] { BOOST_TEST(crypto::from_secret<secp::keypair>(secret_key).has_value()); });
+    covered("secp256k1 crypto::from_secret with a short secret on secp256k1", "crypto::from_secret",
+            [&] {
+                BOOST_TEST(
+                    crypto::from_secret<secp::keypair>(std::span(secret_key).first(31)).error() ==
+                    crypto::error::invalid_key_size);
+            });
     covered("secp256k1 crypto::generate on secp256k1", "crypto::generate",
             [&] { BOOST_TEST(crypto::generate<secp::keypair>().has_value()); });
     auto const encoded = public_of(keypair_of(0x64)).compressed();
-    covered("secp256k1 crypto::make of a public key on secp256k1", "crypto::make",
-            [&] { BOOST_TEST(crypto::make<secp::public_key>(encoded).has_value()); });
-    covered("secp256k1 crypto::make of a short public key on secp256k1", "crypto::make", [&] {
-        BOOST_TEST(crypto::make<secp::public_key>(std::span(encoded).first(32)).error() ==
-                   crypto::error::invalid_public_key);
-    });
+    covered("secp256k1 crypto::from_bytes of a public key on secp256k1", "public_key::from_bytes",
+            [&] { BOOST_TEST(crypto::from_bytes<secp::public_key>(encoded).has_value()); });
+    covered(
+        "secp256k1 crypto::from_bytes of a short public key on secp256k1", "public_key::from_bytes",
+        [&] {
+            BOOST_TEST(crypto::from_bytes<secp::public_key>(std::span(encoded).first(32)).error() ==
+                       crypto::error::invalid_public_key);
+        });
 }
 
 /**
@@ -511,7 +515,7 @@ void cover_ellswift() {
 
 /**
  * SPKI and PKCS#8, each refused once before the backend too: the decoders call equal, and
- * decode_pkcs8 also make and encode_pkcs8, so only their refusals show their own guards.
+ * decode_pkcs8 also from_secret and encode_pkcs8, so only their refusals show their own guards.
  */
 void cover_formats() {
     auto const made = keypair_of(0x81);
@@ -1022,8 +1026,8 @@ bool throws_bad_alloc(Call const& call) {
 }
 
 /**
- * An exception from the memory resource unwinds through basic_keypair::make's guard and through
- * decode_pkcs8's: DIT is clear after it from clear, and still set from set (ruling R6).
+ * An exception from the memory resource unwinds through basic_keypair::from_secret's guard and
+ * through decode_pkcs8's: DIT is clear after it from clear, and still set from set (ruling R6).
  */
 void throwing_resource_restores_state() {
     throwing_resource resource;
@@ -1032,17 +1036,20 @@ void throwing_resource_restores_state() {
     if (!BOOST_TEST(secp::encode_pkcs8(keypair_of(0xc1), pkcs8).has_value())) {
         return;
     }
-    auto const make = [&] { static_cast<void>(secp::keypair::make(secret_key, &resource)); };
-    // decode_pkcs8 reaches the resource through make, guarded too: its own entry is checked by
-    // cover_formats' refusal; here the subject is the state the unwinding leaves.
+    auto const from_secret = [&] {
+        static_cast<void>(secp::keypair::from_secret(secret_key, &resource));
+    };
+    // decode_pkcs8 reaches the resource through from_secret, guarded too: its own entry is checked
+    // by cover_formats' refusal; here the subject is the state the unwinding leaves.
     auto const decode = [&] {
         static_cast<void>(secp::decode_pkcs8(std::span<std::uint8_t const>(pkcs8), &resource));
     };
     for (bool const set : {false, true}) {
         std::string const from = set ? " from set" : " from clear";
         force_dit(set);
-        covered("secp256k1::basic_keypair::make with a throwing resource" + from + " on secp256k1",
-                [&] { BOOST_TEST(throws_bad_alloc(make)); });
+        covered("secp256k1::basic_keypair::from_secret with a throwing resource" + from +
+                    " on secp256k1",
+                [&] { BOOST_TEST(throws_bad_alloc(from_secret)); });
         BOOST_TEST_EQ(crypto::detail::dit_is_set(), set && crypto::detail::cpu_has_dit());
         covered("secp256k1::decode_pkcs8 with a throwing resource" + from + " on secp256k1",
                 [&] { BOOST_TEST(throws_bad_alloc(decode)); });
@@ -1063,7 +1070,7 @@ int main() {
     cover_public_keys();
     cover_verification();
     cover_public_key_verify();
-    cover_free_make_forms();
+    cover_free_factories();
     cover_free_forms();
     cover_signature_forms();
     cover_low_s();

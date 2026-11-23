@@ -25,10 +25,10 @@ and Ethereum's ECDSA: recoverable signatures, the recovery of a signer's public
 key from a signature, and the uncompressed key
 (<<crypto-secp256k1-recovery>>). Its functions, by header:
 
-* `secp256k1.hpp`, the key pair and its signatures and ECDH: `keypair::make`, `generate`,
+* `secp256k1.hpp`, the key pair and its signatures and ECDH: `keypair::from_secret`, `generate`,
 and the key pair's `public_key`, `secret`, `sign` with `crypto::schnorr`,
 `crypto::ecdsa_sha256` and `crypto::ecdsa_sha256_recoverable`, `agree`,
-`agree_hashed`, `agree_point` and `tweak_xonly`; the `public_key` type's `make`,
+`agree_hashed`, `agree_point` and `tweak_xonly`; the `public_key` type's `from_bytes`,
 `compressed`, `uncompressed` and `xonly`; `crypto::verify` with `crypto::schnorr`
 and `crypto::ecdsa_sha256`, `recover`, `to_der`, `from_der`, `normalize_low_s`,
 `is_low_s` and the x-only key's `tweak_xonly`;
@@ -228,21 +228,21 @@ them as `crypto::can_sign` and `crypto::can_verify` do
 every curve's key pair meets, each curve's header checking its own with a
 `static_assert`:
 
-* `make(secret_bytes)` makes it from its secret, and `generate()` draws one
+* `from_secret(secret_bytes)` makes it from its secret, and `generate()` draws one
 from `random_device`, each giving `result<K>`;
 * `public_key()` gives `result<K::public_key_type>`, the curve's typed public
 key, whose value goes straight into `crypto::verify`: `curves::ed25519::public_key`,
 `curves::p256::public_key` or `curves::secp256k1::public_key`;
-* `secret()` gives `result<secret<N>>`, the bytes `make` takes, in a
+* `secret()` gives `result<secret<N>>`, the bytes `from_secret` takes, in a
 `secret<N>` that wipes itself: Ed25519's seed, P-256's scalar, secp256k1's secret key. It is the
 export a PKCS#8 file or a backup takes;
 * `sign(scheme, input)` signs with every scheme its curve has, at least one.
 
-Each public key type is made from bytes by its own `make`, and gives its byte
+Each public key type is made from bytes by its own `from_bytes`, and gives its byte
 forms as members named after the encoding: Ed25519's `bytes()` (32 bytes),
 P-256's `uncompressed()` (65), and secp256k1's `compressed()` (33),
-`uncompressed()` (65) and `xonly()` (32). P-256's and secp256k1's `make` check
-the point; Ed25519's checks the size alone, whether the point is canonical
+`uncompressed()` (65) and `xonly()` (32). P-256's and secp256k1's `from_bytes`
+check the point, as P-256's `from_coordinates(x, y)` does; Ed25519's checks the size alone, whether the point is canonical
 and not of small order being its verification policy's judgment.
 
 ECDH is `agree(peer)` on every curve that has it, the peer a typed public key,
@@ -274,10 +274,12 @@ generic code, an asynchronous form in an event loop.
 | | Synchronous | Asynchronous
 
 | Member
-| `K::make(bytes)`, `K::generate()`, `key_pair.sign(scheme, input)`,
+| `K::from_secret(secret_bytes)`, `T::from_bytes(bytes)`, `C::from_key(key)`,
+`K::generate()`, `key_pair.sign(scheme, input)`,
 `key_pair.agree(peer)`, `public_key.verify(scheme, signature, input)`,
 `aead.seal(iv, additional_data, data)`, `aead.open(iv, additional_data, data, tag)`
-| `K::async_make(executor, bytes, token)`, `K::async_generate(executor, token)`,
+| `K::async_from_secret(executor, secret_bytes, token)`, `C::async_from_key(executor, key,
+token)`, `K::async_generate(executor, token)`,
 `key_pair.async_sign(executor, scheme, input, token)`,
 `key_pair.async_agree(executor, peer, token)`,
 `public_key.async_verify(executor, scheme, signature, input, token)`,
@@ -285,12 +287,14 @@ generic code, an asynchronous form in an event loop.
 `aead.async_open(executor, iv, additional_data, data, tag, token)`
 
 | Free, in `webcpp::crypto`
-| `crypto::make<K>(bytes)`, `crypto::generate<K>()`,
+| `crypto::from_secret<K>(secret_bytes)`, `crypto::from_bytes<T>(bytes)`,
+`crypto::from_key<C>(key)`, `crypto::generate<K>()`,
 `crypto::sign(key_pair, scheme, input)`, `crypto::agree(key_pair, peer)`,
 `crypto::verify(scheme, signature, input, public_key)`,
 `crypto::seal(aead, iv, additional_data, data)`,
 `crypto::open(aead, iv, additional_data, data, tag)`
-| `crypto::async_make<K>(executor, bytes, token)`,
+| `crypto::async_from_secret<K>(executor, secret_bytes, token)`,
+`crypto::async_from_key<C>(executor, key, token)`,
 `crypto::async_generate<K>(executor, token)`,
 `crypto::async_sign(executor, key_pair, scheme, input, token)`,
 `crypto::async_agree(executor, key_pair, peer, token)`,
@@ -304,8 +308,8 @@ and secp256k1's key pairs and public keys (`agree` on P-256 and secp256k1),
 and on AES-GCM and every AEAD of `ciphers::aead`, the ChaCha20-Poly1305 forms
 and the secret boxes. The asynchronous forms exist for what WebCrypto has:
 Ed25519's and P-256's key pairs and public keys (`async_agree` on P-256), and
-AES-GCM. A public key has no `async_make`: the asynchronous family makes key
-pairs and AES-GCM objects only.
+AES-GCM. A public key has no `async_from_bytes`: the asynchronous family makes
+key pairs (`async_from_secret`) and AES-GCM objects (`async_from_key`) only.
 Ed25519's verification policy is an optional argument of all four, before the
 token in the asynchronous ones; secp256k1's 32 bytes of extra entropy or
 auxiliary randomness follow the input of `sign` and `crypto::sign`.
@@ -313,16 +317,18 @@ auxiliary randomness follow the input of `sign` and `crypto::sign`.
 Each free synchronous form is declared in the header of what it gates:
 `crypto::sign` in `<webcpp/crypto/signing.hpp>`, beside the catch-all of
 `crypto::verify`, whose overloads each curve's header declares;
-`crypto::agree` in `<webcpp/crypto/keypair.hpp>`; `crypto::make` and
-`crypto::generate` in `<webcpp/crypto/make.hpp>`, which `keypair.hpp` and the
+`crypto::agree` in `<webcpp/crypto/keypair.hpp>`; `crypto::from_secret`,
+`crypto::from_bytes`, `crypto::from_key` and `crypto::generate` in
+`<webcpp/crypto/factories.hpp>`, which `keypair.hpp` and the
 AEAD headers include; `crypto::seal` and `crypto::open` in
 `<webcpp/crypto/ciphers/aead.hpp>`, which `gcm.hpp` includes. Every free form
-holds its own timing guard before it calls the member, which holds one too.
-`crypto::make` holds it for every type it makes, being generic, while
-Ed25519's `public_key::make`, which copies 32 bytes and calls no backend,
-holds none, as no function without a backend call does: the extra guard only
-sets DIT around the copy (<<crypto-backends-dit>>), at the guard's own cost
-(<<crypto-performance-timing>>).
+holds its own timing guard before it calls the member, which holds one too,
+except `crypto::from_bytes`: a public value's `from_bytes` holds a guard only
+where it calls a backend (P-256's and secp256k1's check the point), and
+Ed25519's `public_key::from_bytes`, which copies 32 bytes, holds none, as no
+function without a backend call does, so the free form adds none either: a
+guard there would only set DIT around a copy (<<crypto-backends-dit>>), at the
+guard's own cost (<<crypto-performance-timing>>).
 
 An unqualified call finds the free forms by argument-dependent lookup, a scheme
 tag being of the namespace `webcpp::crypto`: `verify(crypto::eddsa, signature,
@@ -348,13 +354,13 @@ at compile time with a message that names its `async_` form: the refusal is in
 place already, tested with a stand-in backend, since no such backend exists
 yet.
 
-*Example.* P-256's key pair made by `make` and by `crypto::make`, then a
+*Example.* P-256's key pair made by `from_secret` and by `crypto::from_secret`, then a
 message signed and the signature verified in the four forms. RFC 6979's nonce
 makes the four signatures the same bytes:
 
 [source,cpp]
 ----
-include::{examples}/four_forms.cpp[tag=make,indent=0]
+include::{examples}/four_forms.cpp[tag=from_secret,indent=0]
 ----
 
 [source,cpp]

@@ -140,10 +140,10 @@ namespace webcpp::crypto::curves::ed25519 {
  * An Ed25519 public key (RFC 8032): the 32 bytes of the encoded point A, which
  * `crypto::verify(crypto::eddsa, ...)` takes.
  *
- * `make` checks the size alone (design R16): whether the point is canonical and not of small
+ * `from_bytes` checks the size alone (design R16): whether the point is canonical and not of small
  * order is the verification policy's judgment (`strict` refuses both), so the type does not
  * prejudge it, and a key `crypto::verify` refuses may still be made. It holds nothing secret and
- * is copied freely; it is made only by `make` and by a key pair's `public_key()`.
+ * is copied freely; it is made only by `from_bytes` and by a key pair's `public_key()`.
  */
 class public_key {
 public:
@@ -157,7 +157,7 @@ public:
      * @param key_bytes 32 bytes.
      * @return The public key; `invalid_public_key` for another size.
      */
-    [[nodiscard]] static boost::system::result<public_key> make(
+    [[nodiscard]] static boost::system::result<public_key> from_bytes(
         std::span<std::uint8_t const> key_bytes) noexcept {
         if (key_bytes.size() != size) {
             return error::invalid_public_key;
@@ -323,7 +323,7 @@ public:
     using public_key_type = ::webcpp::crypto::curves::ed25519::public_key;
     /** The seed's size. */
     static constexpr std::size_t seed_size = 32;
-    /** The size of the secret bytes `make` takes and `secret()` gives, the seed's. */
+    /** The size of the secret bytes `from_secret` takes and `secret()` gives, the seed's. */
     static constexpr std::size_t secret_key_size = seed_size;
     /** The public key's size. */
     static constexpr std::size_t public_key_size = 32;
@@ -336,12 +336,12 @@ public:
      * @param seed_bytes 32 bytes.
      * @return The key pair; `invalid_key_size`; `backend_failure`.
      */
-    [[nodiscard]] static boost::system::result<basic_keypair> make(
+    [[nodiscard]] static boost::system::result<basic_keypair> from_secret(
         std::span<std::uint8_t const> seed_bytes) noexcept {
         detail::timing_guard const timing_scope;
-        static_assert(
-            !detail::asynchronous_backend_v<Backend>,
-            "webcpp::crypto: make on this backend completes asynchronously: call async_make.");
+        static_assert(!detail::asynchronous_backend_v<Backend>,
+                      "webcpp::crypto: from_secret on this backend completes asynchronously: call "
+                      "async_from_secret.");
         if constexpr (detail::asynchronous_backend_v<Backend>) {
             // Never compiled into a program: the assertion above stopped the build.
             return error::backend_failure;
@@ -351,7 +351,7 @@ public:
             }
             basic_keypair made_pair;
             auto const engine_keyed =
-                engine::make(made_pair.state_, seed_bytes.template first<seed_size>());
+                engine::seed_keypair(made_pair.state_, seed_bytes.template first<seed_size>());
             if (!engine_keyed) {
                 return engine_keyed.error();
             }
@@ -383,15 +383,15 @@ public:
                 // for a key pair: one error to handle.
                 return error::entropy_unavailable;
             }
-            return make(seed_secret.bytes());
+            return from_secret(seed_secret.bytes());
         }
     }
 
     /**
-     * Makes a key pair from a seed, asynchronously: `make` run when the operation is initiated,
-     * its result posted to `completion_executor`; the member form of
-     * `crypto::async_make<basic_keypair>(completion_executor, seed_bytes, completion_token)`, which
-     * calls it.
+     * Makes a key pair from a seed, asynchronously: `from_secret` run when the operation is
+     * initiated, its result posted to `completion_executor`; the member form of
+     * `crypto::async_from_secret<basic_keypair>(completion_executor, seed_bytes,
+     * completion_token)`, which calls it.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
@@ -407,9 +407,9 @@ public:
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
-    static auto async_make(Executor const& completion_executor,
-                           std::span<std::uint8_t const> seed_bytes,
-                           CompletionToken&& completion_token);
+    static auto async_from_secret(Executor const& completion_executor,
+                                  std::span<std::uint8_t const> seed_bytes,
+                                  CompletionToken&& completion_token);
 
     /**
      * Makes a key pair from a fresh seed, asynchronously: `generate` run when the operation is
@@ -480,12 +480,12 @@ public:
         }
         std::array<std::uint8_t, public_key_type::size> key_bytes{};
         engine::public_key(state_, key_bytes);
-        return public_key_type::make(key_bytes);
+        return public_key_type::from_bytes(key_bytes);
     }
 
     /**
      * The seed, RFC 8032's secret key, for a program that keeps the key pair and makes it again
-     * with `make`, or exports it (PKCS#8 holds the seed alone).
+     * with `from_secret`, or exports it (PKCS#8 holds the seed alone).
      *
      * @return 32 secret bytes; `invalid_state` moved from.
      */
@@ -886,7 +886,8 @@ struct ed25519_engine {
 
     /** Never called; fails closed. */
     template <class... Arguments>
-    [[nodiscard]] static boost::system::result<void> make(Arguments&&... /*arguments*/) noexcept {
+    [[nodiscard]] static boost::system::result<void> seed_keypair(
+        Arguments&&... /*arguments*/) noexcept {
         return error::backend_failure;
     }
 

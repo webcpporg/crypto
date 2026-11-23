@@ -4,22 +4,22 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// AES-GCM's asynchronous functions, async_make, async_seal and async_open, on one backend
+// AES-GCM's asynchronous functions, async_from_key, async_seal and async_open, on one backend
 // (BearSSL, or OpenSSL where the program defines WEBCPP_TEST_ASYNC_GCM_OPENSSL), on a callback
 // and in a coroutine:
-// - async_spec_cases: the 18 cases of the specification through async_make, async_seal and
+// - async_spec_cases: the 18 cases of the specification through async_from_key, async_seal and
 //   async_open give the synchronous answers byte for byte (ciphertext, tag, plaintext), the
 //   completion arriving after the initiating call returned.
 // - async_wrong_tag: a wrong tag completes with authentication_failed and zeroed data.
 // - async_long_iv: a 129-byte IV completes with invalid_iv_size, the data untouched, for the
 //   seal (with a zeroed tag) and the open.
-// - async_make_refused: a 31-byte key completes with invalid_key_size and an empty gcm, which
+// - async_from_key_refused: a 31-byte key completes with invalid_key_size and an empty gcm, which
 //   refuses every member with invalid_state (review focus 5).
 // - async_destroyed: the object destroyed after the initiating call and before the completion
 //   still completes with the synchronous result (the work ran before the call returned).
 // - async_coroutine: the example of async.hpp's header, in a coroutine of the context.
 // - async_four_forms: each operation in its four forms (design D9), the member and the free,
-//   synchronous and asynchronous, gives the same result: make (the same seal, and the same
+//   synchronous and asynchronous, gives the same result: from_key (the same seal, and the same
 //   refusal of a short key), seal (the same ciphertext and tag), open (the plaintext, and a
 //   changed tag's authentication_failed with zeroed data); each asynchronous completion arrives
 //   after the initiating call returned.
@@ -36,7 +36,7 @@
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/make.hpp>
+#include <webcpp/crypto/factories.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/gcm_spec_vectors.hpp"
@@ -169,7 +169,7 @@ void run_case(asio::io_context& context, webcpp::test::gcm_case const& spec) {
     auto const tag = webcpp::test::from_hex(spec.tag);
 
     auto made = complete<Gcm>(context, [&](auto const& executor, auto&& token) {
-        crypto::async_make<Gcm>(executor, key, std::forward<decltype(token)>(token));
+        crypto::async_from_key<Gcm>(executor, key, std::forward<decltype(token)>(token));
     });
     BOOST_TEST(!made.code);
     if (!BOOST_TEST(made.value.has_value()) || made.code) {
@@ -207,11 +207,11 @@ void async_spec_cases(asio::io_context& context) {
     }
 }
 
-// A keyed gcm of the all-zero key, through async_make.
+// A keyed gcm of the all-zero key, through async_from_key.
 gcm256 keyed(asio::io_context& context) {
     std::array<std::uint8_t, 32> const key{};
     auto made = complete<gcm256>(context, [&](auto const& executor, auto&& token) {
-        crypto::async_make<gcm256>(executor, key, std::forward<decltype(token)>(token));
+        crypto::async_from_key<gcm256>(executor, key, std::forward<decltype(token)>(token));
     });
     BOOST_TEST(!made.code);
     BOOST_TEST(made.value.has_value());
@@ -265,10 +265,10 @@ void async_long_iv(asio::io_context& context) {
     BOOST_TEST(same_bytes(data, untouched));
 }
 
-void async_make_refused(asio::io_context& context) {
+void async_from_key_refused(asio::io_context& context) {
     std::array<std::uint8_t, 31> const key{};
     auto made = complete<gcm256>(context, [&](auto const& executor, auto&& token) {
-        crypto::async_make<gcm256>(executor, key, std::forward<decltype(token)>(token));
+        crypto::async_from_key<gcm256>(executor, key, std::forward<decltype(token)>(token));
     });
     BOOST_TEST(made.code == crypto::error::invalid_key_size);
     if (!BOOST_TEST(made.value.has_value())) {
@@ -297,7 +297,7 @@ void async_make_refused(asio::io_context& context) {
     BOOST_TEST(same_bytes(data, untouched));
 }
 
-// The example of async.hpp's header, in a coroutine of the context: make, seal, open.
+// The example of async.hpp's header, in a coroutine of the context: from_key, seal, open.
 // The object and the key destroyed after the initiating call and before the completion: a
 // synchronous backend has sealed already, so the tag and the ciphertext are the synchronous ones.
 void async_destroyed(asio::io_context& context) {
@@ -344,7 +344,7 @@ void async_coroutine(asio::io_context& context) {
             std::array<std::uint8_t, 40> data{};
             data.fill(0x33);
             auto const plaintext = data;
-            auto made_code_result = co_await crypto::async_make<gcm256>(
+            auto made_code_result = co_await crypto::async_from_key<gcm256>(
                 executor, key, asio::as_tuple(asio::use_awaitable));
             auto& [made_code, aead] = made_code_result;
             BOOST_TEST(!made_code);
@@ -389,16 +389,16 @@ struct sealed_message {
     gcm256::result_type tag{};
 };
 
-// make in its four forms: objects that seal alike, and the same refusal of a short key.
-void four_forms_make(asio::io_context& context, four_forms_message const& message) {
-    auto const member_sync = gcm256::make(message.key);
-    auto const free_sync = crypto::make<gcm256>(message.key);
+// from_key in its four forms: objects that seal alike, and the same refusal of a short key.
+void four_forms_from_key(asio::io_context& context, four_forms_message const& message) {
+    auto const member_sync = gcm256::from_key(message.key);
+    auto const free_sync = crypto::from_key<gcm256>(message.key);
     auto member_async = complete<gcm256>(context, [&](auto const& executor, auto&& token) {
-        return gcm256::async_make(executor, message.key, std::forward<decltype(token)>(token));
+        return gcm256::async_from_key(executor, message.key, std::forward<decltype(token)>(token));
     });
     auto free_async = complete<gcm256>(context, [&](auto const& executor, auto&& token) {
-        return crypto::async_make<gcm256>(executor, message.key,
-                                          std::forward<decltype(token)>(token));
+        return crypto::async_from_key<gcm256>(executor, message.key,
+                                              std::forward<decltype(token)>(token));
     });
     BOOST_TEST(!member_async.code);
     BOOST_TEST(!free_async.code);
@@ -413,7 +413,7 @@ void four_forms_make(asio::io_context& context, four_forms_message const& messag
         BOOST_TEST(sealed.has_value());
         return sealed ? *sealed : gcm256::result_type{};
     };
-    auto expected = gcm256::make(message.key);
+    auto expected = gcm256::from_key(message.key);
     if (!BOOST_TEST(expected.has_value())) {
         return;
     }
@@ -422,15 +422,15 @@ void four_forms_make(asio::io_context& context, four_forms_message const& messag
     BOOST_TEST(tag_of(std::move(*member_async.value)) == tag);
     BOOST_TEST(tag_of(std::move(*free_async.value)) == tag);
     auto const short_key = std::span(message.key).first(31);
-    BOOST_TEST(gcm256::make(short_key).error() == crypto::error::invalid_key_size);
-    BOOST_TEST(crypto::make<gcm256>(short_key).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(gcm256::from_key(short_key).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(crypto::from_key<gcm256>(short_key).error() == crypto::error::invalid_key_size);
     BOOST_TEST(complete<gcm256>(context, [&](auto const& executor, auto&& token) {
-                   return gcm256::async_make(executor, short_key,
-                                             std::forward<decltype(token)>(token));
+                   return gcm256::async_from_key(executor, short_key,
+                                                 std::forward<decltype(token)>(token));
                }).code == crypto::error::invalid_key_size);
     BOOST_TEST(complete<gcm256>(context, [&](auto const& executor, auto&& token) {
-                   return crypto::async_make<gcm256>(executor, short_key,
-                                                     std::forward<decltype(token)>(token));
+                   return crypto::async_from_key<gcm256>(executor, short_key,
+                                                         std::forward<decltype(token)>(token));
                }).code == crypto::error::invalid_key_size);
 }
 
@@ -505,7 +505,7 @@ void check_four_opens(asio::io_context& context, gcm256& aead, four_forms_messag
 
 void async_member_deferred(asio::io_context& context) {
     four_forms_message const message;
-    auto aead = gcm256::make(message.key);
+    auto aead = gcm256::from_key(message.key);
     if (!BOOST_TEST(aead.has_value())) {
         return;
     }
@@ -534,8 +534,8 @@ void async_member_deferred(asio::io_context& context) {
 
 void async_four_forms(asio::io_context& context) {
     four_forms_message const message;
-    four_forms_make(context, message);
-    auto aead = gcm256::make(message.key);
+    four_forms_from_key(context, message);
+    auto aead = gcm256::from_key(message.key);
     if (!BOOST_TEST(aead.has_value())) {
         return;
     }
@@ -562,7 +562,7 @@ int main() {
     async_spec_cases(context);
     async_wrong_tag(context);
     async_long_iv(context);
-    async_make_refused(context);
+    async_from_key_refused(context);
     async_destroyed(context);
     async_coroutine(context);
     async_four_forms(context);

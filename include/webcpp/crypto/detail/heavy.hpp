@@ -268,8 +268,8 @@ public:
      * @param bound_call The synchronous call, bound to its arguments.
      * @return The state.
      */
-    static heavy_state* make(Handler completion_handler, WorkExecutor const& work_executor,
-                             Work bound_call) {
+    static heavy_state* allocate(Handler completion_handler, WorkExecutor const& work_executor,
+                                 Work bound_call) {
         allocator_type handler_allocator(
             webcpp::asio::get_associated_allocator(completion_handler));
         auto* const state_storage =
@@ -662,8 +662,8 @@ struct heavy_initiation {
         using state = heavy_state<std::decay_t<Handler>, WorkExecutor, Work>;
         // The job holds the state from its making on, so that a failure to install the
         // cancellation or to post abandons it rather than leak it with the executor's work.
-        auto* const made_state = state::make(std::forward<Handler>(completion_handler),
-                                             work_executor, std::move(bound_call));
+        auto* const made_state = state::allocate(std::forward<Handler>(completion_handler),
+                                                 work_executor, std::move(bound_call));
         heavy_job<state, heavy_job_allocator_t<WorkExecutor>> queued_job(
             made_state, heavy_job_allocator(work_executor));
         made_state->install_cancellation();

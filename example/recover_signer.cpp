@@ -55,7 +55,7 @@ boost::system::result<secp256k1::keypair> generate_key() {
         if (!filled) {
             return filled.error();
         }
-        auto key = secp256k1::keypair::make(secret);
+        auto key = secp256k1::keypair::from_secret(secret);
         if (key || key.error() != crypto::error::invalid_secret_key) {
             // The key pair keeps its own copy, which it wipes; this one goes now.
             wipe(std::as_writable_bytes(std::span(secret)));
@@ -83,7 +83,7 @@ int main() {
     // tag::recover[]
     // The reader holds no key of the wallet's: it makes the published key once, recovers the
     // signer's key from the 65-byte signature and the message, and compares the two.
-    auto const expected = secp256k1::public_key::make(published);
+    auto const expected = secp256k1::public_key::from_bytes(published);
     auto const signer =
         secp256k1::recover(crypto::ecdsa_sha256_recoverable, *signature, bytes_of(message));
     if (!expected || !signer || *signer != *expected) {

@@ -68,7 +68,7 @@ void check_signing(std::vector<std::string> const& f, std::vector<std::uint8_t> 
                    std::vector<std::uint8_t> const& signature) {
     auto const secret = test::from_hex(f[1]);
     auto const aux = test::from_hex(f[3]);
-    auto const key = secp::keypair::make(secret);
+    auto const key = secp::keypair::from_secret(secret);
     BOOST_TEST(key.has_value());
     BOOST_TEST_EQ(aux.size(), 32U);
     if (!key.has_value() || aux.size() != 32) {

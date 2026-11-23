@@ -177,7 +177,7 @@ void sodium_rows(std::vector<edge_case> const& cases, verdicts& raw, verdicts& s
                                      tested.signature.data(), tested.message.data(),
                                      tested.message.size(), tested.public_key.data()) == 0));
         // Every case's key is 32 bytes: made, whatever its point (design R16).
-        auto const public_key = ed25519::public_key::make(tested.public_key);
+        auto const public_key = ed25519::public_key::from_bytes(tested.public_key);
         BOOST_TEST(public_key.has_value());
         if (!public_key) {
             strict.emplace_back(verdict(false));

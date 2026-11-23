@@ -26,7 +26,7 @@
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/make.hpp>  // crypto::make, which serves its make (design R23)
+#include <webcpp/crypto/factories.hpp>  // crypto::from_key, which serves its from_key (design R23)
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
@@ -318,12 +318,12 @@ public:
      * @param key_bytes `key_size` bytes.
      * @return The object; `invalid_key_size`; `backend_failure` when the backend cannot start.
      */
-    [[nodiscard]] static boost::system::result<aead> make(
+    [[nodiscard]] static boost::system::result<aead> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
         detail::timing_guard const timing_scope;
-        static_assert(
-            !detail::asynchronous_backend_v<Backend>,
-            "webcpp::crypto: make on this backend completes asynchronously: call async_make.");
+        static_assert(!detail::asynchronous_backend_v<Backend>,
+                      "webcpp::crypto: from_key on this backend completes asynchronously: call "
+                      "async_from_key.");
         if constexpr (detail::asynchronous_backend_v<Backend>) {
             // Never compiled into a program: the assertion above stopped the build.
             return error::backend_failure;

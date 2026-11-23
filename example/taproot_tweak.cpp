@@ -68,7 +68,7 @@ int main() {
     // random_device.
     std::array<std::uint8_t, 32> secret{};
     secret.back() = 0x03;
-    auto key = secp256k1::keypair::make(secret);
+    auto key = secp256k1::keypair::from_secret(secret);
     wipe(std::as_writable_bytes(std::span(secret)));
     if (!key) {
         return 1;

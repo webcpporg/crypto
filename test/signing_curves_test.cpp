@@ -75,8 +75,8 @@ void byte_keys() {
     key_bytes seed{};
     seed.fill(0x42);
     std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
-    auto const ed25519 = crypto::curves::ed25519::keypair::make(seed);
-    auto const secp256k1 = crypto::curves::secp256k1::keypair::make(seed);
+    auto const ed25519 = crypto::curves::ed25519::keypair::from_secret(seed);
+    auto const secp256k1 = crypto::curves::secp256k1::keypair::from_secret(seed);
     if (!BOOST_TEST(ed25519.has_value()) || !BOOST_TEST(secp256k1.has_value())) {
         return;
     }
@@ -104,7 +104,7 @@ void backend_first_ed25519() {
     key_bytes seed{};
     seed.fill(0x24);
     auto const ed25519 =
-        crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>::make(seed);
+        crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>::from_secret(seed);
     if (!BOOST_TEST(ed25519.has_value())) {
         return;
     }
@@ -136,8 +136,9 @@ void backend_first_ed25519() {
 void backend_first_ecdsa() {
     key_bytes seed{};
     seed.fill(0x24);
-    auto const secp256k1 = crypto::curves::secp256k1::keypair::make(seed);
-    auto const p256 = crypto::curves::p256::basic_keypair<crypto::backends::bearssl>::make(seed);
+    auto const secp256k1 = crypto::curves::secp256k1::keypair::from_secret(seed);
+    auto const p256 =
+        crypto::curves::p256::basic_keypair<crypto::backends::bearssl>::from_secret(seed);
     if (!BOOST_TEST(secp256k1.has_value()) || !BOOST_TEST(p256.has_value())) {
         return;
     }

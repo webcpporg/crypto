@@ -4,7 +4,7 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// secp256k1's one allocation (spec section 8.5): make allocates the signing context once, in
+// secp256k1's one allocation (spec section 8.5): from_secret allocates the signing context once, in
 // the resource it is given, of libsecp256k1's preallocated size and aligned to max_align_t,
 // and never through operator new nor the C library's allocator where the target lets a
 // program count it; the signatures of every scheme (of a message and of a digest, hedged,
@@ -16,7 +16,8 @@
 // ellswift.hpp, the MuSig2 functions of musig.hpp and the silent payments of
 // silent_payments.hpp allocate nothing, each counted alone
 // (decode_pkcs8's key pair takes its one block from the resource it is given); the destructor
-// gives the block back; a refused make allocates nothing. A control proves the counter moves.
+// gives the block back; a refused from_secret allocates nothing. A control proves the counter
+// moves.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
@@ -189,12 +190,12 @@ int main() {
     std::array<std::uint8_t, 32> const zero{};
     {
         std::size_t const before = webcpp::test::allocations();
-        // A refused make allocates nothing, in the resource or elsewhere.
-        BOOST_TEST(secp::keypair::make(zero, &resource).error() ==
+        // A refused from_secret allocates nothing, in the resource or elsewhere.
+        BOOST_TEST(secp::keypair::from_secret(zero, &resource).error() ==
                    crypto::error::invalid_secret_key);
         BOOST_TEST_EQ(resource.allocated, 0U);
 
-        auto made = secp::keypair::make(secret, &resource);
+        auto made = secp::keypair::from_secret(secret, &resource);
         BOOST_TEST(made.has_value());
         BOOST_TEST_EQ(resource.allocated, 1U);
         BOOST_TEST_EQ(resource.size, secp256k1_context_preallocated_size(
@@ -220,7 +221,7 @@ int main() {
         auto const recoverable = key.sign(crypto::ecdsa_sha256_recoverable, digest);
         auto const uncompressed = public_key->uncompressed();
         auto const compressed = public_key->compressed();
-        auto const verifier = secp::public_key::make(compressed);
+        auto const verifier = secp::public_key::from_bytes(compressed);
         BOOST_TEST(schnorr && ecdsa && secret_key && shared && shared_x && shared_point);
         BOOST_TEST(drawn && of_message && hedged && recoverable && verifier);
         BOOST_TEST(crypto::verify(crypto::schnorr, *schnorr, message, xonly).has_value());
@@ -250,8 +251,8 @@ int main() {
         none("normalize_low_s", [&] { return secp::normalize_low_s(*ecdsa); });
         none("is_low_s", [&] { return secp::is_low_s(*ecdsa); });
         none("tweak_xonly", [&] { return secp::tweak_xonly(xonly, message); });
-        auto const parsed = secp::public_key::make(uncompressed);
-        none("public_key::make", [&] { return secp::public_key::make(compressed); });
+        auto const parsed = secp::public_key::from_bytes(uncompressed);
+        none("public_key::from_bytes", [&] { return secp::public_key::from_bytes(compressed); });
         none("public_key::compressed", [&] { return parsed->compressed() == compressed; });
         none("public_key::uncompressed", [&] { return parsed->uncompressed() == uncompressed; });
         none("public_key::xonly", [&] { return parsed->xonly() == xonly; });

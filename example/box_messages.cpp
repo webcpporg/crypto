@@ -33,7 +33,7 @@ struct person {
     crypto::secret<32> secret_key;
     std::array<std::uint8_t, 32> public_key{};
 
-    static std::optional<person> make(crypto::random_device& device) {
+    static std::optional<person> generate(crypto::random_device& device) {
         person made;
         if (!device.fill(made.secret_key.writable())) {
             return std::nullopt;
@@ -85,18 +85,18 @@ void read(char const* who, box& recipient, sealed_message message) {
 
 int main() {
     crypto::random_device device;
-    auto alice = person::make(device);
-    auto bob = person::make(device);
-    auto mallory = person::make(device);
+    auto alice = person::generate(device);
+    auto bob = person::generate(device);
+    auto mallory = person::generate(device);
     if (!alice || !bob || !mallory) {
         return 1;
     }
     // tag::boxes[]
     // Each side's box: the own secret key and the other's public key give the same key.
-    auto alice_box = box::make(alice->secret_key.bytes(), bob->public_key);
-    auto bob_box = box::make(bob->secret_key.bytes(), alice->public_key);
+    auto alice_box = box::from_keys(alice->secret_key.bytes(), bob->public_key);
+    auto bob_box = box::from_keys(bob->secret_key.bytes(), alice->public_key);
     // end::boxes[]
-    auto mallory_box = box::make(mallory->secret_key.bytes(), alice->public_key);
+    auto mallory_box = box::from_keys(mallory->secret_key.bytes(), alice->public_key);
     if (!alice_box || !bob_box || !mallory_box) {
         return 1;
     }

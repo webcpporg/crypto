@@ -7,8 +7,8 @@
 // Under Valgrind's memcheck, the keys, the seeds, the plaintext, the block and the tag are marked
 // undefined: a branch or a memory index that depends on them is an error, and the run fails
 // (--error-exitcode). The paths are paths.hpp's, shared with msan_test.cpp, and two of this
-// checker alone: make, seal and open of BearSSL's AES-GCM, where the planted leak is, and make
-// and seal of OpenSSL's AES-GCM and ChaCha20-Poly1305. Each path's output is checked to be
+// checker alone: from_key, seal and open of BearSSL's AES-GCM, where the planted leak is, and
+// from_key and seal of OpenSSL's AES-GCM and ChaCha20-Poly1305. Each path's output is checked to be
 // undefined too, the planted leak's path aside: the mark reaches it, so the path is traced.
 
 #include "paths.hpp"
@@ -74,7 +74,7 @@ struct memcheck {
 };
 
 /**
- * make, seal and open of BearSSL with the key, the data and the tag secret.
+ * from_key, seal and open of BearSSL with the key, the data and the tag secret.
  */
 int bearssl_seal_and_open() {
     std::array<std::uint8_t, 32> key{};
@@ -90,7 +90,8 @@ int bearssl_seal_and_open() {
         std::printf("planted\n");
     }
 #endif
-    auto made = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>::make(key);
+    auto made =
+        crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>::from_key(key);
     auto tag = made->seal(iv, {}, data);
     VALGRIND_MAKE_MEM_UNDEFINED(tag->data(), tag->size());
     // The verdict is declassified inside the engine (WEBCPP_CRYPTO_DETAIL_DECLASSIFY).
@@ -103,7 +104,7 @@ int bearssl_seal_and_open() {
 }
 
 /**
- * make and seal of OpenSSL with the key and the data secret. Its open is not checked with
+ * from_key and seal of OpenSSL with the key and the data secret. Its open is not checked with
  * secrets: OpenSSL branches on the tag's verdict inside EVP_DecryptFinal_ex, where webcpp
  * cannot declassify it; the documentation says so.
  */
@@ -116,7 +117,7 @@ int openssl_seal(char const* what) {
     data.fill(0x17);
     memcheck::mark_secret(key);
     memcheck::mark_secret(data);
-    auto made = Aead::make(key);
+    auto made = Aead::from_key(key);
     auto const tag = made->seal(iv, {}, data);
     return check(tag.has_value() && carries_mark<memcheck>(data), what);
 }

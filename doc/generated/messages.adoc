@@ -47,13 +47,13 @@ The fix: Call `+async_agree+` on a backend that completes by itself: its synchro
 |native, wasip2, wasip3
 |`+webcpp::crypto: agree: this key pair does not agree with this peer: a P-256 key pair agrees with a curves::p256::basic_public_key of its backend, a secp256k1 key pair with a curves::secp256k1::public_key; an Ed25519 key pair agrees through X25519, its x25519_secret() and curves::x25519::agree.+`
 
-The fix: Give `+agree+` the peer's typed public key of the key pair's own curve and backend: `+curves::p256::basic_public_key<Backend>::make(bytes)+` for P-256, `+curves::secp256k1::public_key::make(bytes)+` for secp256k1.
+The fix: Give `+agree+` the peer's typed public key of the key pair's own curve and backend: `+curves::p256::basic_public_key<Backend>::from_bytes(bytes)+` for P-256, `+curves::secp256k1::public_key::from_bytes(bytes)+` for secp256k1.
 
-|`+async_make_xchacha+`
+|`+async_from_key_xchacha+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_make takes AES-GCM or a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the synchronous make for the others.+`
+|`+webcpp::crypto: async_from_key takes AES-GCM, the AEAD WebCrypto has: call from_key for the others.+`
 
-The fix: Call the synchronous `+make+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
+The fix: Call the synchronous `+from_key+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
 
 |`+async_member_without_async_hpp+`
 |native, wasip2, wasip3
@@ -95,7 +95,7 @@ The fix: Call the key pair's own signing function: secp256k1 is not in WebCrypto
 |native, wasip2, wasip3
 |`+webcpp::crypto: async_verify takes crypto::eddsa with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
 
-The fix: Give `+async_verify+` with `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`, as `+crypto::verify+` takes it: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::make(bytes)+`.
+The fix: Give `+async_verify+` with `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`, as `+crypto::verify+` takes it: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::from_bytes(bytes)+`.
 
 |`+async_verify_named_backend+`
 |native, wasip2, wasip3
@@ -234,6 +234,12 @@ The fix: Add `+/webcpp/crypto//kx-default+`, which links `+/third_party//sodium+
 |`+no matching function for call to 'scan_outputs'+`
 
 The fix: Return `+std::optional<std::span<std::uint8_t const, 32>>+`, a span over a tweak the lookup keeps, such as a map's entry; never the tweak by value.
+
+|`+make_removed+`
+|native, wasip2, wasip3
+|`+no member named 'make' in+`
+
+The fix: Call the factory named by its input, member or free: `+from_secret+` for a key pair, `+from_bytes+` for a public key, `+from_key+` for a cipher (`+crypto::from_secret<K>(bytes)+`, `+K::from_secret(bytes)+`); `+make+` is gone, with no alias.
 
 |`+musig_nonce_copied+`
 |native, wasip2
@@ -425,13 +431,13 @@ The fix: Call `+async_verify+` on a backend that completes by itself: its synchr
 |native, wasip2, wasip3
 |`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
-The fix: Give `+crypto::ecdsa_sha256+` the public key as a typed object, `+curves::secp256k1::public_key::make(bytes)+` or `+curves::p256::public_key::make(bytes)+`: bytes never choose the curve.
+The fix: Give `+crypto::ecdsa_sha256+` the public key as a typed object, `+curves::secp256k1::public_key::from_bytes(bytes)+` or `+curves::p256::public_key::from_bytes(bytes)+`: bytes never choose the curve.
 
 |`+verify_eddsa_bytes_key+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
-The fix: Give `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::make(bytes)+` for a key received as bytes.
+The fix: Give `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::from_bytes(bytes)+` for a key received as bytes.
 
 |`+verify_free_asynchronous_backend+`
 |native, wasip2, wasip3
@@ -977,7 +983,7 @@ On each target, the build's output contains:
 * native, Linux:
 ** `pass:[undefined reference to &#96;webcpp::crypto::openssl_memory_resource()']`
 
-`+memory_missing_definition_make+`:: The memory option set in the program's project, a `+make+` on OpenSSL, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
+`+memory_missing_definition_make+`:: The memory option set in the program's project, a `+from_key+` on OpenSSL, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
 +
 Its Jamfile:
 +
@@ -1138,9 +1144,9 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Name `+ciphers::aes256<backends::ctaes>+`, include `+<webcpp/crypto/backends/ctaes.hpp>+` and add `+/third_party//ctaes+`.
 
-|`+async_make_xchacha+`
+|`+async_from_key_xchacha+`
 |the compile
-|Call the synchronous `+make+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
+|Call the synchronous `+from_key+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
 
 |`+async_open_xchacha+`
 |the compile

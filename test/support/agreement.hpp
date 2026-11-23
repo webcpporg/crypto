@@ -63,8 +63,8 @@ bool agree_gcm_once(std::mt19937_64& generator, std::size_t message_size, std::u
     auto const iv = random_bytes(generator, iv_size);
     auto const additional_data = random_bytes(generator, generator() % 65);
     auto const message = random_bytes(generator, message_size);
-    auto a = ciphers::gcm<CipherA>::make(key);
-    auto b = ciphers::gcm<CipherB>::make(key);
+    auto a = ciphers::gcm<CipherA>::from_key(key);
+    auto b = ciphers::gcm<CipherB>::from_key(key);
     if (!BOOST_TEST(a.has_value()) || !BOOST_TEST(b.has_value())) {
         return false;
     }
@@ -125,8 +125,8 @@ template <class CipherA, class CipherB>
 bool agree_aes_once(std::mt19937_64& generator, std::uint64_t seed) {
     constexpr std::size_t max_blocks = 64;
     auto const key = random_bytes(generator, CipherA::key_size);
-    auto a = CipherA::make(key);
-    auto b = CipherB::make(key);
+    auto a = CipherA::from_key(key);
+    auto b = CipherB::from_key(key);
     if (!BOOST_TEST(a.has_value()) || !BOOST_TEST(b.has_value())) {
         return false;
     }
@@ -173,8 +173,8 @@ bool agree_chacha_once(std::mt19937_64& generator, std::size_t message_size, std
     auto const iv = random_bytes(generator, 12);
     auto const additional_data = random_bytes(generator, generator() % 65);
     auto const message = random_bytes(generator, message_size);
-    auto a = ciphers::chacha20_poly1305<A>::make(key);
-    auto b = ciphers::chacha20_poly1305<B>::make(key);
+    auto a = ciphers::chacha20_poly1305<A>::from_key(key);
+    auto b = ciphers::chacha20_poly1305<B>::from_key(key);
     if (!BOOST_TEST(a.has_value()) || !BOOST_TEST(b.has_value())) {
         return false;
     }

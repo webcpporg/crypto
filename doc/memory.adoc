@@ -9,11 +9,11 @@
 
 An audio worklet, a game loop or an embedded device must not allocate on its
 hot path, or must allocate only from its own arena. crypto's own code allocates
-one thing: a secp256k1 key pair's signing context, once, in `keypair::make`
-and in `generate`, which allocates through `make`,
+one thing: a secp256k1 key pair's signing context, once, in `keypair::from_secret`
+and in `generate`, which allocates through `from_secret`,
 from the `std::pmr::memory_resource` the program passes, which must outlive the
 key pair. A resource that cannot allocate throws, as the standard has it, and
-`make` lets the exception through; without exceptions such a resource ends the
+`from_secret` lets the exception through; without exceptions such a resource ends the
 process. It never returns null (<<crypto-memory-openssl>> says why). Every
 buffer is the caller's.
 
@@ -21,7 +21,7 @@ buffer is the caller's.
 `begin_seal`, `update`, `result`, `begin_open`, `authenticate`, `verify`,
 `end_open`, `encrypt`, `decrypt` (the block cipher's and the incremental
 open's), `fill`, the signatures (hedged and recoverable too), `agree`,
-`agree_hashed`, `agree_point`, the verifications, `recover`, `public_key::make`
+`agree_hashed`, `agree_point`, the verifications, `recover`, `public_key::from_bytes`
 and the public key's byte forms, the tweaks and negations,
 `pubkey_combine` (in a `workspace` the caller lends), the SPKI and PKCS#8
 encoders and decoders (`decode_pkcs8` makes a key pair, whose context is the one
@@ -29,10 +29,10 @@ allocation above), and `ellswift_*`, MuSig2's functions and silent payments'
 (each over a `workspace` the caller lends, where it takes one). The counting
 tests of `test/` prove it, every `operator new` and the C library's allocator
 counted.
-* *BearSSL and ctaes allocate nothing,* `make` included: the key schedule lives
+* *BearSSL and ctaes allocate nothing,* `from_key` included: the key schedule lives
 inside the object.
-* *OpenSSL's `make` allocates its cipher context through OpenSSL's own
-allocator,* outside the program's resource; the first `make` of a process also
+* *OpenSSL's `from_key` allocates its cipher context through OpenSSL's own
+allocator,* outside the program's resource; the first `from_key` of a process also
 initialises OpenSSL. The test `allocation_openssl` counts and prints these
 allocations on each target at every run, and fails if a message allocates; the
 count depends on the target and on OpenSSL's build, so the page does not copy
@@ -71,7 +71,7 @@ By default OpenSSL allocates with the C library's `malloc`, outside every
 allocator of the program's. A native program that keeps its memory in its own
 arena, such as an audio engine whose real-time thread may not touch the
 system's heap, or an embedded server that gives each part a fixed budget,
-finds OpenSSL bypassing that arena: its first `make` initialises OpenSSL, which
+finds OpenSSL bypassing that arena: its first `from_key` initialises OpenSSL, which
 takes many blocks from the system's heap, and Beast's TLS and
 libdatachannel's DTLS, which link the same OpenSSL, allocate there for every
 connection. The arena's accounting is then wrong, a budget is exceeded with no
@@ -136,33 +136,33 @@ the whole exchange: the key, the certificate, both contexts, the handshake, a
 record each way and every free.
 * *Nothing else may call `CRYPTO_set_mem_functions`.* If another library has
 called it before, `install_memory_functions()` returns
-`memory_functions_refused`; if it calls it after the install, the next `make`
+`memory_functions_refused`; if it calls it after the install, the next `from_key`
 returns `memory_functions_not_installed`, and only when that call has finished
-before the `make`. The damage is done by then: OpenSSL accepts the replacement
+before the `from_key`. The damage is done by then: OpenSSL accepts the replacement
 after the install, and from then on frees the blocks it took from the resource
 through the other party's `free`, which corrupts that party's heap; the
-error that `make` then returns does not undo it.
+error that `from_key` then returns does not undo it.
 * *`memory_functions_refused` although the install is the first statement of
 `main`* means that something used OpenSSL before `main`: a static object of
 another library. OpenSSL then keeps its own `malloc` for the rest of the
 process. A libcrypto DLL, which webcpp never builds (a program built without
 b2), is refused the same way.
-* *`memory_functions_not_installed` from a `make`* means that the install was
+* *`memory_functions_not_installed` from a `from_key`* means that the install was
 not called, or that something replaced OpenSSL's functions after it.
 * *One module.* The program's code that uses crypto's OpenSSL backend lives in
 one module: a DLL, or a shared library of the program's that hides its
 symbols, that includes the backend's header has its own copy of crypto's
-functions, and its `make` returns `memory_functions_not_installed`. An ELF
+functions, and its `from_key` returns `memory_functions_not_installed`. An ELF
 shared library with default visibility usually binds to the executable's
 copy instead, but nothing guarantees it.
 * *Threads on Windows.* OpenSSL gives a thread's own blocks back when the
 thread ends, except on Windows, where the static libcrypto that webcpp always
 builds is never told that a thread ends. Every thread that used OpenSSL, a
-`make`, Beast's TLS or libdatachannel's DTLS, leaves its error queue and its
+`from_key`, Beast's TLS or libdatachannel's DTLS, leaves its error queue and its
 list of handlers in the resource, never given back, not even at exit, unless
 it calls `OPENSSL_thread_stop()` before it ends. A resource of a fixed size
 under a thread pool that replaces its threads, or a thread per connection,
-then runs out over time, and the failure lands in a later `make` or inside a
+then runs out over time, and the failure lands in a later `from_key` or inside a
 TLS handshake. The example's worker thread ends so, and so does the second
 thread of the test `everything`, whose exit check fails on Windows without it:
 +
@@ -172,23 +172,23 @@ include::{examples}/openssl_memory.cpp[tag=thread,indent=0]
 ----
 * *When the resource cannot allocate.* The resource must serve OpenSSL's
 initialisation, which the first use of OpenSSL in the process runs, usually the
-first `make`. On an OpenSSL built with threads, which is MSVC's only build and
+first `from_key`. On an OpenSSL built with threads, which is MSVC's only build and
 b2's `threading=multi` elsewhere, a failure during OpenSSL's base initialisation
 is not recoverable: OpenSSL reports it through its error queue, whose state
 needs the initialisation that is running, so OpenSSL re-enters its own
 initialisation and that call never returns. The process aborts on macOS,
 deadlocks on Linux and spins on Windows. Only an OpenSSL built without threads,
 b2's default on macOS and Linux, returns from that failure, and OpenSSL stays
-unusable for the rest of the process: `make` gives `backend_failure` from then
+unusable for the rest of the process: `from_key` gives `backend_failure` from then
 on. When the failing allocation is OpenSSL's base initialisation (with OpenSSL
 3.5.9, its first lock), OpenSSL never registers its cleanup, and
 `OPENSSL_cleanup` frees nothing: the blocks it took meanwhile stay in the
 resource until the process ends, and the thread's error queue takes no entry
 from then on. The test `fail_init` pins this on an OpenSSL without threads and
 prints how many blocks stay; with threads, as `fail_init_threads`, it prints how
-many blocks the first `make` took instead. After the initialisation, `make`
+many blocks the first `from_key` took instead. After the initialisation, `from_key`
 gives `not_enough_memory` or `backend_failure`. `seal` and `open` allocate
-nothing. A resource of a fixed size needs room for the first `make`, whose
+nothing. A resource of a fixed size needs room for the first `from_key`, whose
 allocations the test `allocation_openssl` prints on each run. A resource
 reports that it cannot allocate as the standard has `do_allocate` report it,
 by throwing, `std::bad_alloc` or another exception, which the adapter turns

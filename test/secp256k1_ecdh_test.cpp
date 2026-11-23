@@ -9,7 +9,7 @@
 // compressed shared point) and agree_point (the point, SEC1 uncompressed). Two sides agree in
 // every form; a known answer computed apart from libsecp256k1; agree_hashed keeps version 0.1's
 // value; Wycheproof's ECDH vectors, in ASN.1 and JWK form, against agree; the refusals of a
-// moved-from key pair, and of every malformed key by public_key::make.
+// moved-from key pair, and of every malformed key by public_key::from_bytes.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -56,10 +56,10 @@ void fail(std::string const& message) {
 secp::keypair from_byte(std::uint8_t b) {
     std::array<std::uint8_t, 32> secret{};
     secret.fill(b);
-    return *secp::keypair::make(secret);
+    return *secp::keypair::from_secret(secret);
 }
 
-// A key pair from the generator: a secret make refuses (zero, or not below the group order)
+// A key pair from the generator: a secret from_secret refuses (zero, or not below the group order)
 // is drawn again.
 secp::keypair draw(std::mt19937_64& generator) {
     for (;;) {
@@ -67,7 +67,7 @@ secp::keypair draw(std::mt19937_64& generator) {
         for (auto& octet : secret) {
             octet = static_cast<std::uint8_t>(generator());
         }
-        auto made = secp::keypair::make(secret);
+        auto made = secp::keypair::from_secret(secret);
         if (made) {
             return std::move(*made);
         }
@@ -151,7 +151,7 @@ void agreement() {
                                              point_a->bytes().data(), 65) == 1);
         BOOST_TEST(hashes_to(point_a->bytes(), hashed_a->bytes()));
         // The peer's key, made from its uncompressed form, gives the same x.
-        auto const x_full = a.agree(*secp::public_key::make(uncompressed(b)));
+        auto const x_full = a.agree(*secp::public_key::from_bytes(uncompressed(b)));
         BOOST_TEST(x_full && std::ranges::equal(x_full->bytes(), x_a->bytes()));
     }
 }
@@ -173,8 +173,8 @@ void known_answer() {
 }
 
 // A moved-from key pair answers invalid_state in every form; a key of the wrong size, an x that is
-// no point's and X9.62's hybrid prefixes, 06 and 07, are invalid_public_key to public_key::make,
-// so that no form is reached with them.
+// no point's and X9.62's hybrid prefixes, 06 and 07, are invalid_public_key to
+// public_key::from_bytes, so that no form is reached with them.
 // NOLINTBEGIN(bugprone-use-after-move)
 void guards() {
     auto key = from_byte(0x42);
@@ -199,7 +199,8 @@ void guards() {
         bytes(second_hybrid.begin(), second_hybrid.end()),
     };
     for (auto const& peer_key : refused) {
-        BOOST_TEST(secp::public_key::make(peer_key).error() == crypto::error::invalid_public_key);
+        BOOST_TEST(secp::public_key::from_bytes(peer_key).error() ==
+                   crypto::error::invalid_public_key);
     }
 }
 
@@ -233,15 +234,15 @@ struct counts {
     int agreed_default = 0;
 };
 
-// The three forms of a key pair whose secret make accepted, on one taken case: a point
-// libsecp256k1 cannot parse is refused by public_key::make, so that no form is reached;
+// The three forms of a key pair whose secret from_secret accepted, on one taken case: a point
+// libsecp256k1 cannot parse is refused by public_key::from_bytes, so that no form is reached;
 // otherwise agree_point's x is agree's and agree_hashed equals the C API's default hash.
 bool forms(std::string const& label, secp::keypair const& key, bytes const& point,
            std::array<std::uint8_t, 32> const& scalar, bytes const& shared, counts& c) {
     secp256k1_pubkey parsed{};
     bool const parses = secp256k1_ec_pubkey_parse(secp256k1_context_static, &parsed, point.data(),
                                                   point.size()) == 1;
-    auto const peer = secp::public_key::make(point);
+    auto const peer = secp::public_key::from_bytes(point);
     if (!peer.has_value()) {
         BOOST_TEST(peer.error() == crypto::error::invalid_public_key);
         return false;
@@ -274,12 +275,12 @@ bool forms(std::string const& label, secp::keypair const& key, bytes const& poin
 }
 
 // One taken case: the point as SEC1 bytes and the private key as 32 bytes. A valid case's
-// shared secret is agree's; an invalid one is refused, by make for its scalar or by
-// public_key::make for its point; an acceptable one is counted by what webcpp does.
+// shared secret is agree's; an invalid one is refused, by from_secret for its scalar or by
+// public_key::from_bytes for its point; an acceptable one is counted by what webcpp does.
 void ecdh_case(std::string const& label, std::string const& verdict, bytes const& point,
                std::array<std::uint8_t, 32> const& scalar, bytes const& shared, counts& c) {
     ++c.taken;
-    auto const key = secp::keypair::make(scalar);
+    auto const key = secp::keypair::from_secret(scalar);
     bool computes = false;
     if (!key.has_value()) {
         // A scalar libsecp256k1 refuses (zero or not below the order) gives no shared secret.

@@ -50,7 +50,7 @@ bool share(crypto::random_device& device, std::span<std::uint8_t const> recipien
     if (!device.fill(file_key.writable()) || !device.fill(out.nonce)) {
         return false;
     }
-    auto box = secretbox<>::make(file_key.bytes());
+    auto box = secretbox<>::from_key(file_key.bytes());
     if (!box) {
         return false;
     }
@@ -77,7 +77,7 @@ void receive(char const* who, std::span<std::uint8_t const> public_key,
         std::printf("%s: the file key refused: %s\n", who, reason.c_str());
         return;
     }
-    auto box = secretbox<>::make(file_key.bytes());
+    auto box = secretbox<>::from_key(file_key.bytes());
     if (!box) {
         return;
     }

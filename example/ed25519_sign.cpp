@@ -49,7 +49,7 @@ bool sign_whole() {
         0xa6, 0x24, 0xda, 0x8c, 0xf6, 0xed, 0x4f, 0xb8, 0xa6, 0xfb,
     };
     std::array<std::uint8_t, 1> const message{0x72};
-    auto const key = ed25519::keypair::make(seed);
+    auto const key = ed25519::keypair::from_secret(seed);
     if (!key) {
         return false;
     }
@@ -75,7 +75,7 @@ bool sign_in_pieces() {
     std::array<std::uint8_t, 1> const first{'a'};
     std::array<std::uint8_t, 2> const second{'b', 'c'};
     using signer = ed25519::ph<webcpp::hash::sha2_512>;
-    auto const key = ed25519::keypair::make(seed);
+    auto const key = ed25519::keypair::from_secret(seed);
     auto signing = signer::begin();
     if (!key || !signing || !signing->update(first) || !signing->update(second)) {
         return false;

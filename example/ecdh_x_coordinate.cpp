@@ -80,7 +80,7 @@ std::array<std::uint8_t, 32> conversation_key(crypto::secret<32> const& shared_x
 boost::system::result<secp256k1::keypair> from_secret(std::uint8_t fill) {
     std::array<std::uint8_t, 32> secret{};
     secret.fill(fill);
-    auto made = secp256k1::keypair::make(secret);
+    auto made = secp256k1::keypair::from_secret(secret);
     // The key pair keeps its own copy, which it wipes; this one goes now.
     wipe(std::as_writable_bytes(std::span(secret)));
     return made;

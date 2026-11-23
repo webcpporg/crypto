@@ -114,7 +114,7 @@ std::array<std::uint8_t, 32> negated(std::span<std::uint8_t const, 32> s) {
 // for byte, and the "sample" one in its low-S form, the RFC's S being high; the same on every
 // signing.
 void rfc6979_signatures() {
-    auto const key = keypair::make(data::rfc6979_scalar);
+    auto const key = keypair::from_secret(data::rfc6979_scalar);
     if (!BOOST_TEST(key.has_value())) {
         return;
     }
@@ -135,7 +135,7 @@ void rfc6979_signatures() {
 // gives it. And the constant-time mask sign selects with, at its boundary: 0xff exactly above
 // (n - 1) / 2.
 void sign_normalizes_raw_s() {
-    auto const key = keypair::make(data::rfc6979_scalar);
+    auto const key = keypair::from_secret(data::rfc6979_scalar);
     if (!BOOST_TEST(key.has_value())) {
         return;
     }
@@ -171,8 +171,8 @@ void sign_normalizes_raw_s() {
 // signature as well as sign's; is_low_s tells the two apart, and normalize_low_s of the
 // section's signature is sign's.
 void rfc6979_sample_message() {
-    auto const key = keypair::make(data::rfc6979_scalar);
-    auto const verifier = public_key::make(data::rfc6979_public);
+    auto const key = keypair::from_secret(data::rfc6979_scalar);
+    auto const verifier = public_key::from_bytes(data::rfc6979_public);
     if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(verifier.has_value())) {
         return;
     }
@@ -201,7 +201,7 @@ void rfc6979_sample_message() {
 }
 
 void verify_both_forms() {
-    auto const key = public_key::make(data::rfc6979_public);
+    auto const key = public_key::from_bytes(data::rfc6979_public);
     if (!BOOST_TEST(key.has_value())) {
         return;
     }
@@ -255,8 +255,8 @@ void verify_both_forms() {
 // A 32-byte message is a message: sign hashes it, as any other, and never reads it as a digest;
 // verify likewise, so the marker of the same bytes is another input, refused.
 void message_is_hashed() {
-    auto const key = keypair::make(data::rfc6979_scalar);
-    auto const verifier = public_key::make(data::rfc6979_public);
+    auto const key = keypair::from_secret(data::rfc6979_scalar);
+    auto const verifier = public_key::from_bytes(data::rfc6979_public);
     if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(verifier.has_value())) {
         return;
     }
@@ -282,8 +282,8 @@ void message_is_hashed() {
 
 // The empty message is a message: signed, its SHA-256 signed, and verified.
 void empty_message() {
-    auto const key = keypair::make(data::rfc6979_scalar);
-    auto const verifier = public_key::make(data::rfc6979_public);
+    auto const key = keypair::from_secret(data::rfc6979_scalar);
+    auto const verifier = public_key::from_bytes(data::rfc6979_public);
     if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(verifier.has_value())) {
         return;
     }
@@ -306,8 +306,8 @@ void empty_message() {
 // limit, pinned here so that a BearSSL that changes it is noticed. No SHA-256 of a message gives
 // either.
 void zero_digest() {
-    auto const key = keypair::make(data::rfc6979_scalar);
-    auto const verifier = public_key::make(data::rfc6979_public);
+    auto const key = keypair::from_secret(data::rfc6979_scalar);
+    auto const verifier = public_key::from_bytes(data::rfc6979_public);
     if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(verifier.has_value())) {
         return;
     }
@@ -375,10 +375,10 @@ void draw(std::mt19937_64& generator, std::span<std::uint8_t> bytes) {
 keypair drawn_keypair(std::mt19937_64& generator) {
     std::array<std::uint8_t, 32> scalar{};
     draw(generator, scalar);
-    auto key = keypair::make(scalar);
+    auto key = keypair::from_secret(scalar);
     while (!key) {
         draw(generator, scalar);
-        key = keypair::make(scalar);
+        key = keypair::from_secret(scalar);
     }
     return std::move(*key);
 }

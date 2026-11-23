@@ -4,8 +4,12 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// async_make on an AEAD WebCrypto lacks, XChaCha20-Poly1305, stops where it is called: on MSVC the
-// compile fails. The text is checked on clang, in test/messages/async_make_xchacha.
+// async_from_key on an AEAD WebCrypto lacks, XChaCha20-Poly1305, stops with the synchronous call
+// to from_key instead, and with that error alone, while the AEAD's own seal compiles.
+
+// clang-format off
+// expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: async_from_key takes AES-GCM, the AEAD WebCrypto has: call from_key for the others.}}
+// clang-format on
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 
@@ -20,14 +24,18 @@
 int main() {
     namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> const key{};
-    auto made = crypto::ciphers::xchacha20_poly1305<>::make(key);
+    auto made = crypto::ciphers::xchacha20_poly1305<>::from_key(key);
     if (!made) {
         return 1;
     }
     std::array<std::uint8_t, 24> const iv{};
     std::array<std::uint8_t, 16> data{};
+    // The synchronous seal compiles.
+    if (!made->seal(iv, {}, data)) {
+        return 1;
+    }
     webcpp::asio::io_context context;
-    crypto::async_make<crypto::ciphers::xchacha20_poly1305<>>(
+    crypto::async_from_key<crypto::ciphers::xchacha20_poly1305<>>(
         context.get_executor(), key,
         [](boost::system::error_code, crypto::ciphers::xchacha20_poly1305<>) {});
     return 0;

@@ -47,7 +47,7 @@ DER, or an r or an s that is zero or not below the group order.
 already allocated, or another party installed its own. From `backends::openssl::install_memory_functions`,
 with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
 |14 |`memory_functions_not_installed` |OpenSSL's memory functions are not webcpp::crypto's. From
-every `make` of the OpenSSL backend, with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
+every `from_key` of the OpenSSL backend, with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
 |15 |`weak_public_key` |A public key of small order, or one that gives an all-zero shared secret.
 |16 |`invalid_point` |An encoding that is not a canonical element of the group.
 |17 |`invalid_scalar` |A scalar that is not reduced, or zero where zero is refused.
@@ -60,7 +60,7 @@ not the one encoding the format allows.
 
 A value that `error` does not define
 has the message "unknown webcpp.crypto error". `random_device` also returns
-`errc::not_supported` where there is no generator at all, and OpenSSL's `make`
+`errc::not_supported` where there is no generator at all, and OpenSSL's `from_key`
 `errc::not_enough_memory` when OpenSSL cannot allocate its context.
 `memory_functions_refused` and `memory_functions_not_installed` come only with
 OpenSSL's memory option, natively: <<crypto-memory-openssl>> says what each
@@ -108,5 +108,5 @@ exceptions (the compiler has none, or the program defined
 for crypto alone. One function throws: `random_device::operator()`, through
 `boost::throw_exception`, because the standard's random bit generator has no
 other way to report a failure; it is declared only when the macro is not
-defined. `keypair::make` lets the program's memory resource report a failed
+defined. `keypair::from_secret` lets the program's memory resource report a failed
 allocation as the resource does.

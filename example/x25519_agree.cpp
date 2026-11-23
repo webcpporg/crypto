@@ -77,8 +77,8 @@ bool from_ed25519() {
         0x46, 0xec, 0x11, 0x4e, 0x0f, 0x5b, 0x8a, 0x31, 0x9f, 0x35, 0xab,
         0xa6, 0x24, 0xda, 0x8c, 0xf6, 0xed, 0x4f, 0xb8, 0xa6, 0xfb,
     };
-    auto const first = ed25519::keypair::make(first_seed);
-    auto const second = ed25519::keypair::make(second_seed);
+    auto const first = ed25519::keypair::from_secret(first_seed);
+    auto const second = ed25519::keypair::from_secret(second_seed);
     if (!first || !second) {
         return false;
     }

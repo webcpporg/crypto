@@ -96,7 +96,7 @@ int main() {
         0x57, 0x67, 0xb1, 0xd6, 0x93, 0x4e, 0x50, 0xc3, 0xdb, 0x36, 0xe8,
         0x9b, 0x12, 0x7b, 0x8a, 0x62, 0x2b, 0x12, 0x0f, 0x67, 0x21,
     };
-    auto const key_pair = p256::keypair::make(scalar);
+    auto const key_pair = p256::keypair::from_secret(scalar);
     auto const key = key_pair ? key_pair->public_key() : key_pair.error();
     if (!key || !public_key_to_pem(*key) || !key_pair_to_pem(*key_pair)) {
         std::printf("failed\n");

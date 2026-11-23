@@ -61,12 +61,12 @@ bool pay(silent_payments::recipient const& address, secp256k1::keypair const& do
 int main() {
     // The donation page: its scan and spend key pairs stay with the recipient; the address is
     // their two public keys.
-    auto const scan_pair = secp256k1::keypair::make(repeated(0x51));
+    auto const scan_pair = secp256k1::keypair::from_secret(repeated(0x51));
     // The spend secret is kept, in a secret<32> that wipes itself, to spend what is found.
     webcpp::crypto::secret<32> spend_secret;
     std::ranges::fill(spend_secret.writable(), std::uint8_t{0x52});
-    auto const spend_pair = secp256k1::keypair::make(spend_secret.bytes());
-    auto const donor = secp256k1::keypair::make(repeated(0x53));
+    auto const spend_pair = secp256k1::keypair::from_secret(spend_secret.bytes());
+    auto const donor = secp256k1::keypair::from_secret(repeated(0x53));
     if (!scan_pair || !spend_pair || !donor) {
         return 1;
     }
@@ -112,7 +112,7 @@ int main() {
     if (!output_secret) {
         return 1;
     }
-    auto const spending_pair = secp256k1::keypair::make(output_secret->bytes());
+    auto const spending_pair = secp256k1::keypair::from_secret(output_secret->bytes());
     if (!spending_pair) {
         return 1;
     }

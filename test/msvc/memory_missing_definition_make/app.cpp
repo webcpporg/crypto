@@ -18,6 +18,6 @@
 int main() {
     std::array<std::uint8_t, 32> const key{};
     auto const aead = webcpp::crypto::ciphers::gcm<
-        webcpp::crypto::ciphers::aes256<webcpp::crypto::backends::openssl>>::make(key);
+        webcpp::crypto::ciphers::aes256<webcpp::crypto::backends::openssl>>::from_key(key);
     return aead ? 0 : 1;
 }

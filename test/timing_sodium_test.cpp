@@ -54,7 +54,7 @@ void force_dit([[maybe_unused]] bool set) {
 void sign_test_1() {
     auto const seed = webcpp::test::from_hex(rfc8032_seed);
     auto const expected = webcpp::test::from_hex(rfc8032_signature);
-    auto const made = keypair::make(seed);
+    auto const made = keypair::from_secret(seed);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }

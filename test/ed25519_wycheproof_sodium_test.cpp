@@ -52,8 +52,8 @@ int main() {
     int refused = 0;
     for (auto const& group : document.at("testGroups").as_array()) {
         // Every group's key is 32 bytes: made, whatever its point (design R16).
-        auto const public_key =
-            ed25519::public_key::make(test::from_hex(text_of(group.at("publicKey").at("pk"))));
+        auto const public_key = ed25519::public_key::from_bytes(
+            test::from_hex(text_of(group.at("publicKey").at("pk"))));
         BOOST_TEST(public_key.has_value());
         if (!public_key) {
             continue;

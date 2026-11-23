@@ -96,7 +96,7 @@ bool incremental() {
     if (!crypto::random_device().fill(key) || !crypto::random_device().fill(iv)) {
         return false;
     }
-    auto aead = aead_type::make(key);
+    auto aead = aead_type::from_key(key);
     wipe(std::as_writable_bytes(std::span(key)));
     if (!aead) {
         return false;
@@ -143,7 +143,7 @@ bool records() {
     if (!crypto::random_device().fill(key)) {
         return false;
     }
-    auto aead = aead_type::make(key);
+    auto aead = aead_type::from_key(key);
     wipe(std::as_writable_bytes(std::span(key)));
     if (!aead) {
         return false;

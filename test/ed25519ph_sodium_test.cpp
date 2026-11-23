@@ -57,13 +57,13 @@ signer begun(std::vector<std::vector<std::uint8_t>> const& pieces) {
 }
 
 void rfc8032_ph() {
-    auto const key = ed25519::keypair::make(test::from_hex(secret_key));
+    auto const key = ed25519::keypair::from_secret(test::from_hex(secret_key));
     BOOST_TEST(key.has_value());
     if (!key) {
         return;
     }
     auto const key_bytes = test::from_hex(public_key_hex);
-    auto const made_key = ed25519::public_key::make(key_bytes);
+    auto const made_key = ed25519::public_key::from_bytes(key_bytes);
     if (!BOOST_TEST(made_key.has_value())) {
         return;
     }
@@ -100,7 +100,7 @@ void rfc8032_ph() {
     static_assert(!std::is_convertible_v<std::vector<std::uint8_t>, ed25519::public_key>);
 
     // A signature of another size; a key of another size is never made.
-    BOOST_TEST(ed25519::public_key::make(std::span(key_bytes).first(31)).error() ==
+    BOOST_TEST(ed25519::public_key::from_bytes(std::span(key_bytes).first(31)).error() ==
                crypto::error::invalid_public_key);
     auto short_signature = begun(one_piece);
     BOOST_TEST(short_signature.verify(std::span(expected).first(63), public_key).error() ==
@@ -108,7 +108,7 @@ void rfc8032_ph() {
 }
 
 void spent_and_moved() {
-    auto key = ed25519::keypair::make(test::from_hex(secret_key));
+    auto key = ed25519::keypair::from_secret(test::from_hex(secret_key));
     BOOST_TEST(key.has_value());
     if (!key) {
         return;
@@ -120,7 +120,7 @@ void spent_and_moved() {
     BOOST_TEST(signing.sign(*key).has_value());
     BOOST_TEST(signing.update(abc).error() == crypto::error::invalid_state);
     BOOST_TEST(signing.sign(*key).error() == crypto::error::invalid_state);
-    auto const public_key = ed25519::public_key::make(test::from_hex(public_key_hex));
+    auto const public_key = ed25519::public_key::from_bytes(test::from_hex(public_key_hex));
     BOOST_TEST(public_key && signing.verify(test::from_hex(signature_hex), *public_key).error() ==
                                  crypto::error::invalid_state);
 

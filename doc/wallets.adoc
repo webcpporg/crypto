@@ -28,7 +28,7 @@ of the curve, and must survive on disk without being readable there.
 
 *The idea.* 32 bytes from `random_device` are a valid secp256k1 secret key with
 overwhelming probability; when they are not (zero, or not below the group
-order), `make` says so and the wallet draws again. At rest, the secret is sealed
+order), `from_secret` says so and the wallet draws again. At rest, the secret is sealed
 with AES-GCM under a key the device keeps elsewhere (a platform keystore, or a
 key derived from the user's passphrase by a password hash, a hashing
 library's job rather than crypto's), with the wallet's format version as

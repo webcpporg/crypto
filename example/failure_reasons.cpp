@@ -52,7 +52,7 @@ int main() {
     std::array<std::uint8_t, 15> sealed{};
     std::ranges::copy(text, sealed.begin());
 
-    auto aead = aead_type::make(key);
+    auto aead = aead_type::from_key(key);
     wipe(std::as_writable_bytes(std::span(key)));
     if (!aead) {
         return 1;

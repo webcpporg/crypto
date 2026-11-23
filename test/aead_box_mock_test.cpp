@@ -164,7 +164,7 @@ void check_failures(Seal seal, Open open) {
 void check_aead() {
     using aead = crypto::ciphers::aead<crypto::families::chacha20_poly1305, stand_in>;
     std::array<std::uint8_t, aead::key_size> const key{};
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -181,7 +181,7 @@ void check_aead() {
 void check_box() {
     using box = crypto::hybrid::basic_box<crypto::families::box_xsalsa20poly1305, stand_in>;
     std::array<std::uint8_t, box::key_size> const key{};
-    auto made = box::make(key, key);
+    auto made = box::from_keys(key, key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }

@@ -63,7 +63,7 @@ The library behind each, and what it costs a program:
 |OpenSSL 3.5.9's libcrypto, built from source and static
 |Apache-2.0
 |`+<openssl/*.h>+`
-|`+make+` allocates the cipher's context through OpenSSL's own allocator, outside the program's resource, unless a native program sets `+WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE+`, which sends every allocation of OpenSSL's in the process to `+openssl_memory_resource()+`; a message allocates nothing after `+make+`
+|`+from_key+` allocates the cipher's context through OpenSSL's own allocator, outside the program's resource, unless a native program sets `+WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE+`, which sends every allocation of OpenSSL's in the process to `+openssl_memory_resource()+`; a message allocates nothing after `+from_key+`
 
 |ctaes
 |ctaes as Bitcoin Core v31.1 ships it (`+src/crypto/ctaes+`), built from source
@@ -75,7 +75,7 @@ The library behind each, and what it costs a program:
 |libsecp256k1 v0.8.0, built from source with every module on
 |MIT
 |`+<secp256k1.h>+` and its modules
-|`+keypair::make+` allocates the signing context, once, in the `+std::pmr::memory_resource+` it is given; nothing else allocates
+|`+keypair::from_secret+` allocates the signing context, once, in the `+std::pmr::memory_resource+` it is given; nothing else allocates
 
 |libsodium
 |libsodium 1.0.22, built from source

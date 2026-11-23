@@ -447,7 +447,7 @@ struct p_curve_engine<families::p256, backends::bearssl> {
      * @param scalar_bytes 32 bytes, 0 < d < n (the family's header has checked them).
      * @return Nothing; `backend_failure`, which a valid scalar cannot cause.
      */
-    [[nodiscard]] static boost::system::result<void> make(
+    [[nodiscard]] static boost::system::result<void> import_secret(
         state& keyed_state, std::span<std::uint8_t const, 32> scalar_bytes) noexcept {
         WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
@@ -683,7 +683,7 @@ struct block_state<backends::bearssl, KeySize> {};
 
 /**
  * BearSSL's refusal of the block cipher. The assertions sit in member
- * templates, which only `make`, `encrypt` and `decrypt` instantiate: the class's moves and
+ * templates, which only `from_key`, `encrypt` and `decrypt` instantiate: the class's moves and
  * destructor, which `ciphers::gcm<aes256<backends::bearssl>>` needs, never fire them.
  */
 template <std::size_t KeySize>

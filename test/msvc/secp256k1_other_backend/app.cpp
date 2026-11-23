@@ -13,7 +13,7 @@
 
 int main() {
     std::array<std::uint8_t, 33> const key{};
-    auto const parsed =
-        webcpp::crypto::curves::secp256k1::public_key::make<webcpp::crypto::backends::bearssl>(key);
+    auto const parsed = webcpp::crypto::curves::secp256k1::public_key::from_bytes<
+        webcpp::crypto::backends::bearssl>(key);
     return parsed ? 0 : 1;
 }

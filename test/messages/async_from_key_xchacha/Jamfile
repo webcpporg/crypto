@@ -10,5 +10,5 @@ import webcpp ;
 
 # alone: the refusal is the compile's only error, so a regression that puts
 # another error before or after it fails the test.
-webcpp.compile-diagnostic async_make_xchacha : async_make_xchacha.cpp
+webcpp.compile-diagnostic async_from_key_xchacha : async_from_key_xchacha.cpp
   : <library>/webcpp/asio//asio <library>/third_party//sodium : native wasip2 wasip3 : alone ;

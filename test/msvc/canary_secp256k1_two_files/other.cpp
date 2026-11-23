@@ -27,6 +27,6 @@ bool sign_other() {
     secret.fill(0x42);
     std::array<std::uint8_t, 32> const message{};
     std::array<std::uint8_t, 32> const aux{};
-    auto key = webcpp::crypto::curves::secp256k1::keypair::make(secret);
+    auto key = webcpp::crypto::curves::secp256k1::keypair::from_secret(secret);
     return key && key->sign(webcpp::crypto::schnorr, message, aux);
 }

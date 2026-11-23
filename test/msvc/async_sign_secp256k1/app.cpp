@@ -21,7 +21,7 @@ int main() {
     namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> const seed{1};
     std::array<std::uint8_t, 32> const message{};
-    auto made = crypto::curves::secp256k1::keypair::make(seed);
+    auto made = crypto::curves::secp256k1::keypair::from_secret(seed);
     if (!made) {
         return 1;
     }

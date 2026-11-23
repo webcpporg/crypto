@@ -106,7 +106,7 @@ counts run(std::string const& name, Decode decode) {
     counts seen;
     for (auto const& group : doc.at("testGroups").as_array()) {
         auto const point = test::from_hex(str(group.at("publicKey").at("uncompressed")));
-        auto const key = p256::public_key::make(point);
+        auto const key = p256::public_key::from_bytes(point);
         if (!BOOST_TEST(key.has_value())) {
             continue;
         }

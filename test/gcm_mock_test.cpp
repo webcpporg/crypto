@@ -47,17 +47,17 @@ static_assert(aead::max_additional_data_size == (std::uint64_t{1} << 61U) - 1);
 static_assert(crypto::ciphers::gcm<crypto::ciphers::aes128<mock>>::key_size == 16);
 static_assert(crypto::ciphers::gcm<crypto::ciphers::aes192<mock>>::key_size == 24);
 
-// make returns the engine's error as it is: not_enough_memory, backend_failure.
+// from_key returns the engine's error as it is: not_enough_memory, backend_failure.
 void check_make_failures() {
     std::array<std::uint8_t, 32> const key{};
     mock_control.init =
         boost::system::errc::make_error_code(boost::system::errc::not_enough_memory);
-    BOOST_TEST(aead::make(key).error() == boost::system::errc::not_enough_memory);
+    BOOST_TEST(aead::from_key(key).error() == boost::system::errc::not_enough_memory);
     mock_control.init = crypto::error::backend_failure;
-    BOOST_TEST(aead::make(key).error() == crypto::error::backend_failure);
-    BOOST_TEST(aead::make(std::span(key).first(16)).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(aead::from_key(key).error() == crypto::error::backend_failure);
+    BOOST_TEST(aead::from_key(std::span(key).first(16)).error() == crypto::error::invalid_key_size);
     webcpp::test::mock_clear();
-    BOOST_TEST(aead::make(key).has_value());
+    BOOST_TEST(aead::from_key(key).has_value());
 }
 
 // Each engine call that fails makes seal and open fail with its error; a failed open zeroes
@@ -65,7 +65,7 @@ void check_make_failures() {
 void check_one_shot_failures(webcpp::test::gcm_cases cases) {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -164,7 +164,7 @@ void check_seal_engine_failures(aead& made, std::span<std::uint8_t const> iv) {
 void check_incremental_failures(webcpp::test::gcm_cases cases) {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -204,8 +204,8 @@ void check_incremental_failures(webcpp::test::gcm_cases cases) {
 void check_move_abandons(webcpp::test::gcm_cases cases) {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = aead::make(key);
-    auto other = aead::make(key);
+    auto made = aead::from_key(key);
+    auto other = aead::from_key(key);
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(other.has_value())) {
         return;
     }
@@ -281,7 +281,7 @@ void check_first_pass_failures(aead& made, std::span<std::uint8_t const> iv,
 void check_open_failures(webcpp::test::gcm_cases cases) {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -317,7 +317,7 @@ void check_open_failures(webcpp::test::gcm_cases cases) {
 void check_open_move_abandons(webcpp::test::gcm_cases cases) {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }

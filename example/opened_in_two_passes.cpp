@@ -122,7 +122,7 @@ int main() {
     if (!crypto::random_device().fill(key) || !crypto::random_device().fill(iv)) {
         return 1;
     }
-    auto aead = aead_type::make(key);
+    auto aead = aead_type::from_key(key);
     wipe(std::as_writable_bytes(std::span(key)));
     if (!aead) {
         return 1;

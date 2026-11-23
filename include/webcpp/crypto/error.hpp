@@ -79,7 +79,7 @@ enum class error : int {
      */
     memory_functions_refused = 13,
     /**
-     * OpenSSL's memory functions are not webcpp::crypto's, so a `make` of the OpenSSL backend
+     * OpenSSL's memory functions are not webcpp::crypto's, so a `from_key` of the OpenSSL backend
      * refuses to run, with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
      */
     memory_functions_not_installed = 14,

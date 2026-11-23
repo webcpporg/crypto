@@ -43,7 +43,7 @@ XChaCha draft]). When in doubt, this one, as <<crypto-ciphers>> says: a
 program that draws each nonce at random has nothing to count and nothing to
 store, on the web and natively alike.
 
-Each is made with `make(key_bytes)` and works in place, as AES-GCM's one-shot
+Each is made with `from_key(key_bytes)` and works in place, as AES-GCM's one-shot
 calls do: `seal(iv_bytes, additional_data_bytes, data_bytes)` encrypts
 `data_bytes` and returns the 16-byte tag; `open(iv_bytes,
 additional_data_bytes, data_bytes, tag_bytes)` checks the tag and decrypts.
@@ -54,7 +54,7 @@ wire format that puts it just before the message does, but not overlap it.
 RFC 8439's form also runs on BearSSL, on every target, and on OpenSSL,
 natively and on WASI, with the same results byte for byte: name the backend in
 the type, as in `chacha20_poly1305<backends::bearssl>`, and link its library.
-On BearSSL nothing allocates; on OpenSSL `make` allocates and a message does
+On BearSSL nothing allocates; on OpenSSL `from_key` allocates and a message does
 not.
 
 *Limits.* Each form bounds how much one key may seal, and how many messages
@@ -124,7 +124,7 @@ work itself:
 |===
 |Condition |Error
 
-|`make`: a key of another size than 32 bytes |`invalid_key_size`
+|`from_key`: a key of another size than 32 bytes |`invalid_key_size`
 |any other function: the object was moved from |`invalid_state`
 |a nonce of another size than the family's, 12, 8 or 24 bytes |`invalid_iv_size`
 |`open`: a tag of another size than 16 |`invalid_tag_size`

@@ -10,15 +10,15 @@
 // crypto::prehashed{digest}; the synchronous answers they are checked against are
 // sign(ecdsa_sha256, prehashed{digest}) and crypto::verify(ecdsa_sha256, signature,
 // prehashed{digest}, key) of its digest, computed here.
-// - async_rfc6979: RFC 6979 section A.2.5's key through async_make, its messages "sample" and
-//   "test" through async_sign give the RFC's signatures in their low-S form ("sample"'s S is high
-//   in the RFC) and the synchronous ones, and async_verify accepts them, and the RFC's high-S
+// - async_rfc6979: RFC 6979 section A.2.5's key through async_from_secret, its messages "sample"
+//   and "test" through async_sign give the RFC's signatures in their low-S form ("sample"'s S is
+//   high in the RFC) and the synchronous ones, and async_verify accepts them, and the RFC's high-S
 //   "sample" too; each completion arrives after the initiating call returned.
 // - async_wycheproof_ecdsa: the first 50 valid cases of Wycheproof's ECDSA P-256 SHA-256 file in
 //   WebCrypto's form (IEEE P1363's r || s) verify through async_verify as through crypto::verify;
 //   with a changed byte of the message both refuse them with invalid_signature.
 // - async_wycheproof_ecdh: the first 50 valid cases of Wycheproof's ECDH P-256 file on points
-//   through async_make and async_agree give the file's shared x and agree's.
+//   through async_from_secret and async_agree give the file's shared x and agree's.
 // - async_prehashed: async_sign of a message equals key.sign(ecdsa_sha256, message), and of
 //   prehashed{SHA-256 of the message} the same signature; async_verify of that marker completes
 //   without error, and of a changed digest with invalid_signature. A key pair of a backend that
@@ -28,17 +28,17 @@
 //   r is 0 complete with invalid_signature.
 // - async_generate: async_generate gives a key pair whose signature verifies, on the default
 //   backend and on BearSSL named.
-// - async_make_refused: a scalar of 31 bytes completes with invalid_key_size, the group order
-//   with invalid_secret_key, each with an empty key pair, which refuses every member with
+// - async_from_secret_refused: a scalar of 31 bytes completes with invalid_key_size, the group
+//   order with invalid_secret_key, each with an empty key pair, which refuses every member with
 //   invalid_state (review focus 5), async_sign and async_agree on it too, with zeros.
 // - async_destroyed: the key pair, the message and the peer's key destroyed after the initiating
 //   call returns and before the completion: a synchronous backend has read them already, so the
 //   completion gives the right result.
 // - async_coroutine: the same in one coroutine of the context.
 // - async_four_forms: each operation in its four forms (design D9), the member and the free,
-//   synchronous and asynchronous, gives the same result: make (the same public key), generate (a
-//   key pair whose signature verifies), sign of a message and of prehashed{digest} (the same
-//   signature, RFC 6979's), verify (each accepts the signature and refuses a changed one with
+//   synchronous and asynchronous, gives the same result: from_secret (the same public key),
+//   generate (a key pair whose signature verifies), sign of a message and of prehashed{digest} (the
+//   same signature, RFC 6979's), verify (each accepts the signature and refuses a changed one with
 //   invalid_signature; each takes the signature as a std::vector, or 63 or 65 bytes,
 //   invalid_signature), agree (the same secret); and the refusals are the same, a short scalar's
 //   invalid_key_size and an empty key pair's invalid_state, each asynchronous completion arriving
@@ -51,8 +51,8 @@
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/keypair.hpp>
-#include <webcpp/crypto/make.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/digest.hpp>
@@ -195,10 +195,11 @@ std::vector<std::uint8_t> bytes_of(std::string_view text) {
     return {text.begin(), text.end()};
 }
 
-// async_make's key pair, or nothing.
+// async_from_secret's key pair, or nothing.
 std::optional<keypair> made_async(asio::io_context& context, std::span<std::uint8_t const> scalar) {
     auto made = complete<keypair>(context, [&](auto const& executor, auto&& token) {
-        return crypto::async_make<keypair>(executor, scalar, std::forward<decltype(token)>(token));
+        return crypto::async_from_secret<keypair>(executor, scalar,
+                                                  std::forward<decltype(token)>(token));
     });
     BOOST_TEST(!made.code);
     if (made.code || !made.value.has_value()) {
@@ -300,7 +301,7 @@ void check_wycheproof_ecdsa_case(asio::io_context& context, public_key const& ke
 
 void async_wycheproof_ecdsa_group(asio::io_context& context, json::value const& group, int& run) {
     auto const key =
-        public_key::make(test::from_hex(str(group.at("publicKey").at("uncompressed"))));
+        public_key::from_bytes(test::from_hex(str(group.at("publicKey").at("uncompressed"))));
     if (!BOOST_TEST(key.has_value())) {
         return;
     }
@@ -349,13 +350,13 @@ std::optional<std::array<std::uint8_t, p256::secret_key_size>> scalar_bytes(
 // as the synchronous key does.
 void check_wycheproof_ecdh_case(asio::io_context& context, json::value const& t) {
     auto const scalar = scalar_bytes(test::from_hex(str(t.at("private"))));
-    auto const peer = public_key::make(test::from_hex(str(t.at("public"))));
+    auto const peer = public_key::from_bytes(test::from_hex(str(t.at("public"))));
     auto const shared = test::from_hex(str(t.at("shared")));
     if (!BOOST_TEST(scalar.has_value()) || !BOOST_TEST(peer.has_value())) {
         return;
     }
     auto const key = made_async(context, *scalar);
-    auto const synchronous = keypair::make(*scalar);
+    auto const synchronous = keypair::from_secret(*scalar);
     if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(synchronous.has_value())) {
         return;
     }
@@ -390,8 +391,8 @@ void async_wycheproof_ecdh(asio::io_context& context) {
 }
 
 void async_prehashed(asio::io_context& context) {
-    auto const key = keypair::make(data::rfc6979_scalar);
-    auto const own = public_key::make(data::rfc6979_public);
+    auto const key = keypair::from_secret(data::rfc6979_scalar);
+    auto const own = public_key::from_bytes(data::rfc6979_public);
     if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(own.has_value())) {
         return;
     }
@@ -426,7 +427,7 @@ void async_prehashed(asio::io_context& context) {
 }
 
 void async_verify_refused(asio::io_context& context) {
-    auto const key = public_key::make(data::rfc6979_public);
+    auto const key = public_key::from_bytes(data::rfc6979_public);
     if (!BOOST_TEST(key.has_value())) {
         return;
     }
@@ -502,11 +503,12 @@ void check_empty_keypair(asio::io_context& context, keypair const& empty, public
     }
 }
 
-void check_make_refused(asio::io_context& context, public_key const& peer,
-                        std::span<std::uint8_t const> message, std::span<std::uint8_t const> scalar,
-                        crypto::error expected) {
+void check_from_secret_refused(asio::io_context& context, public_key const& peer,
+                               std::span<std::uint8_t const> message,
+                               std::span<std::uint8_t const> scalar, crypto::error expected) {
     auto const made = complete<keypair>(context, [&](auto const& executor, auto&& token) {
-        return crypto::async_make<keypair>(executor, scalar, std::forward<decltype(token)>(token));
+        return crypto::async_from_secret<keypair>(executor, scalar,
+                                                  std::forward<decltype(token)>(token));
     });
     BOOST_TEST(made.code == expected);
     if (!BOOST_TEST(made.value.has_value())) {
@@ -515,15 +517,16 @@ void check_make_refused(asio::io_context& context, public_key const& peer,
     check_empty_keypair(context, std::get<0>(*made.value), peer, message);
 }
 
-void async_make_refused(asio::io_context& context) {
-    auto const peer = public_key::make(data::rfc6979_public);
+void async_from_secret_refused(asio::io_context& context) {
+    auto const peer = public_key::from_bytes(data::rfc6979_public);
     if (!BOOST_TEST(peer.has_value())) {
         return;
     }
     std::array<std::uint8_t, 3> const message{1, 2, 3};
-    check_make_refused(context, *peer, message, std::span(data::rfc6979_scalar).first(31),
-                       crypto::error::invalid_key_size);
-    check_make_refused(context, *peer, message, data::order, crypto::error::invalid_secret_key);
+    check_from_secret_refused(context, *peer, message, std::span(data::rfc6979_scalar).first(31),
+                              crypto::error::invalid_key_size);
+    check_from_secret_refused(context, *peer, message, data::order,
+                              crypto::error::invalid_secret_key);
 }
 
 void async_destroyed(asio::io_context& context) {
@@ -533,9 +536,10 @@ void async_destroyed(asio::io_context& context) {
     std::array<std::uint8_t, 32> shared{};
     std::array<std::uint8_t, 32> expected_shared{};
     {
-        auto key = std::make_unique<keypair>(*keypair::make(data::rfc6979_scalar));
+        auto key = std::make_unique<keypair>(*keypair::from_secret(data::rfc6979_scalar));
         auto const message = std::make_unique<std::vector<std::uint8_t>>(bytes_of("sample"));
-        auto const peer = std::make_unique<public_key>(*public_key::make(data::rfc6979_public));
+        auto const peer =
+            std::make_unique<public_key>(*public_key::from_bytes(data::rfc6979_public));
         auto const agreed_sync = key->agree(*peer);
         if (!BOOST_TEST(agreed_sync.has_value())) {
             return;
@@ -585,7 +589,7 @@ asio::awaitable<void> coroutine_agreement(asio::any_io_executor const& executor,
 asio::awaitable<void> coroutine_body(bool& done) {
     auto const executor = co_await asio::this_coro::executor;
     auto const message = bytes_of("test");
-    auto made_result = co_await crypto::async_make<p256::keypair>(
+    auto made_result = co_await crypto::async_from_secret<p256::keypair>(
         executor, data::rfc6979_scalar, asio::as_tuple(asio::use_awaitable));
     auto& [made_code, key] = made_result;
     BOOST_TEST(!made_code);
@@ -613,17 +617,17 @@ void async_coroutine(asio::io_context& context) {
     BOOST_TEST(done);
 }
 
-// make in its four forms: the same key pair, and the same refusal of a short scalar.
-void four_forms_make(asio::io_context& context) {
-    auto const expected = keypair::make(data::rfc6979_scalar);
-    auto const free_sync = crypto::make<keypair>(data::rfc6979_scalar);
+// from_secret in its four forms: the same key pair, and the same refusal of a short scalar.
+void four_forms_from_secret(asio::io_context& context) {
+    auto const expected = keypair::from_secret(data::rfc6979_scalar);
+    auto const free_sync = crypto::from_secret<keypair>(data::rfc6979_scalar);
     auto const member_async = complete<keypair>(context, [](auto const& executor, auto&& token) {
-        return keypair::async_make(executor, data::rfc6979_scalar,
-                                   std::forward<decltype(token)>(token));
+        return keypair::async_from_secret(executor, data::rfc6979_scalar,
+                                          std::forward<decltype(token)>(token));
     });
     auto const free_async = complete<keypair>(context, [](auto const& executor, auto&& token) {
-        return crypto::async_make<keypair>(executor, data::rfc6979_scalar,
-                                           std::forward<decltype(token)>(token));
+        return crypto::async_from_secret<keypair>(executor, data::rfc6979_scalar,
+                                                  std::forward<decltype(token)>(token));
     });
     BOOST_TEST(!member_async.code);
     BOOST_TEST(!free_async.code);
@@ -637,15 +641,16 @@ void four_forms_make(asio::io_context& context) {
     BOOST_TEST(public_of(std::get<0>(*member_async.value)) == data::rfc6979_public);
     BOOST_TEST(public_of(std::get<0>(*free_async.value)) == data::rfc6979_public);
     auto const short_scalar = std::span(data::rfc6979_scalar).first(31);
-    BOOST_TEST(keypair::make(short_scalar).error() == crypto::error::invalid_key_size);
-    BOOST_TEST(crypto::make<keypair>(short_scalar).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(keypair::from_secret(short_scalar).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(crypto::from_secret<keypair>(short_scalar).error() ==
+               crypto::error::invalid_key_size);
     BOOST_TEST(complete<keypair>(context, [&](auto const& executor, auto&& token) {
-                   return keypair::async_make(executor, short_scalar,
-                                              std::forward<decltype(token)>(token));
+                   return keypair::async_from_secret(executor, short_scalar,
+                                                     std::forward<decltype(token)>(token));
                }).code == crypto::error::invalid_key_size);
     BOOST_TEST(complete<keypair>(context, [&](auto const& executor, auto&& token) {
-                   return crypto::async_make<keypair>(executor, short_scalar,
-                                                      std::forward<decltype(token)>(token));
+                   return crypto::async_from_secret<keypair>(executor, short_scalar,
+                                                             std::forward<decltype(token)>(token));
                }).code == crypto::error::invalid_key_size);
 }
 
@@ -772,7 +777,7 @@ void check_four_agreements(asio::io_context& context, keypair const& key, public
 }
 
 void async_member_deferred(asio::io_context& context) {
-    auto const key = keypair::make(data::rfc6979_scalar);
+    auto const key = keypair::from_secret(data::rfc6979_scalar);
     if (!BOOST_TEST(key.has_value())) {
         return;
     }
@@ -795,10 +800,10 @@ void async_member_deferred(asio::io_context& context) {
 }
 
 void async_four_forms(asio::io_context& context) {
-    four_forms_make(context);
+    four_forms_from_secret(context);
     four_forms_generate(context);
-    auto key = keypair::make(data::rfc6979_scalar);
-    auto const own = public_key::make(data::rfc6979_public);
+    auto key = keypair::from_secret(data::rfc6979_scalar);
+    auto const own = public_key::from_bytes(data::rfc6979_public);
     auto const peer_key = keypair::generate();
     if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(own.has_value()) ||
         !BOOST_TEST(peer_key.has_value())) {
@@ -845,7 +850,7 @@ int main() {
     async_prehashed(context);
     async_verify_refused(context);
     async_generate(context);
-    async_make_refused(context);
+    async_from_secret_refused(context);
     async_destroyed(context);
     async_coroutine(context);
     async_four_forms(context);

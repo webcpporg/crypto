@@ -103,7 +103,7 @@ public:
 
     explicit block_encryption(std::uint8_t seed)
         : block_(filled<Cipher::block_size>(static_cast<std::uint8_t>(seed + 1U))),
-          cipher_(take(Cipher::make(filled<Cipher::key_size>(seed)), "make")) {}
+          cipher_(take(Cipher::from_key(filled<Cipher::key_size>(seed)), "from_key")) {}
 
     std::uint8_t run() {
         if (!cipher_.encrypt(block_)) {
@@ -136,7 +136,7 @@ public:
     explicit aead_seal(std::uint8_t seed)
         : iv_(filled<Aead::iv_size>(static_cast<std::uint8_t>(seed + 2U))),
           data_(filled<message_size>(seed)),
-          aead_(take(Aead::make(filled<Aead::key_size>(seed)), "make")) {}
+          aead_(take(Aead::from_key(filled<Aead::key_size>(seed)), "from_key")) {}
 
     std::uint8_t run() { return take(aead_.seal(iv_, {}, data_), "seal").data()[0]; }
 
@@ -182,9 +182,9 @@ public:
 
     explicit secp256k1(std::uint8_t seed)
         : message_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
-          key_(take(curves::secp256k1::basic_keypair<Backend>::make(
+          key_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")) {}
+                    "from_secret")) {}
 
     std::uint8_t run() { return take(key_.sign(schnorr, message_, aux_), "sign")[0]; }
 
@@ -209,12 +209,12 @@ public:
         "x coordinate of the ECDH shared point with a peer's public key";
 
     explicit secp256k1_ecdh_x(std::uint8_t seed)
-        : key_(take(curves::secp256k1::basic_keypair<Backend>::make(
+        : key_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")),
-          peer_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                    "from_secret")),
+          peer_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                          filled<32>(static_cast<std::uint8_t>(seed + 6U))),
-                     "make")),
+                     "from_secret")),
           peer_public_(take(peer_.public_key(), "public_key")) {}
 
     std::uint8_t run() {
@@ -245,9 +245,9 @@ public:
 
     explicit secp256k1_recover(std::uint8_t seed)
         : hash_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
-          key_(take(curves::secp256k1::basic_keypair<Backend>::make(
+          key_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")),
+                    "from_secret")),
           signature_(take(key_.sign(ecdsa_sha256_recoverable, prehashed{hash_}), "sign")) {}
 
     std::uint8_t run() {
@@ -278,12 +278,12 @@ public:
         "BIP 324 shared secret of two ElligatorSwift encodings";
 
     explicit secp256k1_ellswift(std::uint8_t seed)
-        : key_(take(curves::secp256k1::basic_keypair<Backend>::make(
+        : key_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")),
-          peer_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                    "from_secret")),
+          peer_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                          filled<32>(static_cast<std::uint8_t>(seed + 6U))),
-                     "make")),
+                     "from_secret")),
           own_encoding_(
               take(curves::secp256k1::ellswift_create(key_, filled<32>(seed)), "ellswift_create")),
           peer_encoding_(take(curves::secp256k1::ellswift_create(
@@ -327,12 +327,12 @@ public:
 
     explicit secp256k1_musig(std::uint8_t seed)
         : message_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
-          first_(take(curves::secp256k1::basic_keypair<Backend>::make(
+          first_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                           filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                      "make")),
-          second_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                      "from_secret")),
+          second_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                            filled<32>(static_cast<std::uint8_t>(seed + 6U))),
-                       "make")),
+                       "from_secret")),
           signers_key_(aggregate(first_, second_, space_)) {}
 
     std::uint8_t run() { return sign()[0]; }
@@ -390,15 +390,15 @@ public:
     static constexpr std::string_view operation = "a silent payment output for one recipient";
 
     explicit secp256k1_silent_payments(std::uint8_t seed)
-        : scan_(take(curves::secp256k1::basic_keypair<Backend>::make(
+        : scan_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                          filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                     "make")),
-          spend_key_(public_of(take(curves::secp256k1::basic_keypair<Backend>::make(
+                     "from_secret")),
+          spend_key_(public_of(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                                         filled<32>(static_cast<std::uint8_t>(seed + 6U))),
-                                    "make"))),
-          input_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                                    "from_secret"))),
+          input_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                           filled<32>(static_cast<std::uint8_t>(seed + 8U))),
-                      "make")),
+                      "from_secret")),
           outpoint_(filled<curves::secp256k1::silent_payments::outpoint_size>(seed)) {}
 
     std::uint8_t run() { return send()[0]; }
@@ -458,9 +458,9 @@ public:
 
     explicit p256(std::uint8_t seed)
         : digest_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
-          key_(take(curves::p256::basic_keypair<Backend>::make(
+          key_(take(curves::p256::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")) {}
+                    "from_secret")) {}
 
     std::uint8_t run() { return take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign")[0]; }
 
@@ -487,9 +487,9 @@ public:
 
     explicit p256_verify_ecdsa(std::uint8_t seed)
         : digest_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
-          key_(take(curves::p256::basic_keypair<Backend>::make(
+          key_(take(curves::p256::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")),
+                    "from_secret")),
           public_key_(take(key_.public_key(), "public_key")),
           signature_(take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign")) {}
 
@@ -521,12 +521,12 @@ public:
         "x coordinate of the ECDH shared point with a peer's public key";
 
     explicit p256_ecdh_x(std::uint8_t seed)
-        : key_(take(curves::p256::basic_keypair<Backend>::make(
+        : key_(take(curves::p256::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")),
-          peer_(take(curves::p256::basic_keypair<Backend>::make(
+                    "from_secret")),
+          peer_(take(curves::p256::basic_keypair<Backend>::from_secret(
                          filled<32>(static_cast<std::uint8_t>(seed + 6U))),
-                     "make")),
+                     "from_secret")),
           peer_public_(take(peer_.public_key(), "public_key")) {}
 
     std::uint8_t run() {
@@ -555,7 +555,8 @@ public:
 
     explicit ed25519(std::uint8_t seed)
         : message_(filled<32>(static_cast<std::uint8_t>(seed + 4U))),
-          key_(take(curves::ed25519::basic_keypair<Backend>::make(filled<32>(seed)), "make")) {}
+          key_(take(curves::ed25519::basic_keypair<Backend>::from_secret(filled<32>(seed)),
+                    "from_secret")) {}
 
     std::uint8_t run() { return take(key_.sign(eddsa, message_), "sign")[0]; }
 

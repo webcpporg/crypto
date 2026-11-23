@@ -57,7 +57,7 @@ int main() {
     if (!device.fill(storage_key)) {
         return 1;
     }
-    auto aead = aead_type::make(storage_key);
+    auto aead = aead_type::from_key(storage_key);
     // The object keeps its own key schedule, which it wipes; this copy goes now.
     wipe(std::as_writable_bytes(std::span(storage_key)));
     if (!aead) {

@@ -4,12 +4,12 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// On libsodium nothing allocates: make, seal and open of the three ChaCha20-Poly1305 AEADs and
+// On libsodium nothing allocates: from_key, seal and open of the three ChaCha20-Poly1305 AEADs and
 // of the two secret boxes, a failed open included; Ed25519's key pair, signature, strict
 // verification, Ed25519ph and the conversion to X25519; X25519's public key and agreement, a
 // refused one included; crypto_kx's key pairs and session keys, a refused peer included; RFC
-// 8410's SPKI and PKCS#8 of both curves and their PEM, both ways; the two boxes' make, seal and
-// open, a refused peer key and a failed open included; and the sealed boxes' seal and open, a
+// 8410's SPKI and PKCS#8 of both curves and their PEM, both ways; the two boxes' from_keys, seal
+// and open, a refused peer key and a failed open included; and the sealed boxes' seal and open, a
 // failed open included, make no call of operator new, nor of the C library's allocator where the
 // target lets a program count it; a control proves the counter moves. Each later family on
 // libsodium adds its calls here.
@@ -61,7 +61,7 @@ void expect_no_allocation() {
     std::array<std::uint8_t, 4096> data{};
     std::size_t const before = webcpp::test::allocations();
     {
-        auto made = Aead::make(key);
+        auto made = Aead::from_key(key);
         BOOST_TEST(made.has_value());
         auto const tag = made->seal(iv, additional_data, data);
         BOOST_TEST(tag.has_value());
@@ -93,7 +93,7 @@ void expect_no_allocation_ed25519() {
     std::array<std::uint8_t, 100> const message{};
     std::size_t const before = webcpp::test::allocations();
     {
-        auto made = keypair::make(seed);
+        auto made = keypair::from_secret(seed);
         BOOST_TEST(made.has_value());
         auto const drawn = keypair::generate();
         BOOST_TEST(drawn.has_value());
@@ -173,8 +173,8 @@ void expect_no_allocation_box() {
     }
     std::size_t const before = webcpp::test::allocations();
     {
-        auto sender = Box::make(alice, *bob_public);
-        auto receiver = Box::make(bob, *alice_public);
+        auto sender = Box::from_keys(alice, *bob_public);
+        auto receiver = Box::from_keys(bob, *alice_public);
         BOOST_TEST(sender.has_value() && receiver.has_value());
         auto const tag = sender->seal(iv, data);
         BOOST_TEST(tag.has_value());
@@ -182,7 +182,7 @@ void expect_no_allocation_box() {
         std::array<std::uint8_t, Box::tag_size> const forged{};
         BOOST_TEST(receiver->open(iv, data, forged).error() ==
                    crypto::error::authentication_failed);
-        BOOST_TEST(Box::make(alice, low_order).error() == crypto::error::weak_public_key);
+        BOOST_TEST(Box::from_keys(alice, low_order).error() == crypto::error::weak_public_key);
         Box const moved = std::move(*sender);
     }
     BOOST_TEST_EQ(webcpp::test::allocations(), before);
@@ -226,7 +226,7 @@ void expect_no_allocation_formats() {
     key.fill(11);
     std::size_t const before = webcpp::test::allocations();
     {
-        auto const pair = ed25519::basic_keypair<crypto::backends::sodium>::make(key);
+        auto const pair = ed25519::basic_keypair<crypto::backends::sodium>::from_secret(key);
         BOOST_TEST(pair.has_value());
         std::array<std::uint8_t, ed25519::max_pkcs8_size> pkcs8{};
         BOOST_TEST(ed25519::encode_pkcs8(*pair, pkcs8).has_value());
@@ -267,9 +267,9 @@ void expect_no_allocation_kx() {
     std::array<std::uint8_t, kx_keypair::public_key_size> const low_order{};
     std::size_t const before = webcpp::test::allocations();
     {
-        auto client = kx_keypair::make(client_seed);
+        auto client = kx_keypair::derive_from_seed(client_seed);
         BOOST_TEST(client.has_value());
-        auto const server = kx_keypair::make(server_seed);
+        auto const server = kx_keypair::derive_from_seed(server_seed);
         BOOST_TEST(server.has_value());
         auto const drawn = kx_keypair::generate();
         BOOST_TEST(drawn.has_value());
@@ -302,7 +302,7 @@ int main() {
         BOOST_TEST_EQ(webcpp::test::allocations() - control, 0U);
         std::printf("the C library's allocations are not counted on this target\n");
     }
-    // libsodium's initialisation, the first make's, is counted too.
+    // libsodium's initialisation, the first from_key's, is counted too.
     expect_no_allocation<crypto::ciphers::chacha20_poly1305<crypto::backends::sodium>>();
     expect_no_allocation<crypto::ciphers::chacha20_poly1305_original<crypto::backends::sodium>>();
     expect_no_allocation<crypto::ciphers::xchacha20_poly1305<crypto::backends::sodium>>();

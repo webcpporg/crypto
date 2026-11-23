@@ -23,6 +23,6 @@ int main() {
     std::array<std::uint8_t, 32> secret{};
     secret.fill(0x42);
     std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
-    auto const key = crypto::curves::secp256k1::keypair::make(secret);
+    auto const key = crypto::curves::secp256k1::keypair::from_secret(secret);
     return key && key->sign(0, message) ? 0 : 1;
 }

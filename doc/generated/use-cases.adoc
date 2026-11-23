@@ -80,7 +80,7 @@
 |<<crypto-p2p-signed,[.keep]`+signed_message.cpp+`>>
 
 |Check a software update or a licence file
-|In `+curves::secp256k1+`: `+keypair::sign(crypto::ecdsa_sha256, message)+`, `+public_key::make+`, `+crypto::verify+`
+|In `+curves::secp256k1+`: `+keypair::sign(crypto::ecdsa_sha256, message)+`, `+public_key::from_bytes+`, `+crypto::verify+`
 |libsecp256k1
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+`
@@ -145,7 +145,7 @@
 |<<crypto-wallets-musig,[.keep]`+musig_wallet.cpp+`>>
 
 |Make and keep a wallet's key
-|In `+curves::secp256k1+`: `+keypair::make+`, `+keypair::public_key+`, `+public_key::xonly+`, `+public_key::compressed+`; `+aes256_gcm+` at rest
+|In `+curves::secp256k1+`: `+keypair::from_secret+`, `+keypair::public_key+`, `+public_key::xonly+`, `+public_key::compressed+`; `+aes256_gcm+` at rest
 |libsecp256k1, and AES-GCM's default
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+` +
@@ -167,7 +167,7 @@
 |<<crypto-wallets-taproot,[.keep]`+taproot_tweak.cpp+`>>
 
 |Sign where allocation is restricted to the program's arena
-|In `+curves::secp256k1+`: `+keypair::make(secret, resource)+`
+|In `+curves::secp256k1+`: `+keypair::from_secret(secret, resource)+`
 |libsecp256k1
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+`
@@ -193,7 +193,7 @@
 |<<crypto-overview-hash2,[.keep]`+equal_hmac.cpp+`>>
 
 |Sign and verify with Ed25519 (RFC 8032), or sign a large message in pieces with Ed25519ph
-|In `+curves::ed25519+`: `+keypair::make+`, `+keypair::generate+`, `+keypair::sign(crypto::eddsa, message)+`, `+crypto::verify+`; `+ph<webcpp::hash::sha2_512>+`
+|In `+curves::ed25519+`: `+keypair::from_secret+`, `+keypair::generate+`, `+keypair::sign(crypto::eddsa, message)+`, `+crypto::verify+`; `+ph<webcpp::hash::sha2_512>+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//ed25519-default+`
@@ -207,7 +207,7 @@
 |<<crypto-x25519,[.keep]`+x25519_agree.cpp+`>>
 
 |Give a client and a server a key for each direction from each other's public key, as libsodium's `crypto_kx` does
-|In `+curves::x25519+`: `+kx_keypair::make+`, `+kx_keypair::generate+`, `+client_session_keys+`, `+server_session_keys+`
+|In `+curves::x25519+`: `+kx_keypair::derive_from_seed+`, `+kx_keypair::generate+`, `+client_session_keys+`, `+server_session_keys+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//kx-default+`
@@ -223,21 +223,21 @@
 |<<crypto-key-formats,[.keep]`+key_formats.cpp+`>>
 
 |Encrypt messages in a chat app, on the web and natively, each with a random nonce
-|In `+ciphers+`: `+xchacha20_poly1305<>+`: `+make+`, `+seal+`, `+open+`
+|In `+ciphers+`: `+xchacha20_poly1305<>+`: `+from_key+`, `+seal+`, `+open+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//xchacha20_poly1305-default+`
 |<<crypto-chacha,[.keep]`+xchacha_seal.cpp+`>>
 
 |Encrypt a record or a file under one secret key, each with a random nonce, in libsodium's secret-box format
-|In `+ciphers+`: `+secretbox<>+`, `+secretbox_xchacha20poly1305<>+`: `+make+`, `+seal+`, `+open+`
+|In `+ciphers+`: `+secretbox<>+`, `+secretbox_xchacha20poly1305<>+`: `+from_key+`, `+seal+`, `+open+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//secretbox_xsalsa20poly1305-default+`
 |<<crypto-secretbox,[.keep]`+file_share.cpp+`>>
 
 |Send messages between two people who know each other's public keys, as NaCl's and libsodium's crypto_box
-|In `+hybrid+`: `+box::make+`, `+box::seal+`, `+box::open+`
+|In `+hybrid+`: `+box::from_keys+`, `+box::seal+`, `+box::open+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//box_xsalsa20poly1305-default+`
@@ -260,7 +260,7 @@
 |<<crypto-everyday-files,[.keep]`+file_share.cpp+`>>
 
 |Make and keep a P-256 key pair, and import a browser's public key (WebCrypto's raw form), as webcpp::trystero's peers do
-|In `+curves::p256+`: `+keypair::make+`, `+keypair::generate+`, `+keypair::public_key+`, `+keypair::secret+`, `+public_key::make+`
+|In `+curves::p256+`: `+keypair::from_secret+`, `+keypair::generate+`, `+keypair::public_key+`, `+keypair::secret+`, `+public_key::from_bytes+`
 |BearSSL
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//p256-default+`

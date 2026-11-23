@@ -37,8 +37,8 @@ void print(char const* name, std::span<std::uint8_t const> bytes) {
 // The client sends "hello" to the server, sealed with the client's transmit key and opened with
 // the server's receive key, the same key.
 bool message(x25519::session_keys const& client, x25519::session_keys const& server) {
-    auto sealer = crypto::ciphers::chacha20_poly1305<>::make(client.transmit.bytes());
-    auto opener = crypto::ciphers::chacha20_poly1305<>::make(server.receive.bytes());
+    auto sealer = crypto::ciphers::chacha20_poly1305<>::from_key(client.transmit.bytes());
+    auto opener = crypto::ciphers::chacha20_poly1305<>::from_key(server.receive.bytes());
     if (!sealer || !opener) {
         return false;
     }
@@ -67,8 +67,8 @@ bool client_and_server() {
     }
     std::array<std::uint8_t, 32> server_seed = client_seed;
     server_seed[0] = 1;
-    auto const client = x25519::kx_keypair<>::make(client_seed);
-    auto const server = x25519::kx_keypair<>::make(server_seed);
+    auto const client = x25519::kx_keypair<>::derive_from_seed(client_seed);
+    auto const server = x25519::kx_keypair<>::derive_from_seed(server_seed);
     if (!client || !server) {
         return false;
     }
@@ -95,7 +95,7 @@ bool client_and_server() {
 
 // A peer key of low order gives an all-zero X25519 secret, which crypto_kx refuses.
 bool low_order_refused() {
-    auto const key = x25519::kx_keypair<>::make(std::array<std::uint8_t, 32>{});
+    auto const key = x25519::kx_keypair<>::derive_from_seed(std::array<std::uint8_t, 32>{});
     std::array<std::uint8_t, 32> const zero_point{};
     if (!key) {
         return false;

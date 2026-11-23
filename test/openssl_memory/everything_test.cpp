@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Everything in the resource, refused otherwise (spec section 8.5): installed first, the
-// configuration file not read, make, the one-shot and incremental seals, good and failed
+// configuration file not read, from_key, the one-shot and incremental seals, good and failed
 // opens and the destructors, for gcm, aes256 and chacha20_poly1305 on OpenSSL, make no call
 // of the C library's allocator from any caller; seal, open and the incremental seal allocate
 // nothing anywhere; a second thread does the same with gcm and chacha20_poly1305 (Review
@@ -64,15 +64,15 @@ void messages(chacha& made) {
     BOOST_TEST_EQ(resource.allocations(), before);
 }
 
-// make, the messages and the destructor of each AEAD.
+// from_key, the messages and the destructor of each AEAD.
 void every_aead(std::array<std::uint8_t, 32> const& key) {
     {
-        auto made = aead::make(key);
+        auto made = aead::from_key(key);
         BOOST_TEST(made.has_value());
         messages(*made);
     }
     {
-        auto made = chacha::make(key);
+        auto made = chacha::from_key(key);
         BOOST_TEST(made.has_value());
         messages(*made);
     }
@@ -92,7 +92,7 @@ int main() {
     {
         std::array<std::uint8_t, 32> const key{};
         every_aead(key);
-        auto block = crypto::ciphers::aes256<crypto::backends::openssl>::make(key);
+        auto block = crypto::ciphers::aes256<crypto::backends::openssl>::from_key(key);
         BOOST_TEST(block.has_value());
         std::array<std::uint8_t, 32> blocks{};
         auto const& resource = webcpp::test::the_counting_resource();

@@ -190,7 +190,7 @@ bool agree(int type, std::span<std::uint8_t const, 32> secret, std::span<std::ui
 void ed25519_against_openssl(std::mt19937_64& generator) {
     for (std::size_t round = 0; round < cases; ++round) {
         auto const seed_bytes = drawn(generator);
-        auto const pair = ed25519::keypair::make(seed_bytes);
+        auto const pair = ed25519::keypair::from_secret(seed_bytes);
         boost::system::result<ed25519::public_key> const public_key =
             pair ? pair->public_key() : crypto::error::backend_failure;
         if (!BOOST_TEST(public_key.has_value())) {

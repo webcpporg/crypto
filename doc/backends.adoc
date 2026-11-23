@@ -121,7 +121,7 @@ link:https://github.com/agl/ctgrind[ctgrind] does, and, in a clang build, under
 MemorySanitizer, which only clang has (a gcc build runs memcheck alone): any
 branch or memory index that depends on them fails the run. The lane covers
 `equal`, `is_all_zero` and the wipe of `secret<N>`; BearSSL's AES-GCM and
-ChaCha20-Poly1305 `make`, `seal` and `open`; OpenSSL's `make` and `seal` of
+ChaCha20-Poly1305 `from_key`, `seal` and `open`; OpenSSL's `from_key` and `seal` of
 both; ctaes's AES; libsodium's Ed25519 key pair and signature, X25519's public
 key and agreement, its three ChaCha20-Poly1305 AEADs and two secret boxes,
 `hybrid::box` in both families, the sealed box's `seal` and `open`, and `kx`;

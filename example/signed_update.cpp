@@ -51,7 +51,7 @@ boost::system::result<secp256k1::keypair> generate_key() {
         if (!filled) {
             return filled.error();
         }
-        auto key = secp256k1::keypair::make(secret);
+        auto key = secp256k1::keypair::from_secret(secret);
         if (key || key.error() != crypto::error::invalid_secret_key) {
             // The key pair keeps its own copy, which it wipes; this one goes now.
             wipe(std::as_writable_bytes(std::span(secret)));
@@ -80,7 +80,7 @@ int main() {
     // tag::verify[]
     // The program makes the key it ships with once, then checks the signature against the bytes
     // it downloaded, which crypto::verify hashes with SHA-256.
-    auto const publisher_key = secp256k1::public_key::make(shipped_key);
+    auto const publisher_key = secp256k1::public_key::from_bytes(shipped_key);
     if (!publisher_key ||
         !crypto::verify(crypto::ecdsa_sha256, *signature, bytes_of(update), *publisher_key)) {
         return 1;

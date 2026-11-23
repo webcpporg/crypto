@@ -9,9 +9,9 @@
 # constant-time, outside the ordinary lanes. Each deterministic check is shown
 # to fail on a planted leak, a branch on a key byte, and dudect to find one, an
 # early exit on the key, natively (dudect_planted). The paths: BearSSL's
-# AES-GCM and ChaCha20-Poly1305 make, seal and open, OpenSSL's make and seal of
+# AES-GCM and ChaCha20-Poly1305 from_key, seal and open, OpenSSL's from_key and seal of
 # both (its open branches on the verdict inside OpenSSL, where webcpp cannot
-# mark it public), ctaes's make, encrypt and decrypt, equal, is_all_zero,
+# mark it public), ctaes's from_key, encrypt and decrypt, equal, is_all_zero,
 # secret's wipe, libsodium's Ed25519, X25519, three AEADs, two secret boxes,
 # two boxes, the sealed box and kx (its own branches on a verdict listed in
 # sodium_verdicts.supp), libsecp256k1's own ctime_tests.c, and webcpp's code

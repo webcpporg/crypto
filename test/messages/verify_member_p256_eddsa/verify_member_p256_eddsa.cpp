@@ -23,7 +23,7 @@ int main() {
     namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> scalar{};
     scalar.back() = 1;
-    auto const key = crypto::curves::p256::keypair::make(scalar);
+    auto const key = crypto::curves::p256::keypair::from_secret(scalar);
     if (!key) {
         return 1;
     }

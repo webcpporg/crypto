@@ -234,7 +234,7 @@ protected:
     basic_aes() noexcept = default;
 
     /**
-     * The work of `make`, after which the derived type is the result.
+     * The work of `from_key`, after which the derived type is the result.
      *
      * @tparam Derived `aes128<Backend>`, `aes192<Backend>` or `aes256<Backend>`.
      * @param key_bytes The key.
@@ -279,7 +279,7 @@ public:
      * @param key_bytes 16 bytes.
      * @return The cipher; `invalid_key_size`; the backend's errors.
      */
-    [[nodiscard]] static boost::system::result<aes128> make(
+    [[nodiscard]] static boost::system::result<aes128> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
         detail::timing_guard const timing_scope;
         return detail::basic_aes<16, Backend>::template make_as<aes128>(key_bytes);
@@ -305,7 +305,7 @@ public:
      * @param key_bytes 24 bytes.
      * @return The cipher; `invalid_key_size`; the backend's errors.
      */
-    [[nodiscard]] static boost::system::result<aes192> make(
+    [[nodiscard]] static boost::system::result<aes192> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
         detail::timing_guard const timing_scope;
         return detail::basic_aes<24, Backend>::template make_as<aes192>(key_bytes);
@@ -331,7 +331,7 @@ public:
      * @param key_bytes 32 bytes.
      * @return The cipher; `invalid_key_size`; the backend's errors.
      */
-    [[nodiscard]] static boost::system::result<aes256> make(
+    [[nodiscard]] static boost::system::result<aes256> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
         detail::timing_guard const timing_scope;
         return detail::basic_aes<32, Backend>::template make_as<aes256>(key_bytes);

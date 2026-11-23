@@ -27,7 +27,7 @@ size of `Cipher`, on the backend of `Cipher`, which must export GCM over its own
 AES: BearSSL or OpenSSL. `aes128_gcm` and `aes256_gcm`, in
 `<webcpp/crypto/ciphers/aes256_gcm.hpp>`, name it on the default backend,
 OpenSSL natively and BearSSL on WebAssembly. It is
-made with `make(key_bytes)`, and works in place:
+made with `from_key(key_bytes)`, and works in place:
 
 * `seal(iv_bytes, additional_data_bytes, data_bytes)` encrypts `data_bytes`
 in place and returns its 16-byte tag, a `boost::hash2::digest<16>`;
@@ -38,7 +38,7 @@ tag and decrypts `data_bytes` in place;
 * `begin_open`, `authenticate`, `verify`, `decrypt` and `end_open` open a
 message in pieces, in two passes (<<crypto-gcm-incremental-open>>).
 
-`make`, `seal` and `open` have four forms each, the member and its free form,
+`from_key`, `seal` and `open` have four forms each, the member and its free form,
 synchronous and asynchronous, with the same work, errors and refusals
 (<<crypto-curves-four-forms>>); the pieces' functions are members alone. An
 asynchronous form needs `<webcpp/crypto/async.hpp>` and
@@ -50,10 +50,10 @@ asynchronous form needs `<webcpp/crypto/async.hpp>` and
 | Operation | Synchronous: the member; its free form | Asynchronous: the member; its free form
 
 | Make
-| `aes256_gcm::make(key_bytes)` +
-`crypto::make<aes256_gcm>(key_bytes)`
-| `aes256_gcm::async_make(executor, key_bytes, token)` +
-`crypto::async_make<aes256_gcm>(executor, key_bytes, token)`
+| `aes256_gcm::from_key(key_bytes)` +
+`crypto::from_key<aes256_gcm>(key_bytes)`
+| `aes256_gcm::async_from_key(executor, key_bytes, token)` +
+`crypto::async_from_key<aes256_gcm>(executor, key_bytes, token)`
 
 | Seal
 | `aead.seal(iv, additional_data, data)` +
@@ -169,7 +169,7 @@ itself, which come after the guards:
 |===
 |Condition |Error
 
-|`make`: a key of another size than `key_size` |`invalid_key_size`
+|`from_key`: a key of another size than `key_size` |`invalid_key_size`
 |any other function: the object was moved from |`invalid_state`
 |`begin_seal` or `begin_open` while a message is in progress; `update` or
 `result` outside a seal; `authenticate` or `verify` outside the open's first
@@ -183,7 +183,7 @@ summed over `update` or `authenticate`, or additional data longer than 2^61^ -
 |`invalid_input_size`
 |`open` or `verify`: the tag does not match |`authentication_failed`
 |the backend fails where it should not |`backend_failure`
-|`make`: OpenSSL cannot allocate its context |`errc::not_enough_memory`
+|`from_key`: OpenSSL cannot allocate its context |`errc::not_enough_memory`
 |===
 
 [#crypto-gcm-arm]

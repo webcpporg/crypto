@@ -12,7 +12,7 @@
 // its own guard fails although it calls another guarded function.
 //
 // What it covers, by family; a family ctaes gains adds its line and its checks:
-// - The AES block cipher, aes128, aes192 and aes256: make; basic_aes: encrypt, decrypt.
+// - The AES block cipher, aes128, aes192 and aes256: from_key; basic_aes: encrypt, decrypt.
 
 #include "support/timing_seam.hpp"
 

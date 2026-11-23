@@ -185,7 +185,7 @@ inline constexpr std::array<aead_case, 3> xchacha20_poly1305_cases{
 /**
  * How the checks reach a `ciphers::aead`: made from `key_size` bytes, its calls its own. The
  * checks take such an adapter, so that an object of another shape runs those that apply to it:
- * `Calls` gives the object's type `object`, its sizes, `make(key)`, `seal(object&, iv,
+ * `Calls` gives the object's type `object`, its sizes, `from_key(key)`, `seal(object&, iv,
  * additional_data, data)` and `open(object&, iv, additional_data, data, tag)`, and says whether
  * the object takes additional data (`has_additional_data`), whether it is made of one key of
  * `key_size` bytes (`one_key`, whose sizes the guards check) and whether its calls take
@@ -210,8 +210,8 @@ struct aead_calls {
     /** Made of one key of `key_size` bytes. */
     static constexpr bool one_key = true;
 
-    /** `Aead::make`. */
-    static auto make(std::span<std::uint8_t const> key) { return Aead::make(key); }
+    /** `Aead::from_key`. */
+    static auto from_key(std::span<std::uint8_t const> key) { return Aead::from_key(key); }
 
     /** `seal`. */
     static auto seal(Aead& made, std::span<std::uint8_t const> iv,
@@ -241,7 +241,7 @@ std::array<std::uint8_t, Calls::key_size> aead_key(std::uint8_t first = 1) {
 template <class Calls>
 void check_aead_cases(std::span<aead_case const> cases) {
     for (auto const& c : cases) {
-        auto made = Calls::make(from_hex(c.key));
+        auto made = Calls::from_key(from_hex(c.key));
         if (!BOOST_TEST(made.has_value())) {
             continue;
         }
@@ -264,7 +264,7 @@ template <class Calls>
 void check_aead_key_sizes() {
     for (std::size_t const size : {std::size_t{0}, Calls::key_size - 1, Calls::key_size + 1}) {
         std::vector<std::uint8_t> const wrong_key(size, 7);
-        BOOST_TEST(Calls::make(wrong_key).error() == crypto::error::invalid_key_size);
+        BOOST_TEST(Calls::from_key(wrong_key).error() == crypto::error::invalid_key_size);
     }
 }
 
@@ -325,7 +325,7 @@ void check_aead_guards() {
     if constexpr (Calls::one_key) {
         check_aead_key_sizes<Calls>();
     }
-    auto made = Calls::make(aead_key<Calls>());
+    auto made = Calls::from_key(aead_key<Calls>());
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -374,7 +374,7 @@ void check_aead_tampering(aead_case const& c) {
     auto const additional_data = from_hex(c.additional_data);
     auto const ciphertext = from_hex(c.ciphertext);
     auto const tag = from_hex(c.tag);
-    auto made = Calls::make(key);
+    auto made = Calls::from_key(key);
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(!ciphertext.empty()) ||
         !BOOST_TEST(additional_data.empty() != Calls::has_additional_data)) {
         return;
@@ -451,7 +451,7 @@ void check_aead_moves(aead_case const& c) {
     auto const iv = from_hex(c.iv);
     auto const additional_data = from_hex(c.additional_data);
     auto const plaintext = from_hex(c.plaintext);
-    auto made = Calls::make(from_hex(c.key));
+    auto made = Calls::from_key(from_hex(c.key));
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -486,7 +486,7 @@ void check_aead_moves(aead_case const& c) {
     BOOST_TEST(seals_the_case(moved));
     all_refused(again);
     // An assignment over a live object from an empty one leaves it empty.
-    auto other = Calls::make(from_hex(c.key));
+    auto other = Calls::from_key(from_hex(c.key));
     if (!BOOST_TEST(other.has_value())) {
         return;
     }
@@ -642,7 +642,7 @@ void check_aead_wire_open(typename Calls::object& made) {
 /** Empty inputs, and spans that touch or overlap (Review Focus 2 and 3). */
 template <class Calls>
 void check_aead_edges() {
-    auto made = Calls::make(aead_key<Calls>());
+    auto made = Calls::from_key(aead_key<Calls>());
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -682,7 +682,7 @@ template <class Aead>
 void check_aead_limits() {
     static_assert(sizeof(std::size_t) == 8, "the limits are reachable only with 64-bit sizes");
     static_assert(Aead::max_message_size < std::numeric_limits<std::size_t>::max());
-    auto made = Aead::make(aead_key<Aead>());
+    auto made = Aead::from_key(aead_key<Aead>());
     auto const huge = reserved(static_cast<std::size_t>(Aead::max_message_size) + 1);
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(!huge.empty())) {
         return;

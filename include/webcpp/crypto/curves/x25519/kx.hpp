@@ -95,13 +95,13 @@ public:
     static constexpr std::size_t session_key_size = 32;
 
     /**
-     * Makes a key pair from a seed, `crypto_kx_seed_keypair`: the same seed gives the same key
-     * pair.
+     * Derives a key pair from a seed, `crypto_kx_seed_keypair`: the same seed gives the same key
+     * pair, its secret BLAKE2b-256 of the seed.
      *
      * @param seed_bytes 32 bytes.
      * @return The key pair; `invalid_key_size`; `backend_failure`.
      */
-    [[nodiscard]] static boost::system::result<kx_keypair> make(
+    [[nodiscard]] static boost::system::result<kx_keypair> derive_from_seed(
         std::span<std::uint8_t const> seed_bytes) noexcept {
         detail::timing_guard const timing_scope;
         if (seed_bytes.size() != seed_size) {
@@ -109,7 +109,7 @@ public:
         }
         kx_keypair made_pair;
         auto const engine_keyed =
-            engine::make(made_pair.state_, seed_bytes.template first<seed_size>());
+            engine::seed_keypair(made_pair.state_, seed_bytes.template first<seed_size>());
         if (!engine_keyed) {
             return engine_keyed.error();
         }
@@ -133,7 +133,7 @@ public:
             // for a key pair: one error to handle.
             return error::entropy_unavailable;
         }
-        return make(seed_secret.bytes());
+        return derive_from_seed(seed_secret.bytes());
     }
 
     /**
@@ -262,7 +262,8 @@ struct kx_engine {
 
     /** Never called; fails closed. */
     template <class... Arguments>
-    [[nodiscard]] static boost::system::result<void> make(Arguments&&... /*arguments*/) noexcept {
+    [[nodiscard]] static boost::system::result<void> seed_keypair(
+        Arguments&&... /*arguments*/) noexcept {
         return error::backend_failure;
     }
 

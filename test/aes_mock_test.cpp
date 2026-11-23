@@ -33,26 +33,27 @@ static_assert(crypto::ciphers::aes192<mock>::key_size == 24);
 static_assert(crypto::ciphers::aes256<mock>::key_size == 32);
 static_assert(crypto::ciphers::aes256<mock>::block_size == 16);
 
-// make returns the engine's error as it is: not_enough_memory, backend_failure.
+// from_key returns the engine's error as it is: not_enough_memory, backend_failure.
 void check_make_failures() {
     std::array<std::uint8_t, 16> const key{};
     mock_control.init =
         boost::system::errc::make_error_code(boost::system::errc::not_enough_memory);
-    BOOST_TEST(crypto::ciphers::aes128<mock>::make(key).error() ==
+    BOOST_TEST(crypto::ciphers::aes128<mock>::from_key(key).error() ==
                boost::system::errc::not_enough_memory);
     mock_control.init = crypto::error::backend_failure;
-    BOOST_TEST(crypto::ciphers::aes128<mock>::make(key).error() == crypto::error::backend_failure);
+    BOOST_TEST(crypto::ciphers::aes128<mock>::from_key(key).error() ==
+               crypto::error::backend_failure);
     // The size is checked before the engine is asked.
-    BOOST_TEST(crypto::ciphers::aes128<mock>::make(std::span(key).first(8)).error() ==
+    BOOST_TEST(crypto::ciphers::aes128<mock>::from_key(std::span(key).first(8)).error() ==
                crypto::error::invalid_key_size);
     webcpp::test::mock_clear();
-    BOOST_TEST(crypto::ciphers::aes128<mock>::make(key).has_value());
+    BOOST_TEST(crypto::ciphers::aes128<mock>::from_key(key).has_value());
 }
 
 // encrypt and decrypt return the engine's error as it is, after their own guards.
 void check_block_failures() {
     std::array<std::uint8_t, 24> const key{};
-    auto made = crypto::ciphers::aes192<mock>::make(key);
+    auto made = crypto::ciphers::aes192<mock>::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }

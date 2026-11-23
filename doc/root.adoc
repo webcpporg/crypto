@@ -18,7 +18,8 @@ curve's signatures share: the schemes, the `prehashed` marker, `crypto::sign`
 and `crypto::verify` (`<webcpp/crypto/signing.hpp>`), and the key pair
 contract, the concept `crypto::keypair`, with `crypto::agree`
 (`<webcpp/crypto/keypair.hpp>`; <<crypto-curves-signatures>>); and the free
-forms that make an object by its type, `crypto::make` and `crypto::generate`
-(`<webcpp/crypto/make.hpp>`; <<crypto-curves-four-forms>>).
+forms that make an object by its type, each named by its input,
+`crypto::from_secret`, `crypto::from_bytes`, `crypto::from_key` and `crypto::generate`
+(`<webcpp/crypto/factories.hpp>`; <<crypto-curves-four-forms>>).
 
 include::generated/namespace-root.adoc[]

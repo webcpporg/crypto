@@ -140,7 +140,7 @@ std::string x_of(secp::public_key const& key) {
 }
 
 secp::keypair keypair_of(std::span<std::uint8_t const, 32> secret_bytes) {
-    auto made = secp::keypair::make(secret_bytes);
+    auto made = secp::keypair::from_secret(secret_bytes);
     if (!BOOST_TEST(made.has_value())) {
         std::exit(boost::report_errors());
     }

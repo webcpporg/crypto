@@ -15,7 +15,7 @@
 // computed (checked against libsodium's own XChaCha20 secret boxes and RFC 7748), the script
 // box_xchacha20poly1305_vector.py beside this file, which prints them; every check
 // of support/aead_checks.hpp that applies to an object with no additional data, made of a
-// secret key and a peer's public key (ruling C35); the guards of make; a peer key of small
+// secret key and a peer's public key (ruling C35); the guards of from_keys; a peer key of small
 // order refused with weak_public_key, as libsodium's beforenm refuses it; and the box as the
 // secret box under its precomputed key.
 //
@@ -200,9 +200,9 @@ struct box_calls {
     static constexpr bool takes_additional_data = false;
     static constexpr bool one_key = false;
 
-    static auto make(std::span<std::uint8_t const> key) {
+    static auto from_key(std::span<std::uint8_t const> key) {
         auto const split = std::min<std::size_t>(key.size(), 32);
-        return Box::make(key.first(split), key.subspan(split));
+        return Box::from_keys(key.first(split), key.subspan(split));
     }
 
     static auto seal(Box& made, std::span<std::uint8_t const> iv,
@@ -220,24 +220,25 @@ struct box_calls {
 };
 
 /**
- * make's guards: the secret key's size (invalid_key_size) before the peer key's
+ * from_keys' guards: the secret key's size (invalid_key_size) before the peer key's
  * (invalid_public_key); a peer key of small order, as libsodium's beforenm refuses it
  * (weak_public_key), and the all-zero point.
  */
 template <class Box>
-void check_box_make() {
+void check_box_from_keys() {
     auto const secret = from_hex(alice_secret);
     auto const peer = from_hex(bob_public);
     for (std::size_t const size : {std::size_t{0}, std::size_t{31}, std::size_t{33}}) {
         std::vector<std::uint8_t> const wrong(size, 7);
-        BOOST_TEST(Box::make(wrong, peer).error() == crypto::error::invalid_key_size);
-        BOOST_TEST(Box::make(secret, wrong).error() == crypto::error::invalid_public_key);
-        BOOST_TEST(Box::make(wrong, wrong).error() == crypto::error::invalid_key_size);
+        BOOST_TEST(Box::from_keys(wrong, peer).error() == crypto::error::invalid_key_size);
+        BOOST_TEST(Box::from_keys(secret, wrong).error() == crypto::error::invalid_public_key);
+        BOOST_TEST(Box::from_keys(wrong, wrong).error() == crypto::error::invalid_key_size);
     }
-    BOOST_TEST(Box::make(secret, from_hex(small_order)).error() == crypto::error::weak_public_key);
+    BOOST_TEST(Box::from_keys(secret, from_hex(small_order)).error() ==
+               crypto::error::weak_public_key);
     std::array<std::uint8_t, 32> const zero{};
-    BOOST_TEST(Box::make(secret, zero).error() == crypto::error::weak_public_key);
-    BOOST_TEST(Box::make(secret, peer).has_value());
+    BOOST_TEST(Box::from_keys(secret, zero).error() == crypto::error::weak_public_key);
+    BOOST_TEST(Box::from_keys(secret, peer).has_value());
 }
 
 /**
@@ -246,8 +247,8 @@ void check_box_make() {
  */
 template <class Box, class Secretbox>
 void check_box_is_secretbox(std::string_view key) {
-    auto made_box = Box::make(from_hex(alice_secret), from_hex(bob_public));
-    auto made_secretbox = Secretbox::make(from_hex(key));
+    auto made_box = Box::from_keys(from_hex(alice_secret), from_hex(bob_public));
+    auto made_secretbox = Secretbox::from_key(from_hex(key));
     if (!BOOST_TEST(made_box.has_value()) || !BOOST_TEST(made_secretbox.has_value())) {
         return;
     }
@@ -422,8 +423,8 @@ void check_sealed_box_guards() {
 int main() {
     webcpp::test::check_aead_with<box_calls<box>>(box_cases);
     webcpp::test::check_aead_with<box_calls<box_xchacha>>(box_xchacha_cases);
-    check_box_make<box>();
-    check_box_make<box_xchacha>();
+    check_box_from_keys<box>();
+    check_box_from_keys<box_xchacha>();
     check_box_is_secretbox<box, crypto::ciphers::secretbox<>>(box_key);
     check_box_is_secretbox<box_xchacha, crypto::ciphers::secretbox_xchacha20poly1305<>>(
         box_xchacha_key);

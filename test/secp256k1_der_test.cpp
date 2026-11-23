@@ -53,7 +53,7 @@ std::array<std::uint8_t, 32> sha256(std::span<std::uint8_t const> data) {
 // A key pair and a hash, both derived from i, so that the signatures vary in length.
 secp::keypair key_of(std::uint8_t i) {
     std::array<std::uint8_t, 2> const seed{0x6b, i};
-    return *secp::keypair::make(sha256(seed));
+    return *secp::keypair::from_secret(sha256(seed));
 }
 
 // Strict DER of a signature: SEQUENCE of two minimal, non-negative INTEGERs, nothing after.

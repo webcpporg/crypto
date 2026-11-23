@@ -129,8 +129,8 @@ void names_function_spellings() {
     // A name in the return type or a parameter type is not the function's own.
     BOOST_TEST(!names("int ns::other(ns::pem::armour<int>, int) [with B = int]", "pem::armour"));
     BOOST_TEST(!names("int ns::other(ns::pem::armour(int)) [with B = int]", "pem::armour"));
-    BOOST_TEST(!names("ns::pem::armour<int> ns::make(int) [B = int]", "pem::armour"));
-    BOOST_TEST(!names("struct ns::pem::armour<int> __cdecl ns::make<int>(int)", "pem::armour"));
+    BOOST_TEST(!names("ns::pem::armour<int> ns::from_key(int) [B = int]", "pem::armour"));
+    BOOST_TEST(!names("struct ns::pem::armour<int> __cdecl ns::from_key<int>(int)", "pem::armour"));
     BOOST_TEST(!names("ns::algorithm<ns::pem::armour<int>>::seal(int)", "pem::armour"));
     BOOST_TEST(names("ns::pem::armour<int> ns::pem::armour(ns::pem::armour<int>)", "pem::armour"));
     // A function named without a scope never matches.
@@ -145,17 +145,17 @@ void names_function_spellings() {
 }
 
 // MSVC writes the exception specification of a function that may throw after its parameters,
-// clang and GCC none: crypto::make and crypto::generate of secp256k1's key pair, whose memory
-// resource may throw, are read as their own in either spelling.
+// clang and GCC none: crypto::from_secret and crypto::generate of secp256k1's key pair, whose
+// memory resource may throw, are read as their own in either spelling.
 void names_function_exception_specifications() {
     auto const names = [](std::string_view entered, std::string_view spelled) {
         return webcpp::test::names_function(entered, webcpp::test::function_named(spelled));
     };
     BOOST_TEST(
         names("class ns::result<class ns::kp<struct ns::b>> __cdecl "
-              "ns::crypto::make<class ns::kp<struct ns::b>,const class std::array<unsigned "
+              "ns::crypto::from_secret<class ns::kp<struct ns::b>,const class std::array<unsigned "
               "char,32>&>(const class std::array<unsigned char,32> &) noexcept(false)",
-              "crypto::make"));
+              "crypto::from_secret"));
     BOOST_TEST(
         names("class ns::result<class ns::kp<struct ns::b>> __cdecl "
               "ns::crypto::generate<class ns::kp<struct ns::b>,>(void) noexcept(false)",
@@ -163,8 +163,8 @@ void names_function_exception_specifications() {
     BOOST_TEST(names("int __cdecl ns::pem::armour<struct ns::b>(int) noexcept", "pem::armour"));
     BOOST_TEST(names("int __cdecl ns::pk::compare(int) const noexcept(true)", "pk::compare(int"));
     // The specification is not a parameter list: its words never name the function.
-    BOOST_TEST(
-        !names("int __cdecl ns::crypto::make<int>(int) noexcept(false)", "crypto::make(false"));
+    BOOST_TEST(!names("int __cdecl ns::crypto::from_secret<int>(int) noexcept(false)",
+                      "crypto::from_secret(false"));
     BOOST_TEST(!names("int __cdecl ns::other(int) noexcept(ns::pem::armour(int))", "pem::armour"));
 }
 

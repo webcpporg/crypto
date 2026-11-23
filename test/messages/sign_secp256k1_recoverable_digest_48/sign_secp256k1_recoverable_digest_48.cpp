@@ -23,7 +23,7 @@ int main() {
     namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> secret_key{};
     secret_key.back() = 1;
-    auto const key = crypto::curves::secp256k1::keypair::make(secret_key);
+    auto const key = crypto::curves::secp256k1::keypair::from_secret(secret_key);
     return key && key->sign(crypto::ecdsa_sha256_recoverable,
                             crypto::prehashed{std::array<std::uint8_t, 48>{}})
                ? 0

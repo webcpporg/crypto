@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // async_seal on an AEAD WebCrypto lacks, XChaCha20-Poly1305, stops with the synchronous call to
-// make instead, and with that error alone, while the AEAD's own seal compiles.
+// seal instead, and with that error alone, while the AEAD's own seal compiles.
 
 // clang-format off
 // expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: async_seal takes AES-GCM, the AEAD WebCrypto has: call seal for the others.}}
@@ -24,7 +24,7 @@
 int main() {
     namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> const key{};
-    auto made = crypto::ciphers::xchacha20_poly1305<>::make(key);
+    auto made = crypto::ciphers::xchacha20_poly1305<>::from_key(key);
     if (!made) {
         return 1;
     }

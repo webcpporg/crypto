@@ -144,7 +144,7 @@ int main(int argc, char** argv) {
             count,
             [&](int which, auto& generator) {
                 test::choose(which, generator, zero, secret_key);
-                pair.emplace(*keypair::make(secret_key));
+                pair.emplace(*keypair::from_secret(secret_key));
             },
             [&] { static_cast<void>(pair->sign(crypto::eddsa, message)); });
         results.record(

@@ -4,9 +4,9 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// OpenSSL's error queue (spec section 3.3): on an empty queue, a make of the block cipher,
+// OpenSSL's error queue (spec section 3.3): on an empty queue, a from_key of the block cipher,
 // of gcm and of ChaCha20-Poly1305 leaves it empty; for each AEAD, an entry of the caller's
-// survives a make, a seal, a good open and a failed one, and nothing of webcpp's is left
+// survives a from_key, a seal, a good open and a failed one, and nothing of webcpp's is left
 // beside it.
 
 #include <webcpp/crypto/backends/openssl.hpp>
@@ -39,7 +39,7 @@ std::size_t drain(unsigned long& first) {
 }
 
 /**
- * An entry of the caller's survives a make of `Aead`, a seal, a good open and a failed one, and
+ * An entry of the caller's survives a from_key of `Aead`, a seal, a good open and a failed one, and
  * is the queue's one entry afterwards.
  */
 template <class Aead>
@@ -48,7 +48,7 @@ void check_queue(std::span<std::uint8_t const> key, std::span<std::uint8_t const
     // NOLINTNEXTLINE(bugprone-signed-bitwise): OpenSSL's reason macro ORs signed flags
     ERR_raise(ERR_LIB_USER, ERR_R_PASSED_INVALID_ARGUMENT);
     unsigned long const ours = ERR_peek_last_error();
-    auto made = Aead::make(key);
+    auto made = Aead::from_key(key);
     BOOST_TEST(made.has_value());
     if (!made) {
         return;
@@ -73,11 +73,11 @@ int main() {
 
     // OpenSSL's first fetch and its initialisation leave nothing behind either.
     BOOST_TEST_EQ(ERR_peek_error(), 0UL);
-    BOOST_TEST(crypto::ciphers::aes256<crypto::backends::openssl>::make(key).has_value());
+    BOOST_TEST(crypto::ciphers::aes256<crypto::backends::openssl>::from_key(key).has_value());
     BOOST_TEST_EQ(ERR_peek_error(), 0UL);
-    BOOST_TEST(gcm::make(key).has_value());
+    BOOST_TEST(gcm::from_key(key).has_value());
     BOOST_TEST_EQ(ERR_peek_error(), 0UL);
-    BOOST_TEST(chacha::make(key).has_value());
+    BOOST_TEST(chacha::from_key(key).has_value());
     BOOST_TEST_EQ(ERR_peek_error(), 0UL);
 
     check_queue<gcm>(key, iv);

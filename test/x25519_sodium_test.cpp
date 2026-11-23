@@ -116,9 +116,10 @@ void guards() {
                crypto::error::invalid_public_key);
     BOOST_TEST(x25519::agree(key, long_key).error() == crypto::error::invalid_public_key);
     // An Ed25519 key of another size is never made, so to_x25519_public never sees one.
-    BOOST_TEST(ed25519::public_key::make(std::span(long_key).first(31)).error() ==
+    BOOST_TEST(ed25519::public_key::from_bytes(std::span(long_key).first(31)).error() ==
                crypto::error::invalid_public_key);
-    BOOST_TEST(ed25519::public_key::make(long_key).error() == crypto::error::invalid_public_key);
+    BOOST_TEST(ed25519::public_key::from_bytes(long_key).error() ==
+               crypto::error::invalid_public_key);
 }
 
 void all_zero() {
@@ -134,7 +135,7 @@ void all_zero() {
 
 /** One Ed25519 key pair's X25519 public key, derived from its secret and converted. */
 void converted(std::string_view seed) {
-    auto const key = ed25519::keypair::make(test::from_hex(seed));
+    auto const key = ed25519::keypair::from_secret(test::from_hex(seed));
     BOOST_TEST(key.has_value());
     if (!key) {
         return;
@@ -193,7 +194,7 @@ void conversion_refuses() {
     });
     for (auto const key : refused) {
         // Made, since the size is right: the conversion judges the point.
-        auto const made = ed25519::public_key::make(test::from_hex(key));
+        auto const made = ed25519::public_key::from_bytes(test::from_hex(key));
         if (!BOOST_TEST(made.has_value())) {
             continue;
         }

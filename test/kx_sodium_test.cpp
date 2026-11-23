@@ -95,8 +95,9 @@ constexpr std::array<std::uint8_t, 32> small_order{
 };
 
 void kx_exp() {
-    auto const client = kx_keypair::make(client_seed());
-    auto const server = x25519::kx_keypair<crypto::backends::sodium>::make(server_seed());
+    auto const client = kx_keypair::derive_from_seed(client_seed());
+    auto const server =
+        x25519::kx_keypair<crypto::backends::sodium>::derive_from_seed(server_seed());
     BOOST_TEST(client.has_value());
     BOOST_TEST(server.has_value());
     if (!client || !server) {
@@ -138,8 +139,8 @@ void kx_exp() {
 
 void peer_key_counts() {
     // kx.c: the client's public key incremented changes the server's keys.
-    auto const client = kx_keypair::make(client_seed());
-    auto const server = kx_keypair::make(server_seed());
+    auto const client = kx_keypair::derive_from_seed(client_seed());
+    auto const server = kx_keypair::derive_from_seed(server_seed());
     BOOST_TEST(client.has_value() && server.has_value());
     if (!client || !server) {
         return;
@@ -163,7 +164,7 @@ void peer_key_counts() {
 }
 
 void weak_peers() {
-    auto const key = kx_keypair::make(client_seed());
+    auto const key = kx_keypair::derive_from_seed(client_seed());
     BOOST_TEST(key.has_value());
     if (!key) {
         return;
@@ -179,13 +180,13 @@ void weak_peers() {
 
 void guards() {
     std::array<std::uint8_t, 33> const long_bytes{};
-    BOOST_TEST(kx_keypair::make(std::span(long_bytes).first(31)).error() ==
+    BOOST_TEST(kx_keypair::derive_from_seed(std::span(long_bytes).first(31)).error() ==
                crypto::error::invalid_key_size);
-    BOOST_TEST(kx_keypair::make(long_bytes).error() == crypto::error::invalid_key_size);
-    BOOST_TEST(kx_keypair::make(std::span<std::uint8_t const>{}).error() ==
+    BOOST_TEST(kx_keypair::derive_from_seed(long_bytes).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(kx_keypair::derive_from_seed(std::span<std::uint8_t const>{}).error() ==
                crypto::error::invalid_key_size);
 
-    auto made = kx_keypair::make(client_seed());
+    auto made = kx_keypair::derive_from_seed(client_seed());
     BOOST_TEST(made.has_value());
     if (!made) {
         return;
@@ -204,7 +205,7 @@ void guards() {
 }
 
 void moves() {
-    auto made = kx_keypair::make(client_seed());
+    auto made = kx_keypair::derive_from_seed(client_seed());
     BOOST_TEST(made.has_value());
     if (!made) {
         return;
@@ -225,7 +226,7 @@ void moves() {
     // NOLINTEND(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
 
     // Moved over, the target holds the source's key pair.
-    auto other = kx_keypair::make(server_seed());
+    auto other = kx_keypair::derive_from_seed(server_seed());
     BOOST_TEST(other.has_value());
     if (other) {
         auto const other_public = other->public_key();
@@ -258,7 +259,7 @@ void generated() {
     auto const drawn = kx_keypair::generate();
     std::array<std::uint8_t, 32> seed{};
     seed.fill(0x42);
-    auto const made = kx_keypair::make(seed);
+    auto const made = kx_keypair::derive_from_seed(seed);
     BOOST_TEST(drawn.has_value() && made.has_value());
     if (drawn && made) {
         auto const drawn_key = drawn->public_key();

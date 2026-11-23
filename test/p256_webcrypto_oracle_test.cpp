@@ -168,7 +168,7 @@ scalar_bytes drawn_scalar(std::mt19937_64& rng) {
         for (auto& b : scalar) {
             b = static_cast<std::uint8_t>(rng() & 0xffU);
         }
-        if (p256::keypair::make(scalar)) {
+        if (p256::keypair::from_secret(scalar)) {
             return scalar;
         }
     }
@@ -287,8 +287,8 @@ void one_case(std::mt19937_64& rng, std::size_t index, tally& found) {
     our_case ours;
     // The first message is empty; the others cross SHA-256's block of 64 bytes.
     ours.message = index == 0 ? bytes{} : random_bytes(rng, 1, 300);
-    auto const pair = p256::keypair::make(scalar);
-    auto const peer = p256::keypair::make(peer_scalar);
+    auto const pair = p256::keypair::from_secret(scalar);
+    auto const peer = p256::keypair::from_secret(peer_scalar);
     auto const public_key = pair ? pair->public_key() : webcpp::crypto::error::backend_failure;
     auto const peer_public_key = peer ? peer->public_key() : webcpp::crypto::error::backend_failure;
     if (!BOOST_TEST(public_key.has_value()) || !BOOST_TEST(peer_public_key.has_value())) {

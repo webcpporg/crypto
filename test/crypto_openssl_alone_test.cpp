@@ -27,7 +27,7 @@ int main() {
     std::array<std::uint8_t, 32> const key{};
     std::array<std::uint8_t, 12> const iv{};
     std::array<std::uint8_t, 16> data{};
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     BOOST_TEST(made && made->seal(iv, {}, data).has_value());
     return webcpp::test::exit_status(boost::report_errors());
 }

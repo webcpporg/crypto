@@ -13,6 +13,7 @@
 int main() {
     namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> const key{};
-    auto made = crypto::ciphers::aead<crypto::families::gcm, crypto::backends::sodium>::make(key);
+    auto made =
+        crypto::ciphers::aead<crypto::families::gcm, crypto::backends::sodium>::from_key(key);
     return made ? 0 : 1;
 }

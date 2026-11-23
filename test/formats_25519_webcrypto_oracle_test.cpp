@@ -148,7 +148,7 @@ constexpr std::array<std::uint8_t, 11> message{
 void ed25519_through_webcrypto(std::mt19937_64& generator) {
     for (std::size_t round = 0; round < cases; ++round) {
         auto const seed_bytes = drawn(generator);
-        auto const pair = ed25519::keypair::make(seed_bytes);
+        auto const pair = ed25519::keypair::from_secret(seed_bytes);
         if (!BOOST_TEST(pair.has_value())) {
             static_cast<void>(std::fprintf(stderr, "Ed25519 key pair not made: seed %s\n",
                                            test::to_hex(seed_bytes).c_str()));

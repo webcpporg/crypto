@@ -11,7 +11,7 @@
  `crypto::verify(crypto::eddsa, signature, message, public_key)`, strict on libsodium; Ed25519ph,
  the signature of a message's SHA-512, under the scheme `crypto::eddsa_prehashed` from the digest
  and by `curves::ed25519::prehashed_signer` from the message given in pieces; and the conversion
- of a public key to X25519's.
+ of a key pair and of a public key to X25519's typed keys, `to_x25519()`, member and free.
 
  The family's default backend, libsodium on every target, is included when the program links
  it; a program that uses the family without linking it stops where it calls it, with the
@@ -24,6 +24,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/curves/x25519.hpp>  // to_x25519()'s keys
 #include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
@@ -35,6 +36,7 @@
 #include <webcpp/crypto/random_device.hpp>  // lint-world: random_device draws generate()'s seed
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/crypto/supports.hpp>
 #include <webcpp/hash/algorithms.hpp>  // webcpp::hash::sha2_512, Ed25519ph's hash (design D1)
 
 #include <boost/system/result.hpp>
@@ -386,6 +388,31 @@ public:
                       strict_t verify_policy, CompletionToken&& completion_token) const;
 
     /**
+     * The X25519 public key of this key (the birational map from edwards25519 to Curve25519), so
+     * that a peer known by its Ed25519 key is agreed with by an X25519 key pair's `agree`; the
+     * key pair's own side is `basic_keypair::to_x25519`.
+     *
+     * It is synchronous on every backend (design R4): WebCrypto converts nothing between Ed25519
+     * and X25519.
+     *
+     * @tparam Backend The backend; by default the family's.
+     * @return The X25519 public key; `invalid_public_key` for a key not canonical, not on the
+     * curve, of small order or outside the prime-order subgroup.
+     */
+    template <class Backend = default_backend_t<families::ed25519>>
+    [[nodiscard]] boost::system::result<x25519::public_key> to_x25519() const noexcept {
+        detail::timing_guard const timing_scope;
+        std::array<std::uint8_t, x25519::public_key::public_key_size> converted_bytes{};
+        auto const engine_done =
+            detail::ed25519_engine<families::ed25519, Backend>::to_x25519_public(bytes_,
+                                                                                 converted_bytes);
+        if (!engine_done) {
+            return engine_done.error();
+        }
+        return x25519::public_key::from_bytes(converted_bytes);
+    }
+
+    /**
      * Whether two keys are the same bytes.
      *
      * @param other_key The other key.
@@ -693,22 +720,34 @@ public:
                     Input const& message_input, CompletionToken&& completion_token) const;
 
     /**
-     * The X25519 secret key of this key pair, RFC 7748's form of the clamped first half of the
-     * seed's SHA-512.
+     * The X25519 key pair of this key pair, on its backend: its secret key the clamped first half
+     * of the seed's SHA-512, its public key `public_key()->to_x25519()`, so that one seed serves
+     * for signatures and for agreement.
      *
-     * @return 32 secret bytes; `invalid_state`; `backend_failure`.
+     * It is synchronous on every backend (design R4): WebCrypto converts nothing between Ed25519
+     * and X25519. A backend without X25519 stops the build.
+     *
+     * @return The X25519 key pair; `invalid_state` moved from; `backend_failure`.
      */
-    [[nodiscard]] boost::system::result<crypto::secret<32>> x25519_secret() const noexcept {
+    [[nodiscard]] boost::system::result<x25519::basic_keypair<Backend>> to_x25519() const noexcept {
         detail::timing_guard const timing_scope;
-        if (!keyed_) {
-            return error::invalid_state;
+        using converted_type = x25519::basic_keypair<Backend>;
+        static_assert(supports_v<converted_type, Backend>,
+                      "webcpp::crypto: to_x25519: this backend has no X25519; libsodium has both.");
+        if constexpr (!supports_v<converted_type, Backend>) {
+            // Never compiled into a program: the assertion above stopped the build.
+            return error::backend_failure;
+        } else {
+            if (!keyed_) {
+                return error::invalid_state;
+            }
+            crypto::secret<converted_type::secret_key_size> converted_secret;
+            auto const engine_done = engine::x25519_secret(state_, converted_secret.writable());
+            if (!engine_done) {
+                return engine_done.error();
+            }
+            return converted_type::from_secret(converted_secret.bytes());
         }
-        crypto::secret<32> converted_secret;
-        auto const engine_done = engine::x25519_secret(state_, converted_secret.writable());
-        if (!engine_done) {
-            return engine_done.error();
-        }
-        return converted_secret;
     }
 
 private:
@@ -750,31 +789,6 @@ private:
 
 /** The key pair on the default backend. */
 using keypair = basic_keypair<>;
-
-/**
- * The X25519 public key of an Ed25519 public key (the birational map from edwards25519 to
- * Curve25519), so that a peer known by its Ed25519 key can be agreed with by an X25519 key pair's
- * `agree`, once `curves::x25519::public_key::from_bytes` makes these bytes a key; the key pair's
- * own side is `basic_keypair::x25519_secret`.
- *
- * @tparam Backend The backend; by default the family's.
- * @param ed25519_public_key The Ed25519 public key.
- * @return 32 bytes; `invalid_public_key` for a key not canonical, not on the curve or of small
- * order.
- */
-template <class Backend = default_backend_t<families::ed25519>>
-[[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> to_x25519_public(
-    public_key const& ed25519_public_key) noexcept {
-    detail::timing_guard const timing_scope;
-    auto const key_bytes = ed25519_public_key.bytes();
-    std::array<std::uint8_t, 32> converted_secret{};
-    auto const engine_done = detail::ed25519_engine<families::ed25519, Backend>::to_x25519_public(
-        key_bytes, converted_secret);
-    if (!engine_done) {
-        return engine_done.error();
-    }
-    return converted_secret;
-}
 
 /**
  * Ed25519ph (RFC 8032 section 5.1), the Ed25519 signature of a message's SHA-512, the message
@@ -1038,6 +1052,27 @@ template <class Backend = default_backend_t<families::ed25519>, class Signature,
     }
 }
 
+/**
+ * Converts an Ed25519 key pair or public key to X25519's, `converted_value.to_x25519()`: the free
+ * form of the member, which it calls, with its results and its errors.
+ *
+ * It is synchronous on every backend (design R4): WebCrypto converts nothing between Ed25519 and
+ * X25519.
+ *
+ * @tparam Value `curves::ed25519::basic_keypair<Backend>`, converted to an X25519 key pair of its
+ * backend, or `curves::ed25519::public_key`, converted on the family's default backend.
+ * @param converted_value The key pair or the public key.
+ * @return What `converted_value.to_x25519()` returns: the X25519 key pair, or the X25519 public
+ * key, or its error.
+ */
+template <class Value>
+[[nodiscard]] auto to_x25519(Value const& converted_value) noexcept
+    requires requires(Value const& candidate_value) { candidate_value.to_x25519(); }
+{
+    detail::timing_guard const timing_scope;
+    return converted_value.to_x25519();
+}
+
 }  // namespace webcpp::crypto
 
 namespace webcpp::crypto::detail {
@@ -1237,6 +1272,10 @@ struct ed25519ph_engine {
 };
 
 }  // namespace webcpp::crypto::detail
+
+/** Defined once this header's declarations are, which libsodium's engines specialise. */
+// NOLINTNEXTLINE(modernize-macro-to-enum): read by backends/sodium.hpp's #if, not a value
+#define WEBCPP_CRYPTO_DETAIL_ED25519_DECLARED 1
 
 // The default backend's engines, when the program links it (design D32): libsodium on every
 // target. Its header specialises them for this header, wherever it was first included.

@@ -129,12 +129,11 @@ void expect_no_allocation_ed25519() {
                        crypto::eddsa_prehashed, *scheme_signature, crypto::prehashed{digest},
                        *public_key, crypto::curves::ed25519::strict)
                        .has_value());
-        auto const x25519_secret = made->x25519_secret();
-        BOOST_TEST(x25519_secret.has_value());
+        auto const converted_pair = made->to_x25519();
+        BOOST_TEST(converted_pair.has_value());
         auto const exported = made->secret();
         BOOST_TEST(exported.has_value());
-        BOOST_TEST(crypto::curves::ed25519::to_x25519_public<crypto::backends::sodium>(*public_key)
-                       .has_value());
+        BOOST_TEST(public_key->to_x25519<crypto::backends::sodium>().has_value());
         keypair const moved = std::move(*made);
     }
     BOOST_TEST_EQ(webcpp::test::allocations(), before);

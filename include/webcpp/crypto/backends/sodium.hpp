@@ -370,7 +370,9 @@ struct aead_engine<Family, backends::sodium> {
 // Ed25519 and Ed25519ph on libsodium, for a program that includes curves/ed25519.hpp, before
 // this header or after it: outside the guard above, so that curves/ed25519.hpp, which includes
 // this header last, gets them either way; a program that does not include it pays nothing.
-#if defined(WEBCPP_CRYPTO_CURVES_ED25519_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+// curves/ed25519.hpp defines WEBCPP_CRYPTO_DETAIL_ED25519_DECLARED once its declarations are,
+// since it includes curves/x25519.hpp, which may include this header, before them.
+#if defined(WEBCPP_CRYPTO_DETAIL_ED25519_DECLARED) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
     !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_ED25519)
 /** Defined once libsodium's Ed25519 engines are. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_ED25519

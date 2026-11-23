@@ -141,10 +141,10 @@
 |native, wasip2, wasip3, emscripten
 |`+ed25519ph_sodium+`
 
-|`+curves::ed25519::to_x25519_public+`
+|`+crypto::to_x25519+`
 |libsodium
 |native, wasip2, wasip3, emscripten
-|`+x25519_sodium+`
+|`+ed25519_sodium+`, `+x25519_sodium+`
 
 |`+curves::x25519::keypair+`
 |libsodium
@@ -437,7 +437,7 @@ The same, by target: the backends each operation runs on.
 |libsodium
 |libsodium
 
-|`+curves::ed25519::to_x25519_public+`
+|`+crypto::to_x25519+`
 |libsodium
 |libsodium
 |libsodium

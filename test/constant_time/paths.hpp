@@ -202,7 +202,8 @@ int ctaes_block() {
 
 /**
  * Ed25519 on libsodium: from_secret and sign, under eddsa and under eddsa_prehashed (Ed25519ph, a
- * public 64-byte digest), with the seed secret; the kept seed is traced.
+ * public 64-byte digest), with the seed secret; the kept seed is traced, and so is the secret key
+ * of the X25519 key pair to_x25519() converts it to, whose public key is checked as X25519's.
  */
 template <class Checker>
 int sodium_ed25519() {
@@ -215,8 +216,21 @@ int sodium_ed25519() {
     auto const prehashed_signature =
         pair->sign(crypto::eddsa_prehashed, crypto::prehashed{message});
     auto const kept = pair->secret();
+    auto const converted = pair->to_x25519();
+    auto const converted_secret =
+        converted ? converted->secret()
+                  : boost::system::result<crypto::secret<32>>(converted.error());
+    auto const converted_public =
+        converted ? converted->public_key()
+                  : boost::system::result<crypto::curves::x25519::public_key>(converted.error());
+    bool const converted_public_traced =
+        converted_public.has_value() &&
+        (!Checker::exact_subtraction || carries_mark<Checker>(converted_public->bytes()));
     return check(signature.has_value() && carries_mark<Checker>(signature->bytes()),
                  "Ed25519 on libsodium") +
+           check(converted_secret.has_value() && carries_mark<Checker>(converted_secret->bytes()),
+                 "Ed25519's to_x25519 on libsodium") +
+           check(converted_public_traced, "Ed25519's to_x25519 public key on libsodium") +
            check(prehashed_signature.has_value() &&
                      carries_mark<Checker>(prehashed_signature->bytes()),
                  "Ed25519ph on libsodium") +

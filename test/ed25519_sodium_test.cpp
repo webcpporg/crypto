@@ -15,10 +15,13 @@
 // bit, keys of other sizes, and signatures of other sizes refused by
 // ed25519::signature::from_bytes); a signature received as a std::vector, made into the type,
 // verified by the key's verify and crypto::verify; generate() under the planted entropy source of
-// the test seam WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY, failing and answering; and x25519_secret(),
-// whose public key is crypto_sign_ed25519_pk_to_curve25519's of the Ed25519 public key.
+// the test seam WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY, failing and answering; and the conversion to
+// X25519, to_x25519() of the key pair and of its public key, member and free, equal to libsodium's
+// crypto_sign_ed25519_sk_to_curve25519 and pk_to_curve25519, the converted key pair agreeing with
+// an X25519 peer, and keys of small order or not canonical refused.
 
 #include <webcpp/crypto/curves/ed25519.hpp>
+#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/secret.hpp>
@@ -172,7 +175,8 @@ void guards() {
     BOOST_TEST(source.public_key().error() == crypto::error::invalid_state);
     BOOST_TEST(source.secret().error() == crypto::error::invalid_state);
     BOOST_TEST(source.sign(crypto::eddsa, message).error() == crypto::error::invalid_state);
-    BOOST_TEST(source.x25519_secret().error() == crypto::error::invalid_state);
+    BOOST_TEST(source.to_x25519().error() == crypto::error::invalid_state);
+    BOOST_TEST(crypto::to_x25519(source).error() == crypto::error::invalid_state);
     // NOLINTEND(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
     auto const signature = target.sign(crypto::eddsa, message);
     BOOST_TEST(signature &&
@@ -380,31 +384,116 @@ void generated() {
     }
 }
 
+// Whether the free crypto::to_x25519 takes a value, written through a dependent helper so that a
+// refused call is false, not an error.
+template <class Value>
+concept converts_to_x25519 = requires(Value const& value) { crypto::to_x25519(value); };
+
+// RFC 7748 section 6.1's Bob, an X25519 peer of the converted key pair.
+constexpr std::string_view bob_secret =
+    "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb";
+
+/** libsodium's own conversion of a seed's Ed25519 keys to X25519's: the secret key, the public key.
+ */
+struct sodium_conversion {
+    std::array<std::uint8_t, 32> secret_key{};
+    std::array<std::uint8_t, 32> public_key{};
+};
+
+// libsodium's crypto_sign_ed25519_sk_to_curve25519 and pk_to_curve25519 of a seed's key pair,
+// called here; the public key is also the base point's product with the secret key.
+sodium_conversion converted_by_sodium(std::span<std::uint8_t const, 32> seed) {
+    std::array<std::uint8_t, crypto_sign_ed25519_PUBLICKEYBYTES> sodium_public{};
+    std::array<std::uint8_t, crypto_sign_ed25519_SECRETKEYBYTES> sodium_secret{};
+    BOOST_TEST_EQ(
+        crypto_sign_ed25519_seed_keypair(sodium_public.data(), sodium_secret.data(), seed.data()),
+        0);
+    sodium_conversion converted;
+    BOOST_TEST_EQ(
+        crypto_sign_ed25519_sk_to_curve25519(converted.secret_key.data(), sodium_secret.data()), 0);
+    BOOST_TEST_EQ(
+        crypto_sign_ed25519_pk_to_curve25519(converted.public_key.data(), sodium_public.data()), 0);
+    std::array<std::uint8_t, 32> from_secret{};
+    BOOST_TEST_EQ(
+        crypto_scalarmult_curve25519_base(from_secret.data(), converted.secret_key.data()), 0);
+    BOOST_TEST(from_secret == converted.public_key);
+    return converted;
+}
+
+// The converted key pair agrees with an X25519 peer (RFC 7748's Bob), both ways.
+void converted_agrees(crypto::curves::x25519::keypair const& converted_pair,
+                      crypto::curves::x25519::public_key const& converted_public) {
+    namespace x25519 = crypto::curves::x25519;
+    auto const peer = x25519::keypair::from_secret(test::from_hex(bob_secret));
+    if (!BOOST_TEST(peer.has_value())) {
+        return;
+    }
+    auto const peer_public = peer->public_key();
+    if (!BOOST_TEST(peer_public.has_value())) {
+        return;
+    }
+    auto const own_shared = converted_pair.agree(*peer_public);
+    auto const peer_shared = peer->agree(converted_public);
+    BOOST_TEST(own_shared.has_value() && peer_shared.has_value() &&
+               std::ranges::equal(own_shared->bytes(), peer_shared->bytes()));
+}
+
+// RFC 8032 section 7.1's test 1 converted to X25519: the key pair by to_x25519(), its public key
+// by public_key()->to_x25519(), member and free, each equal to libsodium's own conversion, called
+// here; the converted key pair agrees with an X25519 peer.
 void conversion() {
-    for (auto const& tested : rfc8032_cases) {
-        auto const key = ed25519::keypair::from_secret(test::from_hex(tested.secret_key));
-        BOOST_TEST(key.has_value());
-        if (!key) {
+    auto const seed = test::from_hex(rfc8032_cases[0].secret_key);
+    auto const key = ed25519::keypair::from_secret(seed);
+    auto const ed25519_public = key ? key->public_key() : key.error();
+    if (!BOOST_TEST(ed25519_public.has_value())) {
+        return;
+    }
+    auto const converted_pair = key->to_x25519();
+    auto const converted_public = ed25519_public->to_x25519();
+    auto const named_public = ed25519_public->to_x25519<crypto::backends::sodium>();
+    auto const free_pair = crypto::to_x25519(*key);
+    auto const free_public = crypto::to_x25519(*ed25519_public);
+    if (!BOOST_TEST(converted_pair && converted_public && named_public && free_pair &&
+                    free_public)) {
+        return;
+    }
+    auto const pair_public = converted_pair->public_key();
+    auto const free_pair_public = free_pair->public_key();
+    auto const pair_secret = converted_pair->secret();
+    auto const free_pair_secret = free_pair->secret();
+    if (!BOOST_TEST(pair_public && free_pair_public && pair_secret && free_pair_secret)) {
+        return;
+    }
+    // The key pair's public key is the public key's conversion, member and free.
+    BOOST_TEST(*pair_public == *converted_public);
+    BOOST_TEST(*named_public == *converted_public);
+    BOOST_TEST(*free_public == *converted_public);
+    BOOST_TEST(*free_pair_public == *pair_public);
+    BOOST_TEST(std::ranges::equal(free_pair_secret->bytes(), pair_secret->bytes()));
+    // libsodium's own conversions of the same keys give the same bytes.
+    auto const by_sodium = converted_by_sodium(std::span<std::uint8_t const>(seed).first<32>());
+    BOOST_TEST(std::ranges::equal(pair_secret->bytes(), by_sodium.secret_key));
+    BOOST_TEST(converted_public->bytes() == by_sodium.public_key);
+    converted_agrees(*converted_pair, *converted_public);
+}
+
+// A key the map refuses, member and free: of small order (ed25519-speccheck's case 0), and not
+// canonical (the neutral element written with y = p + 1).
+void conversion_refuses() {
+    constexpr auto refused = std::to_array<std::string_view>({
+        "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",
+        "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
+    });
+    for (auto const refused_key : refused) {
+        // Made, since the size is right: the conversion judges the point.
+        auto const made = ed25519::public_key::from_bytes(test::from_hex(refused_key));
+        if (!BOOST_TEST(made.has_value())) {
             continue;
         }
-        auto const x25519_secret = key->x25519_secret();
-        BOOST_TEST(x25519_secret.has_value());
-        if (!x25519_secret) {
-            continue;
-        }
-        static_assert(
-            std::is_same_v<std::remove_cvref_t<decltype(*x25519_secret)>, crypto::secret<32>>);
-        // The X25519 public key of the converted secret is libsodium's conversion of the
-        // Ed25519 public key.
-        std::array<std::uint8_t, 32> from_secret{};
-        BOOST_TEST_EQ(
-            crypto_scalarmult_curve25519_base(from_secret.data(), x25519_secret->bytes().data()),
-            0);
-        std::array<std::uint8_t, 32> from_public{};
-        auto const public_key = test::from_hex(tested.public_key);
-        BOOST_TEST_EQ(crypto_sign_ed25519_pk_to_curve25519(from_public.data(), public_key.data()),
-                      0);
-        BOOST_TEST(from_secret == from_public);
+        auto const member = made->to_x25519();
+        auto const free = crypto::to_x25519(*made);
+        BOOST_TEST(member.has_error() && member.error() == crypto::error::invalid_public_key);
+        BOOST_TEST(free.has_error() && free.error() == crypto::error::invalid_public_key);
     }
 }
 
@@ -470,6 +559,20 @@ int main() {
     static_assert(std::is_void_v<crypto::detail::key_backend<ed25519::public_key>::type>);
     static_assert(std::is_same_v<crypto::detail::key_backend<ed25519::keypair>::type,
                                  crypto::backends::sodium>);
+    // The conversion to X25519 is typed: the key pair gives an X25519 key pair of its backend,
+    // the public key an X25519 public key, member and free; an X25519 key pair converts nothing.
+    static_assert(std::is_same_v<decltype(std::declval<ed25519::keypair const&>().to_x25519()),
+                                 boost::system::result<crypto::curves::x25519::keypair>>);
+    static_assert(std::is_same_v<decltype(std::declval<ed25519::public_key const&>().to_x25519()),
+                                 boost::system::result<crypto::curves::x25519::public_key>>);
+    static_assert(
+        std::is_same_v<decltype(crypto::to_x25519(std::declval<ed25519::keypair const&>())),
+                       boost::system::result<crypto::curves::x25519::keypair>>);
+    static_assert(
+        std::is_same_v<decltype(crypto::to_x25519(std::declval<ed25519::public_key const&>())),
+                       boost::system::result<crypto::curves::x25519::public_key>>);
+    static_assert(!converts_to_x25519<crypto::curves::x25519::keypair>);
+    static_assert(!converts_to_x25519<std::array<std::uint8_t, 32>>);
     rfc8032();
     guards();
     refusals();
@@ -481,5 +584,6 @@ int main() {
     small_order_key();
     generated();
     conversion();
+    conversion_refuses();
     return test::exit_status(boost::report_errors());
 }

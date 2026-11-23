@@ -18,16 +18,17 @@
 // - Both boxes, basic_box: from_keys, of a moved-from key pair too, seal, open. The sealed box,
 //   basic_sealed_box: seal, open, of a moved-from key pair too.
 // - PEM: algorithm::armour, algorithm::unarmour, and the free armour and unarmour, which forward.
-// - Ed25519, basic_keypair: from_secret, generate, public_key, secret, sign, x25519_secret;
-//   public_key: verify; the free crypto::verify and to_x25519_public, and the free synchronous
-//   forms of the members, crypto::from_secret, crypto::generate and crypto::sign, which enter their
-//   own guard before the member's, and crypto::from_bytes of a public key, which enters none, as
-//   its member does not. Ed25519ph, the scheme eddsa_prehashed: basic_keypair::sign, the free
-//   crypto::sign, public_key::verify, crypto::verify, and their asynchronous forms, async_sign and
-//   async_verify, member and free; prehashed_signer: begin, update, sign, verify. Its formats:
-//   decode_spki, decode_pkcs8 (the encoders call no backend and hold no guard, ruling R4; nor do
-//   public_key::from_bytes and bytes). Its signature, signature: from_bytes, member and free,
-//   and bytes, which call no backend and enter no guard.
+// - Ed25519, basic_keypair: from_secret, generate, public_key, secret, sign, to_x25519;
+//   public_key: verify, to_x25519; the free crypto::verify, and the free synchronous forms of the
+//   members, crypto::from_secret, crypto::generate, crypto::sign and crypto::to_x25519 (of a key
+//   pair and of a public key), which enter their own guard before the member's, and
+//   crypto::from_bytes of a public key, which enters none, as its member does not. Ed25519ph, the
+//   scheme eddsa_prehashed: basic_keypair::sign, the free crypto::sign, public_key::verify,
+//   crypto::verify, and their asynchronous forms, async_sign and async_verify, member and free;
+//   prehashed_signer: begin, update, sign, verify. Its formats: decode_spki, decode_pkcs8 (the
+//   encoders call no backend and hold no guard, ruling R4; nor do public_key::from_bytes and
+//   bytes). Its signature, signature: from_bytes, member and free, and bytes, which call no backend
+//   and enter no guard.
 // - Ed25519's asynchronous functions: async_from_secret, async_generate, async_sign, async_verify,
 //   free and as the members basic_keypair::async_from_secret, async_generate, async_sign and
 //   public_key::async_verify, which the free ones call.
@@ -263,7 +264,7 @@ void cover_pem() {
 
 /**
  * Ed25519's key pair: `from_secret`, a seed of the wrong size included, `generate` (the system's
- * entropy), and `public_key`, `secret`, `sign` and `x25519_secret`, each of a moved-from key pair
+ * entropy), and `public_key`, `secret`, `sign` and `to_x25519`, each of a moved-from key pair
  * too.
  */
 void cover_ed25519_keypair() {
@@ -288,8 +289,8 @@ void cover_ed25519_keypair() {
             [&] { BOOST_TEST(made->secret().has_value()); });
     covered("ed25519::basic_keypair::sign on sodium",
             [&] { BOOST_TEST(made->sign(crypto::eddsa, message).has_value()); });
-    covered("ed25519::basic_keypair::x25519_secret on sodium",
-            [&] { BOOST_TEST(made->x25519_secret().has_value()); });
+    covered("ed25519::basic_keypair::to_x25519 on sodium",
+            [&] { BOOST_TEST(made->to_x25519().has_value()); });
     [[maybe_unused]] keypair const taken(std::move(*made));
     covered("ed25519::basic_keypair::public_key moved from on sodium", [&] {
         // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
@@ -303,16 +304,17 @@ void cover_ed25519_keypair() {
         // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
         BOOST_TEST(made->sign(crypto::eddsa, message).error() == crypto::error::invalid_state);
     });
-    covered("ed25519::basic_keypair::x25519_secret moved from on sodium", [&] {
+    covered("ed25519::basic_keypair::to_x25519 moved from on sodium", [&] {
         // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
-        BOOST_TEST(made->x25519_secret().error() == crypto::error::invalid_state);
+        BOOST_TEST(made->to_x25519().error() == crypto::error::invalid_state);
     });
 }
 
 /**
- * Ed25519's free synchronous forms, crypto::from_secret, crypto::generate and crypto::sign, each
- * entering its own guard before the member's, and refused once before libsodium (a short seed, a
- * moved-from key pair); crypto::from_bytes of a public key enters none, as its member does not.
+ * Ed25519's free synchronous forms, crypto::from_secret, crypto::generate, crypto::sign and
+ * crypto::to_x25519 of a key pair, each entering its own guard before the member's, and refused
+ * once before libsodium (a short seed, a moved-from key pair); crypto::from_bytes of a public key
+ * enters none, as its member does not.
  */
 void cover_ed25519_free_forms() {
     using keypair = crypto::curves::ed25519::basic_keypair<sodium>;
@@ -341,17 +343,25 @@ void cover_ed25519_free_forms() {
     }
     covered("ed25519 crypto::sign on sodium", "crypto::sign",
             [&] { BOOST_TEST(crypto::sign(*made, crypto::eddsa, message).has_value()); });
+    covered("ed25519 crypto::to_x25519 of a key pair on sodium", "crypto::to_x25519",
+            [&] { BOOST_TEST(crypto::to_x25519(*made).has_value()); });
     [[maybe_unused]] keypair const taken(std::move(*made));
     covered("ed25519 crypto::sign moved from on sodium", "crypto::sign", [&] {
         // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
         BOOST_TEST(crypto::sign(*made, crypto::eddsa, message).error() ==
                    crypto::error::invalid_state);
     });
+    covered("ed25519 crypto::to_x25519 of a key pair moved from on sodium", "crypto::to_x25519",
+            [&] {
+                // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
+                BOOST_TEST(crypto::to_x25519(*made).error() == crypto::error::invalid_state);
+            });
 }
 
 /**
  * Ed25519's `crypto::verify` and `public_key::verify`, a signature of the wrong size included,
- * and `to_x25519_public`, a key of small order included.
+ * and `public_key::to_x25519` and the free `crypto::to_x25519` of a public key, a key of small
+ * order included.
  */
 void cover_ed25519_free() {
     namespace ed25519 = crypto::curves::ed25519;
@@ -385,8 +395,10 @@ void cover_ed25519_free() {
         BOOST_TEST(public_key->verify(crypto::eddsa, zero_signature, message).error() ==
                    crypto::error::invalid_signature);
     });
-    covered("ed25519::to_x25519_public on sodium",
-            [&] { BOOST_TEST(ed25519::to_x25519_public<sodium>(*public_key).has_value()); });
+    covered("ed25519::public_key::to_x25519 on sodium",
+            [&] { BOOST_TEST(public_key->to_x25519<sodium>().has_value()); });
+    covered("ed25519 crypto::to_x25519 of a public key on sodium", "crypto::to_x25519",
+            [&] { BOOST_TEST(crypto::to_x25519(*public_key).has_value()); });
     // The identity's encoding, 01 then zeros, a point of small order.
     std::array<std::uint8_t, 32> identity{};
     identity[0] = 0x01;
@@ -394,10 +406,14 @@ void cover_ed25519_free() {
     if (!BOOST_TEST(small_order.has_value())) {
         return;
     }
-    covered("ed25519::to_x25519_public with a key of small order on sodium", [&] {
-        BOOST_TEST(ed25519::to_x25519_public<sodium>(*small_order).error() ==
-                   crypto::error::invalid_public_key);
+    covered("ed25519::public_key::to_x25519 with a key of small order on sodium", [&] {
+        BOOST_TEST(small_order->to_x25519<sodium>().error() == crypto::error::invalid_public_key);
     });
+    covered("ed25519 crypto::to_x25519 of a public key of small order on sodium",
+            "crypto::to_x25519", [&] {
+                BOOST_TEST(crypto::to_x25519(*small_order).error() ==
+                           crypto::error::invalid_public_key);
+            });
 }
 
 /**

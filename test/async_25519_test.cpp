@@ -328,7 +328,7 @@ void async_from_secret_refused(asio::io_context& context) {
     std::array<std::uint8_t, 3> const message{1, 2, 3};
     BOOST_TEST(empty.public_key().error() == crypto::error::invalid_state);
     BOOST_TEST(empty.sign(crypto::eddsa, message).error() == crypto::error::invalid_state);
-    BOOST_TEST(empty.x25519_secret().error() == crypto::error::invalid_state);
+    BOOST_TEST(empty.to_x25519().error() == crypto::error::invalid_state);
     auto const signed_empty =
         complete<signature_type>(context, [&](auto const& executor, auto&& token) {
             return crypto::async_sign(executor, empty, crypto::eddsa, message,

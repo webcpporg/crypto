@@ -429,11 +429,11 @@
             "family": "ed25519",
             "functions": ["basic_keypair::from_secret", "generate", "basic_keypair::async_from_secret",
                           "basic_keypair::async_generate", "basic_keypair::public_key", "secret",
-                          "sign", "basic_keypair::async_sign", "x25519_secret"],
+                          "sign", "basic_keypair::async_sign", "basic_keypair::to_x25519"],
             "namespace": "curves",
             "api": "curves::ed25519::keypair",
             "header": "<webcpp/crypto/curves/ed25519.hpp>",
-            "what": "An Ed25519 key pair (RFC 8032): made from a 32-byte seed, which `secret()` gives back, or drawn from `random_device`; its public key, a `curves::ed25519::public_key`; 64-byte signatures of a message with `sign(crypto::eddsa, message)`, and of a message's SHA-512 with `sign(crypto::eddsa_prehashed, crypto::prehashed{digest})` (Ed25519ph, native backends); and its X25519 secret key.",
+            "what": "An Ed25519 key pair (RFC 8032): made from a 32-byte seed, which `secret()` gives back, or drawn from `random_device`; its public key, a `curves::ed25519::public_key`; 64-byte signatures of a message with `sign(crypto::eddsa, message)`, and of a message's SHA-512 with `sign(crypto::eddsa_prehashed, crypto::prehashed{digest})` (Ed25519ph, native backends); and its X25519 key pair, `to_x25519()`.",
             "section": "crypto-ed25519",
             "backends": {
                 "sodium": {"tests": ["ed25519_sodium", "oracle_25519"]},
@@ -443,11 +443,12 @@
         {
             "id": "ed25519_public_key",
             "family": "ed25519",
-            "functions": ["public_key::from_bytes", "bytes", "public_key::verify", "public_key::async_verify"],
+            "functions": ["public_key::from_bytes", "bytes", "public_key::verify", "public_key::async_verify",
+                          "public_key::to_x25519"],
             "namespace": "curves",
             "api": "curves::ed25519::public_key",
             "header": "<webcpp/crypto/curves/ed25519.hpp>",
-            "what": "An Ed25519 public key, its 32 bytes, which `crypto::verify(crypto::eddsa, ...)` takes: made from bytes with only their size checked, since whether the point is canonical and not of small order is the verification policy's judgment.",
+            "what": "An Ed25519 public key, its 32 bytes, which `crypto::verify(crypto::eddsa, ...)` takes: made from bytes with only their size checked, since whether the point is canonical and not of small order is the verification policy's judgment; and its X25519 public key, `to_x25519()`.",
             "section": "crypto-ed25519",
             "backends": {
                 "sodium": {"tests": ["ed25519_sodium", "oracle_25519"]},
@@ -478,16 +479,16 @@
             "backends": {"sodium": {"tests": ["ed25519ph_sodium"]}}
         },
         {
-            "id": "ed25519_to_x25519_public",
+            "id": "ed25519_to_x25519",
             "family": "ed25519",
             "free": true,
-            "functions": ["to_x25519_public"],
+            "functions": ["to_x25519"],
             "namespace": "curves",
-            "api": "curves::ed25519::to_x25519_public",
+            "api": "crypto::to_x25519",
             "header": "<webcpp/crypto/curves/ed25519.hpp>",
-            "what": "The X25519 public key of an Ed25519 public key (the birational map), refusing a key of small order or not canonical with `invalid_public_key`.",
+            "what": "Converts an Ed25519 key pair to an X25519 key pair of its backend, and an Ed25519 public key to an X25519 public key (the birational map), refusing a key of small order or not canonical with `invalid_public_key`: the free form of both members, `to_x25519()`, synchronous on every backend.",
             "section": "crypto-x25519",
-            "backends": {"sodium": {"tests": ["x25519_sodium"]}}
+            "backends": {"sodium": {"tests": ["ed25519_sodium", "x25519_sodium"]}}
         },
         {
             "id": "x25519_keypair",
@@ -1239,8 +1240,8 @@
             "cited": ["Standards", "Ecosystems that require it", "Browsers' WebCrypto"],
             "rows": [
                 ["`secp256k1`", "BIP 340 Schnorr and ECDSA signatures, recoverable signatures, ECDH in three forms, tweaks, ElligatorSwift, MuSig2, silent payments, SPKI and PKCS#8", "about 128 bits ({sec2})", "secret 32 bytes; public 33 bytes compressed, 65 bytes uncompressed ({sec1}), 32 bytes x-only, 64 bytes as ElligatorSwift ({bip324}); SPKI 56 or 88 bytes ({rfc5480}), PKCS#8 135 bytes ({rfc5208}, {rfc5915})", "64 bytes, MuSig2's aggregate too ({bip327}); 65 bytes recoverable; ECDSA in DER up to 72", "{speed:secp256k1}", "{constant_time:secp256k1}", "{sec2}, {bip340}, {rfc6979}, {bip324}, {bip327}, {bip352}", "Bitcoin ({bip340}), Ethereum ({ethereum}), Nostr ({nip01})", "no: WebCrypto offers P-256, P-384, P-521, Ed25519 and X25519, not secp256k1 ({webcrypto})", "Bitcoin's keys and signatures; Nostr's event signatures ({nip01}); Ethereum's ECDSA verification with a known key; ECDH in the raw x-coordinate form of Nostr's encrypted messages ({nip44}); Ethereum's recoverable signatures and uncompressed keys ({ethereum}), the address hashing being a domain library's; BIP 32's tweaks of the full key, its derivation of the tweak being a domain library's ({bip32}); keys exchanged with OpenSSL as SPKI or PKCS#8 ({rfc5480}, {rfc5915}), in DER or PEM ({rfc7468}); Bitcoin's version 2 transport, whose keys are ElligatorSwift encodings ({bip324}); MuSig2's multisignatures ({bip327}); silent payments ({bip352}), the addresses and transactions being a domain library's"],
-                ["`ed25519`", "Ed25519 signatures, and Ed25519ph over SHA-512, of a digest (`crypto::eddsa_prehashed`) or of a message given in pieces; the X25519 secret key of a key pair", "about 128 bits ({rfc8032})", "secret 32 bytes (the seed); public 32 bytes", "64 bytes", "{speed:ed25519}", "{constant_time:ed25519}", "{rfc8032}, {fips186-5}", "SSH keys ({rfc8709}), Signal's signatures on its Curve25519 keys ({signal-xeddsa}), Tor's identity keys ({tor-cert-spec}), Solana's accounts ({solana-accounts})", "yes: Ed25519 ({webcrypto})", "SSH, Tor and Solana keys and signatures, and any protocol that names RFC 8032's Ed25519 or Ed25519ph; verification is strict (libsodium's rules), which some lenient verifiers are not. Not Bitcoin, Ethereum or Nostr, whose keys are secp256k1's"],
-                ["`x25519`", "Key agreement (Diffie-Hellman on Curve25519): two parties who exchanged public keys share a 32-byte secret, which `key_exchange::kx_keypair` and the boxes of `public_key_encryption` build on", "about 128 bits ({rfc7748})", "secret 32 bytes; public 32 bytes", "none: no signatures", "{speed:x25519}", "{constant_time:x25519}", "{rfc7748}", "TLS 1.3 ({rfc8446-groups}), SSH ({rfc8731}), WireGuard ({wireguard}), Signal ({x3dh})", "yes: X25519 ({webcrypto})", "TLS 1.3's and SSH's key exchange, WireGuard, Signal; libsodium's `crypto_box` keys, and the session keys of `crypto_kx` with `key_exchange::kx_keypair` ({libsodium-kx}). The Ed25519 public key of a peer converts with `curves::ed25519::to_x25519_public`. A shared secret goes through a KDF before it keys a cipher. Every case of Wycheproof's X25519 file is tested ({wycheproof})"],
+                ["`ed25519`", "Ed25519 signatures, and Ed25519ph over SHA-512, of a digest (`crypto::eddsa_prehashed`) or of a message given in pieces; a key pair's and a public key's conversion to X25519's typed keys", "about 128 bits ({rfc8032})", "secret 32 bytes (the seed); public 32 bytes", "64 bytes", "{speed:ed25519}", "{constant_time:ed25519}", "{rfc8032}, {fips186-5}", "SSH keys ({rfc8709}), Signal's signatures on its Curve25519 keys ({signal-xeddsa}), Tor's identity keys ({tor-cert-spec}), Solana's accounts ({solana-accounts})", "yes: Ed25519 ({webcrypto})", "SSH, Tor and Solana keys and signatures, and any protocol that names RFC 8032's Ed25519 or Ed25519ph; verification is strict (libsodium's rules), which some lenient verifiers are not. Not Bitcoin, Ethereum or Nostr, whose keys are secp256k1's"],
+                ["`x25519`", "Key agreement (Diffie-Hellman on Curve25519): two parties who exchanged public keys share a 32-byte secret, which `key_exchange::kx_keypair` and the boxes of `public_key_encryption` build on", "about 128 bits ({rfc7748})", "secret 32 bytes; public 32 bytes", "none: no signatures", "{speed:x25519}", "{constant_time:x25519}", "{rfc7748}", "TLS 1.3 ({rfc8446-groups}), SSH ({rfc8731}), WireGuard ({wireguard}), Signal ({x3dh})", "yes: X25519 ({webcrypto})", "TLS 1.3's and SSH's key exchange, WireGuard, Signal; libsodium's `crypto_box` keys, and the session keys of `crypto_kx` with `key_exchange::kx_keypair` ({libsodium-kx}). The Ed25519 public key of a peer converts with its `to_x25519()`. A shared secret goes through a KDF before it keys a cipher. Every case of Wycheproof's X25519 file is tested ({wycheproof})"],
                 ["`p256`", "Key pairs made from a 32-byte scalar or drawn from `random_device`, public keys validated once, as SEC 1's uncompressed point or two coordinates, ECDSA over SHA-256 of a message or a digest with RFC 6979's nonce, signed low S, raw and DER, and low S checked or normalized, ECDH's raw x coordinate, SPKI and PKCS#8", "about 128 bits ({sec2})", "secret 32 bytes (the scalar); public 65 bytes uncompressed ({sec1}); SPKI 91 bytes ({rfc5480}), PKCS#8 138 bytes ({rfc5208}, {rfc5915})", "ECDSA: 64 bytes, r and s ({ieee1363}); in DER up to 72 ({rfc3279})", "{speed:p256}", "{constant_time:p256}", "{fips186-5}, {sec2}, {sec1}, {rfc6979}", "passkeys' ES256 ({webauthn}), TLS 1.3 ({rfc8446-groups})", "yes: P-256, for ECDSA and ECDH ({webcrypto})", "Browsers' WebCrypto, whose raw export of a P-256 public key is the uncompressed point `public_key::from_bytes` takes ({webcrypto}) and whose ECDH `deriveBits` is the raw x `agree` gives ({webcrypto-ecdh}); passkeys and TLS. Not Bitcoin, Ethereum or Nostr, whose keys are secp256k1's"]
             ]
         },
@@ -1291,7 +1292,7 @@
         {"need": "Seed BearSSL's own generator for code that calls BearSSL directly", "namespace": "webcpp::crypto", "api": "`random_device::fill`", "backend": "BearSSL's C API", "jamfile": "/webcpp/crypto//crypto /third_party//bearssl", "example": "bearssl_prng", "section": "crypto-entropy-bearssl"},
         {"need": "Hash, or compute an HMAC", "namespace": "Boost.Hash2, not this library", "api": "`boost::hash2::sha2_256`, `hmac_sha2_256`", "backend": "none", "jamfile": "`/webcpp/crypto//crypto` brings Boost's headers", "example": "constant_time_equal_hmac", "section": "crypto-overview-hash2"},
         {"need": "Sign and verify with Ed25519 (RFC 8032), or with Ed25519ph a message's SHA-512 or a large message in pieces", "namespace": "webcpp::crypto::curves::ed25519", "api": "`keypair::from_secret`, `keypair::generate`, `keypair::sign(crypto::eddsa, message)`, `keypair::sign(crypto::eddsa_prehashed, crypto::prehashed{digest})`, `crypto::verify`; `prehashed_signer<webcpp::hash::sha2_512>`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default", "example": "ed25519_sign", "section": "crypto-ed25519"},
-        {"need": "Agree a shared secret with a peer's public key (X25519, RFC 7748), or with the X25519 form of an Ed25519 key", "namespace": "webcpp::crypto::curves::x25519", "api": "`keypair::from_secret`, `keypair::generate`, `public_key::from_bytes`, `keypair::agree`; `curves::ed25519::to_x25519_public`, `curves::ed25519::keypair::x25519_secret`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//x25519-default", "example": "x25519_agree", "section": "crypto-x25519"},
+        {"need": "Agree a shared secret with a peer's public key (X25519, RFC 7748), or with the X25519 form of an Ed25519 key", "namespace": "webcpp::crypto::curves::x25519", "api": "`keypair::from_secret`, `keypair::generate`, `public_key::from_bytes`, `keypair::agree`; `curves::ed25519::keypair::to_x25519`, `curves::ed25519::public_key::to_x25519`, `crypto::to_x25519`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//x25519-default", "example": "x25519_agree", "section": "crypto-x25519"},
         {"need": "Give a client and a server a key for each direction from each other's public key, as libsodium's `crypto_kx` does", "namespace": "webcpp::crypto::key_exchange", "api": "`kx_keypair::from_keypair`, `kx_keypair::derive_from_seed`, `kx_keypair::generate`, `client_session_keys`, `server_session_keys`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//kx-default", "example": "kx_session", "section": "crypto-kx"},
         {"need": "Export or import an Ed25519 or X25519 key in the standard forms OpenSSL and WebCrypto use: SPKI and PKCS#8 (RFC 8410), as DER or PEM text", "namespace": "webcpp::crypto::curves", "api": "`ed25519::encode_spki`, `decode_spki`, `encode_pkcs8`, `decode_pkcs8`, the same in `x25519`; `webcpp::crypto::pem::armour`, `unarmour`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default /webcpp/crypto//x25519-default /webcpp/crypto//pem-default", "example": "key_formats", "section": "crypto-key-formats"},
         {"need": "Encrypt messages in a chat app, on the web and natively, each with a random nonce", "namespace": "webcpp::crypto::ciphers", "api": "`xchacha20_poly1305<>`: `from_key`, `seal`, `open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//xchacha20_poly1305-default", "example": "xchacha_seal", "section": "crypto-chacha"},

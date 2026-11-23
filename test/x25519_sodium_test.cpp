@@ -21,9 +21,9 @@
 //   the one moved to agrees as the source did.
 // - generated: two generated key pairs differ and agree with each other.
 // - all_zero: detail::is_all_zero.
-// - conversion: the X25519 public key of an Ed25519 key pair's x25519_secret() equals
-//   curves::ed25519::to_x25519_public of its Ed25519 public key, and an Ed25519 key of small
-//   order, of mixed order, not canonical or off the curve is invalid_public_key.
+// - conversion: the public key of an Ed25519 key pair's to_x25519() equals its Ed25519 public
+//   key's to_x25519(), and an Ed25519 key of small order, of mixed order, not canonical or off the
+//   curve is invalid_public_key.
 
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
@@ -166,7 +166,7 @@ void sizes() {
     BOOST_TEST(x25519::keypair::from_secret(std::span(long_key).first(31)).error() ==
                crypto::error::invalid_key_size);
     BOOST_TEST(x25519::keypair::from_secret(long_key).error() == crypto::error::invalid_key_size);
-    // An Ed25519 key of another size is never made, so to_x25519_public never sees one.
+    // An Ed25519 key of another size is never made, so its to_x25519() never sees one.
     BOOST_TEST(ed25519::public_key::from_bytes(std::span(long_key).first(31)).error() ==
                crypto::error::invalid_public_key);
     BOOST_TEST(ed25519::public_key::from_bytes(long_key).error() ==
@@ -262,27 +262,23 @@ void all_zero() {
     BOOST_TEST(!crypto::detail::is_all_zero(bytes));
 }
 
-/** One Ed25519 key pair's X25519 public key, derived from its secret and converted. */
+/** One Ed25519 key pair's X25519 public key, of its converted key pair and converted itself. */
 void converted(std::string_view seed) {
     auto const key = ed25519::keypair::from_secret(test::from_hex(seed));
     BOOST_TEST(key.has_value());
     if (!key) {
         return;
     }
-    auto const secret_key = key->x25519_secret();
+    auto const x25519_key = key->to_x25519();
     auto const ed25519_public = key->public_key();
-    BOOST_TEST(secret_key.has_value());
+    BOOST_TEST(x25519_key.has_value());
     BOOST_TEST(ed25519_public.has_value());
-    if (!secret_key || !ed25519_public) {
-        return;
-    }
-    auto const x25519_key = x25519::keypair::from_secret(secret_key->bytes());
-    if (!BOOST_TEST(x25519_key.has_value())) {
+    if (!x25519_key || !ed25519_public) {
         return;
     }
     auto const derived = x25519_key->public_key();
-    auto const converted_key = ed25519::to_x25519_public(*ed25519_public);
-    auto const named = ed25519::to_x25519_public<crypto::backends::sodium>(*ed25519_public);
+    auto const converted_key = ed25519_public->to_x25519();
+    auto const named = ed25519_public->to_x25519<crypto::backends::sodium>();
     BOOST_TEST(derived.has_value());
     BOOST_TEST(converted_key.has_value());
     BOOST_TEST(named.has_value());
@@ -331,7 +327,7 @@ void conversion_refuses() {
         if (!BOOST_TEST(made.has_value())) {
             continue;
         }
-        auto const converted = ed25519::to_x25519_public(*made);
+        auto const converted = made->to_x25519();
         BOOST_TEST(!converted.has_value());
         if (!converted) {
             BOOST_TEST(converted.error() == crypto::error::invalid_public_key);

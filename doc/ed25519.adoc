@@ -25,8 +25,8 @@ Ethereum and Nostr sign on secp256k1 instead (<<crypto-secp256k1>>).
 A `keypair` is made from a seed with `from_secret(seed)`, or drawn from
 `random_device` with `generate()`; it gives its public key (`public_key()`),
 its seed back (`secret()`, a `secret<32>`), signs
-(`sign(crypto::eddsa, message)`), and gives its X25519 secret key
-(`x25519_secret`, a `secret<32>`), so that one seed serves for signatures and
+(`sign(crypto::eddsa, message)`), and converts itself to an X25519 key pair
+(`to_x25519()`, <<crypto-x25519>>), so that one seed serves for signatures and
 for key agreement. The key pair wipes its secret key when it is moved from and
 destroyed. `crypto::verify(crypto::eddsa, signature, message, public_key)`
 checks a signature with the public key alone. The scheme `crypto::eddsa` signs

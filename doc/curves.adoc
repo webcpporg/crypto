@@ -277,8 +277,8 @@ and gives a `secret<32>`: X25519's gives RFC 7748's shared secret
 WebCrypto's `deriveBits` does: P-256's (<<crypto-p256-ecdh>>) and secp256k1's,
 whose two other forms keep names of their own, `agree_hashed` and
 `agree_point` (<<crypto-secp256k1-ecdh>>). `async_agree` gives X25519's and
-P-256's through a completion. Ed25519's `x25519_secret()` is a conversion, not
-an agreement (<<crypto-x25519>>).
+P-256's through a completion. Ed25519's `to_x25519()` is a conversion, not an
+agreement (<<crypto-x25519>>).
 
 [#crypto-curves-four-forms]
 ==== Four forms of every operation

@@ -202,7 +202,7 @@ template <class Keypair, class PublicKey>
                   "webcpp::crypto: agree: this key pair does not agree with this peer: a P-256 "
                   "key pair agrees with a curves::p256::basic_public_key of its backend, a "
                   "secp256k1 key pair with a curves::secp256k1::public_key; an Ed25519 key pair "
-                  "agrees through X25519, its x25519_secret() and curves::x25519::agree.");
+                  "agrees through X25519: convert it with to_x25519().");
     return {};
 }
 

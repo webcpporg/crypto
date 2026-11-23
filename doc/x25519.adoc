@@ -42,17 +42,20 @@ include::generated/backends-x25519_keypair.adoc[]
 
 include::generated/backends-x25519_public_key.adoc[]
 
-*From Ed25519.* A program that already holds an Ed25519 key pair (<<crypto-ed25519>>)
-agrees with the same seed: `keypair::x25519_secret()` is its X25519 secret key,
-from which `curves::x25519::keypair::from_secret` makes its X25519 key pair,
-and `curves::ed25519::to_x25519_public(public_key)` converts a peer's Ed25519
-public key to the bytes of its X25519 public key, the birational map between
-the two forms of the curve, which `curves::x25519::public_key::from_bytes`
-makes into a key. The conversion refuses with `invalid_public_key` a key of small
-order, off the curve or outside the main subgroup, as libsodium does
+*From Ed25519.* A program that already holds an Ed25519 key pair
+(<<crypto-ed25519>>) agrees with the same seed: its `to_x25519()` gives its
+X25519 key pair, of the same backend, and a peer's Ed25519 public key's
+`to_x25519()` gives that peer's X25519 public key, the birational map between
+the two forms of the curve; the free `crypto::to_x25519(value)` calls either.
+The converted key pair's public key is its Ed25519 public key's conversion. The
+conversion of a public key refuses with `invalid_public_key` a key of small
+order, not canonical, off the curve or outside the main subgroup, as libsodium
+does
 (link:https://doc.libsodium.org/advanced/ed25519-curve25519[libsodium's documentation]).
+Both are synchronous on every backend: WebCrypto converts nothing between the
+two.
 
-include::generated/backends-ed25519_to_x25519_public.adoc[]
+include::generated/backends-ed25519_to_x25519.adoc[]
 
 *Example.* RFC 7748's Alice and Bob, then two Ed25519 key pairs that agree
 through their X25519 forms, then a peer key of low order refused:

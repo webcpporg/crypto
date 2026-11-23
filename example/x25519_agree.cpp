@@ -88,30 +88,21 @@ bool from_ed25519() {
     if (!first || !second) {
         return false;
     }
-    auto const first_secret = first->x25519_secret();
-    auto const second_secret = second->x25519_secret();
+    // Each side converts its own key pair to X25519's.
+    auto const first_x25519 = first->to_x25519();
+    auto const second_x25519 = second->to_x25519();
     auto const first_signing = first->public_key();
     auto const second_signing = second->public_key();
-    if (!first_secret || !second_secret || !first_signing || !second_signing) {
-        return false;
-    }
-    auto const first_x25519 = x25519::keypair::from_secret(first_secret->bytes());
-    auto const second_x25519 = x25519::keypair::from_secret(second_secret->bytes());
-    if (!first_x25519 || !second_x25519) {
+    if (!first_x25519 || !second_x25519 || !first_signing || !second_signing) {
         return false;
     }
     // Each side knows the other by its Ed25519 public key, and converts it.
-    auto const first_peer_bytes = ed25519::to_x25519_public(*second_signing);
-    auto const second_peer_bytes = ed25519::to_x25519_public(*first_signing);
-    if (!first_peer_bytes || !second_peer_bytes) {
-        return false;
-    }
-    print("converted   ", *second_peer_bytes);
-    auto const first_peer = x25519::public_key::from_bytes(*first_peer_bytes);
-    auto const second_peer = x25519::public_key::from_bytes(*second_peer_bytes);
+    auto const first_peer = second_signing->to_x25519();
+    auto const second_peer = first_signing->to_x25519();
     if (!first_peer || !second_peer) {
         return false;
     }
+    print("converted   ", second_peer->bytes());
     auto const first_shared = first_x25519->agree(*first_peer);
     auto const second_shared = second_x25519->agree(*second_peer);
     return first_shared && second_shared &&

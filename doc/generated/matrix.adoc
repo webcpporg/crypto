@@ -41,10 +41,10 @@
 |native, wasip2, wasip3, emscripten
 |`+async_p256+`
 
-|`+equal+`
+|`+constant_time_equal+`
 |no backend
 |native, wasip2, wasip3, emscripten
-|`+equal+`
+|`+constant_time_equal+`
 
 |`+erase_secret+`
 |no backend
@@ -353,7 +353,7 @@ The same, by target: the backends each operation runs on.
 |BearSSL
 |BearSSL
 
-|`+equal+`
+|`+constant_time_equal+`
 |no backend
 |no backend
 |no backend

@@ -20,12 +20,12 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <boost/system/result.hpp>
@@ -103,7 +103,7 @@ inline constexpr std::size_t pem_line_characters = 64;
 
 /**
  * Whether two lines of base64 are the same, in a time that does not depend on their characters,
- * which encode a private key's bytes in PEM of a PKCS#8: through `equal`.
+ * which encode a private key's bytes in PEM of a PKCS#8: through `constant_time_equal`.
  */
 [[nodiscard]] inline bool pem_same_line(std::span<char const> first_line,
                                         std::span<char const> second_line) noexcept {
@@ -118,7 +118,7 @@ inline constexpr std::size_t pem_line_characters = 64;
     std::ranges::transform(second_line, second_bytes.begin(), [](char pem_character) {
         return static_cast<std::uint8_t>(pem_character);
     });
-    bool const bytes_equal = equal(first_bytes, second_bytes);
+    bool const bytes_equal = constant_time_equal(first_bytes, second_bytes);
     wipe_object(first_bytes);
     wipe_object(second_bytes);
     return bytes_equal;

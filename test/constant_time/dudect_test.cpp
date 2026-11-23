@@ -6,11 +6,11 @@
 
 // dudect's statistics (spec section 8.3): BearSSL's AES-GCM and ChaCha20-Poly1305 seal's time
 // against its key, open's against its tag (the failure's zeroing included), ctaes's block
-// encryption's against its key, equal's against its second argument, and P-256's ECDSA signing
-// and ECDH's x against the key pair's scalar (one fixed scalar, against random ones; the digest
-// and the peer's public key fixed), each key pair made before its measurement, unmeasured;
-// natively and under wasmtime, where the engine's compiler decides whether BearSSL's 64-bit
-// multiplication stays constant time. ChaCha20-Poly1305's open is measured once more as the
+// encryption's against its key, constant_time_equal's against its second argument, and P-256's
+// ECDSA signing and ECDH's x against the key pair's scalar (one fixed scalar, against random ones;
+// the digest and the peer's public key fixed), each key pair made before its measurement,
+// unmeasured; natively and under wasmtime, where the engine's compiler decides whether BearSSL's
+// 64-bit multiplication stays constant time. ChaCha20-Poly1305's open is measured once more as the
 // program's A/A control (chacha_open_aa), both classes the same nearly right tag, prepared by
 // the same instructions. `--case <name>` measures one case alone.
 
@@ -21,8 +21,8 @@
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/signing.hpp>
 
 #include <algorithm>
@@ -183,7 +183,7 @@ int main(int argc, char** argv) {
                                                  "chacha_seal",
                                                  "chacha_open",
                                                  "ctaes_encrypt",
-                                                 "equal",
+                                                 "constant_time_equal",
                                                  "chacha_open_aa",
                                                  "p256_sign",
                                                  "p256_ecdh_x",
@@ -221,15 +221,16 @@ int main(int argc, char** argv) {
                        {{"block", block.data()}, {"key", key.data()}, {"object", &*block_made}});
     }
 
-    if (selection->runs("equal")) {
+    if (selection->runs("constant_time_equal")) {
         std::array<std::uint8_t, 16> const a{};
         std::array<std::uint8_t, 16> b{};
         bool volatile sink = false;  // keeps the comparison from being optimised away
         // The classes differ only in the second argument: equal to the first, against random.
-        auto const equal_t = test::twice(
+        auto const compared_t = test::twice(
             count, [&](int which, auto& generator) { test::choose(which, generator, a, b); },
-            [&] { sink = crypto::equal(a, b); });
-        results.record("equal", "equal", equal_t, true, {{"a", a.data()}, {"b", b.data()}});
+            [&] { sink = crypto::constant_time_equal(a, b); });
+        results.record("constant_time_equal", "constant_time_equal", compared_t, true,
+                       {{"a", a.data()}, {"b", b.data()}});
     }
 
     if (!measure_p256(results, *selection)) {

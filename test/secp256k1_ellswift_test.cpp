@@ -17,9 +17,9 @@
 // a swapped party does not. A moved-from key pair: invalid_state from ellswift_create and
 // ellswift_xdh.
 
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -251,13 +251,13 @@ void seeded_round(std::mt19937_64& generator) {
     if (!BOOST_TEST(initiator_secret && responder_secret && swapped)) {
         return;
     }
-    BOOST_TEST(crypto::equal(initiator_secret->bytes(), responder_secret->bytes()));
-    BOOST_TEST(!crypto::equal(initiator_secret->bytes(), swapped->bytes()));
+    BOOST_TEST(crypto::constant_time_equal(initiator_secret->bytes(), responder_secret->bytes()));
+    BOOST_TEST(!crypto::constant_time_equal(initiator_secret->bytes(), swapped->bytes()));
     // Any encoding of the same key gives the same point, but the hash binds the bytes sent.
     auto const other_encoding = secp::ellswift_xdh(
         responder_key, *created_again, *responder_created, secp::ellswift_party::responder);
     BOOST_TEST(other_encoding &&
-               !crypto::equal(initiator_secret->bytes(), other_encoding->bytes()));
+               !crypto::constant_time_equal(initiator_secret->bytes(), other_encoding->bytes()));
 }
 
 void seeded() {

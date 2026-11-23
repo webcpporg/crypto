@@ -31,9 +31,9 @@
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/ciphers/secretbox.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/erase_secret.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/factories.hpp>

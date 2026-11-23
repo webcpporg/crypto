@@ -4,8 +4,8 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-[#crypto-equal]
-=== Comparing tags
+[#crypto-constant-time-equal]
+=== Comparing tags in constant time
 
 A *timing attack* recovers a secret by measuring how long a program takes to
 handle different inputs
@@ -17,36 +17,36 @@ bytes of a forged MAC are right; with enough requests the attacker builds a
 valid one byte by byte
 (link:https://cwe.mitre.org/data/definitions/208.html[CWE-208]).
 
-`equal`, in `<webcpp/crypto/equal.hpp>`, compares in constant time: it reads
-every byte, combines the differences without a branch, and its running time
-depends only on the length. It takes two Hash2 digests of one size, or two
-spans; spans of different sizes compare unequal without reading their contents,
-since a size is public. HMAC itself
-(link:https://www.rfc-editor.org/rfc/rfc2104[RFC 2104]) is Boost.Hash2's;
-crypto adds the comparison that makes it safe to check.
+`constant_time_equal`, in `<webcpp/crypto/constant_time_equal.hpp>`, compares in
+constant time: it reads every byte, combines the differences without a branch,
+and its running time depends only on the length. It takes two Hash2 digests of
+one size, or two spans; spans of different sizes compare unequal without reading
+their contents, since a size is public. HMAC itself
+(link:https://www.rfc-editor.org/rfc/rfc2104[RFC 2104]) is Boost.Hash2's; crypto
+adds the comparison that makes it safe to check.
 
-include::generated/backends-equal.adoc[]
+include::generated/backends-constant_time_equal.adoc[]
 
 *Example.* A payment provider signs each webhook call with HMAC-SHA-256 under a
-shared secret. The program recomputes the MAC over the body and compares it
-with `equal`; here the key, the body and the MAC are RFC 4231's test case 2
-(link:https://www.rfc-editor.org/rfc/rfc4231[RFC 4231]):
+shared secret. The program recomputes the MAC over the body and compares it with
+`constant_time_equal`; here the key, the body and the MAC are RFC 4231's test
+case 2 (link:https://www.rfc-editor.org/rfc/rfc4231[RFC 4231]):
 
 [source,cpp]
 ----
-include::{examples}/equal_hmac.cpp[tag=check,indent=0]
+include::{examples}/constant_time_equal_hmac.cpp[tag=check,indent=0]
 ----
 
 [listing]
 ----
-include::{examples}/equal_hmac.expected[]
+include::{examples}/constant_time_equal_hmac.expected[]
 ----
 
 The whole program:
 
 [source,cpp]
 ----
-include::{examples}/equal_hmac.cpp[tag=program]
+include::{examples}/constant_time_equal_hmac.cpp[tag=program]
 ----
 
 *Pitfalls.*

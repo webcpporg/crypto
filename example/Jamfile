@@ -19,8 +19,9 @@ webcpp.example schnorr_sign.cpp : <library>/third_party//secp256k1 ;
 webcpp.example aes256_gcm_bearssl.cpp : <library>/third_party//bearssl ;
 # end::aes256_gcm_bearssl[]
 
-# A Boost.Hash2 HMAC tag compared in constant time with equal; no backend.
-webcpp.example equal_hmac.cpp ;
+# A Boost.Hash2 HMAC tag compared in constant time with constant_time_equal; no
+# backend.
+webcpp.example constant_time_equal_hmac.cpp ;
 
 # BearSSL's HMAC-DRBG seeded from random_device.
 webcpp.example bearssl_prng.cpp : <library>/third_party//bearssl ;

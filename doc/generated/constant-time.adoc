@@ -54,9 +54,9 @@
 |not measured yet
 
 |no backend
-|`+equal+` is constant time in the contents: every byte is read, no branch and no index depends on one
-|Valgrind's memcheck (Linux): `+equal+`, `+is_all_zero+` and the wipe of `+secret<N>+`; MemorySanitizer (Linux, clang): `+equal+`, `+is_all_zero+` and the wipe of `+secret<N>+`; dudect (judged; on a runner GitHub hosts, by two of three runs): `+equal+`
-|dudect (judged; on a runner GitHub hosts, by two of three runs): `+equal+`
+|`+constant_time_equal+` is constant time in the contents: every byte is read, no branch and no index depends on one
+|Valgrind's memcheck (Linux): `+constant_time_equal+`, `+is_all_zero+` and the wipe of `+secret<N>+`; MemorySanitizer (Linux, clang): `+constant_time_equal+`, `+is_all_zero+` and the wipe of `+secret<N>+`; dudect (judged; on a runner GitHub hosts, by two of three runs): `+constant_time_equal+`
+|dudect (judged; on a runner GitHub hosts, by two of three runs): `+constant_time_equal+`
 |not measured yet
 |not measured yet
 |===

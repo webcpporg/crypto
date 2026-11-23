@@ -43,7 +43,7 @@
 
 |no backend
 |`+/webcpp/crypto//crypto+`
-|`+<webcpp/crypto/equal.hpp>+`, `+<webcpp/crypto/erase_secret.hpp>+`, `+<webcpp/crypto/error.hpp>+`
+|`+<webcpp/crypto/constant_time_equal.hpp>+`, `+<webcpp/crypto/erase_secret.hpp>+`, `+<webcpp/crypto/error.hpp>+`
 |native, wasip2, wasip3, emscripten
 |===
 

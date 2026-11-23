@@ -45,11 +45,11 @@ int main() {
     std::array<std::uint8_t, 16> const zero{};
     std::array<std::uint8_t, 16> other{};
     other.back() = 1;
-    BOOST_TEST(webcpp::crypto::equal(zero, zero));
-    BOOST_TEST(!webcpp::crypto::equal(zero, other));
+    BOOST_TEST(webcpp::crypto::constant_time_equal(zero, zero));
+    BOOST_TEST(!webcpp::crypto::constant_time_equal(zero, other));
     boost::hash2::digest<16> const digest{};
-    BOOST_TEST(webcpp::crypto::equal(digest, digest));
+    BOOST_TEST(webcpp::crypto::constant_time_equal(digest, digest));
     webcpp::crypto::erase_secret(other);
-    BOOST_TEST(webcpp::crypto::equal(zero, other));
+    BOOST_TEST(webcpp::crypto::constant_time_equal(zero, other));
     return webcpp::test::exit_status(boost::report_errors());
 }

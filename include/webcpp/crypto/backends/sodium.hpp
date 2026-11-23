@@ -844,7 +844,7 @@ struct sealed_box_engine<families::sealed_box, backends::sodium> {
 /** Defined once libsodium's RFC 8410 layouts are. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_RFC8410
 
-#include <webcpp/crypto/equal.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 
 #include <algorithm>
 #include <array>
@@ -856,8 +856,9 @@ namespace webcpp::crypto::detail {
 
 /**
  * RFC 8410's fixed layouts on libsodium: a prefix, then 32 key bytes. A decoding is accepted
- * only where its prefix is the one encoding the key gives, compared with `equal`, and its size
- * the one size (the callers check it), which is design D30's re-encoding test for a fixed layout.
+ * only where its prefix is the one encoding the key gives, compared with `constant_time_equal`, and
+ * its size the one size (the callers check it), which is design D30's re-encoding test for a fixed
+ * layout.
  */
 struct sodium_rfc8410 {
     /**
@@ -889,7 +890,7 @@ struct sodium_rfc8410 {
         std::span<std::uint8_t const, PrefixSize + 32> der_bytes,
         std::span<std::uint8_t, 32> key_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        if (!equal(der_bytes.template first<PrefixSize>(), prefix_bytes)) {
+        if (!constant_time_equal(der_bytes.template first<PrefixSize>(), prefix_bytes)) {
             return error::invalid_encoding;
         }
         std::ranges::copy(der_bytes.template last<32>(), key_bytes.begin());

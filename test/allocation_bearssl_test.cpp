@@ -14,9 +14,9 @@
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: a test
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -121,7 +121,7 @@ int main() {
         BOOST_TEST(made->verify(*open_tag).has_value());
         BOOST_TEST(made->decrypt(data).has_value());
         BOOST_TEST(made->end_open().has_value());
-        BOOST_TEST(crypto::equal(*tag, *tag));
+        BOOST_TEST(crypto::constant_time_equal(*tag, *tag));
         using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::bearssl>;
         auto sealer = chacha::from_key(key);
         BOOST_TEST(sealer.has_value());

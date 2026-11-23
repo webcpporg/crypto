@@ -18,12 +18,12 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/secret.hpp>
 
@@ -115,7 +115,7 @@ template <class Backend = default_backend_t<families::p256>>
     detail::timing_guard const timing_scope;
     constexpr std::size_t prefix_size = detail::p256_spki_prefix.size();
     if (spki_bytes.size() != max_spki_size ||
-        !equal(spki_bytes.first(prefix_size), detail::p256_spki_prefix)) {
+        !constant_time_equal(spki_bytes.first(prefix_size), detail::p256_spki_prefix)) {
         return error::invalid_encoding;
     }
     auto decoded_key = basic_public_key<Backend>::from_bytes(spki_bytes.subspan(prefix_size));
@@ -181,9 +181,9 @@ template <class Backend = default_backend_t<families::p256>>
     constexpr std::size_t infix_at = prefix_size + secret_key_size;
     constexpr std::size_t point_at = infix_at + detail::p256_pkcs8_infix.size();
     if (pkcs8_bytes.size() != max_pkcs8_size ||
-        !equal(pkcs8_bytes.first(prefix_size), detail::p256_pkcs8_prefix) ||
-        !equal(pkcs8_bytes.subspan(infix_at, detail::p256_pkcs8_infix.size()),
-               detail::p256_pkcs8_infix)) {
+        !constant_time_equal(pkcs8_bytes.first(prefix_size), detail::p256_pkcs8_prefix) ||
+        !constant_time_equal(pkcs8_bytes.subspan(infix_at, detail::p256_pkcs8_infix.size()),
+                             detail::p256_pkcs8_infix)) {
         return error::invalid_encoding;
     }
     // The scalar's copy is a secret, wiped when it goes, on every path.
@@ -204,7 +204,8 @@ template <class Backend = default_backend_t<families::p256>>
     // The point is d * G, computed from the secret; whether the input's is the same is public.
     // Not const: the branch reads it again after the mark (detail/declassify.hpp's tip).
     // NOLINTNEXTLINE(misc-const-correctness): see above
-    bool is_same = equal(public_point.unsafe_value().uncompressed(), pkcs8_bytes.subspan(point_at));
+    bool is_same = constant_time_equal(public_point.unsafe_value().uncompressed(),
+                                       pkcs8_bytes.subspan(point_at));
     WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&is_same, sizeof is_same);
     if (!is_same) {
         return error::invalid_encoding;

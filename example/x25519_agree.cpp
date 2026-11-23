@@ -8,9 +8,9 @@
 // then two Ed25519 key pairs, made from RFC 8032's seeds, agree one through their X25519 forms;
 // and a peer key of low order is refused. Prints each public key and the shared secrets in hex.
 // tag::program[]
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <array>
@@ -62,7 +62,7 @@ bool alice_and_bob() {
     // Printed here only because RFC 7748 publishes it; a program never prints a shared secret,
     // and derives its keys from it with a KDF.
     print("shared      ", alice_shared->bytes());
-    return crypto::equal(alice_shared->bytes(), bob_shared->bytes());
+    return crypto::constant_time_equal(alice_shared->bytes(), bob_shared->bytes());
 }
 
 // The same agreement from Ed25519 key pairs: one seed for signatures and key agreement.
@@ -99,7 +99,7 @@ bool from_ed25519() {
     auto const first_shared = x25519::agree(first_secret->bytes(), *first_peer);
     auto const second_shared = x25519::agree(second_secret->bytes(), *second_peer);
     return first_shared && second_shared &&
-           crypto::equal(first_shared->bytes(), second_shared->bytes());
+           crypto::constant_time_equal(first_shared->bytes(), second_shared->bytes());
 }
 
 // A peer key of low order gives an all-zero secret, which agree refuses.

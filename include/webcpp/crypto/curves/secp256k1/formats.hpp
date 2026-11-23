@@ -18,13 +18,13 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/backends/secp256k1.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <boost/system/result.hpp>
@@ -145,7 +145,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
                   webcpp::crypto::detail::secp256k1_spki_uncompressed_prefix);
     if ((spki_bytes.size() != spki_compressed_size &&
          spki_bytes.size() != spki_uncompressed_size) ||
-        !equal(spki_bytes.first(expected_prefix.size()), expected_prefix)) {
+        !constant_time_equal(spki_bytes.first(expected_prefix.size()), expected_prefix)) {
         return error::invalid_encoding;
     }
     using access = webcpp::crypto::detail::secp256k1_access;
@@ -221,7 +221,8 @@ template <class Backend = default_backend_t<families::secp256k1>>
     secp256k1_selftest();
     constexpr std::size_t prefix_size = webcpp::crypto::detail::secp256k1_pkcs8_prefix.size();
     if (pkcs8_bytes.size() != max_pkcs8_size ||
-        !equal(pkcs8_bytes.first(prefix_size), webcpp::crypto::detail::secp256k1_pkcs8_prefix)) {
+        !constant_time_equal(pkcs8_bytes.first(prefix_size),
+                             webcpp::crypto::detail::secp256k1_pkcs8_prefix)) {
         return error::invalid_encoding;
     }
     webcpp::crypto::detail::secp256k1_secret secret_bytes;
@@ -240,8 +241,8 @@ template <class Backend = default_backend_t<families::secp256k1>>
     // Not const: the branch reads it again after the mark (detail/declassify.hpp's tip); the
     // comparison runs on the secret's bytes, and its verdict is public.
     // NOLINTNEXTLINE(misc-const-correctness): see above
-    bool is_same =
-        encode_pkcs8(*made_pair, encoded_again).has_value() && equal(encoded_again, pkcs8_bytes);
+    bool is_same = encode_pkcs8(*made_pair, encoded_again).has_value() &&
+                   constant_time_equal(encoded_again, pkcs8_bytes);
     WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&is_same, sizeof is_same);
     webcpp::crypto::detail::wipe(encoded_again.data(), encoded_again.size());
     if (!is_same) {

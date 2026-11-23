@@ -28,8 +28,9 @@ rule crypto-run ( name : sources + : requirements * : targets * )
 OPTIMISED = <optimization>speed <toolset>emscripten:<debug-symbols>off ;
 
 webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
-  crypto/equal.hpp crypto/erase_secret.hpp crypto/error.hpp crypto/ciphers/aes.hpp
-  crypto/ciphers/gcm.hpp crypto/random_device.hpp crypto/detail/bytes.hpp crypto/detail/declassify.hpp
+  crypto/constant_time_equal.hpp crypto/erase_secret.hpp crypto/error.hpp
+  crypto/ciphers/aes.hpp crypto/ciphers/gcm.hpp crypto/random_device.hpp
+  crypto/detail/bytes.hpp crypto/detail/declassify.hpp
   crypto/detail/engines.hpp crypto/detail/entropy.hpp crypto/detail/limits.hpp
   crypto/detail/windows.hpp crypto/detail/wipe.hpp crypto/secret.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
@@ -181,7 +182,7 @@ webcpp.compile-diagnostic heavy_refusal_forgotten : heavy_refusal_forgotten_test
   : <define>WEBCPP_CRYPTO_NO_THREADS : native wasip2 wasip3 : alone ;
 
 crypto-run error : error_test.cpp ;
-crypto-run equal : equal_test.cpp ;
+crypto-run constant_time_equal : constant_time_equal_test.cpp ;
 # signing.hpp's tags and their one list, prehashed, the input checks and the
 # concepts, over stand-in key types; the catch-all verify; sha256_of.
 crypto-run signing : signing_test.cpp ;
@@ -206,15 +207,17 @@ crypto-run synchronous_forms : synchronous_forms_test.cpp
 # time.
 crypto-run hex : hex_test.cpp ;
 # detail::timing_guard sets DIT for its scope where the CPU has it and leaves
-# the thread's state as it found it; its seam fires on every target; equal
-# enters it. timing_threads adds a second thread, natively, with threads.
+# the thread's state as it found it; its seam fires on every target;
+# constant_time_equal enters it. timing_threads adds a second thread, natively,
+# with threads.
 crypto-run timing : timing_test.cpp ;
 crypto-run timing_threads : timing_test.cpp
   : <threading>multi <define>WEBCPP_TEST_TIMING_THREADS : native ;
 # Without the seam, the guard takes no argument, on every target; natively, at
-# release, a program that calls equal reads its own executable and finds
-# neither equal's name nor equal.hpp's path, which a guard's source_location
-# would keep where its constructor is not inlined (clang on arm64).
+# release, a program that calls constant_time_equal reads its own executable and
+# finds neither its name nor constant_time_equal.hpp's path, which a guard's
+# source_location would keep where its constructor is not inlined (clang on
+# arm64).
 crypto-run timing_unseamed : timing_unseamed_test.cpp ;
 webcpp.run timing_unseamed_release : timing_unseamed_test.cpp
   : <variant>release <define>WEBCPP_TEST_TIMING_READ_SELF : native ;

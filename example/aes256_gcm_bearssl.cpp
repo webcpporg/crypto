@@ -11,7 +11,7 @@
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
-#include <webcpp/crypto/equal.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 
 #include <array>
 #include <cstdint>
@@ -43,7 +43,7 @@ int main() {
     }
     // Seal encrypts in place and returns the tag.
     auto const tag = aead->seal(iv, {}, data);
-    if (!tag || data != expected_cipher || !crypto::equal(*tag, expected_tag)) {
+    if (!tag || data != expected_cipher || !crypto::constant_time_equal(*tag, expected_tag)) {
         return 1;
     }
     // Open decrypts in place and checks the tag; on a mismatch it zeroes data and returns

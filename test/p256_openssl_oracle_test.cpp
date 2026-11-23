@@ -27,9 +27,9 @@
 // agree, and passes when n is 600 and OpenSSL's error queue is empty at the end.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -412,7 +412,7 @@ bool formats_case(std::mt19937_64& generator, std::size_t index) {
     bool const openssl_reads_ours =
         BOOST_TEST(from_spki && EVP_PKEY_eq(from_spki.get(), key.get()) == 1) &&
         BOOST_TEST(from_pkcs8 && EVP_PKEY_eq(from_pkcs8.get(), key.get()) == 1) &&
-        BOOST_TEST(webcpp::crypto::equal(loaded_scalar.bytes(), scalar));
+        BOOST_TEST(webcpp::crypto::constant_time_equal(loaded_scalar.bytes(), scalar));
     bool const agrees = spki_round_trip && pkcs8_round_trip && openssl_reads_ours;
     if (!agrees) {
         static_cast<void>(std::fprintf(stderr, "formats case %zu: OpenSSL disagrees: scalar %s\n",

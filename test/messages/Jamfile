@@ -55,6 +55,8 @@ build-project chacha_unknown_backend ;
 build-project ed25519_unknown_policy ;
 build-project secret_of_no_bytes ;
 build-project erase_secret_const_range ;
+build-project equal_header_removed ;
+build-project equal_removed ;
 build-project musig_nonce_copied ;
 build-project ellswift_other_backend ;
 build-project musig_other_backend ;

@@ -7,16 +7,16 @@
 // detail::timing_guard, with no backend: its seam fires once per guard on every target and names
 // the function that holds the guard, which require_enters reads in the spellings of clang, GCC
 // and MSVC; where the CPU has DIT, a guard sets it for its scope and clears it after when it was
-// clear, leaves it set when it was set, and nests; equal enters its own guard. Built with
-// WEBCPP_TEST_TIMING_THREADS (timing_threads, native, with threads), a guard on one thread leaves
-// another's DIT clear. P-256's normalize_low_s and is_low_s, which call no backend, enter no
+// clear, leaves it set when it was set, and nests; constant_time_equal enters its own guard. Built
+// with WEBCPP_TEST_TIMING_THREADS (timing_threads, native, with threads), a guard on one thread
+// leaves another's DIT clear. P-256's normalize_low_s and is_low_s, which call no backend, enter no
 // guard: this program links none, and curves/p256.hpp needs none to declare them.
 
 #include "support/timing_seam.hpp"
 
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/p256_data.hpp"
@@ -206,21 +206,23 @@ void nested_guards() {
     BOOST_TEST(!detail::dit_is_set());
 }
 
-// Both overloads of equal enter a guard, and leave DIT as they found it.
-void equal_enters() {
+// Both overloads of constant_time_equal enter a guard, and leave DIT as they found it.
+void constant_time_equal_enters() {
     force_dit(false);
     std::array<std::uint8_t, 16> const first{};
     std::array<std::uint8_t, 16> const second{};
-    webcpp::test::require_enters("equal(span, span)", "crypto::equal(span", [&first, &second] {
-        BOOST_TEST(webcpp::crypto::equal(std::span<std::uint8_t const>(first),
-                                         std::span<std::uint8_t const>(second)));
-    });
+    webcpp::test::require_enters(
+        "constant_time_equal(span, span)", "crypto::constant_time_equal(span", [&first, &second] {
+            BOOST_TEST(webcpp::crypto::constant_time_equal(std::span<std::uint8_t const>(first),
+                                                           std::span<std::uint8_t const>(second)));
+        });
     boost::hash2::digest<16> const first_digest{};
     boost::hash2::digest<16> const second_digest{};
-    webcpp::test::require_enters("equal(digest, digest)", "crypto::equal(digest",
-                                 [&first_digest, &second_digest] {
-                                     BOOST_TEST(webcpp::crypto::equal(first_digest, second_digest));
-                                 });
+    webcpp::test::require_enters(
+        "constant_time_equal(digest, digest)", "crypto::constant_time_equal(digest",
+        [&first_digest, &second_digest] {
+            BOOST_TEST(webcpp::crypto::constant_time_equal(first_digest, second_digest));
+        });
     BOOST_TEST(!detail::dit_is_set());
 }
 
@@ -269,7 +271,7 @@ int main() {
     guard_sets_and_clears();
     guard_leaves_set_bit();
     nested_guards();
-    equal_enters();
+    constant_time_equal_enters();
     p256_low_s_unguarded();
 #ifdef WEBCPP_TEST_TIMING_THREADS
     other_thread_untouched();

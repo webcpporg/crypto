@@ -9,8 +9,8 @@
 // conversation key, HKDF-extract with the salt "nip44-v2". The x coordinate is not a key; the
 // derivation that makes one is the protocol's, and belongs to a domain library.
 // tag::program[]
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/secret.hpp>
 
 #include <boost/hash2/sha2.hpp>
@@ -105,7 +105,7 @@ int main() {
     // a secret<32> that wipes itself.
     auto const alice_x = alice->agree(*bob_public);
     auto const bob_x = bob->agree(*alice_public);
-    if (!alice_x || !bob_x || !crypto::equal(alice_x->bytes(), bob_x->bytes())) {
+    if (!alice_x || !bob_x || !crypto::constant_time_equal(alice_x->bytes(), bob_x->bytes())) {
         return 1;
     }
     std::printf("shared x coordinates match\n");

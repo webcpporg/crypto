@@ -17,7 +17,7 @@ namespace webcpp::crypto::detail {
 /**
  * Whether every byte is zero, in a time that does not depend on the bytes: an OR over all of
  * them in a volatile local, read once after the loop, with no early exit, and reduced to one
- * bit without a branch, as `equal` does.
+ * bit without a branch, as `constant_time_equal` does.
  *
  * @param checked_bytes A secret, such as a shared secret checked for the all-zero result.
  * @return Whether every byte is zero (true for none).

@@ -9,8 +9,8 @@
 // it to this application with a context string.
 // tag::program[]
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
 #include <webcpp/crypto/secret.hpp>
@@ -148,7 +148,7 @@ bool hkdf_is_correct() {
     auto const info = from_hex<10>("f0f1f2f3f4f5f6f7f8f9");
     auto const expected = from_hex<42>(
         "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865");
-    return crypto::equal(hkdf_sha256<42>(input, salt, info), expected);
+    return crypto::constant_time_equal(hkdf_sha256<42>(input, salt, info), expected);
 }
 
 }  // namespace
@@ -179,7 +179,7 @@ int main() {
         auto const alice_shared = alice->agree_hashed(*bob_public);
         auto const bob_shared = bob->agree_hashed(*alice_public);
         if (!alice_shared || !bob_shared ||
-            !crypto::equal(alice_shared->bytes(), bob_shared->bytes())) {
+            !crypto::constant_time_equal(alice_shared->bytes(), bob_shared->bytes())) {
             return 1;
         }
         std::printf("shared secrets match\n");

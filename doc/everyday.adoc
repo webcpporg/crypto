@@ -82,8 +82,8 @@ when the token comes back, so that a leaked database hands out no live session
 or reset link (OWASP asks that reset tokens be stored securely,
 link:https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html[Forgot
 Password Cheat Sheet]); a random token of 32 bytes needs no slow password hash.
-`equal` is for a token or a MAC checked against one value the program already
-knows. <<crypto-entropy>> shows the program, `reset_token`.
+`constant_time_equal` is for a token or a MAC checked against one value the
+program already knows. <<crypto-entropy>> shows the program, `reset_token`.
 A password itself is never encrypted: it is hashed with a slow password hash,
 Argon2id or scrypt, which
 link:{webcpp-libs}/hash/{webcpp-page}#hash-password-hashing[webcpp::hash's password hashing] gives, not
@@ -94,7 +94,8 @@ crypto.
 
 A payment provider or a source-code host signs each call to a program's
 webhook with an HMAC under a shared secret. The program recomputes it with
-Boost.Hash2 and compares with `equal`, never `==`: <<crypto-equal>>.
+Boost.Hash2 and compares with `constant_time_equal`, never `==`:
+<<crypto-constant-time-equal>>.
 
 [#crypto-everyday-storage]
 === A database field, a cookie, a file

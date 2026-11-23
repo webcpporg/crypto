@@ -25,12 +25,12 @@
 #else
 
 #include <webcpp/crypto/detail/canary.h>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <bearssl.h>
@@ -306,7 +306,7 @@ struct aead_state<families::chacha20_poly1305, backends::bearssl> {
 /**
  * ChaCha20-Poly1305 on BearSSL: one function over the whole message, which encrypts or decrypts
  * and computes the tag (inc/bearssl_block.h, `br_poly1305_run`). BearSSL leaves the tag's check
- * to its caller: `equal` does it. BearSSL allocates nothing and never fails.
+ * to its caller: `constant_time_equal` does it. BearSSL allocates nothing and never fails.
  */
 template <>
 struct aead_engine<families::chacha20_poly1305, backends::bearssl> {
@@ -376,7 +376,7 @@ struct aead_engine<families::chacha20_poly1305, backends::bearssl> {
         // Not const: the branch below must read the variable again after the declassifying
         // client request, whose memory clobber reaches a mutable object only.
         // NOLINTNEXTLINE(misc-const-correctness): see above
-        bool tag_matches = equal(computed_tag, tag_bytes);
+        bool tag_matches = constant_time_equal(computed_tag, tag_bytes);
         WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&tag_matches, sizeof tag_matches);
         wipe(computed_tag.data(), computed_tag.size());
         if (!tag_matches) {

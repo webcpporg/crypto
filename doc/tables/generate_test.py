@@ -1223,12 +1223,14 @@ def test_the_constant_time_page_fills_each_target_from_the_lane(_: Path) -> None
         backend.update({'library': 'l', 'constant_time': 'by design', 'constant_time_sources': []})
     data['backends']['none'] = {'title': 'no backend', 'library': 'own', 'constant_time': 'yes',
                                 'constant_time_sources': [], 'lane_paths': [
-                                    {'what': '`equal`', 'lane': {'native': ['memcheck']}}]}
+                                    {'what': '`constant_time_equal`',
+                                     'lane': {'native': ['memcheck']}}]}
     page = generate.constant_time_page(data)
     assert ('|libsodium\n|by design\n|memcheck (Linux): ChaCha20-Poly1305; dudect: '
             'ChaCha20-Poly1305\n|dudect: ChaCha20-Poly1305 (measured differently, below)\n'
             '|not measured yet\n|not measured yet\n') in page, page
-    assert '|no backend\n|yes\n|memcheck (Linux): `+equal+`\n|not measured yet\n' in page, page
+    assert ('|no backend\n|yes\n|memcheck (Linux): `+constant_time_equal+`\n'
+            '|not measured yet\n') in page, page
 
 
 def test_the_constant_time_page_escapes_the_bars_of_a_lane_note(_: Path) -> None:

@@ -5,10 +5,10 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 /**
- `equal`, the constant-time comparison of tags and MACs, Boost.Hash2's included.
+ `constant_time_equal`, the constant-time comparison of tags and MACs, Boost.Hash2's included.
 */
-#ifndef WEBCPP_CRYPTO_EQUAL_HPP
-#define WEBCPP_CRYPTO_EQUAL_HPP
+#ifndef WEBCPP_CRYPTO_CONSTANT_TIME_EQUAL_HPP
+#define WEBCPP_CRYPTO_CONSTANT_TIME_EQUAL_HPP
 
 #include <webcpp/crypto/config.hpp>
 
@@ -35,8 +35,9 @@ namespace webcpp::crypto {
  * @param second_operand The second.
  * @return Whether they have the same size and the same bytes.
  */
-[[nodiscard]] inline bool equal(std::span<std::uint8_t const> first_operand,
-                                std::span<std::uint8_t const> second_operand) noexcept {
+[[nodiscard]] inline bool constant_time_equal(
+    std::span<std::uint8_t const> first_operand,
+    std::span<std::uint8_t const> second_operand) noexcept {
     detail::timing_guard const timing_scope;
     if (first_operand.size() != second_operand.size()) {
         return false;
@@ -64,13 +65,13 @@ namespace webcpp::crypto {
  * @return Whether every byte is equal.
  */
 template <std::size_t N>
-[[nodiscard]] bool equal(boost::hash2::digest<N> const& first_operand,
-                         boost::hash2::digest<N> const& second_operand) noexcept {
+[[nodiscard]] bool constant_time_equal(boost::hash2::digest<N> const& first_operand,
+                                       boost::hash2::digest<N> const& second_operand) noexcept {
     detail::timing_guard const timing_scope;
-    return equal(std::span<std::uint8_t const>(first_operand.data(), N),
-                 std::span<std::uint8_t const>(second_operand.data(), N));
+    return constant_time_equal(std::span<std::uint8_t const>(first_operand.data(), N),
+                               std::span<std::uint8_t const>(second_operand.data(), N));
 }
 
 }  // namespace webcpp::crypto
 
-#endif  // WEBCPP_CRYPTO_EQUAL_HPP
+#endif  // WEBCPP_CRYPTO_CONSTANT_TIME_EQUAL_HPP

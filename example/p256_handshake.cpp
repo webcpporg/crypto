@@ -13,8 +13,8 @@
 // a real program draws its key pairs with keypair::generate(). What is signed, when, and the
 // low-S rule are a protocol's: this one is an example, not webcpp::trystero's.
 // tag::program[]
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 
@@ -275,7 +275,8 @@ int main() {
 
     auto const alice_key = alice->session_key(*bob_hello, *digest);
     auto const bob_key = bob->session_key(*alice_hello, *digest);
-    if (!alice_key || !bob_key || !crypto::equal(alice_key->bytes(), bob_key->bytes())) {
+    if (!alice_key || !bob_key ||
+        !crypto::constant_time_equal(alice_key->bytes(), bob_key->bytes())) {
         std::printf("failed\n");
         return 1;
     }

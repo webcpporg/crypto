@@ -11,7 +11,7 @@
 # early exit on the key, natively (dudect_planted). The paths: BearSSL's
 # AES-GCM and ChaCha20-Poly1305 from_key, seal and open, OpenSSL's from_key and seal of
 # both (its open branches on the verdict inside OpenSSL, where webcpp cannot
-# mark it public), ctaes's from_key, encrypt and decrypt, equal, is_all_zero,
+# mark it public), ctaes's from_key, encrypt and decrypt, constant_time_equal, is_all_zero,
 # secret's wipe, libsodium's Ed25519, X25519, three AEADs, two secret boxes,
 # two boxes, the sealed box and kx (its own branches on a verdict listed in
 # sodium_verdicts.supp), libsecp256k1's own ctime_tests.c, and webcpp's code
@@ -86,7 +86,7 @@ webcpp.drive ctgrind_planted_scalar : ctgrind_planted_test.cpp
   : $(CTGRIND) <define>WEBCPP_TEST_CRYPTO_PLANTED_SCALAR_CHECK
   <location-prefix>ctgrind_planted_scalar
   : valgrind.mjs : --expect-leak --in planted_scalar_valid : native ;
-# equal compiles in the user's translation unit, so it is checked at both
+# constant_time_equal compiles in the user's translation unit, so it is checked at both
 # optimisations of spec section 2.6: ctgrind is <variant>release, which is
 # <optimization>speed in b2, and ctgrind_space the other, a program of its
 # own. (The genesis's ctgrind_speed would be ctgrind built and run again.)
@@ -231,7 +231,7 @@ webcpp.run secp256k1_ctime_msan : $(SECP256K1_CTIME)
     <warnings-as-errors>off <cflags>$(MSAN_FLAGS) <linkflags>-fsanitize=memory
     <variant>release <debug-symbols>on <conditional>@clang-on-linux : native ;
 
-# dudect's statistics on BearSSL, ctaes and equal, on libsodium's X25519 and
+# dudect's statistics on BearSSL, ctaes and constant_time_equal, on libsodium's X25519 and
 # Ed25519, and on libsecp256k1's agree, natively and under wasmtime. The
 # programs never set DIT: they measure what a program gets, the library's own
 # guard, which sets DIT in each call on macOS and Linux on arm64 where the CPU

@@ -34,6 +34,7 @@
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/secretbox.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
@@ -46,7 +47,6 @@
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/detail/bytes.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/key_exchange/kx.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
@@ -98,17 +98,17 @@ bool clear_of_mark(std::span<std::uint8_t const> bytes) {
     return traced.has_value() && !*traced;
 }
 
-/** equal with both sides secret, its result marked public for the test's own branch. */
+/** constant_time_equal with both sides secret, its result marked public for the test's branch. */
 template <class Checker>
-int equal_path() {
+int constant_time_equal_path() {
     std::array<std::uint8_t, 16> a{};
     std::array<std::uint8_t, 16> b{};
     Checker::mark_secret(a);
     Checker::mark_secret(b);
     // Not const: the mark changes the object in the checker's shadow, so it is read again.
-    bool same = crypto::equal(a, b);  // NOLINT(misc-const-correctness)
+    bool same = crypto::constant_time_equal(a, b);  // NOLINT(misc-const-correctness)
     Checker::mark_public(bytes_of(same));
-    return check(same, "equal");
+    return check(same, "constant_time_equal");
 }
 
 /**
@@ -815,7 +815,7 @@ int secp256k1_paths() {
 template <class Checker>
 int common_paths() {
     namespace ciphers = crypto::ciphers;
-    return equal_path<Checker>() + all_zero<Checker>() + secret_wipe<Checker>() +
+    return constant_time_equal_path<Checker>() + all_zero<Checker>() + secret_wipe<Checker>() +
            ctaes_block<Checker>() +
            seal_and_open<Checker, ciphers::chacha20_poly1305<crypto::backends::bearssl>>(
                "BearSSL ChaCha") +

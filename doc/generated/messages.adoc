@@ -205,6 +205,18 @@ The fix: Name `+curves::ed25519::ph<webcpp::hash::sha2_512>+`: RFC 8032 defines 
 
 The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::ellswift_decode(encoded_key)+`.
 
+|`+equal_header_removed+`
+|native, wasip2, wasip3
+|`+'webcpp/crypto/equal.hpp' file not found+`
+
+The fix: Include `+<webcpp/crypto/constant_time_equal.hpp>+`, the header of `+constant_time_equal+`; `+equal.hpp+` is gone, with no header left at its path.
+
+|`+equal_removed+`
+|native, wasip2, wasip3
+|`+no member named 'equal' in namespace 'webcpp::crypto'+`
+
+The fix: Call `+crypto::constant_time_equal+`, the same comparison of two spans or two digests in constant time; `+crypto::equal+` is gone, with no alias.
+
 |`+erase_secret_const_range+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: erase_secret zeroes a buffer the program may write, of trivially copyable elements: a std::vector<std::uint8_t>, a std::string, a std::array, a std::span<std::byte>; this range's elements are const or not trivially copyable.+`

@@ -432,10 +432,25 @@ namespace webcpp::crypto::detail {
 
 struct x25519_access {
     /**
+     * Whether a key pair holds a key: false for one moved from, or the empty one of an error
+     * completion, which the caller refuses with `invalid_state` before it reads the bytes.
+     *
+     * @tparam Backend The key pair's backend.
+     * @param key_pair A key pair.
+     * @return True when it holds a key.
+     */
+    template <class Backend>
+    [[nodiscard]] static bool keyed(
+        curves::x25519::basic_keypair<Backend> const& key_pair) noexcept {
+        return key_pair.keyed_;
+    }
+
+    /**
      * A key pair's secret key, viewed: valid while the key pair lives and is not moved from.
      *
      * @tparam Backend The key pair's backend.
-     * @param key_pair A key pair, not moved from (the caller checks).
+     * @param key_pair A key pair that holds a key (the caller checks with `keyed`); a moved-from
+     * one's bytes are zeros.
      * @return Its 32 secret bytes.
      */
     template <class Backend>

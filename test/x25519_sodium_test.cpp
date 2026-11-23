@@ -17,7 +17,8 @@
 // - weak_peer: a peer key of order 8 (Wycheproof's tcId 63) and one of 32 zero bytes are refused
 //   by agree with weak_public_key.
 // - moved_from: a key pair moved from, by construction and by assignment, refuses public_key,
-//   secret and agree with invalid_state, and the one moved to agrees as the source did.
+//   secret and agree with invalid_state, and detail::x25519_access::keyed says it holds no key;
+//   the one moved to agrees as the source did.
 // - generated: two generated key pairs differ and agree with each other.
 // - all_zero: detail::is_all_zero.
 // - conversion: the X25519 public key of an Ed25519 key pair's x25519_secret() equals
@@ -213,12 +214,19 @@ void moved_from() {
         !BOOST_TEST(peer.has_value())) {
         return;
     }
+    BOOST_TEST(crypto::detail::x25519_access::keyed(*made));
     x25519::keypair taken(std::move(*made));
+    // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair holds no key
+    BOOST_TEST(!crypto::detail::x25519_access::keyed(*made));
+    BOOST_TEST(crypto::detail::x25519_access::keyed(taken));
     // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
     refuses_every_member(*made, *peer);
     auto const shared = taken.agree(*peer);
     BOOST_TEST(shared.has_value() && bytes_of(*shared) == test::from_hex(shared_hex));
     taken = std::move(*other);
+    // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair holds no key
+    BOOST_TEST(!crypto::detail::x25519_access::keyed(*other));
+    BOOST_TEST(crypto::detail::x25519_access::keyed(taken));
     // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
     refuses_every_member(*other, *peer);
     auto const own = taken.public_key();

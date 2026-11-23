@@ -10,9 +10,9 @@
  `detail::all_schemes`; the marker of a digest, `prehashed{digest}`; the
  concepts `can_sign` and `can_verify`, which say which key, scheme, signature and input go
  together; the free synchronous `sign(key_pair, scheme, input)`, the key pair's `sign` (design
- D9); `detail::check_signature`, which stops a `verify` or a `recover` given a signature of
- another curve or scheme, naming the type expected (design R1); and the catch-alls of `sign` and
- `verify`, which stop the build with what goes together.
+ D9); `detail::check_signature` and `detail::checked_signature_bytes`, which stop a `verify` or
+ a `recover` given a signature of another curve or scheme, naming the type expected (design R1);
+ and the catch-alls of `sign` and `verify`, which stop the build with what goes together.
 
  A signature's input is a message, any bytes that convert to `std::span<std::uint8_t const>`, of
  any size, empty included, or a digest marked as one, `prehashed{digest}`: no call tells the two
@@ -462,49 +462,102 @@ struct secp256k1_schnorr_signature_tag;
 struct ed25519ph_verifier_t;
 
 /**
- * Stops the build when `Signature` is not `Expected`, the signature type `Verifier` takes, with
- * the message that names the type expected and how to make one from bytes, and does nothing when
- * it is: every `verify` and `recover`, member and free, synchronous and asynchronous, calls it
- * before it reads the signature. The text is the verifier's: a static assertion's message is a
- * literal, so each verifier has its own branch.
+ * Whether `Expected` is the signature type of the tag `Tag` and of the size `Size`.
+ *
+ * @tparam Expected A signature type.
+ * @tparam Tag A signature type's tag.
+ * @tparam Size Its size in bytes.
+ */
+template <class Expected, class Tag, std::size_t Size>
+inline constexpr bool is_signature_of_tag_v = std::is_same_v<Expected, basic_signature<Tag, Size>>;
+
+/**
+ * Whether `Signature` is `Expected`, the signature type `Verifier` takes, and, when it is not,
+ * stops the build with the message that names the type expected and how to make one from bytes:
+ * every `verify` and `recover`, member and free, synchronous and asynchronous, asks it before it
+ * reads the signature, and goes on only when it is true. The text is the verifier's: a static
+ * assertion's message is a literal, so each pair of a signature type and a verifier has its own
+ * branch, and a pair that has none stops the build too, so that a new verifier adds its branch.
  *
  * @tparam Expected The signature type of the key and scheme: a `basic_signature`.
  * @tparam Signature The type given, without its reference and qualifiers.
  * @tparam Verifier The scheme tag the call verifies or recovers under, or
  * `ed25519ph_verifier_t` for Ed25519ph's streaming signer.
+ * @return Whether `Signature` is `Expected`; false only in a build that stops.
  */
 template <class Expected, class Signature, class Verifier>
-constexpr void check_signature() noexcept {
+[[nodiscard]] constexpr bool check_signature() noexcept {
     constexpr bool signature_matches = std::is_same_v<Expected, Signature>;
-    if constexpr (std::is_same_v<Verifier, ed25519ph_verifier_t>) {
+    constexpr bool ed25519_expected = is_signature_of_tag_v<Expected, ed25519_signature_tag, 64>;
+    if constexpr (ed25519_expected && std::is_same_v<Verifier, ed25519ph_verifier_t>) {
         static_assert(signature_matches,
                       "webcpp::crypto: verify: Ed25519ph verifies a curves::ed25519::signature: "
                       "make one from 64 bytes with curves::ed25519::signature::from_bytes.");
-    } else if constexpr (std::is_same_v<Verifier, eddsa_t>) {
+    } else if constexpr (ed25519_expected && std::is_same_v<Verifier, eddsa_t>) {
         static_assert(signature_matches,
                       "webcpp::crypto: verify: an Ed25519 key verifies a "
                       "curves::ed25519::signature under crypto::eddsa: make one from 64 bytes "
                       "with curves::ed25519::signature::from_bytes.");
-    } else if constexpr (std::is_same_v<Verifier, schnorr_t>) {
+    } else if constexpr (is_signature_of_tag_v<Expected, secp256k1_schnorr_signature_tag, 64> &&
+                         std::is_same_v<Verifier, schnorr_t>) {
         static_assert(signature_matches,
                       "webcpp::crypto: verify: crypto::schnorr verifies a "
                       "curves::secp256k1::schnorr_signature: make one from 64 bytes with "
                       "curves::secp256k1::schnorr_signature::from_bytes.");
-    } else if constexpr (std::is_same_v<Verifier, ecdsa_sha256_recoverable_t>) {
+    } else if constexpr (is_signature_of_tag_v<Expected, secp256k1_recoverable_signature_tag, 65> &&
+                         std::is_same_v<Verifier, ecdsa_sha256_recoverable_t>) {
         static_assert(signature_matches,
                       "webcpp::crypto: recover takes a curves::secp256k1::recoverable_signature: "
                       "make one from 65 bytes with "
                       "curves::secp256k1::recoverable_signature::from_bytes.");
-    } else if constexpr (std::is_same_v<Expected, basic_signature<p256_ecdsa_signature_tag, 64>>) {
+    } else if constexpr (is_signature_of_tag_v<Expected, p256_ecdsa_signature_tag, 64> &&
+                         std::is_same_v<Verifier, ecdsa_sha256_t>) {
         static_assert(signature_matches,
                       "webcpp::crypto: verify: a P-256 key verifies a "
                       "curves::p256::ecdsa_signature: make one from 64 bytes with "
                       "curves::p256::ecdsa_signature::from_bytes.");
-    } else {
+    } else if constexpr (is_signature_of_tag_v<Expected, secp256k1_ecdsa_signature_tag, 64> &&
+                         std::is_same_v<Verifier, ecdsa_sha256_t>) {
         static_assert(signature_matches,
                       "webcpp::crypto: verify: a secp256k1 key verifies a "
                       "curves::secp256k1::ecdsa_signature under crypto::ecdsa_sha256: make one "
                       "from 64 bytes with curves::secp256k1::ecdsa_signature::from_bytes.");
+    } else {
+        static_assert(refused_v<Verifier>,
+                      "webcpp::crypto: check_signature: no verifier takes this signature type "
+                      "under this scheme; a curve or a scheme that adds one adds its branch.");
+    }
+    return signature_matches;
+}
+
+/**
+ * The bytes `checked_signature_bytes` gives where its build stops: zeros, which nothing reads.
+ *
+ * @tparam Size The signature's size in bytes.
+ */
+template <std::size_t Size>
+inline constexpr std::array<std::uint8_t, Size> no_signature_bytes{};
+
+/**
+ * The bytes of the signature a `verify` or a `recover` reads, once `check_signature` has found it
+ * of the type `Verifier` takes: the one place each of them asks, so that a signature of another
+ * type is that one message alone, and nothing after it stops the build again.
+ *
+ * @tparam Expected The signature type of the key and scheme: a `basic_signature`.
+ * @tparam Verifier The scheme tag, or `ed25519ph_verifier_t`, as `check_signature` takes it.
+ * @tparam Signature The type given.
+ * @param signature_value The signature.
+ * @return Its bytes; never reached for another type, whose build stops (zeros, which nothing
+ * reads).
+ */
+template <class Expected, class Verifier, class Signature>
+[[nodiscard]] constexpr std::array<std::uint8_t, Expected::size> const& checked_signature_bytes(
+    Signature const& signature_value) noexcept {
+    if constexpr (check_signature<Expected, Signature, Verifier>()) {
+        return signature_value.bytes();
+    } else {
+        // Never compiled into a program: check_signature stopped the build.
+        return no_signature_bytes<Expected::size>;
     }
 }
 

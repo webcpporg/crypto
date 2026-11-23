@@ -464,8 +464,8 @@ auto initiate_verify_ed25519(Executor const& completion_executor, Signature cons
     if constexpr (!std::is_same_v<Scheme, eddsa_t>) {
         static_assert(refused_v<Scheme>,
                       "webcpp::crypto: an Ed25519 public key verifies crypto::eddsa.");
-    } else if constexpr (!std::is_same_v<Signature, curves::ed25519::signature>) {
-        check_signature<curves::ed25519::signature, Signature, eddsa_t>();
+    } else if constexpr (!check_signature<curves::ed25519::signature, Signature, eddsa_t>()) {
+        // Never compiled into a program: check_signature stopped the build.
     } else if constexpr (!input_valid_v<eddsa_t, Input, Backend>) {
         check_input<eddsa_t, Input, Backend>();
     } else if constexpr (asynchronous_backend_v<Backend>) {
@@ -1119,8 +1119,8 @@ auto curves::p256::basic_public_key<Backend>::async_verify(
     if constexpr (!std::is_same_v<Scheme, ecdsa_sha256_t>) {
         static_assert(detail::refused_v<Scheme>,
                       "webcpp::crypto: a P-256 public key verifies crypto::ecdsa_sha256.");
-    } else if constexpr (!std::is_same_v<Signature, ecdsa_signature>) {
-        detail::check_signature<ecdsa_signature, Signature, ecdsa_sha256_t>();
+    } else if constexpr (!detail::check_signature<ecdsa_signature, Signature, ecdsa_sha256_t>()) {
+        // Never compiled into a program: check_signature stopped the build.
     } else if constexpr (!detail::input_valid_v<ecdsa_sha256_t, Input, Backend>) {
         detail::check_input<ecdsa_sha256_t, Input, Backend>();
     } else if constexpr (detail::asynchronous_backend_v<Backend>) {

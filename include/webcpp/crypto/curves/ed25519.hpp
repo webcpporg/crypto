@@ -221,14 +221,9 @@ public:
                       "webcpp::crypto: verify on this backend completes asynchronously: call "
                       "async_verify.");
         if constexpr (std::is_same_v<Scheme, eddsa_t> && !detail::asynchronous_backend_v<Backend>) {
-            detail::check_signature<signature, Signature, eddsa_t>();
-            if constexpr (std::is_same_v<Signature, signature>) {
-                return detail::ed25519_verify<Backend, Policy>(signature_value.bytes(),
-                                                               message_input, bytes_);
-            } else {
-                // Never compiled into a program: check_signature stopped the build.
-                return error::invalid_signature;
-            }
+            return detail::ed25519_verify<Backend, Policy>(
+                detail::checked_signature_bytes<signature, eddsa_t>(signature_value), message_input,
+                bytes_);
         } else {
             // Never compiled into a program: an assertion above stopped the build.
             return error::invalid_signature;
@@ -795,21 +790,16 @@ public:
         Signature const& signature_value,
         ::webcpp::crypto::curves::ed25519::public_key const& verifying_key) noexcept {
         detail::timing_guard const timing_scope;
-        using expected_signature = ::webcpp::crypto::curves::ed25519::signature;
-        detail::check_signature<expected_signature, Signature, detail::ed25519ph_verifier_t>();
-        if constexpr (std::is_same_v<Signature, expected_signature>) {
-            if (!begun_) {
-                return error::invalid_state;
-            }
-            auto const key_bytes = verifying_key.bytes();
-            auto const verify_result = engine::verify(
-                state_, key_bytes, std::span<std::uint8_t const, 64>(signature_value.bytes()));
-            end();
-            return verify_result;
-        } else {
-            // Never compiled into a program: check_signature stopped the build.
-            return error::invalid_signature;
+        auto const& signature_bytes =
+            detail::checked_signature_bytes<::webcpp::crypto::curves::ed25519::signature,
+                                            detail::ed25519ph_verifier_t>(signature_value);
+        if (!begun_) {
+            return error::invalid_state;
         }
+        auto const key_bytes = verifying_key.bytes();
+        auto const verify_result = engine::verify(state_, key_bytes, signature_bytes);
+        end();
+        return verify_result;
     }
 
 private:
@@ -863,15 +853,10 @@ template <class Backend = default_backend_t<families::ed25519>, class Signature,
                   "webcpp::crypto: verify on this backend completes asynchronously: call "
                   "async_verify.");
     if constexpr (!detail::asynchronous_backend_v<Backend>) {
-        detail::check_signature<curves::ed25519::signature, Signature, eddsa_t>();
-        if constexpr (std::is_same_v<Signature, curves::ed25519::signature>) {
-            auto const key_bytes = public_key.bytes();
-            return detail::ed25519_verify<Backend, Policy>(signature_value.bytes(), message_input,
-                                                           key_bytes);
-        } else {
-            // Never compiled into a program: check_signature stopped the build.
-            return error::invalid_signature;
-        }
+        auto const key_bytes = public_key.bytes();
+        return detail::ed25519_verify<Backend, Policy>(
+            detail::checked_signature_bytes<curves::ed25519::signature, eddsa_t>(signature_value),
+            message_input, key_bytes);
     } else {
         // Never compiled into a program: the assertion above stopped the build.
         return error::invalid_signature;

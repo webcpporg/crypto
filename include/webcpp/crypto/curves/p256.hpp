@@ -230,13 +230,9 @@ public:
                       "async_verify.");
         if constexpr (std::is_same_v<Scheme, ecdsa_sha256_t> &&
                       !detail::asynchronous_backend_v<Backend>) {
-            detail::check_signature<ecdsa_signature, Signature, ecdsa_sha256_t>();
-            if constexpr (std::is_same_v<Signature, ecdsa_signature>) {
-                return detail::p256_verify<Backend>(signature_value.bytes(), signing_input, point_);
-            } else {
-                // Never compiled into a program: check_signature stopped the build.
-                return error::invalid_signature;
-            }
+            return detail::p256_verify<Backend>(
+                detail::checked_signature_bytes<ecdsa_signature, ecdsa_sha256_t>(signature_value),
+                signing_input, point_);
         } else {
             // Never compiled into a program: an assertion above stopped the build.
             return error::invalid_signature;
@@ -813,14 +809,10 @@ template <class Backend, class Signature, class Input>
                   "webcpp::crypto: verify on this backend completes asynchronously: call "
                   "async_verify.");
     if constexpr (!detail::asynchronous_backend_v<Backend>) {
-        detail::check_signature<curves::p256::ecdsa_signature, Signature, ecdsa_sha256_t>();
-        if constexpr (std::is_same_v<Signature, curves::p256::ecdsa_signature>) {
-            return detail::p256_verify<Backend>(signature_value.bytes(), signing_input,
-                                                detail::p_curve_access::point(public_key));
-        } else {
-            // Never compiled into a program: check_signature stopped the build.
-            return error::invalid_signature;
-        }
+        return detail::p256_verify<Backend>(
+            detail::checked_signature_bytes<curves::p256::ecdsa_signature, ecdsa_sha256_t>(
+                signature_value),
+            signing_input, detail::p_curve_access::point(public_key));
     } else {
         // Never compiled into a program: the assertion above stopped the build.
         return error::invalid_signature;

@@ -759,23 +759,15 @@ public:
                       "crypto::schnorr; a crypto::ecdsa_sha256_recoverable signature gives its "
                       "key to curves::secp256k1::recover.");
         if constexpr (is_ecdsa) {
-            webcpp::crypto::detail::check_signature<ecdsa_signature, Signature, ecdsa_sha256_t>();
-            if constexpr (std::is_same_v<Signature, ecdsa_signature>) {
-                return webcpp::crypto::detail::secp256k1_verify_ecdsa<Backend>(
-                    signature_value.bytes(), signing_input, point_value_);
-            } else {
-                // Never compiled into a program: check_signature stopped the build.
-                return error::invalid_signature;
-            }
+            return webcpp::crypto::detail::secp256k1_verify_ecdsa<Backend>(
+                webcpp::crypto::detail::checked_signature_bytes<ecdsa_signature, ecdsa_sha256_t>(
+                    signature_value),
+                signing_input, point_value_);
         } else if constexpr (is_schnorr) {
-            webcpp::crypto::detail::check_signature<schnorr_signature, Signature, schnorr_t>();
-            if constexpr (std::is_same_v<Signature, schnorr_signature>) {
-                return webcpp::crypto::detail::secp256k1_verify_schnorr_key<Backend>(
-                    signature_value.bytes(), signing_input, point_value_);
-            } else {
-                // Never compiled into a program: check_signature stopped the build.
-                return error::invalid_signature;
-            }
+            return webcpp::crypto::detail::secp256k1_verify_schnorr_key<Backend>(
+                webcpp::crypto::detail::checked_signature_bytes<schnorr_signature, schnorr_t>(
+                    signature_value),
+                signing_input, point_value_);
         } else {
             // Never compiled into a program: an assertion above stopped the build.
             return error::invalid_signature;
@@ -1464,14 +1456,15 @@ template <class Backend = default_backend_t<families::secp256k1>, class Signatur
     Input const& signing_input) noexcept {
     detail::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
-    detail::check_signature<recoverable_signature, Signature, ecdsa_sha256_recoverable_t>();
+    auto const& signature_bytes =
+        detail::checked_signature_bytes<recoverable_signature, ecdsa_sha256_recoverable_t>(
+            signature_value);
     detail::check_input<ecdsa_sha256_recoverable_t, Input, Backend>();
-    if constexpr (std::is_same_v<Signature, recoverable_signature> &&
-                  detail::input_valid_v<ecdsa_sha256_recoverable_t, Input, Backend>) {
+    if constexpr (detail::input_valid_v<ecdsa_sha256_recoverable_t, Input, Backend>) {
         auto const message_hash = webcpp::crypto::detail::secp256k1_digest(signing_input);
         webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         // libsecp256k1 checks the id with ARG_CHECK, whose callback aborts: refused first here.
-        int const recovery_id = signature_value.recovery_id();
+        int const recovery_id = signature_bytes[recoverable_signature_size - 1];
         if (recovery_id > 3) {
             return error::invalid_signature;
         }
@@ -1480,15 +1473,15 @@ template <class Backend = default_backend_t<families::secp256k1>, class Signatur
         secp256k1_ecdsa_recoverable_signature parsed_value{};
         public_key recovered_key = access::make_public_key();
         if (secp256k1_ecdsa_recoverable_signature_parse_compact(
-                secp256k1_context_static, &parsed_value, signature_value.bytes().data(),
-                recovery_id) == 0 ||
+                secp256k1_context_static, &parsed_value, signature_bytes.data(), recovery_id) ==
+                0 ||
             secp256k1_ecdsa_recover(secp256k1_context_static, &access::point(recovered_key),
                                     &parsed_value, message_hash.data()) == 0) {
             return error::invalid_signature;
         }
         return recovered_key;
     } else {
-        // Never compiled into a program: check_signature or check_input stopped the build.
+        // Never compiled into a program: check_input stopped the build.
         return error::invalid_signature;
     }
 }
@@ -1684,14 +1677,10 @@ template <class Backend = default_backend_t<families::secp256k1>, class Signatur
     Input const& signing_input, curves::secp256k1::public_key const& public_key) noexcept {
     detail::timing_guard const timing_scope;
     static_assert(detail::secp256k1_refuses_others<families::secp256k1, Backend>);
-    detail::check_signature<curves::secp256k1::ecdsa_signature, Signature, ecdsa_sha256_t>();
-    if constexpr (std::is_same_v<Signature, curves::secp256k1::ecdsa_signature>) {
-        return detail::secp256k1_verify_ecdsa<Backend>(signature_value.bytes(), signing_input,
-                                                       detail::secp256k1_access::point(public_key));
-    } else {
-        // Never compiled into a program: check_signature stopped the build.
-        return error::invalid_signature;
-    }
+    return detail::secp256k1_verify_ecdsa<Backend>(
+        detail::checked_signature_bytes<curves::secp256k1::ecdsa_signature, ecdsa_sha256_t>(
+            signature_value),
+        signing_input, detail::secp256k1_access::point(public_key));
 }
 
 /**
@@ -1718,10 +1707,11 @@ template <class Backend = default_backend_t<families::secp256k1>, class Signatur
     Input const& message_input, std::span<std::uint8_t const, 32> xonly_public_key) noexcept {
     detail::timing_guard const timing_scope;
     static_assert(detail::secp256k1_refuses_others<families::secp256k1, Backend>);
-    detail::check_signature<curves::secp256k1::schnorr_signature, Signature, schnorr_t>();
+    auto const& signature_bytes =
+        detail::checked_signature_bytes<curves::secp256k1::schnorr_signature, schnorr_t>(
+            signature_value);
     detail::check_input<schnorr_t, Input, Backend>();
-    if constexpr (std::is_same_v<Signature, curves::secp256k1::schnorr_signature> &&
-                  detail::input_valid_v<schnorr_t, Input, Backend>) {
+    if constexpr (detail::input_valid_v<schnorr_t, Input, Backend>) {
         auto const message_bytes = detail::message_bytes(message_input);
         detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
         secp256k1_selftest();
@@ -1730,9 +1720,9 @@ template <class Backend = default_backend_t<families::secp256k1>, class Signatur
                                          xonly_public_key.data()) == 0) {
             return error::invalid_public_key;
         }
-        return detail::secp256k1_verify_schnorr(signature_value.bytes(), message_bytes, parsed_key);
+        return detail::secp256k1_verify_schnorr(signature_bytes, message_bytes, parsed_key);
     } else {
-        // Never compiled into a program: check_signature or check_input stopped the build.
+        // Never compiled into a program: check_input stopped the build.
         return error::invalid_signature;
     }
 }
@@ -1760,14 +1750,10 @@ template <class Backend = default_backend_t<families::secp256k1>, class Signatur
     Input const& message_input, curves::secp256k1::public_key const& public_key) noexcept {
     detail::timing_guard const timing_scope;
     static_assert(detail::secp256k1_refuses_others<families::secp256k1, Backend>);
-    detail::check_signature<curves::secp256k1::schnorr_signature, Signature, schnorr_t>();
-    if constexpr (std::is_same_v<Signature, curves::secp256k1::schnorr_signature>) {
-        return detail::secp256k1_verify_schnorr_key<Backend>(
-            signature_value.bytes(), message_input, detail::secp256k1_access::point(public_key));
-    } else {
-        // Never compiled into a program: check_signature stopped the build.
-        return error::invalid_signature;
-    }
+    return detail::secp256k1_verify_schnorr_key<Backend>(
+        detail::checked_signature_bytes<curves::secp256k1::schnorr_signature, schnorr_t>(
+            signature_value),
+        message_input, detail::secp256k1_access::point(public_key));
 }
 
 }  // namespace webcpp::crypto

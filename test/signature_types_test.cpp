@@ -110,6 +110,9 @@ static_assert(std::is_same_v<signature_of_t<secp256k1::keypair, crypto::ecdsa_sh
                              secp256k1::ecdsa_signature>);
 static_assert(std::is_same_v<signature_of_t<secp256k1::keypair, crypto::ecdsa_sha256_recoverable_t>,
                              secp256k1::recoverable_signature>);
+static_assert(
+    std::is_same_v<signature_of_t<secp256k1::keypair, crypto::ecdsa_keccak256_recoverable_t>,
+                   secp256k1::recoverable_signature>);
 static_assert(std::is_same_v<signature_of_t<secp256k1::keypair, crypto::schnorr_t>,
                              secp256k1::schnorr_signature>);
 static_assert(std::is_same_v<signature_of_t<secp256k1::public_key, crypto::ecdsa_sha256_t>,
@@ -127,6 +130,12 @@ static_assert(std::is_same_v<signature_of_t<ed25519::keypair, crypto::ecdsa_sha2
 static_assert(std::is_same_v<signature_of_t<p256::keypair, crypto::eddsa_t>, void>);
 static_assert(std::is_same_v<
               signature_of_t<secp256k1::public_key, crypto::ecdsa_sha256_recoverable_t>, void>);
+static_assert(std::is_same_v<
+              signature_of_t<secp256k1::public_key, crypto::ecdsa_keccak256_recoverable_t>, void>);
+static_assert(
+    std::is_same_v<signature_of_t<p256::keypair, crypto::ecdsa_keccak256_recoverable_t>, void>);
+static_assert(
+    std::is_same_v<signature_of_t<ed25519::keypair, crypto::ecdsa_keccak256_recoverable_t>, void>);
 static_assert(std::is_same_v<signature_of_t<std::array<std::uint8_t, 32>, crypto::eddsa_t>, void>);
 static_assert(
     std::is_same_v<signature_of_t<std::array<std::uint8_t, 33>, crypto::schnorr_t>, void>);

@@ -41,9 +41,10 @@
 
 #ifdef WEBCPP_HASH_HAS_XKCP
 #include <webcpp/hash/keccak.hpp>  // crypto::ecdsa_keccak256_recoverable's hash of a message
-#endif
 
 #include <boost/hash2/digest.hpp>
+#endif
+
 #include <boost/system/result.hpp>
 
 #include <algorithm>

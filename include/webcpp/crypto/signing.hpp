@@ -419,7 +419,7 @@ constexpr void check_input() noexcept {
  * The bytes of a message, viewed where they are.
  *
  * @tparam Input A message's type: bytes that convert to `std::span<std::uint8_t const>`.
- * @param message A message: bytes that convert to `std::span<std::uint8_t const>`.
+ * @param message_input A message: bytes that convert to `std::span<std::uint8_t const>`.
  * @return The view of its bytes.
  */
 template <class Input>

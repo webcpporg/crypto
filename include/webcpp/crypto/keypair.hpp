@@ -150,7 +150,7 @@ template <class Keypair, class PublicKey>
 [[nodiscard]] auto agree(Keypair const& key_pair,
                          PublicKey const& peer_key) noexcept(noexcept(key_pair.agree(peer_key)))
     -> decltype(key_pair.agree(peer_key)) {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     return key_pair.agree(peer_key);
 }
 

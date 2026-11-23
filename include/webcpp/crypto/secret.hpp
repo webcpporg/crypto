@@ -42,24 +42,26 @@ public:
     secret() noexcept = default;
 
     /**
-     Takes the bytes of `other`, which is wiped.
+     Takes the bytes of `moved_secret`, which is wiped.
 
-     @param other The secret to take the bytes of.
+     @param moved_secret The secret to take the bytes of.
     */
-    secret(secret&& other) noexcept : bytes_(other.bytes_) { detail::wipe_object(other.bytes_); }
+    secret(secret&& moved_secret) noexcept : bytes_(moved_secret.bytes_) {
+        detail::wipe_object(moved_secret.bytes_);
+    }
 
     /**
-     Wipes these bytes, then takes the bytes of `other`, which is wiped; a move to itself changes
-     nothing.
+     Wipes these bytes, then takes the bytes of `moved_secret`, which is wiped; a move to itself
+     changes nothing.
 
-     @param other The secret to take the bytes of.
+     @param moved_secret The secret to take the bytes of.
      @return This secret.
     */
-    secret& operator=(secret&& other) noexcept {
-        if (this != &other) {
+    secret& operator=(secret&& moved_secret) noexcept {
+        if (this != &moved_secret) {
             detail::wipe_object(bytes_);
-            bytes_ = other.bytes_;
-            detail::wipe_object(other.bytes_);
+            bytes_ = moved_secret.bytes_;
+            detail::wipe_object(moved_secret.bytes_);
         }
         return *this;
     }
@@ -78,9 +80,9 @@ public:
      @return A secret of the same bytes.
     */
     [[nodiscard]] secret clone() const noexcept {
-        secret copy;
-        copy.bytes_ = bytes_;
-        return copy;
+        secret secret_copy;
+        secret_copy.bytes_ = bytes_;
+        return secret_copy;
     }
 
     /**

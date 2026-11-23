@@ -74,7 +74,7 @@ enum class ellswift_party {
 template <class Backend = default_backend_t<families::secp256k1_ellswift>>
 [[nodiscard]] std::array<std::uint8_t, ellswift_size> ellswift_encode(
     public_key const& parsed_key, std::span<std::uint8_t const, 32> randomness_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -97,7 +97,7 @@ template <class Backend = default_backend_t<families::secp256k1_ellswift>>
 template <class Backend = default_backend_t<families::secp256k1_ellswift>>
 [[nodiscard]] public_key ellswift_decode(
     std::span<std::uint8_t const, ellswift_size> encoded_key) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -124,7 +124,7 @@ template <class Backend>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, ellswift_size>> ellswift_create(
     basic_keypair<Backend> const& key_pair,
     std::span<std::uint8_t const, 32> randomness_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -166,7 +166,7 @@ template <class Backend>
     std::span<std::uint8_t const, ellswift_size> initiator_encoding,
     std::span<std::uint8_t const, ellswift_size> responder_encoding,
     ellswift_party our_party) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);

@@ -70,62 +70,68 @@ struct basic_sealed_box {
     static constexpr std::size_t overhead = 48;
 
     /**
-     * Seals `message` into `out`, of `message.size() + overhead` bytes: the drawn public key,
-     * the tag, then the ciphertext.
+     * Seals `message_bytes` into `output_bytes`, of `message_bytes.size() + overhead` bytes: the
+     * drawn public key, the tag, then the ciphertext.
      *
-     * The message may be the first `message.size()` bytes of `out`, sealed in place; it overlaps
-     * `out` in no other way, and the key does not.
+     * The message may be the first `message_bytes.size()` bytes of `output_bytes`, sealed in place;
+     * it overlaps `output_bytes` in no other way, and the key does not.
      *
-     * The sizes are checked first; a refusal of theirs or of the key's leaves `out` untouched.
-     * A failure of the work zeroes it.
+     * The sizes are checked first; a refusal of theirs or of the key's leaves `output_bytes`
+     * untouched. A failure of the work zeroes it.
      *
      * @param recipient_public_key The recipient's X25519 public key, `key_size` bytes.
-     * @param message The message.
-     * @param out `message.size() + overhead` bytes.
-     * @return Nothing; `invalid_input_size` for an `out` of another size; `invalid_public_key`
-     * for a key of another size; `weak_public_key` for a key of small order; `backend_failure`.
+     * @param message_bytes The message.
+     * @param output_bytes `message_bytes.size() + overhead` bytes.
+     * @return Nothing; `invalid_input_size` for an `output_bytes` of another size;
+     * `invalid_public_key` for a key of another size; `weak_public_key` for a key of small order;
+     * `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> seal(
-        std::span<std::uint8_t const> recipient_public_key, std::span<std::uint8_t const> message,
-        std::span<std::uint8_t> out) noexcept {
-        detail::timing_guard const timing;
-        if (out.size() < overhead || out.size() - overhead != message.size()) {
+        std::span<std::uint8_t const> recipient_public_key,
+        std::span<std::uint8_t const> message_bytes,
+        std::span<std::uint8_t> output_bytes) noexcept {
+        detail::timing_guard const timing_scope;
+        if (output_bytes.size() < overhead ||
+            output_bytes.size() - overhead != message_bytes.size()) {
             return error::invalid_input_size;
         }
         if (recipient_public_key.size() != key_size) {
             return error::invalid_public_key;
         }
-        auto const sealed = engine::seal(recipient_public_key.first<key_size>(), message, out);
-        if (!sealed) {
-            detail::wipe(out.data(), out.size());
-            return sealed.error();
+        auto const seal_result =
+            engine::seal(recipient_public_key.first<key_size>(), message_bytes, output_bytes);
+        if (!seal_result) {
+            detail::wipe(output_bytes.data(), output_bytes.size());
+            return seal_result.error();
         }
         return {};
     }
 
     /**
-     * Opens `sealed` into `out`, of `sealed.size() - overhead` bytes, with the recipient's
-     * keys.
+     * Opens `sealed_bytes` into `output_bytes`, of `sealed_bytes.size() - overhead` bytes, with the
+     * recipient's keys.
      *
-     * `out` overlaps neither `sealed` nor the keys.
+     * `output_bytes` overlaps neither `sealed_bytes` nor the keys.
      *
-     * The sizes are checked first; a refusal of theirs or of the keys' leaves `out` untouched.
-     * When the box does not open, or the backend fails, `out` is zeroed.
+     * The sizes are checked first; a refusal of theirs or of the keys' leaves `output_bytes`
+     * untouched. When the box does not open, or the backend fails, `output_bytes` is zeroed.
      *
      * @param recipient_public_key The recipient's X25519 public key, `key_size` bytes.
      * @param recipient_secret_key The recipient's X25519 secret key, `key_size` bytes.
-     * @param sealed A sealed box, at least `overhead` bytes.
-     * @param out `sealed.size() - overhead` bytes.
-     * @return Nothing; `invalid_input_size` for a `sealed` shorter than `overhead` or an `out`
-     * of another size; `invalid_public_key`; `invalid_key_size`; `authentication_failed` when
-     * the box was not sealed to this key pair, or was changed; `backend_failure`.
+     * @param sealed_bytes A sealed box, at least `overhead` bytes.
+     * @param output_bytes `sealed_bytes.size() - overhead` bytes.
+     * @return Nothing; `invalid_input_size` for a `sealed_bytes` shorter than `overhead` or an
+     * `output_bytes` of another size; `invalid_public_key`; `invalid_key_size`;
+     * `authentication_failed` when the box was not sealed to this key pair, or was changed;
+     * `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> open(
         std::span<std::uint8_t const> recipient_public_key,
-        std::span<std::uint8_t const> recipient_secret_key, std::span<std::uint8_t const> sealed,
-        std::span<std::uint8_t> out) noexcept {
-        detail::timing_guard const timing;
-        if (sealed.size() < overhead || out.size() != sealed.size() - overhead) {
+        std::span<std::uint8_t const> recipient_secret_key,
+        std::span<std::uint8_t const> sealed_bytes, std::span<std::uint8_t> output_bytes) noexcept {
+        detail::timing_guard const timing_scope;
+        if (sealed_bytes.size() < overhead ||
+            output_bytes.size() != sealed_bytes.size() - overhead) {
             return error::invalid_input_size;
         }
         if (recipient_public_key.size() != key_size) {
@@ -134,11 +140,12 @@ struct basic_sealed_box {
         if (recipient_secret_key.size() != key_size) {
             return error::invalid_key_size;
         }
-        auto const opened = engine::open(recipient_public_key.first<key_size>(),
-                                         recipient_secret_key.first<key_size>(), sealed, out);
-        if (!opened) {
-            detail::wipe(out.data(), out.size());
-            return opened.error();
+        auto const open_result =
+            engine::open(recipient_public_key.first<key_size>(),
+                         recipient_secret_key.first<key_size>(), sealed_bytes, output_bytes);
+        if (!open_result) {
+            detail::wipe(output_bytes.data(), output_bytes.size());
+            return open_result.error();
         }
         return {};
     }

@@ -414,8 +414,8 @@ struct aead_engine<families::chacha20_poly1305, backends::bearssl> {
  */
 [[nodiscard]] inline br_ec_impl const* bearssl_p256() noexcept {
 #ifndef WEBCPP_CRYPTO_WEBASSEMBLY
-    if (br_ec_impl const* wide = br_ec_p256_m62_get()) {
-        return wide;
+    if (br_ec_impl const* wide_impl = br_ec_p256_m62_get()) {
+        return wide_impl;
     }
 #endif
     return &br_ec_p256_m31;
@@ -443,18 +443,19 @@ struct p_curve_engine<families::p256, backends::bearssl> {
     /**
      * Keeps the scalar and computes its public point.
      *
-     * @param keyed An empty state.
-     * @param scalar 32 bytes, 0 < d < n (the family's header has checked them).
+     * @param keyed_state An empty state.
+     * @param scalar_bytes 32 bytes, 0 < d < n (the family's header has checked them).
      * @return Nothing; `backend_failure`, which a valid scalar cannot cause.
      */
     [[nodiscard]] static boost::system::result<void> make(
-        state& keyed, std::span<std::uint8_t const, 32> scalar) noexcept {
+        state& keyed_state, std::span<std::uint8_t const, 32> scalar_bytes) noexcept {
         WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
-        std::ranges::copy(scalar, keyed.scalar.begin());
-        if (bearssl_p256()->mulgen(keyed.point.data(), keyed.scalar.data(), keyed.scalar.size(),
-                                   BR_EC_secp256r1) != keyed.point.size()) {
-            reset(keyed);
+        std::ranges::copy(scalar_bytes, keyed_state.scalar.begin());
+        if (bearssl_p256()->mulgen(keyed_state.point.data(), keyed_state.scalar.data(),
+                                   keyed_state.scalar.size(),
+                                   BR_EC_secp256r1) != keyed_state.point.size()) {
+            reset(keyed_state);
             return error::backend_failure;
         }
         return {};
@@ -463,47 +464,47 @@ struct p_curve_engine<families::p256, backends::bearssl> {
     /**
      * Whether an uncompressed point is on the curve, its coordinates below p.
      *
-     * @param point 65 bytes, whose first byte is 04 (the family's header has checked it).
+     * @param point_bytes 65 bytes, whose first byte is 04 (the family's header has checked it).
      * @return Whether BearSSL decodes it.
      */
-    [[nodiscard]] static bool valid_point(std::span<std::uint8_t const, 65> point) noexcept {
+    [[nodiscard]] static bool valid_point(std::span<std::uint8_t const, 65> point_bytes) noexcept {
         WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         // BearSSL decodes, and so checks, a point only to multiply it: by 1 it comes back as it
         // was, re-encoded, when its coordinates are below p and on the curve (design D36).
-        std::array<std::uint8_t, 65> decoded{};
-        std::ranges::copy(point, decoded.begin());
-        constexpr std::array<std::uint8_t, 1> one{1};
-        return bearssl_p256()->mul(decoded.data(), decoded.size(), one.data(), one.size(),
-                                   BR_EC_secp256r1) == 1 &&
-               std::ranges::equal(decoded, point);
+        std::array<std::uint8_t, 65> decoded_point{};
+        std::ranges::copy(point_bytes, decoded_point.begin());
+        constexpr std::array<std::uint8_t, 1> one_scalar{1};
+        return bearssl_p256()->mul(decoded_point.data(), decoded_point.size(), one_scalar.data(),
+                                   one_scalar.size(), BR_EC_secp256r1) == 1 &&
+               std::ranges::equal(decoded_point, point_bytes);
     }
 
     /**
      * Signs a digest with ECDSA and RFC 6979's nonce, S as BearSSL computes it (design D36).
      *
-     * @param keyed A keyed state.
-     * @param digest The 32-byte SHA-256 digest.
-     * @param output 64 bytes, r then s.
+     * @param keyed_state A keyed state.
+     * @param digest_bytes The 32-byte SHA-256 digest.
+     * @param output_bytes 64 bytes, r then s.
      * @return Nothing; `backend_failure`, which a valid key cannot cause.
      */
     [[nodiscard]] static boost::system::result<void> sign(
-        state const& keyed, std::span<std::uint8_t const, 32> digest,
-        std::span<std::uint8_t, 64> output) noexcept {
+        state const& keyed_state, std::span<std::uint8_t const, 32> digest_bytes,
+        std::span<std::uint8_t, 64> output_bytes) noexcept {
         WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         // BearSSL's struct is not const-correct: it only reads the scalar.
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast): see above
-        auto* const scalar = const_cast<unsigned char*>(keyed.scalar.data());
-        br_ec_private_key const key{
+        auto* const scalar_bytes = const_cast<unsigned char*>(keyed_state.scalar.data());
+        br_ec_private_key const bearssl_key{
             .curve = BR_EC_secp256r1,
-            .x = scalar,
-            .xlen = keyed.scalar.size(),
+            .x = scalar_bytes,
+            .xlen = keyed_state.scalar.size(),
         };
         // RFC 6979's nonce, from HMAC-DRBG over SHA-256: br_sha256_vtable is the hash of the
         // nonce's derivation, which RFC 6979 makes the digest's own. No random number is drawn.
-        if (br_ecdsa_i31_sign_raw(bearssl_p256(), &br_sha256_vtable, digest.data(), &key,
-                                  output.data()) != output.size()) {
+        if (br_ecdsa_i31_sign_raw(bearssl_p256(), &br_sha256_vtable, digest_bytes.data(),
+                                  &bearssl_key, output_bytes.data()) != output_bytes.size()) {
             return error::backend_failure;
         }
         return {};
@@ -512,155 +513,164 @@ struct p_curve_engine<families::p256, backends::bearssl> {
     /**
      * ECDH: the peer's point multiplied by the scalar, and the product's x coordinate.
      *
-     * @param keyed A keyed state.
-     * @param peer The peer's uncompressed point, valid (its public key was made by BearSSL's
+     * @param keyed_state A keyed state.
+     * @param peer_key The peer's uncompressed point, valid (its public key was made by BearSSL's
      * decoding).
-     * @param output 32 bytes, a `secret<32>`'s.
+     * @param output_bytes 32 bytes, a `secret<32>`'s.
      * @return Nothing; `backend_failure`, which a valid point and a scalar in range cannot cause.
      */
     [[nodiscard]] static boost::system::result<void> ecdh_x(
-        state const& keyed, std::span<std::uint8_t const, 65> peer,
-        std::span<std::uint8_t, 32> output) noexcept {
+        state const& keyed_state, std::span<std::uint8_t const, 65> peer_key,
+        std::span<std::uint8_t, 32> output_bytes) noexcept {
         WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         // BearSSL multiplies in place: the copy becomes d * Q, uncompressed, and is wiped after.
-        std::array<std::uint8_t, 65> shared{};
-        std::ranges::copy(peer, shared.begin());
+        std::array<std::uint8_t, 65> shared_point{};
+        std::ranges::copy(peer_key, shared_point.begin());
         // BearSSL's verdict: on br_ec_p256_m62, the point's decoding, its own check of the
         // scalar's range and whether the product is the point at infinity, so a constant-time
         // checker holds it secret; on br_ec_p256_m31, the decoding alone. Whether a valid point
         // and a valid scalar multiply is public.
         // Not const: the branch reads it again after the mark (detail/declassify.hpp's tip).
         // NOLINTNEXTLINE(misc-const-correctness): see above
-        std::uint32_t multiplied =
-            bearssl_p256()->mul(shared.data(), shared.size(), keyed.scalar.data(),
-                                keyed.scalar.size(), BR_EC_secp256r1);
+        std::uint32_t multiplied_flag =
+            bearssl_p256()->mul(shared_point.data(), shared_point.size(), keyed_state.scalar.data(),
+                                keyed_state.scalar.size(), BR_EC_secp256r1);
         WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&multiplied, sizeof multiplied);
-        if (multiplied != 1) {
-            wipe_object(shared);
+        if (multiplied_flag != 1) {
+            wipe_object(shared_point);
             return error::backend_failure;  // a validated point and a scalar in range never fail
         }
         std::size_t x_size = 0;
         std::size_t const x_offset = bearssl_p256()->xoff(BR_EC_secp256r1, &x_size);
-        std::ranges::copy(std::span<std::uint8_t const>(shared).subspan(x_offset, x_size),
-                          output.begin());
-        wipe_object(shared);
+        std::ranges::copy(std::span<std::uint8_t const>(shared_point).subspan(x_offset, x_size),
+                          output_bytes.begin());
+        wipe_object(shared_point);
         return {};
     }
 
     /**
      * Verifies an ECDSA signature; a high S is accepted (design D36).
      *
-     * @param point The public key's uncompressed point, valid.
-     * @param digest The 32-byte SHA-256 digest.
-     * @param signature 64 bytes, r then s, each in range (the family's header has checked them).
+     * @param point_bytes The public key's uncompressed point, valid.
+     * @param digest_bytes The 32-byte SHA-256 digest.
+     * @param signature_bytes 64 bytes, r then s, each in range (the family's header has checked
+     * them).
      * @return Whether the signature verifies.
      */
-    [[nodiscard]] static bool verify(std::span<std::uint8_t const, 65> point,
-                                     std::span<std::uint8_t const, 32> digest,
-                                     std::span<std::uint8_t const, 64> signature) noexcept {
+    [[nodiscard]] static bool verify(std::span<std::uint8_t const, 65> point_bytes,
+                                     std::span<std::uint8_t const, 32> digest_bytes,
+                                     std::span<std::uint8_t const, 64> signature_bytes) noexcept {
         WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         // BearSSL's struct holds a pointer to non-const bytes, which it only reads: a copy keeps
         // the key's own bytes const without a cast.
         std::array<std::uint8_t, 65> key_point{};
-        std::ranges::copy(point, key_point.begin());
-        br_ec_public_key const key{
+        std::ranges::copy(point_bytes, key_point.begin());
+        br_ec_public_key const bearssl_key{
             .curve = BR_EC_secp256r1,
             .q = key_point.data(),
             .qlen = key_point.size(),
         };
-        return br_ecdsa_i31_vrfy_raw(bearssl_p256(), digest.data(), digest.size(), &key,
-                                     signature.data(), signature.size()) == 1;
+        return br_ecdsa_i31_vrfy_raw(bearssl_p256(), digest_bytes.data(), digest_bytes.size(),
+                                     &bearssl_key, signature_bytes.data(),
+                                     signature_bytes.size()) == 1;
     }
 
     /**
      * Encodes a signature as strict DER.
      *
-     * @param signature 64 bytes, r then s, each in range (the family's header has checked them).
-     * @param output 72 bytes, room for the longest encoding.
+     * @param signature_bytes 64 bytes, r then s, each in range (the family's header has checked
+     * them).
+     * @param output_bytes 72 bytes, room for the longest encoding.
      * @return The encoding's length, at most 72: 2 + 2 * (2 + 33).
      */
-    [[nodiscard]] static std::size_t to_der(std::span<std::uint8_t const, 64> signature,
-                                            std::span<std::uint8_t, 72> output) noexcept {
+    [[nodiscard]] static std::size_t to_der(std::span<std::uint8_t const, 64> signature_bytes,
+                                            std::span<std::uint8_t, 72> output_bytes) noexcept {
         WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
         // In place, and "by no more than 9 bytes" larger (bearssl_ec.h): room for 64 + 9.
-        std::array<std::uint8_t, 64 + 9> work{};
-        std::ranges::copy(signature, work.begin());
-        std::size_t const length = br_ecdsa_raw_to_asn1(work.data(), signature.size());
-        std::ranges::copy(std::span<std::uint8_t const>(work).first(length), output.begin());
-        return length;
+        std::array<std::uint8_t, 64 + 9> work_bytes{};
+        std::ranges::copy(signature_bytes, work_bytes.begin());
+        std::size_t const der_length =
+            br_ecdsa_raw_to_asn1(work_bytes.data(), signature_bytes.size());
+        std::ranges::copy(std::span<std::uint8_t const>(work_bytes).first(der_length),
+                          output_bytes.begin());
+        return der_length;
     }
 
     /**
      * Decodes a strict DER signature: BearSSL's decoder, then the re-encoding compared with the
      * input, since BearSSL accepts a few forms strict DER refuses.
      *
-     * @param der The encoding, not empty.
-     * @param output 64 bytes, r then s, padded to 32 bytes each; the caller keeps them only on
-     * success and checks their range.
+     * @param der_bytes The encoding, not empty.
+     * @param output_bytes 64 bytes, r then s, padded to 32 bytes each; the caller keeps them only
+     * on success and checks their range.
      * @return Whether the input is strict DER of two integers of at most 32 bytes.
      */
-    [[nodiscard]] static bool from_der(std::span<std::uint8_t const> der,
-                                       std::span<std::uint8_t, 64> output) noexcept {
+    [[nodiscard]] static bool from_der(std::span<std::uint8_t const> der_bytes,
+                                       std::span<std::uint8_t, 64> output_bytes) noexcept {
         WEBCPP_CRYPTO_DETAIL_P_CURVE_ENGINE_ENTERED();
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
-        constexpr std::size_t longest = 72;
-        if (der.size() > longest) {
+        constexpr std::size_t longest_der = 72;
+        if (der_bytes.size() > longest_der) {
             return false;
         }
         // In place, and up to twice the source's length (bearssl_ec.h): room for 2 * 72.
-        std::array<std::uint8_t, 2 * longest> work{};
-        std::ranges::copy(der, work.begin());
+        std::array<std::uint8_t, 2 * longest_der> work_bytes{};
+        std::ranges::copy(der_bytes, work_bytes.begin());
         // BearSSL strips the integers' leading zeros and writes r and s at the longer one's
         // length (ecdsa_atr.c), so a raw form shorter than 64 bytes is padded back to 32 each.
-        std::size_t const raw_size = br_ecdsa_asn1_to_raw(work.data(), der.size());
-        std::size_t const half = raw_size / 2;
-        if (raw_size == 0 || half > 32) {
+        std::size_t const raw_size = br_ecdsa_asn1_to_raw(work_bytes.data(), der_bytes.size());
+        std::size_t const half_size = raw_size / 2;
+        if (raw_size == 0 || half_size > 32) {
             return false;
         }
-        std::array<std::uint8_t, 64 + 9> raw{};
-        std::ranges::copy(std::span<std::uint8_t const>(work).first(half),
-                          raw.begin() + static_cast<std::ptrdiff_t>(32 - half));
-        std::ranges::copy(std::span<std::uint8_t const>(work).subspan(half, half),
-                          raw.begin() + static_cast<std::ptrdiff_t>(64 - half));
-        std::ranges::copy(std::span<std::uint8_t const>(raw).first<64>(), output.begin());
+        std::array<std::uint8_t, 64 + 9> raw_signature{};
+        std::ranges::copy(std::span<std::uint8_t const>(work_bytes).first(half_size),
+                          raw_signature.begin() + static_cast<std::ptrdiff_t>(32 - half_size));
+        std::ranges::copy(std::span<std::uint8_t const>(work_bytes).subspan(half_size, half_size),
+                          raw_signature.begin() + static_cast<std::ptrdiff_t>(64 - half_size));
+        std::ranges::copy(std::span<std::uint8_t const>(raw_signature).first<64>(),
+                          output_bytes.begin());
         // BearSSL's decoder accepts a long SEQUENCE length, needless zero bytes and a negative
         // integer; strict DER is what re-encodes to the same bytes (design D12).
-        std::size_t const length = br_ecdsa_raw_to_asn1(raw.data(), 64);
-        return length == der.size() &&
-               std::ranges::equal(std::span<std::uint8_t const>(raw).first(length), der);
+        std::size_t const der_length = br_ecdsa_raw_to_asn1(raw_signature.data(), 64);
+        return der_length == der_bytes.size() &&
+               std::ranges::equal(std::span<std::uint8_t const>(raw_signature).first(der_length),
+                                  der_bytes);
     }
 
     /**
      * Copies the public point; no BearSSL call.
      *
-     * @param keyed A keyed state.
-     * @param output 65 bytes.
+     * @param keyed_state A keyed state.
+     * @param output_bytes 65 bytes.
      */
-    static void public_point(state const& keyed, std::span<std::uint8_t, 65> output) noexcept {
-        std::ranges::copy(keyed.point, output.begin());
+    static void public_point(state const& keyed_state,
+                             std::span<std::uint8_t, 65> output_bytes) noexcept {
+        std::ranges::copy(keyed_state.point, output_bytes.begin());
     }
 
     /**
      * Copies the secret scalar; no BearSSL call.
      *
-     * @param keyed A keyed state.
-     * @param output 32 bytes, a `secret<32>`'s.
+     * @param keyed_state A keyed state.
+     * @param output_bytes 32 bytes, a `secret<32>`'s.
      */
-    static void scalar(state const& keyed, std::span<std::uint8_t, 32> output) noexcept {
-        std::ranges::copy(keyed.scalar, output.begin());
+    static void scalar(state const& keyed_state,
+                       std::span<std::uint8_t, 32> output_bytes) noexcept {
+        std::ranges::copy(keyed_state.scalar, output_bytes.begin());
     }
 
     /**
      * Wipes the scalar and the point; the state is empty.
      *
-     * @param keyed Any state.
+     * @param keyed_state Any state.
      */
-    static void reset(state& keyed) noexcept {
-        wipe_object(keyed.scalar);
-        wipe_object(keyed.point);
+    static void reset(state& keyed_state) noexcept {
+        wipe_object(keyed_state.scalar);
+        wipe_object(keyed_state.point);
     }
 };
 

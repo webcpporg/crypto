@@ -37,7 +37,7 @@ namespace webcpp::crypto {
  */
 [[nodiscard]] inline bool equal(std::span<std::uint8_t const> first_operand,
                                 std::span<std::uint8_t const> second_operand) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     if (first_operand.size() != second_operand.size()) {
         return false;
     }
@@ -66,7 +66,7 @@ namespace webcpp::crypto {
 template <std::size_t N>
 [[nodiscard]] bool equal(boost::hash2::digest<N> const& first_operand,
                          boost::hash2::digest<N> const& second_operand) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     return equal(std::span<std::uint8_t const>(first_operand.data(), N),
                  std::span<std::uint8_t const>(second_operand.data(), N));
 }

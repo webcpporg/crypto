@@ -40,7 +40,7 @@ template <class Algorithm, class... Arguments>
 [[nodiscard]] auto make(Arguments&&... forwarded_arguments) noexcept(
     noexcept(Algorithm::make(std::forward<Arguments>(forwarded_arguments)...)))
     -> decltype(Algorithm::make(std::forward<Arguments>(forwarded_arguments)...)) {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     return Algorithm::make(std::forward<Arguments>(forwarded_arguments)...);
 }
 
@@ -59,7 +59,7 @@ template <class Keypair, class... Arguments>
 [[nodiscard]] auto generate(Arguments&&... forwarded_arguments) noexcept(
     noexcept(Keypair::generate(std::forward<Arguments>(forwarded_arguments)...)))
     -> decltype(Keypair::generate(std::forward<Arguments>(forwarded_arguments)...)) {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     return Keypair::generate(std::forward<Arguments>(forwarded_arguments)...);
 }
 

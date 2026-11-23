@@ -120,7 +120,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<secret<32>> seckey_tweak_add(
     std::span<std::uint8_t const, 32> secret_key,
     std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -141,7 +141,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<secret<32>> seckey_tweak_mul(
     std::span<std::uint8_t const, 32> secret_key,
     std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -160,7 +160,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<secret<32>> seckey_negate(
     std::span<std::uint8_t const, 32> secret_key) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -179,7 +179,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> pubkey_tweak_add(
     public_key const& parsed_key, std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -199,7 +199,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> pubkey_tweak_mul(
     public_key const& parsed_key, std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -218,7 +218,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> pubkey_negate(
     public_key const& parsed_key) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -250,7 +250,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> pubkey_combine(
     std::span<public_key const> parsed_keys, workspace pointer_space) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace on every return, a refusal's included.

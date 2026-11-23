@@ -167,7 +167,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<gcm> make(
         std::span<std::uint8_t const> key_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<backend>,
             "webcpp::crypto: make on this backend completes asynchronously: call async_make.");
@@ -190,7 +190,7 @@ public:
 
     /**
      * Expands a key into a new object, asynchronously: `make` run when the operation is
-     * initiated, its result posted to `executor`; the member form of
+     * initiated, its result posted to `completion_executor`; the member form of
      * `crypto::async_make<gcm>(executor, key_bytes, token)`, which calls it.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
@@ -198,17 +198,18 @@ public:
      * "deduced return type used before it is defined".
      *
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
-     * @tparam CompletionToken Any completion token for the signature `token` states.
-     * @param executor The executor the completion is posted to.
+     * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+     * @param completion_executor The executor the completion is posted to.
      * @param key_bytes `key_size` bytes, the caller's until the completion.
-     * @param token The completion token, of signature `void(boost::system::error_code, gcm)`; on
-     * an error the object is empty, and every member refuses with `invalid_state`
+     * @param completion_token The completion token, of signature `void(boost::system::error_code,
+     * gcm)`; on an error the object is empty, and every member refuses with `invalid_state`
      * (`invalid_key_size`, `errc::not_enough_memory`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
-    static auto async_make(Executor const& executor, std::span<std::uint8_t const> key_bytes,
-                           CompletionToken&& token);
+    static auto async_make(Executor const& completion_executor,
+                           std::span<std::uint8_t const> key_bytes,
+                           CompletionToken&& completion_token);
 
     /**
      * Moves the key; a message in progress is abandoned, and the source is wiped and empty.
@@ -219,7 +220,7 @@ public:
      * @param moved_source The source, empty afterwards.
      */
     gcm(gcm&& moved_source) noexcept : keyed_(std::exchange(moved_source.keyed_, false)) {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (keyed_) {
             moved_source.abandon_message();
             engine::move(state_, moved_source.state_);
@@ -235,7 +236,7 @@ public:
      * @return This object.
      */
     gcm& operator=(gcm&& moved_source) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (this != &moved_source) {
             engine::reset(state_);
             keyed_ = std::exchange(moved_source.keyed_, false);
@@ -275,7 +276,7 @@ public:
     [[nodiscard]] boost::system::result<result_type> seal(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::span<std::uint8_t> data_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<backend>,
             "webcpp::crypto: seal on this backend completes asynchronously: call async_seal.");
@@ -305,7 +306,7 @@ public:
 
     /**
      * Seals a message in place, asynchronously: `seal` run when the operation is initiated, its
-     * result posted to `executor`; the member form of
+     * result posted to `completion_executor`; the member form of
      * `crypto::async_seal(executor, aead, iv_bytes, additional_data_bytes, data_bytes, token)`,
      * which calls it.
      *
@@ -317,20 +318,20 @@ public:
      * "deduced return type used before it is defined".
      *
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
-     * @tparam CompletionToken Any completion token for the signature `token` states.
-     * @param executor The executor the completion is posted to.
+     * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+     * @param completion_executor The executor the completion is posted to.
      * @param iv_bytes 1 to `max_iv_size` bytes, never reused under this key.
      * @param additional_data_bytes Authenticated, not encrypted.
      * @param data_bytes The message.
-     * @param token The completion token, of signature
+     * @param completion_token The completion token, of signature
      * `void(boost::system::error_code, result_type)`: the tag; on an error the zeroed tag (the
      * errors of `seal`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
-    auto async_seal(Executor const& executor, std::span<std::uint8_t const> iv_bytes,
+    auto async_seal(Executor const& completion_executor, std::span<std::uint8_t const> iv_bytes,
                     std::span<std::uint8_t const> additional_data_bytes,
-                    std::span<std::uint8_t> data_bytes, CompletionToken&& token);
+                    std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token);
 
     /**
      * Opens a message in place: `data_bytes` holds the ciphertext before and the plaintext after.
@@ -350,7 +351,7 @@ public:
     [[nodiscard]] boost::system::result<void> open(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<backend>,
             "webcpp::crypto: open on this backend completes asynchronously: call async_open.");
@@ -381,8 +382,8 @@ public:
 
     /**
      * Opens a message in place, asynchronously: `open` run when the operation is initiated, its
-     * result posted to `executor`; the member form of `crypto::async_open`, which calls it with the
-     * executor and the object before this function's arguments.
+     * result posted to `completion_executor`; the member form of `crypto::async_open`, which calls
+     * it with the executor and the object before this function's arguments.
      *
      * The object and the spans are the caller's until the completion; `data_bytes` holds the
      * plaintext at a successful completion.
@@ -392,21 +393,21 @@ public:
      * "deduced return type used before it is defined".
      *
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
-     * @tparam CompletionToken Any completion token for the signature `token` states.
-     * @param executor The executor the completion is posted to.
+     * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+     * @param completion_executor The executor the completion is posted to.
      * @param iv_bytes The IV of the seal.
      * @param additional_data_bytes The additional data of the seal.
      * @param data_bytes The ciphertext.
      * @param tag_bytes The seal's tag, 16 bytes.
-     * @param token The completion token, of signature `void(boost::system::error_code)` (`open`'s
-     * errors).
+     * @param completion_token The completion token, of signature `void(boost::system::error_code)`
+     * (`open`'s errors).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
-    auto async_open(Executor const& executor, std::span<std::uint8_t const> iv_bytes,
+    auto async_open(Executor const& completion_executor, std::span<std::uint8_t const> iv_bytes,
                     std::span<std::uint8_t const> additional_data_bytes,
                     std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
-                    CompletionToken&& token);
+                    CompletionToken&& completion_token);
 
     /**
      * Begins an incremental seal: the IV and the whole additional data first, both read
@@ -423,7 +424,7 @@ public:
     [[nodiscard]] boost::system::result<void> begin_seal(
         std::span<std::uint8_t const> iv_bytes,
         std::span<std::uint8_t const> additional_data_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -457,7 +458,7 @@ public:
      * `backend_failure`, which ends it.
      */
     [[nodiscard]] boost::system::result<void> update(std::span<std::uint8_t> data_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         auto const phase_result = require_phase(phase::sealing);
         if (!phase_result) {
             return phase_result.error();
@@ -483,7 +484,7 @@ public:
      * `backend_failure`, which ends the seal too.
      */
     [[nodiscard]] boost::system::result<result_type> result() noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         auto const phase_result = require_phase(phase::sealing);
         if (!phase_result) {
             return phase_result.error();
@@ -514,7 +515,7 @@ public:
     [[nodiscard]] boost::system::result<void> begin_open(
         std::span<std::uint8_t const> iv_bytes,
         std::span<std::uint8_t const> additional_data_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -554,7 +555,7 @@ public:
      */
     [[nodiscard]] boost::system::result<void> authenticate(
         std::span<std::uint8_t const> ciphertext_piece) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         auto const phase_result = require_phase(phase::authenticating);
         if (!phase_result) {
             return phase_result.error();
@@ -563,14 +564,14 @@ public:
             abandon();
             return error::message_too_long;
         }
-        std::array<std::uint8_t, scratch_size> scratch{};
+        std::array<std::uint8_t, scratch_size> scratch_bytes{};
         for (std::size_t piece_start = 0; piece_start < ciphertext_piece.size();
              piece_start += scratch_size) {
             std::size_t const block_size =
                 (std::min)(scratch_size, ciphertext_piece.size() - piece_start);
-            std::copy_n(ciphertext_piece.data() + piece_start, block_size, scratch.data());
-            auto const run_result = engine::run(state_, std::span(scratch).first(block_size));
-            detail::wipe(scratch.data(), block_size);
+            std::copy_n(ciphertext_piece.data() + piece_start, block_size, scratch_bytes.data());
+            auto const run_result = engine::run(state_, std::span(scratch_bytes).first(block_size));
+            detail::wipe(scratch_bytes.data(), block_size);
             if (!run_result) {
                 abandon();
                 return run_result.error();
@@ -591,7 +592,7 @@ public:
      */
     [[nodiscard]] boost::system::result<void> verify(
         std::span<std::uint8_t const> tag_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         auto const phase_result = require_phase(phase::authenticating);
         if (!phase_result) {
             return phase_result.error();
@@ -633,7 +634,7 @@ public:
      * the message; `backend_failure`, which ends it.
      */
     [[nodiscard]] boost::system::result<void> decrypt(std::span<std::uint8_t> data_piece) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         auto const phase_result = require_phase(phase::decrypting);
         if (!phase_result) {
             return phase_result.error();
@@ -660,14 +661,14 @@ public:
      * which ends the message too.
      */
     [[nodiscard]] boost::system::result<void> end_open() noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         auto const phase_result = require_phase(phase::decrypting);
         if (!phase_result) {
             return phase_result.error();
         }
-        bool const whole = decrypted_bytes_ == message_bytes_;
+        bool const whole_message = decrypted_bytes_ == message_bytes_;
         abandon();
-        if (!whole) {
+        if (!whole_message) {
             return error::invalid_input_size;
         }
         return {};
@@ -685,13 +686,13 @@ private:
 
     gcm() noexcept = default;
 
-    // A call of the incremental machine in `expected`: outside it, `invalid_state`, which ends
-    // a message in another phase.
-    [[nodiscard]] boost::system::result<void> require_phase(phase expected) noexcept {
+    // A call of the incremental machine in `expected_phase`: outside it, `invalid_state`, which
+    // ends a message in another phase.
+    [[nodiscard]] boost::system::result<void> require_phase(phase expected_phase) noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
-        if (phase_ != expected) {
+        if (phase_ != expected_phase) {
             if (phase_ != phase::none) {
                 abandon();
             }

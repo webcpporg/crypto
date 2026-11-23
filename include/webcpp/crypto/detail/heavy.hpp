@@ -105,14 +105,14 @@ struct completion_of<boost::system::result<void>> {
  The refusal of a heavy operation's `async_` variant in a build without threads (design D23).
  Each such variant's body starts with it, so that a program fails only where it calls one,
  with this error first; a variant that forgets it stops at `run_on_work`'s stand-in instead.
- The variant's completion token is its parameter `token`.
+ The variant's completion token is its parameter `completion_token`.
 */
 #ifdef WEBCPP_CRYPTO_HAS_THREADS
 #define WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS(async_name, sync_name)
 #else
 #define WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS(async_name, sync_name)                 \
     static_assert(                                                                  \
-        ::webcpp::crypto::detail::dependent_false<decltype(token)>,                 \
+        ::webcpp::crypto::detail::dependent_false<decltype(completion_token)>,      \
         "webcpp::crypto: " async_name                                               \
         " runs on another thread and needs a build with threads (natively without " \
         "WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call " sync_name ".")
@@ -124,12 +124,12 @@ struct completion_of<boost::system::result<void>> {
  * The error code of a synchronous call's result.
  *
  * @tparam T The result's value.
- * @param done The result.
+ * @param call_result The result.
  * @return Its error, or the empty code on success.
  */
 template <class T>
-boost::system::error_code code_of(boost::system::result<T> const& done) noexcept {
-    return done ? boost::system::error_code{} : done.error();
+boost::system::error_code code_of(boost::system::result<T> const& call_result) noexcept {
+    return call_result ? boost::system::error_code{} : call_result.error();
 }
 
 /** Where a heavy operation is: waiting in the work executor's queue, running, or completed. */
@@ -198,14 +198,15 @@ using heavy_job_allocator_t = heavy_job_allocator_of<WorkExecutor>::type;
 /**
  * The work executor's allocator, for its job.
  *
- * @param work The work executor.
+ * @param work_executor The work executor.
  * @return Its allocator, or `std::allocator<void>`.
  */
 template <class WorkExecutor>
-heavy_job_allocator_t<WorkExecutor> heavy_job_allocator(WorkExecutor const& work) noexcept {
+heavy_job_allocator_t<WorkExecutor> heavy_job_allocator(
+    WorkExecutor const& work_executor) noexcept {
     if constexpr (webcpp::asio::can_query_v<WorkExecutor const&,
                                             webcpp::asio::execution::allocator_t<void>>) {
-        return webcpp::asio::query(work, webcpp::asio::execution::allocator);
+        return webcpp::asio::query(work_executor, webcpp::asio::execution::allocator);
     } else {
         return std::allocator<void>{};
     }
@@ -223,7 +224,7 @@ heavy_job_allocator_t<WorkExecutor> heavy_job_allocator(WorkExecutor const& work
  * value is destroyed, which wipes a `secret<N>` or a key pair, and the completion is
  * `operation_aborted` with the empty value, a side effect that `total` does not allow).
  *
- * The completion runs on the handler's associated executor (`work` by default), where the
+ * The completion runs on the handler's associated executor (`work_executor` by default), where the
  * slot's signal is emitted: it clears the cancellation slot, moves the handler and the value
  * out, destroys the state and gives its storage back to the handler's allocator, and only then
  * calls the handler, so that nothing of that allocator outlives the call (Asio's rule). The job
@@ -240,7 +241,7 @@ heavy_job_allocator_t<WorkExecutor> heavy_job_allocator(WorkExecutor const& work
 template <class Handler, class WorkExecutor, class Work>
 class heavy_state {
 public:
-    /** The handler's associated executor, `work` by default. */
+    /** The handler's associated executor, `work_executor` by default. */
     using executor_type = webcpp::asio::associated_executor_t<Handler, WorkExecutor>;
     /** The handler's associated allocator, rebound to the state. */
     using allocator_type = std::allocator_traits<
@@ -262,105 +263,110 @@ public:
     /**
      * A new state, in storage of the handler's associated allocator.
      *
-     * @param handler The completion handler.
-     * @param work The work executor.
-     * @param run The synchronous call, bound to its arguments.
+     * @param completion_handler The completion handler.
+     * @param work_executor The work executor.
+     * @param bound_call The synchronous call, bound to its arguments.
      * @return The state.
      */
-    static heavy_state* make(Handler handler, WorkExecutor const& work, Work run) {
-        allocator_type allocator(webcpp::asio::get_associated_allocator(handler));
-        auto* const storage = std::allocator_traits<allocator_type>::allocate(allocator, 1);
-        try_construct(allocator, storage, std::move(handler), work, std::move(run));
-        return storage;
+    static heavy_state* make(Handler completion_handler, WorkExecutor const& work_executor,
+                             Work bound_call) {
+        allocator_type handler_allocator(
+            webcpp::asio::get_associated_allocator(completion_handler));
+        auto* const state_storage =
+            std::allocator_traits<allocator_type>::allocate(handler_allocator, 1);
+        try_construct(handler_allocator, state_storage, std::move(completion_handler),
+                      work_executor, std::move(bound_call));
+        return state_storage;
     }
 
     /** Installs the cancellation handler, when the handler's slot is connected. */
     void install_cancellation() {
         // NOLINTNEXTLINE(bugprone-unchecked-optional-access): engaged until the completion
-        auto slot = webcpp::asio::get_associated_cancellation_slot(*handler_);
-        if (slot.is_connected()) {
-            slot.template emplace<cancellation>(this);
+        auto handler_slot = webcpp::asio::get_associated_cancellation_slot(*handler_);
+        if (handler_slot.is_connected()) {
+            handler_slot.template emplace<cancellation>(this);
         }
     }
 
     /**
      * Records where the job holds the state, or that it holds it no longer (null).
      *
-     * @param location The job's atomic pointer.
+     * @param job_location The job's atomic pointer.
      */
-    void relocate(std::atomic<heavy_state*>* location) noexcept {
+    void relocate(std::atomic<heavy_state*>* job_location) noexcept {
         lock();
-        location_ = location;
+        location_ = job_location;
         unlock();
     }
 
     /** The job's turn on the work executor's thread, the state taken out of the job. */
     void run_work() {
         relocate(nullptr);
-        auto expected = heavy_phase::queued;
-        if (!phase_.compare_exchange_strong(expected, heavy_phase::running,
+        auto expected_phase = heavy_phase::queued;
+        if (!phase_.compare_exchange_strong(expected_phase, heavy_phase::running,
                                             std::memory_order_acq_rel)) {
             // A cancellation won, and found the job holding the state no more: complete for it.
             complete_on_handler(webcpp::asio::error::operation_aborted);
             return;
         }
-        auto done = run_();
-        auto code = code_of(done);
+        auto call_result = run_();
+        auto completion_code = code_of(call_result);
         if constexpr (has_value) {
-            if (done) {
-                value_.value.emplace(std::move(*done));
+            if (call_result) {
+                value_.value.emplace(std::move(*call_result));
             }
         }
         if (cancelled_.load(std::memory_order_acquire)) {
             if constexpr (has_value) {
                 value_.value.reset();
             }
-            code = webcpp::asio::error::operation_aborted;
+            completion_code = webcpp::asio::error::operation_aborted;
         }
         phase_.store(heavy_phase::finished, std::memory_order_release);
-        complete_on_handler(code);
+        complete_on_handler(completion_code);
     }
 
     /** The job destroyed unrun (its executor shut down): the handler is destroyed, never called. */
     void abandon() {
         relocate(nullptr);
-        auto expected = heavy_phase::queued;
-        if (!phase_.compare_exchange_strong(expected, heavy_phase::finished,
+        auto expected_phase = heavy_phase::queued;
+        if (!phase_.compare_exchange_strong(expected_phase, heavy_phase::finished,
                                             std::memory_order_acq_rel)) {
             complete_on_handler(webcpp::asio::error::operation_aborted);
             return;
         }
-        auto const executor = handler_work_.get_executor();
-        webcpp::asio::post(executor, bound_completion({}, false));
+        auto const completion_executor = handler_work_.get_executor();
+        webcpp::asio::post(completion_executor, bound_completion({}, false));
     }
 
     /**
-     * A cancellation of type `type`, on the handler's executor, where the signal is emitted.
+     * A cancellation of type `requested_type`, on the handler's executor, where the signal is
+     * emitted.
      *
-     * @param type The cancellation's type.
+     * @param requested_type The cancellation's type.
      */
-    void cancel(webcpp::asio::cancellation_type_t type) {
-        auto expected = heavy_phase::queued;
-        if (phase_.compare_exchange_strong(expected, heavy_phase::finished,
+    void cancel(webcpp::asio::cancellation_type_t requested_type) {
+        auto expected_phase = heavy_phase::queued;
+        if (phase_.compare_exchange_strong(expected_phase, heavy_phase::finished,
                                            std::memory_order_acq_rel)) {
             // Take the state back from the queued job; a job that has just taken it out itself
             // completes for this cancellation instead.
-            bool taken = false;
+            bool state_taken = false;
             lock();
             if (location_ != nullptr) {
-                taken = location_->exchange(nullptr, std::memory_order_acq_rel) != nullptr;
+                state_taken = location_->exchange(nullptr, std::memory_order_acq_rel) != nullptr;
                 location_ = nullptr;
             }
             unlock();
-            if (taken) {
-                auto const executor = handler_work_.get_executor();
-                webcpp::asio::post(executor,
+            if (state_taken) {
+                auto const completion_executor = handler_work_.get_executor();
+                webcpp::asio::post(completion_executor,
                                    bound_completion(webcpp::asio::error::operation_aborted));
             }
             return;
         }
         using webcpp::asio::cancellation_type;
-        if ((type & (cancellation_type::terminal | cancellation_type::partial)) !=
+        if ((requested_type & (cancellation_type::terminal | cancellation_type::partial)) !=
             cancellation_type::none) {
             cancelled_.store(true, std::memory_order_release);
         }
@@ -373,29 +379,32 @@ private:
     // state is destroyed.
     class cancellation {
     public:
-        explicit cancellation(heavy_state* state) noexcept : state_(state) {}
+        explicit cancellation(heavy_state* operation_state) noexcept : state_(operation_state) {}
 
-        void operator()(webcpp::asio::cancellation_type_t type) { state_->cancel(type); }
+        void operator()(webcpp::asio::cancellation_type_t requested_type) {
+            state_->cancel(requested_type);
+        }
 
     private:
         heavy_state* state_;
     };
 
     // The completion, on the handler's executor, its storage the handler's allocator's. It owns
-    // the state: run, it frees the state and calls the handler (`invoke`), or, for a job
+    // the state: run, it frees the state and calls the handler (`invoke_handler`), or, for a job
     // destroyed unrun, only frees it, the handler with it; destroyed without running (its
     // executor shut down or destroyed with it queued, as Asio destroys a queued operation), it
     // frees the state and the handler too, never calling it, so that nothing of the handler's
     // allocator is left and a handler that owns a promise breaks it.
     class completion {
     public:
-        completion(heavy_state* state, boost::system::error_code code, bool invoke) noexcept
-            : state_(state), code_(code), invoke_(invoke) {}
+        completion(heavy_state* operation_state, boost::system::error_code completion_code,
+                   bool invoke_handler) noexcept
+            : state_(operation_state), code_(completion_code), invoke_(invoke_handler) {}
 
-        completion(completion&& other) noexcept
-            : state_(std::exchange(other.state_, nullptr)),
-              code_(other.code_),
-              invoke_(other.invoke_) {}
+        completion(completion&& moved_completion) noexcept
+            : state_(std::exchange(moved_completion.state_, nullptr)),
+              code_(moved_completion.code_),
+              invoke_(moved_completion.invoke_) {}
 
         completion(completion const&) = delete;
         completion& operator=(completion const&) = delete;
@@ -408,11 +417,11 @@ private:
         }
 
         void operator()() {
-            auto* const state = std::exchange(state_, nullptr);
+            auto* const operation_state = std::exchange(state_, nullptr);
             if (invoke_) {
-                state->complete(code_);
+                operation_state->complete(code_);
             } else {
-                state->destroy();
+                operation_state->destroy();
             }
         }
 
@@ -422,15 +431,16 @@ private:
         bool invoke_;
     };
 
-    heavy_state(Handler handler, WorkExecutor const& work, Work run)
-        : handler_work_(
-              webcpp::asio::make_work_guard(webcpp::asio::get_associated_executor(handler, work))),
-          handler_(std::in_place, std::move(handler)),
-          run_(std::move(run)) {}
+    heavy_state(Handler completion_handler, WorkExecutor const& work_executor, Work bound_call)
+        : handler_work_(webcpp::asio::make_work_guard(
+              webcpp::asio::get_associated_executor(completion_handler, work_executor))),
+          handler_(std::in_place, std::move(completion_handler)),
+          run_(std::move(bound_call)) {}
 
-    // Constructs the state in `storage`, which is given back if the construction throws.
-    static void try_construct(allocator_type& allocator, heavy_state* storage, Handler handler,
-                              WorkExecutor const& work, Work run) {
+    // Constructs the state in `state_storage`, which is given back if the construction throws.
+    static void try_construct(allocator_type& handler_allocator, heavy_state* state_storage,
+                              Handler completion_handler, WorkExecutor const& work_executor,
+                              Work bound_call) {
         struct give_back {
             allocator_type& allocator;
             heavy_state* storage;
@@ -440,10 +450,11 @@ private:
                     std::allocator_traits<allocator_type>::deallocate(allocator, storage, 1);
                 }
             }
-        } guard{allocator, storage};
+        } storage_guard{handler_allocator, state_storage};
 
-        ::new (static_cast<void*>(storage)) heavy_state(std::move(handler), work, std::move(run));
-        guard.storage = nullptr;
+        ::new (static_cast<void*>(state_storage))
+            heavy_state(std::move(completion_handler), work_executor, std::move(bound_call));
+        storage_guard.storage = nullptr;
     }
 
     void lock() noexcept {
@@ -454,17 +465,18 @@ private:
 
     void unlock() noexcept { lock_.clear(std::memory_order_release); }
 
-    // The completion bound to the handler's associated allocator; `invoke` false only discards.
-    auto bound_completion(boost::system::error_code code, bool invoke = true) {
+    // The completion bound to the handler's associated allocator; `invoke_handler` false only
+    // discards.
+    auto bound_completion(boost::system::error_code completion_code, bool invoke_handler = true) {
         // NOLINTNEXTLINE(bugprone-unchecked-optional-access): engaged until the completion
         return webcpp::asio::bind_allocator(webcpp::asio::get_associated_allocator(*handler_),
-                                            completion(this, code, invoke));
+                                            completion(this, completion_code, invoke_handler));
     }
 
     // Dispatches the completion to the handler's executor; the caller touches the state no more.
-    void complete_on_handler(boost::system::error_code code) {
-        auto const executor = handler_work_.get_executor();
-        webcpp::asio::dispatch(executor, bound_completion(code));
+    void complete_on_handler(boost::system::error_code completion_code) {
+        auto const completion_executor = handler_work_.get_executor();
+        webcpp::asio::dispatch(completion_executor, bound_completion(completion_code));
     }
 
     // The value the completion gives: the work's, or the empty one (ruling R-A3).
@@ -477,21 +489,22 @@ private:
 
     // Clears the slot, takes the handler, the value and the executor's work out, frees the
     // state, then calls the handler: nothing of the handler's allocator outlives the call.
-    void complete(boost::system::error_code code) {
+    void complete(boost::system::error_code completion_code) {
         clear_slot();
         // NOLINTNEXTLINE(bugprone-unchecked-optional-access): engaged until here
-        Handler handler(std::move(*handler_));
-        auto work = std::move(handler_work_);
-        allocator_type allocator(webcpp::asio::get_associated_allocator(handler));
+        Handler completion_handler(std::move(*handler_));
+        auto work_guard = std::move(handler_work_);
+        allocator_type handler_allocator(
+            webcpp::asio::get_associated_allocator(completion_handler));
         if constexpr (has_value) {
-            value_type value = take_value();
-            release_storage(allocator);
-            std::move(handler)(code, std::move(value));
+            value_type completion_value = take_value();
+            release_storage(handler_allocator);
+            std::move(completion_handler)(completion_code, std::move(completion_value));
         } else {
-            release_storage(allocator);
-            std::move(handler)(code);
+            release_storage(handler_allocator);
+            std::move(completion_handler)(completion_code);
         }
-        work.reset();
+        work_guard.reset();
     }
 
     // Clears the slot, then destroys the state, the handler and the value with it, and gives its
@@ -499,23 +512,23 @@ private:
     void destroy() {
         clear_slot();
         // NOLINTNEXTLINE(bugprone-unchecked-optional-access): engaged until here
-        allocator_type allocator(webcpp::asio::get_associated_allocator(*handler_));
-        release_storage(allocator);
+        allocator_type handler_allocator(webcpp::asio::get_associated_allocator(*handler_));
+        release_storage(handler_allocator);
     }
 
     // Removes the cancellation handler, on the handler's executor, before the state goes.
     void clear_slot() {
         // NOLINTNEXTLINE(bugprone-unchecked-optional-access): engaged until here
-        auto slot = webcpp::asio::get_associated_cancellation_slot(*handler_);
-        if (slot.is_connected()) {
-            slot.clear();
+        auto handler_slot = webcpp::asio::get_associated_cancellation_slot(*handler_);
+        if (handler_slot.is_connected()) {
+            handler_slot.clear();
         }
     }
 
     // Destroys the state and gives its storage back to a copy of the handler's allocator.
-    void release_storage(allocator_type& allocator) {
-        std::allocator_traits<allocator_type>::destroy(allocator, this);
-        std::allocator_traits<allocator_type>::deallocate(allocator, this, 1);
+    void release_storage(allocator_type& handler_allocator) {
+        std::allocator_traits<allocator_type>::destroy(handler_allocator, this);
+        std::allocator_traits<allocator_type>::deallocate(handler_allocator, this, 1);
     }
 
     std::atomic_flag lock_ = ATOMIC_FLAG_INIT;
@@ -546,27 +559,28 @@ public:
     using allocator_type = Allocator;
 
     /**
-     * Holds `state`, before the state can be cancelled.
+     * Holds `operation_state`, before the state can be cancelled.
      *
-     * @param state The operation's state.
-     * @param allocator The work executor's allocator.
+     * @param operation_state The operation's state.
+     * @param job_allocator The work executor's allocator.
      */
-    heavy_job(State* state, Allocator const& allocator) noexcept
-        : allocator_(allocator), state_(state) {
-        state->relocate(&state_);
+    heavy_job(State* operation_state, Allocator const& job_allocator) noexcept
+        : allocator_(job_allocator), state_(operation_state) {
+        operation_state->relocate(&state_);
     }
 
     /**
-     * Takes `other`'s hold, and records the new location; a hold taken back by a cancellation
+     * Takes `moved_job`'s hold, and records the new location; a hold taken back by a cancellation
      * is null, and the state is then touched no more.
      *
-     * @param other The job moved from.
+     * @param moved_job The job moved from.
      */
-    heavy_job(heavy_job&& other) noexcept
-        : allocator_(other.allocator_),
-          state_(other.state_.exchange(nullptr, std::memory_order_acq_rel)) {
-        if (auto* const held = state_.load(std::memory_order_relaxed); held != nullptr) {
-            held->relocate(&state_);
+    heavy_job(heavy_job&& moved_job) noexcept
+        : allocator_(moved_job.allocator_),
+          state_(moved_job.state_.exchange(nullptr, std::memory_order_acq_rel)) {
+        if (auto* const held_state = state_.load(std::memory_order_relaxed);
+            held_state != nullptr) {
+            held_state->relocate(&state_);
         }
     }
 
@@ -582,9 +596,9 @@ public:
     // exception from any of Asio's destructors does.
     // NOLINTNEXTLINE(bugprone-exception-escape): see above
     ~heavy_job() {
-        if (auto* const held = state_.exchange(nullptr, std::memory_order_acq_rel);
-            held != nullptr) {
-            held->abandon();
+        if (auto* const held_state = state_.exchange(nullptr, std::memory_order_acq_rel);
+            held_state != nullptr) {
+            held_state->abandon();
         }
     }
 
@@ -597,9 +611,9 @@ public:
 
     /** Runs the work on the work executor's thread, unless a cancellation took the state back. */
     void operator()() {
-        if (auto* const held = state_.exchange(nullptr, std::memory_order_acq_rel);
-            held != nullptr) {
-            held->run_work();
+        if (auto* const held_state = state_.exchange(nullptr, std::memory_order_acq_rel);
+            held_state != nullptr) {
+            held_state->run_work();
         }
     }
 
@@ -620,57 +634,64 @@ struct heavy_initiation {
     /**
      * Checks the guards, then posts the work or the refusal.
      *
-     * @param handler The completion handler.
-     * @param work The work executor.
-     * @param guards The guards, bound to the arguments.
-     * @param run The synchronous call, bound to its arguments.
+     * @param completion_handler The completion handler.
+     * @param work_executor The work executor.
+     * @param bound_guards The guards, bound to the arguments.
+     * @param bound_call The synchronous call, bound to its arguments.
      */
     template <class Handler, class WorkExecutor, class Guards, class Work>
-    void operator()(Handler&& handler, WorkExecutor const& work, Guards const& guards,
-                    Work run) const {
+    void operator()(Handler&& completion_handler, WorkExecutor const& work_executor,
+                    Guards const& bound_guards, Work bound_call) const {
         using value_type = completion_of<std::invoke_result_t<Work&>>::value_type;
-        auto const guarded = guards();
-        if (!guarded) {
-            auto const executor = webcpp::asio::get_associated_executor(handler, work);
+        auto const guard_result = bound_guards();
+        if (!guard_result) {
+            auto const completion_executor =
+                webcpp::asio::get_associated_executor(completion_handler, work_executor);
             if constexpr (std::is_void_v<value_type>) {
-                webcpp::asio::post(executor, webcpp::asio::append(std::forward<Handler>(handler),
-                                                                  guarded.error()));
+                webcpp::asio::post(completion_executor,
+                                   webcpp::asio::append(std::forward<Handler>(completion_handler),
+                                                        guard_result.error()));
             } else {
                 webcpp::asio::post(
-                    executor, webcpp::asio::append(std::forward<Handler>(handler), guarded.error(),
-                                                   async_access::empty<value_type>()));
+                    completion_executor,
+                    webcpp::asio::append(std::forward<Handler>(completion_handler),
+                                         guard_result.error(), async_access::empty<value_type>()));
             }
             return;
         }
         using state = heavy_state<std::decay_t<Handler>, WorkExecutor, Work>;
         // The job holds the state from its making on, so that a failure to install the
         // cancellation or to post abandons it rather than leak it with the executor's work.
-        auto* const made = state::make(std::forward<Handler>(handler), work, std::move(run));
-        heavy_job<state, heavy_job_allocator_t<WorkExecutor>> job(made, heavy_job_allocator(work));
-        made->install_cancellation();
-        webcpp::asio::post(work, std::move(job));
+        auto* const made_state = state::make(std::forward<Handler>(completion_handler),
+                                             work_executor, std::move(bound_call));
+        heavy_job<state, heavy_job_allocator_t<WorkExecutor>> queued_job(
+            made_state, heavy_job_allocator(work_executor));
+        made_state->install_cancellation();
+        webcpp::asio::post(work_executor, std::move(queued_job));
     }
 };
 
 /**
- * Initiates a heavy operation (design D23): checks `guards()` on the caller's thread (a refusal
- * is posted to the handler's associated executor with its error and the empty value); then runs
- * `run()` on `work`, completing on the handler's associated executor with `run()`'s result split
- * into its error code and its value. Cancellation through the handler's slot as
+ * Initiates a heavy operation (design D23): checks `bound_guards()` on the caller's thread (a
+ * refusal is posted to the handler's associated executor with its error and the empty value); then
+ * runs `bound_call()` on `work_executor`, completing on the handler's associated executor with
+ * `bound_call()`'s result split into its error code and its value. Cancellation through the
+ * handler's slot as
  * @ref heavy_state states.
  *
  * @tparam CompletionToken Any completion token, of signature `completion_of<R>::type`, `R`
- * `run()`'s result.
- * @param work The work executor, a `webcpp::asio::thread_pool`'s, typically.
- * @param guards The guards, bound to the arguments: a call without arguments returning
+ * `bound_call()`'s result.
+ * @param work_executor The work executor, a `webcpp::asio::thread_pool`'s, typically.
+ * @param bound_guards The guards, bound to the arguments: a call without arguments returning
  * `boost::system::result<void>`.
- * @param run The synchronous call, bound to its arguments: a `noexcept` call without arguments
- * returning `boost::system::result<T>` or `boost::system::result<void>`, called once.
- * @param token The completion token.
+ * @param bound_call The synchronous call, bound to its arguments: a `noexcept` call without
+ * arguments returning `boost::system::result<T>` or `boost::system::result<void>`, called once.
+ * @param completion_token The completion token.
  * @return What the completion token's `async_result` gives.
  */
 template <class CompletionToken, class WorkExecutor, class Guards, class Work>
-auto run_on_work(WorkExecutor const& work, Guards guards, Work run, CompletionToken& token) {
+auto run_on_work(WorkExecutor const& work_executor, Guards bound_guards, Work bound_call,
+                 CompletionToken& completion_token) {
     static_assert(std::is_same_v<std::invoke_result_t<Guards const&>, boost::system::result<void>>,
                   "webcpp::crypto: a heavy operation's guards return boost::system::result<void>");
     static_assert(std::is_nothrow_invocable_v<Work&>,
@@ -680,7 +701,8 @@ auto run_on_work(WorkExecutor const& work, Guards guards, Work run, CompletionTo
                   "webcpp::crypto: a heavy operation's value moves without failing");
     using signature = completion_of<std::invoke_result_t<Work&>>::type;
     return webcpp::asio_backend::async_initiate<CompletionToken, signature>(
-        heavy_initiation{}, token, work, std::move(guards), std::move(run));
+        heavy_initiation{}, completion_token, work_executor, std::move(bound_guards),
+        std::move(bound_call));
 }
 
 #else
@@ -692,8 +714,8 @@ auto run_on_work(WorkExecutor const& work, Guards guards, Work run, CompletionTo
  * call that never runs the work nor calls the handler.
  */
 template <class CompletionToken, class WorkExecutor, class Guards, class Work>
-void run_on_work(WorkExecutor const& /*work*/, Guards&& /*guards*/, Work&& /*run*/,
-                 CompletionToken& /*token*/) noexcept {
+void run_on_work(WorkExecutor const& /*work_executor*/, Guards&& /*bound_guards*/,
+                 Work&& /*bound_call*/, CompletionToken& /*completion_token*/) noexcept {
     static_assert(::webcpp::crypto::detail::dependent_false<CompletionToken>,
                   "webcpp::crypto: a heavy operation's async_ variant needs a build with "
                   "threads; if no error above names the synchronous call, this variant lacks "

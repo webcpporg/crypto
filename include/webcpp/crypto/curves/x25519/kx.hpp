@@ -103,7 +103,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<kx_keypair> make(
         std::span<std::uint8_t const> seed_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (seed_bytes.size() != seed_size) {
             return error::invalid_key_size;
         }
@@ -124,7 +124,7 @@ public:
      * none; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<kx_keypair> generate() noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         secret<seed_size> seed_secret;
         auto const entropy_drawn =
             random_device().fill(seed_secret.writable());  // lint-world: the seed
@@ -194,7 +194,7 @@ public:
      */
     [[nodiscard]] boost::system::result<session_keys> client_session_keys(
         std::span<std::uint8_t const> server_public_key) const noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         return session<true>(server_public_key);
     }
 
@@ -208,7 +208,7 @@ public:
      */
     [[nodiscard]] boost::system::result<session_keys> server_session_keys(
         std::span<std::uint8_t const> client_public_key) const noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         return session<false>(client_public_key);
     }
 

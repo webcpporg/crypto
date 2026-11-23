@@ -198,7 +198,7 @@ public:
         [[maybe_unused]] Scheme signing_scheme, std::span<std::uint8_t const> signature_bytes,
         Input const& message_input,
         [[maybe_unused]] Policy verify_policy = Policy{}) const noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(std::is_same_v<Scheme, eddsa_t>,
                       "webcpp::crypto: an Ed25519 public key verifies crypto::eddsa.");
         static_assert(!detail::asynchronous_backend_v<Backend>,
@@ -338,7 +338,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<basic_keypair> make(
         std::span<std::uint8_t const> seed_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<Backend>,
             "webcpp::crypto: make on this backend completes asynchronously: call async_make.");
@@ -367,7 +367,7 @@ public:
      * none; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<basic_keypair> generate() noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(!detail::asynchronous_backend_v<Backend>,
                       "webcpp::crypto: generate on this backend completes asynchronously: call "
                       "async_generate.");
@@ -474,7 +474,7 @@ public:
      * @return The public key; `invalid_state` moved from.
      */
     [[nodiscard]] boost::system::result<public_key_type> public_key() const noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -490,7 +490,7 @@ public:
      * @return 32 secret bytes; `invalid_state` moved from.
      */
     [[nodiscard]] boost::system::result<crypto::secret<secret_key_size>> secret() const noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -513,7 +513,7 @@ public:
     template <class Scheme, class Input>
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
         [[maybe_unused]] Scheme signing_scheme, Input const& message_input) const noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(std::is_same_v<Scheme, eddsa_t>,
                       "webcpp::crypto: an Ed25519 key signs with crypto::eddsa.");
         static_assert(!detail::asynchronous_backend_v<Backend>,
@@ -570,7 +570,7 @@ public:
      * @return 32 secret bytes; `invalid_state`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<crypto::secret<32>> x25519_secret() const noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -619,7 +619,7 @@ using keypair = basic_keypair<>;
 template <class Backend = default_backend_t<families::ed25519>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> to_x25519_public(
     public_key const& ed25519_public_key) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     auto const key_bytes = ed25519_public_key.bytes();
     std::array<std::uint8_t, 32> converted_secret{};
     auto const engine_done = detail::ed25519_engine<families::ed25519, Backend>::to_x25519_public(
@@ -671,7 +671,7 @@ public:
      * @return The signer, ready for the message's pieces; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<ph> begin() noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         ph begun_hash;
         auto const begin_result = engine::begin(begun_hash.state_);
         if (!begin_result) {
@@ -723,7 +723,7 @@ public:
      */
     [[nodiscard]] boost::system::result<void> update(
         std::span<std::uint8_t const> piece_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (!begun_) {
             return error::invalid_state;
         }
@@ -740,7 +740,7 @@ public:
      */
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
         basic_keypair<Backend> const& key_pair) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (!begun_ || !key_pair.keyed_) {
             return error::invalid_state;
         }
@@ -765,7 +765,7 @@ public:
     [[nodiscard]] boost::system::result<void> verify(
         std::span<std::uint8_t const> signature_bytes,
         ::webcpp::crypto::curves::ed25519::public_key const& verifying_key) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (!begun_) {
             return error::invalid_state;
         }
@@ -823,7 +823,7 @@ template <class Backend = default_backend_t<families::ed25519>, class Input,
     [[maybe_unused]] eddsa_t signing_scheme, std::span<std::uint8_t const> signature_bytes,
     Input const& message_input, curves::ed25519::public_key const& public_key,
     [[maybe_unused]] Policy verify_policy = Policy{}) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(!detail::asynchronous_backend_v<Backend>,
                   "webcpp::crypto: verify on this backend completes asynchronously: call "
                   "async_verify.");

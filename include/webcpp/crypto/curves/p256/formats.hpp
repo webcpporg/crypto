@@ -112,7 +112,7 @@ template <class Backend>
 template <class Backend = default_backend_t<families::p256>>
 [[nodiscard]] boost::system::result<basic_public_key<Backend>> decode_spki(
     std::span<std::uint8_t const> spki_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     constexpr std::size_t prefix_size = detail::p256_spki_prefix.size();
     if (spki_bytes.size() != max_spki_size ||
         !equal(spki_bytes.first(prefix_size), detail::p256_spki_prefix)) {
@@ -176,7 +176,7 @@ template <class Backend>
 template <class Backend = default_backend_t<families::p256>>
 [[nodiscard]] boost::system::result<basic_keypair<Backend>> decode_pkcs8(
     std::span<std::uint8_t const> pkcs8_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     constexpr std::size_t prefix_size = detail::p256_pkcs8_prefix.size();
     constexpr std::size_t infix_at = prefix_size + secret_key_size;
     constexpr std::size_t point_at = infix_at + detail::p256_pkcs8_infix.size();

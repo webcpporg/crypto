@@ -320,7 +320,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<aead> make(
         std::span<std::uint8_t const> key_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<Backend>,
             "webcpp::crypto: make on this backend completes asynchronously: call async_make.");
@@ -404,7 +404,7 @@ public:
     [[nodiscard]] boost::system::result<result_type> seal(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::span<std::uint8_t> data_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<Backend>,
             "webcpp::crypto: seal on this backend completes asynchronously: call async_seal.");
@@ -447,7 +447,7 @@ public:
     [[nodiscard]] boost::system::result<void> open(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t const> additional_data_bytes,
         std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<Backend>,
             "webcpp::crypto: open on this backend completes asynchronously: call async_open.");
@@ -536,7 +536,7 @@ template <class Aead>
                                                                           additional_data_bytes,
                                                                           data_bytes)))
     -> decltype(keyed_aead.seal(iv_bytes, additional_data_bytes, data_bytes)) {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     return keyed_aead.seal(iv_bytes, additional_data_bytes, data_bytes);
 }
 
@@ -570,7 +570,7 @@ template <class Aead>
                                                                          additional_data_bytes,
                                                                          data_bytes, tag_bytes)))
     -> decltype(keyed_aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)) {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     return keyed_aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
 }
 

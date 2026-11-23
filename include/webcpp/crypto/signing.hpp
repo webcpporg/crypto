@@ -536,7 +536,7 @@ template <class Keypair, class Scheme, class Input, class... Extra>
     Extra const&... extra_arguments) noexcept(noexcept(key_pair.sign(signing_scheme, signing_input,
                                                                      extra_arguments...)))
     -> decltype(key_pair.sign(signing_scheme, signing_input, extra_arguments...)) {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     return key_pair.sign(signing_scheme, signing_input, extra_arguments...);
 }
 

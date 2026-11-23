@@ -70,7 +70,7 @@ struct algorithm {
      */
     [[nodiscard]] static boost::system::result<std::array<std::uint8_t, 32>> public_key(
         std::span<std::uint8_t const> secret_key) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (secret_key.size() != key_size) {
             return error::invalid_key_size;
         }
@@ -93,7 +93,7 @@ struct algorithm {
     [[nodiscard]] static boost::system::result<secret<32>> agree(
         std::span<std::uint8_t const> secret_key,
         std::span<std::uint8_t const> peer_public_key) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (secret_key.size() != key_size) {
             return error::invalid_key_size;
         }
@@ -134,7 +134,7 @@ private:
 template <class Backend = default_backend_t<families::x25519>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> public_key(
     std::span<std::uint8_t const> secret_key) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     return algorithm<Backend>::public_key(secret_key);
 }
 
@@ -151,7 +151,7 @@ template <class Backend = default_backend_t<families::x25519>>
 [[nodiscard]] boost::system::result<secret<32>> agree(
     std::span<std::uint8_t const> secret_key,
     std::span<std::uint8_t const> peer_public_key) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     return algorithm<Backend>::agree(secret_key, peer_public_key);
 }
 

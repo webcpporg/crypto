@@ -58,29 +58,33 @@ struct p_curve_traits<families::p256> {
 };
 
 /**
- * Whether 0 < value < bound, both big-endian of N bytes, in time independent of `value`: the
- * borrow of value - bound and the OR of value's bytes over every byte, as BearSSL's br_ec_keygen
- * computes them. The verdict alone is declassified: whether a key is valid is public.
+ * Whether 0 < `scalar_bytes` < `bound_bytes`, both big-endian of N bytes, in time independent of
+ * `scalar_bytes`: the borrow of the difference and the OR of the scalar's bytes over every byte, as
+ * BearSSL's br_ec_keygen computes them. The verdict alone is declassified: whether a key is valid
+ * is public.
  *
- * @param value The secret scalar.
- * @param bound The group order.
+ * @param scalar_bytes The secret scalar.
+ * @param bound_bytes The group order.
  * @return Whether the scalar is in range.
  */
 template <std::size_t N>
-[[nodiscard]] bool p_curve_scalar_valid(std::span<std::uint8_t const, N> value,
-                                        std::array<std::uint8_t, N> const& bound) noexcept {
-    unsigned borrow = 0;
-    unsigned nonzero = 0;
-    for (std::size_t i = N; i-- > 0;) {
-        borrow = ((static_cast<unsigned>(value[i]) - bound[i] - borrow) >> 8U) & 1U;
-        nonzero |= value[i];
+[[nodiscard]] bool p_curve_scalar_valid(std::span<std::uint8_t const, N> scalar_bytes,
+                                        std::array<std::uint8_t, N> const& bound_bytes) noexcept {
+    unsigned borrow_bit = 0;
+    unsigned nonzero_bits = 0;
+    for (std::size_t limb_index = N; limb_index-- > 0;) {
+        borrow_bit = ((static_cast<unsigned>(scalar_bytes[limb_index]) - bound_bytes[limb_index] -
+                       borrow_bit) >>
+                      8U) &
+                     1U;
+        nonzero_bits |= scalar_bytes[limb_index];
     }
     // Not const: the comparison below must read the variable again after the declassifying
     // client request, whose memory clobber reaches a mutable object only.
     // NOLINTNEXTLINE(misc-const-correctness): see above
-    unsigned verdict = borrow & ((nonzero + 0xffU) >> 8U);
+    unsigned scalar_verdict = borrow_bit & ((nonzero_bits + 0xffU) >> 8U);
     WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&verdict, sizeof verdict);
-    return verdict != 0;
+    return scalar_verdict != 0;
 }
 
 /**
@@ -88,17 +92,18 @@ template <std::size_t N>
  * `p_curve_scalar_valid`: a signature is public, the same check serves.
  *
  * @tparam Curve The curve's family tag.
- * @param signature r then s, big-endian, each of the curve's scalar size.
+ * @param signature_bytes r then s, big-endian, each of the curve's scalar size.
  * @return Whether both are in range.
  */
 template <class Curve>
 [[nodiscard]] bool p_curve_signature_in_range(
-    std::span<std::uint8_t const, 2 * p_curve_traits<Curve>::scalar_size> signature) noexcept {
-    constexpr std::size_t size = p_curve_traits<Curve>::scalar_size;
-    bool const r_valid =
-        p_curve_scalar_valid(signature.template first<size>(), p_curve_traits<Curve>::order);
-    bool const s_valid =
-        p_curve_scalar_valid(signature.template last<size>(), p_curve_traits<Curve>::order);
+    std::span<std::uint8_t const, 2 * p_curve_traits<Curve>::scalar_size>
+        signature_bytes) noexcept {
+    constexpr std::size_t byte_count = p_curve_traits<Curve>::scalar_size;
+    bool const r_valid = p_curve_scalar_valid(signature_bytes.template first<byte_count>(),
+                                              p_curve_traits<Curve>::order);
+    bool const s_valid = p_curve_scalar_valid(signature_bytes.template last<byte_count>(),
+                                              p_curve_traits<Curve>::order);
     return r_valid && s_valid;
 }
 
@@ -111,23 +116,26 @@ template <class Curve>
  * branch, with `p_curve_high_s_mask`.
  *
  * @tparam Curve The curve's family tag.
- * @param s The signature's s, big-endian.
+ * @param s_bytes The signature's s, big-endian.
  * @return Whether s is at most half the group order.
  */
 template <class Curve>
 [[nodiscard]] bool p_curve_low_s(
-    std::span<std::uint8_t const, p_curve_traits<Curve>::scalar_size> s) noexcept {
-    constexpr auto const& half = p_curve_traits<Curve>::half_order;
-    unsigned borrow = 0;
-    for (std::size_t i = s.size(); i-- > 0;) {
-        borrow = ((static_cast<unsigned>(half[i]) - s[i] - borrow) >> 8U) & 1U;
+    std::span<std::uint8_t const, p_curve_traits<Curve>::scalar_size> s_bytes) noexcept {
+    constexpr auto const& half_order = p_curve_traits<Curve>::half_order;
+    unsigned borrow_bit = 0;
+    for (std::size_t limb_index = s_bytes.size(); limb_index-- > 0;) {
+        borrow_bit =
+            ((static_cast<unsigned>(half_order[limb_index]) - s_bytes[limb_index] - borrow_bit) >>
+             8U) &
+            1U;
     }
     // Not const: the comparison below must read the variable again after the declassifying
     // client request, whose memory clobber reaches a mutable object only.
     // NOLINTNEXTLINE(misc-const-correctness): see above
-    unsigned high = borrow;
+    unsigned high_borrow = borrow_bit;
     WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&high, sizeof high);
-    return high == 0;
+    return high_borrow == 0;
 }
 
 /**
@@ -138,18 +146,21 @@ template <class Curve>
  * `secp256k1_scalar_cond_negate` does the same).
  *
  * @tparam Curve The curve's family tag.
- * @param s The signature's s, big-endian.
+ * @param s_bytes The signature's s, big-endian.
  * @return 0xff when s is above half the group order, 0x00 otherwise.
  */
 template <class Curve>
 [[nodiscard]] std::uint8_t p_curve_high_s_mask(
-    std::span<std::uint8_t const, p_curve_traits<Curve>::scalar_size> s) noexcept {
-    constexpr auto const& half = p_curve_traits<Curve>::half_order;
-    unsigned borrow = 0;
-    for (std::size_t i = s.size(); i-- > 0;) {
-        borrow = ((static_cast<unsigned>(half[i]) - s[i] - borrow) >> 8U) & 1U;
+    std::span<std::uint8_t const, p_curve_traits<Curve>::scalar_size> s_bytes) noexcept {
+    constexpr auto const& half_order = p_curve_traits<Curve>::half_order;
+    unsigned borrow_bit = 0;
+    for (std::size_t limb_index = s_bytes.size(); limb_index-- > 0;) {
+        borrow_bit =
+            ((static_cast<unsigned>(half_order[limb_index]) - s_bytes[limb_index] - borrow_bit) >>
+             8U) &
+            1U;
     }
-    return static_cast<std::uint8_t>(0U - borrow);
+    return static_cast<std::uint8_t>(0U - borrow_bit);
 }
 
 /**
@@ -157,19 +168,20 @@ template <class Curve>
  * result is in that range too: the borrow arithmetic of `p_curve_scalar_valid`, over every byte.
  *
  * @tparam Curve The curve's family tag.
- * @param s The signature's s, big-endian.
- * @param output n - s, big-endian; it may not overlap `s`.
+ * @param s_bytes The signature's s, big-endian.
+ * @param output_bytes n - s, big-endian; it may not overlap `s_bytes`.
  */
 template <class Curve>
 void p_curve_negate_scalar(
-    std::span<std::uint8_t const, p_curve_traits<Curve>::scalar_size> s,
-    std::span<std::uint8_t, p_curve_traits<Curve>::scalar_size> output) noexcept {
-    constexpr auto const& order = p_curve_traits<Curve>::order;
-    unsigned borrow = 0;
-    for (std::size_t i = s.size(); i-- > 0;) {
-        unsigned const difference = static_cast<unsigned>(order[i]) - s[i] - borrow;
-        output[i] = static_cast<std::uint8_t>(difference);
-        borrow = (difference >> 8U) & 1U;
+    std::span<std::uint8_t const, p_curve_traits<Curve>::scalar_size> s_bytes,
+    std::span<std::uint8_t, p_curve_traits<Curve>::scalar_size> output_bytes) noexcept {
+    constexpr auto const& curve_order = p_curve_traits<Curve>::order;
+    unsigned borrow_bit = 0;
+    for (std::size_t limb_index = s_bytes.size(); limb_index-- > 0;) {
+        unsigned const limb_difference =
+            static_cast<unsigned>(curve_order[limb_index]) - s_bytes[limb_index] - borrow_bit;
+        output_bytes[limb_index] = static_cast<std::uint8_t>(limb_difference);
+        borrow_bit = (limb_difference >> 8U) & 1U;
     }
 }
 
@@ -210,12 +222,12 @@ struct p_curve_access {
      * A public key's point, to be written by the function that makes the key.
      *
      * @tparam PublicKey The public key's type.
-     * @param key The public key.
+     * @param key_object The public key.
      * @return Its encoded point.
      */
     template <class PublicKey>
-    [[nodiscard]] static auto& point(PublicKey& key) noexcept {
-        return key.point_;
+    [[nodiscard]] static auto& point(PublicKey& key_object) noexcept {
+        return key_object.point_;
     }
 };
 

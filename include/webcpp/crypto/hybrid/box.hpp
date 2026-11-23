@@ -147,7 +147,7 @@ public:
     [[nodiscard]] static boost::system::result<basic_box> make(
         std::span<std::uint8_t const> secret_key,
         std::span<std::uint8_t const> peer_public_key) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (secret_key.size() != key_size) {
             return error::invalid_key_size;
         }
@@ -155,10 +155,10 @@ public:
             return error::invalid_public_key;
         }
         basic_box made_object;
-        auto const agreed = engine::init(made_object.state_, secret_key.first<key_size>(),
-                                         peer_public_key.first<key_size>());
-        if (!agreed) {
-            return agreed.error();
+        auto const agreement_result = engine::init(made_object.state_, secret_key.first<key_size>(),
+                                                   peer_public_key.first<key_size>());
+        if (!agreement_result) {
+            return agreement_result.error();
         }
         made_object.keyed_ = true;
         return made_object;
@@ -219,7 +219,7 @@ public:
      */
     [[nodiscard]] boost::system::result<result_type> seal(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t> data_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         auto const guard_result = guard_message(iv_bytes, data_bytes.size(), tag_size);
         if (!guard_result) {
             return guard_result.error();
@@ -251,7 +251,7 @@ public:
     [[nodiscard]] boost::system::result<void> open(
         std::span<std::uint8_t const> iv_bytes, std::span<std::uint8_t> data_bytes,
         std::span<std::uint8_t const> tag_bytes) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         auto const guard_result = guard_message(iv_bytes, data_bytes.size(), tag_bytes.size());
         if (!guard_result) {
             return guard_result.error();

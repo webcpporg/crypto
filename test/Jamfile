@@ -350,6 +350,13 @@ webcpp.compile default_selection_bearssl : default_selection_test.cpp
 # crypto.hpp's branch for libsecp256k1, which headers-alone, without the
 # library, leaves out.
 webcpp.compile crypto_secp256k1 : crypto_secp256k1_test.cpp : <library>/third_party//secp256k1 ;
+# The marks of the constant-time lane's memcheck build (DECLASSIFY), which
+# expand to nothing elsewhere, compiled on every lane against a stand-in for
+# Valgrind's header: a mark that names a stale local stops the build here.
+webcpp.compile declassify_compile : declassify_compile_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium
+    <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_DETAIL_CT_VALGRIND
+    <include>support/valgrind_stub ;
 # secp256k1's header alone with XKCP linked, its Keccak-256 branch included,
 # which the headers-alone entry above, without XKCP, leaves out (a header
 # compiles alone once there).

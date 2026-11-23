@@ -30,8 +30,11 @@
 // - Ed25519's asynchronous functions: async_from_secret, async_generate, async_sign, async_verify,
 //   free and as the members basic_keypair::async_from_secret, async_generate, async_sign and
 //   public_key::async_verify, which the free ones call.
-// - X25519, algorithm: public_key, agree; the free public_key and agree, which forward, and
-//   the asynchronous async_agree. Its formats: decode_spki, decode_pkcs8.
+// - X25519, basic_keypair: from_secret, generate, agree, each of a moved-from key pair too where
+//   it applies; public_key and secret, which copy, and public_key's from_bytes and bytes, which
+//   enter none; the free crypto::from_secret, crypto::generate and crypto::agree, and crypto::
+//   from_bytes, which enters none; the asynchronous async_from_secret, async_generate and
+//   async_agree, member and free. Its formats: decode_spki, decode_pkcs8.
 // - crypto_kx, kx_keypair: derive_from_seed, generate, client_session_keys, server_session_keys.
 
 #include "support/timing_seam.hpp"
@@ -107,9 +110,10 @@ struct coverage_keypair {
 coverage_keypair make_keypair(std::uint8_t fill) {
     coverage_keypair made;
     made.secret_key.fill(fill);
-    auto const derived = crypto::curves::x25519::public_key<sodium>(made.secret_key);
+    auto const derived =
+        crypto::curves::x25519::basic_keypair<sodium>::from_secret(made.secret_key);
     if (BOOST_TEST(derived.has_value())) {
-        made.public_key = *derived;
+        made.public_key = derived->public_key().value().bytes();
     }
     return made;
 }
@@ -569,39 +573,102 @@ void cover_ed25519_formats() {
 }
 
 /**
- * X25519's `algorithm<sodium>::public_key` and `agree`, and the free functions, a key of the
- * wrong size of each included.
+ * X25519's key pair: `from_secret`, a secret key of the wrong size included, `generate` (the
+ * system's entropy) and `agree`, each entering its own guard; and `public_key` and `secret`, which
+ * copy, and the public key's `from_bytes` and `bytes`, which enter none.
  */
 void cover_x25519() {
     namespace x25519 = crypto::curves::x25519;
-    using algorithm = x25519::algorithm<sodium>;
+    using keypair = x25519::basic_keypair<sodium>;
     auto const alice = make_keypair(0x41);
     auto const bob = make_keypair(0x42);
     auto const short_key = std::span(alice.secret_key).first(31);
-    covered("x25519::algorithm::public_key on sodium",
-            [&] { BOOST_TEST(algorithm::public_key(alice.secret_key).has_value()); });
-    covered("x25519::algorithm::agree on sodium",
-            [&] { BOOST_TEST(algorithm::agree(alice.secret_key, bob.public_key).has_value()); });
-    covered("x25519::public_key on sodium",
-            [&] { BOOST_TEST(x25519::public_key<sodium>(alice.secret_key).has_value()); });
-    covered("x25519::agree on sodium", [&] {
-        BOOST_TEST(x25519::agree<sodium>(alice.secret_key, bob.public_key).has_value());
+    covered("x25519::basic_keypair::from_secret on sodium",
+            [&] { BOOST_TEST(keypair::from_secret(alice.secret_key).has_value()); });
+    covered("x25519::basic_keypair::from_secret with a short key on sodium", [&] {
+        BOOST_TEST(keypair::from_secret(short_key).error() == crypto::error::invalid_key_size);
     });
-    covered("x25519::algorithm::public_key with a short key on sodium", [&] {
-        BOOST_TEST(algorithm::public_key(short_key).error() == crypto::error::invalid_key_size);
+    covered("x25519::basic_keypair::generate on sodium",
+            [] { BOOST_TEST(keypair::generate().has_value()); });
+    auto made = keypair::from_secret(alice.secret_key);
+    auto const peer = x25519::public_key::from_bytes(bob.public_key);
+    if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(peer.has_value())) {
+        return;
+    }
+    covered("x25519::basic_keypair::agree on sodium",
+            [&] { BOOST_TEST(made->agree(*peer).has_value()); });
+    webcpp::test::uncovered("x25519::basic_keypair::public_key on sodium",
+                            [&] { BOOST_TEST(made->public_key().has_value()); });
+    webcpp::test::uncovered("x25519::basic_keypair::secret on sodium",
+                            [&] { BOOST_TEST(made->secret().has_value()); });
+    webcpp::test::uncovered("x25519::public_key::from_bytes on sodium", [&] {
+        BOOST_TEST(x25519::public_key::from_bytes(bob.public_key).has_value());
     });
-    covered("x25519::algorithm::agree with a short key on sodium", [&] {
-        BOOST_TEST(algorithm::agree(short_key, bob.public_key).error() ==
+    webcpp::test::uncovered("x25519::public_key::from_bytes of a short key on sodium", [&] {
+        BOOST_TEST(x25519::public_key::from_bytes(short_key).error() ==
+                   crypto::error::invalid_public_key);
+    });
+    webcpp::test::uncovered("x25519::public_key::bytes on sodium",
+                            [&] { BOOST_TEST(peer->bytes() == bob.public_key); });
+}
+
+/**
+ * X25519's moved-from key pair: `agree` enters its guard and refuses; `public_key` and `secret`
+ * refuse with none.
+ */
+void cover_x25519_moved_from() {
+    namespace x25519 = crypto::curves::x25519;
+    using keypair = x25519::basic_keypair<sodium>;
+    auto const alice = make_keypair(0x41);
+    auto const bob = make_keypair(0x42);
+    auto made = keypair::from_secret(alice.secret_key);
+    auto const peer = x25519::public_key::from_bytes(bob.public_key);
+    if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(peer.has_value())) {
+        return;
+    }
+    [[maybe_unused]] keypair const taken(std::move(*made));
+    covered("x25519::basic_keypair::agree moved from on sodium", [&] {
+        // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
+        BOOST_TEST(made->agree(*peer).error() == crypto::error::invalid_state);
+    });
+    webcpp::test::uncovered("x25519::basic_keypair::public_key moved from on sodium", [&] {
+        // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
+        BOOST_TEST(made->public_key().error() == crypto::error::invalid_state);
+    });
+    webcpp::test::uncovered("x25519::basic_keypair::secret moved from on sodium", [&] {
+        // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
+        BOOST_TEST(made->secret().error() == crypto::error::invalid_state);
+    });
+}
+
+/**
+ * X25519's free synchronous forms, crypto::from_secret, crypto::generate and crypto::agree, each
+ * entering its own guard before the member's, a short secret key included; crypto::from_bytes of a
+ * public key enters none, as its member does not.
+ */
+void cover_x25519_free_forms() {
+    namespace x25519 = crypto::curves::x25519;
+    using keypair = x25519::basic_keypair<sodium>;
+    auto const alice = make_keypair(0x41);
+    auto const bob = make_keypair(0x42);
+    covered("x25519 crypto::from_secret on sodium", "crypto::from_secret",
+            [&] { BOOST_TEST(crypto::from_secret<keypair>(alice.secret_key).has_value()); });
+    covered("x25519 crypto::from_secret with a short key on sodium", "crypto::from_secret", [&] {
+        BOOST_TEST(crypto::from_secret<keypair>(std::span(alice.secret_key).first(31)).error() ==
                    crypto::error::invalid_key_size);
     });
-    covered("x25519::public_key with a short key on sodium", [&] {
-        BOOST_TEST(x25519::public_key<sodium>(short_key).error() ==
-                   crypto::error::invalid_key_size);
+    covered("x25519 crypto::generate on sodium", "crypto::generate",
+            [] { BOOST_TEST(crypto::generate<keypair>().has_value()); });
+    webcpp::test::uncovered("x25519 crypto::from_bytes of a public key on sodium", [&] {
+        BOOST_TEST(crypto::from_bytes<x25519::public_key>(bob.public_key).has_value());
     });
-    covered("x25519::agree with a short key on sodium", [&] {
-        BOOST_TEST(x25519::agree<sodium>(short_key, bob.public_key).error() ==
-                   crypto::error::invalid_key_size);
-    });
+    auto const made = keypair::from_secret(alice.secret_key);
+    auto const peer = x25519::public_key::from_bytes(bob.public_key);
+    if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(peer.has_value())) {
+        return;
+    }
+    covered("x25519 crypto::agree on sodium", "crypto::agree",
+            [&] { BOOST_TEST(crypto::agree(*made, *peer).has_value()); });
 }
 
 /** X25519's `decode_spki` and `decode_pkcs8`, an encoding of the wrong size of each included. */
@@ -672,7 +739,7 @@ void cover_kx() {
 void cover_curves() {
     cover_ed25519_keypair();
     webcpp::test::cover_async_ed25519<crypto::curves::ed25519::basic_keypair<sodium>>("sodium");
-    webcpp::test::cover_async_x25519<sodium>("sodium");
+    webcpp::test::cover_async_x25519<crypto::curves::x25519::basic_keypair<sodium>>("sodium");
     cover_ed25519_free();
     cover_ed25519_free_forms();
     webcpp::test::cover_signature<crypto::curves::ed25519::signature>("ed25519::signature",
@@ -682,6 +749,8 @@ void cover_curves() {
     cover_ed25519ph_refusals();
     cover_ed25519_formats();
     cover_x25519();
+    cover_x25519_moved_from();
+    cover_x25519_free_forms();
     cover_x25519_formats();
     cover_kx();
 }

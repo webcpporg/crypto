@@ -57,9 +57,9 @@ The fix: Call the synchronous `+from_key+`: XChaCha20-Poly1305 is not in WebCryp
 
 |`+async_from_secret_secp256k1+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_from_secret takes a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the synchronous from_secret for the others.+`
+|`+webcpp::crypto: async_from_secret takes a key pair of an algorithm WebCrypto has (Ed25519, X25519, P-256): call the synchronous from_secret for the others.+`
 
-The fix: Call the synchronous `+from_secret+`: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `+async_from_secret+`.
+The fix: Call the synchronous `+from_secret+`: secp256k1 is not in WebCrypto, so only Ed25519's, X25519's and P-256's key pairs have `+async_from_secret+`.
 
 |`+async_member_without_async_hpp+`
 |native, wasip2, wasip3
@@ -1256,7 +1256,7 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: the backend libsodium is used and not linked. In the program's Jamfile, add /third_party//sodium beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
-`+x25519_default_not_linked_on_emscripten+`:: A program for Emscripten that agrees an X25519 shared secret on its default, libsodium, and links none. The fix: As `+x25519_default_not_linked+`.
+`+x25519_default_not_linked_on_emscripten+`:: A program for Emscripten that makes an X25519 key pair and agrees a shared secret on its default, libsodium, and links none. The fix: As `+x25519_default_not_linked+`.
 +
 Its Jamfile:
 +
@@ -1294,7 +1294,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+async_from_secret_secp256k1+`
 |the compile
-|Call the synchronous `+from_secret+`: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `+async_from_secret+`.
+|Call the synchronous `+from_secret+`: secp256k1 is not in WebCrypto, so only Ed25519's, X25519's and P-256's key pairs have `+async_from_secret+`.
 
 |`+async_open_xchacha+`
 |the compile

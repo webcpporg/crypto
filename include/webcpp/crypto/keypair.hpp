@@ -166,11 +166,13 @@ concept keypair = detail::keypair_over<Keypair, detail::all_schemes>;
  * Agrees a secret with a peer's public key, `key_pair.agree(peer_key)`: the free form of the key
  * pair's own `agree`, which it calls, with its results and its errors.
  *
- * @tparam Keypair A key pair's type whose `agree` takes `peer_key`: P-256's or secp256k1's.
+ * @tparam Keypair A key pair's type whose `agree` takes `peer_key`: X25519's, P-256's or
+ * secp256k1's.
  * @tparam PublicKey The peer's public key's type, the key pair's own `public_key_type`.
  * @param key_pair The key pair.
  * @param peer_key The peer's public key.
- * @return What `key_pair.agree(peer_key)` returns: the shared point's x coordinate, or its error.
+ * @return What `key_pair.agree(peer_key)` returns: the shared secret (X25519's, or the shared
+ * point's x coordinate), or its error.
  */
 template <class Keypair, class PublicKey>
     requires requires { std::declval<Keypair const&>().agree(std::declval<PublicKey const&>()); }

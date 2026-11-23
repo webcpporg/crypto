@@ -22,24 +22,33 @@ link:https://www.rfc-editor.org/rfc/rfc8731[RFC 8731];
 link:https://www.wireguard.com/protocol/[WireGuard];
 link:https://signal.org/docs/specifications/x3dh/[X3DH]).
 
-`public_key(secret_key)` gives the public key of any 32 bytes, which a program
-draws with `random_device`; `agree(secret_key, peer_public_key)` gives the
-shared secret, a `secret<32>` that wipes itself. A peer's public key of low
+A key pair, `keypair`, is made from its 32-byte secret key by
+`keypair::from_secret(secret_bytes)`, any 32 bytes, or drawn from
+`random_device` by `keypair::generate()`; its public key, computed once when it
+is made, is `public_key()`, a `curves::x25519::public_key`, whose `bytes()` a
+program sends, and `secret()` gives the secret key back, to keep. A peer's key
+arrives as bytes and is made by `public_key::from_bytes(bytes)`, which checks
+their size alone. `key_pair.agree(peer_key)` gives the shared secret, a
+`secret<32>` that wipes itself; `crypto::agree(key_pair, peer_key)` is its free
+form, and `async_agree` its asynchronous one (<<crypto-async>>). A moved-from
+key pair refuses every call with `invalid_state`. A peer's public key of low
 order makes the shared secret all zero, whatever the secret key: `agree`
 refuses it with `weak_public_key`, so that an attacker who sends such a key
 cannot make both sides use a secret it knows (design D8). Every case of
 Wycheproof's X25519 file gives its shared secret, and its 31 all-zero cases
 give `weak_public_key` (`x25519_wycheproof_sodium`).
 
-include::generated/backends-x25519_public_key.adoc[]
+include::generated/backends-x25519_keypair.adoc[]
 
-include::generated/backends-x25519_agree.adoc[]
+include::generated/backends-x25519_public_key.adoc[]
 
 *From Ed25519.* A program that already holds an Ed25519 key pair (<<crypto-ed25519>>)
 agrees with the same seed: `keypair::x25519_secret()` is its X25519 secret key,
+from which `curves::x25519::keypair::from_secret` makes its X25519 key pair,
 and `curves::ed25519::to_x25519_public(public_key)` converts a peer's Ed25519
-public key to its X25519 public key, the birational map between the two forms
-of the curve. The conversion refuses with `invalid_public_key` a key of small
+public key to the bytes of its X25519 public key, the birational map between
+the two forms of the curve, which `curves::x25519::public_key::from_bytes`
+makes into a key. The conversion refuses with `invalid_public_key` a key of small
 order, off the curve or outside the main subgroup, as libsodium does
 (link:https://doc.libsodium.org/advanced/ed25519-curve25519[libsodium's documentation]).
 

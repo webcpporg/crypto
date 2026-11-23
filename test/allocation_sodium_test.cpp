@@ -141,29 +141,49 @@ void expect_no_allocation_ed25519() {
 }
 
 /**
- * Computes two X25519 public keys, agrees both ways, and refuses a peer key of low order (the
- * all-zero point): none of it allocates.
+ * Makes two X25519 key pairs and a peer key of low order (the all-zero point), agrees both ways,
+ * and refuses that peer: none of it allocates.
  */
 void expect_no_allocation_x25519() {
-    using x25519 = crypto::curves::x25519::algorithm<crypto::backends::sodium>;
-    std::array<std::uint8_t, x25519::key_size> alice{};
-    alice.fill(7);
-    std::array<std::uint8_t, x25519::key_size> bob{};
-    bob.fill(9);
-    std::array<std::uint8_t, x25519::key_size> const low_order{};
+    using keypair = crypto::curves::x25519::basic_keypair<crypto::backends::sodium>;
+    using crypto::curves::x25519::public_key;
+    std::array<std::uint8_t, keypair::secret_key_size> alice_secret{};
+    alice_secret.fill(7);
+    std::array<std::uint8_t, keypair::secret_key_size> bob_secret{};
+    bob_secret.fill(9);
+    std::array<std::uint8_t, public_key::public_key_size> const low_order{};
     std::size_t const before = webcpp::test::allocations();
     {
-        auto const alice_public = x25519::public_key(alice);
-        BOOST_TEST(alice_public.has_value());
-        auto const bob_public = x25519::public_key(bob);
-        BOOST_TEST(bob_public.has_value());
-        auto const alice_shared = x25519::agree(alice, *bob_public);
-        BOOST_TEST(alice_shared.has_value());
-        auto const bob_shared = x25519::agree(bob, *alice_public);
-        BOOST_TEST(bob_shared.has_value());
-        BOOST_TEST(x25519::agree(alice, low_order).error() == crypto::error::weak_public_key);
+        auto const alice = keypair::from_secret(alice_secret);
+        auto const bob = keypair::from_secret(bob_secret);
+        auto const weak = public_key::from_bytes(low_order);
+        if (BOOST_TEST(alice.has_value()) && BOOST_TEST(bob.has_value()) &&
+            BOOST_TEST(weak.has_value())) {
+            auto const alice_public = alice->public_key();
+            auto const bob_public = bob->public_key();
+            if (BOOST_TEST(alice_public.has_value()) && BOOST_TEST(bob_public.has_value())) {
+                BOOST_TEST(alice->agree(*bob_public).has_value());
+                BOOST_TEST(bob->agree(*alice_public).has_value());
+            }
+            BOOST_TEST(alice->agree(*weak).error() == crypto::error::weak_public_key);
+        }
     }
     BOOST_TEST_EQ(webcpp::test::allocations(), before);
+}
+
+/**
+ * The X25519 public key of a secret key's bytes, as the boxes take it until they take typed keys.
+ *
+ * @param secret_bytes 32 bytes.
+ * @return The public key's 32 bytes, or zeros where the key pair was not made (reported).
+ */
+std::array<std::uint8_t, 32> x25519_public_of(std::span<std::uint8_t const> secret_bytes) {
+    auto const made =
+        crypto::curves::x25519::basic_keypair<crypto::backends::sodium>::from_secret(secret_bytes);
+    if (!BOOST_TEST(made.has_value())) {
+        return {};
+    }
+    return made->public_key().value().bytes();
 }
 
 /**
@@ -179,15 +199,12 @@ void expect_no_allocation_box() {
     std::array<std::uint8_t, 32> const low_order{};
     std::array<std::uint8_t, Box::iv_size> const iv{};
     std::array<std::uint8_t, 4096> data{};
-    auto const alice_public = crypto::curves::x25519::public_key<crypto::backends::sodium>(alice);
-    auto const bob_public = crypto::curves::x25519::public_key<crypto::backends::sodium>(bob);
-    if (!BOOST_TEST(alice_public.has_value()) || !BOOST_TEST(bob_public.has_value())) {
-        return;
-    }
+    auto const alice_public = x25519_public_of(alice);
+    auto const bob_public = x25519_public_of(bob);
     std::size_t const before = webcpp::test::allocations();
     {
-        auto sender = Box::from_keys(alice, *bob_public);
-        auto receiver = Box::from_keys(bob, *alice_public);
+        auto sender = Box::from_keys(alice, bob_public);
+        auto receiver = Box::from_keys(bob, alice_public);
         BOOST_TEST(sender.has_value() && receiver.has_value());
         auto const tag = sender->seal(iv, data);
         BOOST_TEST(tag.has_value());
@@ -209,19 +226,16 @@ void expect_no_allocation_sealed_box() {
     using sealed_box = crypto::public_key_encryption::basic_sealed_box<crypto::backends::sodium>;
     std::array<std::uint8_t, 32> bob{};
     bob.fill(11);
-    auto const bob_public = crypto::curves::x25519::public_key<crypto::backends::sodium>(bob);
-    if (!BOOST_TEST(bob_public.has_value())) {
-        return;
-    }
+    auto const bob_public = x25519_public_of(bob);
     std::array<std::uint8_t, 1000> const message{};
     std::array<std::uint8_t, message.size() + sealed_box::overhead> sealed{};
     std::array<std::uint8_t, message.size()> opened{};
     std::size_t const before = webcpp::test::allocations();
     {
-        BOOST_TEST(sealed_box::seal(*bob_public, message, sealed).has_value());
-        BOOST_TEST(sealed_box::open(*bob_public, bob, sealed, opened).has_value());
+        BOOST_TEST(sealed_box::seal(bob_public, message, sealed).has_value());
+        BOOST_TEST(sealed_box::open(bob_public, bob, sealed, opened).has_value());
         sealed[40] ^= 1U;
-        BOOST_TEST(sealed_box::open(*bob_public, bob, sealed, opened).error() ==
+        BOOST_TEST(sealed_box::open(bob_public, bob, sealed, opened).error() ==
                    crypto::error::authentication_failed);
     }
     BOOST_TEST_EQ(webcpp::test::allocations(), before);

@@ -212,14 +212,15 @@ void ed25519_against_openssl(std::mt19937_64& generator) {
 void x25519_against_openssl(std::mt19937_64& generator) {
     for (std::size_t round = 0; round < cases; ++round) {
         auto const secret_key = drawn(generator);
-        auto const public_key = x25519::public_key(secret_key);
-        BOOST_TEST(public_key.has_value());
-        if (!public_key) {
+        auto const key_pair = x25519::keypair::from_secret(secret_key);
+        BOOST_TEST(key_pair.has_value());
+        if (!key_pair) {
             continue;
         }
+        auto const public_key = key_pair->public_key().value().bytes();
         std::array<std::uint8_t, x25519::max_spki_size> spki{};
         std::array<std::uint8_t, x25519::max_pkcs8_size> pkcs8{};
-        BOOST_TEST(x25519::encode_spki(*public_key, spki).has_value());
+        BOOST_TEST(x25519::encode_spki(public_key, spki).has_value());
         BOOST_TEST(x25519::encode_pkcs8(secret_key, pkcs8).has_value());
         if (!agree(EVP_PKEY_X25519, secret_key, spki, pkcs8)) {
             static_cast<void>(std::fprintf(stderr, "X25519 disagrees with OpenSSL: secret key %s\n",

@@ -236,14 +236,15 @@ int sodium_x25519() {
     namespace x25519 = crypto::curves::x25519;
     std::array<std::uint8_t, 32> peer_secret{};
     peer_secret.fill(0x24);
-    auto const peer = x25519::public_key<sodium>(peer_secret);
+    auto const peer = x25519::basic_keypair<sodium>::from_secret(peer_secret)->public_key();
     std::array<std::uint8_t, 32> secret_key{};
     secret_key.fill(0x42);
     Checker::mark_secret(secret_key);
-    auto const own = x25519::public_key<sodium>(secret_key);
-    auto const shared = x25519::agree<sodium>(secret_key, *peer);
+    auto const own_pair = x25519::basic_keypair<sodium>::from_secret(secret_key);
+    auto const own = own_pair->public_key();
+    auto const shared = own_pair->agree(*peer);
     bool const own_traced =
-        own.has_value() && (!Checker::exact_subtraction || carries_mark<Checker>(*own));
+        own.has_value() && (!Checker::exact_subtraction || carries_mark<Checker>(own->bytes()));
     return check(own_traced, "X25519's public key on libsodium") +
            check(shared.has_value() && carries_mark<Checker>(shared->bytes()),
                  "X25519's agreement on libsodium");
@@ -257,7 +258,8 @@ template <class Checker, class Box>
 int sodium_box(char const* what) {
     std::array<std::uint8_t, 32> peer_secret{};
     peer_secret.fill(0x24);
-    auto const peer = crypto::curves::x25519::public_key<sodium>(peer_secret);
+    auto const peer =
+        crypto::curves::x25519::basic_keypair<sodium>::from_secret(peer_secret)->public_key();
     std::array<std::uint8_t, 32> secret_key{};
     std::array<std::uint8_t, Box::iv_size> const iv{};
     std::array<std::uint8_t, 64> data{};
@@ -265,7 +267,7 @@ int sodium_box(char const* what) {
     data.fill(0x17);
     Checker::mark_secret(secret_key);
     Checker::mark_secret(data);
-    auto made = Box::from_keys(secret_key, *peer);
+    auto made = Box::from_keys(secret_key, peer->bytes());
     auto tag = made->seal(iv, data);
     int const failures =
         check(tag.has_value() && carries_mark<Checker>(data) && carries_mark<Checker>(*tag), what);
@@ -286,20 +288,21 @@ int sodium_sealed_box() {
     using crypto::public_key_encryption::sealed_box;
     std::array<std::uint8_t, 32> secret_key{};
     secret_key.fill(0x42);
-    auto const public_key = crypto::curves::x25519::public_key<sodium>(secret_key);
+    auto const public_key =
+        crypto::curves::x25519::basic_keypair<sodium>::from_secret(secret_key)->public_key();
     std::array<std::uint8_t, 64> message{};
     message.fill(0x17);
     Checker::mark_secret(message);
     std::array<std::uint8_t, 64 + sealed_box::overhead> sealed{};
-    bool const sealed_ok =
-        public_key.has_value() && sealed_box::seal(*public_key, message, sealed).has_value();
+    bool const sealed_ok = public_key.has_value() &&
+                           sealed_box::seal(public_key->bytes(), message, sealed).has_value();
     int const failures = check(sealed_ok && carries_mark<Checker>(sealed), "sealed box's seal");
     Checker::mark_secret(secret_key);
     // The drawn public key, the first 32 bytes, is public: it travels in clear, and libsodium
     // checks its order. The tag and the ciphertext are secret.
     Checker::mark_secret(std::span<std::uint8_t>{sealed}.subspan(32));
     std::array<std::uint8_t, 64> opened{};
-    auto const result = sealed_box::open(*public_key, secret_key, sealed, opened);
+    auto const result = sealed_box::open(public_key->bytes(), secret_key, sealed, opened);
     bool const opened_verdict = result.has_value();
     Checker::verdict(opened_verdict);
     return failures + check(opened_verdict && carries_mark<Checker>(opened), "sealed box's open");

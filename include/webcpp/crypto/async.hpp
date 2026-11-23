@@ -32,7 +32,9 @@
      functions take `crypto::prehashed{digest}`, the message's SHA-512, on a native backend
      alone: WebCrypto has no Ed25519ph, and the browser's backend stops the build. A key pair of
      an algorithm WebCrypto lacks (secp256k1) is not here: call its own `sign`.
-   - X25519: `async_agree`, over `curves::x25519::agree`.
+   - X25519: `async_from_secret` (a key pair from its secret key), `async_generate` and
+     `async_agree(executor, key_pair, peer_public_key, token)`, over
+     `curves::x25519::basic_keypair::agree`, the peer's key a `curves::x25519::public_key`.
    - P-256: `async_from_secret` (a key pair from its secret scalar), `async_generate`,
      `async_sign(executor, key_pair, crypto::ecdsa_sha256, input, token)` and
      `async_verify(executor, crypto::ecdsa_sha256, signature, input, public_key, token)`, ECDSA
@@ -52,12 +54,12 @@
  `K::async_from_secret(executor, secret_bytes, token)`,
  `C::async_from_key(executor, key_bytes, token)`, `K::async_generate(executor, token)`,
  `key_pair.async_sign(executor, scheme, input, token)`,
- `key_pair.async_agree(executor, peer, token)` (P-256),
+ `key_pair.async_agree(executor, peer, token)` (X25519, P-256),
  `public_key.async_verify(executor, scheme, signature, input[, policy], token)` and AES-GCM's
  `aead.async_seal` and `aead.async_open`. The classes declare them and this header defines them,
  so that a curve's or a cipher's header never includes Asio; the free function calls the member,
  which runs the synchronous member, so that the four forms of an operation share their guards,
- refusals and errors. X25519's `async_agree` has no member: X25519 has no key pair class.
+ refusals and errors.
 
  The default backend of each is the synchronous function's, `default_async_backend_t<Family>`,
  `default_backend_t<Family>` on every target, Emscripten included: the browser's backend is used
@@ -151,9 +153,8 @@ namespace detail {
  *   `verify(executor, scheme, signature, input, public_key, token)` for P-256, its signature
  *   `curves::p256::ecdsa_signature`, by value, its key P-256's `basic_public_key` and the message
  *   itself, as `std::span<std::uint8_t const>`, which the engine hashes with SHA-256;
- * - `agree(executor, secret_key, peer_public_key, token)` for X25519, and
- *   `agree(executor, key_pair, peer_public_key, token)` for P-256, its key pair and its peer's
- *   key P-256's types.
+ * - `agree(executor, key_pair, peer_public_key, token)` for X25519 and for P-256, its key pair
+ *   and its peer's key the curve's types.
  * A signature's input reaches the engine as a view, by value (`detail::kept_input`), never as a
  * reference to the caller's argument, which may be a temporary that a `deferred` operation
  * outlives; the engine keeps by reference only the objects the public function takes by reference
@@ -266,10 +267,17 @@ inline constexpr bool is_p256_keypair_v = false;
 template <class Backend>
 inline constexpr bool is_p256_keypair_v<curves::p256::basic_keypair<Backend>> = true;
 
-/** Whether `Type` is a key pair of an algorithm WebCrypto has: Ed25519's or P-256's. */
+/** Whether `Type` is an X25519 key pair, `curves::x25519::basic_keypair<Backend>`. */
+template <class Type>
+inline constexpr bool is_x25519_keypair_v = false;
+
+template <class Backend>
+inline constexpr bool is_x25519_keypair_v<curves::x25519::basic_keypair<Backend>> = true;
+
+/** Whether `Type` is a key pair of an algorithm WebCrypto has: Ed25519's, X25519's or P-256's. */
 template <class Type>
 inline constexpr bool is_webcrypto_keypair_v =
-    is_ed25519_keypair_v<Type> || is_p256_keypair_v<Type>;
+    is_ed25519_keypair_v<Type> || is_x25519_keypair_v<Type> || is_p256_keypair_v<Type>;
 
 /** Whether `Type` is a P-256 public key, `curves::p256::basic_public_key<Backend>`. */
 template <class Type>
@@ -502,7 +510,7 @@ auto initiate_verify_ed25519(Executor const& completion_executor, Signature cons
 }  // namespace detail
 
 /**
- * Makes an Ed25519 or a P-256 key pair from its secret bytes, asynchronously:
+ * Makes an Ed25519, an X25519 or a P-256 key pair from its secret bytes, asynchronously:
  * `Keypair::from_secret(secret_bytes)` run when the operation is initiated, its result posted to
  * `completion_executor`.
  *
@@ -513,14 +521,16 @@ auto initiate_verify_ed25519(Executor const& completion_executor, Signature cons
  * The secret is read before the call returns on a synchronous backend, later on the browser's: it
  * is the caller's until the completion.
  *
- * @tparam Keypair A `curves::ed25519::basic_keypair<Backend>` or a
- * `curves::p256::basic_keypair<Backend>`, on any backend that has it; the other key pairs crypto
- * has are not in WebCrypto: call their `from_secret`.
+ * @tparam Keypair A `curves::ed25519::basic_keypair<Backend>`, a
+ * `curves::x25519::basic_keypair<Backend>` or a `curves::p256::basic_keypair<Backend>`, on any
+ * backend that has it; the other key pairs crypto has are not in WebCrypto: call their
+ * `from_secret`.
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
  * @tparam CompletionToken Any completion token for the signature `completion_token` states.
  * @param completion_executor The executor the completion is posted to.
- * @param secret_bytes The seed's `seed_size` bytes for an Ed25519 key pair, the secret scalar's
- * `secret_key_size` (32 bytes, big-endian) for a P-256 key pair.
+ * @param secret_bytes The seed's `seed_size` bytes for an Ed25519 key pair, the secret key's
+ * 32 bytes for an X25519 key pair, the secret scalar's `secret_key_size` (32 bytes, big-endian)
+ * for a P-256 key pair.
  * @param completion_token The completion token, of signature
  * `void(boost::system::error_code, Keypair)`; on an error the key pair is empty, and every member
  * refuses with `invalid_state` (`invalid_key_size`, `invalid_secret_key` for a P-256 scalar 0 or
@@ -535,8 +545,8 @@ auto async_from_secret(Executor const& completion_executor,
     if constexpr (!detail::is_webcrypto_keypair_v<Keypair>) {
         static_assert(detail::refused_v<Keypair>,
                       "webcpp::crypto: async_from_secret takes a key pair of an algorithm "
-                      "WebCrypto has (Ed25519, P-256): call the synchronous from_secret for the "
-                      "others.");
+                      "WebCrypto has (Ed25519, X25519, P-256): call the synchronous from_secret "
+                      "for the others.");
     } else {
         return Keypair::async_from_secret(completion_executor, secret_bytes,
                                           std::forward<CompletionToken>(completion_token));
@@ -579,7 +589,7 @@ auto async_from_key(Executor const& completion_executor, std::span<std::uint8_t 
 }
 
 /**
- * Makes an Ed25519 or a P-256 key pair from a fresh seed or scalar, asynchronously:
+ * Makes an Ed25519, an X25519 or a P-256 key pair from a fresh secret, asynchronously:
  * `Keypair::generate()` run when the operation is initiated (the system's generator is drawn from
  * then), its result posted to `completion_executor`.
  *
@@ -587,8 +597,9 @@ auto async_from_key(Executor const& completion_executor, std::span<std::uint8_t 
  * calls.
  *
  * @tparam Keypair A `curves::ed25519::basic_keypair<Backend>`, by default the family's
- * `curves::ed25519::keypair`, or a `curves::p256::basic_keypair<Backend>`; the other key pairs
- * are not in WebCrypto: call their `generate`.
+ * `curves::ed25519::keypair`, a `curves::x25519::basic_keypair<Backend>` or a
+ * `curves::p256::basic_keypair<Backend>`; the other key pairs are not in WebCrypto: call their
+ * `generate`.
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
  * @tparam CompletionToken Any completion token for the signature `completion_token` states.
  * @param completion_executor The executor the completion is posted to.
@@ -603,7 +614,8 @@ auto async_generate(Executor const& completion_executor, CompletionToken&& compl
     if constexpr (!detail::is_webcrypto_keypair_v<Keypair>) {
         static_assert(detail::refused_v<Keypair>,
                       "webcpp::crypto: async_generate takes a key pair of an algorithm WebCrypto "
-                      "has (Ed25519, P-256): call the synchronous generate for the others.");
+                      "has (Ed25519, X25519, P-256): call the synchronous generate for the "
+                      "others.");
     } else {
         return Keypair::async_generate(completion_executor,
                                        std::forward<CompletionToken>(completion_token));
@@ -738,7 +750,8 @@ auto async_sign(Executor const& completion_executor, Keypair const& key_pair, Sc
     detail::timing_guard const timing_scope;
     if constexpr (detail::ed25519ph_on_browser_v<Keypair, Scheme>) {
         detail::refuse_ed25519ph_on_asynchronous_backend<Scheme>();
-    } else if constexpr (!detail::is_webcrypto_keypair_v<Keypair>) {
+    } else if constexpr (!detail::is_ed25519_keypair_v<Keypair> &&
+                         !detail::is_p256_keypair_v<Keypair>) {
         static_assert(
             detail::refused_v<Keypair>,
             "webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has "
@@ -996,38 +1009,33 @@ void async_verify([[maybe_unused]] Executor const& completion_executor,
 }
 
 /**
- * Agrees an X25519 shared secret, asynchronously: `curves::x25519::agree<Backend>` run when the
+ * Agrees an X25519 shared secret, asynchronously: `key_pair.agree(peer_public_key)` run when the
  * operation is initiated, its result posted to `completion_executor`.
  *
- * The spans are the caller's until the completion.
+ * The free form of `key_pair.async_agree(completion_executor, peer_public_key, completion_token)`,
+ * which it calls.
  *
- * @tparam Backend The backend; by default the asynchronous family's.
+ * The key pair and the peer's key are the caller's until the completion.
+ *
+ * @tparam Backend The backend of the key pair.
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
  * @tparam CompletionToken Any completion token for the signature `completion_token` states.
  * @param completion_executor The executor the completion is posted to.
- * @param secret_key 32 bytes.
- * @param peer_public_key 32 bytes.
+ * @param key_pair This side's key pair.
+ * @param peer_public_key The peer's public key.
  * @param completion_token The completion token, of signature
  * `void(boost::system::error_code, secret<32>)`: the shared secret; on an error a secret of zeros
- * (`invalid_key_size`, `invalid_public_key`, `weak_public_key`, `backend_failure`).
+ * (`invalid_state` for an empty key pair, `weak_public_key`, `backend_failure`).
  * @return What the completion token's `async_result` gives.
  */
-template <class Backend = default_async_backend_t<families::x25519>, class Executor,
-          class CompletionToken>
-auto async_agree(Executor const& completion_executor, std::span<std::uint8_t const> secret_key,
-                 std::span<std::uint8_t const> peer_public_key,
+template <class Backend, class Executor, class CompletionToken>
+auto async_agree(Executor const& completion_executor,
+                 curves::x25519::basic_keypair<Backend> const& key_pair,
+                 curves::x25519::public_key const& peer_public_key,
                  CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
-    if constexpr (detail::asynchronous_backend_v<Backend>) {
-        return detail::async_engine<Backend>::agree(
-            completion_executor, secret_key, peer_public_key,
-            std::forward<CompletionToken>(completion_token));
-    } else {
-        return detail::complete_by_post(
-            completion_executor, completion_token, [secret_key, peer_public_key]() noexcept {
-                return curves::x25519::agree<Backend>(secret_key, peer_public_key);
-            });
-    }
+    return key_pair.async_agree(completion_executor, peer_public_key,
+                                std::forward<CompletionToken>(completion_token));
 }
 
 /**
@@ -1186,6 +1194,41 @@ auto curves::ed25519::public_key::async_verify(Executor const& completion_execut
         return detail::initiate_verify_ed25519<Backend, Scheme>(
             completion_executor, signature_value, message_input, *this, verify_policy,
             std::forward<CompletionToken>(completion_token));
+    }
+}
+
+template <class Backend>
+template <class Executor, class CompletionToken>
+auto curves::x25519::basic_keypair<Backend>::async_from_secret(
+    Executor const& completion_executor, std::span<std::uint8_t const> secret_bytes,
+    CompletionToken&& completion_token) {
+    detail::timing_guard const timing_scope;
+    return detail::initiate_from_secret<basic_keypair>(
+        completion_executor, secret_bytes, std::forward<CompletionToken>(completion_token));
+}
+
+template <class Backend>
+template <class Executor, class CompletionToken>
+auto curves::x25519::basic_keypair<Backend>::async_generate(Executor const& completion_executor,
+                                                            CompletionToken&& completion_token) {
+    detail::timing_guard const timing_scope;
+    return detail::initiate_generate<basic_keypair>(
+        completion_executor, std::forward<CompletionToken>(completion_token));
+}
+
+template <class Backend>
+template <class Executor, class CompletionToken>
+// NOLINTNEXTLINE(modernize-use-nodiscard): a callback's completion token makes it return void
+auto curves::x25519::basic_keypair<Backend>::async_agree(Executor const& completion_executor,
+                                                         public_key_type const& peer_key,
+                                                         CompletionToken&& completion_token) const {
+    detail::timing_guard const timing_scope;
+    if constexpr (detail::asynchronous_backend_v<Backend>) {
+        return detail::async_engine<Backend>::agree(
+            completion_executor, *this, peer_key, std::forward<CompletionToken>(completion_token));
+    } else {
+        return detail::complete_by_post(completion_executor, completion_token,
+                                        [this, &peer_key]() noexcept { return agree(peer_key); });
     }
 }
 

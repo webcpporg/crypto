@@ -787,10 +787,20 @@ struct verify_fixture {
     // clang-format off
     std::vector<std::uint8_t> signature = webcpp::test::from_hex("92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00");
     // clang-format on
-    std::vector<std::uint8_t> secret_key =
-        webcpp::test::from_hex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a");
-    std::vector<std::uint8_t> peer_key =
-        webcpp::test::from_hex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f");
+    // value(): a key pair or a key not made throws, or ends the program without exceptions.
+    crypto::curves::x25519::keypair x25519_key_pair =
+        crypto::curves::x25519::keypair::from_secret(
+            webcpp::test::from_hex(
+                "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"))
+            .value();
+    crypto::curves::x25519::public_key peer_key =
+        crypto::curves::x25519::public_key::from_bytes(
+            webcpp::test::from_hex(
+                "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f"))
+            .value();
+    // A peer key of low order, the all-zero point, whose shared secret agree refuses.
+    crypto::curves::x25519::public_key weak_peer_key =
+        crypto::curves::x25519::public_key::from_bytes(std::array<std::uint8_t, 32>{}).value();
     crypto::curves::ed25519::keypair key_pair =
         *crypto::curves::ed25519::keypair::from_secret(seed);
 
@@ -828,14 +838,14 @@ struct verify_fixture {
 
     auto agree() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_agree(executor, secret_key, peer_key,
+            return crypto::async_agree(executor, x25519_key_pair, peer_key,
                                        std::forward<decltype(token)>(token));
         };
     }
 
     auto agree_refused() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_agree(executor, std::span(secret_key).first(31), peer_key,
+            return crypto::async_agree(executor, x25519_key_pair, weak_peer_key,
                                        std::forward<decltype(token)>(token));
         };
     }
@@ -881,7 +891,7 @@ void post_verify_inline(asio::io_context& context) {
     auto const agreed = complete_later<key>(context, fixture.agree());
     BOOST_TEST(!agreed.code);
     auto const agree_refused = complete_later<key>(context, fixture.agree_refused());
-    BOOST_TEST(agree_refused.code == crypto::error::invalid_key_size);
+    BOOST_TEST(agree_refused.code == crypto::error::weak_public_key);
     BOOST_TEST(all_bytes(std::get<0>(agree_refused.value), 0));
 }
 
@@ -910,7 +920,7 @@ void post_verify_allocator(asio::io_context& context) {
     BOOST_TEST_GE(refused.taken, 1);
     BOOST_TEST_EQ(refused.news, 0U);
     check_allocator_with<key>(context, fixture.agree(), fixture.agree_refused(),
-                              crypto::error::invalid_key_size);
+                              crypto::error::weak_public_key);
 }
 
 void post_verify_tokens(asio::io_context& context) {
@@ -959,7 +969,7 @@ void post_verify_tokens(asio::io_context& context) {
     fixture.agree_refused()(executor,
                             asio::as_tuple([&](std::tuple<boost::system::error_code, key> done) {
                                 ++tuples;
-                                BOOST_TEST(std::get<0>(done) == crypto::error::invalid_key_size);
+                                BOOST_TEST(std::get<0>(done) == crypto::error::weak_public_key);
                                 BOOST_TEST(all_bytes(std::get<1>(done), 0));
                             }));
     context.restart();

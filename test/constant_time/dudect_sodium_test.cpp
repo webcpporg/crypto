@@ -33,6 +33,7 @@ namespace test = webcpp::test;
 namespace crypto = webcpp::crypto;
 namespace x25519 = crypto::curves::x25519;
 using crypto::backends::sodium;
+using x25519_keypair = x25519::basic_keypair<sodium>;
 
 // An agreement and a signature take 15 to 50 microseconds, natively and under wasmtime (Apple
 // M5, 2026-11-18), hundreds of times an AES block: half of the 2,000,000 measurements of
@@ -44,20 +45,24 @@ constexpr std::size_t count = 1'000'000;
 
 /**
  * Times X25519's agreement against its secret key: all zero, against random ones, or, with
- * `Control`, all zero for both classes; twice when judged, once when not (`measure_case`).
+ * `Control`, all zero for both classes; twice when judged, once when not (`measure_case`). The key
+ * pair is made from the secret key unmeasured, so that the agreement alone is timed.
  * @param judged_case Whether its |t| counts in the verdict.
  * @param secret_key Where each measurement's secret key is written.
+ * @param pair Where each measurement's key pair is made.
  * @param peer The peer's public key.
  * @return The statistic.
  */
 template <bool Control>
 test::t_statistic measure_agree(bool judged_case, std::array<std::uint8_t, 32>& secret_key,
-                                std::array<std::uint8_t, 32> const& peer) {
+                                std::optional<x25519_keypair>& pair,
+                                x25519::public_key const& peer) {
     std::array<std::uint8_t, 32> const zero{};
     return test::measure_case(
         judged_case, count,
         [&](int which, auto& generator) {
             test::choose<Control>(which, generator, zero, secret_key);
+            pair.emplace(*x25519_keypair::from_secret(secret_key));
         },
         [&] {
 #ifdef WEBCPP_TEST_CRYPTO_PLANTED_LEAK
@@ -75,7 +80,7 @@ test::t_statistic measure_agree(bool judged_case, std::array<std::uint8_t, 32>& 
                 }
             }
 #endif
-            static_cast<void>(x25519::agree<sodium>(secret_key, peer));
+            static_cast<void>(pair->agree(peer));
         });
 }
 
@@ -99,14 +104,16 @@ int main(int argc, char** argv) {
     std::array<std::uint8_t, 32> secret_key{};
     std::array<std::uint8_t, 32> peer_secret{};
     peer_secret.fill(0x24);
-    auto const peer = *x25519::public_key<sodium>(peer_secret);
+    auto const peer = *x25519_keypair::from_secret(peer_secret)->public_key();
+    std::optional<x25519_keypair> pair;
 
 #ifdef WEBCPP_TEST_CRYPTO_PLANTED_LEAK
     // The planted build measures only the agreement: it passes only when dudect finds the planted
     // leak there.
-    auto const agree_t = measure_agree<false>(true, secret_key, peer);
-    test::report_case("x25519_agree", agree_t, true,
-                      {{"secret_key", secret_key.data()}, {"peer", peer.data()}});
+    auto const agree_t = measure_agree<false>(true, secret_key, pair, peer);
+    test::report_case(
+        "x25519_agree", agree_t, true,
+        {{"secret_key", secret_key.data()}, {"peer", peer.bytes().data()}, {"object", &*pair}});
     std::printf("|t| X25519 agreement %.2f (threshold 10)\n", test::printed(agree_t.t));
     bool const found = test::printed(agree_t.t) >= 10;
     std::printf("planted leak %s\n", found ? "found" : "not found");
@@ -130,9 +137,11 @@ int main(int argc, char** argv) {
 #endif
     test::case_results results;
     if (selection->runs("x25519_agree")) {
-        results.record("x25519_agree", "X25519 agreement",
-                       measure_agree<false>(agree_judged, secret_key, peer), agree_judged,
-                       {{"secret_key", secret_key.data()}, {"peer", peer.data()}}, agree_note);
+        results.record(
+            "x25519_agree", "X25519 agreement",
+            measure_agree<false>(agree_judged, secret_key, pair, peer), agree_judged,
+            {{"secret_key", secret_key.data()}, {"peer", peer.bytes().data()}, {"object", &*pair}},
+            agree_note);
     }
 
     if (selection->runs("ed25519_sign")) {
@@ -153,9 +162,10 @@ int main(int argc, char** argv) {
     }
 
     if (selection->runs("x25519_agree_aa")) {
-        results.record("x25519_agree_aa", "X25519 agreement A/A",
-                       measure_agree<true>(true, secret_key, peer), true,
-                       {{"secret_key", secret_key.data()}, {"peer", peer.data()}});
+        results.record(
+            "x25519_agree_aa", "X25519 agreement A/A",
+            measure_agree<true>(true, secret_key, pair, peer), true,
+            {{"secret_key", secret_key.data()}, {"peer", peer.bytes().data()}, {"object", &*pair}});
     }
 
     results.print();

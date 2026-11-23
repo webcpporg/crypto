@@ -9,7 +9,7 @@
 // from_secret compiles.
 
 // clang-format off
-// expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: async_from_secret takes a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the synchronous from_secret for the others.}}
+// expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: async_from_secret takes a key pair of an algorithm WebCrypto has (Ed25519, X25519, P-256): call the synchronous from_secret for the others.}}
 // clang-format on
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>

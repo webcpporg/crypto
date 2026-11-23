@@ -20,10 +20,13 @@
 // - async_from_secret_refused: a seed of 31 bytes completes with invalid_key_size and an empty key
 //   pair, which refuses every member with invalid_state (review focus 5), async_sign on it too,
 //   with a signature of zeros.
-// - async_rfc7748: section 6.1's Alice and Bob through async_agree give the RFC's shared secret;
-//   a peer key of low order completes with weak_public_key and a secret of zeros; a short key
-//   with invalid_key_size.
-// - async_destroyed: the key pair, the message and the keys destroyed after the initiating call
+// - async_rfc7748: section 6.1's Alice and Bob, made by async_from_secret, member and free, give
+//   the RFC's public keys and, through async_agree, member and free, with the default backend and
+//   with libsodium named, the RFC's shared secret, as the synchronous agree does; a peer key of
+//   low order completes with weak_public_key and a secret of zeros; a short secret key with
+//   invalid_key_size and an empty key pair, whose async_agree completes with invalid_state;
+//   async_generate, member and free, gives a key pair that agrees with Alice.
+// - async_destroyed: the key pairs, the message and the keys destroyed after the initiating call
 //   returns and before the completion: a synchronous backend has read them already, so the
 //   completion gives the right result (the browser's backend will read them later: they are the
 //   caller's until the completion, as the documentation says).
@@ -81,6 +84,7 @@
 namespace asio = webcpp::asio;
 namespace crypto = webcpp::crypto;
 namespace ed25519 = webcpp::crypto::curves::ed25519;
+namespace x25519 = webcpp::crypto::curves::x25519;
 namespace test = webcpp::test;
 
 namespace {
@@ -336,51 +340,143 @@ void async_from_secret_refused(asio::io_context& context) {
     }
 }
 
-void async_rfc7748(asio::io_context& context) {
-    auto const alice_secret =
-        test::from_hex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a");
-    auto const bob_secret =
-        test::from_hex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb");
-    auto const alice_public =
-        test::from_hex("8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a");
-    auto const bob_public =
-        test::from_hex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f");
-    auto const shared =
-        test::from_hex("4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742");
-    auto const agree = [&](std::span<std::uint8_t const> secret_key,
-                           std::span<std::uint8_t const> peer) {
-        return complete<crypto::secret<32>>(context, [&](auto const& executor, auto&& token) {
-            return crypto::async_agree(executor, secret_key, peer,
-                                       std::forward<decltype(token)>(token));
+using x25519_keypair = x25519::basic_keypair<crypto::backends::sodium>;
+
+constexpr std::string_view alice_secret_hex =
+    "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a";
+constexpr std::string_view alice_public_hex =
+    "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a";
+constexpr std::string_view bob_secret_hex =
+    "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb";
+constexpr std::string_view bob_public_hex =
+    "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f";
+constexpr std::string_view x25519_shared_hex =
+    "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742";
+
+/** The X25519 public key of a hex string of 32 bytes. */
+x25519::public_key x25519_key_of(std::string_view hex) {
+    auto const made = x25519::public_key::from_bytes(test::from_hex(hex));
+    BOOST_TEST(made.has_value());
+    return made.value();
+}
+
+// The shared secret of `key_pair` and `peer` through async_agree, the member and the free, each
+// with the default backend; both complete with `expected_code` and, without an error, `expected`.
+template <class Keypair>
+void check_async_agree(asio::io_context& context, Keypair const& key_pair,
+                       x25519::public_key const& peer, std::span<std::uint8_t const> expected,
+                       boost::system::error_code expected_code) {
+    auto const member =
+        complete<crypto::secret<32>>(context, [&](auto const& executor, auto&& token) {
+            return key_pair.async_agree(executor, peer, std::forward<decltype(token)>(token));
         });
-    };
-    for (auto const& done : {agree(alice_secret, bob_public), agree(bob_secret, alice_public)}) {
-        BOOST_TEST(!done.code);
-        if (BOOST_TEST(done.value.has_value())) {
-            auto const bytes = std::get<0>(*done.value).bytes();
-            BOOST_TEST(std::ranges::equal(bytes, shared));
+    auto const free = complete<crypto::secret<32>>(context, [&](auto const& executor,
+                                                                auto&& token) {
+        return crypto::async_agree(executor, key_pair, peer, std::forward<decltype(token)>(token));
+    });
+    for (auto const* done : {&member, &free}) {
+        BOOST_TEST(done->code == expected_code);
+        if (!BOOST_TEST(done->value.has_value())) {
+            continue;
+        }
+        auto const bytes = std::get<0>(*done->value).bytes();
+        if (expected_code) {
+            BOOST_TEST(all_zero(bytes));
+        } else {
+            BOOST_TEST(std::ranges::equal(bytes, expected));
         }
     }
+}
+
+// The refusals through async_agree: a peer key of low order, and an empty key pair, which a short
+// secret key's async_from_secret gives.
+void async_x25519_refused(asio::io_context& context, std::span<std::uint8_t const> alice_secret,
+                          x25519::public_key const& bob_public) {
+    // Wycheproof x25519_test.json, tcId 63: a public key of order 8, whose shared secret is 0.
+    auto const weak_key = x25519::keypair::from_secret(
+        test::from_hex("e0f978dfcd3a8f1a5093418de54136a584c20b7b349afdf6c0520886f95b1272"));
+    if (BOOST_TEST(weak_key.has_value())) {
+        check_async_agree(
+            context, *weak_key,
+            x25519_key_of("e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800"), {},
+            crypto::error::weak_public_key);
+    }
+    auto const short_key =
+        complete<x25519::keypair>(context, [&](auto const& executor, auto&& token) {
+            return crypto::async_from_secret<x25519::keypair>(executor, alice_secret.first(31),
+                                                              std::forward<decltype(token)>(token));
+        });
+    BOOST_TEST(short_key.code == crypto::error::invalid_key_size);
+    if (BOOST_TEST(short_key.value.has_value())) {
+        auto const& empty = std::get<0>(*short_key.value);
+        BOOST_TEST(empty.public_key().error() == crypto::error::invalid_state);
+        BOOST_TEST(empty.secret().error() == crypto::error::invalid_state);
+        check_async_agree(context, empty, bob_public, {}, crypto::error::invalid_state);
+    }
+}
+
+// async_generate, member and free: a key pair that agrees with Alice as she agrees with it.
+void async_x25519_generated(asio::io_context& context, x25519::keypair const& alice,
+                            x25519::public_key const& alice_public) {
+    auto const generated_member =
+        complete<x25519::keypair>(context, [&](auto const& executor, auto&& token) {
+            return x25519::keypair::async_generate(executor, std::forward<decltype(token)>(token));
+        });
+    auto const generated_free =
+        complete<x25519::keypair>(context, [&](auto const& executor, auto&& token) {
+            return crypto::async_generate<x25519::keypair>(executor,
+                                                           std::forward<decltype(token)>(token));
+        });
+    for (auto const* generated : {&generated_member, &generated_free}) {
+        BOOST_TEST(!generated->code);
+        if (!BOOST_TEST(generated->value.has_value())) {
+            continue;
+        }
+        auto const& key = std::get<0>(*generated->value);
+        auto const own = key.public_key();
+        auto const theirs = key.agree(alice_public);
+        if (BOOST_TEST(own.has_value()) && BOOST_TEST(theirs.has_value())) {
+            check_async_agree(context, alice, *own, theirs->bytes(), {});
+        }
+    }
+}
+
+void async_rfc7748(asio::io_context& context) {
+    auto const alice_secret = test::from_hex(alice_secret_hex);
+    auto const bob_secret = test::from_hex(bob_secret_hex);
+    auto const shared = test::from_hex(x25519_shared_hex);
+    auto alice_made = complete<x25519::keypair>(context, [&](auto const& executor, auto&& token) {
+        return x25519::keypair::async_from_secret(executor, alice_secret,
+                                                  std::forward<decltype(token)>(token));
+    });
+    auto bob_made = complete<x25519_keypair>(context, [&](auto const& executor, auto&& token) {
+        return crypto::async_from_secret<x25519_keypair>(executor, bob_secret,
+                                                         std::forward<decltype(token)>(token));
+    });
+    BOOST_TEST(!alice_made.code);
+    BOOST_TEST(!bob_made.code);
+    if (!BOOST_TEST(alice_made.value.has_value()) || !BOOST_TEST(bob_made.value.has_value())) {
+        return;
+    }
+    auto const& alice = std::get<0>(*alice_made.value);
+    auto const& bob = std::get<0>(*bob_made.value);
+    auto const alice_public = x25519_key_of(alice_public_hex);
+    auto const bob_public = x25519_key_of(bob_public_hex);
+    BOOST_TEST(alice.public_key() == alice_public);
+    BOOST_TEST(bob.public_key() == bob_public);
+    check_async_agree(context, alice, bob_public, shared, {});
+    check_async_agree(context, bob, alice_public, shared, {});
+    auto const synchronous = alice.agree(bob_public);
+    BOOST_TEST(synchronous.has_value() && std::ranges::equal(synchronous->bytes(), shared));
     // Named backend.
     auto const named =
         complete<crypto::secret<32>>(context, [&](auto const& executor, auto&& token) {
             return crypto::async_agree<crypto::backends::sodium>(
-                executor, alice_secret, bob_public, std::forward<decltype(token)>(token));
+                executor, bob, alice_public, std::forward<decltype(token)>(token));
         });
     BOOST_TEST(!named.code);
-
-    // Wycheproof x25519_test.json, tcId 63: a public key of order 8, whose shared secret is 0.
-    auto const weak =
-        agree(test::from_hex("e0f978dfcd3a8f1a5093418de54136a584c20b7b349afdf6c0520886f95b1272"),
-              test::from_hex("e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800"));
-    BOOST_TEST(weak.code == crypto::error::weak_public_key);
-    if (BOOST_TEST(weak.value.has_value())) {
-        BOOST_TEST(all_zero(std::get<0>(*weak.value).bytes()));
-    }
-    auto const short_key = agree(std::span(alice_secret).first(31), bob_public);
-    BOOST_TEST(short_key.code == crypto::error::invalid_key_size);
-    auto const short_peer = agree(alice_secret, std::span(bob_public).first(31));
-    BOOST_TEST(short_peer.code == crypto::error::invalid_public_key);
+    async_x25519_refused(context, alice_secret, bob_public);
+    async_x25519_generated(context, alice, alice_public);
 }
 
 void async_destroyed(asio::io_context& context) {
@@ -394,11 +490,9 @@ void async_destroyed(asio::io_context& context) {
         auto key = keypair::from_secret(test::from_hex(tested.secret_key));
         auto const message =
             std::make_unique<std::vector<std::uint8_t>>(test::from_hex(tested.message));
-        auto secret_key = std::make_unique<std::vector<std::uint8_t>>(
-            test::from_hex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"));
-        auto peer = std::make_unique<std::vector<std::uint8_t>>(
-            test::from_hex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f"));
-        if (!BOOST_TEST(key.has_value())) {
+        auto alice = x25519::keypair::from_secret(test::from_hex(alice_secret_hex));
+        auto const peer = std::make_unique<x25519::public_key>(x25519_key_of(bob_public_hex));
+        if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(alice.has_value())) {
             return;
         }
         crypto::async_sign(context.get_executor(), *key, crypto::eddsa, *message,
@@ -406,7 +500,7 @@ void async_destroyed(asio::io_context& context) {
                                sign_code = code;
                                signature = done;
                            });
-        crypto::async_agree(context.get_executor(), *secret_key, *peer,
+        crypto::async_agree(context.get_executor(), *alice, *peer,
                             [&](boost::system::error_code code, crypto::secret<32> done) {
                                 agree_code = code;
                                 std::ranges::copy(done.bytes(), shared.begin());
@@ -418,9 +512,7 @@ void async_destroyed(asio::io_context& context) {
     BOOST_TEST(!sign_code);
     BOOST_TEST(std::ranges::equal(signature.bytes(), expected));
     BOOST_TEST(!agree_code);
-    BOOST_TEST(std::ranges::equal(
-        shared,
-        test::from_hex("4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742")));
+    BOOST_TEST(std::ranges::equal(shared, test::from_hex(x25519_shared_hex)));
 }
 
 void async_coroutine(asio::io_context& context) {
@@ -450,16 +542,15 @@ void async_coroutine(asio::io_context& context) {
             auto& [generate_code, generated_key] = generate_code_result;
             BOOST_TEST(!generate_code);
             BOOST_TEST(generated_key.public_key().has_value());
-            auto agree_code_result = co_await crypto::async_agree(
-                executor,
-                test::from_hex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"),
-                test::from_hex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f"),
-                asio::as_tuple(asio::use_awaitable));
+            auto alice_made_result = co_await x25519::keypair::async_from_secret(
+                executor, test::from_hex(alice_secret_hex), asio::as_tuple(asio::use_awaitable));
+            auto& [alice_code, alice] = alice_made_result;
+            BOOST_TEST(!alice_code);
+            auto agree_code_result = co_await alice.async_agree(
+                executor, x25519_key_of(bob_public_hex), asio::as_tuple(asio::use_awaitable));
             auto& [agree_code, shared] = agree_code_result;
             BOOST_TEST(!agree_code);
-            BOOST_TEST(std::ranges::equal(
-                shared.bytes(), test::from_hex("4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376"
-                                               "f09b3c1e161742")));
+            BOOST_TEST(std::ranges::equal(shared.bytes(), test::from_hex(x25519_shared_hex)));
             done = true;
         },
         [](std::exception_ptr const& failure) { BOOST_TEST(!failure); });

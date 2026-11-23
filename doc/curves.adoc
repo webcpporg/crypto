@@ -272,12 +272,13 @@ Ed25519's checks the size alone, whether the point is canonical and not of
 small order being its verification policy's judgment.
 
 ECDH is `agree(peer)` on every curve that has it, the peer a typed public key,
-and gives the shared point's raw x coordinate as a `secret<32>`, as
+and gives a `secret<32>`: X25519's gives RFC 7748's shared secret
+(<<crypto-x25519>>), and the others the shared point's raw x coordinate, as
 WebCrypto's `deriveBits` does: P-256's (<<crypto-p256-ecdh>>) and secp256k1's,
 whose two other forms keep names of their own, `agree_hashed` and
-`agree_point` (<<crypto-secp256k1-ecdh>>). `async_agree` gives P-256's through
-a completion. Ed25519's `x25519_secret()` is a conversion, not an agreement
-(<<crypto-x25519>>).
+`agree_point` (<<crypto-secp256k1-ecdh>>). `async_agree` gives X25519's and
+P-256's through a completion. Ed25519's `x25519_secret()` is a conversion, not
+an agreement (<<crypto-x25519>>).
 
 [#crypto-curves-four-forms]
 ==== Four forms of every operation

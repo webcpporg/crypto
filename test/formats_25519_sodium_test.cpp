@@ -284,15 +284,15 @@ void ed25519_round_trip() {
 void x25519_round_trip() {
     std::array<std::uint8_t, 32> secret_key{};
     BOOST_TEST(crypto::random_device().fill(secret_key).has_value());
-    auto const x_public = x25519::public_key(secret_key);
-    BOOST_TEST(x_public.has_value());
-    if (!x_public) {
+    auto const x_key = x25519::keypair::from_secret(secret_key);
+    if (!BOOST_TEST(x_key.has_value())) {
         return;
     }
+    auto const x_public = x_key->public_key().value().bytes();
     std::array<std::uint8_t, x25519::max_spki_size> x_spki{};
-    BOOST_TEST(x25519::encode_spki(*x_public, x_spki).has_value());
+    BOOST_TEST(x25519::encode_spki(x_public, x_spki).has_value());
     auto const x_decoded_public = x25519::decode_spki(x_spki);
-    BOOST_TEST(x_decoded_public.has_value() && *x_decoded_public == *x_public);
+    BOOST_TEST(x_decoded_public.has_value() && *x_decoded_public == x_public);
     std::array<std::uint8_t, x25519::max_pkcs8_size> x_pkcs8{};
     BOOST_TEST(x25519::encode_pkcs8(secret_key, x_pkcs8).has_value());
     auto const x_decoded = x25519::decode_pkcs8(x_pkcs8);

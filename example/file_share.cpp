@@ -103,33 +103,42 @@ int main() {
     if (!device.fill(secret_key.writable())) {
         return 1;
     }
-    auto const public_key = crypto::curves::x25519::public_key(secret_key.bytes());
-    if (!public_key) {
+    auto const key_pair = crypto::curves::x25519::keypair::from_secret(secret_key.bytes());
+    if (!key_pair) {
         return 1;
     }
+    auto const typed_public_key = key_pair->public_key();
+    if (!typed_public_key) {
+        return 1;
+    }
+    auto const& public_key = typed_public_key->bytes();
 
     upload sent;
-    if (!share(device, *public_key, "quarterly report, draft 3", sent)) {
+    if (!share(device, public_key, "quarterly report, draft 3", sent)) {
         return 1;
     }
     std::printf("on the wire: %zu bytes of sealed key, %zu of nonce, %zu of tag, %zu of file\n",
                 sent.sealed_key.size(), sent.nonce.size(), sent.tag.size(), sent.file.size());
-    receive("the recipient", *public_key, secret_key.bytes(), sent);
+    receive("the recipient", public_key, secret_key.bytes(), sent);
 
     // The storage service changes the file.
     upload changed = sent;
     changed.file[0] ^= 0x01U;
-    receive("the recipient, the upload changed", *public_key, secret_key.bytes(), changed);
+    receive("the recipient, the upload changed", public_key, secret_key.bytes(), changed);
     // Someone else's key pair cannot open the file key.
     crypto::secret<32> other_secret;
     if (!device.fill(other_secret.writable())) {
         return 1;
     }
-    auto const other_public = crypto::curves::x25519::public_key(other_secret.bytes());
+    auto const other_pair = crypto::curves::x25519::keypair::from_secret(other_secret.bytes());
+    if (!other_pair) {
+        return 1;
+    }
+    auto const other_public = other_pair->public_key();
     if (!other_public) {
         return 1;
     }
-    receive("another key pair", *other_public, other_secret.bytes(), sent);
+    receive("another key pair", other_public->bytes(), other_secret.bytes(), sent);
     return 0;
 }
 

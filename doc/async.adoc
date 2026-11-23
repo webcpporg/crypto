@@ -47,21 +47,20 @@ its own, and the handler would run off the program's loop.
 | `void(error_code, Keypair)` for `async_from_secret` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`
 
 | X25519 (<<crypto-x25519>>)
-| `async_agree(executor, secret_key, peer_public_key, token)`
-| `void(error_code, secret<32>)`
+| `async_from_secret<Keypair>(executor, secret_key, token)`, `async_generate<Keypair>(executor, token)`, `async_agree(executor, key_pair, peer_public_key, token)`, the peer's key a `curves::x25519::public_key`
+| `void(error_code, Keypair)` for `async_from_secret` and `async_generate`, `void(error_code, secret<32>)` for `async_agree`
 
 | P-256 (<<crypto-p256>>)
 | `async_from_secret<Keypair>(executor, scalar, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, crypto::ecdsa_sha256, input, token)`, `async_verify(executor, crypto::ecdsa_sha256, signature, input, public_key, token)`, `async_agree(executor, key_pair, peer_public_key, token)`
 | `void(error_code, Keypair)` for `async_from_secret` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`, `void(error_code, secret<32>)` for `async_agree`
 |===
 
-Each function but X25519's `async_agree`, X25519 having no key pair class, has
-its member form, which the free function calls, with the same arguments but
-the object: `Keypair::async_from_secret(executor, bytes, token)`,
+Each function has its member form, which the free function calls, with the
+same arguments but the object: `Keypair::async_from_secret(executor, bytes, token)`,
 `Keypair::async_generate(executor, token)`,
 `key_pair.async_sign(executor, scheme, input, token)`,
 `public_key.async_verify(executor, scheme, signature, input, token)`,
-`key_pair.async_agree(executor, peer, token)` on P-256, and AES-GCM's
+`key_pair.async_agree(executor, peer, token)` on X25519 and P-256, and AES-GCM's
 `Gcm::async_from_key`, `aead.async_seal` and `aead.async_open`. Both forms share
 one initiation, which runs the synchronous member, so the four forms of an
 operation give the same bytes, errors and refusals

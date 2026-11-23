@@ -38,11 +38,15 @@ struct person {
         if (!device.fill(made.secret_key.writable())) {
             return std::nullopt;
         }
-        auto const public_key = crypto::curves::x25519::public_key(made.secret_key.bytes());
+        auto const key_pair = crypto::curves::x25519::keypair::from_secret(made.secret_key.bytes());
+        if (!key_pair) {
+            return std::nullopt;
+        }
+        auto const public_key = key_pair->public_key();
         if (!public_key) {
             return std::nullopt;
         }
-        made.public_key = *public_key;
+        made.public_key = public_key->bytes();
         return made;
     }
 };

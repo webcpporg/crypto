@@ -271,10 +271,10 @@ struct recipient {
 
     explicit recipient(std::uint8_t fill) {
         secret_key.fill(fill);
-        auto const made = crypto::curves::x25519::public_key(secret_key);
+        auto const made = crypto::curves::x25519::keypair::from_secret(secret_key);
         BOOST_TEST(made.has_value());
         if (made) {
-            public_key = *made;
+            public_key = made->public_key().value().bytes();
         }
     }
 };

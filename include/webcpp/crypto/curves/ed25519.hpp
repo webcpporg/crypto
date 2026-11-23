@@ -753,8 +753,9 @@ using keypair = basic_keypair<>;
 
 /**
  * The X25519 public key of an Ed25519 public key (the birational map from edwards25519 to
- * Curve25519), so that a peer known by its Ed25519 key can be agreed with by
- * `curves::x25519::agree`; the key pair's own side is `basic_keypair::x25519_secret`.
+ * Curve25519), so that a peer known by its Ed25519 key can be agreed with by an X25519 key pair's
+ * `agree`, once `curves::x25519::public_key::from_bytes` makes these bytes a key; the key pair's
+ * own side is `basic_keypair::x25519_secret`.
  *
  * @tparam Backend The backend; by default the family's.
  * @param ed25519_public_key The Ed25519 public key.

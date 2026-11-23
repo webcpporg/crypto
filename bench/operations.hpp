@@ -577,35 +577,36 @@ private:
     curves::ed25519::basic_keypair<Backend> key_;
 };
 
-// An X25519 agreement of a secret key with a peer's public key.
+// An X25519 agreement of a key pair with a peer's public key.
 template <class Backend>
 class x25519 {
 public:
     static constexpr std::string_view operation = "agreement of a secret key and a public key";
 
-    explicit x25519(std::uint8_t seed) {
-        secret_.fill(seed);
-        peer_secret_.fill(static_cast<std::uint8_t>(seed + 5U));
-        peer_public_ = take(curves::x25519::public_key<Backend>(peer_secret_), "public_key");
-    }
+    explicit x25519(std::uint8_t seed)
+        : key_(take(curves::x25519::basic_keypair<Backend>::from_secret(filled<32>(seed)),
+                    "from_secret")),
+          peer_key_(take(curves::x25519::basic_keypair<Backend>::from_secret(
+                             filled<32>(static_cast<std::uint8_t>(seed + 5U))),
+                         "from_secret")),
+          peer_public_(take(peer_key_.public_key(), "public_key")) {}
 
     std::uint8_t run() {
-        auto const shared = take(curves::x25519::agree<Backend>(secret_, peer_public_), "agree");
+        auto const shared = take(key_.agree(peer_public_), "agree");
         return shared.bytes()[0];
     }
 
     bool check() {
-        auto const own_public = take(curves::x25519::public_key<Backend>(secret_), "public_key");
-        auto const shared = take(curves::x25519::agree<Backend>(secret_, peer_public_), "agree");
-        auto const peer_shared =
-            take(curves::x25519::agree<Backend>(peer_secret_, own_public), "agree");
+        auto const own_public = take(key_.public_key(), "public_key");
+        auto const shared = take(key_.agree(peer_public_), "agree");
+        auto const peer_shared = take(peer_key_.agree(own_public), "agree");
         return std::ranges::equal(shared.bytes(), peer_shared.bytes());
     }
 
 private:
-    std::array<std::uint8_t, 32> secret_{};
-    std::array<std::uint8_t, 32> peer_secret_{};
-    std::array<std::uint8_t, 32> peer_public_{};
+    curves::x25519::basic_keypair<Backend> key_;
+    curves::x25519::basic_keypair<Backend> peer_key_;
+    curves::x25519::public_key peer_public_;
 };
 
 }  // namespace webcpp::crypto::bench

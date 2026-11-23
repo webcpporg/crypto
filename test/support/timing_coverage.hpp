@@ -635,39 +635,86 @@ void cover_async_ed25519(std::string const& backend) {
 }
 
 /**
- * X25519's asynchronous `async_agree`, called with valid input and with a key of 31 bytes, an
- * `io_context` run after each call so that its completion is delivered. Its first guard is its
- * own (the synchronous call it makes holds others, which run after).
+ * X25519's asynchronous functions, `async_from_secret`, `async_generate` and `async_agree`, free
+ * and member, each called with valid input and with input refused before the backend (a secret
+ * key of 31 bytes, a moved-from key pair), an `io_context` run after each call so that its
+ * completion is delivered. The first guard each enters is its own (the member a free one calls,
+ * and the synchronous call the member makes, hold others, which run after).
  *
- * @tparam Backend The backend of X25519.
+ * @tparam Keypair `curves::x25519::basic_keypair<Backend>`.
  * @param backend The backend's name.
  */
-template <class Backend>
+template <class Keypair>
 void cover_async_x25519(std::string const& backend) {
     namespace crypto = webcpp::crypto;
     std::string const on = " on " + backend;
     webcpp::asio::io_context context;
     auto const executor = context.get_executor();
-    auto const alice = coverage_key<32>();
-    auto bob_secret = coverage_key<32>();
+    auto const alice = coverage_key<Keypair::secret_key_size>();
+    auto bob_secret = coverage_key<Keypair::secret_key_size>();
     bob_secret[0] ^= 0x42U;
-    auto const bob = crypto::curves::x25519::public_key<Backend>(bob_secret);
-    if (!BOOST_TEST(bob.has_value())) {
-        return;
-    }
+    auto const short_key = std::span(alice).first(Keypair::secret_key_size - 1);
     int completions = 0;
     async_completion_counter<> const counted{.completions = &completions};
-    covered("x25519::async_agree" + on, "crypto::async_agree", [&] {
-        crypto::async_agree<Backend>(executor, alice, *bob, counted);
+    // Each call's completion is delivered before the next call.
+    auto const deliver = [&context] {
         context.restart();
         context.run();  // lint-run: the test's event loop
+    };
+    covered("x25519 crypto::async_from_secret" + on, "crypto::async_from_secret", [&] {
+        crypto::async_from_secret<Keypair>(executor, alice, counted);
+        deliver();
     });
-    covered("x25519::async_agree with a short key" + on, "crypto::async_agree", [&] {
-        crypto::async_agree<Backend>(executor, std::span(alice).first(31), *bob, counted);
-        context.restart();
-        context.run();  // lint-run: the test's event loop
+    covered("x25519 crypto::async_from_secret with a short key" + on, "crypto::async_from_secret",
+            [&] {
+                crypto::async_from_secret<Keypair>(executor, short_key, counted);
+                deliver();
+            });
+    covered("x25519 crypto::async_generate" + on, "crypto::async_generate", [&] {
+        crypto::async_generate<Keypair>(executor, counted);
+        deliver();
     });
-    BOOST_TEST_EQ(completions, 2);
+    covered("x25519::basic_keypair::async_from_secret" + on, [&] {
+        Keypair::async_from_secret(executor, alice, counted);
+        deliver();
+    });
+    covered("x25519::basic_keypair::async_from_secret with a short key" + on, [&] {
+        Keypair::async_from_secret(executor, short_key, counted);
+        deliver();
+    });
+    covered("x25519::basic_keypair::async_generate" + on, [&] {
+        Keypair::async_generate(executor, counted);
+        deliver();
+    });
+    auto made = Keypair::from_secret(alice);
+    auto const bob = Keypair::from_secret(bob_secret);
+    if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(bob.has_value())) {
+        return;
+    }
+    auto const peer = bob->public_key();
+    if (!BOOST_TEST(peer.has_value())) {
+        return;
+    }
+    covered("x25519 crypto::async_agree" + on, "crypto::async_agree", [&] {
+        crypto::async_agree(executor, *made, *peer, counted);
+        deliver();
+    });
+    covered("x25519::basic_keypair::async_agree" + on, [&] {
+        made->async_agree(executor, *peer, counted);
+        deliver();
+    });
+    [[maybe_unused]] Keypair const taken(std::move(*made));
+    covered("x25519 crypto::async_agree moved from" + on, "crypto::async_agree", [&] {
+        // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
+        crypto::async_agree(executor, *made, *peer, counted);
+        deliver();
+    });
+    covered("x25519::basic_keypair::async_agree moved from" + on, [&] {
+        // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
+        made->async_agree(executor, *peer, counted);
+        deliver();
+    });
+    BOOST_TEST_EQ(completions, 10);
 }
 
 /**

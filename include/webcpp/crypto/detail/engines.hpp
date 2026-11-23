@@ -53,6 +53,20 @@ struct aead_state;
 template <class Family, class Backend>
 struct aead_engine;
 
+/** What a `secret_key_encryption::basic_secretbox` of the family `Family` stores (see @ref
+ * block_state). */
+template <class Family, class Backend>
+struct secretbox_state;
+
+/**
+ * The work of a `secret_key_encryption::basic_secretbox` of the family `Family` on a backend,
+ * whose specialisation provides `init(state&, key)`, `seal(state&, nonce, data, tag&)`,
+ * `open(state&, nonce, data, tag const&)`, `move(to, from)` and `reset(state&)`, with no
+ * associated data (see @ref block_state).
+ */
+template <class Family, class Backend>
+struct secretbox_engine;
+
 /**
  * Reads a backend's canary with a volatile load, which no linker can drop: a program built
  * without the backend's library, or with one of another commit or configuration, then

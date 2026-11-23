@@ -46,10 +46,14 @@ link:https://doc.libsodium.org/public-key_cryptography/authenticated_encryption[
 `box::from_keys(own_keypair, peer_public_key)` agrees a key from the own X25519
 key pair (`curves::x25519::basic_keypair`, <<crypto-x25519>>) and the peer's
 `x25519::public_key`, once for the pair (libsodium's `beforenm`), and keeps
-that key alone, not the key pair; the box then works in place, as an AEAD
-without associated data: `seal(nonce_bytes, data_bytes)` encrypts and returns the 16-byte tag, and
-`open(nonce_bytes, data_bytes, tag_bytes)` checks it and decrypts, zeroing the
-data when it does not match. Alice's box made from her key pair and Bob's
+that key alone, not the key pair; the box then works in place, without
+associated data: `seal(nonce_bytes, data_bytes)` encrypts and returns the
+16-byte tag, and `open(nonce_bytes, data_bytes, tag_bytes)` checks it and
+decrypts, zeroing the data when it does not match. A box is an
+`authenticated_box`, as a secret box is: its free forms are the box forms,
+`secret_key_encryption::seal(box, nonce, data)` and
+`secret_key_encryption::open(box, nonce, data, tag)`, named in full
+(<<crypto-box-forms>>); no free `seal` or `open` is in this namespace. Alice's box made from her key pair and Bob's
 public key, and Bob's made from his key pair and Alice's public key, hold
 the same key: what one seals the other opens. `box_xchacha20poly1305` is
 libsodium's `crypto_box_curve25519xchacha20poly1305`, the same with

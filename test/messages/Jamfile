@@ -120,3 +120,8 @@ build-project async_sign_eddsa_prehashed_asynchronous_backend ;
 build-project ph_removed ;
 build-project verify_eddsa_prehashed_asynchronous_backend ;
 build-project async_verify_eddsa_prehashed_asynchronous_backend ;
+build-project seal_box_associated_data ;
+build-project seal_removed ;
+build-project secretbox_header_removed ;
+build-project secretbox_removed ;
+build-project secretbox_not_a_family ;

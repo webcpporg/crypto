@@ -40,7 +40,9 @@ message in pieces, in two passes (<<crypto-gcm-incremental-open>>).
 
 `from_key`, `seal` and `open` have four forms each, the member and its free form,
 synchronous and asynchronous, with the same work, errors and refusals
-(<<crypto-curves-four-forms>>); the pieces' functions are members alone. An
+(<<crypto-curves-four-forms>>); the pieces' functions are members alone. AES-GCM
+is a `secret_key_encryption::aead::streaming_cipher`, whose free `seal` and
+`open` its header brings (<<crypto-aead-contract>>). An
 asynchronous form needs `<webcpp/crypto/async.hpp>` and
 `<library>/webcpp/asio//asio` in the Jamfile (<<crypto-async>>):
 
@@ -57,13 +59,13 @@ asynchronous form needs `<webcpp/crypto/async.hpp>` and
 
 | Seal
 | `aead.seal(nonce, associated_data, data)` +
-`crypto::seal(aead, nonce, associated_data, data)`
+`secret_key_encryption::aead::seal(aead, nonce, associated_data, data)`
 | `aead.async_seal(executor, nonce, associated_data, data, token)` +
 `crypto::async_seal(executor, aead, nonce, associated_data, data, token)`
 
 | Open
 | `aead.open(nonce, associated_data, data, tag)` +
-`crypto::open(aead, nonce, associated_data, data, tag)`
+`secret_key_encryption::aead::open(aead, nonce, associated_data, data, tag)`
 | `aead.async_open(executor, nonce, associated_data, data, tag, token)` +
 `crypto::async_open(executor, aead, nonce, associated_data, data, tag, token)`
 |===

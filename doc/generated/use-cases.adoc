@@ -231,7 +231,7 @@
 |<<crypto-chacha,[.keep]`+xchacha_seal.cpp+`>>
 
 |Encrypt a record or a file under one secret key, each with a random nonce, in libsodium's secret-box format
-|In `+ciphers+`: `+secretbox<>+`, `+secretbox_xchacha20poly1305<>+`: `+from_key+`, `+seal+`, `+open+`
+|In `+secret_key_encryption+`: `+secretbox<>+`, `+secretbox_xchacha20poly1305<>+`: `+from_key+`, `+seal(nonce, data)+`, `+open(nonce, data, tag)+`; the box forms `+seal(box, nonce, data)+`, `+open(box, nonce, data, tag)+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//secretbox_xsalsa20poly1305-default+`
@@ -252,7 +252,7 @@
 |<<crypto-sealed-box,[.keep]`+file_share.cpp+`>>
 
 |Share a file with someone known only by a public key, as a file-sharing app does
-|`+ciphers::secretbox<>+` for the file under a key drawn for it, `+public_key_encryption::sealed_box::seal+` for that key
+|`+secret_key_encryption::secretbox<>+` for the file under a key drawn for it, `+public_key_encryption::sealed_box::seal+` for that key
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//secretbox_xsalsa20poly1305-default+` +

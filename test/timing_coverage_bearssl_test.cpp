@@ -15,9 +15,9 @@
 // - AES-GCM, gcm<aes128>, gcm<aes192> and gcm<aes256>: from_key, the move constructor and move
 //   assignment (ruling R3), seal, open, begin_seal, update, result, and the asynchronous
 //   async_from_key, async_seal and async_open, free and member; the free crypto::from_key,
-//   crypto::seal and crypto::open.
-// - ChaCha20-Poly1305, aead: from_key, seal, open; the free crypto::from_key, crypto::seal and
-//   crypto::open.
+//   secret_key_encryption::aead::seal and secret_key_encryption::aead::open.
+// - ChaCha20-Poly1305, aead: from_key, seal, open; the free crypto::from_key,
+//   secret_key_encryption::aead::seal and secret_key_encryption::aead::open.
 // - P-256, curves::p256: basic_keypair::from_secret, generate, sign (ecdsa_sha256, of a message and
 //   of a digest), agree; basic_public_key::from_bytes, from_coordinates, verify (ecdsa_sha256, of a
 //   message and of a digest); crypto::verify (ecdsa_sha256, of a message and of a digest), to_der,

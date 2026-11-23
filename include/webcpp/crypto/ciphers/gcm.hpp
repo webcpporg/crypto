@@ -7,8 +7,10 @@
 /**
  `gcm<Cipher>`, AES-GCM over the cipher's backend.
 
- Its free synchronous forms (design D9, R23), `crypto::from_key<C>(key)`, `crypto::seal` and
- `crypto::open`, are declared in `factories.hpp` and `ciphers/aead.hpp`, which it includes.
+ A `secret_key_encryption::aead::streaming_cipher` (design D5). Its free synchronous forms
+ (design D9, D11), `crypto::from_key<C>(key)`, `secret_key_encryption::aead::seal` and
+ `secret_key_encryption::aead::open`, are declared in `factories.hpp` and
+ `secret_key_encryption/aead.hpp`, which it includes.
 
  @see "AES-GCM", in the guide.
 */
@@ -17,7 +19,6 @@
 
 #include <webcpp/crypto/config.hpp>
 
-#include <webcpp/crypto/ciphers/aead.hpp>  // crypto::seal and crypto::open (design R23)
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/asynchronous.hpp>
@@ -28,6 +29,7 @@
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/factories.hpp>  // crypto::from_key, which serves its from_key (design R23)
+#include <webcpp/crypto/secret_key_encryption/aead.hpp>  // its free seal and open (design D11)
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
@@ -764,6 +766,12 @@ private:
     // The bytes decrypted by the open's second pass.
     std::uint64_t decrypted_bytes_ = 0;
 };
+
+// AES-GCM is an AEAD that also seals and opens in pieces (design D5's table).
+static_assert(
+    secret_key_encryption::aead::streaming_cipher<gcm<aes128<detail::concept_check_backend>>>);
+static_assert(
+    secret_key_encryption::aead::streaming_cipher<gcm<aes256<detail::concept_check_backend>>>);
 
 }  // namespace webcpp::crypto::ciphers
 

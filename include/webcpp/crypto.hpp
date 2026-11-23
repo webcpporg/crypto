@@ -9,10 +9,10 @@
  with what it alone holds (libsecp256k1's secp256k1; libsodium's Ed25519 and X25519 with their key
  formats, `crypto_kx`, boxes and sealed boxes), `ciphers/aes256_gcm.hpp`, whose `aes128_gcm` and
  `aes256_gcm` name AES-GCM's default backend, `ciphers/aes_block.hpp`, whose `aes256<>` names the
- block cipher's, `ciphers/chacha20_poly1305.hpp`, `ciphers/secretbox.hpp` and `pem.hpp`, whose
- AEADs and PEM name libsodium, and `curves/p256.hpp` with its key formats, whose key pairs name
- BearSSL: a program that does not link the default names another in the type, as
- `ciphers::gcm<ciphers::aes256<backends::openssl>>` on WebAssembly or
+ block cipher's, `ciphers/chacha20_poly1305.hpp`, `secret_key_encryption/secretbox.hpp` and
+ `pem.hpp`, whose AEADs, secret boxes and PEM name libsodium, and `curves/p256.hpp` with its key
+ formats, whose key pairs name BearSSL: a program that does not link the default names another in
+ the type, as `ciphers::gcm<ciphers::aes256<backends::openssl>>` on WebAssembly or
  `ciphers::chacha20_poly1305<backends::bearssl>`, or, for the original ChaCha20-Poly1305,
  XChaCha20-Poly1305 and the secret boxes, which libsodium alone has, links libsodium.
 
@@ -30,7 +30,6 @@
 #include <webcpp/crypto/ciphers/aes_block.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
-#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
@@ -41,6 +40,9 @@
 #include <webcpp/crypto/pem.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the system's entropy, a purpose of crypto
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/secret_key_encryption/aead.hpp>
+#include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/crypto/supports.hpp>
 

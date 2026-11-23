@@ -449,7 +449,8 @@ std::array<sealed_message, 4> four_seals(asio::io_context& context, gcm256& aead
         }
     };
     keep(sealed[0], aead.seal(message.nonce, message.associated_data, sealed[0].data));
-    keep(sealed[1], crypto::seal(aead, message.nonce, message.associated_data, sealed[1].data));
+    keep(sealed[1], crypto::secret_key_encryption::aead::seal(
+                        aead, message.nonce, message.associated_data, sealed[1].data));
     auto const member_async =
         complete<gcm256::result_type>(context, [&](auto const& executor, auto&& token) {
             return aead.async_seal(executor, message.nonce, message.associated_data, sealed[2].data,
@@ -485,8 +486,8 @@ void check_four_opens(asio::io_context& context, gcm256& aead, four_forms_messag
     };
     BOOST_TEST(code_of(aead.open(message.nonce, message.associated_data, data[0], tag)) ==
                expected_code);
-    BOOST_TEST(code_of(crypto::open(aead, message.nonce, message.associated_data, data[1], tag)) ==
-               expected_code);
+    BOOST_TEST(code_of(crypto::secret_key_encryption::aead::open(
+                   aead, message.nonce, message.associated_data, data[1], tag)) == expected_code);
     BOOST_TEST(complete_plain(context, [&](auto const& executor, auto&& token) {
                    return aead.async_open(executor, message.nonce, message.associated_data, data[2],
                                           tag, std::forward<decltype(token)>(token));

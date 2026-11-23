@@ -5,8 +5,8 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Each operation's member and free synchronous forms (design D9, R21 to R23) give the same results
-// on every curve and on AES-GCM and ChaCha20-Poly1305, since the free form calls the member, or
-// both call one worker:
+// on every curve and on AES-GCM, ChaCha20-Poly1305 and XChaCha20-Poly1305, since the free form
+// calls the member, or both call one worker:
 // - the factories, named by their input (design D3c): K::from_secret(bytes) and
 //   crypto::from_secret<K>(bytes) give the same key pair (its secret and its public key back), of
 //   the same type, on every curve, secp256k1's with a memory resource; T::from_bytes(bytes) and
@@ -26,19 +26,18 @@
 //   x-only key and recover (64 or 66 bytes, and a std::vector) included.
 // - agree: key.agree(peer) and crypto::agree(key, peer) give the same secret, on P-256 and
 //   secp256k1.
-// - seal and open: aead.seal and crypto::seal give the same ciphertext and tag; aead.open and
-//   crypto::open open it, and refuse a changed tag with authentication_failed, zeroing the data.
+// - seal and open: cipher.seal and crypto::secret_key_encryption::aead::seal give the same
+//   ciphertext and tag; cipher.open and secret_key_encryption::aead::open open it, and refuse a
+//   changed tag with authentication_failed, zeroing the data (design D11).
 // - the size constants are named nonce_size, max_nonce_size and max_associated_data_size (design
 //   D11, R22), on the AEADs, the secret box and the public-key box.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
-#include <webcpp/crypto/ciphers/aead.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
-#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
@@ -46,6 +45,7 @@
 #include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/algorithms.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -74,12 +74,13 @@ using p256_keypair = p256::basic_keypair<crypto::backends::bearssl>;
 using secp_keypair = secp256k1::basic_keypair<crypto::backends::secp256k1>;
 using gcm = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>;
 using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::sodium>;
+using xchacha = crypto::ciphers::xchacha20_poly1305<crypto::backends::sodium>;
 
 // The size constants spell the nonce and the associated data out (design D11, R22).
 static_assert(crypto::ciphers::xchacha20_poly1305<>::nonce_size == 24);
 static_assert(crypto::ciphers::aes256_gcm::nonce_size == 12);
 static_assert(crypto::ciphers::aes256_gcm::max_nonce_size == 128);
-static_assert(crypto::ciphers::secretbox<>::nonce_size == 24);
+static_assert(crypto::secret_key_encryption::secretbox<>::nonce_size == 24);
 static_assert(crypto::public_key_encryption::box::nonce_size == 24);
 static_assert(crypto::ciphers::xchacha20_poly1305<>::max_associated_data_size == ~std::uint64_t{0});
 
@@ -481,7 +482,7 @@ void secp256k1_recover_sizes() {
  * An AEAD's from_key, seal and open, member and free: the same ciphertext and tag, and the same
  * refusal of a changed tag.
  *
- * @tparam Aead `gcm` or `chacha`.
+ * @tparam Aead `gcm`, `chacha` or `xchacha`.
  */
 template <class Aead>
 void aead_forms() {
@@ -498,7 +499,8 @@ void aead_forms() {
     std::array<std::uint8_t, 24> member_data{1, 2, 3};
     std::array<std::uint8_t, 24> free_data = member_data;
     auto const member_tag = member_made->seal(nonce, associated_data, member_data);
-    auto const free_tag = crypto::seal(*free_made, nonce, associated_data, free_data);
+    auto const free_tag =
+        crypto::secret_key_encryption::aead::seal(*free_made, nonce, associated_data, free_data);
     static_assert(std::is_same_v<decltype(free_tag), decltype(member_tag)>);
     if (!BOOST_TEST(member_tag.has_value()) || !BOOST_TEST(free_tag.has_value())) {
         return;
@@ -509,7 +511,9 @@ void aead_forms() {
     auto const tag = std::span<std::uint8_t const>(member_tag->data(), member_tag->size());
     auto opened_by_member = member_data;
     BOOST_TEST(member_made->open(nonce, associated_data, opened_by_member, tag).has_value());
-    BOOST_TEST(crypto::open(*free_made, nonce, associated_data, free_data, tag).has_value());
+    BOOST_TEST(crypto::secret_key_encryption::aead::open(*free_made, nonce, associated_data,
+                                                         free_data, tag)
+                   .has_value());
     BOOST_TEST(free_data == opened_by_member);
     BOOST_TEST(free_data[0] == 1 && free_data[1] == 2 && free_data[2] == 3);
 
@@ -522,8 +526,9 @@ void aead_forms() {
     auto refused_by_member = sealed;
     BOOST_TEST(member_made->open(nonce, associated_data, refused_by_member, wrong).error() ==
                crypto::error::authentication_failed);
-    BOOST_TEST(crypto::open(*free_made, nonce, associated_data, sealed, wrong).error() ==
-               crypto::error::authentication_failed);
+    BOOST_TEST(
+        crypto::secret_key_encryption::aead::open(*free_made, nonce, associated_data, sealed, wrong)
+            .error() == crypto::error::authentication_failed);
     BOOST_TEST(sealed == zeros);
     BOOST_TEST(refused_by_member == zeros);
 }
@@ -548,5 +553,6 @@ int main() {
     public_key_and_resource_forms();
     aead_forms<gcm>();
     aead_forms<chacha>();
+    aead_forms<xchacha>();
     return webcpp::test::exit_status(boost::report_errors());
 }

@@ -13,10 +13,13 @@
 // its own guard fails although it calls another guarded function.
 //
 // What it covers, by family; a family libsodium gains adds its line and its checks:
-// - ChaCha20-Poly1305, its original form, XChaCha20-Poly1305 and both secret boxes, aead:
-//   from_key, seal, open; the free crypto::from_key, crypto::seal and crypto::open.
-// - Both boxes, basic_box: from_keys, of a moved-from key pair too, seal, open. The sealed box,
-//   basic_sealed_box: seal, open, of a moved-from key pair too.
+// - ChaCha20-Poly1305, its original form and XChaCha20-Poly1305, aead: from_key, seal, open; the
+//   free crypto::from_key, secret_key_encryption::aead::seal and secret_key_encryption::aead::open.
+// - Both secret boxes, basic_secretbox: from_key, seal, open; the free crypto::from_key and the
+//   box forms secret_key_encryption::seal and secret_key_encryption::open.
+// - Both boxes, basic_box: from_keys, of a moved-from key pair too, seal, open; the box forms
+//   secret_key_encryption::seal and secret_key_encryption::open. The sealed box, basic_sealed_box:
+//   seal, open, of a moved-from key pair too.
 // - PEM: algorithm::armour, algorithm::unarmour, and the free armour and unarmour, which forward.
 // - Ed25519, basic_keypair: from_secret, generate, public_key, secret, sign, to_x25519;
 //   public_key: verify, to_x25519; the free crypto::verify, and the free synchronous forms of the
@@ -46,7 +49,6 @@
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
-#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/ed25519/formats.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
@@ -57,6 +59,8 @@
 #include <webcpp/crypto/pem.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
+#include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/algorithms.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -85,6 +89,94 @@ using webcpp::test::covered;
 // The ciphers.
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * The box forms, `secret_key_encryption::seal` and `open`, over a keyed box, each entering its own
+ * guard before the member's, a nonce of the wrong size included.
+ *
+ * @tparam Box An `authenticated_box`: a secret box or a crypto_box.
+ * @param made A keyed box.
+ * @param family The family's name, as the public alias spells it.
+ * @param on ` on <backend>`, which ends each name.
+ */
+template <class Box>
+void cover_box_forms(Box& made, std::string const& family, std::string const& on) {
+    std::array<std::uint8_t, Box::nonce_size> const nonce{};
+    std::array<std::uint8_t, 40> data{};
+    typename Box::result_type tag{};
+    covered(family + " secret_key_encryption::seal" + on, "secret_key_encryption::seal", [&] {
+        auto const sealed = crypto::secret_key_encryption::seal(made, nonce, data);
+        if (BOOST_TEST(sealed.has_value())) {
+            tag = *sealed;
+        }
+    });
+    covered(family + " secret_key_encryption::open" + on, "secret_key_encryption::open", [&] {
+        BOOST_TEST(crypto::secret_key_encryption::open(made, nonce, data,
+                                                       std::span(tag.data(), tag.size()))
+                       .has_value());
+    });
+    covered(family + " secret_key_encryption::seal with a short nonce" + on,
+            "secret_key_encryption::seal", [&] {
+                BOOST_TEST(crypto::secret_key_encryption::seal(
+                               made, std::span(nonce).first(Box::nonce_size - 1), data)
+                               .error() == crypto::error::invalid_nonce_size);
+            });
+    covered(family + " secret_key_encryption::open with a short nonce" + on,
+            "secret_key_encryption::open", [&] {
+                BOOST_TEST(crypto::secret_key_encryption::open(
+                               made, std::span(nonce).first(Box::nonce_size - 1), data,
+                               std::span(tag.data(), tag.size()))
+                               .error() == crypto::error::invalid_nonce_size);
+            });
+}
+
+/**
+ * A secret box's guarded functions: `from_key`, a key of the wrong size included, member and
+ * free; `seal` and `open`, a nonce of the wrong size included; and the box forms
+ * (`cover_box_forms`).
+ *
+ * @tparam Secretbox `basic_secretbox<Family, sodium>`.
+ * @param family The family's name, as the public alias spells it.
+ */
+template <class Secretbox>
+void cover_secretbox(std::string const& family) {
+    std::string const on = " on sodium";
+    auto const key = webcpp::test::coverage_key<Secretbox::key_size>();
+    covered(family + "::from_key" + on, "basic_secretbox::from_key",
+            [&key] { BOOST_TEST(Secretbox::from_key(key).has_value()); });
+    covered(family + "::from_key with a short key" + on, "basic_secretbox::from_key", [&key] {
+        BOOST_TEST(Secretbox::from_key(std::span(key).first(Secretbox::key_size - 1)).error() ==
+                   crypto::error::invalid_key_size);
+    });
+    covered(family + " crypto::from_key" + on, "crypto::from_key",
+            [&key] { BOOST_TEST(crypto::from_key<Secretbox>(key).has_value()); });
+    auto made = Secretbox::from_key(key);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    std::array<std::uint8_t, Secretbox::nonce_size> const nonce{};
+    std::array<std::uint8_t, 40> data{};
+    typename Secretbox::result_type tag{};
+    covered(family + "::seal" + on, "basic_secretbox::seal", [&] {
+        auto const sealed = made->seal(nonce, data);
+        if (BOOST_TEST(sealed.has_value())) {
+            tag = *sealed;
+        }
+    });
+    covered(family + "::open" + on, "basic_secretbox::open", [&] {
+        BOOST_TEST(made->open(nonce, data, std::span(tag.data(), tag.size())).has_value());
+    });
+    covered(family + "::seal with a short nonce" + on, "basic_secretbox::seal", [&] {
+        BOOST_TEST(made->seal(std::span(nonce).first(Secretbox::nonce_size - 1), data).error() ==
+                   crypto::error::invalid_nonce_size);
+    });
+    covered(family + "::open with a short nonce" + on, "basic_secretbox::open", [&] {
+        BOOST_TEST(made->open(std::span(nonce).first(Secretbox::nonce_size - 1), data,
+                              std::span(tag.data(), tag.size()))
+                       .error() == crypto::error::invalid_nonce_size);
+    });
+    cover_box_forms(*made, family, on);
+}
+
 /** ChaCha20-Poly1305, its original form, XChaCha20-Poly1305 and both secret boxes. */
 void cover_ciphers() {
     webcpp::test::cover_aead<crypto::ciphers::chacha20_poly1305<sodium>>("chacha20_poly1305",
@@ -93,9 +185,9 @@ void cover_ciphers() {
         "chacha20_poly1305_original", "sodium");
     webcpp::test::cover_aead<crypto::ciphers::xchacha20_poly1305<sodium>>("xchacha20_poly1305",
                                                                           "sodium");
-    webcpp::test::cover_aead<crypto::ciphers::secretbox<sodium>>("secretbox", "sodium");
-    webcpp::test::cover_aead<crypto::ciphers::secretbox_xchacha20poly1305<sodium>>(
-        "secretbox_xchacha20poly1305", "sodium");
+    cover_secretbox<crypto::secret_key_encryption::secretbox<sodium>>("secretbox");
+    cover_secretbox<crypto::secret_key_encryption::secretbox_xchacha20poly1305<sodium>>(
+        "secretbox_xchacha20poly1305");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -177,6 +269,7 @@ void cover_box(std::string const& family) {
                               std::span(tag.data(), tag.size()))
                        .error() == crypto::error::invalid_nonce_size);
     });
+    cover_box_forms(*made, family, on);
 }
 
 /**

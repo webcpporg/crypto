@@ -33,7 +33,6 @@
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
-#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
@@ -51,6 +50,8 @@
 #include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/crypto/signing.hpp>
 
 #include <boost/system/result.hpp>
@@ -159,12 +160,29 @@ int secret_wipe() {
 }
 
 /**
- * from_key, seal and open of an AEAD or a secret box with the key, the data and the tag secret: an
- * open of the message, then an open of no message under the same tag, which fails. Each verdict
- * must be public: the engine or the library marks it so, and only it.
+ * from_key, seal and open of an AEAD, with empty associated data, or of a secret box, which takes
+ * none, with the key, the data and the tag secret: an open of the message, then an open of no
+ * message under the same tag, which fails. Each verdict must be public: the engine or the library
+ * marks it so, and only it.
  */
 template <class Checker, class Aead>
 int seal_and_open(char const* what) {
+    constexpr bool without_associated_data = crypto::secret_key_encryption::authenticated_box<Aead>;
+    auto const seal_with = [](Aead& keyed, auto const& nonce_bytes, std::span<std::uint8_t> bytes) {
+        if constexpr (without_associated_data) {
+            return keyed.seal(nonce_bytes, bytes);
+        } else {
+            return keyed.seal(nonce_bytes, {}, bytes);
+        }
+    };
+    auto const open_with = [](Aead& keyed, auto const& nonce_bytes, std::span<std::uint8_t> bytes,
+                              auto const& tag_bytes) {
+        if constexpr (without_associated_data) {
+            return keyed.open(nonce_bytes, bytes, tag_bytes);
+        } else {
+            return keyed.open(nonce_bytes, {}, bytes, tag_bytes);
+        }
+    };
     std::array<std::uint8_t, 32> key{};
     std::array<std::uint8_t, Aead::nonce_size> const nonce{};
     std::array<std::uint8_t, 64> data{};
@@ -173,14 +191,14 @@ int seal_and_open(char const* what) {
     Checker::mark_secret(key);
     Checker::mark_secret(data);
     auto made = Aead::from_key(key);
-    auto tag = made->seal(nonce, {}, data);
+    auto tag = seal_with(*made, nonce, data);
     int const failures =
         check(tag.has_value() && carries_mark<Checker>(data) && carries_mark<Checker>(*tag), what);
     Checker::mark_secret(*tag);
-    auto const opened = made->open(nonce, {}, data, *tag);
+    auto const opened = open_with(*made, nonce, data, *tag);
     bool const opened_verdict = opened.has_value();
     Checker::verdict(opened_verdict);
-    auto const none = made->open(nonce, {}, std::span<std::uint8_t>{}, *tag);
+    auto const none = open_with(*made, nonce, std::span<std::uint8_t>{}, *tag);
     bool const none_verdict = none.has_value();
     Checker::verdict(none_verdict);
     return failures + check(opened_verdict && !none_verdict, what);
@@ -866,8 +884,10 @@ int common_paths() {
                "the original on libsodium") +
            seal_and_open<Checker, ciphers::xchacha20_poly1305<sodium>>(
                "XChaCha20-Poly1305 on libsodium") +
-           seal_and_open<Checker, ciphers::secretbox<sodium>>("secretbox on libsodium") +
-           seal_and_open<Checker, ciphers::secretbox_xchacha20poly1305<sodium>>(
+           seal_and_open<Checker, crypto::secret_key_encryption::secretbox<sodium>>(
+               "secretbox on libsodium") +
+           seal_and_open<Checker,
+                         crypto::secret_key_encryption::secretbox_xchacha20poly1305<sodium>>(
                "its XChaCha20 twin") +
            sodium_box<Checker, crypto::public_key_encryption::basic_box<
                                    crypto::families::box_xsalsa20poly1305, sodium>>(

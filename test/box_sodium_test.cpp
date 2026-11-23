@@ -20,7 +20,9 @@
 // (a changed byte: authentication_failed, the data zeroed; a 12-byte nonce: invalid_nonce_size,
 // the data untouched); the guards of from_keys (a moved-from key pair: invalid_state); a peer
 // key of small order refused with weak_public_key, as libsodium's beforenm refuses it; and the
-// box as the secret box under its precomputed key.
+// box as the secret box under its precomputed key; the box form secret_key_encryption::seal(box,
+// nonce, data) and open giving the member's results, and no seal of a box that takes associated
+// data.
 //
 // The sealed box, on the same typed keys: libsodium's test/default/box_seal.c, a message sealed
 // to a public key and opened by its recipient's key pair, sealed in place, refused
@@ -28,10 +30,11 @@
 // and one byte shorter; two seals of one message differ; the sizes checked first, then the key
 // pair (a moved-from one: invalid_state).
 
-#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
+#include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/crypto/supports.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -208,7 +211,6 @@ struct box_calls {
     static constexpr std::size_t nonce_size = Box::nonce_size;
     static constexpr std::size_t tag_size = Box::tag_size;
     static constexpr bool has_additional_data = false;
-    static constexpr bool takes_additional_data = false;
     static constexpr bool one_key = false;
 
     static boost::system::result<Box> from_key(std::span<std::uint8_t const> key) {
@@ -352,10 +354,56 @@ void check_box_is_secretbox(std::string_view key) {
     auto by_box = from_hex(nacl_message);
     auto by_secretbox = by_box;
     auto const box_tag = made_box->seal(nonce, by_box);
-    auto const secretbox_tag = made_secretbox->seal(nonce, {}, by_secretbox);
+    auto const secretbox_tag = made_secretbox->seal(nonce, by_secretbox);
     BOOST_TEST(box_tag && secretbox_tag && to_hex(*box_tag) == to_hex(*secretbox_tag));
     BOOST_TEST(by_box == by_secretbox);
 }
+
+/**
+ * The box form, `secret_key_encryption::seal(box, nonce, data)` and `open`, named in full, gives
+ * the member's ciphertext and tag and opens them, as for a secret box (design R21).
+ */
+template <class Box>
+void check_box_forms() {
+    auto made_box = Box::from_keys(alice_keypair(), bob_public_key());
+    if (!BOOST_TEST(made_box.has_value())) {
+        return;
+    }
+    auto const nonce = from_hex(nacl_nonce);
+    auto const message = from_hex(nacl_message);
+    auto by_member = message;
+    auto by_free = message;
+    auto const member_tag = made_box->seal(nonce, by_member);
+    auto const free_tag = crypto::secret_key_encryption::seal(*made_box, nonce, by_free);
+    static_assert(std::is_same_v<decltype(free_tag), decltype(member_tag)>);
+    if (!BOOST_TEST(member_tag.has_value()) || !BOOST_TEST(free_tag.has_value())) {
+        return;
+    }
+    BOOST_TEST_EQ(to_hex(*free_tag), to_hex(*member_tag));
+    BOOST_TEST(by_free == by_member);
+    auto const tag = std::span<std::uint8_t const>(free_tag->data(), free_tag->size());
+    BOOST_TEST(crypto::secret_key_encryption::open(*made_box, nonce, by_free, tag).has_value());
+    BOOST_TEST(by_free == message);
+    auto changed_tag = *free_tag;
+    changed_tag.data()[0] ^= 0x01U;
+    BOOST_TEST(crypto::secret_key_encryption::open(
+                   *made_box, nonce, by_member,
+                   std::span<std::uint8_t const>(changed_tag.data(), changed_tag.size()))
+                   .error() == crypto::error::authentication_failed);
+    BOOST_TEST(std::ranges::all_of(by_member, [](std::uint8_t byte) { return byte == 0; }));
+}
+
+/** Whether a box seals with associated data, as an AEAD does: none does. */
+template <class Box>
+concept box_seals_with_associated_data = requires(
+    Box& keyed, std::span<std::uint8_t const> nonce_bytes,
+    std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes) {
+    keyed.seal(nonce_bytes, associated_data_bytes, data_bytes);
+};
+
+static_assert(crypto::secret_key_encryption::authenticated_box<box> &&
+              crypto::secret_key_encryption::authenticated_box<box_xchacha>);
+static_assert(!box_seals_with_associated_data<box> && !box_seals_with_associated_data<box_xchacha>);
 
 /** A recipient's key pair, its secret key's bytes all `fill`, and its X25519 public key. */
 struct recipient {
@@ -536,9 +584,12 @@ int main() {
     check_two_parties<box_xchacha>();
     check_open_failures<box>();
     check_open_failures<box_xchacha>();
-    check_box_is_secretbox<box, crypto::ciphers::secretbox<>>(box_key);
-    check_box_is_secretbox<box_xchacha, crypto::ciphers::secretbox_xchacha20poly1305<>>(
+    check_box_is_secretbox<box, crypto::secret_key_encryption::secretbox<>>(box_key);
+    check_box_is_secretbox<box_xchacha,
+                           crypto::secret_key_encryption::secretbox_xchacha20poly1305<>>(
         box_xchacha_key);
+    check_box_forms<box>();
+    check_box_forms<box_xchacha>();
     check_sealed_box();
     check_sealed_box_edges();
     check_sealed_box_guards();

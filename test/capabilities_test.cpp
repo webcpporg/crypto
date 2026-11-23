@@ -16,7 +16,6 @@
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
-#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
@@ -28,6 +27,7 @@
 #include <webcpp/crypto/pem.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/crypto/supports.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -602,10 +602,10 @@ int main() {
     BOOST_TEST((webcpp::test::made<crypto::ciphers::xchacha20_poly1305<backends::sodium>, families::xchacha20_poly1305, families::xchacha20_poly1305, backends::sodium>()));
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
-    BOOST_TEST((webcpp::test::made<crypto::ciphers::secretbox<backends::sodium>, families::secretbox_xsalsa20poly1305, families::secretbox_xsalsa20poly1305, backends::sodium>()));
+    BOOST_TEST((webcpp::test::made<crypto::secret_key_encryption::secretbox<backends::sodium>, families::secretbox_xsalsa20poly1305, families::secretbox_xsalsa20poly1305, backends::sodium>()));
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
-    BOOST_TEST((webcpp::test::made<crypto::ciphers::secretbox_xchacha20poly1305<backends::sodium>, families::secretbox_xchacha20poly1305, families::secretbox_xchacha20poly1305, backends::sodium>()));
+    BOOST_TEST((webcpp::test::made<crypto::secret_key_encryption::secretbox_xchacha20poly1305<backends::sodium>, families::secretbox_xchacha20poly1305, families::secretbox_xchacha20poly1305, backends::sodium>()));
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
     BOOST_TEST((webcpp::test::made<crypto::public_key_encryption::basic_box<families::box_xsalsa20poly1305, backends::sodium>, families::box_xsalsa20poly1305, families::box_xsalsa20poly1305, backends::sodium>()));

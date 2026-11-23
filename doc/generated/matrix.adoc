@@ -206,15 +206,15 @@
 |native, wasip2, wasip3, emscripten
 |`+xchacha_sodium+`, `+chacha_wycheproof_sodium+`, `+allocation_sodium+`
 
-|`+ciphers::secretbox+`
+|`+secret_key_encryption::secretbox+`
 |libsodium
 |native, wasip2, wasip3, emscripten
-|`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`
+|`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`, `+aead_concepts+`
 
-|`+ciphers::secretbox_xchacha20poly1305+`
+|`+secret_key_encryption::secretbox_xchacha20poly1305+`
 |libsodium
 |native, wasip2, wasip3, emscripten
-|`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`
+|`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`, `+aead_concepts+`
 
 |`+public_key_encryption::box+`
 |libsodium
@@ -497,13 +497,13 @@ The same, by target: the backends each operation runs on.
 |libsodium
 |libsodium
 
-|`+ciphers::secretbox+`
+|`+secret_key_encryption::secretbox+`
 |libsodium
 |libsodium
 |libsodium
 |libsodium
 
-|`+ciphers::secretbox_xchacha20poly1305+`
+|`+secret_key_encryption::secretbox_xchacha20poly1305+`
 |libsodium
 |libsodium
 |libsodium

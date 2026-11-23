@@ -4,16 +4,18 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// ciphers::aead's and public_key_encryption::basic_box's generic layer on a stand-in backend whose
-// seal and open write into the data before they fail, as OpenSSL can once it began to encrypt: a
-// seal that fails zeroes the data as a failed open does, so that neither the plaintext nor bytes
-// that look sealed stay behind; a guard's refusal leaves it untouched; an engine's error is passed
-// on. The box's key pair is X25519's on the same stand-in, whose engine answers with fixed bytes.
+// ciphers::aead's, secret_key_encryption::basic_secretbox's and public_key_encryption::basic_box's
+// generic layer on a stand-in backend whose seal and open write into the data before they fail,
+// as OpenSSL can once it began to encrypt: a seal that fails zeroes the data as a failed open
+// does, so that neither the plaintext nor bytes that look sealed stay behind; a guard's refusal
+// leaves it untouched; an engine's error is passed on. The box's key pair is X25519's on the same
+// stand-in, whose engine answers with fixed bytes.
 
 #include <webcpp/crypto/ciphers/aead.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -146,6 +148,39 @@ struct box_engine<families::box_xsalsa20poly1305, test::aead_stand_in> {
         box_state<families::box_xsalsa20poly1305, test::aead_stand_in>& /*state*/) noexcept {}
 };
 
+/** The stand-in's XSalsa20-Poly1305 secret box: every call writes the data first, then answers. */
+template <>
+struct secretbox_engine<families::secretbox_xsalsa20poly1305, test::aead_stand_in> {
+    /** The state, the primary's: nothing. */
+    using state = secretbox_state<families::secretbox_xsalsa20poly1305, test::aead_stand_in>;
+
+    /** Succeeds. */
+    [[nodiscard]] static boost::system::result<void> init(
+        state& /*state*/, std::span<std::uint8_t const> /*key_bytes*/) noexcept {
+        return {};
+    }
+
+    /** Writes the data, then answers. */
+    [[nodiscard]] static boost::system::result<void> seal(
+        state& /*state*/, std::span<std::uint8_t const, 24> /*nonce_bytes*/,
+        std::span<std::uint8_t> data, boost::hash2::digest<16>& /*tag*/) noexcept {
+        return test::write_then_answer(data);
+    }
+
+    /** Writes the data, then answers. */
+    [[nodiscard]] static boost::system::result<void> open(
+        state& /*state*/, std::span<std::uint8_t const, 24> /*nonce_bytes*/,
+        std::span<std::uint8_t> data, std::array<std::uint8_t, 16> const& /*tag*/) noexcept {
+        return test::write_then_answer(data);
+    }
+
+    /** Nothing to move. */
+    static void move(state& /*to*/, state& /*from*/) noexcept {}
+
+    /** Nothing to wipe. */
+    static void reset(state& /*state*/) noexcept {}
+};
+
 }  // namespace webcpp::crypto::detail
 
 namespace {
@@ -200,6 +235,25 @@ void check_aead() {
         });
 }
 
+void check_secretbox() {
+    using secretbox =
+        crypto::secret_key_encryption::basic_secretbox<crypto::families::secretbox_xsalsa20poly1305,
+                                                       stand_in>;
+    std::array<std::uint8_t, secretbox::key_size> const key{};
+    auto made = secretbox::from_key(key);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    std::array<std::uint8_t, secretbox::tag_size> const tag{};
+    check_failures(
+        [&made](std::span<std::uint8_t const> nonce, std::span<std::uint8_t> data) {
+            return made->seal(nonce, data);
+        },
+        [&made, &tag](std::span<std::uint8_t const> nonce, std::span<std::uint8_t> data) {
+            return made->open(nonce, data, tag);
+        });
+}
+
 void check_box() {
     using box =
         crypto::public_key_encryption::basic_box<crypto::families::box_xsalsa20poly1305, stand_in>;
@@ -227,6 +281,7 @@ void check_box() {
 
 int main() {
     check_aead();
+    check_secretbox();
     check_box();
     return webcpp::test::exit_status(boost::report_errors());
 }

@@ -322,13 +322,13 @@ token)`, `K::async_generate(executor, token)`,
 `aead.async_seal(executor, nonce, associated_data, data, token)`,
 `aead.async_open(executor, nonce, associated_data, data, tag, token)`
 
-| Free, in `webcpp::crypto`
+| Free, in `webcpp::crypto`; an AEAD's in `secret_key_encryption::aead`
 | `crypto::from_secret<K>(secret_bytes)`, `crypto::from_bytes<T>(bytes)`,
 `crypto::from_key<C>(key)`, `crypto::generate<K>()`,
 `crypto::sign(key_pair, scheme, input)`, `crypto::agree(key_pair, peer)`,
 `crypto::verify(scheme, signature, input, public_key)`,
-`crypto::seal(aead, nonce, associated_data, data)`,
-`crypto::open(aead, nonce, associated_data, data, tag)`
+`secret_key_encryption::aead::seal(aead, nonce, associated_data, data)`,
+`secret_key_encryption::aead::open(aead, nonce, associated_data, data, tag)`
 | `crypto::async_from_secret<K>(executor, secret_bytes, token)`,
 `crypto::async_from_key<C>(executor, key, token)`,
 `crypto::async_generate<K>(executor, token)`,
@@ -341,8 +341,9 @@ token)`, `K::async_generate(executor, token)`,
 
 The synchronous forms exist wherever the member does: on Ed25519's, P-256's
 and secp256k1's key pairs and public keys (`agree` on P-256 and secp256k1),
-and on AES-GCM and every AEAD of `ciphers::aead`, the ChaCha20-Poly1305 forms
-and the secret boxes. The asynchronous forms exist for what WebCrypto has:
+and on AES-GCM and every AEAD of `ciphers::aead`, the ChaCha20-Poly1305 forms;
+the secret boxes and the crypto_boxes, which take no associated data, have the
+box forms instead (<<crypto-box-forms>>). The asynchronous forms exist for what WebCrypto has:
 Ed25519's and P-256's key pairs and public keys (`async_agree` on P-256), and
 AES-GCM. A public key has no `async_from_bytes`: the asynchronous family makes
 key pairs (`async_from_secret`) and AES-GCM objects (`async_from_key`) only.
@@ -357,8 +358,9 @@ the concepts that constrain them; the catch-all of `crypto::verify` in
 `crypto::from_secret`,
 `crypto::from_bytes`, `crypto::from_key` and `crypto::generate` in
 `<webcpp/crypto/factories.hpp>`, which `keypair.hpp` and the
-AEAD headers include; `crypto::seal` and `crypto::open` in
-`<webcpp/crypto/ciphers/aead.hpp>`, which `gcm.hpp` includes. Every free form
+AEAD headers include; `secret_key_encryption::aead::seal` and `open` in
+`<webcpp/crypto/secret_key_encryption/aead.hpp>`, which every AEAD's header
+includes (<<crypto-aead-contract>>). Every free form
 holds its own timing guard before it calls the member, which holds one too,
 except `crypto::from_bytes`: a public value's `from_bytes` holds a guard only
 where it calls a backend (P-256's and secp256k1's check the point), and

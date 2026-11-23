@@ -16,7 +16,6 @@
 
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
-#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/ed25519/formats.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
@@ -25,6 +24,7 @@
 #include <webcpp/crypto/pem.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/algorithms.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -46,18 +46,13 @@ namespace {
 
 namespace crypto = webcpp::crypto;
 
-/**
- * Makes an AEAD, seals, opens, and opens a forged message: none of it allocates. A family
- * without additional data (a secret box) is given none.
- */
+/** Makes an AEAD, seals, opens, and opens a forged message: none of it allocates. */
 template <class Aead>
 void expect_no_allocation() {
     std::array<std::uint8_t, Aead::key_size> key{};
     key.fill(3);
     std::array<std::uint8_t, Aead::nonce_size> const nonce{};
-    std::array<std::uint8_t, 13> const some_additional_data{};
-    auto const associated_data = std::span<std::uint8_t const>(some_additional_data)
-                                     .first(Aead::max_associated_data_size == 0 ? 0 : 13);
+    std::array<std::uint8_t, 13> const associated_data{};
     std::array<std::uint8_t, 4096> data{};
     std::size_t const before = webcpp::test::allocations();
     {
@@ -70,6 +65,27 @@ void expect_no_allocation() {
         BOOST_TEST(made->open(nonce, associated_data, data, forged).error() ==
                    crypto::error::authentication_failed);
         Aead const moved = std::move(*made);
+    }
+    BOOST_TEST_EQ(webcpp::test::allocations(), before);
+}
+
+/** Makes a secret box, seals, opens, and opens a forged message: none of it allocates. */
+template <class Secretbox>
+void expect_no_allocation_secretbox() {
+    std::array<std::uint8_t, Secretbox::key_size> key{};
+    key.fill(3);
+    std::array<std::uint8_t, Secretbox::nonce_size> const nonce{};
+    std::array<std::uint8_t, 4096> data{};
+    std::size_t const before = webcpp::test::allocations();
+    {
+        auto made = Secretbox::from_key(key);
+        BOOST_TEST(made.has_value());
+        auto const tag = made->seal(nonce, data);
+        BOOST_TEST(tag.has_value());
+        BOOST_TEST(made->open(nonce, data, *tag).has_value());
+        std::array<std::uint8_t, Secretbox::tag_size> const forged{};
+        BOOST_TEST(made->open(nonce, data, forged).error() == crypto::error::authentication_failed);
+        Secretbox const moved = std::move(*made);
     }
     BOOST_TEST_EQ(webcpp::test::allocations(), before);
 }
@@ -360,8 +376,10 @@ int main() {
     expect_no_allocation<crypto::ciphers::xchacha20_poly1305<crypto::backends::sodium>>();
     expect_no_allocation_ed25519();
     expect_no_allocation_x25519();
-    expect_no_allocation<crypto::ciphers::secretbox<crypto::backends::sodium>>();
-    expect_no_allocation<crypto::ciphers::secretbox_xchacha20poly1305<crypto::backends::sodium>>();
+    expect_no_allocation_secretbox<
+        crypto::secret_key_encryption::secretbox<crypto::backends::sodium>>();
+    expect_no_allocation_secretbox<
+        crypto::secret_key_encryption::secretbox_xchacha20poly1305<crypto::backends::sodium>>();
     expect_no_allocation_box<crypto::public_key_encryption::basic_box<
         crypto::families::box_xsalsa20poly1305, crypto::backends::sodium>>();
     expect_no_allocation_box<crypto::public_key_encryption::basic_box<

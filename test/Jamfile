@@ -35,7 +35,10 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/detail/windows.hpp crypto/detail/wipe.hpp crypto/secret.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
   crypto/detail/async_access.hpp crypto/detail/timing.hpp crypto/ciphers/aead.hpp
-  crypto/ciphers/chacha20_poly1305.hpp crypto/ciphers/secretbox.hpp crypto/pem.hpp
+  crypto/ciphers/chacha20_poly1305.hpp crypto/pem.hpp
+  crypto/secret_key_encryption/aead.hpp
+  crypto/secret_key_encryption/authenticated_box.hpp
+  crypto/secret_key_encryption/secretbox.hpp
   crypto/detail/p_curves.hpp crypto/signing.hpp crypto/keypair.hpp
   crypto/factories.hpp crypto/detail/asynchronous.hpp
   crypto/detail/signature.hpp ;
@@ -218,10 +221,22 @@ crypto-run signing_curves : signing_curves_test.cpp
   : <library>/third_party//bearssl <library>/third_party//sodium
     <library>/third_party//secp256k1 ;
 # Each operation's member and free synchronous forms give the same results on
-# every curve, AES-GCM and ChaCha20-Poly1305 (design D9).
+# every curve, AES-GCM, ChaCha20-Poly1305 and XChaCha20-Poly1305 (design D9),
+# the AEADs' free forms secret_key_encryption::aead's (design D11).
 crypto-run synchronous_forms : synchronous_forms_test.cpp
   : <library>/third_party//bearssl <library>/third_party//sodium
     <library>/third_party//secp256k1 ;
+# A cipher's header brings its free forms: with ciphers/chacha20_poly1305.hpp
+# alone, secret_key_encryption::aead::seal and open give the member's results.
+crypto-run aead_header_forms : aead_header_forms_test.cpp
+  : <library>/third_party//sodium ;
+# The AEAD and box concepts, secret_key_encryption::aead::cipher, its
+# refinement streaming_cipher and secret_key_encryption::authenticated_box:
+# stand-ins that lack a member or give another type give each verdict; D5's
+# table on the types' own backends, no type both a cipher and a box; the box
+# forms take no AEAD; each type seals and opens through its concept alone.
+crypto-run aead_concepts : aead_concepts_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium ;
 # The tests' hex readers: hex<N> at compile time, from_hex and to_hex at run
 # time.
 crypto-run hex : hex_test.cpp ;
@@ -626,9 +641,10 @@ crypto-run x25519_sodium : x25519_sodium_test.cpp : <library>/third_party//sodiu
 # X25519's generic layer on a stand-in engine that does not refuse an all-zero
 # shared secret: agree refuses it itself (design D8).
 crypto-run x25519_mock : x25519_mock_test.cpp ;
-# ciphers::aead's and public_key_encryption::basic_box's generic layer on a
-# stand-in engine that writes the data before it fails: a failed seal zeroes
-# it, as a failed open does. The box's X25519 key pair is the stand-in's too.
+# ciphers::aead's, secret_key_encryption::basic_secretbox's and
+# public_key_encryption::basic_box's generic layer on a stand-in engine that
+# writes the data before it fails: a failed seal zeroes it, as a failed open
+# does. The box's X25519 key pair is the stand-in's too.
 crypto-run aead_box_mock : aead_box_mock_test.cpp ;
 crypto-run x25519_wycheproof_sodium : x25519_wycheproof_sodium_test.cpp
   : <library>/third_party//sodium <library>/third_party//wycheproof
@@ -691,11 +707,13 @@ crypto-run chacha_wycheproof_sodium : chacha_wycheproof_sodium_test.cpp
 crypto-run allocation_sodium : allocation_sodium_test.cpp : <library>/third_party//sodium ;
 
 # libsodium's boxes, its default on every target: crypto_secretbox and its
-# XChaCha20 twin, libsodium's cases and every check of support/aead_checks.hpp
-# that applies to a family without additional data; public_key_encryption::box
+# XChaCha20 twin, secret_key_encryption's, libsodium's cases, its detached
+# functions called against seal and the box form secret_key_encryption::seal,
+# a failed open through both, and every check of support/aead_checks.hpp
+# through an adapter without associated data; public_key_encryption::box
 # and its XChaCha20 twin, on X25519's typed keys, NaCl's case both ways, the
 # same checks through an adapter, two parties' messages, a failed open,
-# from_keys' guards and a peer key of small order; and sealed boxes, sealed to
+# from_keys' guards, a peer key of small order and the box forms; and sealed boxes, sealed to
 # an X25519 public key, opened by their recipient's key pair alone and
 # refused, the output zeroed, otherwise.
 crypto-run secretbox_sodium : secretbox_sodium_test.cpp : <library>/third_party//sodium ;

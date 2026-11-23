@@ -16,7 +16,10 @@
  The namespace is named by the problem the construction solves, encryption to a public key, as
  `ciphers` holds the symmetric ciphers and `curves` the curve primitives: `crypto::hybrid` is
  left free for the post-quantum hybrids (X25519MLKEM768, X-Wing), which the word now names, and
- a later HPKE (RFC 9180) joins the boxes here.
+ a later HPKE (RFC 9180) joins the boxes here. A box is a
+ `secret_key_encryption::authenticated_box` (design D5, R21), whose header, which this one
+ includes, holds the free forms of every box: `secret_key_encryption::seal(box, nonce, data)` and
+ `secret_key_encryption::open(box, nonce, data, tag)`, named in full; none is declared here.
 
  @see "Boxes", in the guide.
 */
@@ -33,6 +36,7 @@
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
@@ -318,6 +322,14 @@ using box = basic_box<>;
 
 /** `crypto_box_curve25519xchacha20poly1305`, X25519-XChaCha20-Poly1305, on its default backend. */
 using box_xchacha20poly1305 = basic_box<families::box_xchacha20poly1305>;
+
+// Each box is an authenticated_box, and no AEAD (design D5's table).
+static_assert(secret_key_encryption::authenticated_box<
+              basic_box<families::box_xsalsa20poly1305, detail::concept_check_backend>>);
+static_assert(secret_key_encryption::authenticated_box<
+              basic_box<families::box_xchacha20poly1305, detail::concept_check_backend>>);
+static_assert(!secret_key_encryption::aead::cipher<
+              basic_box<families::box_xsalsa20poly1305, detail::concept_check_backend>>);
 
 }  // namespace webcpp::crypto::public_key_encryption
 

@@ -6,10 +6,12 @@
 
 /**
  `chacha20_poly1305`, `chacha20_poly1305_original` and `xchacha20_poly1305`, the
- ChaCha20-Poly1305 AEADs of `aead`, each on its family's default backend unless the type names
- another: libsodium on every target, whose header it includes when the program links it
- (`default_backend_t`). A program that uses them without linking the default stops where it
- calls them, with the Jamfile line that links it.
+ ChaCha20-Poly1305 AEADs of `aead`, each a `secret_key_encryption::aead::cipher` (design D5) on
+ its family's default backend unless the type names another: libsodium on every target, whose
+ header it includes when the program links it (`default_backend_t`). A program that uses them
+ without linking the default stops where it calls them, with the Jamfile line that links it.
+ `ciphers/aead.hpp`, which it includes, brings their free forms, `secret_key_encryption::aead::seal`
+ and `open`.
 
  @see "ChaCha20-Poly1305", in the guide.
 */
@@ -53,6 +55,16 @@ using chacha20_poly1305_original = aead<families::chacha20_poly1305_original, Ba
  */
 template <class Backend = default_backend_t<families::xchacha20_poly1305>>
 using xchacha20_poly1305 = aead<families::xchacha20_poly1305, Backend>;
+
+// Each is a one-shot AEAD, which seals no message in pieces (design D5's table).
+static_assert(
+    secret_key_encryption::aead::cipher<chacha20_poly1305<detail::concept_check_backend>>);
+static_assert(
+    secret_key_encryption::aead::cipher<chacha20_poly1305_original<detail::concept_check_backend>>);
+static_assert(
+    secret_key_encryption::aead::cipher<xchacha20_poly1305<detail::concept_check_backend>>);
+static_assert(!secret_key_encryption::aead::streaming_cipher<
+              chacha20_poly1305<detail::concept_check_backend>>);
 
 }  // namespace webcpp::crypto::ciphers
 

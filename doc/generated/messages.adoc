@@ -15,9 +15,9 @@ At compile time, checked word for word by the message tests of `test/messages` w
 
 |`+aead_not_a_family+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original, families::xchacha20_poly1305, families::secretbox_xsalsa20poly1305 or families::secretbox_xchacha20poly1305.+`
+|`+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original or families::xchacha20_poly1305.+`
 
-The fix: Name one of the three ChaCha20-Poly1305 families or the two secret boxes'; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`.
+The fix: Name one of the three ChaCha20-Poly1305 families; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`, and a secret box `+secret_key_encryption::basic_secretbox+`, as in `+secret_key_encryption::secretbox<>+`.
 
 |`+aes_block_default_not_linked+`
 |native
@@ -427,6 +427,18 @@ The fix: Give `+recover+` a `+curves::secp256k1::recoverable_signature+`, which 
 
 The fix: Call `+async_seal+` on a backend that completes by itself: its synchronous forms cannot wait for it.
 
+|`+seal_box_associated_data+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: seal: a secret box or a crypto_box takes no associated data: secret_key_encryption::seal(box, nonce, data).+`
+
+The fix: Call the box form, `+secret_key_encryption::seal(box, nonce, data)+` or the box's own `+seal(nonce, data)+`: a secret box or a crypto_box takes no associated data; authenticate it with an AEAD, as `+ciphers::xchacha20_poly1305<>+`.
+
+|`+seal_removed+`
+|native, wasip2, wasip3
+|`+no member named 'open' in namespace 'webcpp::crypto'+`
+
+The fix: Call crypto::secret_key_encryption::aead::seal and open, in <webcpp/crypto/secret_key_encryption/aead.hpp>, which every AEAD's header includes.
+
 |`+secp256k1_not_linked+`
 |native, wasip2
 |`+webcpp::crypto: <webcpp/crypto/curves/secp256k1.hpp> needs libsecp256k1, which is not linked. In the program's Jamfile, add /third_party//secp256k1 beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_SECP256K1=1 and link libsecp256k1 built with webcpp's src/canary_secp256k1.c)+`
@@ -444,6 +456,24 @@ The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp2
 |`+webcpp::crypto: a secret of no bytes holds nothing.+`
 
 The fix: Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
+
+|`+secretbox_header_removed+`
+|native, wasip2, wasip3
+|`+'webcpp/crypto/ciphers/secretbox.hpp' file not found+`
+
+The fix: Include `+<webcpp/crypto/secret_key_encryption/secretbox.hpp>+`, the secret boxes' header; `+ciphers/secretbox.hpp+` is gone, with no header left at its path.
+
+|`+secretbox_not_a_family+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: secret_key_encryption::basic_secretbox takes a secret box family: families::secretbox_xsalsa20poly1305 or families::secretbox_xchacha20poly1305.+`
+
+The fix: Name `+families::secretbox_xsalsa20poly1305+` or `+families::secretbox_xchacha20poly1305+`, or use `+secret_key_encryption::secretbox<>+` or `+secret_key_encryption::secretbox_xchacha20poly1305<>+`; an AEAD is `+ciphers::aead+`, as in `+ciphers::xchacha20_poly1305<>+`.
+
+|`+secretbox_removed+`
+|native, wasip2, wasip3
+|`+no member named 'secretbox_xchacha20poly1305' in namespace 'webcpp::crypto::ciphers'+`
+
+The fix: Name `+crypto::secret_key_encryption::secretbox+` and `+secretbox_xchacha20poly1305+`, the secret boxes' namespace; `+ciphers::secretbox+` is gone, with no alias.
 
 |`+sign_asynchronous_backend+`
 |native, wasip2, wasip3
@@ -1332,7 +1362,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+aead_not_a_family+`
 |the compile
-|Name one of the three ChaCha20-Poly1305 families or the two secret boxes'; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`.
+|Name one of the three ChaCha20-Poly1305 families; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`, and a secret box `+secret_key_encryption::basic_secretbox+`, as in `+secret_key_encryption::secretbox<>+`.
 
 |`+aes_block_default_not_linked+`
 |the compile

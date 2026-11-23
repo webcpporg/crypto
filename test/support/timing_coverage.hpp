@@ -5,8 +5,9 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // The coverage of detail::timing_guard by the families every backend shares: each public function
-// of the AES block cipher, gcm and ciphers::aead, and the free crypto::from_key, crypto::seal and
-// crypto::open that call gcm's and aead's, called once with valid input and once with input
+// of the AES block cipher, gcm and ciphers::aead, and the free crypto::from_key,
+// secret_key_encryption::aead::seal and secret_key_encryption::aead::open that call gcm's and
+// aead's, called once with valid input and once with input
 // refused before the backend is reached, must enter a guard and leave the thread's DIT as
 // it found it. Each backend's timing_coverage_<backend>_test.cpp calls these on the algorithms
 // it builds; a test includes support/timing_seam.hpp before any crypto header, then this one.
@@ -177,8 +178,8 @@ struct gcm_coverage_message {
 };
 
 /**
- * gcm's one-shot `seal` and `open`, and the free `crypto::seal` and `crypto::open` that call
- * them, an IV of no byte included.
+ * gcm's one-shot `seal` and `open`, and the free `secret_key_encryption::aead::seal` and
+ * `secret_key_encryption::aead::open` that call them, a nonce of no byte included.
  *
  * @tparam Gcm `gcm<aes128<Backend>>`, `gcm<aes192<Backend>>` or `gcm<aes256<Backend>>`.
  * @param made A keyed object, with no message in progress, as it is left.
@@ -189,27 +190,34 @@ struct gcm_coverage_message {
 template <class Gcm>
 void cover_gcm_one_shot(Gcm& made, gcm_coverage_message<Gcm>& message, std::string const& family,
                         std::string const& on) {
-    covered(family + " crypto::seal" + on, "crypto::seal", [&] {
-        auto const sealed =
-            webcpp::crypto::seal(made, message.nonce, message.associated_data, message.data);
-        if (BOOST_TEST(sealed.has_value())) {
-            message.tag = *sealed;
-        }
-    });
-    covered(family + " crypto::open" + on, "crypto::open", [&] {
-        BOOST_TEST(webcpp::crypto::open(made, message.nonce, message.associated_data, message.data,
-                                        std::span(message.tag.data(), message.tag.size()))
-                       .has_value());
-    });
-    covered(family + " crypto::seal with an empty IV" + on, "crypto::seal", [&] {
-        BOOST_TEST(webcpp::crypto::seal(made, {}, message.associated_data, message.data).error() ==
-                   webcpp::crypto::error::invalid_nonce_size);
-    });
-    covered(family + " crypto::open with an empty IV" + on, "crypto::open", [&] {
-        BOOST_TEST(webcpp::crypto::open(made, {}, message.associated_data, message.data,
-                                        std::span(message.tag.data(), message.tag.size()))
-                       .error() == webcpp::crypto::error::invalid_nonce_size);
-    });
+    covered(family + " secret_key_encryption::aead::seal" + on, "secret_key_encryption::aead::seal",
+            [&] {
+                auto const sealed = webcpp::crypto::secret_key_encryption::aead::seal(
+                    made, message.nonce, message.associated_data, message.data);
+                if (BOOST_TEST(sealed.has_value())) {
+                    message.tag = *sealed;
+                }
+            });
+    covered(family + " secret_key_encryption::aead::open" + on, "secret_key_encryption::aead::open",
+            [&] {
+                BOOST_TEST(webcpp::crypto::secret_key_encryption::aead::open(
+                               made, message.nonce, message.associated_data, message.data,
+                               std::span(message.tag.data(), message.tag.size()))
+                               .has_value());
+            });
+    covered(family + " secret_key_encryption::aead::seal with an empty nonce" + on,
+            "secret_key_encryption::aead::seal", [&] {
+                BOOST_TEST(webcpp::crypto::secret_key_encryption::aead::seal(
+                               made, {}, message.associated_data, message.data)
+                               .error() == webcpp::crypto::error::invalid_nonce_size);
+            });
+    covered(family + " secret_key_encryption::aead::open with an empty nonce" + on,
+            "secret_key_encryption::aead::open", [&] {
+                BOOST_TEST(webcpp::crypto::secret_key_encryption::aead::open(
+                               made, {}, message.associated_data, message.data,
+                               std::span(message.tag.data(), message.tag.size()))
+                               .error() == webcpp::crypto::error::invalid_nonce_size);
+            });
     covered(family + "::seal" + on, "gcm::seal", [&] {
         auto const sealed = made.seal(message.nonce, message.associated_data, message.data);
         if (BOOST_TEST(sealed.has_value())) {
@@ -720,10 +728,11 @@ void cover_async_x25519(std::string const& backend) {
 }
 
 /**
- * The free `crypto::from_key`, `crypto::seal` and `crypto::open` over a `ciphers::aead`, each
- * entering its own guard before the member's, a key and a nonce of the wrong size included.
+ * The free `crypto::from_key`, `secret_key_encryption::aead::seal` and
+ * `secret_key_encryption::aead::open` over a `ciphers::aead`, each entering its own guard before
+ * the member's, a key and a nonce of the wrong size included.
  *
- * @tparam Aead `aead<Family, Backend>`: ChaCha20-Poly1305 and its forms, or a secret box.
+ * @tparam Aead `aead<Family, Backend>`: ChaCha20-Poly1305 and its forms.
  * @param family The family's name, as the public alias spells it.
  * @param on ` on <backend>`, which ends each name.
  */
@@ -744,26 +753,33 @@ void cover_aead_free_forms(std::string const& family, std::string const& on) {
     std::array<std::uint8_t, Aead::nonce_size> const nonce{};
     std::array<std::uint8_t, 40> data{};
     typename Aead::result_type tag{};
-    covered(family + " crypto::seal" + on, "crypto::seal", [&] {
-        auto const sealed = webcpp::crypto::seal(*made, nonce, {}, data);
-        if (BOOST_TEST(sealed.has_value())) {
-            tag = *sealed;
-        }
-    });
-    covered(family + " crypto::open" + on, "crypto::open", [&] {
-        BOOST_TEST(webcpp::crypto::open(*made, nonce, {}, data, std::span(tag.data(), tag.size()))
-                       .has_value());
-    });
-    covered(family + " crypto::seal with a short nonce" + on, "crypto::seal", [&] {
-        BOOST_TEST(
-            webcpp::crypto::seal(*made, std::span(nonce).first(Aead::nonce_size - 1), {}, data)
-                .error() == webcpp::crypto::error::invalid_nonce_size);
-    });
-    covered(family + " crypto::open with a short nonce" + on, "crypto::open", [&] {
-        BOOST_TEST(webcpp::crypto::open(*made, std::span(nonce).first(Aead::nonce_size - 1), {},
-                                        data, std::span(tag.data(), tag.size()))
-                       .error() == webcpp::crypto::error::invalid_nonce_size);
-    });
+    covered(family + " secret_key_encryption::aead::seal" + on, "secret_key_encryption::aead::seal",
+            [&] {
+                auto const sealed =
+                    webcpp::crypto::secret_key_encryption::aead::seal(*made, nonce, {}, data);
+                if (BOOST_TEST(sealed.has_value())) {
+                    tag = *sealed;
+                }
+            });
+    covered(family + " secret_key_encryption::aead::open" + on, "secret_key_encryption::aead::open",
+            [&] {
+                BOOST_TEST(webcpp::crypto::secret_key_encryption::aead::open(
+                               *made, nonce, {}, data, std::span(tag.data(), tag.size()))
+                               .has_value());
+            });
+    covered(family + " secret_key_encryption::aead::seal with a short nonce" + on,
+            "secret_key_encryption::aead::seal", [&] {
+                BOOST_TEST(webcpp::crypto::secret_key_encryption::aead::seal(
+                               *made, std::span(nonce).first(Aead::nonce_size - 1), {}, data)
+                               .error() == webcpp::crypto::error::invalid_nonce_size);
+            });
+    covered(family + " secret_key_encryption::aead::open with a short nonce" + on,
+            "secret_key_encryption::aead::open", [&] {
+                BOOST_TEST(webcpp::crypto::secret_key_encryption::aead::open(
+                               *made, std::span(nonce).first(Aead::nonce_size - 1), {}, data,
+                               std::span(tag.data(), tag.size()))
+                               .error() == webcpp::crypto::error::invalid_nonce_size);
+            });
 }
 
 /**
@@ -771,7 +787,7 @@ void cover_aead_free_forms(std::string const& family, std::string const& on) {
  * `open`, a nonce of the wrong size included, and the free forms that call them
  * (`cover_aead_free_forms`).
  *
- * @tparam Aead `aead<Family, Backend>`: ChaCha20-Poly1305 and its forms, or a secret box.
+ * @tparam Aead `aead<Family, Backend>`: ChaCha20-Poly1305 and its forms.
  * @param family The family's name, as the public alias spells it.
  * @param backend The backend's name.
  */

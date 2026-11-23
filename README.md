@@ -8,8 +8,10 @@ MSVC), wasip2, wasip3 and Emscripten.
   generator, `constant_time_equal` for tags and MACs, `erase_secret`, which zeroes a buffer of
   the program's with stores the optimiser keeps, and `error`, every failure's value.
 - `webcpp::crypto::ciphers`: AES-GCM (`gcm`, `aes128_gcm`, `aes256_gcm`) with keys of 16, 24 and
-  32 bytes, the AES block cipher (`aes128`, `aes192`, `aes256`), the ChaCha20-Poly1305 AEADs, and
-  NaCl's and libsodium's secret boxes (`secretbox`, `secretbox_xchacha20poly1305`).
+  32 bytes, the AES block cipher (`aes128`, `aes192`, `aes256`) and the ChaCha20-Poly1305 AEADs.
+- `webcpp::crypto::secret_key_encryption`: NaCl's and libsodium's secret boxes (`secretbox`,
+  `secretbox_xchacha20poly1305`), and the AEAD contract, `aead::cipher` and the free
+  `aead::seal` and `aead::open` of every AEAD.
 - `webcpp::crypto::curves::secp256k1`: BIP 340 Schnorr and ECDSA signatures, their verification,
   ECDH, ECDSA's strict DER and low-S forms, and the x-only tweak.
 - `webcpp::crypto::curves::ed25519`: Ed25519 signatures (RFC 8032) with strict verification, the

@@ -56,10 +56,16 @@ struct chacha20_poly1305_original;
 /** The family XChaCha20-Poly1305, of `ciphers`, also the tag of its one algorithm. */
 struct xchacha20_poly1305;
 
-/** The family XSalsa20-Poly1305 secret box, of `ciphers`, also the tag of its one algorithm. */
+/**
+ * The family XSalsa20-Poly1305 secret box, of `secret_key_encryption`, also the tag of its one
+ * algorithm.
+ */
 struct secretbox_xsalsa20poly1305;
 
-/** The family XChaCha20-Poly1305 secret box, of `ciphers`, also the tag of its one algorithm. */
+/**
+ * The family XChaCha20-Poly1305 secret box, of `secret_key_encryption`, also the tag of its one
+ * algorithm.
+ */
 struct secretbox_xchacha20poly1305;
 
 /**

@@ -11,12 +11,12 @@
 // recipient reads, the sizes on the wire, and the refusals of a changed upload and of another
 // key pair.
 // tag::program[]
-#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
 #include <webcpp/crypto/random_device.hpp>
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 
 #include <array>
 #include <cstddef>
@@ -27,8 +27,8 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
-using crypto::ciphers::secretbox;
 using crypto::public_key_encryption::sealed_box;
+using crypto::secret_key_encryption::secretbox;
 
 namespace {
 
@@ -55,7 +55,7 @@ bool share(crypto::random_device& device,
         return false;
     }
     out.file.assign(contents.begin(), contents.end());
-    auto const tag = box->seal(out.nonce, {}, out.file);
+    auto const tag = box->seal(out.nonce, out.file);
     if (!tag) {
         return false;
     }
@@ -79,7 +79,7 @@ void receive(char const* who, crypto::curves::x25519::keypair const& key_pair, u
     if (!box) {
         return;
     }
-    auto const opened = box->open(received.nonce, {}, received.file, received.tag);
+    auto const opened = box->open(received.nonce, received.file, received.tag);
     if (!opened) {
         std::string const reason = opened.error().message();
         std::printf("%s: the file refused: %s\n", who, reason.c_str());

@@ -187,9 +187,9 @@ inline constexpr std::array<aead_case, 3> xchacha20_poly1305_cases{
  * checks take such an adapter, so that an object of another shape runs those that apply to it:
  * `Calls` gives the object's type `object`, its sizes, `from_key(key)`, `seal(object&, nonce,
  * associated_data, data)` and `open(object&, nonce, associated_data, data, tag)`, and says whether
- * the object takes additional data (`has_additional_data`), whether it is made of one key of
- * `key_size` bytes (`one_key`, whose sizes the guards check) and whether its calls take
- * additional data at all (`takes_additional_data`, false for one whose calls have none).
+ * the object takes additional data (`has_additional_data`, false for a box, whose calls have
+ * none: the checks pass none) and whether it is made of one key of `key_size` bytes (`one_key`,
+ * whose sizes the guards check).
  *
  * @tparam Aead A `ciphers::aead`.
  */
@@ -203,10 +203,8 @@ struct aead_calls {
     static constexpr std::size_t nonce_size = Aead::nonce_size;
     /** The tag's size. */
     static constexpr std::size_t tag_size = Aead::tag_size;
-    /** Whether a message carries additional data: not for a family whose limit is 0. */
-    static constexpr bool has_additional_data = Aead::max_associated_data_size != 0;
-    /** The calls take additional data, which a family whose limit is 0 refuses unless empty. */
-    static constexpr bool takes_additional_data = true;
+    /** A message carries additional data. */
+    static constexpr bool has_additional_data = true;
     /** Made of one key of `key_size` bytes. */
     static constexpr bool one_key = true;
 
@@ -299,30 +297,9 @@ void check_aead_iv_and_tag_sizes(typename Calls::object& made, std::span<std::ui
 }
 
 /**
- * A family that takes no additional data refuses a non-empty one with invalid_input_size,
- * after the IV and the tag.
- */
-template <class Calls>
-void check_aead_no_additional_data(typename Calls::object& made, std::span<std::uint8_t> data) {
-    std::vector<std::uint8_t> const nonce(Calls::nonce_size, 9);
-    std::array<std::uint8_t, Calls::tag_size> const tag{};
-    std::array<std::uint8_t, 1> const associated_data{5};
-    BOOST_TEST(Calls::seal(made, nonce, associated_data, data).error() ==
-               crypto::error::invalid_input_size);
-    BOOST_TEST(Calls::open(made, nonce, associated_data, data, tag).error() ==
-               crypto::error::invalid_input_size);
-    BOOST_TEST(Calls::seal(made, {}, associated_data, data).error() ==
-               crypto::error::invalid_nonce_size);
-    BOOST_TEST(Calls::open(made, nonce, associated_data, data, std::span(tag).first(1)).error() ==
-               crypto::error::invalid_tag_size);
-}
-
-/**
  * Every guard but the length's, in its order: the key's size, for an object of one key; the
- * state before the IV, the tag and, for a family that takes no additional data, a non-empty
- * one; the IV's size before the tag's; for such a family, a non-empty additional data refused
- * with invalid_input_size, after the IV and the tag.
- * Each refusal leaves the data untouched.
+ * state before the IV and the tag; the IV's size before the tag's. Each refusal leaves the data
+ * untouched.
  */
 template <class Calls>
 void check_aead_guards() {
@@ -337,22 +314,11 @@ void check_aead_guards() {
     data.fill(0x33);
     auto const untouched = data;
     check_aead_iv_and_tag_sizes<Calls>(*made, data);
-    if constexpr (Calls::takes_additional_data && !Calls::has_additional_data) {
-        check_aead_no_additional_data<Calls>(*made, data);
-    }
     BOOST_TEST(data == untouched);
     // The state is checked before the IV and the tag.
     typename Calls::object const moved = std::move(*made);
     BOOST_TEST(Calls::seal(*made, {}, {}, data).error() == crypto::error::invalid_state);
     BOOST_TEST(Calls::open(*made, {}, {}, data, {}).error() == crypto::error::invalid_state);
-    if constexpr (Calls::takes_additional_data && !Calls::has_additional_data) {
-        // And before the additional data a family that takes none refuses.
-        std::array<std::uint8_t, 1> const associated_data{5};
-        BOOST_TEST(Calls::seal(*made, {}, associated_data, data).error() ==
-                   crypto::error::invalid_state);
-        BOOST_TEST(Calls::open(*made, {}, associated_data, data, {}).error() ==
-                   crypto::error::invalid_state);
-    }
     BOOST_TEST(data == untouched);
 }
 

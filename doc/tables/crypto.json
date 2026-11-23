@@ -17,6 +17,7 @@
         "openssl-armv8": ["OpenSSL's AES assembly for ARMv8 and x86-64", "https://github.com/openssl/openssl/tree/master/crypto/aes/asm"],
         "openssl-ghash-asm": ["OpenSSL's GHASH and AES-GCM assembly", "https://github.com/openssl/openssl/tree/master/crypto/modes/asm"],
         "webcrypto": ["W3C Web Cryptography API", "https://www.w3.org/TR/WebCryptoAPI/"],
+        "rfc5116": ["RFC 5116, An Interface and Algorithms for Authenticated Encryption", "https://www.rfc-editor.org/rfc/rfc5116"],
         "chromium-aes192": ["Chromium's WebCrypto refuses 192-bit AES keys", "https://chromium.googlesource.com/chromium/src/+/refs/heads/main/components/webcrypto/status.cc"],
         "joux": ["A. Joux, Authentication Failures in NIST version of GCM, 2006", "https://csrc.nist.gov/csrc/media/projects/block-cipher-techniques/documents/bcm/comments/800-38-series-drafts/gcm/joux_comments.pdf"],
         "nonce-reuse": ["H. Boeck et al., Nonce-Disrespecting Adversaries, 2016", "https://eprint.iacr.org/2016/475"],
@@ -611,25 +612,25 @@
             "id": "secretbox",
             "family": "secretbox_xsalsa20poly1305",
             "functions": ["from_key", "seal", "open"],
-            "namespace": "ciphers",
-            "api": "ciphers::secretbox",
-            "header": "<webcpp/crypto/ciphers/secretbox.hpp>, <webcpp/crypto/ciphers/aead.hpp>",
-            "what": "NaCl's and libsodium's `crypto_secretbox`, XSalsa20-Poly1305: authenticated encryption in place under a 32-byte key, with a 24-byte nonce safe to draw at random and no associated data.",
+            "namespace": "secret_key_encryption",
+            "api": "secret_key_encryption::secretbox",
+            "header": "<webcpp/crypto/secret_key_encryption/secretbox.hpp>, <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>",
+            "what": "NaCl's and libsodium's `crypto_secretbox`, XSalsa20-Poly1305: authenticated encryption in place under a 32-byte key, with a 24-byte nonce safe to draw at random and no associated data, an `authenticated_box` whose free forms are `secret_key_encryption::seal` and `open`.",
             "section": "crypto-secretbox",
             "default": "`secretbox<>` names the default backend.",
-            "backends": {"sodium": {"tests": ["secretbox_sodium", "box_sodium", "allocation_sodium"]}}
+            "backends": {"sodium": {"tests": ["secretbox_sodium", "box_sodium", "allocation_sodium", "aead_concepts"]}}
         },
         {
             "id": "secretbox_xchacha20poly1305",
             "family": "secretbox_xchacha20poly1305",
             "functions": ["from_key", "seal", "open"],
-            "namespace": "ciphers",
-            "api": "ciphers::secretbox_xchacha20poly1305",
-            "header": "<webcpp/crypto/ciphers/secretbox.hpp>, <webcpp/crypto/ciphers/aead.hpp>",
+            "namespace": "secret_key_encryption",
+            "api": "secret_key_encryption::secretbox_xchacha20poly1305",
+            "header": "<webcpp/crypto/secret_key_encryption/secretbox.hpp>, <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>",
             "what": "libsodium's `crypto_secretbox_xchacha20poly1305`: the secret box with XChaCha20 in place of XSalsa20.",
             "section": "crypto-secretbox",
             "default": "`secretbox_xchacha20poly1305<>` names the default backend.",
-            "backends": {"sodium": {"tests": ["secretbox_sodium", "box_sodium", "allocation_sodium"]}}
+            "backends": {"sodium": {"tests": ["secretbox_sodium", "box_sodium", "allocation_sodium", "aead_concepts"]}}
         },
         {
             "id": "box",
@@ -1020,12 +1021,12 @@
         {
             "name": "secretbox_xsalsa20poly1305",
             "title": "XSalsa20-Poly1305 secret box",
-            "group": "ciphers",
+            "group": "secret_key_encryption",
             "since": "0.2",
             "measured": "seal of 16 KiB, 256-bit key",
-            "header": "<webcpp/crypto/ciphers/secretbox.hpp>",
+            "header": "<webcpp/crypto/secret_key_encryption/secretbox.hpp>",
             "names": [
-                {"name": "secretbox_xsalsa20poly1305", "title": "XSalsa20-Poly1305 secret box", "type": "ciphers::secretbox<{backend}>"}
+                {"name": "secretbox_xsalsa20poly1305", "title": "XSalsa20-Poly1305 secret box", "type": "secret_key_encryption::secretbox<{backend}>"}
             ],
             "default": [
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["secretbox_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, NaCl's `crypto_secretbox`, the same on every target ({libsodium-secretbox})"}
@@ -1037,12 +1038,12 @@
         {
             "name": "secretbox_xchacha20poly1305",
             "title": "XChaCha20-Poly1305 secret box",
-            "group": "ciphers",
+            "group": "secret_key_encryption",
             "since": "0.2",
             "measured": "seal of 16 KiB, 256-bit key",
-            "header": "<webcpp/crypto/ciphers/secretbox.hpp>",
+            "header": "<webcpp/crypto/secret_key_encryption/secretbox.hpp>",
             "names": [
-                {"name": "secretbox_xchacha20poly1305", "title": "XChaCha20-Poly1305 secret box", "type": "ciphers::secretbox_xchacha20poly1305<{backend}>"}
+                {"name": "secretbox_xchacha20poly1305", "title": "XChaCha20-Poly1305 secret box", "type": "secret_key_encryption::secretbox_xchacha20poly1305<{backend}>"}
             ],
             "default": [
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["secretbox_sodium", "default_backend_none_linked"], "why": "the only backend that has it: libsodium's own C code, the same on every target ({libsodium-secretbox})"}
@@ -1221,17 +1222,28 @@
             "cited": ["Nonce misuse", "Constant time, by design", "Standards", "Where it is used", "Browsers' WebCrypto"],
             "parts": [
                 {"title": "AES", "rows": [0, 1]},
-                {"title": "ChaCha20-Poly1305", "rows": [2, 3, 4]},
-                {"title": "Secret boxes", "rows": [5, 6]}
+                {"title": "ChaCha20-Poly1305", "rows": [2, 3, 4]}
             ],
             "rows": [
                 ["`gcm`, `aes128_gcm`, `aes256_gcm`: AES-GCM", "yes", "16, 24 or 32 bytes", "1 to 128 bytes; 12 recommended", "not resistant: a repeated nonce under one key reveals the plaintexts' XOR and lets tags be forged ({joux}, {nonce-reuse})", "{speed:gcm}", "BearSSL and OpenSSL with assembly: yes ({bearssl-ct}; {openssl-armv8}); OpenSSL no-asm (MSVC, wasip2, wasip3): no ({openssl-install})", "{constant_time:gcm}", "{sp800-38d}", "TLS 1.3 ({rfc8446}), SSH ({rfc5647}), IPsec ({rfc4106}), SRTP ({rfc7714}), optional for WebRTC's media ({rfc8827})", "yes, with 16- or 32-byte keys ({webcrypto}; {chromium-aes192})", "a protocol, a browser's WebCrypto or a standard names AES-GCM, or the CPU has AES instructions; at most 2^32 messages per key with random nonces, otherwise a counter"],
                 ["`aes128`, `aes192`, `aes256`: AES block cipher", "no", "16, 24 or 32 bytes", "none", "none: a block cipher takes no nonce, and equal blocks give equal ciphertext", "{speed:aes_block}", "ctaes: yes ({ctaes}); OpenSSL with assembly: yes ({openssl-armv8}); OpenSSL no-asm: no ({openssl-aes-core})", "{constant_time:aes_block}", "{fips197}", "none on its own: every AES mode is built on it", "no raw block cipher ({webcrypto})", "you need one keyed permutation of a 16-byte block, such as an opaque identifier; for data, use an AEAD"],
                 ["`chacha20_poly1305`: ChaCha20-Poly1305", "yes", "32 bytes", "12 bytes", "not resistant: a repeated nonce under one key reveals the plaintexts' XOR and lets tags be forged ({rfc8439-nonce})", "{speed:chacha20_poly1305}", "libsodium, BearSSL and OpenSSL: yes, additions, XORs and rotations with no table indexed by a secret ({rfc8439-chacha}; {libsodium-aead-timing})", "{constant_time:chacha20_poly1305}", "{rfc8439}", "TLS 1.3 ({rfc8446}), WireGuard ({wireguard})", "no: WebCrypto offers AES-GCM, not ChaCha20-Poly1305 ({webcrypto})", "a protocol names RFC 8439's AEAD (TLS 1.3, WireGuard), or the program runs without AES hardware and numbers its nonces with a counter; to draw nonces at random, XChaCha20-Poly1305"],
                 ["`chacha20_poly1305_original`: ChaCha20-Poly1305, original", "yes", "32 bytes", "8 bytes, too short to draw at random: a counter", "not resistant ({libsodium-aead})", "{speed:chacha20_poly1305_original}", "libsodium: yes ({libsodium-aead-timing})", "{constant_time:chacha20_poly1305_original}", "none: libsodium's original construction ({libsodium-aead})", "none in new protocols: the format of libsodium's `crypto_aead_chacha20poly1305` ({libsodium-aead})", "no ({webcrypto})", "the peer writes libsodium's original construction; otherwise RFC 8439's form or XChaCha20-Poly1305"],
-                ["`xchacha20_poly1305`: XChaCha20-Poly1305", "yes", "32 bytes", "24 bytes, safe to draw at random for every message", "not resistant to a repeated nonce, but 24 random bytes never repeat in practice ({xchacha-draft})", "{speed:xchacha20_poly1305}", "libsodium: yes ({libsodium-aead-timing})", "{constant_time:xchacha20_poly1305}", "{xchacha-draft}", "libsodium's secretstream ({libsodium-secretstream})", "no ({webcrypto})", "you encrypt many messages under one key and want to draw each nonce at random: a chat app, records in a database, on the web and natively alike; when in doubt, this one"],
-                ["`secretbox`: XSalsa20-Poly1305 (NaCl's secret box)", "yes, without associated data", "32 bytes", "24 bytes, safe to draw at random", "not resistant to a repeated nonce; random ones never repeat in practice ({xsalsa20})", "{speed:secretbox_xsalsa20poly1305}", "libsodium: yes, additions, XORs and rotations with no table lookup ({salsa20-design})", "{constant_time:secretbox_xsalsa20poly1305}", "none: NaCl's construction ({nacl-secretbox})", "programs that read or write NaCl's and libsodium's `crypto_secretbox` ({libsodium-secretbox})", "no ({webcrypto})", "the data must be read by a program on NaCl's or libsodium's `crypto_secretbox`; otherwise XChaCha20-Poly1305, which also authenticates associated data"],
-                ["`secretbox_xchacha20poly1305`: XChaCha20-Poly1305 secret box", "yes, without associated data", "32 bytes", "24 bytes, safe to draw at random", "not resistant to a repeated nonce; random ones never repeat in practice ({xchacha-draft})", "{speed:secretbox_xchacha20poly1305}", "libsodium: yes ({libsodium-aead-timing})", "{constant_time:secretbox_xchacha20poly1305}", "none: libsodium's construction ({libsodium-secretbox})", "programs on libsodium's `crypto_secretbox_xchacha20poly1305` ({libsodium-secretbox})", "no ({webcrypto})", "the peer writes libsodium's `crypto_secretbox_xchacha20poly1305`; otherwise `xchacha20_poly1305`"]
+                ["`xchacha20_poly1305`: XChaCha20-Poly1305", "yes", "32 bytes", "24 bytes, safe to draw at random for every message", "not resistant to a repeated nonce, but 24 random bytes never repeat in practice ({xchacha-draft})", "{speed:xchacha20_poly1305}", "libsodium: yes ({libsodium-aead-timing})", "{constant_time:xchacha20_poly1305}", "{xchacha-draft}", "libsodium's secretstream ({libsodium-secretstream})", "no ({webcrypto})", "you encrypt many messages under one key and want to draw each nonce at random: a chat app, records in a database, on the web and natively alike; when in doubt, this one"]
+            ]
+        },
+        "secret_key_encryption": {
+            "title": "webcpp::crypto::secret_key_encryption",
+            "columns": ["Algorithm", "AEAD", "Key", "Nonce", "Nonce misuse", "Speed, with and without hardware support", "Constant time, by design", "Constant time, measured", "Standards", "Where it is used", "Browsers' WebCrypto", "Choose it when"],
+            "cited": ["Nonce misuse", "Constant time, by design", "Standards", "Where it is used", "Browsers' WebCrypto"],
+            "parts": [
+                {"title": "Secret boxes", "rows": [0, 1]},
+                {"title": "The AEAD contract", "rows": [2]}
+            ],
+            "rows": [
+                ["`secretbox`: XSalsa20-Poly1305 (NaCl's secret box)", "no: authenticated encryption without associated data, an `authenticated_box`", "32 bytes", "24 bytes, safe to draw at random", "not resistant to a repeated nonce; random ones never repeat in practice ({xsalsa20})", "{speed:secretbox_xsalsa20poly1305}", "libsodium: yes, additions, XORs and rotations with no table lookup ({salsa20-design})", "{constant_time:secretbox_xsalsa20poly1305}", "none: NaCl's construction ({nacl-secretbox})", "programs that read or write NaCl's and libsodium's `crypto_secretbox` ({libsodium-secretbox})", "no ({webcrypto})", "the data must be read by a program on NaCl's or libsodium's `crypto_secretbox`; otherwise `ciphers::xchacha20_poly1305`, which also authenticates associated data"],
+                ["`secretbox_xchacha20poly1305`: XChaCha20-Poly1305 secret box", "no: authenticated encryption without associated data, an `authenticated_box`", "32 bytes", "24 bytes, safe to draw at random", "not resistant to a repeated nonce; random ones never repeat in practice ({xchacha-draft})", "{speed:secretbox_xchacha20poly1305}", "libsodium: yes ({libsodium-aead-timing})", "{constant_time:secretbox_xchacha20poly1305}", "none: libsodium's construction ({libsodium-secretbox})", "programs on libsodium's `crypto_secretbox_xchacha20poly1305` ({libsodium-secretbox})", "no ({webcrypto})", "the peer writes libsodium's `crypto_secretbox_xchacha20poly1305`; otherwise `ciphers::xchacha20_poly1305`"],
+                ["`aead`, `aead::cipher`, `aead::streaming_cipher`, `aead::seal`, `aead::open`: The AEAD contract", "the contract every AEAD of `ciphers` satisfies: `cipher` checks a one-shot AEAD's members, `streaming_cipher` the incremental ones of AES-GCM, and `aead::seal` and `aead::open` are their free forms", "the cipher's", "the cipher's", "none: a contract, not an algorithm; each cipher's row in `ciphers` says its own", "none: the free forms call the cipher's members", "none: the cipher's own", "none: the cipher's own", "the interface of {rfc5116}: a key, a nonce, associated data and a message", "none: a contract of types; each cipher's row says where it is used", "none: WebCrypto names algorithms, not a contract ({webcrypto})", "code written once for every AEAD, or a cipher chosen by a template argument; a secret box takes no associated data and is an `authenticated_box`, sealed by `secret_key_encryption::seal`"]
             ]
         },
         "curves": {
@@ -1296,10 +1308,10 @@
         {"need": "Give a client and a server a key for each direction from each other's public key, as libsodium's `crypto_kx` does", "namespace": "webcpp::crypto::key_exchange", "api": "`kx_keypair::from_keypair`, `kx_keypair::derive_from_seed`, `kx_keypair::generate`, `client_session_keys`, `server_session_keys`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//kx-default", "example": "kx_session", "section": "crypto-kx"},
         {"need": "Export or import an Ed25519 or X25519 key in the standard forms OpenSSL and WebCrypto use: SPKI and PKCS#8 (RFC 8410), as DER or PEM text", "namespace": "webcpp::crypto::curves", "api": "`ed25519::encode_spki`, `decode_spki`, `encode_pkcs8`, `decode_pkcs8`, the same in `x25519`; `webcpp::crypto::pem::armour`, `unarmour`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default /webcpp/crypto//x25519-default /webcpp/crypto//pem-default", "example": "key_formats", "section": "crypto-key-formats"},
         {"need": "Encrypt messages in a chat app, on the web and natively, each with a random nonce", "namespace": "webcpp::crypto::ciphers", "api": "`xchacha20_poly1305<>`: `from_key`, `seal`, `open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//xchacha20_poly1305-default", "example": "xchacha_seal", "section": "crypto-chacha"},
-        {"need": "Encrypt a record or a file under one secret key, each with a random nonce, in libsodium's secret-box format", "namespace": "webcpp::crypto::ciphers", "api": "`secretbox<>`, `secretbox_xchacha20poly1305<>`: `from_key`, `seal`, `open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default", "example": "file_share", "section": "crypto-secretbox"},
+        {"need": "Encrypt a record or a file under one secret key, each with a random nonce, in libsodium's secret-box format", "namespace": "webcpp::crypto::secret_key_encryption", "api": "`secretbox<>`, `secretbox_xchacha20poly1305<>`: `from_key`, `seal(nonce, data)`, `open(nonce, data, tag)`; the box forms `seal(box, nonce, data)`, `open(box, nonce, data, tag)`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default", "example": "file_share", "section": "crypto-secretbox"},
         {"need": "Send messages between two people who know each other's public keys, as NaCl's and libsodium's crypto_box", "namespace": "webcpp::crypto::public_key_encryption", "api": "`box::from_keys`, `box::seal`, `box::open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//box_xsalsa20poly1305-default", "example": "box_messages", "section": "crypto-box"},
         {"need": "Let anyone send a message that only the recipient can read, without saying who sent it (anonymous feedback, a drop box)", "namespace": "webcpp::crypto::public_key_encryption", "api": "`sealed_box::seal`, `sealed_box::open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//sealed_box-default", "example": "file_share", "section": "crypto-sealed-box"},
-        {"need": "Share a file with someone known only by a public key, as a file-sharing app does", "namespace": "webcpp::crypto", "api": "`ciphers::secretbox<>` for the file under a key drawn for it, `public_key_encryption::sealed_box::seal` for that key", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default /webcpp/crypto//sealed_box-default /webcpp/crypto//x25519-default", "example": "file_share", "section": "crypto-everyday-files"},
+        {"need": "Share a file with someone known only by a public key, as a file-sharing app does", "namespace": "webcpp::crypto", "api": "`secret_key_encryption::secretbox<>` for the file under a key drawn for it, `public_key_encryption::sealed_box::seal` for that key", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default /webcpp/crypto//sealed_box-default /webcpp/crypto//x25519-default", "example": "file_share", "section": "crypto-everyday-files"},
         {"need": "Make and keep a P-256 key pair, and import a browser's public key (WebCrypto's raw form), as webcpp::trystero's peers do", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::from_secret`, `keypair::generate`, `keypair::public_key`, `keypair::secret`, `public_key::from_bytes`", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_keys", "section": "crypto-p256-keys"},
         {"need": "Sign what a browser's WebCrypto verifies and verify what it signs (ECDSA on P-256 with SHA-256), low S where a protocol requires it, as webcpp::trystero's handshakes", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::sign(crypto::ecdsa_sha256, message)`, `crypto::verify`, `is_low_s`, `normalize_low_s`; `to_der`, `from_der` for X.509", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_sign", "section": "crypto-p256-ecdsa"},
         {"need": "Agree on a key with a browser's WebCrypto (ECDH on P-256, deriveBits), then derive the session's keys with HKDF, as Trystero 0.27.0's pairwise keys are derived", "namespace": "webcpp::crypto::curves::p256", "api": "`keypair::agree`; `webcpp::hash::hkdf` for the keys", "backend": "BearSSL", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//p256-default", "example": "p256_ecdh", "section": "crypto-p256-ecdh"},
@@ -1392,7 +1404,8 @@
         "chacha_on_ctaes": "Name a backend that has ChaCha20-Poly1305, as in `chacha20_poly1305<backends::bearssl>`, or its default, `chacha20_poly1305<>`, and link its library.",
         "x25519_constructions_other_backend": "Name a backend that has X25519 as well, as libsodium, the default of crypto_kx, the boxes and the sealed box on every target: each takes an X25519 key pair of its own backend.",
         "box_not_a_family": "Name `families::box_xsalsa20poly1305` or `families::box_xchacha20poly1305`, or use `public_key_encryption::box` or `public_key_encryption::box_xchacha20poly1305`.",
-        "aead_not_a_family": "Name one of the three ChaCha20-Poly1305 families or the two secret boxes'; AES-GCM is `ciphers::gcm`, as in `aes256_gcm`.",
+        "aead_not_a_family": "Name one of the three ChaCha20-Poly1305 families; AES-GCM is `ciphers::gcm`, as in `aes256_gcm`, and a secret box `secret_key_encryption::basic_secretbox`, as in `secret_key_encryption::secretbox<>`.",
+        "secretbox_not_a_family": "Name `families::secretbox_xsalsa20poly1305` or `families::secretbox_xchacha20poly1305`, or use `secret_key_encryption::secretbox<>` or `secret_key_encryption::secretbox_xchacha20poly1305<>`; an AEAD is `ciphers::aead`, as in `ciphers::xchacha20_poly1305<>`.",
         "sodium_not_linked_on_emscripten": "Add `/third_party//sodium` to the program's sources.",
         "canary_sodium_other_commit": "Build the library at the commit of webcpp's submodule, or link it through b2.",
         "secp256k1_not_linked": "Add `/third_party//secp256k1`.",
@@ -1516,6 +1529,10 @@
         "equal_header_removed": "Include `<webcpp/crypto/constant_time_equal.hpp>`, the header of `constant_time_equal`; `equal.hpp` is gone, with no header left at its path.",
         "equal_removed": "Call `crypto::constant_time_equal`, the same comparison of two spans or two digests in constant time; `crypto::equal` is gone, with no alias.",
         "iv_size_removed": "Name nonce_size, max_nonce_size and error::invalid_nonce_size: crypto spells its names out.",
+        "seal_box_associated_data": "Call the box form, `secret_key_encryption::seal(box, nonce, data)` or the box's own `seal(nonce, data)`: a secret box or a crypto_box takes no associated data; authenticate it with an AEAD, as `ciphers::xchacha20_poly1305<>`.",
+        "seal_removed": "Call crypto::secret_key_encryption::aead::seal and open, in <webcpp/crypto/secret_key_encryption/aead.hpp>, which every AEAD's header includes.",
+        "secretbox_header_removed": "Include `<webcpp/crypto/secret_key_encryption/secretbox.hpp>`, the secret boxes' header; `ciphers/secretbox.hpp` is gone, with no header left at its path.",
+        "secretbox_removed": "Name `crypto::secret_key_encryption::secretbox` and `secretbox_xchacha20poly1305`, the secret boxes' namespace; `ciphers::secretbox` is gone, with no alias.",
         "erase_secret_const_range": "Erase the buffer the secret was written to, through a non-const reference to it (`std::string&`, `std::span<std::byte>`): a const view cannot be erased. Its elements must be trivially copyable, bytes or integers; a range of `std::string` or of another type with its own storage cannot be erased as bytes, so erase each element's buffer instead.",
         "chacha_default_not_linked_on_emscripten": "As `chacha_default_not_linked`.",
         "box_default_not_linked_on_emscripten": "As `box_default_not_linked`.",

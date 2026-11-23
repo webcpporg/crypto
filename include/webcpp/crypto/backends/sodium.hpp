@@ -289,21 +289,21 @@ template <class Decrypt>
 /** A secret box's state on libsodium: the key, in the object, since libsodium takes it per call. */
 template <class Family>
     requires requires { sodium_secretbox_calls<Family>::encrypt_call; }
-struct aead_state<Family, backends::sodium> {
+struct secretbox_state<Family, backends::sodium> {
     /** The key. */
     std::array<unsigned char, 32> key{};
 };
 
 /**
- * A secret box on libsodium, `crypto_secretbox` and its XChaCha20 twin, as an `aead` without
- * associated data (`aead` has refused a non-empty one). libsodium's detached decryption checks
- * the tag before it writes a byte; `aead` zeroes the data when it does not match.
+ * A secret box on libsodium, `crypto_secretbox` and its XChaCha20 twin, without associated data.
+ * libsodium's detached decryption checks the tag before it writes a byte; `basic_secretbox`
+ * zeroes the data when it does not match.
  */
 template <class Family>
     requires requires { sodium_secretbox_calls<Family>::encrypt_call; }
-struct aead_engine<Family, backends::sodium> {
+struct secretbox_engine<Family, backends::sodium> {
     /** The state. */
-    using state = aead_state<Family, backends::sodium>;
+    using state = secretbox_state<Family, backends::sodium>;
     /** libsodium's functions of the family. */
     using calls = sodium_secretbox_calls<Family>;
 
@@ -328,13 +328,12 @@ struct aead_engine<Family, backends::sodium> {
      * @return Nothing; `backend_failure` when libsodium fails.
      */
     [[nodiscard]] static boost::system::result<void> seal(
-        state& engine_state, std::span<std::uint8_t const> nonce_bytes,
-        std::span<std::uint8_t const> /*associated_data*/, std::span<std::uint8_t> data_bytes,
-        boost::hash2::digest<16>& tag_bytes) noexcept {
+        state& engine_state, std::span<std::uint8_t const, 24> nonce_bytes,
+        std::span<std::uint8_t> data_bytes, boost::hash2::digest<16>& tag_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
         return sodium_secretbox_seal(calls::encrypt_call,
                                      std::span<unsigned char const, 32>(engine_state.key),
-                                     nonce_bytes.first<24>(), data_bytes, tag_bytes);
+                                     nonce_bytes, data_bytes, tag_bytes);
     }
 
     /**
@@ -343,13 +342,13 @@ struct aead_engine<Family, backends::sodium> {
      * @return Nothing; `authentication_failed` when the tag does not match.
      */
     [[nodiscard]] static boost::system::result<void> open(
-        state& engine_state, std::span<std::uint8_t const> nonce_bytes,
-        std::span<std::uint8_t const> /*associated_data*/, std::span<std::uint8_t> data_bytes,
+        state& engine_state, std::span<std::uint8_t const, 24> nonce_bytes,
+        std::span<std::uint8_t> data_bytes,
         std::array<std::uint8_t, 16> const& tag_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
         return sodium_secretbox_open(calls::decrypt_call,
                                      std::span<unsigned char const, 32>(engine_state.key),
-                                     nonce_bytes.first<24>(), data_bytes, tag_bytes);
+                                     nonce_bytes, data_bytes, tag_bytes);
     }
 
     /** Moves the key; the source is wiped. */

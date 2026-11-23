@@ -50,9 +50,9 @@ include::aead.adoc[]
 
 include::chacha.adoc[]
 
-include::secretbox.adoc[]
-
 include::block.adoc[]
+
+include::secret_key_encryption.adoc[]
 
 include::curves.adoc[]
 
@@ -90,10 +90,11 @@ include::testing.adoc[]
 == Reference
 
 Every name crypto declares, in the namespaces `webcpp::crypto`, `backends`,
-`ciphers`, `curves`, `public_key_encryption` and `key_exchange`, from the Doc
-Comments of its headers: each class, function, type and enumerator with its
-declaration, what it does, what it asks of its caller and how it fails. The
-other sections teach the library; this one is where a name is looked up.
+`ciphers`, `secret_key_encryption`, `curves`, `public_key_encryption` and
+`key_exchange`, from the Doc Comments of its headers: each class, function,
+type and enumerator with its declaration, what it does, what it asks of its
+caller and how it fails. The other sections teach the library; this one is
+where a name is looked up.
 
 include::{reference}[leveloffset=+1]
 

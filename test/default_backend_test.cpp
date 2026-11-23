@@ -138,7 +138,7 @@ static_assert(
     !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_BOX_XSALSA20POLY1305_SODIUM) ||        \
     !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_BOX_XCHACHA20POLY1305_SODIUM) ||       \
     !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_SEALED_BOX_SODIUM)
-#error "secretbox.hpp, box.hpp and sealed_box.hpp are not told to include libsodium's header"
+#error "secret_key_encryption/secretbox.hpp and the boxes are not told to include sodium.hpp"
 #endif
 
 // P-256: BearSSL, the one backend of the P-curves, on every target.

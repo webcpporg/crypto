@@ -5,14 +5,15 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 /**
- `aead<Family, Backend>`, one-shot authenticated encryption in place, and the families it
- takes: ChaCha20-Poly1305, its original form and XChaCha20-Poly1305, and libsodium's
- `crypto_secretbox`, XSalsa20-Poly1305 and XChaCha20-Poly1305 without associated data; and the
- free synchronous forms of every AEAD's members, AES-GCM's included (design D9, R23),
- `crypto::seal(aead, nonce, associated_data, data)` and
- `crypto::open(aead, nonce, associated_data, data, tag)`.
+ `aead<Family, Backend>`, one-shot authenticated encryption in place with associated data, and
+ the families it takes: ChaCha20-Poly1305, its original form and XChaCha20-Poly1305. Each is a
+ `secret_key_encryption::aead::cipher` (design D5), whose header, which this one includes, holds
+ the free synchronous forms of every AEAD's members, AES-GCM's included (design D9, D11),
+ `secret_key_encryption::aead::seal(cipher, nonce, associated_data, data)` and
+ `secret_key_encryption::aead::open(cipher, nonce, associated_data, data, tag)`. The secret boxes,
+ which take no associated data, are `secret_key_encryption::basic_secretbox`.
 
- @see "ChaCha20-Poly1305" and "Secret boxes", in the guide.
+ @see "ChaCha20-Poly1305" and "The AEAD contract", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_CIPHERS_AEAD_HPP
 #define WEBCPP_CRYPTO_CIPHERS_AEAD_HPP
@@ -27,6 +28,7 @@
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/factories.hpp>  // crypto::from_key, which serves its from_key (design R23)
+#include <webcpp/crypto/secret_key_encryption/aead.hpp>  // its free seal and open (design D11)
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
@@ -85,46 +87,6 @@ struct xchacha20_poly1305 {
     static constexpr std::uint64_t max_associated_data_size = ~std::uint64_t{0};
 };
 
-/**
- * NaCl's and libsodium's `crypto_secretbox`, XSalsa20-Poly1305: a 32-byte key, a 24-byte nonce
- * safe to draw at random, a 16-byte tag, and no associated data.
- */
-struct secretbox_xsalsa20poly1305 {
-    /** The key's size. */
-    static constexpr std::size_t key_size = 32;
-    /** The nonce's size, exactly. */
-    static constexpr std::size_t nonce_size = 24;
-    /** The tag's size. */
-    static constexpr std::size_t tag_size = 16;
-    /**
-     * The longest message, 2^64 - 17 bytes: libsodium's `crypto_secretbox_MESSAGEBYTES_MAX` on a
-     * 64-bit target.
-     *
-     * On a 32-bit target, wasm32 among them, libsodium's is 2^32 - 17 bytes, more than a
-     * message there can be, since the 4 GiB of memory also hold the program.
-     */
-    static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
-    /** No associated data: `aead` refuses a non-empty one with `invalid_input_size`. */
-    static constexpr std::uint64_t max_associated_data_size = 0;
-};
-
-/**
- * libsodium's `crypto_secretbox_xchacha20poly1305`: `crypto_secretbox` with XChaCha20 in place
- * of XSalsa20, a 24-byte nonce safe to draw at random, and no associated data.
- */
-struct secretbox_xchacha20poly1305 {
-    /** The key's size. */
-    static constexpr std::size_t key_size = 32;
-    /** The nonce's size, exactly. */
-    static constexpr std::size_t nonce_size = 24;
-    /** The tag's size. */
-    static constexpr std::size_t tag_size = 16;
-    /** The longest message, 2^64 - 17 bytes. */
-    static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
-    /** No associated data: `aead` refuses a non-empty one with `invalid_input_size`. */
-    static constexpr std::uint64_t max_associated_data_size = 0;
-};
-
 }  // namespace webcpp::crypto::families
 
 namespace webcpp::crypto::detail {
@@ -151,14 +113,6 @@ inline constexpr bool aead_family<families::chacha20_poly1305_original> = true;
 /** XChaCha20-Poly1305 is an AEAD family. */
 template <>
 inline constexpr bool aead_family<families::xchacha20_poly1305> = true;
-
-/** `crypto_secretbox`, XSalsa20-Poly1305, is an AEAD family without associated data. */
-template <>
-inline constexpr bool aead_family<families::secretbox_xsalsa20poly1305> = true;
-
-/** `crypto_secretbox_xchacha20poly1305` is an AEAD family without associated data. */
-template <>
-inline constexpr bool aead_family<families::secretbox_xchacha20poly1305> = true;
 
 /**
  * The sizes and limits `ciphers::aead` reads from its family: the family's own.
@@ -211,18 +165,6 @@ struct aead_refusal<families::xchacha20_poly1305, Backend> {
     WEBCPP_CRYPTO_DETAIL_REFUSE_XCHACHA20_POLY1305(Backend);
 };
 
-/** XSalsa20-Poly1305's secret box's refusal (see the first). */
-template <class Backend>
-struct aead_refusal<families::secretbox_xsalsa20poly1305, Backend> {
-    WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XSALSA20POLY1305(Backend);
-};
-
-/** XChaCha20-Poly1305's secret box's refusal (see the first). */
-template <class Backend>
-struct aead_refusal<families::secretbox_xchacha20poly1305, Backend> {
-    WEBCPP_CRYPTO_DETAIL_REFUSE_SECRETBOX_XCHACHA20POLY1305(Backend);
-};
-
 /**
  * An AEAD's engine on a backend whose header does not specialise it: the family's refusal.
  * Its functions are never called: the refusal stops the build where the class is
@@ -263,30 +205,27 @@ struct aead_engine : aead_refusal<Family, Backend> {
 namespace webcpp::crypto::ciphers {
 
 /**
- * An AEAD of the family `Family` on `Backend`, one shot: authenticated encryption in place,
- * the tag apart.
+ * An AEAD of the family `Family` on `Backend`, one shot: authenticated encryption in place with
+ * associated data, the tag apart.
  *
  * An object holds a key: it is used by one thread at a time. A nonce is never
  * repeated under one key: two messages under one key and one nonce reveal the XOR of their
  * plaintexts and let an attacker forge tags. Drawn at random, ChaCha20-Poly1305's 12-byte
  * nonce lets a key seal at most 2^32 messages, and the original's 8 bytes are too few: a
- * counter numbers them. XChaCha20-Poly1305's 24-byte nonce, and the secret boxes', are safe
- * to draw at random.
+ * counter numbers them. XChaCha20-Poly1305's 24-byte nonce is safe to draw at random.
  *
- * @tparam Family `families::chacha20_poly1305`, `families::chacha20_poly1305_original`,
- * `families::xchacha20_poly1305`, or the secret boxes' `families::secretbox_xsalsa20poly1305`
- * and `families::secretbox_xchacha20poly1305`, which take no associated data.
- * @tparam Backend The backend; `ciphers::chacha20_poly1305<>`, its two siblings and
- * `ciphers::secretbox<>` and its twin name the family's default.
+ * @tparam Family `families::chacha20_poly1305`, `families::chacha20_poly1305_original` or
+ * `families::xchacha20_poly1305`.
+ * @tparam Backend The backend; `ciphers::chacha20_poly1305<>` and its two siblings name the
+ * family's default.
  */
 template <class Family, class Backend>
 class aead {
     // The first error a program that names another type sees, and its only one.
     static_assert(detail::aead_family<Family>,
                   "webcpp::crypto: ciphers::aead takes an AEAD family: "
-                  "families::chacha20_poly1305, families::chacha20_poly1305_original, "
-                  "families::xchacha20_poly1305, families::secretbox_xsalsa20poly1305 or "
-                  "families::secretbox_xchacha20poly1305.");
+                  "families::chacha20_poly1305, families::chacha20_poly1305_original or "
+                  "families::xchacha20_poly1305.");
 
     using sizes = detail::aead_sizes<Family>;
     using state_type = detail::aead_state<Family, Backend>;
@@ -309,7 +248,7 @@ public:
     static constexpr std::size_t tag_size = sizes::tag_size;
     /** The longest message. */
     static constexpr std::uint64_t max_message_size = sizes::max_message_size;
-    /** The longest associated data; 0 for a family that takes none. */
+    /** The longest associated data. */
     static constexpr std::uint64_t max_associated_data_size = sizes::max_associated_data_size;
 
     /**
@@ -395,11 +334,10 @@ public:
      * a guard's refusal leaves it untouched.
      *
      * @param nonce_bytes The nonce, `nonce_size` bytes, never repeated under this key.
-     * @param associated_data_bytes Authenticated, not encrypted; empty for a family that takes
-     * none (`max_associated_data_size` 0).
+     * @param associated_data_bytes Authenticated, not encrypted.
      * @param data_bytes The message.
-     * @return The tag; `invalid_state` moved from; `invalid_nonce_size`; `invalid_input_size` for
-     * associated data given to a family that takes none; `message_too_long`; `backend_failure`.
+     * @return The tag; `invalid_state` moved from; `invalid_nonce_size`; `message_too_long`;
+     * `backend_failure`.
      */
     [[nodiscard]] boost::system::result<result_type> seal(
         std::span<std::uint8_t const> nonce_bytes,
@@ -442,7 +380,6 @@ public:
      * @param tag_bytes The seal's tag, `tag_size` bytes, which may lie anywhere, `data_bytes`
      * included.
      * @return Nothing; `invalid_state` moved from; `invalid_nonce_size`; `invalid_tag_size`;
-     * `invalid_input_size` for associated data given to a family that takes none;
      * `message_too_long`; `authentication_failed`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<void> open(
@@ -479,8 +416,7 @@ private:
     aead() noexcept = default;
 
     // Every guard of a message, in the documented order: the state, the nonce, the tag
-    // (open's; seal passes tag_size), associated data given to a family that takes none, the
-    // lengths. None reads a byte of the spans.
+    // (open's; seal passes tag_size), the lengths. None reads a byte of the spans.
     [[nodiscard]] boost::system::result<void> guard_message(
         std::span<std::uint8_t const> nonce_bytes,
         std::span<std::uint8_t const> associated_data_bytes, std::size_t byte_count,
@@ -494,11 +430,6 @@ private:
         if (tag_bytes != tag_size) {
             return error::invalid_tag_size;
         }
-        if constexpr (max_associated_data_size == 0) {
-            if (!associated_data_bytes.empty()) {
-                return error::invalid_input_size;
-            }
-        }
         if (detail::exceeds(byte_count, max_message_size) ||
             detail::exceeds(associated_data_bytes.size(), max_associated_data_size)) {
             return error::message_too_long;
@@ -511,72 +442,5 @@ private:
 };
 
 }  // namespace webcpp::crypto::ciphers
-
-namespace webcpp::crypto {
-
-/**
- * Seals a message in place, `keyed_aead.seal(nonce_bytes, associated_data_bytes, data_bytes)`: the
- * free form of the AEAD's own `seal`, which it calls, with its results and its errors.
- *
- * @tparam Aead A type whose `seal` takes these arguments: `ciphers::gcm<Cipher>` or
- * `ciphers::aead<Family, Backend>`.
- * @param keyed_aead The keyed object.
- * @param nonce_bytes The nonce, never reused under this key.
- * @param associated_data_bytes Authenticated, not encrypted.
- * @param data_bytes The message, the ciphertext after.
- * @return What `keyed_aead.seal` returns: the tag, or its error.
- */
-template <class Aead>
-    requires requires {
-        std::declval<Aead&>().seal(std::declval<std::span<std::uint8_t const>&>(),
-                                   std::declval<std::span<std::uint8_t const>&>(),
-                                   std::declval<std::span<std::uint8_t>&>());
-    }
-[[nodiscard]] auto seal(
-    Aead& keyed_aead, std::span<std::uint8_t const> nonce_bytes,
-    std::span<std::uint8_t const> associated_data_bytes,
-    std::span<std::uint8_t> data_bytes) noexcept(noexcept(keyed_aead.seal(nonce_bytes,
-                                                                          associated_data_bytes,
-                                                                          data_bytes)))
-    -> decltype(keyed_aead.seal(nonce_bytes, associated_data_bytes, data_bytes)) {
-    detail::timing_guard const timing_scope;
-    return keyed_aead.seal(nonce_bytes, associated_data_bytes, data_bytes);
-}
-
-/**
- * Opens a message in place,
- * `keyed_aead.open(nonce_bytes, associated_data_bytes, data_bytes, tag_bytes)`: the free form of
- * the AEAD's own `open`, which it calls, with its results and its errors.
- *
- * @tparam Aead A type whose `open` takes these arguments: `ciphers::gcm<Cipher>` or
- * `ciphers::aead<Family, Backend>`.
- * @param keyed_aead The keyed object.
- * @param nonce_bytes The nonce of the seal.
- * @param associated_data_bytes The associated data of the seal.
- * @param data_bytes The ciphertext, the plaintext after.
- * @param tag_bytes The seal's tag.
- * @return What `keyed_aead.open` returns: nothing, or its error (`authentication_failed`, which
- * zeroes `data_bytes`).
- */
-template <class Aead>
-    requires requires {
-        std::declval<Aead&>().open(std::declval<std::span<std::uint8_t const>&>(),
-                                   std::declval<std::span<std::uint8_t const>&>(),
-                                   std::declval<std::span<std::uint8_t>&>(),
-                                   std::declval<std::span<std::uint8_t const>&>());
-    }
-[[nodiscard]] auto open(Aead& keyed_aead, std::span<std::uint8_t const> nonce_bytes,
-                        std::span<std::uint8_t const> associated_data_bytes,
-                        std::span<std::uint8_t> data_bytes,
-                        std::span<std::uint8_t const>
-                            tag_bytes) noexcept(noexcept(keyed_aead.open(nonce_bytes,
-                                                                         associated_data_bytes,
-                                                                         data_bytes, tag_bytes)))
-    -> decltype(keyed_aead.open(nonce_bytes, associated_data_bytes, data_bytes, tag_bytes)) {
-    detail::timing_guard const timing_scope;
-    return keyed_aead.open(nonce_bytes, associated_data_bytes, data_bytes, tag_bytes);
-}
-
-}  // namespace webcpp::crypto
 
 #endif  // WEBCPP_CRYPTO_CIPHERS_AEAD_HPP

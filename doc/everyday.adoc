@@ -26,8 +26,9 @@ and the recipient are never online together.
 encrypted once under a key drawn for that file alone, and that file key is
 encrypted to each recipient's X25519 public key, with a key pair drawn for
 the purpose, so that the recipient's secret key alone recovers it. webcpp's
-primitives do the same in libsodium's formats: the file in a secret box
-(<<crypto-secretbox>>) under a fresh 32-byte key, and the key in a sealed box
+primitives do the same in libsodium's formats: the file in a secret box,
+`secret_key_encryption::secretbox<>` (<<crypto-secretbox>>), under a fresh
+32-byte key, and the key in a sealed box
 to the recipient (<<crypto-sealed-box>>). Each file has its own key, so a
 leaked key opens one file; the tag of each box makes any change to the upload
 fail to open, never decrypt to something else. age's own steps, its header,

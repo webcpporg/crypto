@@ -50,6 +50,9 @@ associated_data_bytes, data_bytes, tag_bytes)` checks the tag and decrypts.
 A failed `open` zeroes `data_bytes`; a guard's refusal leaves it untouched.
 The nonce may lie in `data_bytes`, and the associated data may touch it, as a
 wire format that puts it just before the message does, but not overlap it.
+Each is a `secret_key_encryption::aead::cipher`, whose free forms,
+`secret_key_encryption::aead::seal` and `open`, its header brings
+(<<crypto-aead-contract>>).
 
 RFC 8439's form also runs on BearSSL, on every target, and on OpenSSL,
 natively and on WASI, with the same results byte for byte: name the backend in

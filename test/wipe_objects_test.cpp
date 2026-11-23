@@ -36,8 +36,8 @@
 #elif defined(WEBCPP_TEST_WIPE_SODIUM)
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
-#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #else
 #error "name a backend: WEBCPP_TEST_WIPE_BEARSSL, _CTAES, _SECP256K1, _OPENSSL or _SODIUM"
 #endif
@@ -189,11 +189,18 @@ void check_wiped(region where, T (*make_keyed)(std::uint8_t) = &keyed<T>) {
 }
 
 #ifdef WEBCPP_TEST_WIPE_SODIUM
-// The key libsodium's AEAD or secret box of the family Family keeps in the object, first.
+// The key libsodium's AEAD of the family Family keeps in the object, first.
 template <class Family>
 constexpr region aead_key{
     .offset = 0,
     .size = sizeof(crypto::detail::aead_state<Family, crypto::backends::sodium>),
+};
+
+// The key libsodium's secret box of the family Family keeps in the object, first.
+template <class Family>
+constexpr region secretbox_key{
+    .offset = 0,
+    .size = sizeof(crypto::detail::secretbox_state<Family, crypto::backends::sodium>),
 };
 
 // The key libsodium's box of the family Family agreed and keeps in the object, first.
@@ -277,9 +284,10 @@ int main() {
         aead_key<families::chacha20_poly1305_original>);
     check_wiped<crypto::ciphers::xchacha20_poly1305<sodium>>(
         aead_key<families::xchacha20_poly1305>);
-    check_wiped<crypto::ciphers::secretbox<sodium>>(aead_key<families::secretbox_xsalsa20poly1305>);
-    check_wiped<crypto::ciphers::secretbox_xchacha20poly1305<sodium>>(
-        aead_key<families::secretbox_xchacha20poly1305>);
+    check_wiped<crypto::secret_key_encryption::secretbox<sodium>>(
+        secretbox_key<families::secretbox_xsalsa20poly1305>);
+    check_wiped<crypto::secret_key_encryption::secretbox_xchacha20poly1305<sodium>>(
+        secretbox_key<families::secretbox_xchacha20poly1305>);
     check_wiped<crypto::public_key_encryption::basic_box<families::box_xsalsa20poly1305, sodium>>(
         box_key<families::box_xsalsa20poly1305>);
     check_wiped<crypto::public_key_encryption::basic_box<families::box_xchacha20poly1305, sodium>>(

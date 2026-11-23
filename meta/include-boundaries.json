@@ -11,10 +11,12 @@
                 "include/webcpp/crypto/error.hpp",
                 "include/webcpp/crypto/factories.hpp",
                 "include/webcpp/crypto/random_device.hpp",
+                "include/webcpp/crypto/secret_key_encryption/aead.hpp",
+                "include/webcpp/crypto/secret_key_encryption/authenticated_box.hpp",
                 "include/webcpp/crypto/signing.hpp"
             ],
             "must-not-include": ["bearssl", "openssl/", "ctaes", "secp256k1", "webcpp/crypto/backends/"],
-            "why": "a program that only draws random bytes or compares tags names no backend library (spec section 2.2), nor does the signing vocabulary every curve shares, nor the free factories (from_secret, from_bytes, from_key, generate) every AEAD's header includes; the detail headers these include are in the boundary too, since the rule is not transitive"
+            "why": "a program that only draws random bytes or compares tags names no backend library (spec section 2.2), nor does the signing vocabulary every curve shares, nor the free factories (from_secret, from_bytes, from_key, generate) every AEAD's header includes, nor the AEAD and box contracts with their free seal and open, which every AEAD's and box's header includes; the detail headers these include are in the boundary too, since the rule is not transitive"
         }
     ]
 }

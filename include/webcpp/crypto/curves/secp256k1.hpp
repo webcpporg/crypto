@@ -27,6 +27,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
+#include <webcpp/crypto/detail/signature.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -59,6 +60,24 @@ class public_key;
 }  // namespace webcpp::crypto::curves::secp256k1
 
 namespace webcpp::crypto::detail {
+
+/** The tag of `curves::secp256k1::ecdsa_signature`. */
+struct secp256k1_ecdsa_signature_tag {
+    /** No recovery id. */
+    static constexpr bool recoverable = false;
+};
+
+/** The tag of `curves::secp256k1::recoverable_signature`. */
+struct secp256k1_recoverable_signature_tag {
+    /** The last byte is the recovery id. */
+    static constexpr bool recoverable = true;
+};
+
+/** The tag of `curves::secp256k1::schnorr_signature`. */
+struct secp256k1_schnorr_signature_tag {
+    /** No recovery id. */
+    static constexpr bool recoverable = false;
+};
 
 /**
  * The one door of the module headers (those under `curves/secp256k1/`) into a key pair and a public
@@ -579,6 +598,34 @@ template <class Backend, class Input>
 }  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::curves::secp256k1 {
+
+/**
+ * A secp256k1 ECDSA signature, 64 bytes, r then s: what `sign(crypto::ecdsa_sha256, ...)` gives
+ * and `crypto::verify(crypto::ecdsa_sha256, ...)` takes.
+ *
+ * Each of r and s is 32 bytes big-endian (libsecp256k1's compact form). `from_bytes` checks the
+ * size alone; whether r and s are in range, and s low, is verification's and `normalize_low_s`'s
+ * judgment.
+ */
+using ecdsa_signature = detail::basic_signature<detail::secp256k1_ecdsa_signature_tag, 64>;
+
+/**
+ * A secp256k1 recoverable ECDSA signature, 65 bytes, r, s and the recovery id: what
+ * `sign(crypto::ecdsa_sha256_recoverable, ...)` gives and `recover` takes.
+ *
+ * `recovery_id()` reads its last byte. `from_bytes` checks the size alone; `recover` refuses an id
+ * above 3.
+ */
+using recoverable_signature =
+    detail::basic_signature<detail::secp256k1_recoverable_signature_tag, 65>;
+
+/**
+ * A BIP340 Schnorr signature, 64 bytes, R's x then s: what `sign(crypto::schnorr, ...)` gives and
+ * `crypto::verify(crypto::schnorr, ...)` takes.
+ *
+ * `from_bytes` checks the size alone.
+ */
+using schnorr_signature = detail::basic_signature<detail::secp256k1_schnorr_signature_tag, 64>;
 
 /** The longest strict DER encoding of a secp256k1 ECDSA signature, in bytes. */
 inline constexpr std::size_t max_der_size = 72;
@@ -1759,6 +1806,73 @@ inline constexpr bool verifies_with_v<curves::secp256k1::public_key, schnorr_t> 
 template <class Key>
     requires std::is_convertible_v<Key const&, std::span<std::uint8_t const, 32>>
 inline constexpr bool verifies_with_v<Key, schnorr_t> = true;
+
+/**
+ * A secp256k1 key pair's signature under ECDSA over SHA-256, `curves::secp256k1::ecdsa_signature`.
+ *
+ * @tparam Backend The key's backend.
+ */
+template <class Backend>
+struct signature_of<curves::secp256k1::basic_keypair<Backend>, ecdsa_sha256_t> {
+    /** The signature type. */
+    using type = curves::secp256k1::ecdsa_signature;
+};
+
+/**
+ * A secp256k1 key pair's signature under ECDSA over SHA-256 with the recovery id,
+ * `curves::secp256k1::recoverable_signature`.
+ *
+ * @tparam Backend The key's backend.
+ */
+template <class Backend>
+struct signature_of<curves::secp256k1::basic_keypair<Backend>, ecdsa_sha256_recoverable_t> {
+    /** The signature type. */
+    using type = curves::secp256k1::recoverable_signature;
+};
+
+/**
+ * A secp256k1 key pair's signature under BIP340's Schnorr, `curves::secp256k1::schnorr_signature`.
+ *
+ * @tparam Backend The key's backend.
+ */
+template <class Backend>
+struct signature_of<curves::secp256k1::basic_keypair<Backend>, schnorr_t> {
+    /** The signature type. */
+    using type = curves::secp256k1::schnorr_signature;
+};
+
+/**
+ * A secp256k1 public key's signature under ECDSA over SHA-256,
+ * `curves::secp256k1::ecdsa_signature`.
+ */
+template <>
+struct signature_of<curves::secp256k1::public_key, ecdsa_sha256_t> {
+    /** The signature type. */
+    using type = curves::secp256k1::ecdsa_signature;
+};
+
+/**
+ * A secp256k1 public key's signature under BIP340's Schnorr,
+ * `curves::secp256k1::schnorr_signature`.
+ */
+template <>
+struct signature_of<curves::secp256k1::public_key, schnorr_t> {
+    /** The signature type. */
+    using type = curves::secp256k1::schnorr_signature;
+};
+
+/**
+ * The signature of a BIP340 x-only key, its 32 bytes, under `schnorr`,
+ * `curves::secp256k1::schnorr_signature`.
+ *
+ * @tparam Key The public key's type.
+ */
+template <class Key>
+    requires std::is_convertible_v<Key const&, std::span<std::uint8_t const, 32>>
+struct signature_of<Key, schnorr_t> {
+    /** The signature type. */
+    using type = curves::secp256k1::schnorr_signature;
+};
 
 /**
  * A secp256k1 key pair's backend.

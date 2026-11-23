@@ -29,6 +29,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
+#include <webcpp/crypto/detail/signature.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/keypair.hpp>
@@ -64,6 +65,12 @@ inline constexpr std::size_t max_der_size = 72;
 }  // namespace webcpp::crypto::curves::p256
 
 namespace webcpp::crypto::detail {
+
+/** The tag of `curves::p256::ecdsa_signature`. */
+struct p256_ecdsa_signature_tag {
+    /** No recovery id. */
+    static constexpr bool recoverable = false;
+};
 
 /**
  * Verifies an ECDSA signature over SHA-256 with a P-256 point on `Backend`: the work of
@@ -110,6 +117,16 @@ template <class Backend, class Input>
 }  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::curves::p256 {
+
+/**
+ * A P-256 ECDSA signature, 64 bytes, r then s: what `sign(crypto::ecdsa_sha256, ...)` gives and
+ * `crypto::verify(crypto::ecdsa_sha256, ...)` takes.
+ *
+ * Each of r and s is 32 bytes big-endian (IEEE P1363, WebCrypto's form). `from_bytes` checks the
+ * size alone; whether r and s are in range, and s low, is verification's and `normalize_low_s`'s
+ * judgment.
+ */
+using ecdsa_signature = detail::basic_signature<detail::p256_ecdsa_signature_tag, signature_size>;
 
 /**
  * A P-256 public key, validated: a point on the curve, its coordinates below p, never the
@@ -815,6 +832,28 @@ inline constexpr bool signs_with_v<curves::p256::basic_keypair<Backend>, ecdsa_s
 template <class Backend>
 inline constexpr bool verifies_with_v<curves::p256::basic_public_key<Backend>, ecdsa_sha256_t> =
     true;
+
+/**
+ * A P-256 key pair's signature under ECDSA over SHA-256, `curves::p256::ecdsa_signature`.
+ *
+ * @tparam Backend The key's backend.
+ */
+template <class Backend>
+struct signature_of<curves::p256::basic_keypair<Backend>, ecdsa_sha256_t> {
+    /** The signature type. */
+    using type = curves::p256::ecdsa_signature;
+};
+
+/**
+ * A P-256 public key's signature under ECDSA over SHA-256, `curves::p256::ecdsa_signature`.
+ *
+ * @tparam Backend The key's backend.
+ */
+template <class Backend>
+struct signature_of<curves::p256::basic_public_key<Backend>, ecdsa_sha256_t> {
+    /** The signature type. */
+    using type = curves::p256::ecdsa_signature;
+};
 
 /**
  * A P-256 key pair's backend.

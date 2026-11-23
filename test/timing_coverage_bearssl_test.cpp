@@ -26,7 +26,8 @@
 //   guard before the member's, and crypto::from_bytes, which holds none (the member's is its
 //   first); not guarded (no BearSSL call): public_key, secret, uncompressed, encode_spki,
 //   encode_pkcs8, basic_keypair's move constructor and move assignment, and normalize_low_s and
-//   is_low_s, which test/timing_test.cpp calls without a backend; and the asynchronous
+//   is_low_s, which test/timing_test.cpp calls without a backend, and ecdsa_signature's
+//   from_bytes, member and free, and bytes; and the asynchronous
 //   async_from_secret, async_generate, async_sign and async_verify (ecdsa_sha256, of a message and
 //   of a digest) and async_agree, all but async_generate (which takes no input) also refused once
 //   before BearSSL, both free and as the members basic_keypair::async_from_secret, async_generate,
@@ -335,6 +336,7 @@ void cover_p256_ecdsa() {
     cover_p256_public_key_verify();
     cover_p256_free_forms();
     cover_p256_der();
+    webcpp::test::cover_signature<p256::ecdsa_signature>("p256::ecdsa_signature", "bearssl");
 }
 
 // P-256's ECDH: the shared x of RFC 6979's key with its own public key, and the same call on a

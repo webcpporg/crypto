@@ -25,6 +25,7 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/detail/asynchronous.hpp>
+#include <webcpp/crypto/detail/signature.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/hash/algorithms.hpp>  // webcpp::hash::sha2_256, ECDSA's hash of a message
 

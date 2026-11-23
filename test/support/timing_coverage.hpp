@@ -24,6 +24,7 @@
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/keypair.hpp>
 
 #include <webcpp/asio/io_context.hpp>
@@ -81,6 +82,44 @@ std::array<std::uint8_t, Size> coverage_key() {
         key[i] = static_cast<std::uint8_t>((i * 29) + 3);
     }
     return key;
+}
+
+/**
+ * A signature type's functions, which call no backend and enter no guard: `from_bytes`, member
+ * and free (`crypto::from_bytes<Signature>`), of its size and of one byte fewer, `bytes()`, and
+ * `recovery_id()` where the type has it.
+ *
+ * @tparam Signature A curve's signature type, `curves::p256::ecdsa_signature` and the others.
+ * @param type The type's name, `<curve>::<type>`.
+ * @param backend The backend's name, which the test that calls this one covers.
+ */
+template <class Signature>
+void cover_signature(std::string const& type, std::string const& backend) {
+    auto const wire_bytes = coverage_key<Signature::size>();
+    std::string const on = " on " + backend;
+    uncovered(type + "::from_bytes" + on,
+              [&] { BOOST_TEST(Signature::from_bytes(wire_bytes).has_value()); });
+    uncovered(type + "::from_bytes of one byte fewer" + on, [&] {
+        BOOST_TEST(
+            Signature::from_bytes(std::span(wire_bytes).first(Signature::size - 1)).error() ==
+            webcpp::crypto::error::invalid_signature);
+    });
+    uncovered("crypto::from_bytes of a " + type + on,
+              [&] { BOOST_TEST(webcpp::crypto::from_bytes<Signature>(wire_bytes).has_value()); });
+    uncovered("crypto::from_bytes of a short " + type + on, [&] {
+        BOOST_TEST(
+            webcpp::crypto::from_bytes<Signature>(std::span(wire_bytes).first(Signature::size - 1))
+                .error() == webcpp::crypto::error::invalid_signature);
+    });
+    auto const made = Signature::from_bytes(wire_bytes);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    uncovered(type + "::bytes" + on, [&] { BOOST_TEST(made->bytes() == wire_bytes); });
+    if constexpr (requires { made->recovery_id(); }) {
+        uncovered(type + "::recovery_id" + on,
+                  [&] { BOOST_TEST_EQ(made->recovery_id(), wire_bytes.back()); });
+    }
 }
 
 /**

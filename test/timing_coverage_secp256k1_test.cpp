@@ -29,7 +29,9 @@
 //   free synchronous forms of the members, crypto::from_secret, crypto::generate, crypto::sign
 //   (with each scheme, Schnorr's randomness drawn and given, and hedged) and crypto::agree, which
 //   enter their own guard before the member's, and crypto::from_bytes of a public key, which holds
-//   none (the member's is its first). Its
+//   none (the member's is its first). Not guarded (no libsecp256k1 call): ecdsa_signature's,
+//   recoverable_signature's and schnorr_signature's from_bytes, member and free, and bytes, and
+//   recoverable_signature's recovery_id. Its
 //   formats: encode_spki, decode_spki, encode_pkcs8, decode_pkcs8. Its tweaks: seckey_tweak_add,
 //   seckey_tweak_mul, seckey_negate, pubkey_tweak_add, pubkey_tweak_mul, pubkey_negate,
 //   pubkey_combine.
@@ -1074,6 +1076,11 @@ int main() {
     cover_free_forms();
     cover_signature_forms();
     cover_low_s();
+    webcpp::test::cover_signature<secp::ecdsa_signature>("secp256k1::ecdsa_signature", "secp256k1");
+    webcpp::test::cover_signature<secp::recoverable_signature>("secp256k1::recoverable_signature",
+                                                               "secp256k1");
+    webcpp::test::cover_signature<secp::schnorr_signature>("secp256k1::schnorr_signature",
+                                                           "secp256k1");
     cover_ellswift();
     cover_formats();
     cover_musig_key();

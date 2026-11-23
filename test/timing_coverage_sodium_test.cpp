@@ -23,7 +23,8 @@
 //   own guard before the member's, and crypto::from_bytes of a public key, which enters none, as
 //   its member does not. Ed25519ph, ph: begin, update, sign, verify. Its formats: decode_spki,
 //   decode_pkcs8 (the encoders call no backend and hold no guard, ruling R4; nor do
-//   public_key::from_bytes and bytes).
+//   public_key::from_bytes and bytes). Its signature, signature: from_bytes, member and free,
+//   and bytes, which call no backend and enter no guard.
 // - Ed25519's asynchronous functions: async_from_secret, async_generate, async_sign, async_verify,
 //   free and as the members basic_keypair::async_from_secret, async_generate, async_sign and
 //   public_key::async_verify, which the free ones call.
@@ -564,6 +565,8 @@ void cover_curves() {
     webcpp::test::cover_async_x25519<sodium>("sodium");
     cover_ed25519_free();
     cover_ed25519_free_forms();
+    webcpp::test::cover_signature<crypto::curves::ed25519::signature>("ed25519::signature",
+                                                                      "sodium");
     cover_ed25519ph();
     cover_ed25519ph_refusals();
     cover_ed25519_formats();

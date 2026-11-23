@@ -27,6 +27,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
+#include <webcpp/crypto/detail/signature.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/keypair.hpp>
@@ -73,6 +74,12 @@ struct ed25519ph_engine;
 template <class Backend>
 struct ed25519_keypair_access;
 
+/** The tag of `curves::ed25519::signature`. */
+struct ed25519_signature_tag {
+    /** No recovery id. */
+    static constexpr bool recoverable = false;
+};
+
 }  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::curves::ed25519 {
@@ -95,6 +102,15 @@ struct strict_t {
  * neither of small order (design D31); `crypto::verify`'s policy by default.
  */
 inline constexpr strict_t strict{};
+
+/**
+ * An Ed25519 signature (RFC 8032), 64 bytes, R then S: what `sign(crypto::eddsa, ...)` gives and
+ * `crypto::verify(crypto::eddsa, ...)` takes.
+ *
+ * `from_bytes` checks the size alone; whether S is below the group order and R canonical is the
+ * verification policy's judgment.
+ */
+using signature = detail::basic_signature<detail::ed25519_signature_tag, 64>;
 
 }  // namespace webcpp::crypto::curves::ed25519
 
@@ -863,6 +879,24 @@ struct key_backend<curves::ed25519::basic_keypair<Backend>> {
  */
 template <>
 inline constexpr bool verifies_with_v<curves::ed25519::public_key, eddsa_t> = true;
+
+/**
+ * An Ed25519 key pair's signature under `eddsa`, `curves::ed25519::signature`.
+ *
+ * @tparam Backend The key's backend.
+ */
+template <class Backend>
+struct signature_of<curves::ed25519::basic_keypair<Backend>, eddsa_t> {
+    /** The signature type. */
+    using type = curves::ed25519::signature;
+};
+
+/** An Ed25519 public key's signature under `eddsa`, `curves::ed25519::signature`. */
+template <>
+struct signature_of<curves::ed25519::public_key, eddsa_t> {
+    /** The signature type. */
+    using type = curves::ed25519::signature;
+};
 
 /**
  * `crypto::verify` of `eddsa` against an Ed25519 public key is Ed25519's, so that the catch-all

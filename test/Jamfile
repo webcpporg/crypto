@@ -37,7 +37,8 @@ webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
   crypto/detail/async_access.hpp crypto/detail/timing.hpp crypto/ciphers/aead.hpp
   crypto/ciphers/chacha20_poly1305.hpp crypto/ciphers/secretbox.hpp crypto/pem.hpp
   crypto/detail/p_curves.hpp crypto/signing.hpp crypto/keypair.hpp
-  crypto/factories.hpp crypto/detail/asynchronous.hpp ;
+  crypto/factories.hpp crypto/detail/asynchronous.hpp
+  crypto/detail/signature.hpp ;
 # detail/heavy.hpp compiles alone only with webcpp::asio, which it includes
 # where the build has threads; async.hpp, which includes it, only with
 # webcpp::asio on every target.
@@ -190,6 +191,12 @@ crypto-run signing : signing_test.cpp ;
 # key pairs meet it, stand-ins that lack a member do not, and over a list with
 # a test-only scheme, a stand-in that declares it and does not sign it fails.
 crypto-run keypair : keypair_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium
+    <library>/third_party//secp256k1 ;
+# The five signature types: each made from bytes of its size alone, given back
+# by bytes(), regular and converting to nothing; detail::signature_of names
+# each for its curve's keys and schemes.
+crypto-run signature_types : signature_types_test.cpp
   : <library>/third_party//bearssl <library>/third_party//sodium
     <library>/third_party//secp256k1 ;
 # Every curve's crypto::verify in one program: a 32-byte key is BIP340's under

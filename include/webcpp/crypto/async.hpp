@@ -1020,10 +1020,10 @@ template <class Backend>
 template <class Executor, class Scheme, class Input, class CompletionToken>
 auto curves::ed25519::basic_keypair<Backend>::async_sign(Executor const& completion_executor,
                                                          Scheme signing_scheme,
-                                                         Input const& message_bytes,
+                                                         Input const& message_input,
                                                          CompletionToken&& completion_token) const {
     detail::timing_guard const timing_scope;
-    return detail::initiate_sign(completion_executor, *this, signing_scheme, message_bytes,
+    return detail::initiate_sign(completion_executor, *this, signing_scheme, message_input,
                                  std::forward<CompletionToken>(completion_token));
 }
 
@@ -1031,11 +1031,11 @@ template <class Backend, class Executor, class Scheme, class Input, class Comple
 auto curves::ed25519::public_key::async_verify(Executor const& completion_executor,
                                                [[maybe_unused]] Scheme signing_scheme,
                                                std::span<std::uint8_t const> signature_bytes,
-                                               Input const& message_bytes,
+                                               Input const& message_input,
                                                CompletionToken&& completion_token) const {
     detail::timing_guard const timing_scope;
     return detail::initiate_verify_ed25519<Backend, Scheme>(
-        completion_executor, signature_bytes, message_bytes, *this, strict,
+        completion_executor, signature_bytes, message_input, *this, strict,
         std::forward<CompletionToken>(completion_token));
 }
 
@@ -1043,12 +1043,11 @@ template <class Backend, class Executor, class Scheme, class Input, class Comple
 auto curves::ed25519::public_key::async_verify(Executor const& completion_executor,
                                                [[maybe_unused]] Scheme signing_scheme,
                                                std::span<std::uint8_t const> signature_bytes,
-                                               Input const& message_bytes,
-                                               strict_t verification_policy,
+                                               Input const& message_input, strict_t verify_policy,
                                                CompletionToken&& completion_token) const {
     detail::timing_guard const timing_scope;
     return detail::initiate_verify_ed25519<Backend, Scheme>(
-        completion_executor, signature_bytes, message_bytes, *this, verification_policy,
+        completion_executor, signature_bytes, message_input, *this, verify_policy,
         std::forward<CompletionToken>(completion_token));
 }
 

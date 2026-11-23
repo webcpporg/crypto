@@ -102,7 +102,7 @@ int main() {
     // end::erase[]
     BOOST_TEST_EQ(password.size(), 28U);
     BOOST_TEST(memory_is_zero(password.data(), password.size()));
-    BOOST_TEST_EQ(password.data()[password.size()], '\0');
+    BOOST_TEST_EQ(password[password.size()], '\0');
 
     // An array of 33 bytes, a compressed public key's size.
     std::array<std::uint8_t, 33> point{};
@@ -118,7 +118,8 @@ int main() {
     BOOST_TEST(framed.back() == std::byte{0xc3});
     BOOST_TEST(memory_is_zero(framed.data() + 1, 16));
 
-    // A C array.
+    // A C array, which erase_secret takes as a program may hold one.
+    // NOLINTNEXTLINE(modernize-avoid-c-arrays): the C array is what this case erases
     unsigned char raw[16];
     for (auto& byte : raw) {
         byte = 0x77;

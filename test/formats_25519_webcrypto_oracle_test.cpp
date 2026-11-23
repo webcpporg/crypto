@@ -209,41 +209,49 @@ void ed25519_from_webcrypto() {
     }
 }
 
+/**
+ * One X25519 case through WebCrypto: the key pair of `secret_key` exported, imported by WebCrypto,
+ * and agreed with the peer of `peer_secret` there and here.
+ */
+void x25519_case_through_webcrypto(std::array<std::uint8_t, 32> const& secret_key,
+                                   std::array<std::uint8_t, 32> const& peer_secret) {
+    auto const key_pair = x25519::keypair::from_secret(secret_key);
+    auto const peer_pair = x25519::keypair::from_secret(peer_secret);
+    if (!BOOST_TEST(key_pair.has_value() && peer_pair.has_value())) {
+        return;
+    }
+    auto const public_key = key_pair->public_key();
+    auto const peer_public = peer_pair->public_key();
+    if (!BOOST_TEST(public_key.has_value() && peer_public.has_value())) {
+        return;
+    }
+    std::array<std::uint8_t, 48> pkcs8{};
+    std::array<std::uint8_t, 44> spki{};
+    std::array<std::uint8_t, 44> peer_spki{};
+    BOOST_TEST(x25519::encode_pkcs8(secret_key, pkcs8).has_value());
+    BOOST_TEST(x25519::encode_spki(public_key->bytes(), spki).has_value());
+    BOOST_TEST(x25519::encode_spki(peer_public->bytes(), peer_spki).has_value());
+    std::array<std::uint8_t, 124> out{};
+    BOOST_TEST_EQ(subtle_round_trip(1, pkcs8.data(), spki.data(), peer_spki.data(), message.data(),
+                                    message.size(), out.data()),
+                  0);
+    auto const shared = key_pair->agree(*peer_public);
+    bool const same =
+        BOOST_TEST(std::ranges::equal(std::span(out).first(48), pkcs8)) &&
+        BOOST_TEST(std::ranges::equal(std::span(out).subspan(48, 44), spki)) &&
+        BOOST_TEST(shared.has_value() &&
+                   std::ranges::equal(std::span(out).subspan(92, 32), shared->bytes()));
+    if (!same) {
+        static_cast<void>(std::fprintf(stderr, "X25519 disagrees with WebCrypto: secret key %s\n",
+                                       test::to_hex(secret_key).c_str()));
+    }
+}
+
 void x25519_through_webcrypto(std::mt19937_64& generator) {
     for (std::size_t round = 0; round < cases; ++round) {
         auto const secret_key = drawn(generator);
         auto const peer_secret = drawn(generator);
-        auto const key_pair = x25519::keypair::from_secret(secret_key);
-        auto const peer_pair = x25519::keypair::from_secret(peer_secret);
-        if (!BOOST_TEST(key_pair.has_value() && peer_pair.has_value())) {
-            continue;
-        }
-        auto const public_key = key_pair->public_key();
-        auto const peer_public = peer_pair->public_key();
-        if (!BOOST_TEST(public_key.has_value() && peer_public.has_value())) {
-            continue;
-        }
-        std::array<std::uint8_t, 48> pkcs8{};
-        std::array<std::uint8_t, 44> spki{};
-        std::array<std::uint8_t, 44> peer_spki{};
-        BOOST_TEST(x25519::encode_pkcs8(secret_key, pkcs8).has_value());
-        BOOST_TEST(x25519::encode_spki(public_key->bytes(), spki).has_value());
-        BOOST_TEST(x25519::encode_spki(peer_public->bytes(), peer_spki).has_value());
-        std::array<std::uint8_t, 124> out{};
-        BOOST_TEST_EQ(subtle_round_trip(1, pkcs8.data(), spki.data(), peer_spki.data(),
-                                        message.data(), message.size(), out.data()),
-                      0);
-        auto const shared = key_pair->agree(*peer_public);
-        bool const same =
-            BOOST_TEST(std::ranges::equal(std::span(out).first(48), pkcs8)) &&
-            BOOST_TEST(std::ranges::equal(std::span(out).subspan(48, 44), spki)) &&
-            BOOST_TEST(shared.has_value() &&
-                       std::ranges::equal(std::span(out).subspan(92, 32), shared->bytes()));
-        if (!same) {
-            static_cast<void>(std::fprintf(stderr,
-                                           "X25519 disagrees with WebCrypto: secret key %s\n",
-                                           test::to_hex(secret_key).c_str()));
-        }
+        x25519_case_through_webcrypto(secret_key, peer_secret);
     }
 }
 

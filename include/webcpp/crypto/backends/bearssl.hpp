@@ -536,7 +536,7 @@ struct p_curve_engine<families::p256, backends::bearssl> {
         std::uint32_t multiplied_flag =
             bearssl_p256()->mul(shared_point.data(), shared_point.size(), keyed_state.scalar.data(),
                                 keyed_state.scalar.size(), BR_EC_secp256r1);
-        WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&multiplied, sizeof multiplied);
+        WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&multiplied_flag, sizeof multiplied_flag);
         if (multiplied_flag != 1) {
             wipe_object(shared_point);
             return error::backend_failure;  // a validated point and a scalar in range never fail

@@ -83,7 +83,7 @@ template <std::size_t N>
     // client request, whose memory clobber reaches a mutable object only.
     // NOLINTNEXTLINE(misc-const-correctness): see above
     unsigned scalar_verdict = borrow_bit & ((nonzero_bits + 0xffU) >> 8U);
-    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&verdict, sizeof verdict);
+    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&scalar_verdict, sizeof scalar_verdict);
     return scalar_verdict != 0;
 }
 
@@ -134,7 +134,7 @@ template <class Curve>
     // client request, whose memory clobber reaches a mutable object only.
     // NOLINTNEXTLINE(misc-const-correctness): see above
     unsigned high_borrow = borrow_bit;
-    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&high, sizeof high);
+    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&high_borrow, sizeof high_borrow);
     return high_borrow == 0;
 }
 

@@ -94,7 +94,7 @@ namespace webcpp::crypto::detail {
     // Not const: the comparison reads it again after the mark (detail/declassify.hpp's tip).
     // NOLINTNEXTLINE(misc-const-correctness): see above
     int call_verdict = returned_code;
-    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&verdict, sizeof verdict);
+    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&call_verdict, sizeof call_verdict);
     return call_verdict != 0;
 }
 

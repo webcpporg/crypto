@@ -8,5 +8,7 @@ project : requirements <library>/webcpp/crypto//crypto ;
 
 import webcpp ;
 
+# alone: the refusal is the compile's only error; X25519's own refusal, which
+# the key pair inside would add, does not follow it.
 webcpp.compile-diagnostic kx_default_not_linked : kx_default_not_linked.cpp
-  : : native wasip2 wasip3 ;
+  : : native wasip2 wasip3 : alone ;

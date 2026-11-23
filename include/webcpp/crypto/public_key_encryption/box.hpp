@@ -132,6 +132,14 @@ public:
     using keypair_type = curves::x25519::basic_keypair<Backend>;
     /** The peer's public key's type. */
     using public_key_type = curves::x25519::public_key;
+
+    // A backend that has the box but no X25519 cannot make the key pair it takes: refused where
+    // the class is named. A backend without the box is refused by its engine alone.
+    static_assert(
+        !detail::box_family<Family> || !detail::supported<Family, Family, Backend> ||
+            detail::supported<families::x25519, families::x25519, Backend>,
+        "webcpp::crypto: public_key_encryption::basic_box takes an X25519 key pair of its "
+        "own backend, which has no X25519.");
     /** The secret key's and the peer's public key's size. */
     static constexpr std::size_t key_size = 32;
     /** The nonce's size, exactly. */
@@ -370,7 +378,8 @@ struct box_engine : box_refusal<Family, Backend> {
 }  // namespace webcpp::crypto::detail
 
 /** Defined once this header's declarations are, which libsodium's engine specialises. */
-#define WEBCPP_CRYPTO_DETAIL_BOX_DECLARED
+// NOLINTNEXTLINE(modernize-macro-to-enum): read by backends/sodium.hpp's #if, not a value
+#define WEBCPP_CRYPTO_DETAIL_BOX_DECLARED 1
 
 // The default backend's engines, when the program links it (design D32): libsodium on every
 // target. Its header specialises them for this header, wherever it was first included.

@@ -631,6 +631,12 @@ The fix: Verify a BIP340 signature with `+crypto::schnorr+`, its scheme; `+crypt
 
 The fix: Call `+async_from_secret+`, `+async_generate+` or `+async_agree+` on a backend that completes by itself: an X25519 key pair's synchronous forms cannot wait for it.
 
+|`+x25519_constructions_other_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: public_key_encryption::basic_sealed_box takes an X25519 key pair of its own backend, which has no X25519.+`
+
+The fix: Name a backend that has X25519 as well, as libsodium, the default of crypto_kx, the boxes and the sealed box on every target: each takes an X25519 key pair of its own backend.
+
 |`+x25519_default_not_linked+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: X25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//x25519-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//x25519-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`

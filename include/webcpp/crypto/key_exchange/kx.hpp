@@ -35,7 +35,6 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: random_device draws generate()'s seed
 #include <webcpp/crypto/secret.hpp>
-#include <webcpp/crypto/supports.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -51,6 +50,14 @@ namespace webcpp::crypto::detail {
  */
 template <class Name, class Backend>
 struct kx_engine;
+
+/**
+ * Whether a backend's header specialises `kx_engine` for it: set by that header beside its
+ * specialisation. Where it is not, `kx_keypair::derive_from_seed` reaches the primary's refusal
+ * alone and makes no X25519 key pair, whose own refusal would add a second error after it.
+ */
+template <class Backend>
+inline constexpr bool kx_engine_defined = false;
 
 }  // namespace webcpp::crypto::detail
 
@@ -106,9 +113,11 @@ public:
     /** Each session key's size. */
     static constexpr std::size_t session_key_size = 32;
 
-    // A backend with no X25519 cannot make the key pair this one holds: refused where the class
-    // is named.
-    static_assert(supports_v<keypair_type, Backend>,
+    // A backend that has crypto_kx but no X25519 cannot make the key pair this one holds:
+    // refused where the class is named. A backend without crypto_kx is refused by its engine
+    // alone.
+    static_assert(!detail::supported<families::kx, families::kx, Backend> ||
+                      detail::supported<families::x25519, families::x25519, Backend>,
                   "webcpp::crypto: key_exchange::kx_keypair holds an X25519 key pair of its own "
                   "backend, which has no X25519.");
 
@@ -141,17 +150,23 @@ public:
         if (seed_bytes.size() != seed_size) {
             return error::invalid_key_size;
         }
-        secret<keypair_type::secret_key_size> derived_secret;
-        auto const engine_derived =
-            engine::seed_keypair(seed_bytes.template first<seed_size>(), derived_secret.writable());
-        if (!engine_derived) {
-            return engine_derived.error();
+        if constexpr (!detail::kx_engine_defined<Backend>) {
+            // The engine's refusal stops the build here, and X25519's key pair is not made, so
+            // that its own refusal adds no second error (never compiled into a program).
+            return engine::seed_keypair(seed_bytes).error();
+        } else {
+            secret<keypair_type::secret_key_size> derived_secret;
+            auto const engine_derived = engine::seed_keypair(seed_bytes.template first<seed_size>(),
+                                                             derived_secret.writable());
+            if (!engine_derived) {
+                return engine_derived.error();
+            }
+            auto derived_pair = keypair_type::from_secret(derived_secret.bytes());
+            if (!derived_pair) {
+                return derived_pair.error();
+            }
+            return kx_keypair(std::move(derived_pair).unsafe_value());
         }
-        auto derived_pair = keypair_type::from_secret(derived_secret.bytes());
-        if (!derived_pair) {
-            return derived_pair.error();
-        }
-        return kx_keypair(std::move(derived_pair).unsafe_value());
     }
 
     /**
@@ -310,7 +325,8 @@ struct kx_engine {
 }  // namespace webcpp::crypto::detail
 
 /** Defined once this header's declarations are, which libsodium's engine specialises. */
-#define WEBCPP_CRYPTO_DETAIL_KX_DECLARED
+// NOLINTNEXTLINE(modernize-macro-to-enum): read by backends/sodium.hpp's #if, not a value
+#define WEBCPP_CRYPTO_DETAIL_KX_DECLARED 1
 
 // The default backend's engine, when the program links it (design D32): libsodium on every
 // target. Its header specialises it for this header, wherever it was first included.

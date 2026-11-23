@@ -1176,6 +1176,10 @@ struct pem_engine<families::pem, backends::sodium> {
 
 namespace webcpp::crypto::detail {
 
+/** libsodium's header specialises crypto_kx's engine. */
+template <>
+inline constexpr bool kx_engine_defined<backends::sodium> = true;
+
 /**
  * crypto_kx on libsodium, `crypto_kx_*`, over the bytes of the X25519 key pair that
  * `key_exchange::kx_keypair` holds.

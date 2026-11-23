@@ -13,8 +13,8 @@
 // WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY, failing and answering; and the session keys are
 // secret<32>, which wipe themselves.
 
-#include <webcpp/crypto/curves/x25519/kx.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/key_exchange/kx.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/supports.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -35,7 +35,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
-namespace x25519 = webcpp::crypto::curves::x25519;
+namespace key_exchange = webcpp::crypto::key_exchange;
 namespace test = webcpp::test;
 
 namespace {
@@ -59,7 +59,7 @@ extern "C" int webcpp_test_entropy(void* output_bytes, std::size_t byte_count) {
 
 namespace {
 
-using kx_keypair = x25519::kx_keypair<>;
+using kx_keypair = key_exchange::kx_keypair<>;
 
 /** The bytes of a session key, as a vector a test compares. */
 std::vector<std::uint8_t> bytes_of(crypto::secret<32> const& key) {
@@ -97,7 +97,7 @@ constexpr std::array<std::uint8_t, 32> small_order{
 void kx_exp() {
     auto const client = kx_keypair::derive_from_seed(client_seed());
     auto const server =
-        x25519::kx_keypair<crypto::backends::sodium>::derive_from_seed(server_seed());
+        key_exchange::kx_keypair<crypto::backends::sodium>::derive_from_seed(server_seed());
     BOOST_TEST(client.has_value());
     BOOST_TEST(server.has_value());
     if (!client || !server) {
@@ -269,8 +269,8 @@ void generated() {
 }
 
 // The session keys are secret<32>, which wipe themselves; the key pair has one owner.
-static_assert(std::is_same_v<decltype(x25519::session_keys::receive), crypto::secret<32>>);
-static_assert(std::is_same_v<decltype(x25519::session_keys::transmit), crypto::secret<32>>);
+static_assert(std::is_same_v<decltype(key_exchange::session_keys::receive), crypto::secret<32>>);
+static_assert(std::is_same_v<decltype(key_exchange::session_keys::transmit), crypto::secret<32>>);
 static_assert(!std::is_copy_constructible_v<kx_keypair> && !std::is_copy_assignable_v<kx_keypair>);
 static_assert(std::is_nothrow_move_constructible_v<kx_keypair> &&
               std::is_nothrow_move_assignable_v<kx_keypair>);

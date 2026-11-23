@@ -10,9 +10,9 @@
 // of low order is refused. Prints the public keys and the client's session keys in hex.
 // tag::program[]
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
-#include <webcpp/crypto/curves/x25519/kx.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/key_exchange/kx.hpp>
 
 #include <array>
 #include <cstddef>
@@ -21,7 +21,7 @@
 #include <span>
 
 namespace crypto = webcpp::crypto;
-namespace x25519 = webcpp::crypto::curves::x25519;
+namespace key_exchange = webcpp::crypto::key_exchange;
 
 namespace {
 
@@ -36,7 +36,7 @@ void print(char const* name, std::span<std::uint8_t const> bytes) {
 
 // The client sends "hello" to the server, sealed with the client's transmit key and opened with
 // the server's receive key, the same key.
-bool message(x25519::session_keys const& client, x25519::session_keys const& server) {
+bool message(key_exchange::session_keys const& client, key_exchange::session_keys const& server) {
     auto sealer = crypto::ciphers::chacha20_poly1305<>::from_key(client.transmit.bytes());
     auto opener = crypto::ciphers::chacha20_poly1305<>::from_key(server.receive.bytes());
     if (!sealer || !opener) {
@@ -67,8 +67,8 @@ bool client_and_server() {
     }
     std::array<std::uint8_t, 32> server_seed = client_seed;
     server_seed[0] = 1;
-    auto const client = x25519::kx_keypair<>::derive_from_seed(client_seed);
-    auto const server = x25519::kx_keypair<>::derive_from_seed(server_seed);
+    auto const client = key_exchange::kx_keypair<>::derive_from_seed(client_seed);
+    auto const server = key_exchange::kx_keypair<>::derive_from_seed(server_seed);
     if (!client || !server) {
         return false;
     }
@@ -95,7 +95,7 @@ bool client_and_server() {
 
 // A peer key of low order gives an all-zero X25519 secret, which crypto_kx refuses.
 bool low_order_refused() {
-    auto const key = x25519::kx_keypair<>::derive_from_seed(std::array<std::uint8_t, 32>{});
+    auto const key = key_exchange::kx_keypair<>::derive_from_seed(std::array<std::uint8_t, 32>{});
     std::array<std::uint8_t, 32> const zero_point{};
     if (!key) {
         return false;

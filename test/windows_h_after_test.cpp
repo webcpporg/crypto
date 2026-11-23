@@ -34,8 +34,8 @@
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/hybrid/box.hpp>
-#include <webcpp/crypto/hybrid/sealed_box.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
+#include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
 #include <webcpp/crypto/random_device.hpp>
 #include <webcpp/test/exit_status.hpp>
 

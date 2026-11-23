@@ -14,7 +14,7 @@
 #include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/hybrid/sealed_box.hpp>
+#include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
 #include <webcpp/crypto/random_device.hpp>
 #include <webcpp/crypto/secret.hpp>
 
@@ -29,7 +29,7 @@
 
 namespace crypto = webcpp::crypto;
 using crypto::ciphers::secretbox;
-using crypto::hybrid::sealed_box;
+using crypto::public_key_encryption::sealed_box;
 
 namespace {
 

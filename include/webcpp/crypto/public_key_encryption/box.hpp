@@ -12,10 +12,15 @@
  includes when the program links it; a program that uses them without linking it stops where it
  calls them, with the Jamfile line that links it.
 
+ The namespace is named by the problem the construction solves, encryption to a public key, as
+ `ciphers` holds the symmetric ciphers and `curves` the curve primitives: `crypto::hybrid` is
+ left free for the post-quantum hybrids (X25519MLKEM768, X-Wing), which the word now names, and
+ a later HPKE (RFC 9180) joins the boxes here.
+
  @see "Boxes", in the guide.
 */
-#ifndef WEBCPP_CRYPTO_HYBRID_BOX_HPP
-#define WEBCPP_CRYPTO_HYBRID_BOX_HPP
+#ifndef WEBCPP_CRYPTO_PUBLIC_KEY_ENCRYPTION_BOX_HPP
+#define WEBCPP_CRYPTO_PUBLIC_KEY_ENCRYPTION_BOX_HPP
 
 #include <webcpp/crypto/config.hpp>
 
@@ -41,8 +46,8 @@
 namespace webcpp::crypto::detail {
 
 /**
- * What a `hybrid::basic_box` of the family `Family` stores on a backend whose header does not
- * specialise it: nothing, since its engine refuses the backend where the box is used.
+ * What a `public_key_encryption::basic_box` of the family `Family` stores on a backend whose header
+ * does not specialise it: nothing, since its engine refuses the backend where the box is used.
  */
 template <class Family, class Backend>
 struct box_state {};
@@ -56,7 +61,7 @@ struct box_state {};
 template <class Family, class Backend>
 struct box_engine;
 
-/** Whether `Family` is one of the families `hybrid::basic_box` takes. */
+/** Whether `Family` is one of the families `public_key_encryption::basic_box` takes. */
 template <class Family>
 inline constexpr bool box_family = false;
 
@@ -69,9 +74,9 @@ template <>
 inline constexpr bool box_family<families::box_xchacha20poly1305> = true;
 
 /**
- * The family whose default backend `hybrid::basic_box` takes: `Family` itself when it is a box
- * family, and otherwise `families::box_xsalsa20poly1305`, so that a type with no default of its
- * own reaches `basic_box`'s refusal of it, and adds no error of its own before it.
+ * The family whose default backend `public_key_encryption::basic_box` takes: `Family` itself when
+ * it is a box family, and otherwise `families::box_xsalsa20poly1305`, so that a type with no
+ * default of its own reaches `basic_box`'s refusal of it, and adds no error of its own before it.
  */
 template <class Family>
 using box_default_family =
@@ -79,7 +84,7 @@ using box_default_family =
 
 }  // namespace webcpp::crypto::detail
 
-namespace webcpp::crypto::hybrid {
+namespace webcpp::crypto::public_key_encryption {
 
 /**
  * `crypto_box`: authenticated encryption between two key pairs.
@@ -105,7 +110,7 @@ class basic_box {
     // The first error a program that names another type sees, and its only one: the default
     // backend reads a box family's default in the type's place.
     static_assert(detail::box_family<Family>,
-                  "webcpp::crypto: hybrid::basic_box takes a box family: "
+                  "webcpp::crypto: public_key_encryption::basic_box takes a box family: "
                   "families::box_xsalsa20poly1305 or families::box_xchacha20poly1305.");
 
     using state_type = detail::box_state<Family, Backend>;
@@ -301,7 +306,7 @@ using box = basic_box<>;
 /** `crypto_box_curve25519xchacha20poly1305`, X25519-XChaCha20-Poly1305, on its default backend. */
 using box_xchacha20poly1305 = basic_box<families::box_xchacha20poly1305>;
 
-}  // namespace webcpp::crypto::hybrid
+}  // namespace webcpp::crypto::public_key_encryption
 
 namespace webcpp::crypto::detail {
 
@@ -367,4 +372,4 @@ struct box_engine : box_refusal<Family, Backend> {
 #include <webcpp/crypto/backends/sodium.hpp>
 #endif
 
-#endif  // WEBCPP_CRYPTO_HYBRID_BOX_HPP
+#endif  // WEBCPP_CRYPTO_PUBLIC_KEY_ENCRYPTION_BOX_HPP

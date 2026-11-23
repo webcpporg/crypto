@@ -207,7 +207,7 @@
 |<<crypto-x25519,[.keep]`+x25519_agree.cpp+`>>
 
 |Give a client and a server a key for each direction from each other's public key, as libsodium's `crypto_kx` does
-|In `+curves::x25519+`: `+kx_keypair::derive_from_seed+`, `+kx_keypair::generate+`, `+client_session_keys+`, `+server_session_keys+`
+|In `+key_exchange+`: `+kx_keypair::derive_from_seed+`, `+kx_keypair::generate+`, `+client_session_keys+`, `+server_session_keys+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//kx-default+`
@@ -237,21 +237,21 @@
 |<<crypto-secretbox,[.keep]`+file_share.cpp+`>>
 
 |Send messages between two people who know each other's public keys, as NaCl's and libsodium's crypto_box
-|In `+hybrid+`: `+box::from_keys+`, `+box::seal+`, `+box::open+`
+|In `+public_key_encryption+`: `+box::from_keys+`, `+box::seal+`, `+box::open+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//box_xsalsa20poly1305-default+`
 |<<crypto-box,[.keep]`+box_messages.cpp+`>>
 
 |Let anyone send a message that only the recipient can read, without saying who sent it (anonymous feedback, a drop box)
-|In `+hybrid+`: `+sealed_box::seal+`, `+sealed_box::open+`
+|In `+public_key_encryption+`: `+sealed_box::seal+`, `+sealed_box::open+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//sealed_box-default+`
 |<<crypto-sealed-box,[.keep]`+file_share.cpp+`>>
 
 |Share a file with someone known only by a public key, as a file-sharing app does
-|`+ciphers::secretbox<>+` for the file under a key drawn for it, `+hybrid::sealed_box::seal+` for that key
+|`+ciphers::secretbox<>+` for the file under a key drawn for it, `+public_key_encryption::sealed_box::seal+` for that key
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//secretbox_xsalsa20poly1305-default+` +

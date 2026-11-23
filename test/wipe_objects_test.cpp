@@ -37,7 +37,7 @@
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/secretbox.hpp>
-#include <webcpp/crypto/hybrid/box.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
 #else
 #error "name a backend: WEBCPP_TEST_WIPE_BEARSSL, _CTAES, _SECP256K1, _OPENSSL or _SODIUM"
 #endif
@@ -277,9 +277,9 @@ int main() {
     check_wiped<crypto::ciphers::secretbox<sodium>>(aead_key<families::secretbox_xsalsa20poly1305>);
     check_wiped<crypto::ciphers::secretbox_xchacha20poly1305<sodium>>(
         aead_key<families::secretbox_xchacha20poly1305>);
-    check_wiped<crypto::hybrid::basic_box<families::box_xsalsa20poly1305, sodium>>(
+    check_wiped<crypto::public_key_encryption::basic_box<families::box_xsalsa20poly1305, sodium>>(
         box_key<families::box_xsalsa20poly1305>);
-    check_wiped<crypto::hybrid::basic_box<families::box_xchacha20poly1305, sodium>>(
+    check_wiped<crypto::public_key_encryption::basic_box<families::box_xchacha20poly1305, sodium>>(
         box_key<families::box_xchacha20poly1305>);
 #endif
     return webcpp::test::exit_status(boost::report_errors());

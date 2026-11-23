@@ -41,7 +41,8 @@ specific to crypto.
 - An algorithm type does every guard; a backend's header supplies only the six traits of
   `detail/engines.hpp` (`block_state`, `block_engine`, `gcm_state`, `gcm_engine`, `aead_state`,
   `aead_engine`), the two of `detail/p_curves.hpp` per P-curve (`p_curve_state`,
-  `p_curve_engine`) and, for the other curves and `hybrid`, the functions of its own header.
+  `p_curve_engine`) and, for the other curves, `public_key_encryption` and `key_exchange`, the
+  functions of its own header.
 - A new public function that calls a backend holds `detail::timing_guard` as its
   first statement (it sets arm64's DIT for the call, `detail/timing.hpp`) and joins the coverage
   test of its backend, `test/timing_coverage_<backend>_test.cpp`, which checks through the seam

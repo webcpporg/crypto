@@ -70,7 +70,8 @@ webcpp.headers-alone crypto : ../include
 webcpp.headers-alone crypto : ../include
   : crypto/backends/sodium.hpp crypto/curves/ed25519.hpp crypto/curves/x25519.hpp
     crypto/curves/ed25519/formats.hpp crypto/curves/x25519/formats.hpp
-    crypto/curves/x25519/kx.hpp crypto/hybrid/box.hpp crypto/hybrid/sealed_box.hpp
+    crypto/key_exchange/kx.hpp crypto/public_key_encryption/box.hpp
+    crypto/public_key_encryption/sealed_box.hpp
   : <library>/third_party//sodium ;
 # libsecp256k1's headers compile alone only with its library, which defines
 # WEBCPP_CRYPTO_HAS_SECP256K1 (without it, each stops with its message).
@@ -574,7 +575,7 @@ crypto-run x25519_sodium : x25519_sodium_test.cpp : <library>/third_party//sodiu
 # X25519's generic layer on a stand-in engine that does not refuse an all-zero
 # shared secret: agree refuses it itself (design D8).
 crypto-run x25519_mock : x25519_mock_test.cpp ;
-# ciphers::aead's and hybrid::basic_box's generic layer on a stand-in engine
+# ciphers::aead's and public_key_encryption::basic_box's generic layer on a stand-in engine
 # that writes the data before it fails: a failed seal zeroes it, as a failed
 # open does.
 crypto-run aead_box_mock : aead_box_mock_test.cpp ;
@@ -638,7 +639,7 @@ crypto-run allocation_sodium : allocation_sodium_test.cpp : <library>/third_part
 
 # libsodium's boxes, its default on every target: crypto_secretbox and its
 # XChaCha20 twin, libsodium's cases and every check of support/aead_checks.hpp
-# that applies to a family without additional data; hybrid::box and its
+# that applies to a family without additional data; public_key_encryption::box and its
 # XChaCha20 twin, NaCl's case both ways, the same checks through an adapter,
 # from_keys' guards and a peer key of small order; and sealed boxes, opened by
 # their recipient alone and refused, the output zeroed, otherwise.

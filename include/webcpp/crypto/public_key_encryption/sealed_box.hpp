@@ -10,10 +10,14 @@
  header this one includes when the program links it; a program that uses it without linking it
  stops where it calls it, with the Jamfile line that links it.
 
+ It lives in `public_key_encryption` beside `box`, named by what it does, encryption to a public
+ key: `crypto::hybrid` is left free for the post-quantum hybrids (X25519MLKEM768, X-Wing), which
+ the word now names, and a later HPKE (RFC 9180) joins the boxes here.
+
  @see "Sealed boxes", in the guide.
 */
-#ifndef WEBCPP_CRYPTO_HYBRID_SEALED_BOX_HPP
-#define WEBCPP_CRYPTO_HYBRID_SEALED_BOX_HPP
+#ifndef WEBCPP_CRYPTO_PUBLIC_KEY_ENCRYPTION_SEALED_BOX_HPP
+#define WEBCPP_CRYPTO_PUBLIC_KEY_ENCRYPTION_SEALED_BOX_HPP
 
 #include <webcpp/crypto/config.hpp>
 
@@ -43,7 +47,7 @@ struct sealed_box_engine;
 
 }  // namespace webcpp::crypto::detail
 
-namespace webcpp::crypto::hybrid {
+namespace webcpp::crypto::public_key_encryption {
 
 /**
  * Sealed boxes: anonymous encryption to a public key.
@@ -157,7 +161,7 @@ private:
 /** Sealed boxes on their default backend. */
 using sealed_box = basic_sealed_box<>;
 
-}  // namespace webcpp::crypto::hybrid
+}  // namespace webcpp::crypto::public_key_encryption
 
 namespace webcpp::crypto::detail {
 
@@ -192,4 +196,4 @@ struct sealed_box_engine {
 #include <webcpp/crypto/backends/sodium.hpp>
 #endif
 
-#endif  // WEBCPP_CRYPTO_HYBRID_SEALED_BOX_HPP
+#endif  // WEBCPP_CRYPTO_PUBLIC_KEY_ENCRYPTION_SEALED_BOX_HPP

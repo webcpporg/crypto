@@ -129,9 +129,9 @@ The fix: The secret boxes', the boxes' and the sealed boxes' default is libsodiu
 
 |`+box_not_a_family+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: hybrid::basic_box takes a box family: families::box_xsalsa20poly1305 or families::box_xchacha20poly1305.+`
+|`+webcpp::crypto: public_key_encryption::basic_box takes a box family: families::box_xsalsa20poly1305 or families::box_xchacha20poly1305.+`
 
-The fix: Name `+families::box_xsalsa20poly1305+` or `+families::box_xchacha20poly1305+`, or use `+hybrid::box+` or `+hybrid::box_xchacha20poly1305+`.
+The fix: Name `+families::box_xsalsa20poly1305+` or `+families::box_xchacha20poly1305+`, or use `+public_key_encryption::box+` or `+public_key_encryption::box_xchacha20poly1305+`.
 
 |`+chacha_default_not_linked+`
 |native, wasip2, wasip3
@@ -228,6 +228,18 @@ The fix: Call the synchronous operation the message names, or build with threads
 |`+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.+`
 
 The fix: As `+heavy_without_threads+`.
+
+|`+hybrid_header_removed+`
+|native, wasip2, wasip3
+|`+'webcpp/crypto/hybrid/box.hpp' file not found+`
+
+The fix: Include `+<webcpp/crypto/public_key_encryption/box.hpp>+` for `+box+` and `+box_xchacha20poly1305+`, `+<webcpp/crypto/public_key_encryption/sealed_box.hpp>+` for `+sealed_box+`, `+<webcpp/crypto/key_exchange/kx.hpp>+` for `+kx_keypair+`; the old directory is kept free for post-quantum hybrids.
+
+|`+hybrid_names_removed+`
+|native, wasip2, wasip3
+|`+no member named 'kx_keypair'+`
+
+The fix: Name `+crypto::public_key_encryption::box+`, `+box_xchacha20poly1305+` and `+sealed_box+`, and `+crypto::key_exchange::kx_keypair+` and `+session_keys+`; `+crypto::hybrid+` and the names in `+curves::x25519+` are gone, with no alias.
 
 |`+kx_default_not_linked+`
 |native, wasip2, wasip3
@@ -536,7 +548,7 @@ On each target, the build's output contains:
 ** `+webcpp::crypto: X25519-XChaCha20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 ** `+webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//sealed_box-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//sealed_box-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
-`+box_not_a_family_on_emscripten+`:: A program for Emscripten that gives `+hybrid::basic_box+` a type that is no box family. The fix: As `+box_not_a_family+`.
+`+box_not_a_family_on_emscripten+`:: A program for Emscripten that gives `+public_key_encryption::basic_box+` a type that is no box family. The fix: As `+box_not_a_family+`.
 +
 Its Jamfile:
 +
@@ -548,7 +560,7 @@ include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/box_not_a_family_on_e
 On each target, the build's output contains:
 +
 * emscripten:
-** `+webcpp::crypto: hybrid::basic_box takes a box family: families::box_xsalsa20poly1305 or families::box_xchacha20poly1305.+`
+** `+webcpp::crypto: public_key_encryption::basic_box takes a box family: families::box_xsalsa20poly1305 or families::box_xchacha20poly1305.+`
 
 `+canary_ctaes_missing+`:: ctaes's headers used without its library. The fix: Link `+/third_party//ctaes+`.
 +
@@ -1180,7 +1192,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+box_not_a_family+`
 |the compile
-|Name `+families::box_xsalsa20poly1305+` or `+families::box_xchacha20poly1305+`, or use `+hybrid::box+` or `+hybrid::box_xchacha20poly1305+`.
+|Name `+families::box_xsalsa20poly1305+` or `+families::box_xchacha20poly1305+`, or use `+public_key_encryption::box+` or `+public_key_encryption::box_xchacha20poly1305+`.
 
 |`+canary_ctaes_missing+`
 |the link

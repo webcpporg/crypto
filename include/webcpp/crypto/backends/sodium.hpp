@@ -643,9 +643,9 @@ struct x25519_engine<families::x25519, backends::sodium> {
 
 #endif  // X25519 on libsodium
 
-// The boxes on libsodium, for a program that includes hybrid/box.hpp, before this header or
-// after it, as Ed25519's above.
-#if defined(WEBCPP_CRYPTO_HYBRID_BOX_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+// The boxes on libsodium, for a program that includes public_key_encryption/box.hpp, before this
+// header or after it, as Ed25519's above.
+#if defined(WEBCPP_CRYPTO_PUBLIC_KEY_ENCRYPTION_BOX_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
     !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_BOX)
 /** Defined once libsodium's box engines are. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_BOX
@@ -769,10 +769,10 @@ struct box_engine<Family, backends::sodium> {
 
 #endif  // the boxes on libsodium
 
-// Sealed boxes on libsodium, for a program that includes hybrid/sealed_box.hpp, before this
-// header or after it, as Ed25519's above.
-#if defined(WEBCPP_CRYPTO_HYBRID_SEALED_BOX_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
-    !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_SEALED_BOX)
+// Sealed boxes on libsodium, for a program that includes public_key_encryption/sealed_box.hpp,
+// before this header or after it, as Ed25519's above.
+#if defined(WEBCPP_CRYPTO_PUBLIC_KEY_ENCRYPTION_SEALED_BOX_HPP) && \
+    defined(WEBCPP_CRYPTO_HAS_SODIUM) && !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_SEALED_BOX)
 /** Defined once libsodium's sealed box engine is. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_SEALED_BOX
 
@@ -1082,9 +1082,9 @@ struct pem_engine<families::pem, backends::sodium> {
 }  // namespace webcpp::crypto::detail
 
 #endif  // PEM on libsodium
-// crypto_kx on libsodium, for a program that includes curves/x25519/kx.hpp, before this header or
+// crypto_kx on libsodium, for a program that includes key_exchange/kx.hpp, before this header or
 // after it, as Ed25519's above.
-#if defined(WEBCPP_CRYPTO_CURVES_X25519_KX_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+#if defined(WEBCPP_CRYPTO_KEY_EXCHANGE_KX_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
     !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_KX)
 /** Defined once libsodium's crypto_kx engine is. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_KX

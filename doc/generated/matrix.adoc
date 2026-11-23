@@ -166,7 +166,7 @@
 |native, wasip2, wasip3, emscripten
 |`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+allocation_sodium+`, `+p256_formats_bearssl+`
 
-|`+curves::x25519::kx_keypair+`
+|`+key_exchange::kx_keypair+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+kx_sodium+`, `+kx_wipe_sodium+`, `+allocation_sodium+`
@@ -211,17 +211,17 @@
 |native, wasip2, wasip3, emscripten
 |`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`
 
-|`+hybrid::box+`
+|`+public_key_encryption::box+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+box_sodium+`, `+allocation_sodium+`
 
-|`+hybrid::box_xchacha20poly1305+`
+|`+public_key_encryption::box_xchacha20poly1305+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+box_sodium+`, `+allocation_sodium+`
 
-|`+hybrid::sealed_box+`
+|`+public_key_encryption::sealed_box+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+box_sodium+`, `+allocation_sodium+`
@@ -462,7 +462,7 @@ The same, by target: the backends each operation runs on.
 |libsodium
 |libsodium
 
-|`+curves::x25519::kx_keypair+`
+|`+key_exchange::kx_keypair+`
 |libsodium
 |libsodium
 |libsodium
@@ -498,19 +498,19 @@ The same, by target: the backends each operation runs on.
 |libsodium
 |libsodium
 
-|`+hybrid::box+`
+|`+public_key_encryption::box+`
 |libsodium
 |libsodium
 |libsodium
 |libsodium
 
-|`+hybrid::box_xchacha20poly1305+`
+|`+public_key_encryption::box_xchacha20poly1305+`
 |libsodium
 |libsodium
 |libsodium
 |libsodium
 
-|`+hybrid::sealed_box+`
+|`+public_key_encryption::sealed_box+`
 |libsodium
 |libsodium
 |libsodium

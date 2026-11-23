@@ -4,20 +4,24 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-[#crypto-hybrid]
-== Hybrid encryption: `webcpp::crypto::hybrid`
+[#crypto-public-key-encryption]
+== Public-key encryption: `webcpp::crypto::public_key_encryption`
 
-*Hybrid encryption* joins a key agreement and a cipher: the agreement, on
-public keys, gives a secret key, and a fast cipher encrypts the data under it
+*Public-key encryption* encrypts to a public key: a key agreement, on public
+keys, gives a secret key, and a fast cipher encrypts the data under it, the
+construction textbooks call hybrid encryption
 (link:https://en.wikipedia.org/wiki/Hybrid_cryptosystem[Wikipedia]). A chat app
 encrypts a message to a contact whose public key it knows; a feedback form
 encrypts a report to a key whose owner alone may read it. The namespace
-`webcpp::crypto::hybrid` holds NaCl's and libsodium's constructions in this
-version: the box, between two key pairs, and the sealed box, from anyone to
-a public key. Both agree with X25519 (<<crypto-x25519>>) and seal with
-XSalsa20-Poly1305, the secret box's cipher (<<crypto-secretbox>>), or, for
-`box_xchacha20poly1305`, XChaCha20-Poly1305, on libsodium, their default on
-every target.
+`webcpp::crypto::public_key_encryption` holds NaCl's and libsodium's
+constructions in this version: the box, between two key pairs, and the sealed
+box, from anyone to a public key. Both agree with X25519 (<<crypto-x25519>>)
+and seal with XSalsa20-Poly1305, the secret box's cipher (<<crypto-secretbox>>),
+or, for `box_xchacha20poly1305`, XChaCha20-Poly1305, on libsodium, their
+default on every target. The namespace is named by the problem it solves: the
+word hybrid now names the post-quantum hybrids, as X25519MLKEM768 and X-Wing,
+for which `webcpp::crypto::hybrid` is kept free, and a later HPKE
+(link:https://www.rfc-editor.org/rfc/rfc9180[RFC 9180]) joins the boxes here.
 
 *Which one.* A box when the two parties know each other's public keys and the
 recipient must know the message came from the other: a chat between two
@@ -30,12 +34,13 @@ encrypts to a public key by hand, an agreement and a cipher of its own
 choosing, risks the mistakes these constructions settle: a shared secret used
 as a key, a nonce reused, a weak public key accepted.
 
-include::generated/namespace-hybrid.adoc[]
+include::generated/namespace-public_key_encryption.adoc[]
 
 [#crypto-box]
 === Boxes
 
-`hybrid::box`, in `<webcpp/crypto/hybrid/box.hpp>`, is NaCl's `crypto_box`
+`public_key_encryption::box`, in
+`<webcpp/crypto/public_key_encryption/box.hpp>`, is NaCl's `crypto_box`
 (link:https://nacl.cr.yp.to/box.html[NaCl];
 link:https://doc.libsodium.org/public-key_cryptography/authenticated_encryption[libsodium's documentation]).
 `box::from_keys(secret_key, peer_public_key)` agrees a key from the own X25519
@@ -109,7 +114,8 @@ a protocol that needs to know says so inside the message, or signs it.
 [#crypto-sealed-box]
 === Sealed boxes
 
-`hybrid::sealed_box`, in `<webcpp/crypto/hybrid/sealed_box.hpp>`, is
+`public_key_encryption::sealed_box`, in
+`<webcpp/crypto/public_key_encryption/sealed_box.hpp>`, is
 libsodium's sealed box, `crypto_box_seal`
 (link:https://doc.libsodium.org/public-key_cryptography/sealed_boxes[libsodium's documentation]):
 anyone who knows a public key can seal a message to it, and only the key pair

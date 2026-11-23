@@ -10,8 +10,8 @@
 // and the IV, each failing with authentication_failed and the data zeroed, moves of empty
 // objects, empty inputs, and spans that touch or overlap (the genesis's Review Focus 2, 3
 // and 6). The checks reach the object through an adapter (aead_calls), so that an object of
-// another shape, as hybrid::box, which has no additional data and is made of two keys, runs
-// those that apply to it (ruling C35).
+// another shape, as public_key_encryption::box, which has no additional data and is made of two
+// keys, runs those that apply to it (ruling C35).
 //
 // The known answers: RFC 8439's section 2.8.2 and appendix A.5 for ChaCha20-Poly1305, the
 // XChaCha draft's appendix A.3.1 for XChaCha20-Poly1305, and the cases of libsodium's own

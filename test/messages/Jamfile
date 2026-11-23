@@ -45,6 +45,8 @@ build-project aead_not_a_family ;
 build-project chacha_on_ctaes ;
 build-project box_default_not_linked ;
 build-project box_not_a_family ;
+build-project hybrid_header_removed ;
+build-project hybrid_names_removed ;
 build-project kx_default_not_linked ;
 build-project x25519_default_not_linked ;
 build-project pem_default_not_linked ;

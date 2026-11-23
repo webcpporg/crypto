@@ -4,13 +4,24 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-[#crypto-kx]
-=== Key exchange: crypto_kx
+[#crypto-key-exchange]
+== Key exchange: `webcpp::crypto::key_exchange`
 
-`<webcpp/crypto/curves/x25519/kx.hpp>` is libsodium's key exchange,
+*Key exchange* gives two parties who swapped public keys the keys a cipher
+needs, without sending any of them. The namespace
+`webcpp::crypto::key_exchange` holds libsodium's `crypto_kx` in this version: a
+construction over X25519 (<<crypto-x25519>>) and BLAKE2b rather than a curve
+primitive, so it is not in `curves`, and named by the problem it solves.
+
+include::generated/namespace-key_exchange.adoc[]
+
+[#crypto-kx]
+=== crypto_kx
+
+`<webcpp/crypto/key_exchange/kx.hpp>` is libsodium's key exchange,
 `crypto_kx`, on libsodium (`/third_party//sodium`, or
 `/webcpp/crypto//kx-default`, which links it on every target), in the namespace
-`webcpp::crypto::curves::x25519`. It turns X25519 (<<crypto-x25519>>) into what
+`webcpp::crypto::key_exchange`. It turns X25519 (<<crypto-x25519>>) into what
 a program that talks to one peer needs: two keys ready for a cipher, one for
 each direction. A chat app's client and its server each hold a
 `kx_keypair`; they send each other their public keys; the client calls

@@ -4,14 +4,15 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// ciphers::aead's and hybrid::basic_box's generic layer on a stand-in backend whose seal and open
-// write into the data before they fail, as OpenSSL can once it began to encrypt: a seal that
-// fails zeroes the data as a failed open does, so that neither the plaintext nor bytes that look
-// sealed stay behind; a guard's refusal leaves it untouched; an engine's error is passed on.
+// ciphers::aead's and public_key_encryption::basic_box's generic layer on a stand-in backend whose
+// seal and open write into the data before they fail, as OpenSSL can once it began to encrypt: a
+// seal that fails zeroes the data as a failed open does, so that neither the plaintext nor bytes
+// that look sealed stay behind; a guard's refusal leaves it untouched; an engine's error is passed
+// on.
 
 #include <webcpp/crypto/ciphers/aead.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/hybrid/box.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -179,7 +180,8 @@ void check_aead() {
 }
 
 void check_box() {
-    using box = crypto::hybrid::basic_box<crypto::families::box_xsalsa20poly1305, stand_in>;
+    using box =
+        crypto::public_key_encryption::basic_box<crypto::families::box_xsalsa20poly1305, stand_in>;
     std::array<std::uint8_t, box::key_size> const key{};
     auto made = box::from_keys(key, key);
     if (!BOOST_TEST(made.has_value())) {

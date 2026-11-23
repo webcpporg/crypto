@@ -12,7 +12,7 @@
 // the test asserts. Alive, the key pair made from kx.c's seed holds kx.exp's client_sk there,
 // which the key pair's interface never shows.
 
-#include <webcpp/crypto/curves/x25519/kx.hpp>
+#include <webcpp/crypto/key_exchange/kx.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -32,9 +32,9 @@
 namespace {
 
 namespace crypto = webcpp::crypto;
-namespace x25519 = webcpp::crypto::curves::x25519;
+namespace key_exchange = webcpp::crypto::key_exchange;
 
-using x25519::kx_keypair;
+using key_exchange::kx_keypair;
 using state = crypto::detail::kx_state<crypto::families::kx, crypto::backends::sodium>;
 
 // The secret key's bytes, at the start of the state.
@@ -43,8 +43,8 @@ constexpr std::size_t secret_key_size = sizeof(state::secret_key);
 static_assert(std::is_standard_layout_v<kx_keypair<>> && std::is_standard_layout_v<state>);
 static_assert(secret_key_size == 32 && offsetof(state, secret_key) == 0);
 // A side's session keys are their two keys' bytes, nothing else.
-static_assert(std::is_standard_layout_v<x25519::session_keys> &&
-              sizeof(x25519::session_keys) == 64);
+static_assert(std::is_standard_layout_v<key_exchange::session_keys> &&
+              sizeof(key_exchange::session_keys) == 64);
 
 // A function the optimiser cannot see into, so that what it is handed is read from memory.
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -133,13 +133,14 @@ void sessions() {
     }
 
     // Destroyed in storage this frame owns: its bytes are read after the destructor.
-    alignas(x25519::session_keys) std::array<std::byte, sizeof(x25519::session_keys)> storage{};
-    x25519::session_keys* const placed = std::construct_at(
-        reinterpret_cast<x25519::session_keys*>(storage.data()), std::move(*keys));
+    alignas(key_exchange::session_keys) std::array<std::byte, sizeof(key_exchange::session_keys)>
+        storage{};
+    key_exchange::session_keys* const placed = std::construct_at(
+        reinterpret_cast<key_exchange::session_keys*>(storage.data()), std::move(*keys));
     BOOST_TEST(!memory_is_zero(&placed->receive, 32));
     BOOST_TEST(!memory_is_zero(&placed->transmit, 32));
     std::destroy_at(placed);
-    BOOST_TEST(memory_is_zero(storage.data(), sizeof(x25519::session_keys)));
+    BOOST_TEST(memory_is_zero(storage.data(), sizeof(key_exchange::session_keys)));
 }
 
 }  // namespace

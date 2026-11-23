@@ -44,12 +44,12 @@
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
-#include <webcpp/crypto/curves/x25519/kx.hpp>
 #include <webcpp/crypto/detail/bytes.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
 #include <webcpp/crypto/equal.hpp>
-#include <webcpp/crypto/hybrid/box.hpp>
-#include <webcpp/crypto/hybrid/sealed_box.hpp>
+#include <webcpp/crypto/key_exchange/kx.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
+#include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 
@@ -275,7 +275,7 @@ int sodium_box(char const* what) {
  */
 template <class Checker>
 int sodium_sealed_box() {
-    using crypto::hybrid::sealed_box;
+    using crypto::public_key_encryption::sealed_box;
     std::array<std::uint8_t, 32> secret_key{};
     secret_key.fill(0x42);
     auto const public_key = crypto::curves::x25519::public_key<sodium>(secret_key);
@@ -300,7 +300,7 @@ int sodium_sealed_box() {
 /** kx on libsodium: both key pairs from secret seeds, both sides' session keys. */
 template <class Checker>
 int sodium_kx() {
-    using keypair = crypto::curves::x25519::kx_keypair<sodium>;
+    using keypair = crypto::key_exchange::kx_keypair<sodium>;
     std::array<std::uint8_t, 32> client_seed{};
     std::array<std::uint8_t, 32> server_seed{};
     client_seed.fill(0x42);
@@ -829,11 +829,11 @@ int common_paths() {
            seal_and_open<Checker, ciphers::secretbox<sodium>>("secretbox on libsodium") +
            seal_and_open<Checker, ciphers::secretbox_xchacha20poly1305<sodium>>(
                "its XChaCha20 twin") +
-           sodium_box<Checker,
-                      crypto::hybrid::basic_box<crypto::families::box_xsalsa20poly1305, sodium>>(
+           sodium_box<Checker, crypto::public_key_encryption::basic_box<
+                                   crypto::families::box_xsalsa20poly1305, sodium>>(
                "box on libsodium") +
-           sodium_box<Checker,
-                      crypto::hybrid::basic_box<crypto::families::box_xchacha20poly1305, sodium>>(
+           sodium_box<Checker, crypto::public_key_encryption::basic_box<
+                                   crypto::families::box_xchacha20poly1305, sodium>>(
                "box_xchacha20poly1305 on libsodium") +
            sodium_sealed_box<Checker>() + sodium_kx<Checker>() + secp256k1_paths<Checker>() +
            bearssl_p256_paths<Checker>();

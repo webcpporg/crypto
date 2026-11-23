@@ -11,7 +11,7 @@
 // tag::program[]
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/hybrid/box.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/random_device.hpp>
 #include <webcpp/crypto/secret.hpp>
 
@@ -24,7 +24,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
-using crypto::hybrid::box;
+using crypto::public_key_encryption::box;
 
 namespace {
 

@@ -21,10 +21,10 @@
 #include <webcpp/crypto/curves/ed25519/formats.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/curves/x25519/formats.hpp>
-#include <webcpp/crypto/curves/x25519/kx.hpp>
-#include <webcpp/crypto/hybrid/box.hpp>
-#include <webcpp/crypto/hybrid/sealed_box.hpp>
+#include <webcpp/crypto/key_exchange/kx.hpp>
 #include <webcpp/crypto/pem.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
+#include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/algorithms.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -193,7 +193,7 @@ void expect_no_allocation_box() {
  * and opens a changed one: none of it allocates.
  */
 void expect_no_allocation_sealed_box() {
-    using sealed_box = crypto::hybrid::basic_sealed_box<crypto::backends::sodium>;
+    using sealed_box = crypto::public_key_encryption::basic_sealed_box<crypto::backends::sodium>;
     std::array<std::uint8_t, 32> bob{};
     bob.fill(11);
     auto const bob_public = crypto::curves::x25519::public_key<crypto::backends::sodium>(bob);
@@ -259,7 +259,7 @@ void expect_no_allocation_formats() {
  * refuses a peer key of low order (the all-zero point): none of it allocates.
  */
 void expect_no_allocation_kx() {
-    using kx_keypair = crypto::curves::x25519::kx_keypair<crypto::backends::sodium>;
+    using kx_keypair = crypto::key_exchange::kx_keypair<crypto::backends::sodium>;
     std::array<std::uint8_t, kx_keypair::seed_size> client_seed{};
     client_seed.fill(11);
     std::array<std::uint8_t, kx_keypair::seed_size> server_seed{};
@@ -310,10 +310,10 @@ int main() {
     expect_no_allocation_x25519();
     expect_no_allocation<crypto::ciphers::secretbox<crypto::backends::sodium>>();
     expect_no_allocation<crypto::ciphers::secretbox_xchacha20poly1305<crypto::backends::sodium>>();
-    expect_no_allocation_box<crypto::hybrid::basic_box<crypto::families::box_xsalsa20poly1305,
-                                                       crypto::backends::sodium>>();
-    expect_no_allocation_box<crypto::hybrid::basic_box<crypto::families::box_xchacha20poly1305,
-                                                       crypto::backends::sodium>>();
+    expect_no_allocation_box<crypto::public_key_encryption::basic_box<
+        crypto::families::box_xsalsa20poly1305, crypto::backends::sodium>>();
+    expect_no_allocation_box<crypto::public_key_encryption::basic_box<
+        crypto::families::box_xchacha20poly1305, crypto::backends::sodium>>();
     expect_no_allocation_sealed_box();
     expect_no_allocation_formats();
     expect_no_allocation_kx();

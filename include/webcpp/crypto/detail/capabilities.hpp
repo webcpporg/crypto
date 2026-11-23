@@ -41,7 +41,7 @@ struct ed25519;
 /** The family X25519, of `curves::x25519`, also the tag of its one algorithm. */
 struct x25519;
 
-/** The family crypto_kx, of `curves::x25519`, also the tag of its one algorithm. */
+/** The family crypto_kx, of `key_exchange`, also the tag of its one algorithm. */
 struct kx;
 
 /** The family PEM, of `pem`, also the tag of its one algorithm. */
@@ -62,14 +62,21 @@ struct secretbox_xsalsa20poly1305;
 /** The family XChaCha20-Poly1305 secret box, of `ciphers`, also the tag of its one algorithm. */
 struct secretbox_xchacha20poly1305;
 
-/** The family X25519-XSalsa20-Poly1305 box, of `hybrid`, also the tag of its one algorithm. */
+/**
+ * The family X25519-XSalsa20-Poly1305 box, of `public_key_encryption`, also the tag of its one
+ * algorithm.
+ */
 struct box_xsalsa20poly1305;
 
-/** The family X25519-XChaCha20-Poly1305 box, of `hybrid`, also the tag of its one algorithm. */
+/**
+ * The family X25519-XChaCha20-Poly1305 box, of `public_key_encryption`, also the tag of its one
+ * algorithm.
+ */
 struct box_xchacha20poly1305;
 
 /**
- * The family X25519-XSalsa20-Poly1305 sealed box, of `hybrid`, also the tag of its one algorithm.
+ * The family X25519-XSalsa20-Poly1305 sealed box, of `public_key_encryption`, also the tag of its
+ * one algorithm.
  */
 struct sealed_box;
 

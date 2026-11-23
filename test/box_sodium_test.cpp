@@ -4,8 +4,8 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// hybrid::box, crypto_box, and hybrid::sealed_box, crypto_box_seal, on libsodium, their default
-// on every target.
+// public_key_encryption::box, crypto_box, and public_key_encryption::sealed_box, crypto_box_seal,
+// on libsodium, their default on every target.
 //
 // The box: NaCl's case of libsodium's test/default/box.c and box2.c, Alice's secret key with
 // Bob's public key and Bob's with Alice's, which box.exp and box2.exp show give one ciphertext
@@ -26,8 +26,8 @@
 
 #include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
-#include <webcpp/crypto/hybrid/box.hpp>
-#include <webcpp/crypto/hybrid/sealed_box.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
+#include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
 #include <webcpp/crypto/supports.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -47,15 +47,15 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
-namespace hybrid = webcpp::crypto::hybrid;
+namespace public_key_encryption = webcpp::crypto::public_key_encryption;
 using webcpp::test::from_hex;
 using webcpp::test::to_hex;
 
 namespace {
 
-using hybrid::box;
-using box_xchacha = hybrid::box_xchacha20poly1305;
-using hybrid::sealed_box;
+using public_key_encryption::box;
+using box_xchacha = public_key_encryption::box_xchacha20poly1305;
+using public_key_encryption::sealed_box;
 
 static_assert(std::is_same_v<crypto::default_backend_t<crypto::families::box_xsalsa20poly1305>,
                              crypto::backends::sodium>);
@@ -63,11 +63,14 @@ static_assert(std::is_same_v<crypto::default_backend_t<crypto::families::box_xch
                              crypto::backends::sodium>);
 static_assert(std::is_same_v<crypto::default_backend_t<crypto::families::sealed_box>,
                              crypto::backends::sodium>);
-static_assert(std::is_same_v<box, hybrid::basic_box<crypto::families::box_xsalsa20poly1305,
-                                                    crypto::backends::sodium>>);
-static_assert(std::is_same_v<box_xchacha, hybrid::basic_box<crypto::families::box_xchacha20poly1305,
+static_assert(
+    std::is_same_v<box, public_key_encryption::basic_box<crypto::families::box_xsalsa20poly1305,
+                                                         crypto::backends::sodium>>);
+static_assert(std::is_same_v<
+              box_xchacha, public_key_encryption::basic_box<crypto::families::box_xchacha20poly1305,
                                                             crypto::backends::sodium>>);
-static_assert(std::is_same_v<sealed_box, hybrid::basic_sealed_box<crypto::backends::sodium>>);
+static_assert(
+    std::is_same_v<sealed_box, public_key_encryption::basic_sealed_box<crypto::backends::sodium>>);
 static_assert(std::is_same_v<box::family_type, crypto::families::box_xsalsa20poly1305>);
 static_assert(std::is_same_v<box::name_type, crypto::families::box_xsalsa20poly1305>);
 static_assert(std::is_same_v<sealed_box::family_type, crypto::families::sealed_box>);

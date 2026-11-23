@@ -13,10 +13,15 @@
  it; a program that uses the family without linking it stops where it calls it, with the
  Jamfile line that links it.
 
+ The namespace is named by the problem the construction solves, agreeing session keys: crypto_kx
+ is a construction over X25519 and BLAKE2b, not a curve primitive, so it is not in `curves`,
+ and "hybrid encryption" (a KEM with a DEM) does not describe it either, a word left free for
+ the post-quantum hybrids (X25519MLKEM768, X-Wing).
+
  @see "Key exchange: crypto_kx", in the guide.
 */
-#ifndef WEBCPP_CRYPTO_CURVES_X25519_KX_HPP
-#define WEBCPP_CRYPTO_CURVES_X25519_KX_HPP
+#ifndef WEBCPP_CRYPTO_KEY_EXCHANGE_KX_HPP
+#define WEBCPP_CRYPTO_KEY_EXCHANGE_KX_HPP
 
 #include <webcpp/crypto/config.hpp>
 
@@ -52,7 +57,7 @@ struct kx_engine;
 
 }  // namespace webcpp::crypto::detail
 
-namespace webcpp::crypto::curves::x25519 {
+namespace webcpp::crypto::key_exchange {
 
 /** The session keys of one side: what it receives with and what it transmits with. */
 struct session_keys {
@@ -245,7 +250,7 @@ private:
     bool keyed_ = false;
 };
 
-}  // namespace webcpp::crypto::curves::x25519
+}  // namespace webcpp::crypto::key_exchange
 
 namespace webcpp::crypto::detail {
 
@@ -300,4 +305,4 @@ struct kx_engine {
 #include <webcpp/crypto/backends/sodium.hpp>
 #endif
 
-#endif  // WEBCPP_CRYPTO_CURVES_X25519_KX_HPP
+#endif  // WEBCPP_CRYPTO_KEY_EXCHANGE_KX_HPP

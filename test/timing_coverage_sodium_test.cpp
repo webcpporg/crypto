@@ -40,12 +40,12 @@
 #include <webcpp/crypto/curves/ed25519/formats.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/curves/x25519/formats.hpp>
-#include <webcpp/crypto/curves/x25519/kx.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/hybrid/box.hpp>
-#include <webcpp/crypto/hybrid/sealed_box.hpp>
+#include <webcpp/crypto/key_exchange/kx.hpp>
 #include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/pem.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
+#include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/algorithms.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -155,7 +155,7 @@ void cover_box(std::string const& family) {
 
 /** The sealed box's `seal` and `open`, an output of the wrong size included. */
 void cover_sealed_box() {
-    using sealed_box = crypto::hybrid::basic_sealed_box<sodium>;
+    using sealed_box = crypto::public_key_encryption::basic_sealed_box<sodium>;
     auto const bob = make_keypair(0x42);
     std::array<std::uint8_t, 8> const message{1, 2, 3, 4, 5, 6, 7, 8};
     std::array<std::uint8_t, message.size() + sealed_box::overhead> sealed{};
@@ -178,8 +178,11 @@ void cover_sealed_box() {
 
 /** Both boxes and the sealed box. */
 void cover_boxes() {
-    cover_box<crypto::hybrid::basic_box<crypto::families::box_xsalsa20poly1305, sodium>>("box");
-    cover_box<crypto::hybrid::basic_box<crypto::families::box_xchacha20poly1305, sodium>>(
+    cover_box<
+        crypto::public_key_encryption::basic_box<crypto::families::box_xsalsa20poly1305, sodium>>(
+        "box");
+    cover_box<
+        crypto::public_key_encryption::basic_box<crypto::families::box_xchacha20poly1305, sodium>>(
         "box_xchacha20poly1305");
     cover_sealed_box();
 }
@@ -520,15 +523,15 @@ void cover_x25519_formats() {
  * size included. `public_key` copies bytes and holds no guard (ruling R4).
  */
 void cover_kx() {
-    using kx_keypair = crypto::curves::x25519::kx_keypair<sodium>;
+    using kx_keypair = crypto::key_exchange::kx_keypair<sodium>;
     auto const seed = webcpp::test::coverage_key<kx_keypair::seed_size>();
-    covered("x25519::kx_keypair::derive_from_seed on sodium",
+    covered("key_exchange::kx_keypair::derive_from_seed on sodium",
             [&] { BOOST_TEST(kx_keypair::derive_from_seed(seed).has_value()); });
-    covered("x25519::kx_keypair::derive_from_seed with a short seed on sodium", [&] {
+    covered("key_exchange::kx_keypair::derive_from_seed with a short seed on sodium", [&] {
         BOOST_TEST(kx_keypair::derive_from_seed(std::span(seed).first(31)).error() ==
                    crypto::error::invalid_key_size);
     });
-    covered("x25519::kx_keypair::generate on sodium",
+    covered("key_exchange::kx_keypair::generate on sodium",
             [] { BOOST_TEST(kx_keypair::generate().has_value()); });
     auto const client = kx_keypair::derive_from_seed(seed);
     auto const server = kx_keypair::generate();
@@ -540,15 +543,15 @@ void cover_kx() {
     if (!BOOST_TEST(client_public.has_value()) || !BOOST_TEST(server_public.has_value())) {
         return;
     }
-    covered("x25519::kx_keypair::client_session_keys on sodium",
+    covered("key_exchange::kx_keypair::client_session_keys on sodium",
             [&] { BOOST_TEST(client->client_session_keys(*server_public).has_value()); });
-    covered("x25519::kx_keypair::server_session_keys on sodium",
+    covered("key_exchange::kx_keypair::server_session_keys on sodium",
             [&] { BOOST_TEST(server->server_session_keys(*client_public).has_value()); });
-    covered("x25519::kx_keypair::client_session_keys with a short key on sodium", [&] {
+    covered("key_exchange::kx_keypair::client_session_keys with a short key on sodium", [&] {
         BOOST_TEST(client->client_session_keys(std::span(*server_public).first(31)).error() ==
                    crypto::error::invalid_public_key);
     });
-    covered("x25519::kx_keypair::server_session_keys with a short key on sodium", [&] {
+    covered("key_exchange::kx_keypair::server_session_keys with a short key on sodium", [&] {
         BOOST_TEST(server->server_session_keys(std::span(*client_public).first(31)).error() ==
                    crypto::error::invalid_public_key);
     });

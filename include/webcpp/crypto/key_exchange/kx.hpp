@@ -52,12 +52,16 @@ template <class Name, class Backend>
 struct kx_engine;
 
 /**
- * Whether a backend's header specialises `kx_engine` for it: set by that header beside its
- * specialisation. Where it is not, `kx_keypair::derive_from_seed` reaches the primary's refusal
- * alone and makes no X25519 key pair, whose own refusal would add a second error after it.
+ * Whether `kx_engine` is a backend's own, read from the capability table, as the primary's
+ * refusal reads it, not kept by hand: the backend has `crypto_kx` on this target and is linked.
+ * The header of such a backend is included by this one (the default's, libsodium's, at its end),
+ * so its specialisation is there. Where it is not, `kx_keypair::derive_from_seed` reaches the
+ * primary's refusal alone and makes no X25519 key pair, whose own refusal would add a second
+ * error after it.
  */
 template <class Backend>
-inline constexpr bool kx_engine_defined = false;
+inline constexpr bool kx_engine_defined =
+    supported<families::kx, families::kx, Backend> && linked<Backend>;
 
 }  // namespace webcpp::crypto::detail
 
@@ -297,6 +301,12 @@ namespace webcpp::crypto::detail {
  * called: the refusal stops the build where the class is instantiated, and they keep the
  * compiler from adding errors of their own after it; they report `backend_failure`, so that a
  * path the refusal missed fails closed.
+ *
+ * `kx_engine_defined` reads the same facts as this refusal, the table's `supported` and `linked`:
+ * a backend gains `crypto_kx` by its row in the table and its specialisation, nothing else. A
+ * backend linked whose header the program does not include would also make an X25519 key pair,
+ * whose refusal would follow this one; the one backend with `crypto_kx`, libsodium, is included
+ * by this header wherever it is linked, so none is.
  */
 template <class Name, class Backend>
 struct kx_engine {

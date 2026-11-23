@@ -30,7 +30,8 @@
 //   value.
 // - post_verify_*: the same cases through Ed25519's async_verify (no value), RFC 8032's test 2,
 //   and, for the value shapes, async_sign (an ed25519::signature) and async_agree (a
-//   secret<32>): never
+//   secret<32>; refused by libsodium for a peer of low order, before it for a moved-from key
+//   pair): never
 //   inside the call, the work done when the call returns, a bound executor, the handler's
 //   allocator, every token, an error's empty value.
 // Each check takes the operation's start as a callable of (executor, token).
@@ -772,6 +773,16 @@ void post_gcm_tokens(asio::io_context& context) {
     post_gcm_awaitable_token(context, fixture, plaintext);
 }
 
+// An X25519 key pair moved from: it holds no key, and every call refuses with invalid_state.
+crypto::curves::x25519::keypair moved_from_x25519() {
+    std::array<std::uint8_t, 32> const secret_key{9};
+    // value(): a key pair not made throws, or ends the program without exceptions.
+    auto made = crypto::curves::x25519::keypair::from_secret(secret_key).value();
+    [[maybe_unused]] auto const taken = std::move(made);
+    // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair is the point
+    return made;
+}
+
 // Ed25519's async_verify, async_sign and X25519's async_agree through the family's real
 // functions, on the default backend. The fixture: RFC 8032's test 2 and RFC 7748's section 6.1.
 struct verify_fixture {
@@ -801,6 +812,8 @@ struct verify_fixture {
     // A peer key of low order, the all-zero point, whose shared secret agree refuses.
     crypto::curves::x25519::public_key weak_peer_key =
         crypto::curves::x25519::public_key::from_bytes(std::array<std::uint8_t, 32>{}).value();
+    // A key pair moved from, which agree refuses before libsodium.
+    crypto::curves::x25519::keypair empty_key_pair = moved_from_x25519();
     crypto::curves::ed25519::keypair key_pair =
         *crypto::curves::ed25519::keypair::from_secret(seed);
 
@@ -849,6 +862,13 @@ struct verify_fixture {
                                        std::forward<decltype(token)>(token));
         };
     }
+
+    auto agree_empty() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_agree(executor, empty_key_pair, peer_key,
+                                       std::forward<decltype(token)>(token));
+        };
+    }
 };
 
 // complete_by_callback of a real function, whose synchronous call is not counted by sync_runs: the
@@ -893,6 +913,9 @@ void post_verify_inline(asio::io_context& context) {
     auto const agree_refused = complete_later<key>(context, fixture.agree_refused());
     BOOST_TEST(agree_refused.code == crypto::error::weak_public_key);
     BOOST_TEST(all_bytes(std::get<0>(agree_refused.value), 0));
+    auto const agree_empty = complete_later<key>(context, fixture.agree_empty());
+    BOOST_TEST(agree_empty.code == crypto::error::invalid_state);
+    BOOST_TEST(all_bytes(std::get<0>(agree_empty.value), 0));
 }
 
 void post_verify_bound_executor() {
@@ -921,6 +944,8 @@ void post_verify_allocator(asio::io_context& context) {
     BOOST_TEST_EQ(refused.news, 0U);
     check_allocator_with<key>(context, fixture.agree(), fixture.agree_refused(),
                               crypto::error::weak_public_key);
+    check_allocator_with<key>(context, fixture.agree(), fixture.agree_empty(),
+                              crypto::error::invalid_state);
 }
 
 void post_verify_tokens(asio::io_context& context) {

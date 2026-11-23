@@ -307,8 +307,8 @@ int sodium_kx() {
     server_seed.fill(0x24);
     Checker::mark_secret(client_seed);
     Checker::mark_secret(server_seed);
-    auto const client = keypair::from_secret(client_seed);
-    auto const server = keypair::from_secret(server_seed);
+    auto const client = keypair::derive_from_seed(client_seed);
+    auto const server = keypair::derive_from_seed(server_seed);
     auto const client_key = *client->public_key();
     auto const server_key = *server->public_key();
     // The public keys are public: sent to the peer.

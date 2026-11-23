@@ -478,7 +478,11 @@ void conversion() {
 }
 
 // A key the map refuses, member and free: of small order (ed25519-speccheck's case 0), and not
-// canonical (the neutral element written with y = p + 1).
+// canonical, the neutral element written with y = p + 1, which is of small order too. No key is
+// refused for being not canonical alone: a non-canonical encoding is y = p + k, k from 0 to 18,
+// and each of those 19 y is off the curve, of small order (0, 1) or of mixed order, which
+// libsodium's crypto_sign_ed25519_pk_to_curve25519 refuses as such (x25519_sodium's
+// conversion_refuses has y = p + 3, of mixed order).
 void conversion_refuses() {
     constexpr auto refused = std::to_array<std::string_view>({
         "c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac03fa",

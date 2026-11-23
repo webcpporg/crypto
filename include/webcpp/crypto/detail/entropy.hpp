@@ -85,7 +85,12 @@ inline constexpr std::size_t entropy_piece = 256;
         }
     }, output_bytes, static_cast<int>(byte_count));
     // clang-format on
-    int const failure_code = draw_status == 0 ? 0 : (draw_status == 1 ? ENOTSUP : EIO);
+    int failure_code = 0;
+    if (draw_status == 1) {
+        failure_code = ENOTSUP;
+    } else if (draw_status != 0) {
+        failure_code = EIO;
+    }
 #else
 #ifdef WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY
     int const call_result =

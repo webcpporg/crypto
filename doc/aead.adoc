@@ -138,7 +138,7 @@ tag in one pass; when the tag does not match, crypto zeroes the whole of
 `update` that fails in the backend zeroes its data too, so that no message
 without a tag can be sent. A caller who
 needs the ciphertext after a failure keeps a copy. A guard's refusal
-(`invalid_state`, `invalid_iv_size`, `invalid_tag_size`, `message_too_long`)
+(`invalid_state`, `invalid_nonce_size`, `invalid_tag_size`, `message_too_long`)
 comes before any work and leaves `data_bytes` untouched. Whether the tag
 matched is the one value derived from the key that crypto treats as public
 (<<crypto-backends-constant-time>>).
@@ -174,7 +174,7 @@ itself, which come after the guards:
 |`begin_seal` or `begin_open` while a message is in progress; `update` or
 `result` outside a seal; `authenticate` or `verify` outside the open's first
 pass; `decrypt` or `end_open` before `verify` matched |`invalid_state`
-|an empty IV, or one longer than `max_iv_size`, 128 bytes |`invalid_iv_size`
+|an empty nonce, or one longer than `max_nonce_size`, 128 bytes |`invalid_nonce_size`
 |`open` or `verify`: a tag of another size than 16 |`invalid_tag_size`
 |a message longer than `max_message_size`, 2^36^ - 32 bytes, in one call or
 summed over `update` or `authenticate`, or associated data longer than 2^61^ -

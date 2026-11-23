@@ -151,13 +151,13 @@ public:
     /** The tag's size. */
     static constexpr std::size_t tag_size = 16;
     /** The recommended nonce size. */
-    static constexpr std::size_t iv_size = 12;
+    static constexpr std::size_t nonce_size = 12;
     /** The longest nonce accepted, OpenSSL's limit, applied on every backend. */
-    static constexpr std::size_t max_iv_size = 128;
+    static constexpr std::size_t max_nonce_size = 128;
     /** The longest message, 2^36 - 32 bytes (NIST SP 800-38D section 5.2.1.1). */
     static constexpr std::uint64_t max_message_size = (std::uint64_t{1} << 36U) - 32;
     /** The longest associated data, 2^61 - 1 bytes (the same section, 2^64 - 1 bits). */
-    static constexpr std::uint64_t max_additional_data_size = (std::uint64_t{1} << 61U) - 1;
+    static constexpr std::uint64_t max_associated_data_size = (std::uint64_t{1} << 61U) - 1;
 
     /**
      * Expands a key into a new object.
@@ -268,11 +268,11 @@ public:
      * When the backend fails, `data_bytes` is zeroed, as a failed open's is; a guard's refusal
      * leaves it untouched.
      *
-     * @param nonce_bytes 1 to `max_iv_size` bytes, never reused under this key; 12 recommended.
+     * @param nonce_bytes 1 to `max_nonce_size` bytes, never reused under this key; 12 recommended.
      * @param associated_data_bytes Authenticated, not encrypted.
      * @param data_bytes The message.
      * @return The tag; `invalid_state` moved from or during an incremental message, which
-     * goes on; `invalid_iv_size`; `message_too_long`; `backend_failure`.
+     * goes on; `invalid_nonce_size`; `message_too_long`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<result_type> seal(
         std::span<std::uint8_t const> nonce_bytes,
@@ -323,7 +323,7 @@ public:
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
      * @tparam CompletionToken Any completion token for the signature `completion_token` states.
      * @param completion_executor The executor the completion is posted to.
-     * @param nonce_bytes 1 to `max_iv_size` bytes, never reused under this key.
+     * @param nonce_bytes 1 to `max_nonce_size` bytes, never reused under this key.
      * @param associated_data_bytes Authenticated, not encrypted.
      * @param data_bytes The message.
      * @param completion_token The completion token, of signature
@@ -348,7 +348,7 @@ public:
      * @param data_bytes The ciphertext.
      * @param tag_bytes The seal's tag, 16 bytes, which may lie anywhere, `data_bytes` included.
      * @return Nothing; `invalid_state` moved from or during an incremental message, which
-     * goes on; `invalid_iv_size`; `invalid_tag_size`; `message_too_long`;
+     * goes on; `invalid_nonce_size`; `invalid_tag_size`; `message_too_long`;
      * `authentication_failed`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<void> open(
@@ -421,10 +421,10 @@ public:
      * Any error of `begin_seal`, `update` or `result` ends the message, which is abandoned:
      * the pieces already encrypted have no tag and are not to be sent.
      *
-     * @param nonce_bytes 1 to `max_iv_size` bytes, never reused under this key.
+     * @param nonce_bytes 1 to `max_nonce_size` bytes, never reused under this key.
      * @param associated_data_bytes Authenticated, not encrypted.
      * @return Nothing; `invalid_state` moved from or with a message in progress, which ends
-     * it; `invalid_iv_size`; `message_too_long`; `backend_failure`.
+     * it; `invalid_nonce_size`; `message_too_long`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<void> begin_seal(
         std::span<std::uint8_t const> nonce_bytes,
@@ -512,10 +512,10 @@ public:
      * checks the tag, and only then `decrypt` turns the same pieces into plaintext, which
      * `end_open` ends. Any error of these calls ends the message.
      *
-     * @param nonce_bytes The nonce of the seal, 1 to `max_iv_size` bytes.
+     * @param nonce_bytes The nonce of the seal, 1 to `max_nonce_size` bytes.
      * @param associated_data_bytes The associated data of the seal.
      * @return Nothing; `invalid_state` moved from or with a message in progress, which ends
-     * it; `invalid_iv_size`; `message_too_long`; `backend_failure`.
+     * it; `invalid_nonce_size`; `message_too_long`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<void> begin_open(
         std::span<std::uint8_t const> nonce_bytes,
@@ -533,7 +533,7 @@ public:
             return guard_result.error();
         }
         std::ranges::copy(nonce_bytes, nonce_.begin());
-        iv_size_ = nonce_bytes.size();
+        nonce_size_ = nonce_bytes.size();
         auto const start_result = engine::start(state_, false, nonce_bytes, associated_data_bytes);
         if (!start_result) {
             engine::abandon(state_);
@@ -617,7 +617,7 @@ public:
         // associated data, and the tag the engine computes in it is never read.
         engine::abandon(state_);
         auto const start_result =
-            engine::start(state_, false, std::span(nonce_).first(iv_size_), {});
+            engine::start(state_, false, std::span(nonce_).first(nonce_size_), {});
         if (!start_result) {
             abandon();
             return start_result.error();
@@ -731,14 +731,14 @@ private:
         if (!keyed_ || phase_ != phase::none) {
             return error::invalid_state;
         }
-        if (nonce_bytes.empty() || nonce_bytes.size() > max_iv_size) {
-            return error::invalid_iv_size;
+        if (nonce_bytes.empty() || nonce_bytes.size() > max_nonce_size) {
+            return error::invalid_nonce_size;
         }
         if (tag_bytes != tag_size) {
             return error::invalid_tag_size;
         }
         if (detail::exceeds(byte_count, max_message_size) ||
-            detail::exceeds(associated_data_bytes.size(), max_additional_data_size)) {
+            detail::exceeds(associated_data_bytes.size(), max_associated_data_size)) {
             return error::message_too_long;
         }
         return {};
@@ -748,7 +748,7 @@ private:
     void end_message() noexcept {
         phase_ = phase::none;
         detail::wipe(nonce_.data(), nonce_.size());
-        iv_size_ = 0;
+        nonce_size_ = 0;
         message_bytes_ = 0;
         decrypted_bytes_ = 0;
     }
@@ -757,8 +757,8 @@ private:
     bool keyed_ = false;
     phase phase_ = phase::none;
     // The open's nonce, kept for its second pass.
-    std::array<std::uint8_t, max_iv_size> nonce_{};
-    std::size_t iv_size_ = 0;
+    std::array<std::uint8_t, max_nonce_size> nonce_{};
+    std::size_t nonce_size_ = 0;
     // The bytes sealed, or authenticated by the open's first pass.
     std::uint64_t message_bytes_ = 0;
     // The bytes decrypted by the open's second pass.

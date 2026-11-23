@@ -33,7 +33,7 @@ static_assert(
 static_assert(std::is_same_v<original::family_type, crypto::families::chacha20_poly1305_original>);
 static_assert(std::is_same_v<original::name_type, crypto::families::chacha20_poly1305_original>);
 static_assert(crypto::supports_v<original, crypto::backends::sodium>);
-static_assert(original::key_size == 32 && original::iv_size == 8 && original::tag_size == 16);
+static_assert(original::key_size == 32 && original::nonce_size == 8 && original::tag_size == 16);
 static_assert(original::max_message_size == ~std::uint64_t{0} - 16);
 
 int main() {

@@ -35,8 +35,11 @@ namespace webcpp::crypto {
 enum class error : int {
     /** A key of another size than the algorithm's `key_size`, or a secret key not of 32 bytes. */
     invalid_key_size = 1,
-    /** A GCM nonce that is empty or longer than 128 bytes. */
-    invalid_iv_size = 2,
+    /**
+     * A nonce of a size the algorithm does not accept: a GCM nonce that is empty or longer than
+     * 128 bytes, another AEAD's or a box's nonce of another size than its own.
+     */
+    invalid_nonce_size = 2,
     /** A tag given to `open` or `verify` that is not of 16 bytes. */
     invalid_tag_size = 3,
     /**
@@ -106,7 +109,7 @@ namespace detail {
 inline const char* message_of(int error_value) noexcept {
     switch (static_cast<error>(error_value)) {
         case error::invalid_key_size: return "the key is not of the algorithm's size";
-        case error::invalid_iv_size: return "the IV is not of a size the algorithm accepts";
+        case error::invalid_nonce_size: return "the nonce is not of a size the algorithm accepts";
         case error::invalid_tag_size: return "the tag is not of 16 bytes";
         case error::invalid_input_size: return "the buffer is not of a size the function accepts";
         case error::message_too_long: return "the message is longer than the algorithm allows";

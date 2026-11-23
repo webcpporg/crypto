@@ -95,7 +95,7 @@ void backend_runs_with_dit() {
         return;
     }
     BOOST_TEST(!crypto::detail::dit_is_set());
-    std::array<std::uint8_t, aead::iv_size> const nonce{};
+    std::array<std::uint8_t, aead::nonce_size> const nonce{};
     std::array<std::uint8_t, 8> data{};
     webcpp::test::dit_during_seal = !crypto::detail::cpu_has_dit();
     webcpp::test::require_enters("aead::seal", [&made, &nonce, &data] {

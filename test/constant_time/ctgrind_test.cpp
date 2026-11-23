@@ -111,7 +111,7 @@ int bearssl_seal_and_open() {
 template <class Aead>
 int openssl_seal(char const* what) {
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, Aead::iv_size> const nonce{};
+    std::array<std::uint8_t, Aead::nonce_size> const nonce{};
     std::array<std::uint8_t, 64> data{};
     key.fill(0x42);
     data.fill(0x17);

@@ -140,7 +140,7 @@ void cover_box(std::string const& family) {
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    std::array<std::uint8_t, Box::iv_size> const nonce{};
+    std::array<std::uint8_t, Box::nonce_size> const nonce{};
     std::array<std::uint8_t, 40> data{};
     typename Box::result_type tag{};
     covered(family + "::seal" + on, "basic_box::seal", [&] {
@@ -153,13 +153,13 @@ void cover_box(std::string const& family) {
         BOOST_TEST(made->open(nonce, data, std::span(tag.data(), tag.size())).has_value());
     });
     covered(family + "::seal with a short nonce" + on, "basic_box::seal", [&] {
-        BOOST_TEST(made->seal(std::span(nonce).first(Box::iv_size - 1), data).error() ==
-                   crypto::error::invalid_iv_size);
+        BOOST_TEST(made->seal(std::span(nonce).first(Box::nonce_size - 1), data).error() ==
+                   crypto::error::invalid_nonce_size);
     });
     covered(family + "::open with a short nonce" + on, "basic_box::open", [&] {
-        BOOST_TEST(made->open(std::span(nonce).first(Box::iv_size - 1), data,
+        BOOST_TEST(made->open(std::span(nonce).first(Box::nonce_size - 1), data,
                               std::span(tag.data(), tag.size()))
-                       .error() == crypto::error::invalid_iv_size);
+                       .error() == crypto::error::invalid_nonce_size);
     });
 }
 

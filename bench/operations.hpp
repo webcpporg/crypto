@@ -135,7 +135,7 @@ public:
     static constexpr std::string_view operation = "seal of 16 KiB, 256-bit key";
 
     explicit aead_seal(std::uint8_t seed)
-        : nonce_(filled<Aead::iv_size>(static_cast<std::uint8_t>(seed + 2U))),
+        : nonce_(filled<Aead::nonce_size>(static_cast<std::uint8_t>(seed + 2U))),
           data_(filled<message_size>(seed)),
           aead_(take(Aead::from_key(filled<Aead::key_size>(seed)), "from_key")) {}
 
@@ -149,7 +149,7 @@ public:
     }
 
 private:
-    std::array<std::uint8_t, Aead::iv_size> nonce_{};
+    std::array<std::uint8_t, Aead::nonce_size> nonce_{};
     std::array<std::uint8_t, message_size> data_{};
     Aead aead_;
 };

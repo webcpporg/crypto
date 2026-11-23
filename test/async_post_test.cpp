@@ -607,7 +607,7 @@ void post_gcm_inline(asio::io_context& context) {
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST_EQ(refused.calls, 1);
-    BOOST_TEST(refused.code == crypto::error::invalid_iv_size);
+    BOOST_TEST(refused.code == crypto::error::invalid_nonce_size);
     BOOST_TEST(all_bytes(std::get<0>(refused.value), 0));
     BOOST_TEST(fixture.data == plaintext);
 }
@@ -638,14 +638,14 @@ void post_gcm_allocator(asio::io_context& context) {
     BOOST_TEST_EQ(sealed.news, 0U);
     allocator_call refused;
     start_counted<gcm_tag>(context, fixture.seal_refused(), refused);
-    BOOST_TEST(refused.code == crypto::error::invalid_iv_size);
+    BOOST_TEST(refused.code == crypto::error::invalid_nonce_size);
     BOOST_TEST_EQ(refused.held_at_call, 0);
     BOOST_TEST_GE(refused.taken, 1);
     BOOST_TEST_EQ(refused.news, 0U);
     // An open (no value) with a refusal, then a from_key (an object) and its refusal.
     allocator_call open_refused;
     start_counted<>(context, fixture.open_refused(), open_refused);
-    BOOST_TEST(open_refused.code == crypto::error::invalid_iv_size);
+    BOOST_TEST(open_refused.code == crypto::error::invalid_nonce_size);
     BOOST_TEST_EQ(open_refused.held_at_call, 0);
     BOOST_TEST_GE(open_refused.taken, 1);
     BOOST_TEST_EQ(open_refused.news, 0U);
@@ -721,7 +721,7 @@ void post_gcm_tuple_token(asio::io_context& context, gcm_fixture& fixture,
                        fixture.data,
                        asio::as_tuple([&](std::tuple<boost::system::error_code, gcm_tag> done) {
                            ++tuples;
-                           BOOST_TEST(std::get<0>(done) == crypto::error::invalid_iv_size);
+                           BOOST_TEST(std::get<0>(done) == crypto::error::invalid_nonce_size);
                            BOOST_TEST(all_bytes(std::get<1>(done), 0));
                        }));
     context.restart();

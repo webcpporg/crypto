@@ -6,8 +6,8 @@
 
 // Wycheproof's 316 AES-GCM tests at 12fd3aaf (spec section 8.1): the 307 with an IV of 1
 // to 128 bytes seal and open, the 226 valid matching and the 81 invalid failing with
-// authentication_failed and data zeroed; the 6 with an empty IV give invalid_iv_size; the
-// 3 with a 257-byte IV (tcId 268, 272, 276), valid in Wycheproof, give invalid_iv_size
+// authentication_failed and data zeroed; the 6 with an empty IV give invalid_nonce_size; the
+// 3 with a 257-byte IV (tcId 268, 272, 276), valid in Wycheproof, give invalid_nonce_size
 // with data untouched, by the cap of section 2.4.
 
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_WYCHEPROOF_GCM_HPP
@@ -41,9 +41,9 @@ struct wycheproof_gcm_counts {
     std::size_t valid = 0;
     /** Invalid, refused with authentication_failed and data zeroed. */
     std::size_t invalid = 0;
-    /** An empty IV, refused with invalid_iv_size. */
+    /** An empty IV, refused with invalid_nonce_size. */
     std::size_t empty_iv = 0;
-    /** An IV over max_iv_size, refused with invalid_iv_size. */
+    /** An IV over max_nonce_size, refused with invalid_nonce_size. */
     std::size_t over_cap = 0;
 };
 
@@ -71,14 +71,14 @@ void check_wycheproof_gcm_test(Aead& made, wycheproof_gcm_test const& t,
                                wycheproof_gcm_counts& counts) {
     auto data = t.ciphertext;
     auto const opened = made.open(t.nonce, t.associated_data, data, t.tag);
-    if (t.nonce.empty() || t.nonce.size() > Aead::max_iv_size) {
-        BOOST_TEST(opened.error() == crypto::error::invalid_iv_size);
+    if (t.nonce.empty() || t.nonce.size() > Aead::max_nonce_size) {
+        BOOST_TEST(opened.error() == crypto::error::invalid_nonce_size);
         BOOST_TEST(data == t.ciphertext);
         // Sealed as well (spec section 2.4: the 257-byte IV is refused by seal too), and the
         // data is left as it was.
         auto plaintext = t.message;
         BOOST_TEST(made.seal(t.nonce, t.associated_data, plaintext).error() ==
-                   crypto::error::invalid_iv_size);
+                   crypto::error::invalid_nonce_size);
         BOOST_TEST(plaintext == t.message);
         ++(t.nonce.empty() ? counts.empty_iv : counts.over_cap);
         return;

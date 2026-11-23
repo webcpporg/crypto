@@ -111,10 +111,10 @@ void check_guards() {
     std::array<std::uint8_t, 16> const tag{};
     std::array<std::uint8_t, 17> const long_tag{};
 
-    BOOST_TEST(made->seal({}, {}, data).error() == crypto::error::invalid_iv_size);
-    BOOST_TEST(made->seal(long_iv, {}, data).error() == crypto::error::invalid_iv_size);
-    BOOST_TEST(made->open({}, {}, data, tag).error() == crypto::error::invalid_iv_size);
-    BOOST_TEST(made->open(long_iv, {}, data, tag).error() == crypto::error::invalid_iv_size);
+    BOOST_TEST(made->seal({}, {}, data).error() == crypto::error::invalid_nonce_size);
+    BOOST_TEST(made->seal(long_iv, {}, data).error() == crypto::error::invalid_nonce_size);
+    BOOST_TEST(made->open({}, {}, data, tag).error() == crypto::error::invalid_nonce_size);
+    BOOST_TEST(made->open(long_iv, {}, data, tag).error() == crypto::error::invalid_nonce_size);
     BOOST_TEST(
         made->open(std::span(long_iv).first(12), {}, data, std::span(tag).first(15)).error() ==
         crypto::error::invalid_tag_size);
@@ -124,7 +124,7 @@ void check_guards() {
                crypto::error::invalid_tag_size);
     // The IV is checked before the tag: both wrong gives the IV's error.
     BOOST_TEST(made->open(long_iv, {}, data, std::span(tag).first(15)).error() ==
-               crypto::error::invalid_iv_size);
+               crypto::error::invalid_nonce_size);
     BOOST_TEST(data == untouched);
     // IVs of 1 and of 128 bytes are accepted (spec section 2.4, LEDGER:22), and open.
     for (std::size_t const size : {std::size_t{1}, std::size_t{128}}) {
@@ -496,8 +496,8 @@ void check_machine_calls(Aead& made, std::span<std::uint8_t const> nonce,
     std::array<std::uint8_t, 129> const long_iv{};
     BOOST_TEST(made.begin_seal(long_iv, {}).error() == crypto::error::invalid_state);
     expect_fresh_message(made, nonce, one_block);
-    BOOST_TEST(made.begin_seal(long_iv, {}).error() == crypto::error::invalid_iv_size);
-    BOOST_TEST(made.begin_seal({}, {}).error() == crypto::error::invalid_iv_size);
+    BOOST_TEST(made.begin_seal(long_iv, {}).error() == crypto::error::invalid_nonce_size);
+    BOOST_TEST(made.begin_seal({}, {}).error() == crypto::error::invalid_nonce_size);
     BOOST_TEST(made.update(data).error() == crypto::error::invalid_state);  // none began
     expect_fresh_message(made, nonce, one_block);
 
@@ -891,8 +891,8 @@ void incremental_open_guards_of(Aead& made, gcm_case const& c) {
     auto const ciphertext = from_hex(c.ciphertext);
     auto const tag = from_hex(c.tag);
     std::array<std::uint8_t, 129> const long_iv{};
-    BOOST_TEST(made.begin_open({}, {}).error() == crypto::error::invalid_iv_size);
-    BOOST_TEST(made.begin_open(long_iv, {}).error() == crypto::error::invalid_iv_size);
+    BOOST_TEST(made.begin_open({}, {}).error() == crypto::error::invalid_nonce_size);
+    BOOST_TEST(made.begin_open(long_iv, {}).error() == crypto::error::invalid_nonce_size);
     BOOST_TEST(made.authenticate(ciphertext).error() == crypto::error::invalid_state);
     BOOST_TEST(made.begin_open(nonce, {}).has_value());
     BOOST_TEST(made.authenticate(ciphertext).has_value());

@@ -126,7 +126,7 @@ work itself:
 
 |`from_key`: a key of another size than 32 bytes |`invalid_key_size`
 |any other function: the object was moved from |`invalid_state`
-|a nonce of another size than the family's, 12, 8 or 24 bytes |`invalid_iv_size`
+|a nonce of another size than the family's, 12, 8 or 24 bytes |`invalid_nonce_size`
 |`open`: a tag of another size than 16 |`invalid_tag_size`
 |a message longer than `max_message_size` |`message_too_long`
 |`open`: the tag does not match |`authentication_failed`

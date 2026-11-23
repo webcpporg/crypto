@@ -59,8 +59,8 @@ template <class CipherA, class CipherB>
 bool agree_gcm_once(std::mt19937_64& generator, std::size_t message_size, std::uint64_t seed) {
     namespace ciphers = crypto::ciphers;
     auto const key = random_bytes(generator, CipherA::key_size);
-    auto const iv_size = generator() % 2 == 0 ? 12 : 1 + (generator() % 64);
-    auto const nonce = random_bytes(generator, iv_size);
+    auto const nonce_size = generator() % 2 == 0 ? 12 : 1 + (generator() % 64);
+    auto const nonce = random_bytes(generator, nonce_size);
     auto const associated_data = random_bytes(generator, generator() % 65);
     auto const message = random_bytes(generator, message_size);
     auto a = ciphers::gcm<CipherA>::from_key(key);

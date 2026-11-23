@@ -61,7 +61,7 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
                   char const* open_label, char const* control, char const* control_label) {
     std::array<std::uint8_t, 32> const zero_key{};
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, Aead::iv_size> const nonce{};
+    std::array<std::uint8_t, Aead::nonce_size> const nonce{};
     std::array<std::uint8_t, 64> data{};
     std::optional<Aead> made;
 

@@ -78,8 +78,8 @@ static_assert(std::is_same_v<sealed_box::name_type, crypto::families::sealed_box
 static_assert(crypto::supports_v<box, crypto::backends::sodium>);
 static_assert(crypto::supports_v<box_xchacha, crypto::backends::sodium>);
 static_assert(crypto::supports_v<sealed_box, crypto::backends::sodium>);
-static_assert(box::key_size == 32 && box::iv_size == 24 && box::tag_size == 16);
-static_assert(box_xchacha::key_size == 32 && box_xchacha::iv_size == 24 &&
+static_assert(box::key_size == 32 && box::nonce_size == 24 && box::tag_size == 16);
+static_assert(box_xchacha::key_size == 32 && box_xchacha::nonce_size == 24 &&
               box_xchacha::tag_size == 16);
 static_assert(sealed_box::overhead == 48);
 // The longest message is libsodium's on a 64-bit target; on a 32-bit one libsodium's is the
@@ -197,7 +197,7 @@ template <class Box>
 struct box_calls {
     using object = Box;
     static constexpr std::size_t key_size = 64;
-    static constexpr std::size_t iv_size = Box::iv_size;
+    static constexpr std::size_t nonce_size = Box::nonce_size;
     static constexpr std::size_t tag_size = Box::tag_size;
     static constexpr bool has_additional_data = false;
     static constexpr bool takes_additional_data = false;

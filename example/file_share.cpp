@@ -36,7 +36,7 @@ namespace {
 // What the app uploads: the sealed file key, the file's nonce and tag, and the sealed file.
 struct upload {
     std::array<std::uint8_t, 32 + sealed_box::overhead> sealed_key{};
-    std::array<std::uint8_t, secretbox<>::iv_size> nonce{};
+    std::array<std::uint8_t, secretbox<>::nonce_size> nonce{};
     secretbox<>::result_type tag{};
     std::vector<std::uint8_t> file;
 };

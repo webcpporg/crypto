@@ -53,7 +53,7 @@ struct person {
 
 // A message as it travels: the nonce, the tag and the ciphertext.
 struct sealed_message {
-    std::array<std::uint8_t, box::iv_size> nonce{};
+    std::array<std::uint8_t, box::nonce_size> nonce{};
     box::result_type tag{};
     std::vector<std::uint8_t> ciphertext;
 };

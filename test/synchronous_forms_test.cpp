@@ -28,19 +28,24 @@
 //   secp256k1.
 // - seal and open: aead.seal and crypto::seal give the same ciphertext and tag; aead.open and
 //   crypto::open open it, and refuse a changed tag with authentication_failed, zeroing the data.
+// - the size constants are named nonce_size, max_nonce_size and max_associated_data_size (design
+//   D11, R22), on the AEADs, the secret box and the public-key box.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/aead.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
+#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/keypair.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/algorithms.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -69,6 +74,14 @@ using p256_keypair = p256::basic_keypair<crypto::backends::bearssl>;
 using secp_keypair = secp256k1::basic_keypair<crypto::backends::secp256k1>;
 using gcm = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>;
 using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::sodium>;
+
+// The size constants spell the nonce and the associated data out (design D11, R22).
+static_assert(crypto::ciphers::xchacha20_poly1305<>::nonce_size == 24);
+static_assert(crypto::ciphers::aes256_gcm::nonce_size == 12);
+static_assert(crypto::ciphers::aes256_gcm::max_nonce_size == 128);
+static_assert(crypto::ciphers::secretbox<>::nonce_size == 24);
+static_assert(crypto::public_key_encryption::box::nonce_size == 24);
+static_assert(crypto::ciphers::xchacha20_poly1305<>::max_associated_data_size == ~std::uint64_t{0});
 
 /** The message every check signs: "abc". */
 constexpr std::array<std::uint8_t, 3> message{'a', 'b', 'c'};
@@ -474,7 +487,7 @@ template <class Aead>
 void aead_forms() {
     std::array<std::uint8_t, Aead::key_size> key{};
     std::ranges::copy(secret_bytes(3), key.begin());
-    std::array<std::uint8_t, Aead::iv_size> const nonce{9};
+    std::array<std::uint8_t, Aead::nonce_size> const nonce{9};
     std::array<std::uint8_t, 4> const associated_data{'h', 'e', 'a', 'd'};
     auto member_made = Aead::from_key(key);
     auto free_made = crypto::from_key<Aead>(key);

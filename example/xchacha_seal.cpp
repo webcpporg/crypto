@@ -29,7 +29,7 @@ namespace {
 
 // A message as it travels: the nonce, the tag and the ciphertext, all public.
 struct sealed_message {
-    std::array<std::uint8_t, xchacha::iv_size> nonce{};
+    std::array<std::uint8_t, xchacha::nonce_size> nonce{};
     xchacha::result_type tag{};
     std::vector<std::uint8_t> ciphertext;
 };

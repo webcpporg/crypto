@@ -45,13 +45,13 @@ struct chacha20_poly1305 {
     /** The key's size. */
     static constexpr std::size_t key_size = 32;
     /** The nonce's size, exactly (RFC 8439 section 2.8). */
-    static constexpr std::size_t iv_size = 12;
+    static constexpr std::size_t nonce_size = 12;
     /** The tag's size. */
     static constexpr std::size_t tag_size = 16;
     /** The longest message, 2^38 - 64 bytes: ChaCha20's 32-bit block counter (section 2.8). */
     static constexpr std::uint64_t max_message_size = (std::uint64_t{1} << 38U) - 64;
     /** The longest associated data, 2^64 - 1 bytes (section 2.8). */
-    static constexpr std::uint64_t max_additional_data_size = ~std::uint64_t{0};
+    static constexpr std::uint64_t max_associated_data_size = ~std::uint64_t{0};
 };
 
 /**
@@ -62,13 +62,13 @@ struct chacha20_poly1305_original {
     /** The key's size. */
     static constexpr std::size_t key_size = 32;
     /** The nonce's size, exactly. */
-    static constexpr std::size_t iv_size = 8;
+    static constexpr std::size_t nonce_size = 8;
     /** The tag's size. */
     static constexpr std::size_t tag_size = 16;
     /** The longest message, 2^64 - 17 bytes. */
     static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
     /** The longest associated data, 2^64 - 1 bytes. */
-    static constexpr std::uint64_t max_additional_data_size = ~std::uint64_t{0};
+    static constexpr std::uint64_t max_associated_data_size = ~std::uint64_t{0};
 };
 
 /** XChaCha20-Poly1305, a 24-byte nonce safe to draw at random. */
@@ -76,13 +76,13 @@ struct xchacha20_poly1305 {
     /** The key's size. */
     static constexpr std::size_t key_size = 32;
     /** The nonce's size, exactly. */
-    static constexpr std::size_t iv_size = 24;
+    static constexpr std::size_t nonce_size = 24;
     /** The tag's size. */
     static constexpr std::size_t tag_size = 16;
     /** The longest message, 2^64 - 17 bytes. */
     static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
     /** The longest associated data, 2^64 - 1 bytes. */
-    static constexpr std::uint64_t max_additional_data_size = ~std::uint64_t{0};
+    static constexpr std::uint64_t max_associated_data_size = ~std::uint64_t{0};
 };
 
 /**
@@ -93,7 +93,7 @@ struct secretbox_xsalsa20poly1305 {
     /** The key's size. */
     static constexpr std::size_t key_size = 32;
     /** The nonce's size, exactly. */
-    static constexpr std::size_t iv_size = 24;
+    static constexpr std::size_t nonce_size = 24;
     /** The tag's size. */
     static constexpr std::size_t tag_size = 16;
     /**
@@ -105,7 +105,7 @@ struct secretbox_xsalsa20poly1305 {
      */
     static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
     /** No associated data: `aead` refuses a non-empty one with `invalid_input_size`. */
-    static constexpr std::uint64_t max_additional_data_size = 0;
+    static constexpr std::uint64_t max_associated_data_size = 0;
 };
 
 /**
@@ -116,13 +116,13 @@ struct secretbox_xchacha20poly1305 {
     /** The key's size. */
     static constexpr std::size_t key_size = 32;
     /** The nonce's size, exactly. */
-    static constexpr std::size_t iv_size = 24;
+    static constexpr std::size_t nonce_size = 24;
     /** The tag's size. */
     static constexpr std::size_t tag_size = 16;
     /** The longest message, 2^64 - 17 bytes. */
     static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
     /** No associated data: `aead` refuses a non-empty one with `invalid_input_size`. */
-    static constexpr std::uint64_t max_additional_data_size = 0;
+    static constexpr std::uint64_t max_associated_data_size = 0;
 };
 
 }  // namespace webcpp::crypto::families
@@ -177,13 +177,13 @@ struct aead_sizes<Family, false> {
     /** A placeholder. */
     static constexpr std::size_t key_size = 1;
     /** A placeholder. */
-    static constexpr std::size_t iv_size = 1;
+    static constexpr std::size_t nonce_size = 1;
     /** A placeholder. */
     static constexpr std::size_t tag_size = 1;
     /** A placeholder. */
     static constexpr std::uint64_t max_message_size = 0;
     /** A placeholder. */
-    static constexpr std::uint64_t max_additional_data_size = 0;
+    static constexpr std::uint64_t max_associated_data_size = 0;
 };
 
 /**
@@ -304,13 +304,13 @@ public:
     /** The key's size. */
     static constexpr std::size_t key_size = sizes::key_size;
     /** The nonce's size, exactly. */
-    static constexpr std::size_t iv_size = sizes::iv_size;
+    static constexpr std::size_t nonce_size = sizes::nonce_size;
     /** The tag's size. */
     static constexpr std::size_t tag_size = sizes::tag_size;
     /** The longest message. */
     static constexpr std::uint64_t max_message_size = sizes::max_message_size;
     /** The longest associated data; 0 for a family that takes none. */
-    static constexpr std::uint64_t max_additional_data_size = sizes::max_additional_data_size;
+    static constexpr std::uint64_t max_associated_data_size = sizes::max_associated_data_size;
 
     /**
      * Makes an object under a key.
@@ -394,11 +394,11 @@ public:
      * after it began to encrypt, and neither the plaintext nor bytes that look sealed are left;
      * a guard's refusal leaves it untouched.
      *
-     * @param nonce_bytes The nonce, `iv_size` bytes, never repeated under this key.
+     * @param nonce_bytes The nonce, `nonce_size` bytes, never repeated under this key.
      * @param associated_data_bytes Authenticated, not encrypted; empty for a family that takes
-     * none (`max_additional_data_size` 0).
+     * none (`max_associated_data_size` 0).
      * @param data_bytes The message.
-     * @return The tag; `invalid_state` moved from; `invalid_iv_size`; `invalid_input_size` for
+     * @return The tag; `invalid_state` moved from; `invalid_nonce_size`; `invalid_input_size` for
      * associated data given to a family that takes none; `message_too_long`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<result_type> seal(
@@ -441,7 +441,7 @@ public:
      * @param data_bytes The ciphertext.
      * @param tag_bytes The seal's tag, `tag_size` bytes, which may lie anywhere, `data_bytes`
      * included.
-     * @return Nothing; `invalid_state` moved from; `invalid_iv_size`; `invalid_tag_size`;
+     * @return Nothing; `invalid_state` moved from; `invalid_nonce_size`; `invalid_tag_size`;
      * `invalid_input_size` for associated data given to a family that takes none;
      * `message_too_long`; `authentication_failed`; `backend_failure`.
      */
@@ -488,19 +488,19 @@ private:
         if (!keyed_) {
             return error::invalid_state;
         }
-        if (nonce_bytes.size() != iv_size) {
-            return error::invalid_iv_size;
+        if (nonce_bytes.size() != nonce_size) {
+            return error::invalid_nonce_size;
         }
         if (tag_bytes != tag_size) {
             return error::invalid_tag_size;
         }
-        if constexpr (max_additional_data_size == 0) {
+        if constexpr (max_associated_data_size == 0) {
             if (!associated_data_bytes.empty()) {
                 return error::invalid_input_size;
             }
         }
         if (detail::exceeds(byte_count, max_message_size) ||
-            detail::exceeds(associated_data_bytes.size(), max_additional_data_size)) {
+            detail::exceeds(associated_data_bytes.size(), max_associated_data_size)) {
             return error::message_too_long;
         }
         return {};

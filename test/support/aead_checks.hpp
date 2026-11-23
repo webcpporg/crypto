@@ -200,11 +200,11 @@ struct aead_calls {
     /** The key's size. */
     static constexpr std::size_t key_size = Aead::key_size;
     /** The nonce's size. */
-    static constexpr std::size_t iv_size = Aead::iv_size;
+    static constexpr std::size_t nonce_size = Aead::nonce_size;
     /** The tag's size. */
     static constexpr std::size_t tag_size = Aead::tag_size;
     /** Whether a message carries additional data: not for a family whose limit is 0. */
-    static constexpr bool has_additional_data = Aead::max_additional_data_size != 0;
+    static constexpr bool has_additional_data = Aead::max_associated_data_size != 0;
     /** The calls take additional data, which a family whose limit is 0 refuses unless empty. */
     static constexpr bool takes_additional_data = true;
     /** Made of one key of `key_size` bytes. */
@@ -272,18 +272,20 @@ void check_aead_key_sizes() {
 /** The IV's size, then the tag's: each refused, the IV's before the tag's. */
 template <class Calls>
 void check_aead_iv_and_tag_sizes(typename Calls::object& made, std::span<std::uint8_t> data) {
-    std::vector<std::uint8_t> const nonce(Calls::iv_size, 9);
+    std::vector<std::uint8_t> const nonce(Calls::nonce_size, 9);
     std::array<std::uint8_t, Calls::tag_size> const tag{};
     // Every IV size but the family's: none, one byte less and more, and the other families'.
-    std::array<std::size_t, 6> const sizes{0, Calls::iv_size - 1, Calls::iv_size + 1, 8, 12, 24};
+    std::array<std::size_t, 6> const sizes{0, Calls::nonce_size - 1, Calls::nonce_size + 1, 8, 12,
+                                           24};
     for (std::size_t const size : sizes) {
-        if (size == Calls::iv_size) {
+        if (size == Calls::nonce_size) {
             continue;
         }
         std::vector<std::uint8_t> const wrong_iv(size, 9);
-        BOOST_TEST(Calls::seal(made, wrong_iv, {}, data).error() == crypto::error::invalid_iv_size);
+        BOOST_TEST(Calls::seal(made, wrong_iv, {}, data).error() ==
+                   crypto::error::invalid_nonce_size);
         BOOST_TEST(Calls::open(made, wrong_iv, {}, data, tag).error() ==
-                   crypto::error::invalid_iv_size);
+                   crypto::error::invalid_nonce_size);
     }
     for (std::size_t const size : {std::size_t{0}, Calls::tag_size - 1, Calls::tag_size + 1}) {
         std::vector<std::uint8_t> const wrong_tag(size);
@@ -292,7 +294,7 @@ void check_aead_iv_and_tag_sizes(typename Calls::object& made, std::span<std::ui
     }
     // The IV is checked before the tag: both wrong gives the IV's error.
     BOOST_TEST(Calls::open(made, {}, {}, data, std::span(tag).first(Calls::tag_size - 1)).error() ==
-               crypto::error::invalid_iv_size);
+               crypto::error::invalid_nonce_size);
 }
 
 /**
@@ -301,7 +303,7 @@ void check_aead_iv_and_tag_sizes(typename Calls::object& made, std::span<std::ui
  */
 template <class Calls>
 void check_aead_no_additional_data(typename Calls::object& made, std::span<std::uint8_t> data) {
-    std::vector<std::uint8_t> const nonce(Calls::iv_size, 9);
+    std::vector<std::uint8_t> const nonce(Calls::nonce_size, 9);
     std::array<std::uint8_t, Calls::tag_size> const tag{};
     std::array<std::uint8_t, 1> const associated_data{5};
     BOOST_TEST(Calls::seal(made, nonce, associated_data, data).error() ==
@@ -309,7 +311,7 @@ void check_aead_no_additional_data(typename Calls::object& made, std::span<std::
     BOOST_TEST(Calls::open(made, nonce, associated_data, data, tag).error() ==
                crypto::error::invalid_input_size);
     BOOST_TEST(Calls::seal(made, {}, associated_data, data).error() ==
-               crypto::error::invalid_iv_size);
+               crypto::error::invalid_nonce_size);
     BOOST_TEST(Calls::open(made, nonce, associated_data, data, std::span(tag).first(1)).error() ==
                crypto::error::invalid_tag_size);
 }
@@ -584,20 +586,20 @@ void check_aead_overlap(typename Calls::object& made, std::span<std::uint8_t con
 template <class Calls>
 void check_aead_in_place(typename Calls::object& made) {
     constexpr std::size_t additional_size = Calls::has_additional_data ? 16 : 0;
-    std::array<std::uint8_t, additional_size + Calls::iv_size + 16> buffer{};
+    std::array<std::uint8_t, additional_size + Calls::nonce_size + 16> buffer{};
     for (std::size_t i = 0; i < buffer.size(); ++i) {
         buffer[i] = static_cast<std::uint8_t>((i * 7) + 1);
     }
     auto const original = buffer;
-    std::array<std::uint8_t, Calls::iv_size> iv_copy{};
+    std::array<std::uint8_t, Calls::nonce_size> iv_copy{};
     std::array<std::uint8_t, additional_size> additional_copy{};
     std::copy_n(buffer.begin(), additional_size, additional_copy.begin());
-    std::copy_n(buffer.begin() + additional_size, Calls::iv_size, iv_copy.begin());
-    std::array<std::uint8_t, Calls::iv_size + 16> data_copy{};
+    std::copy_n(buffer.begin() + additional_size, Calls::nonce_size, iv_copy.begin());
+    std::array<std::uint8_t, Calls::nonce_size + 16> data_copy{};
     std::copy_n(buffer.begin() + additional_size, data_copy.size(), data_copy.begin());
     auto const expected = Calls::seal(made, iv_copy, additional_copy, data_copy);
     auto const data = std::span(buffer).subspan(additional_size);
-    auto const in_place = Calls::seal(made, data.first(Calls::iv_size),
+    auto const in_place = Calls::seal(made, data.first(Calls::nonce_size),
                                       std::span(buffer).first(additional_size), data);
     BOOST_TEST(expected && in_place && to_hex(*expected) == to_hex(*in_place));
     BOOST_TEST(std::equal(data_copy.begin(), data_copy.end(), data.begin()));
@@ -612,7 +614,7 @@ void check_aead_in_place(typename Calls::object& made) {
 template <class Calls>
 void check_aead_wire_open(typename Calls::object& made) {
     constexpr std::size_t additional_size = Calls::has_additional_data ? 16 : 0;
-    std::array<std::uint8_t, Calls::iv_size> wire_iv{};
+    std::array<std::uint8_t, Calls::nonce_size> wire_iv{};
     std::array<std::uint8_t, additional_size> wire_additional{};
     std::array<std::uint8_t, 32> wire_plain{};
     for (std::size_t i = 0; i < wire_plain.size(); ++i) {
@@ -625,22 +627,22 @@ void check_aead_wire_open(typename Calls::object& made) {
     if (!BOOST_TEST(wire_sealed.has_value())) {
         return;
     }
-    constexpr std::size_t data_at = Calls::iv_size + additional_size;
+    constexpr std::size_t data_at = Calls::nonce_size + additional_size;
     std::array<std::uint8_t, data_at + 32> message{};
     std::ranges::copy(wire_iv, message.begin());
-    std::ranges::copy(wire_additional, message.begin() + Calls::iv_size);
+    std::ranges::copy(wire_additional, message.begin() + Calls::nonce_size);
     std::ranges::copy(wire_data, message.begin() + data_at);
     auto copy_data = wire_data;
     BOOST_TEST(Calls::open(made, wire_iv, wire_additional, copy_data, *wire_sealed).has_value());
-    BOOST_TEST(Calls::open(made, std::span(message).first(Calls::iv_size),
-                           std::span(message).subspan(Calls::iv_size, additional_size),
+    BOOST_TEST(Calls::open(made, std::span(message).first(Calls::nonce_size),
+                           std::span(message).subspan(Calls::nonce_size, additional_size),
                            std::span(message).subspan(data_at), *wire_sealed)
                    .has_value());
     BOOST_TEST(std::equal(copy_data.begin(), copy_data.end(), message.begin() + data_at));
     BOOST_TEST(copy_data == wire_plain);
     BOOST_TEST(std::equal(wire_iv.begin(), wire_iv.end(), message.begin()));
     BOOST_TEST(std::equal(wire_additional.begin(), wire_additional.end(),
-                          message.begin() + Calls::iv_size));
+                          message.begin() + Calls::nonce_size));
 }
 
 /** Empty inputs, and spans that touch or overlap (Review Focus 2 and 3). */
@@ -650,7 +652,7 @@ void check_aead_edges() {
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    std::array<std::uint8_t, Calls::iv_size> nonce{};
+    std::array<std::uint8_t, Calls::nonce_size> nonce{};
     nonce.fill(0x24);
     check_aead_empty<Calls>(*made, nonce);
     check_aead_wire_tag<Calls>(*made, nonce);
@@ -691,12 +693,12 @@ void check_aead_limits() {
     if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(!huge.empty())) {
         return;
     }
-    std::array<std::uint8_t, Aead::iv_size> const nonce{};
+    std::array<std::uint8_t, Aead::nonce_size> const nonce{};
     std::array<std::uint8_t, Aead::tag_size> const tag{};
     BOOST_TEST(made->seal(nonce, {}, huge).error() == crypto::error::message_too_long);
     BOOST_TEST(made->open(nonce, {}, huge, tag).error() == crypto::error::message_too_long);
     // The IV and the tag are checked before the length.
-    BOOST_TEST(made->seal({}, {}, huge).error() == crypto::error::invalid_iv_size);
+    BOOST_TEST(made->seal({}, {}, huge).error() == crypto::error::invalid_nonce_size);
     BOOST_TEST(made->open(nonce, {}, huge, std::span(tag).first(Aead::tag_size - 1)).error() ==
                crypto::error::invalid_tag_size);
     // The error ends nothing: the object seals afterwards.

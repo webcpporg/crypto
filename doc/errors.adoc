@@ -25,7 +25,8 @@ random value to use: the operation that needed one fails.
 
 |1 |`invalid_key_size` |A key of another size than the algorithm's `key_size`, or a secret key not
 of 32 bytes.
-|2 |`invalid_iv_size` |A GCM IV that is empty or longer than 128 bytes.
+|2 |`invalid_nonce_size` |A nonce of a size the algorithm does not accept: a GCM nonce that is
+empty or longer than 128 bytes, another AEAD's or a box's nonce of another size than its own.
 |3 |`invalid_tag_size` |A tag given to `open` or `verify` that is not of 16 bytes.
 |4 |`invalid_input_size` |Data given to a block cipher that is not a whole number of blocks, a
 DER output shorter than `max_der_size`, or the incremental open's `decrypt` past the

@@ -31,7 +31,7 @@ static_assert(std::is_same_v<xchacha, crypto::ciphers::aead<crypto::families::xc
 static_assert(std::is_same_v<xchacha::family_type, crypto::families::xchacha20_poly1305>);
 static_assert(std::is_same_v<xchacha::name_type, crypto::families::xchacha20_poly1305>);
 static_assert(crypto::supports_v<xchacha, crypto::backends::sodium>);
-static_assert(xchacha::key_size == 32 && xchacha::iv_size == 24 && xchacha::tag_size == 16);
+static_assert(xchacha::key_size == 32 && xchacha::nonce_size == 24 && xchacha::tag_size == 16);
 static_assert(xchacha::max_message_size == ~std::uint64_t{0} - 16);
 
 int main() {

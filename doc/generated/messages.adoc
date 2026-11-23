@@ -277,6 +277,12 @@ The fix: Include `+<webcpp/crypto/public_key_encryption/box.hpp>+` for `+box+` a
 
 The fix: Name `+crypto::public_key_encryption::box+`, `+box_xchacha20poly1305+` and `+sealed_box+`, and `+crypto::key_exchange::kx_keypair+` and `+session_keys+`; `+crypto::hybrid+` and the names in `+curves::x25519+` are gone, with no alias.
 
+|`+iv_size_removed+`
+|native, wasip2, wasip3
+|`+no member named 'invalid_iv_size' in+`
+
+The fix: Name nonce_size, max_nonce_size and error::invalid_nonce_size: crypto spells its names out.
+
 |`+kx_default_not_linked+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: crypto_kx's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//kx-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//kx-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`

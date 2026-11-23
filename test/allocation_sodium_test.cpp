@@ -54,10 +54,10 @@ template <class Aead>
 void expect_no_allocation() {
     std::array<std::uint8_t, Aead::key_size> key{};
     key.fill(3);
-    std::array<std::uint8_t, Aead::iv_size> const nonce{};
+    std::array<std::uint8_t, Aead::nonce_size> const nonce{};
     std::array<std::uint8_t, 13> const some_additional_data{};
     auto const associated_data = std::span<std::uint8_t const>(some_additional_data)
-                                     .first(Aead::max_additional_data_size == 0 ? 0 : 13);
+                                     .first(Aead::max_associated_data_size == 0 ? 0 : 13);
     std::array<std::uint8_t, 4096> data{};
     std::size_t const before = webcpp::test::allocations();
     {
@@ -197,7 +197,7 @@ void expect_no_allocation_box() {
     std::array<std::uint8_t, 32> bob{};
     bob.fill(9);
     std::array<std::uint8_t, 32> const low_order{};
-    std::array<std::uint8_t, Box::iv_size> const nonce{};
+    std::array<std::uint8_t, Box::nonce_size> const nonce{};
     std::array<std::uint8_t, 4096> data{};
     auto const alice_public = x25519_public_of(alice);
     auto const bob_public = x25519_public_of(bob);

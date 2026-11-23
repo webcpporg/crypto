@@ -1507,6 +1507,7 @@
         "secret_of_no_bytes": "Give `secret` the number of bytes it holds, at least one, as in `secret<32>`.",
         "equal_header_removed": "Include `<webcpp/crypto/constant_time_equal.hpp>`, the header of `constant_time_equal`; `equal.hpp` is gone, with no header left at its path.",
         "equal_removed": "Call `crypto::constant_time_equal`, the same comparison of two spans or two digests in constant time; `crypto::equal` is gone, with no alias.",
+        "iv_size_removed": "Name nonce_size, max_nonce_size and error::invalid_nonce_size: crypto spells its names out.",
         "erase_secret_const_range": "Erase the buffer the secret was written to, through a non-const reference to it (`std::string&`, `std::span<std::byte>`): a const view cannot be erased. Its elements must be trivially copyable, bytes or integers; a range of `std::string` or of another type with its own storage cannot be erased as bytes, so erase each element's buffer instead.",
         "chacha_default_not_linked_on_emscripten": "As `chacha_default_not_linked`.",
         "box_default_not_linked_on_emscripten": "As `box_default_not_linked`.",

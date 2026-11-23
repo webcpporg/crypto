@@ -71,7 +71,7 @@ include::generated/backends-box_xchacha20poly1305.adoc[]
 |`from_keys`: a peer key of another size than 32 bytes |`invalid_public_key`
 |`from_keys`: a peer key of small order |`weak_public_key`
 |`seal`, `open`: the object was moved from |`invalid_state`
-|a nonce of another size than 24 bytes |`invalid_iv_size`
+|a nonce of another size than 24 bytes |`invalid_nonce_size`
 |`open`: a tag of another size than 16 |`invalid_tag_size`
 |a message longer than `max_message_size` |`message_too_long`
 |`open`: the tag does not match |`authentication_failed`

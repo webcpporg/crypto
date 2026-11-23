@@ -11,7 +11,7 @@
 //   async_open give the synchronous answers byte for byte (ciphertext, tag, plaintext), the
 //   completion arriving after the initiating call returned.
 // - async_wrong_tag: a wrong tag completes with authentication_failed and zeroed data.
-// - async_long_iv: a 129-byte IV completes with invalid_iv_size, the data untouched, for the
+// - async_long_iv: a 129-byte IV completes with invalid_nonce_size, the data untouched, for the
 //   seal (with a zeroed tag) and the open.
 // - async_from_key_refused: a 31-byte key completes with invalid_key_size and an empty gcm, which
 //   refuses every member with invalid_state (review focus 5).
@@ -253,7 +253,7 @@ void async_long_iv(asio::io_context& context) {
     auto sealed = complete<gcm256::result_type>(context, [&](auto const& executor, auto&& token) {
         crypto::async_seal(executor, aead, nonce, {}, data, std::forward<decltype(token)>(token));
     });
-    BOOST_TEST(sealed.code == crypto::error::invalid_iv_size);
+    BOOST_TEST(sealed.code == crypto::error::invalid_nonce_size);
     BOOST_TEST(same_bytes(data, untouched));
     if (BOOST_TEST(sealed.value.has_value())) {
         BOOST_TEST(all_zero(std::span(sealed.value->data(), sealed.value->size())));
@@ -262,7 +262,7 @@ void async_long_iv(asio::io_context& context) {
         crypto::async_open(executor, aead, nonce, {}, data, tag,
                            std::forward<decltype(token)>(token));
     });
-    BOOST_TEST(opened.code == crypto::error::invalid_iv_size);
+    BOOST_TEST(opened.code == crypto::error::invalid_nonce_size);
     BOOST_TEST(same_bytes(data, untouched));
 }
 

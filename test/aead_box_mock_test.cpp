@@ -146,7 +146,7 @@ void check_failures(Seal seal, Open open) {
     webcpp::test::aead_stand_in_error = failed;
     data.fill(0x11);
     BOOST_TEST(seal(std::span<std::uint8_t const>{}, data).error() ==
-               crypto::error::invalid_iv_size);
+               crypto::error::invalid_nonce_size);
     BOOST_TEST(all_equal(data, 0x11));
 
     std::array<std::uint8_t, 24> const nonce{};
@@ -172,10 +172,10 @@ void check_aead() {
     std::array<std::uint8_t, aead::tag_size> const tag{};
     check_failures(
         [&made](std::span<std::uint8_t const> nonce, std::span<std::uint8_t> data) {
-            return made->seal(nonce.first(std::min(nonce.size(), aead::iv_size)), {}, data);
+            return made->seal(nonce.first(std::min(nonce.size(), aead::nonce_size)), {}, data);
         },
         [&made, &tag](std::span<std::uint8_t const> nonce, std::span<std::uint8_t> data) {
-            return made->open(nonce.first(aead::iv_size), {}, data, tag);
+            return made->open(nonce.first(aead::nonce_size), {}, data, tag);
         });
 }
 

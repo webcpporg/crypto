@@ -169,7 +169,7 @@ without a value, `async_open` and `async_verify`, completes with the code
 alone.
 
 *What the guards say.* The completion's code is the synchronous function's,
-unchanged: `invalid_key_size`, `invalid_iv_size`, `message_too_long`,
+unchanged: `invalid_key_size`, `invalid_nonce_size`, `message_too_long`,
 `authentication_failed`, `invalid_public_key`, `weak_public_key`,
 `invalid_signature`, `entropy_unavailable`, `backend_failure`
 (<<crypto-errors>>). A refusal is posted like a success, and the data a guard

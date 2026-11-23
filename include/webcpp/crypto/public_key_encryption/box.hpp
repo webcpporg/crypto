@@ -128,7 +128,7 @@ public:
     /** The secret key's and the peer's public key's size. */
     static constexpr std::size_t key_size = 32;
     /** The nonce's size, exactly. */
-    static constexpr std::size_t iv_size = 24;
+    static constexpr std::size_t nonce_size = 24;
     /** The tag's size. */
     static constexpr std::size_t tag_size = 16;
     /**
@@ -217,9 +217,9 @@ public:
      * When the backend fails, `data_bytes` is zeroed, as a failed open's is: neither the
      * plaintext nor bytes that look sealed are left; a guard's refusal leaves it untouched.
      *
-     * @param nonce_bytes The nonce, `iv_size` bytes, never repeated for this pair of keys.
+     * @param nonce_bytes The nonce, `nonce_size` bytes, never repeated for this pair of keys.
      * @param data_bytes The message.
-     * @return The tag; `invalid_state` moved from; `invalid_iv_size`; `message_too_long`;
+     * @return The tag; `invalid_state` moved from; `invalid_nonce_size`; `message_too_long`;
      * `backend_failure`.
      */
     [[nodiscard]] boost::system::result<result_type> seal(
@@ -231,7 +231,7 @@ public:
         }
         result_type tag_bytes{};
         auto const seal_result =
-            engine::seal(state_, nonce_bytes.first<iv_size>(), data_bytes, tag_bytes);
+            engine::seal(state_, nonce_bytes.first<nonce_size>(), data_bytes, tag_bytes);
         if (!seal_result) {
             detail::wipe(data_bytes.data(), data_bytes.size());
             return seal_result.error();
@@ -250,7 +250,7 @@ public:
      * @param data_bytes The ciphertext.
      * @param tag_bytes The seal's tag, `tag_size` bytes, which may lie anywhere, `data_bytes`
      * included.
-     * @return Nothing; `invalid_state` moved from; `invalid_iv_size`; `invalid_tag_size`;
+     * @return Nothing; `invalid_state` moved from; `invalid_nonce_size`; `invalid_tag_size`;
      * `message_too_long`; `authentication_failed`; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<void> open(
@@ -265,7 +265,7 @@ public:
         std::array<std::uint8_t, tag_size> expected_tag{};
         std::ranges::copy(tag_bytes, expected_tag.begin());
         auto const open_result =
-            engine::open(state_, nonce_bytes.first<iv_size>(), data_bytes, expected_tag);
+            engine::open(state_, nonce_bytes.first<nonce_size>(), data_bytes, expected_tag);
         if (!open_result) {
             detail::wipe(data_bytes.data(), data_bytes.size());
             return open_result.error();
@@ -284,8 +284,8 @@ private:
         if (!keyed_) {
             return error::invalid_state;
         }
-        if (nonce_bytes.size() != iv_size) {
-            return error::invalid_iv_size;
+        if (nonce_bytes.size() != nonce_size) {
+            return error::invalid_nonce_size;
         }
         if (tag_bytes != tag_size) {
             return error::invalid_tag_size;

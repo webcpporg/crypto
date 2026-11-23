@@ -631,7 +631,7 @@ auto async_generate(Executor const& completion_executor, CompletionToken&& compl
  *
  * `aead_cipher` and the spans are the caller's until the completion: a synchronous backend reads
  * and writes them before the call returns, the browser's later. `data_bytes` holds the ciphertext
- * at the completion. A guard's refusal (`invalid_iv_size`, `message_too_long`, `invalid_state`)
+ * at the completion. A guard's refusal (`invalid_nonce_size`, `message_too_long`, `invalid_state`)
  * leaves it untouched, a backend's failure zeroes it, as `seal` does.
  *
  * @tparam Gcm A `ciphers::gcm<Cipher>`; the other AEADs are not in WebCrypto: call their `seal`.
@@ -639,7 +639,7 @@ auto async_generate(Executor const& completion_executor, CompletionToken&& compl
  * @tparam CompletionToken Any completion token for the signature `completion_token` states.
  * @param completion_executor The executor the completion is posted to.
  * @param aead_cipher The keyed object.
- * @param nonce_bytes 1 to `max_iv_size` bytes, never reused under this key.
+ * @param nonce_bytes 1 to `max_nonce_size` bytes, never reused under this key.
  * @param associated_data_bytes Authenticated, not encrypted.
  * @param data_bytes The message.
  * @param completion_token The completion token, of signature

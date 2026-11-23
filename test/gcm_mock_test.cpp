@@ -40,10 +40,10 @@ using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<mock>>;
 // Spec section 2.4, "GCM sizes": the sizes are constants of the type, whatever the backend.
 static_assert(aead::key_size == 32);
 static_assert(aead::tag_size == 16);
-static_assert(aead::iv_size == 12);
-static_assert(aead::max_iv_size == 128);
+static_assert(aead::nonce_size == 12);
+static_assert(aead::max_nonce_size == 128);
 static_assert(aead::max_message_size == (std::uint64_t{1} << 36U) - 32);
-static_assert(aead::max_additional_data_size == (std::uint64_t{1} << 61U) - 1);
+static_assert(aead::max_associated_data_size == (std::uint64_t{1} << 61U) - 1);
 static_assert(crypto::ciphers::gcm<crypto::ciphers::aes128<mock>>::key_size == 16);
 static_assert(crypto::ciphers::gcm<crypto::ciphers::aes192<mock>>::key_size == 24);
 
@@ -91,7 +91,7 @@ void check_one_shot_failures(webcpp::test::gcm_cases cases) {
         std::array<std::uint8_t, 129> const long_iv{};
         std::array<std::uint8_t, 16> data{};
         data.fill(0x5A);
-        BOOST_TEST(made->seal(long_iv, {}, data).error() == crypto::error::invalid_iv_size);
+        BOOST_TEST(made->seal(long_iv, {}, data).error() == crypto::error::invalid_nonce_size);
         BOOST_TEST(std::ranges::all_of(data, [](std::uint8_t byte) { return byte == 0x5A; }));
         webcpp::test::mock_clear();
     }

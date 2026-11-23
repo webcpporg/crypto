@@ -166,7 +166,7 @@ int secret_wipe() {
 template <class Checker, class Aead>
 int seal_and_open(char const* what) {
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, Aead::iv_size> const nonce{};
+    std::array<std::uint8_t, Aead::nonce_size> const nonce{};
     std::array<std::uint8_t, 64> data{};
     key.fill(0x42);
     data.fill(0x17);
@@ -261,7 +261,7 @@ int sodium_box(char const* what) {
     auto const peer =
         crypto::curves::x25519::basic_keypair<sodium>::from_secret(peer_secret)->public_key();
     std::array<std::uint8_t, 32> secret_key{};
-    std::array<std::uint8_t, Box::iv_size> const nonce{};
+    std::array<std::uint8_t, Box::nonce_size> const nonce{};
     std::array<std::uint8_t, 64> data{};
     secret_key.fill(0x42);
     data.fill(0x17);

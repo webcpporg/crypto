@@ -89,10 +89,10 @@ int main() {
     // (b) An empty nonce is refused before anything is touched.
     auto copy = sealed;
     auto const no_nonce = aead->open({}, {}, copy, tag_bytes);
-    if (no_nonce || no_nonce.error() != crypto::error::invalid_iv_size || copy != sealed) {
+    if (no_nonce || no_nonce.error() != crypto::error::invalid_nonce_size || copy != sealed) {
         return 1;
     }
-    std::printf("empty iv: invalid_iv_size, data untouched\n");
+    std::printf("empty nonce: invalid_nonce_size, data untouched\n");
 
     // (c) A tag of 15 bytes instead of 16.
     auto const short_tag = aead->open(nonce, {}, copy, tag_bytes.first(15));

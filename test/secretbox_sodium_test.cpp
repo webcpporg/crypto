@@ -52,8 +52,9 @@ static_assert(std::is_same_v<secretbox::family_type, crypto::families::secretbox
 static_assert(std::is_same_v<secretbox::name_type, crypto::families::secretbox_xsalsa20poly1305>);
 static_assert(crypto::supports_v<secretbox, crypto::backends::sodium>);
 static_assert(crypto::supports_v<secretbox_xchacha, crypto::backends::sodium>);
-static_assert(secretbox::key_size == 32 && secretbox::iv_size == 24 && secretbox::tag_size == 16);
-static_assert(secretbox_xchacha::key_size == 32 && secretbox_xchacha::iv_size == 24 &&
+static_assert(secretbox::key_size == 32 && secretbox::nonce_size == 24 &&
+              secretbox::tag_size == 16);
+static_assert(secretbox_xchacha::key_size == 32 && secretbox_xchacha::nonce_size == 24 &&
               secretbox_xchacha::tag_size == 16);
 static_assert(secretbox::max_message_size == ~std::uint64_t{0} - 16);
 // libsodium's own limit on a 64-bit target; on a 32-bit one libsodium's is the smaller,
@@ -64,8 +65,8 @@ static_assert(sizeof(std::size_t) != 8 ||
               secretbox::max_message_size == crypto_secretbox_MESSAGEBYTES_MAX);
 static_assert(sizeof(std::size_t) == 8 || crypto_secretbox_MESSAGEBYTES_MAX == 0xffffffffU - 16);
 // NOLINTEND(bugprone-branch-clone)
-static_assert(secretbox::max_additional_data_size == 0 &&
-              secretbox_xchacha::max_additional_data_size == 0);
+static_assert(secretbox::max_associated_data_size == 0 &&
+              secretbox_xchacha::max_associated_data_size == 0);
 
 /**
  * NaCl's secret box, libsodium's test/default/secretbox.c: its key ("firstkey"), nonce and

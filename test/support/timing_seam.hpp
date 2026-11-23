@@ -113,15 +113,48 @@ constexpr bool identifier_character(char character) noexcept {
 }
 
 /**
+ * The position where the exception specification MSVC writes after a function's parameter list
+ * and qualifiers (` noexcept`, ` noexcept(false)`) begins, or the size of `text` when it ends with
+ * none: clang and GCC never write one.
+ *
+ * @param text A `function_name()`, the template arguments clang and GCC append cut.
+ * @return The position of the space before `noexcept`, or `text.size()`.
+ */
+inline std::size_t exception_specification_of(std::string_view text) {
+    constexpr std::string_view noexcept_word = " noexcept";
+    std::size_t end = text.size();
+    if (text.ends_with(')')) {
+        std::size_t depth = 0;
+        std::size_t position = end;
+        while (position > 0) {
+            --position;
+            if (text[position] == ')') {
+                ++depth;
+            } else if (text[position] == '(' && --depth == 0) {
+                break;
+            }
+        }
+        end = position;
+    }
+    std::string_view const before = text.substr(0, end);
+    if (!before.ends_with(noexcept_word)) {
+        return text.size();
+    }
+    return end - noexcept_word.size();
+}
+
+/**
  * A `function_name()` in one spelling for clang, GCC and MSVC: the template arguments clang and
- * GCC append (` [B = ...]`, ` [with B = ...]`) cut, and the space MSVC puts between `operator`
- * and its symbol (`operator ==`) removed.
+ * GCC append (` [B = ...]`, ` [with B = ...]`) cut, the exception specification MSVC appends to a
+ * function that may throw or whose `noexcept` depends on its arguments (` noexcept(false)`) cut,
+ * and the space MSVC puts between `operator` and its symbol (`operator ==`) removed.
  *
  * @param entered A `function_name()`.
  * @return The same function, spelled for the search of `names_function`.
  */
 inline std::string normalized_function_name(std::string_view entered) {
-    std::string normal(entered.substr(0, entered.find(" [")));
+    std::string_view const cut = entered.substr(0, entered.find(" ["));
+    std::string normal(cut.substr(0, exception_specification_of(cut)));
     constexpr std::string_view operator_word = "operator ";
     for (std::size_t found = normal.find(operator_word); found != std::string::npos;
          found = normal.find(operator_word, found + 1)) {

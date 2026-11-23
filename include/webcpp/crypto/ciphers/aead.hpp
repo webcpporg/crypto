@@ -512,56 +512,66 @@ private:
 namespace webcpp::crypto {
 
 /**
- * Seals a message in place, `aead.seal(iv_bytes, additional_data_bytes, data_bytes)`: the free
- * form of the AEAD's own `seal`, which it calls, with its results and its errors.
+ * Seals a message in place, `keyed_aead.seal(iv_bytes, additional_data_bytes, data_bytes)`: the
+ * free form of the AEAD's own `seal`, which it calls, with its results and its errors.
  *
  * @tparam Aead A type whose `seal` takes these arguments: `ciphers::gcm<Cipher>` or
  * `ciphers::aead<Family, Backend>`.
- * @param aead The keyed object.
+ * @param keyed_aead The keyed object.
  * @param iv_bytes The IV or nonce, never reused under this key.
  * @param additional_data_bytes Authenticated, not encrypted.
  * @param data_bytes The message, the ciphertext after.
- * @return What `aead.seal` returns: the tag, or its error.
+ * @return What `keyed_aead.seal` returns: the tag, or its error.
  */
 template <class Aead>
-    requires requires(Aead& aead, std::span<std::uint8_t const> bytes,
-                      std::span<std::uint8_t> data) { aead.seal(bytes, bytes, data); }
+    requires requires {
+        std::declval<Aead&>().seal(std::declval<std::span<std::uint8_t const>&>(),
+                                   std::declval<std::span<std::uint8_t const>&>(),
+                                   std::declval<std::span<std::uint8_t>&>());
+    }
 [[nodiscard]] auto seal(
-    Aead& aead, std::span<std::uint8_t const> iv_bytes,
+    Aead& keyed_aead, std::span<std::uint8_t const> iv_bytes,
     std::span<std::uint8_t const> additional_data_bytes,
-    std::span<std::uint8_t> data_bytes) noexcept(noexcept(aead.seal(iv_bytes, additional_data_bytes,
-                                                                    data_bytes)))
-    -> decltype(aead.seal(iv_bytes, additional_data_bytes, data_bytes)) {
+    std::span<std::uint8_t> data_bytes) noexcept(noexcept(keyed_aead.seal(iv_bytes,
+                                                                          additional_data_bytes,
+                                                                          data_bytes)))
+    -> decltype(keyed_aead.seal(iv_bytes, additional_data_bytes, data_bytes)) {
     detail::timing_guard const timing;
-    return aead.seal(iv_bytes, additional_data_bytes, data_bytes);
+    return keyed_aead.seal(iv_bytes, additional_data_bytes, data_bytes);
 }
 
 /**
- * Opens a message in place, `aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)`:
- * the free form of the AEAD's own `open`, which it calls, with its results and its errors.
+ * Opens a message in place, `keyed_aead.open(iv_bytes, additional_data_bytes, data_bytes,
+ * tag_bytes)`: the free form of the AEAD's own `open`, which it calls, with its results and its
+ * errors.
  *
  * @tparam Aead A type whose `open` takes these arguments: `ciphers::gcm<Cipher>` or
  * `ciphers::aead<Family, Backend>`.
- * @param aead The keyed object.
+ * @param keyed_aead The keyed object.
  * @param iv_bytes The IV or nonce of the seal.
  * @param additional_data_bytes The additional data of the seal.
  * @param data_bytes The ciphertext, the plaintext after.
  * @param tag_bytes The seal's tag.
- * @return What `aead.open` returns: nothing, or its error (`authentication_failed`, which zeroes
- * `data_bytes`).
+ * @return What `keyed_aead.open` returns: nothing, or its error (`authentication_failed`, which
+ * zeroes `data_bytes`).
  */
 template <class Aead>
-    requires requires(Aead& aead, std::span<std::uint8_t const> bytes,
-                      std::span<std::uint8_t> data) { aead.open(bytes, bytes, data, bytes); }
-[[nodiscard]] auto open(
-    Aead& aead, std::span<std::uint8_t const> iv_bytes,
-    std::span<std::uint8_t const> additional_data_bytes, std::span<std::uint8_t> data_bytes,
-    std::span<std::uint8_t const> tag_bytes) noexcept(noexcept(aead.open(iv_bytes,
+    requires requires {
+        std::declval<Aead&>().open(std::declval<std::span<std::uint8_t const>&>(),
+                                   std::declval<std::span<std::uint8_t const>&>(),
+                                   std::declval<std::span<std::uint8_t>&>(),
+                                   std::declval<std::span<std::uint8_t const>&>());
+    }
+[[nodiscard]] auto open(Aead& keyed_aead, std::span<std::uint8_t const> iv_bytes,
+                        std::span<std::uint8_t const> additional_data_bytes,
+                        std::span<std::uint8_t> data_bytes,
+                        std::span<std::uint8_t const>
+                            tag_bytes) noexcept(noexcept(keyed_aead.open(iv_bytes,
                                                                          additional_data_bytes,
                                                                          data_bytes, tag_bytes)))
-    -> decltype(aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)) {
+    -> decltype(keyed_aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)) {
     detail::timing_guard const timing;
-    return aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
+    return keyed_aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes);
 }
 
 }  // namespace webcpp::crypto

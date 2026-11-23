@@ -35,6 +35,7 @@
 #include <concepts>
 #include <cstdint>
 #include <span>
+#include <utility>
 
 namespace webcpp::crypto {
 
@@ -49,11 +50,10 @@ namespace detail {
  * @tparam Scheme A scheme tag.
  */
 template <class Keypair, class Scheme>
-concept signs_as_declared =
-    !signs_with_v<Keypair, Scheme> ||
-    requires(Keypair const& key, Scheme const& scheme, std::span<std::uint8_t const> message) {
-        key.sign(scheme, message);
-    };
+concept signs_as_declared = !signs_with_v<Keypair, Scheme> || requires {
+    std::declval<Keypair const&>().sign(std::declval<Scheme const&>(),
+                                        std::declval<std::span<std::uint8_t const>&>());
+};
 
 /**
  * Whether the curve of `Keypair` declares at least one scheme of the list `List` for it: false
@@ -103,17 +103,19 @@ inline constexpr bool signs_every_declared_v<Keypair, scheme_list<Schemes...>> =
  * @tparam List A `scheme_list`.
  */
 template <class Keypair, class List>
-concept keypair_over =
-    signs_some_scheme_v<Keypair, List> &&
-    requires(Keypair const& key, std::span<std::uint8_t const> secret_bytes) {
-        typename Keypair::public_key_type;
-        { Keypair::make(secret_bytes) } -> std::same_as<boost::system::result<Keypair>>;
-        { Keypair::generate() } -> std::same_as<boost::system::result<Keypair>>;
-        {
-            key.public_key()
-        } -> std::same_as<boost::system::result<typename Keypair::public_key_type>>;
-        { key.secret() } -> std::same_as<boost::system::result<secret<Keypair::secret_key_size>>>;
-    } && signs_every_declared_v<Keypair, List>;
+concept keypair_over = signs_some_scheme_v<Keypair, List> && requires {
+    typename Keypair::public_key_type;
+    {
+        Keypair::make(std::declval<std::span<std::uint8_t const>&>())
+    } -> std::same_as<boost::system::result<Keypair>>;
+    { Keypair::generate() } -> std::same_as<boost::system::result<Keypair>>;
+    {
+        std::declval<Keypair const&>().public_key()
+    } -> std::same_as<boost::system::result<typename Keypair::public_key_type>>;
+    {
+        std::declval<Keypair const&>().secret()
+    } -> std::same_as<boost::system::result<secret<Keypair::secret_key_size>>>;
+} && signs_every_declared_v<Keypair, List>;
 
 }  // namespace detail
 
@@ -134,22 +136,22 @@ template <class Keypair>
 concept keypair = detail::keypair_over<Keypair, detail::all_schemes>;
 
 /**
- * Agrees a secret with a peer's public key, `key_pair.agree(peer)`: the free form of the key
+ * Agrees a secret with a peer's public key, `key_pair.agree(peer_key)`: the free form of the key
  * pair's own `agree`, which it calls, with its results and its errors.
  *
- * @tparam Keypair A key pair's type whose `agree` takes `peer`: P-256's or secp256k1's.
+ * @tparam Keypair A key pair's type whose `agree` takes `peer_key`: P-256's or secp256k1's.
  * @tparam PublicKey The peer's public key's type, the key pair's own `public_key_type`.
  * @param key_pair The key pair.
- * @param peer The peer's public key.
- * @return What `key_pair.agree(peer)` returns: the shared point's x coordinate, or its error.
+ * @param peer_key The peer's public key.
+ * @return What `key_pair.agree(peer_key)` returns: the shared point's x coordinate, or its error.
  */
 template <class Keypair, class PublicKey>
-    requires requires(Keypair const& key_pair, PublicKey const& peer) { key_pair.agree(peer); }
+    requires requires { std::declval<Keypair const&>().agree(std::declval<PublicKey const&>()); }
 [[nodiscard]] auto agree(Keypair const& key_pair,
-                         PublicKey const& peer) noexcept(noexcept(key_pair.agree(peer)))
-    -> decltype(key_pair.agree(peer)) {
+                         PublicKey const& peer_key) noexcept(noexcept(key_pair.agree(peer_key)))
+    -> decltype(key_pair.agree(peer_key)) {
     detail::timing_guard const timing;
-    return key_pair.agree(peer);
+    return key_pair.agree(peer_key);
 }
 
 /**
@@ -159,14 +161,14 @@ template <class Keypair, class PublicKey>
  * @tparam Keypair The key pair's type, a key pair of the contract.
  * @tparam PublicKey The peer's type.
  * @param key_pair The key pair.
- * @param peer The peer.
+ * @param peer_key The peer.
  * @return Never: the call does not compile.
  */
 template <class Keypair, class PublicKey>
     requires(keypair<Keypair> &&
-             !requires(Keypair const& key, PublicKey const& other) { key.agree(other); })
-[[nodiscard]] boost::system::result<void> agree([[maybe_unused]] Keypair const& key_pair,
-                                                [[maybe_unused]] PublicKey const& peer) noexcept {
+             !requires { std::declval<Keypair const&>().agree(std::declval<PublicKey const&>()); })
+[[nodiscard]] boost::system::result<void> agree(
+    [[maybe_unused]] Keypair const& key_pair, [[maybe_unused]] PublicKey const& peer_key) noexcept {
     static_assert(detail::refused_v<Keypair>,
                   "webcpp::crypto: agree: this key pair does not agree with this peer: a P-256 "
                   "key pair agrees with a curves::p256::basic_public_key of its backend, a "

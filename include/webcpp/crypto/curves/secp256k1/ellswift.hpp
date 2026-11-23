@@ -68,12 +68,12 @@ enum class ellswift_party {
  *
  * @tparam Backend The backend, `backends::secp256k1`.
  * @param parsed_key The key.
- * @param randomness 32 fresh bytes from crypto's random device: the encoding is one of many.
+ * @param randomness_bytes 32 fresh bytes from crypto's random device: the encoding is one of many.
  * @return The 64 bytes.
  */
 template <class Backend = default_backend_t<families::secp256k1_ellswift>>
 [[nodiscard]] std::array<std::uint8_t, ellswift_size> ellswift_encode(
-    public_key const& parsed_key, std::span<std::uint8_t const, 32> randomness) noexcept {
+    public_key const& parsed_key, std::span<std::uint8_t const, 32> randomness_bytes) noexcept {
     detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
@@ -83,7 +83,7 @@ template <class Backend = default_backend_t<families::secp256k1_ellswift>>
     // libsecp256k1 returns 1 always: every valid point has encodings.
     static_cast<void>(secp256k1_ellswift_encode(
         secp256k1_context_static, encoded_key.data(),
-        &webcpp::crypto::detail::secp256k1_access::point(parsed_key), randomness.data()));
+        &webcpp::crypto::detail::secp256k1_access::point(parsed_key), randomness_bytes.data()));
     return encoded_key;
 }
 
@@ -116,13 +116,14 @@ template <class Backend = default_backend_t<families::secp256k1_ellswift>>
  *
  * @tparam Backend The key pair's backend, `backends::secp256k1`.
  * @param key_pair The key pair.
- * @param randomness 32 fresh bytes from crypto's random device, mixed with the secret into the
- * choice of the encoding.
+ * @param randomness_bytes 32 fresh bytes from crypto's random device, mixed with the secret into
+ * the choice of the encoding.
  * @return 64 bytes; `invalid_state` moved from; `backend_failure`.
  */
 template <class Backend>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, ellswift_size>> ellswift_create(
-    basic_keypair<Backend> const& key_pair, std::span<std::uint8_t const, 32> randomness) noexcept {
+    basic_keypair<Backend> const& key_pair,
+    std::span<std::uint8_t const, 32> randomness_bytes) noexcept {
     detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
@@ -131,14 +132,14 @@ template <class Backend>
     if (!access::keyed(key_pair)) {
         return error::invalid_state;
     }
-    webcpp::crypto::detail::secp256k1_secret seckey32;
-    secp256k1_keypair_sec(access::context(key_pair), seckey32.bytes.data(),
+    webcpp::crypto::detail::secp256k1_secret native_secret;
+    secp256k1_keypair_sec(access::context(key_pair), native_secret.bytes.data(),
                           &access::pair(key_pair));
     std::array<std::uint8_t, ellswift_size> encoded_key{};
     // The key pair's secret is valid: libsecp256k1 refuses only one that is not.
     if (!webcpp::crypto::detail::secp256k1_accepted(
             secp256k1_ellswift_create(access::context(key_pair), encoded_key.data(),
-                                      seckey32.bytes.data(), randomness.data()))) {
+                                      native_secret.bytes.data(), randomness_bytes.data()))) {
         return error::backend_failure;
     }
     return encoded_key;
@@ -173,14 +174,14 @@ template <class Backend>
     if (!access::keyed(key_pair)) {
         return error::invalid_state;
     }
-    webcpp::crypto::detail::secp256k1_secret seckey32;
-    secp256k1_keypair_sec(access::context(key_pair), seckey32.bytes.data(),
+    webcpp::crypto::detail::secp256k1_secret native_secret;
+    secp256k1_keypair_sec(access::context(key_pair), native_secret.bytes.data(),
                           &access::pair(key_pair));
     secret<32> shared_secret;
     // The secret is valid and BIP 324's hash never fails: libsecp256k1 returns 1.
     if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_ellswift_xdh(
             access::context(key_pair), shared_secret.writable().data(), initiator_encoding.data(),
-            responder_encoding.data(), seckey32.bytes.data(), static_cast<int>(our_party),
+            responder_encoding.data(), native_secret.bytes.data(), static_cast<int>(our_party),
             secp256k1_ellswift_xdh_hash_function_bip324, nullptr))) {
         return error::backend_failure;
     }

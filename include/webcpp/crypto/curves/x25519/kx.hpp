@@ -98,22 +98,23 @@ public:
      * Makes a key pair from a seed, `crypto_kx_seed_keypair`: the same seed gives the same key
      * pair.
      *
-     * @param seed 32 bytes.
+     * @param seed_bytes 32 bytes.
      * @return The key pair; `invalid_key_size`; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<kx_keypair> make(
-        std::span<std::uint8_t const> seed) noexcept {
+        std::span<std::uint8_t const> seed_bytes) noexcept {
         detail::timing_guard const timing;
-        if (seed.size() != seed_size) {
+        if (seed_bytes.size() != seed_size) {
             return error::invalid_key_size;
         }
-        kx_keypair made;
-        auto const keyed = engine::make(made.state_, seed.template first<seed_size>());
-        if (!keyed) {
-            return keyed.error();
+        kx_keypair made_pair;
+        auto const engine_keyed =
+            engine::make(made_pair.state_, seed_bytes.template first<seed_size>());
+        if (!engine_keyed) {
+            return engine_keyed.error();
         }
-        made.keyed_ = true;
-        return made;
+        made_pair.keyed_ = true;
+        return made_pair;
     }
 
     /**
@@ -124,38 +125,39 @@ public:
      */
     [[nodiscard]] static boost::system::result<kx_keypair> generate() noexcept {
         detail::timing_guard const timing;
-        secret<seed_size> seed;
-        auto const drawn = random_device().fill(seed.writable());  // lint-world: the seed
-        if (!drawn) {
+        secret<seed_size> seed_secret;
+        auto const entropy_drawn =
+            random_device().fill(seed_secret.writable());  // lint-world: the seed
+        if (!entropy_drawn) {
             // The generator's not_supported (an Emscripten audio worklet) is the same failure
             // for a key pair: one error to handle.
             return error::entropy_unavailable;
         }
-        return make(seed.bytes());
+        return make(seed_secret.bytes());
     }
 
     /**
      * Moves the key pair; the source is wiped and empty.
      *
-     * @param other The key pair moved from.
+     * @param moved_from The key pair moved from.
      */
-    kx_keypair(kx_keypair&& other) noexcept : keyed_(std::exchange(other.keyed_, false)) {
-        state_ = other.state_;
-        engine::reset(other.state_);
+    kx_keypair(kx_keypair&& moved_from) noexcept : keyed_(std::exchange(moved_from.keyed_, false)) {
+        state_ = moved_from.state_;
+        engine::reset(moved_from.state_);
     }
 
     /**
      * Moves over this key pair, which is wiped first.
      *
-     * @param other The key pair moved from, wiped and empty after.
+     * @param moved_from The key pair moved from, wiped and empty after.
      * @return This key pair.
      */
-    kx_keypair& operator=(kx_keypair&& other) noexcept {
-        if (this != &other) {
+    kx_keypair& operator=(kx_keypair&& moved_from) noexcept {
+        if (this != &moved_from) {
             engine::reset(state_);
-            keyed_ = std::exchange(other.keyed_, false);
-            state_ = other.state_;
-            engine::reset(other.state_);
+            keyed_ = std::exchange(moved_from.keyed_, false);
+            state_ = moved_from.state_;
+            engine::reset(moved_from.state_);
         }
         return *this;
     }
@@ -177,9 +179,9 @@ public:
         if (!keyed_) {
             return error::invalid_state;
         }
-        std::array<std::uint8_t, 32> key{};
-        engine::public_key(state_, key);
-        return key;
+        std::array<std::uint8_t, 32> key_bytes{};
+        engine::public_key(state_, key_bytes);
+        return key_bytes;
     }
 
     /**
@@ -226,16 +228,17 @@ private:
         if (peer_public_key.size() != public_key_size) {
             return error::invalid_public_key;
         }
-        session_keys keys;
-        auto const peer = peer_public_key.first<public_key_size>();
-        auto const done =
-            Client
-                ? engine::client(state_, peer, keys.receive.writable(), keys.transmit.writable())
-                : engine::server(state_, peer, keys.receive.writable(), keys.transmit.writable());
-        if (!done) {
-            return done.error();
+        session_keys derived_keys;
+        auto const peer_bytes = peer_public_key.first<public_key_size>();
+        auto const engine_done =
+            Client ? engine::client(state_, peer_bytes, derived_keys.receive.writable(),
+                                    derived_keys.transmit.writable())
+                   : engine::server(state_, peer_bytes, derived_keys.receive.writable(),
+                                    derived_keys.transmit.writable());
+        if (!engine_done) {
+            return engine_done.error();
         }
-        return keys;
+        return derived_keys;
     }
 
     state_type state_{};

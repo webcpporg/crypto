@@ -37,6 +37,7 @@
 #include <cstdint>
 #include <span>
 #include <type_traits>
+#include <utility>
 
 namespace webcpp::crypto {
 
@@ -184,11 +185,11 @@ struct prehashed {
     /**
      * Marks a Boost.Hash2 digest, a hasher's result, as a digest.
      *
-     * @param hashed The digest, which must outlive the marker's use.
+     * @param hashed_digest The digest, which must outlive the marker's use.
      */
-    constexpr explicit prehashed(boost::hash2::digest<N> const& hashed) noexcept
+    constexpr explicit prehashed(boost::hash2::digest<N> const& hashed_digest) noexcept
         requires(N != std::dynamic_extent)
-        : digest(hashed.data(), N) {}
+        : digest(hashed_digest.data(), N) {}
 };
 
 /**
@@ -422,26 +423,27 @@ constexpr void check_input() noexcept {
  * @return The view of its bytes.
  */
 template <class Input>
-[[nodiscard]] constexpr std::span<std::uint8_t const> message_bytes(Input const& message) noexcept {
-    return std::span<std::uint8_t const>(message);
+[[nodiscard]] constexpr std::span<std::uint8_t const> message_bytes(
+    Input const& message_input) noexcept {
+    return std::span<std::uint8_t const>(message_input);
 }
 
 /**
  * SHA-256 of a message (webcpp::hash's `sha2_256`, Boost.Hash2's): the digest ECDSA over SHA-256
  * signs and verifies, as WebCrypto's ECDSA with SHA-256 hashes it.
  *
- * @param message Public bytes, of any size.
+ * @param message_bytes Public bytes, of any size.
  * @return The 32-byte digest.
  */
 [[nodiscard]] inline std::array<std::uint8_t, 32> sha256_of(
-    std::span<std::uint8_t const> message) noexcept {
-    ::webcpp::hash::sha2_256 hasher;
-    hasher.update(message.data(), message.size());
+    std::span<std::uint8_t const> message_bytes) noexcept {
+    ::webcpp::hash::sha2_256 sha256_hasher;
+    sha256_hasher.update(message_bytes.data(), message_bytes.size());
     static_assert(std::is_same_v<::webcpp::hash::sha2_256::result_type, boost::hash2::digest<32>>);
-    auto const hashed = hasher.result();
-    std::array<std::uint8_t, 32> digest{};
-    std::copy_n(hashed.data(), digest.size(), digest.begin());
-    return digest;
+    auto const hash_result = sha256_hasher.result();
+    std::array<std::uint8_t, 32> digest_bytes{};
+    std::copy_n(hash_result.data(), digest_bytes.size(), digest_bytes.begin());
+    return digest_bytes;
 }
 
 /**
@@ -498,14 +500,17 @@ namespace detail {
  * @tparam Extra The types of the arguments after the input, secp256k1's 32 bytes.
  */
 template <class Keypair, class Scheme, class Input, class... Extra>
-concept has_sign_member = requires(Keypair const& key, Scheme const& scheme, Input const& input,
-                                   Extra const&... extra) { key.sign(scheme, input, extra...); };
+concept has_sign_member = requires {
+    std::declval<Keypair const&>().sign(std::declval<Scheme const&>(), std::declval<Input const&>(),
+                                        std::declval<Extra const&>()...);
+};
 
 }  // namespace detail
 
 /**
- * Signs with a key pair, `key_pair.sign(scheme, input, extra...)`: the free form of the key
- * pair's own `sign`, which it calls, with its results, its errors and its refusals.
+ * Signs with a key pair, `key_pair.sign(signing_scheme, signing_input, extra_arguments...)`: the
+ * free form of the key pair's own `sign`, which it calls, with its results, its errors and its
+ * refusals.
  *
  * A scheme the key pair does not have, or an input the scheme does not take, stops the build with
  * the key pair's own message.
@@ -518,19 +523,21 @@ concept has_sign_member = requires(Keypair const& key, Scheme const& scheme, Inp
  * @tparam Extra Nothing, or secp256k1's 32 bytes: the hedged ECDSA's extra entropy or BIP340's
  * auxiliary randomness.
  * @param key_pair The key pair.
- * @param scheme The scheme.
- * @param input The message or the marker.
- * @param extra Nothing, or secp256k1's 32 bytes.
- * @return What `key_pair.sign(scheme, input, extra...)` returns: the signature, or its error.
+ * @param signing_scheme The scheme.
+ * @param signing_input The message or the marker.
+ * @param extra_arguments Nothing, or secp256k1's 32 bytes.
+ * @return What `key_pair.sign(signing_scheme, signing_input, extra_arguments...)` returns: the
+ * signature, or its error.
  */
 template <class Keypair, class Scheme, class Input, class... Extra>
     requires detail::has_sign_member<Keypair, Scheme, Input, Extra...>
-[[nodiscard]] auto sign(Keypair const& key_pair, Scheme scheme, Input const& input,
-                        Extra const&... extra) noexcept(noexcept(key_pair.sign(scheme, input,
-                                                                               extra...)))
-    -> decltype(key_pair.sign(scheme, input, extra...)) {
+[[nodiscard]] auto sign(
+    Keypair const& key_pair, Scheme signing_scheme, Input const& signing_input,
+    Extra const&... extra_arguments) noexcept(noexcept(key_pair.sign(signing_scheme, signing_input,
+                                                                     extra_arguments...)))
+    -> decltype(key_pair.sign(signing_scheme, signing_input, extra_arguments...)) {
     detail::timing_guard const timing;
-    return key_pair.sign(scheme, input, extra...);
+    return key_pair.sign(signing_scheme, signing_input, extra_arguments...);
 }
 
 /**
@@ -542,18 +549,18 @@ template <class Keypair, class Scheme, class Input, class... Extra>
  * @tparam Input The input's type.
  * @tparam Extra The types of the arguments after the input.
  * @param key_pair The first argument.
- * @param scheme The scheme.
- * @param input The input.
- * @param extra The arguments after the input.
+ * @param signing_scheme The scheme.
+ * @param signing_input The input.
+ * @param extra_arguments The arguments after the input.
  * @return Never: the call does not compile.
  */
 template <class Keypair, class Scheme, class Input, class... Extra>
     requires(detail::is_scheme_v<Scheme> &&
              !detail::has_sign_member<Keypair, Scheme, Input, Extra...>)
-[[nodiscard]] boost::system::result<void> sign([[maybe_unused]] Keypair const& key_pair,
-                                               [[maybe_unused]] Scheme scheme,
-                                               [[maybe_unused]] Input const& input,
-                                               [[maybe_unused]] Extra const&... extra) noexcept {
+[[nodiscard]] boost::system::result<void> sign(
+    [[maybe_unused]] Keypair const& key_pair, [[maybe_unused]] Scheme signing_scheme,
+    [[maybe_unused]] Input const& signing_input,
+    [[maybe_unused]] Extra const&... extra_arguments) noexcept {
     static_assert(detail::refused_v<Keypair>,
                   "webcpp::crypto: sign: the first argument is a key pair, and the others are "
                   "its sign's: crypto::sign(key_pair, scheme, input), and on secp256k1 its 32 "
@@ -572,9 +579,9 @@ template <class Keypair, class Scheme, class Input, class... Extra>
  * @tparam Signature The signature's type.
  * @tparam Input The input's type.
  * @tparam PublicKey The public key's type.
- * @param scheme The scheme.
- * @param signature The signature.
- * @param input The message or the marker.
+ * @param signing_scheme The scheme.
+ * @param signature_bytes The signature.
+ * @param signing_input The message or the marker.
  * @param public_key The public key.
  * @return Never: the call does not compile.
  */
@@ -582,8 +589,9 @@ template <class Scheme, class Signature, class Input, class PublicKey>
     requires(detail::is_scheme_v<Scheme> &&
              !detail::has_verifier_v<Scheme, std::remove_cvref_t<PublicKey>>)
 [[nodiscard]] boost::system::result<void> verify(
-    [[maybe_unused]] Scheme scheme, [[maybe_unused]] Signature const& signature,
-    [[maybe_unused]] Input const& input, [[maybe_unused]] PublicKey const& public_key) noexcept {
+    [[maybe_unused]] Scheme signing_scheme, [[maybe_unused]] Signature const& signature_bytes,
+    [[maybe_unused]] Input const& signing_input,
+    [[maybe_unused]] PublicKey const& public_key) noexcept {
     static_assert(detail::refused_v<Scheme>,
                   "webcpp::crypto: verify: this public key does not go with this scheme: "
                   "crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a "

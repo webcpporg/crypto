@@ -72,17 +72,18 @@ struct ed25519_keypair_access {
     /**
      * Writes the key pair's PKCS#8.
      *
-     * @param key The key pair.
-     * @param out 48 bytes.
+     * @param key_pair The key pair.
+     * @param output_bytes 48 bytes.
      * @return Nothing; `invalid_state` moved from.
      */
     [[nodiscard]] static boost::system::result<void> encode_pkcs8(
-        curves::ed25519::basic_keypair<Backend> const& key,
-        std::span<std::uint8_t, 48> out) noexcept {
-        if (!key.keyed_) {
+        curves::ed25519::basic_keypair<Backend> const& key_pair,
+        std::span<std::uint8_t, 48> output_bytes) noexcept {
+        if (!key_pair.keyed_) {
             return error::invalid_state;
         }
-        ed25519_formats_engine<families::ed25519, Backend>::encode_pkcs8(key.state_, out);
+        ed25519_formats_engine<families::ed25519, Backend>::encode_pkcs8(key_pair.state_,
+                                                                         output_bytes);
         return {};
     }
 };
@@ -97,23 +98,24 @@ inline constexpr std::size_t max_spki_size = 44;
 inline constexpr std::size_t max_pkcs8_size = 48;
 
 /**
- * Writes a public key's SPKI (RFC 8410) into `out`.
+ * Writes a public key's SPKI (RFC 8410) into `output_bytes`.
  *
  * @tparam Backend The backend; by default the family's.
- * @param key The public key.
- * @param out At least `max_spki_size` bytes.
- * @return The bytes written, 44; `invalid_input_size` for an `out` too small. Nothing is written
- * on a refusal.
+ * @param encoded_key The public key.
+ * @param output_bytes At least `max_spki_size` bytes.
+ * @return The bytes written, 44; `invalid_input_size` for an `output_bytes` too small. Nothing is
+ * written on a refusal.
  */
 template <class Backend = default_backend_t<families::ed25519>>
-[[nodiscard]] boost::system::result<std::size_t> encode_spki(public_key const& key,
-                                                             std::span<std::uint8_t> out) noexcept {
-    if (out.size() < max_spki_size) {
+[[nodiscard]] boost::system::result<std::size_t> encode_spki(
+    public_key const& encoded_key, std::span<std::uint8_t> output_bytes) noexcept {
+    if (output_bytes.size() < max_spki_size) {
         return error::invalid_input_size;
     }
-    auto const key_bytes = key.bytes();
+    auto const key_bytes = encoded_key.bytes();
     detail::ed25519_formats_engine<families::ed25519, Backend>::encode_spki(
-        std::span<std::uint8_t const, public_key::size>(key_bytes), out.first<max_spki_size>());
+        std::span<std::uint8_t const, public_key::size>(key_bytes),
+        output_bytes.first<max_spki_size>());
     return max_spki_size;
 }
 
@@ -125,45 +127,47 @@ template <class Backend = default_backend_t<families::ed25519>>
  * refuses a key that is not one.
  *
  * @tparam Backend The backend; by default the family's.
- * @param spki The DER.
+ * @param spki_bytes The DER.
  * @return The public key; `invalid_encoding`.
  */
 template <class Backend = default_backend_t<families::ed25519>>
 [[nodiscard]] boost::system::result<public_key> decode_spki(
-    std::span<std::uint8_t const> spki) noexcept {
+    std::span<std::uint8_t const> spki_bytes) noexcept {
     detail::timing_guard const timing;
-    if (spki.size() != max_spki_size) {
+    if (spki_bytes.size() != max_spki_size) {
         return error::invalid_encoding;
     }
     std::array<std::uint8_t, public_key::size> key_bytes{};
-    auto const decoded = detail::ed25519_formats_engine<families::ed25519, Backend>::decode_spki(
-        spki.first<max_spki_size>(), key_bytes);
-    if (!decoded) {
-        return decoded.error();
+    auto const decoded_key =
+        detail::ed25519_formats_engine<families::ed25519, Backend>::decode_spki(
+            spki_bytes.first<max_spki_size>(), key_bytes);
+    if (!decoded_key) {
+        return decoded_key.error();
     }
     return public_key::make(key_bytes);
 }
 
 /**
- * Writes a key pair's PKCS#8 (RFC 8410, version 1: the seed, without the public key) into `out`,
- * which then holds the secret key: a program wipes it, or seals it, when it is done.
+ * Writes a key pair's PKCS#8 (RFC 8410, version 1: the seed, without the public key) into
+ * `output_bytes`, which then holds the secret key: a program wipes it, or seals it, when it is
+ * done.
  *
  * @tparam Backend The key pair's backend.
- * @param key The key pair.
- * @param out At least `max_pkcs8_size` bytes.
+ * @param key_pair The key pair.
+ * @param output_bytes At least `max_pkcs8_size` bytes.
  * @return The bytes written, 48; `invalid_state` for a key pair moved from; `invalid_input_size`
- * for an `out` too small. Nothing is written on a refusal.
+ * for an `output_bytes` too small. Nothing is written on a refusal.
  */
 template <class Backend = default_backend_t<families::ed25519>>
 [[nodiscard]] boost::system::result<std::size_t> encode_pkcs8(
-    basic_keypair<Backend> const& key, std::span<std::uint8_t> out) noexcept {
-    if (out.size() < max_pkcs8_size) {
+    basic_keypair<Backend> const& key_pair, std::span<std::uint8_t> output_bytes) noexcept {
+    if (output_bytes.size() < max_pkcs8_size) {
         return error::invalid_input_size;
     }
-    auto const written =
-        detail::ed25519_keypair_access<Backend>::encode_pkcs8(key, out.first<max_pkcs8_size>());
-    if (!written) {
-        return written.error();
+    auto const written_size = detail::ed25519_keypair_access<Backend>::encode_pkcs8(
+        key_pair, output_bytes.first<max_pkcs8_size>());
+    if (!written_size) {
+        return written_size.error();
     }
     return max_pkcs8_size;
 }
@@ -176,23 +180,24 @@ template <class Backend = default_backend_t<families::ed25519>>
  * lengths.
  *
  * @tparam Backend The backend; by default the family's.
- * @param pkcs8 The DER.
+ * @param pkcs8_bytes The DER.
  * @return The key pair, made from the seed at once; `invalid_encoding`; `backend_failure`.
  */
 template <class Backend = default_backend_t<families::ed25519>>
 [[nodiscard]] boost::system::result<basic_keypair<Backend>> decode_pkcs8(
-    std::span<std::uint8_t const> pkcs8) noexcept {
+    std::span<std::uint8_t const> pkcs8_bytes) noexcept {
     detail::timing_guard const timing;
-    if (pkcs8.size() != max_pkcs8_size) {
+    if (pkcs8_bytes.size() != max_pkcs8_size) {
         return error::invalid_encoding;
     }
-    secret<32> seed;
-    auto const decoded = detail::ed25519_formats_engine<families::ed25519, Backend>::decode_pkcs8(
-        pkcs8.first<max_pkcs8_size>(), seed.writable());
-    if (!decoded) {
-        return decoded.error();
+    secret<32> seed_secret;
+    auto const decoded_key =
+        detail::ed25519_formats_engine<families::ed25519, Backend>::decode_pkcs8(
+            pkcs8_bytes.first<max_pkcs8_size>(), seed_secret.writable());
+    if (!decoded_key) {
+        return decoded_key.error();
     }
-    return basic_keypair<Backend>::make(seed.bytes());
+    return basic_keypair<Backend>::make(seed_secret.bytes());
 }
 
 }  // namespace webcpp::crypto::curves::ed25519

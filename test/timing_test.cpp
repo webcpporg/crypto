@@ -144,6 +144,30 @@ void names_function_spellings() {
     BOOST_TEST(!names("auto __cdecl ns::f::<lambda_1>::operator ()(void) const", "ns::f"));
 }
 
+// MSVC writes the exception specification of a function that may throw after its parameters,
+// clang and GCC none: crypto::make and crypto::generate of secp256k1's key pair, whose memory
+// resource may throw, are read as their own in either spelling.
+void names_function_exception_specifications() {
+    auto const names = [](std::string_view entered, std::string_view spelled) {
+        return webcpp::test::names_function(entered, webcpp::test::function_named(spelled));
+    };
+    BOOST_TEST(
+        names("class ns::result<class ns::kp<struct ns::b>> __cdecl "
+              "ns::crypto::make<class ns::kp<struct ns::b>,const class std::array<unsigned "
+              "char,32>&>(const class std::array<unsigned char,32> &) noexcept(false)",
+              "crypto::make"));
+    BOOST_TEST(
+        names("class ns::result<class ns::kp<struct ns::b>> __cdecl "
+              "ns::crypto::generate<class ns::kp<struct ns::b>,>(void) noexcept(false)",
+              "crypto::generate"));
+    BOOST_TEST(names("int __cdecl ns::pem::armour<struct ns::b>(int) noexcept", "pem::armour"));
+    BOOST_TEST(names("int __cdecl ns::pk::compare(int) const noexcept(true)", "pk::compare(int"));
+    // The specification is not a parameter list: its words never name the function.
+    BOOST_TEST(
+        !names("int __cdecl ns::crypto::make<int>(int) noexcept(false)", "crypto::make(false"));
+    BOOST_TEST(!names("int __cdecl ns::other(int) noexcept(ns::pem::armour(int))", "pem::armour"));
+}
+
 // From clear: set inside a guard, clear after it. Where the guard does not apply, never set.
 void guard_sets_and_clears() {
     force_dit(false);
@@ -241,6 +265,7 @@ int main() {
     seam_fires();
     seam_names_function();
     names_function_spellings();
+    names_function_exception_specifications();
     guard_sets_and_clears();
     guard_leaves_set_bit();
     nested_guards();

@@ -107,25 +107,25 @@ namespace webcpp::crypto::detail {
  * @tparam Backend The backend.
  * @tparam Policy `curves::ed25519::strict_t`; anything else stops the build.
  * @tparam Input A message; anything else stops the build.
- * @param signature 64 bytes.
- * @param message The signed bytes.
+ * @param signature_bytes 64 bytes.
+ * @param message_input The signed bytes.
  * @param key_bytes The public key's 32 bytes.
  * @return Nothing; `invalid_signature` for a signature of another size, and for one that does not
  * verify.
  */
 template <class Backend, class Policy, class Input>
 [[nodiscard]] boost::system::result<void> ed25519_verify(
-    std::span<std::uint8_t const> signature, Input const& message,
+    std::span<std::uint8_t const> signature_bytes, Input const& message_input,
     std::span<std::uint8_t const, 32> key_bytes) noexcept {
     static_assert(std::is_same_v<Policy, curves::ed25519::strict_t>,
                   "webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.");
     check_input<eddsa_t, Input, Backend>();
     if constexpr (input_valid_v<eddsa_t, Input, Backend>) {
-        if (signature.size() != 64) {
+        if (signature_bytes.size() != 64) {
             return error::invalid_signature;
         }
-        return ed25519_engine<families::ed25519, Backend>::verify(key_bytes, message_bytes(message),
-                                                                  signature.first<64>());
+        return ed25519_engine<families::ed25519, Backend>::verify(
+            key_bytes, message_bytes(message_input), signature_bytes.first<64>());
     } else {
         // Never compiled into a program: check_input stopped the build.
         return error::invalid_signature;
@@ -162,9 +162,9 @@ public:
         if (key_bytes.size() != size) {
             return error::invalid_public_key;
         }
-        public_key made;
-        std::ranges::copy(key_bytes, made.bytes_.begin());
-        return made;
+        public_key made_key;
+        std::ranges::copy(key_bytes, made_key.bytes_.begin());
+        return made_key;
     }
 
     /**
@@ -176,8 +176,8 @@ public:
 
     /**
      * Verifies an Ed25519 signature (RFC 8032's pure Ed25519) with this key, under a verification
-     * policy (design D31): `crypto::verify(crypto::eddsa, signature, message, key, policy)`, of
-     * which it is the member form, with the same work, results and refusals.
+     * policy (design D31): `crypto::verify(crypto::eddsa, signature_bytes, message_input, key,
+     * verify_policy)`, of which it is the member form, with the same work, results and refusals.
      *
      * @tparam Backend The backend; by default the family's.
      * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
@@ -185,18 +185,19 @@ public:
      * `crypto::prehashed` marker, or anything else, stops the build.
      * @tparam Policy `curves::ed25519::strict_t` (libsodium's rules), the only policy declared;
      * anything else stops the build.
-     * @param scheme `crypto::eddsa`.
-     * @param signature 64 bytes.
-     * @param message The signed bytes.
-     * @param policy `curves::ed25519::strict`, the default.
+     * @param signing_scheme `crypto::eddsa`.
+     * @param signature_bytes 64 bytes.
+     * @param message_input The signed bytes.
+     * @param verify_policy `curves::ed25519::strict`, the default.
      * @return Nothing; `invalid_signature` for a signature of another size, and for one that does
      * not verify, a key that is not canonical or of small order included.
      */
     template <class Backend = default_backend_t<families::ed25519>, class Scheme, class Input,
               class Policy = strict_t>
     [[nodiscard]] boost::system::result<void> verify(
-        [[maybe_unused]] Scheme scheme, std::span<std::uint8_t const> signature,
-        Input const& message, [[maybe_unused]] Policy policy = Policy{}) const noexcept {
+        [[maybe_unused]] Scheme signing_scheme, std::span<std::uint8_t const> signature_bytes,
+        Input const& message_input,
+        [[maybe_unused]] Policy verify_policy = Policy{}) const noexcept {
         detail::timing_guard const timing;
         static_assert(std::is_same_v<Scheme, eddsa_t>,
                       "webcpp::crypto: an Ed25519 public key verifies crypto::eddsa.");
@@ -204,7 +205,7 @@ public:
                       "webcpp::crypto: verify on this backend completes asynchronously: call "
                       "async_verify.");
         if constexpr (std::is_same_v<Scheme, eddsa_t> && !detail::asynchronous_backend_v<Backend>) {
-            return detail::ed25519_verify<Backend, Policy>(signature, message, bytes_);
+            return detail::ed25519_verify<Backend, Policy>(signature_bytes, message_input, bytes_);
         } else {
             // Never compiled into a program: an assertion above stopped the build.
             return error::invalid_signature;
@@ -213,9 +214,9 @@ public:
 
     /**
      * Verifies an Ed25519 signature with this key, asynchronously, strictly: `verify` run when the
-     * operation is initiated, its result posted to `executor`; the member form of
-     * `crypto::async_verify<Backend>(executor, crypto::eddsa, signature, message, key, token)`,
-     * which calls it.
+     * operation is initiated, its result posted to `completion_executor`; the member form of
+     * `crypto::async_verify<Backend>(completion_executor, crypto::eddsa, signature_bytes,
+     * message_input, key, completion_token)`, which calls it.
      *
      * The signature's and the message's bytes are the caller's until the completion; the key is
      * copied.
@@ -230,21 +231,21 @@ public:
      * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
      * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
      * `crypto::prehashed` marker, or anything else, stops the build.
-     * @tparam CompletionToken Any completion token for the signature `token` states.
-     * @param executor The executor the completion is posted to.
-     * @param scheme `crypto::eddsa`.
-     * @param signature 64 bytes, the caller's until the completion.
-     * @param message The signed bytes, the caller's until the completion.
-     * @param token The completion token, of signature `void(boost::system::error_code)`:
+     * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+     * @param completion_executor The executor the completion is posted to.
+     * @param signing_scheme `crypto::eddsa`.
+     * @param signature_bytes 64 bytes, the caller's until the completion.
+     * @param message_input The signed bytes, the caller's until the completion.
+     * @param completion_token The completion token, of signature `void(boost::system::error_code)`:
      * `invalid_signature` for a signature of another size, and for one that does not verify;
      * `backend_failure`.
      * @return What the completion token's `async_result` gives.
      */
     template <class Backend = default_async_backend_t<families::ed25519>, class Executor,
               class Scheme, class Input, class CompletionToken>
-    auto async_verify(Executor const& executor, Scheme scheme,
-                      std::span<std::uint8_t const> signature, Input const& message,
-                      CompletionToken&& token) const;
+    auto async_verify(Executor const& completion_executor, Scheme signing_scheme,
+                      std::span<std::uint8_t const> signature_bytes, Input const& message_input,
+                      CompletionToken&& completion_token) const;
 
     /**
      * Verifies an Ed25519 signature with this key under the verification policy given,
@@ -263,29 +264,29 @@ public:
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
      * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
      * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`.
-     * @tparam CompletionToken Any completion token for the signature `token` states.
-     * @param executor The executor the completion is posted to.
-     * @param scheme `crypto::eddsa`.
-     * @param signature 64 bytes.
-     * @param message The signed bytes.
-     * @param policy `curves::ed25519::strict`, the only policy declared.
-     * @param token The completion token, of signature `void(boost::system::error_code)`, as the
-     * overload without a policy completes.
+     * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+     * @param completion_executor The executor the completion is posted to.
+     * @param signing_scheme `crypto::eddsa`.
+     * @param signature_bytes 64 bytes.
+     * @param message_input The signed bytes.
+     * @param verify_policy `curves::ed25519::strict`, the only policy declared.
+     * @param completion_token The completion token, of signature `void(boost::system::error_code)`,
+     * as the overload without a policy completes.
      * @return What the completion token's `async_result` gives.
      */
     template <class Backend = default_async_backend_t<families::ed25519>, class Executor,
               class Scheme, class Input, class CompletionToken>
-    auto async_verify(Executor const& executor, Scheme scheme,
-                      std::span<std::uint8_t const> signature, Input const& message,
-                      strict_t policy, CompletionToken&& token) const;
+    auto async_verify(Executor const& completion_executor, Scheme signing_scheme,
+                      std::span<std::uint8_t const> signature_bytes, Input const& message_input,
+                      strict_t verify_policy, CompletionToken&& completion_token) const;
 
     /**
      * Whether two keys are the same bytes.
      *
-     * @param other The other key.
+     * @param other_key The other key.
      * @return True for the same 32 bytes.
      */
-    [[nodiscard]] bool operator==(public_key const& other) const noexcept = default;
+    [[nodiscard]] bool operator==(public_key const& other_key) const noexcept = default;
 
 private:
     public_key() noexcept = default;
@@ -332,11 +333,11 @@ public:
     /**
      * Makes a key pair from a seed, RFC 8032's secret key.
      *
-     * @param seed 32 bytes.
+     * @param seed_bytes 32 bytes.
      * @return The key pair; `invalid_key_size`; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<basic_keypair> make(
-        std::span<std::uint8_t const> seed) noexcept {
+        std::span<std::uint8_t const> seed_bytes) noexcept {
         detail::timing_guard const timing;
         static_assert(
             !detail::asynchronous_backend_v<Backend>,
@@ -345,16 +346,17 @@ public:
             // Never compiled into a program: the assertion above stopped the build.
             return error::backend_failure;
         } else {
-            if (seed.size() != seed_size) {
+            if (seed_bytes.size() != seed_size) {
                 return error::invalid_key_size;
             }
-            basic_keypair made;
-            auto const keyed = engine::make(made.state_, seed.template first<seed_size>());
-            if (!keyed) {
-                return keyed.error();
+            basic_keypair made_pair;
+            auto const engine_keyed =
+                engine::make(made_pair.state_, seed_bytes.template first<seed_size>());
+            if (!engine_keyed) {
+                return engine_keyed.error();
             }
-            made.keyed_ = true;
-            return made;
+            made_pair.keyed_ = true;
+            return made_pair;
         }
     }
 
@@ -373,81 +375,87 @@ public:
             // Never compiled into a program: the assertion above stopped the build.
             return error::backend_failure;
         } else {
-            crypto::secret<seed_size> seed;
-            auto const drawn = random_device().fill(seed.writable());  // lint-world: the seed
-            if (!drawn) {
+            crypto::secret<seed_size> seed_secret;
+            auto const entropy_drawn =
+                random_device().fill(seed_secret.writable());  // lint-world: the seed
+            if (!entropy_drawn) {
                 // The generator's not_supported (an Emscripten audio worklet) is the same failure
                 // for a key pair: one error to handle.
                 return error::entropy_unavailable;
             }
-            return make(seed.bytes());
+            return make(seed_secret.bytes());
         }
     }
 
     /**
      * Makes a key pair from a seed, asynchronously: `make` run when the operation is initiated,
-     * its result posted to `executor`; the member form of
-     * `crypto::async_make<basic_keypair>(executor, seed, token)`, which calls it.
+     * its result posted to `completion_executor`; the member form of
+     * `crypto::async_make<basic_keypair>(completion_executor, seed_bytes, completion_token)`, which
+     * calls it.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
      * "deduced return type used before it is defined".
      *
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
-     * @tparam CompletionToken Any completion token for the signature `token` states.
-     * @param executor The executor the completion is posted to.
-     * @param seed 32 bytes, the caller's until the completion.
-     * @param token The completion token, of signature
+     * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+     * @param completion_executor The executor the completion is posted to.
+     * @param seed_bytes 32 bytes, the caller's until the completion.
+     * @param completion_token The completion token, of signature
      * `void(boost::system::error_code, basic_keypair)`; on an error the key pair is empty, and
      * every member refuses with `invalid_state` (`invalid_key_size`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
-    static auto async_make(Executor const& executor, std::span<std::uint8_t const> seed,
-                           CompletionToken&& token);
+    static auto async_make(Executor const& completion_executor,
+                           std::span<std::uint8_t const> seed_bytes,
+                           CompletionToken&& completion_token);
 
     /**
      * Makes a key pair from a fresh seed, asynchronously: `generate` run when the operation is
-     * initiated, its result posted to `executor`; the member form of
-     * `crypto::async_generate<basic_keypair>(executor, token)`, which calls it.
+     * initiated, its result posted to `completion_executor`; the member form of
+     * `crypto::async_generate<basic_keypair>(completion_executor, completion_token)`, which calls
+     * it.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
      * "deduced return type used before it is defined".
      *
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
-     * @tparam CompletionToken Any completion token for the signature `token` states.
-     * @param executor The executor the completion is posted to.
-     * @param token The completion token, of signature
+     * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+     * @param completion_executor The executor the completion is posted to.
+     * @param completion_token The completion token, of signature
      * `void(boost::system::error_code, basic_keypair)`; on an error the key pair is empty
      * (`entropy_unavailable`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
-    static auto async_generate(Executor const& executor, CompletionToken&& token);
+    static auto async_generate(Executor const& completion_executor,
+                               CompletionToken&& completion_token);
 
     /**
      * Moves the key pair; the source is wiped and empty.
      *
-     * @param other The key pair moved from.
+     * @param moved_from The key pair moved from.
      */
-    basic_keypair(basic_keypair&& other) noexcept : keyed_(std::exchange(other.keyed_, false)) {
-        state_ = other.state_;
-        engine::reset(other.state_);
+    basic_keypair(basic_keypair&& moved_from) noexcept
+        : keyed_(std::exchange(moved_from.keyed_, false)) {
+        state_ = moved_from.state_;
+        engine::reset(moved_from.state_);
     }
 
     /**
      * Moves over this key pair, which is wiped first.
      *
-     * @param other The key pair moved from, wiped and empty after.
+     * @param moved_from The key pair moved from, wiped and empty after.
      * @return This key pair.
      */
-    basic_keypair& operator=(basic_keypair&& other) noexcept {
-        if (this != &other) {
+    basic_keypair& operator=(basic_keypair&& moved_from) noexcept {
+        if (this != &moved_from) {
             engine::reset(state_);
-            keyed_ = std::exchange(other.keyed_, false);
-            state_ = other.state_;
-            engine::reset(other.state_);
+            keyed_ = std::exchange(moved_from.keyed_, false);
+            state_ = moved_from.state_;
+            engine::reset(moved_from.state_);
         }
         return *this;
     }
@@ -470,9 +478,9 @@ public:
         if (!keyed_) {
             return error::invalid_state;
         }
-        std::array<std::uint8_t, public_key_type::size> key{};
-        engine::public_key(state_, key);
-        return public_key_type::make(key);
+        std::array<std::uint8_t, public_key_type::size> key_bytes{};
+        engine::public_key(state_, key_bytes);
+        return public_key_type::make(key_bytes);
     }
 
     /**
@@ -486,9 +494,9 @@ public:
         if (!keyed_) {
             return error::invalid_state;
         }
-        crypto::secret<secret_key_size> seed;
-        engine::seed(state_, seed.writable());
-        return seed;
+        crypto::secret<secret_key_size> seed_secret;
+        engine::seed(state_, seed_secret.writable());
+        return seed_secret;
     }
 
     /**
@@ -498,13 +506,13 @@ public:
      * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
      * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
      * `crypto::prehashed` marker, or anything else, stops the build (Ed25519ph is @ref ph).
-     * @param scheme `crypto::eddsa`.
-     * @param message Any bytes.
+     * @param signing_scheme `crypto::eddsa`.
+     * @param message_input Any bytes.
      * @return The 64-byte signature; `invalid_state` moved from; `backend_failure`.
      */
     template <class Scheme, class Input>
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
-        [[maybe_unused]] Scheme scheme, Input const& message) const noexcept {
+        [[maybe_unused]] Scheme signing_scheme, Input const& message_input) const noexcept {
         detail::timing_guard const timing;
         static_assert(std::is_same_v<Scheme, eddsa_t>,
                       "webcpp::crypto: an Ed25519 key signs with crypto::eddsa.");
@@ -514,7 +522,7 @@ public:
         if constexpr (std::is_same_v<Scheme, eddsa_t> && !detail::asynchronous_backend_v<Backend>) {
             detail::check_input<Scheme, Input, Backend>();
             if constexpr (detail::input_valid_v<Scheme, Input, Backend>) {
-                return signed_message(detail::message_bytes(message));
+                return signed_message(detail::message_bytes(message_input));
             } else {
                 // Never compiled into a program: check_input stopped the build.
                 return error::backend_failure;
@@ -527,8 +535,9 @@ public:
 
     /**
      * Signs a message with Ed25519, asynchronously: `sign` run when the operation is initiated,
-     * its result posted to `executor`; the member form of
-     * `crypto::async_sign(executor, key_pair, scheme, message, token)`, which calls it.
+     * its result posted to `completion_executor`; the member form of
+     * `crypto::async_sign(completion_executor, key_pair, signing_scheme, message_input,
+     * completion_token)`, which calls it.
      *
      * The scheme and the input are checked as `crypto::can_sign` checks them, before anything
      * else. The key pair and the message's bytes are the caller's until the completion.
@@ -541,18 +550,18 @@ public:
      * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
      * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
      * `crypto::prehashed` marker, or anything else, stops the build.
-     * @tparam CompletionToken Any completion token for the signature `token` states.
-     * @param executor The executor the completion is posted to.
-     * @param scheme `crypto::eddsa`.
-     * @param message Any bytes.
-     * @param token The completion token, of signature
+     * @tparam CompletionToken Any completion token for the signature `completion_token` states.
+     * @param completion_executor The executor the completion is posted to.
+     * @param signing_scheme `crypto::eddsa`.
+     * @param message_input Any bytes.
+     * @param completion_token The completion token, of signature
      * `void(boost::system::error_code, std::array<std::uint8_t, 64>)`; on an error 64 zeros
      * (`invalid_state`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class Scheme, class Input, class CompletionToken>
-    auto async_sign(Executor const& executor, Scheme scheme, Input const& message,
-                    CompletionToken&& token) const;
+    auto async_sign(Executor const& completion_executor, Scheme signing_scheme,
+                    Input const& message_input, CompletionToken&& completion_token) const;
 
     /**
      * The X25519 secret key of this key pair, RFC 7748's form of the clamped first half of the
@@ -565,12 +574,12 @@ public:
         if (!keyed_) {
             return error::invalid_state;
         }
-        crypto::secret<32> converted;
-        auto const done = engine::x25519_secret(state_, converted.writable());
-        if (!done) {
-            return done.error();
+        crypto::secret<32> converted_secret;
+        auto const engine_done = engine::x25519_secret(state_, converted_secret.writable());
+        if (!engine_done) {
+            return engine_done.error();
         }
-        return converted;
+        return converted_secret;
     }
 
 private:
@@ -578,16 +587,16 @@ private:
 
     // The work of sign, which holds the guard: the signature of the message's bytes.
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> signed_message(
-        std::span<std::uint8_t const> message) const noexcept {
+        std::span<std::uint8_t const> message_bytes) const noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
-        std::array<std::uint8_t, 64> signature{};
-        auto const signed_bytes = engine::sign(state_, message, signature);
+        std::array<std::uint8_t, 64> signature_bytes{};
+        auto const signed_bytes = engine::sign(state_, message_bytes, signature_bytes);
         if (!signed_bytes) {
             return signed_bytes.error();
         }
-        return signature;
+        return signature_bytes;
     }
 
     state_type state_{};
@@ -612,13 +621,13 @@ template <class Backend = default_backend_t<families::ed25519>>
     public_key const& ed25519_public_key) noexcept {
     detail::timing_guard const timing;
     auto const key_bytes = ed25519_public_key.bytes();
-    std::array<std::uint8_t, 32> converted{};
-    auto const done =
-        detail::ed25519_engine<families::ed25519, Backend>::to_x25519_public(key_bytes, converted);
-    if (!done) {
-        return done.error();
+    std::array<std::uint8_t, 32> converted_secret{};
+    auto const engine_done = detail::ed25519_engine<families::ed25519, Backend>::to_x25519_public(
+        key_bytes, converted_secret);
+    if (!engine_done) {
+        return engine_done.error();
     }
-    return converted;
+    return converted_secret;
 }
 
 /**
@@ -663,37 +672,37 @@ public:
      */
     [[nodiscard]] static boost::system::result<ph> begin() noexcept {
         detail::timing_guard const timing;
-        ph begun;
-        auto const started = engine::begin(begun.state_);
-        if (!started) {
-            return started.error();
+        ph begun_hash;
+        auto const begin_result = engine::begin(begun_hash.state_);
+        if (!begin_result) {
+            return begin_result.error();
         }
-        begun.begun_ = true;
-        return begun;
+        begun_hash.begun_ = true;
+        return begun_hash;
     }
 
     /**
      * Moves the signer and its message; the source is wiped and ended.
      *
-     * @param other The signer moved from.
+     * @param moved_from The signer moved from.
      */
-    ph(ph&& other) noexcept : begun_(std::exchange(other.begun_, false)) {
-        state_ = other.state_;
-        engine::reset(other.state_);
+    ph(ph&& moved_from) noexcept : begun_(std::exchange(moved_from.begun_, false)) {
+        state_ = moved_from.state_;
+        engine::reset(moved_from.state_);
     }
 
     /**
      * Moves over this signer, whose message is wiped first.
      *
-     * @param other The signer moved from, wiped and ended after.
+     * @param moved_from The signer moved from, wiped and ended after.
      * @return This signer.
      */
-    ph& operator=(ph&& other) noexcept {
-        if (this != &other) {
+    ph& operator=(ph&& moved_from) noexcept {
+        if (this != &moved_from) {
             engine::reset(state_);
-            begun_ = std::exchange(other.begun_, false);
-            state_ = other.state_;
-            engine::reset(other.state_);
+            begun_ = std::exchange(moved_from.begun_, false);
+            state_ = moved_from.state_;
+            engine::reset(moved_from.state_);
         }
         return *this;
     }
@@ -709,63 +718,64 @@ public:
     /**
      * Adds a piece of the message.
      *
-     * @param piece Any bytes, empty included.
+     * @param piece_bytes Any bytes, empty included.
      * @return Nothing; `invalid_state` once the message is signed or verified, or moved from.
      */
-    [[nodiscard]] boost::system::result<void> update(std::span<std::uint8_t const> piece) noexcept {
+    [[nodiscard]] boost::system::result<void> update(
+        std::span<std::uint8_t const> piece_bytes) noexcept {
         detail::timing_guard const timing;
         if (!begun_) {
             return error::invalid_state;
         }
-        engine::update(state_, piece);
+        engine::update(state_, piece_bytes);
         return {};
     }
 
     /**
      * Signs the message given, which it ends.
      *
-     * @param key The key pair, of the same backend.
+     * @param key_pair The key pair, of the same backend.
      * @return The 64-byte signature; `invalid_state` once the message is ended, or moved from,
      * or with a moved-from key pair; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
-        basic_keypair<Backend> const& key) noexcept {
+        basic_keypair<Backend> const& key_pair) noexcept {
         detail::timing_guard const timing;
-        if (!begun_ || !key.keyed_) {
+        if (!begun_ || !key_pair.keyed_) {
             return error::invalid_state;
         }
-        std::array<std::uint8_t, 64> signature{};
-        auto const signed_message = engine::sign(state_, key.state_, signature);
+        std::array<std::uint8_t, 64> signature_bytes{};
+        auto const signed_message = engine::sign(state_, key_pair.state_, signature_bytes);
         end();
         if (!signed_message) {
             return signed_message.error();
         }
-        return signature;
+        return signature_bytes;
     }
 
     /**
      * Verifies a signature of the message given, which it ends, strictly (design D31).
      *
-     * @param signature 64 bytes.
-     * @param key The signer's public key.
+     * @param signature_bytes 64 bytes.
+     * @param verifying_key The signer's public key.
      * @return Nothing; `invalid_state` once the message is ended, or moved from;
      * `invalid_signature` for a signature of another size, so that a key's 32 bytes given where
      * the signature goes are refused as a signature, and for one that does not verify.
      */
     [[nodiscard]] boost::system::result<void> verify(
-        std::span<std::uint8_t const> signature,
-        ::webcpp::crypto::curves::ed25519::public_key const& key) noexcept {
+        std::span<std::uint8_t const> signature_bytes,
+        ::webcpp::crypto::curves::ed25519::public_key const& verifying_key) noexcept {
         detail::timing_guard const timing;
         if (!begun_) {
             return error::invalid_state;
         }
-        boost::system::result<void> verified = error::invalid_signature;
-        if (signature.size() == 64) {
-            auto const key_bytes = key.bytes();
-            verified = engine::verify(state_, key_bytes, signature.first<64>());
+        boost::system::result<void> verify_result = error::invalid_signature;
+        if (signature_bytes.size() == 64) {
+            auto const key_bytes = verifying_key.bytes();
+            verify_result = engine::verify(state_, key_bytes, signature_bytes.first<64>());
         }
         end();
-        return verified;
+        return verify_result;
     }
 
 private:
@@ -799,27 +809,27 @@ namespace webcpp::crypto {
  * `crypto::prehashed` marker, or anything else, stops the build.
  * @tparam Policy `curves::ed25519::strict_t` (libsodium's rules), the only policy declared;
  * anything else stops the build.
- * @param scheme `crypto::eddsa`.
- * @param signature 64 bytes.
- * @param message The signed bytes.
+ * @param signing_scheme `crypto::eddsa`.
+ * @param signature_bytes 64 bytes.
+ * @param message_input The signed bytes.
  * @param public_key The signer's public key.
- * @param policy `curves::ed25519::strict`, the default.
+ * @param verify_policy `curves::ed25519::strict`, the default.
  * @return Nothing; `invalid_signature` for a signature of another size, and for one that does not
  * verify, a key that is not canonical or of small order included.
  */
 template <class Backend = default_backend_t<families::ed25519>, class Input,
           class Policy = curves::ed25519::strict_t>
 [[nodiscard]] boost::system::result<void> verify(
-    [[maybe_unused]] eddsa_t scheme, std::span<std::uint8_t const> signature, Input const& message,
-    curves::ed25519::public_key const& public_key,
-    [[maybe_unused]] Policy policy = Policy{}) noexcept {
+    [[maybe_unused]] eddsa_t signing_scheme, std::span<std::uint8_t const> signature_bytes,
+    Input const& message_input, curves::ed25519::public_key const& public_key,
+    [[maybe_unused]] Policy verify_policy = Policy{}) noexcept {
     detail::timing_guard const timing;
     static_assert(!detail::asynchronous_backend_v<Backend>,
                   "webcpp::crypto: verify on this backend completes asynchronously: call "
                   "async_verify.");
     if constexpr (!detail::asynchronous_backend_v<Backend>) {
         auto const key_bytes = public_key.bytes();
-        return detail::ed25519_verify<Backend, Policy>(signature, message, key_bytes);
+        return detail::ed25519_verify<Backend, Policy>(signature_bytes, message_input, key_bytes);
     } else {
         // Never compiled into a program: the assertion above stopped the build.
         return error::invalid_signature;

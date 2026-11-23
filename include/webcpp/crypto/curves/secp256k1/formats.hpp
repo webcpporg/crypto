@@ -112,13 +112,13 @@ template <class Backend = default_backend_t<families::secp256k1>>
                                   &webcpp::crypto::detail::secp256k1_access::point(parsed_key),
                                   is_compressed ? webcpp::crypto::detail::secp256k1_compressed
                                                 : webcpp::crypto::detail::secp256k1_uncompressed);
-    auto const cursor =
+    auto const write_cursor =
         std::ranges::copy(is_compressed
                               ? webcpp::crypto::detail::secp256k1_spki_compressed_prefix
                               : webcpp::crypto::detail::secp256k1_spki_uncompressed_prefix,
                           output_bytes.begin())
             .out;
-    std::ranges::copy(std::span<std::uint8_t const>(point_bytes).first(point_length), cursor);
+    std::ranges::copy(std::span<std::uint8_t const>(point_bytes).first(point_length), write_cursor);
     return is_compressed ? spki_compressed_size : spki_uncompressed_size;
 }
 
@@ -137,7 +137,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
-    std::span<std::uint8_t const> const prefix =
+    std::span<std::uint8_t const> const expected_prefix =
         spki_bytes.size() == spki_compressed_size
             ? std::span<std::uint8_t const>(
                   webcpp::crypto::detail::secp256k1_spki_compressed_prefix)
@@ -145,14 +145,14 @@ template <class Backend = default_backend_t<families::secp256k1>>
                   webcpp::crypto::detail::secp256k1_spki_uncompressed_prefix);
     if ((spki_bytes.size() != spki_compressed_size &&
          spki_bytes.size() != spki_uncompressed_size) ||
-        !equal(spki_bytes.first(prefix.size()), prefix)) {
+        !equal(spki_bytes.first(expected_prefix.size()), expected_prefix)) {
         return error::invalid_encoding;
     }
     using access = webcpp::crypto::detail::secp256k1_access;
     public_key decoded_key = access::make_public_key();
     // 33 bytes parse only with the prefix 02 or 03, and 65 only with 04.
-    if (!webcpp::crypto::detail::secp256k1_parse_public_key(spki_bytes.subspan(prefix.size()),
-                                                            access::point(decoded_key))) {
+    if (!webcpp::crypto::detail::secp256k1_parse_public_key(
+            spki_bytes.subspan(expected_prefix.size()), access::point(decoded_key))) {
         return error::invalid_encoding;
     }
     return decoded_key;
@@ -191,11 +191,12 @@ template <class Backend = default_backend_t<families::secp256k1>>
     std::size_t point_length = point_bytes.size();
     secp256k1_ec_pubkey_serialize(secp256k1_context_static, point_bytes.data(), &point_length,
                                   &public_point, webcpp::crypto::detail::secp256k1_uncompressed);
-    auto cursor =
+    auto write_cursor =
         std::ranges::copy(webcpp::crypto::detail::secp256k1_pkcs8_prefix, output_bytes.begin()).out;
-    cursor = std::ranges::copy(secret_bytes.bytes, cursor).out;
-    cursor = std::ranges::copy(webcpp::crypto::detail::secp256k1_pkcs8_infix, cursor).out;
-    std::ranges::copy(point_bytes, cursor);
+    write_cursor = std::ranges::copy(secret_bytes.bytes, write_cursor).out;
+    write_cursor =
+        std::ranges::copy(webcpp::crypto::detail::secp256k1_pkcs8_infix, write_cursor).out;
+    std::ranges::copy(point_bytes, write_cursor);
     return max_pkcs8_size;
 }
 

@@ -290,13 +290,13 @@ struct nonce_pair {
 
 /**
  * The workspace `key_aggregate`, `nonce_aggregate` and `partial_signature_aggregate` need for
- * `count` items, in bytes.
+ * `item_count` items, in bytes.
  *
- * @param count The number of keys, nonces or partial signatures.
- * @return One array of `count` pointers and one `alignof(std::max_align_t)` of padding.
+ * @param item_count The number of keys, nonces or partial signatures.
+ * @return One array of `item_count` pointers and one `alignof(std::max_align_t)` of padding.
  */
-[[nodiscard]] constexpr std::size_t workspace_size(std::size_t count) noexcept {
-    return (count * sizeof(void const*)) + alignof(std::max_align_t);
+[[nodiscard]] constexpr std::size_t workspace_size(std::size_t item_count) noexcept {
+    return (item_count * sizeof(void const*)) + alignof(std::max_align_t);
 }
 
 /**
@@ -320,14 +320,14 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace on every return, a refusal's included.
-    webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
+    webcpp::crypto::detail::secp256k1_workspace pointer_carver(pointer_space);
     // libsecp256k1 checks the count with ARG_CHECK, whose callback aborts: refused first here.
     if (signer_keys.empty() || pointer_space.size() < workspace_size(signer_keys.size())) {
         return error::invalid_input_size;
     }
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
-    auto* const key_pointers = carver.take<secp256k1_pubkey const*>(signer_keys.size());
+    auto* const key_pointers = pointer_carver.take<secp256k1_pubkey const*>(signer_keys.size());
     if (key_pointers == nullptr) {
         return error::invalid_input_size;
     }
@@ -352,7 +352,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
  * survives no restart of the program, which is what keeps it from being used twice.
  *
  * @tparam Backend The key pair's backend, `backends::secp256k1`.
- * @param signer The signer's key pair, whose context makes the nonce.
+ * @param signer_pair The signer's key pair, whose context makes the nonce.
  * @param signers_key The aggregate key, with its tweaks.
  * @param message_hash The 32-byte message, when it is known already, or empty.
  * @param extra_input 32 bytes more to mix in, or empty.
@@ -361,7 +361,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
  */
 template <class Backend>
 [[nodiscard]] boost::system::result<nonce_pair> nonce_gen(
-    basic_keypair<Backend> const& signer, aggregate_key const& signers_key,
+    basic_keypair<Backend> const& signer_pair, aggregate_key const& signers_key,
     std::span<std::uint8_t const> message_hash = {},
     std::span<std::uint8_t const> extra_input = {}) noexcept {
     detail::timing_guard const timing;
@@ -369,7 +369,7 @@ template <class Backend>
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     using access = webcpp::crypto::detail::secp256k1_access;
-    if (!access::keyed(signer)) {
+    if (!access::keyed(signer_pair)) {
         return error::invalid_state;
     }
     if ((!message_hash.empty() && message_hash.size() != 32) ||
@@ -378,30 +378,31 @@ template <class Backend>
     }
     // libsecp256k1 zeroes the randomness itself once it is used; the secret wipes it again.
     webcpp::crypto::detail::secp256k1_secret session_randomness;
-    auto const drawn =
+    auto const entropy_drawn =
         random_device().fill(session_randomness.bytes);  // lint-world: the nonce's randomness
-    if (!drawn) {
-        return webcpp::crypto::detail::secp256k1_seed_error(drawn.error());
+    if (!entropy_drawn) {
+        return webcpp::crypto::detail::secp256k1_seed_error(entropy_drawn.error());
     }
     webcpp::crypto::detail::secp256k1_secret secret_bytes;
-    secp256k1_keypair_sec(access::context(signer), secret_bytes.bytes.data(),
-                          &access::pair(signer));
+    secp256k1_keypair_sec(access::context(signer_pair), secret_bytes.bytes.data(),
+                          &access::pair(signer_pair));
     secp256k1_pubkey const signer_point = webcpp::crypto::detail::secp256k1_public_point(
-        access::context(signer), access::pair(signer));
+        access::context(signer_pair), access::pair(signer_pair));
     auto made_secret = access::make_opaque<secret_nonce>();
     auto made_public = access::make_opaque<public_nonce>();
-    auto& state = access::native(made_secret);
+    auto& nonce_state = access::native(made_secret);
     if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_musig_nonce_gen(
-            access::context(signer), &state.nonce_value, &access::native(made_public),
+            access::context(signer_pair), &nonce_state.nonce_value, &access::native(made_public),
             session_randomness.bytes.data(), secret_bytes.bytes.data(), &signer_point,
             message_hash.empty() ? nullptr : message_hash.data(), &access::native(signers_key),
             extra_input.empty() ? nullptr : extra_input.data()))) {
         return error::backend_failure;
     }
-    std::size_t written_size = state.signer_key.size();
-    secp256k1_ec_pubkey_serialize(secp256k1_context_static, state.signer_key.data(), &written_size,
-                                  &signer_point, webcpp::crypto::detail::secp256k1_compressed);
-    state.fresh = true;
+    std::size_t written_size = nonce_state.signer_key.size();
+    secp256k1_ec_pubkey_serialize(secp256k1_context_static, nonce_state.signer_key.data(),
+                                  &written_size, &signer_point,
+                                  webcpp::crypto::detail::secp256k1_compressed);
+    nonce_state.fresh = true;
     return nonce_pair{.secret_part = std::move(made_secret), .public_part = made_public};
 }
 
@@ -424,14 +425,15 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace on every return, a refusal's included.
-    webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
+    webcpp::crypto::detail::secp256k1_workspace pointer_carver(pointer_space);
     // libsecp256k1 checks the count with ARG_CHECK, whose callback aborts: refused first here.
     if (signer_nonces.empty() || pointer_space.size() < workspace_size(signer_nonces.size())) {
         return error::invalid_input_size;
     }
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
-    auto* const nonce_pointers = carver.take<secp256k1_musig_pubnonce const*>(signer_nonces.size());
+    auto* const nonce_pointers =
+        pointer_carver.take<secp256k1_musig_pubnonce const*>(signer_nonces.size());
     if (nonce_pointers == nullptr) {
         return error::invalid_input_size;
     }
@@ -480,7 +482,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
  * taken by value, wiped by the call and destroyed at its end.
  *
  * @tparam Backend The key pair's backend, `backends::secp256k1`.
- * @param signer The signer's key pair.
+ * @param signer_pair The signer's key pair.
  * @param signer_nonce The nonce `nonce_gen` made for this key pair, moved in.
  * @param signers_key The aggregate key, with its tweaks.
  * @param signing_session The session of the message.
@@ -489,33 +491,33 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
  */
 template <class Backend>
 [[nodiscard]] boost::system::result<partial_signature> partial_sign(
-    basic_keypair<Backend> const& signer, secret_nonce signer_nonce,
+    basic_keypair<Backend> const& signer_pair, secret_nonce signer_nonce,
     aggregate_key const& signers_key, session const& signing_session) noexcept {
     detail::timing_guard const timing;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     using access = webcpp::crypto::detail::secp256k1_access;
-    auto& state = access::native(signer_nonce);
+    auto& nonce_state = access::native(signer_nonce);
     // libsecp256k1 checks a used nonce and the signer's key with ARG_CHECK, whose callback
     // aborts: refused first here.
-    if (!access::keyed(signer) || !state.fresh) {
+    if (!access::keyed(signer_pair) || !nonce_state.fresh) {
         return error::invalid_state;
     }
     secp256k1_pubkey const signer_point = webcpp::crypto::detail::secp256k1_public_point(
-        access::context(signer), access::pair(signer));
+        access::context(signer_pair), access::pair(signer_pair));
     std::array<std::uint8_t, 33> signer_key{};
     std::size_t written_size = signer_key.size();
     secp256k1_ec_pubkey_serialize(secp256k1_context_static, signer_key.data(), &written_size,
                                   &signer_point, webcpp::crypto::detail::secp256k1_compressed);
-    if (signer_key != state.signer_key) {
+    if (signer_key != nonce_state.signer_key) {
         return error::invalid_state;
     }
-    state.fresh = false;
+    nonce_state.fresh = false;
     auto signature_part = access::make_opaque<partial_signature>();
     if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_musig_partial_sign(
-            access::context(signer), &access::native(signature_part), &state.nonce_value,
-            &access::pair(signer), &access::native(signers_key),
+            access::context(signer_pair), &access::native(signature_part), &nonce_state.nonce_value,
+            &access::pair(signer_pair), &access::native(signers_key),
             &access::native(signing_session)))) {
         return error::backend_failure;
     }
@@ -576,7 +578,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_musig, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace on every return, a refusal's included.
-    webcpp::crypto::detail::secp256k1_workspace carver(pointer_space);
+    webcpp::crypto::detail::secp256k1_workspace pointer_carver(pointer_space);
     // libsecp256k1 checks the count with ARG_CHECK, whose callback aborts: refused first here.
     if (signature_parts.empty() || pointer_space.size() < workspace_size(signature_parts.size())) {
         return error::invalid_input_size;
@@ -584,7 +586,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
     secp256k1_selftest();
     using access = webcpp::crypto::detail::secp256k1_access;
     auto* const part_pointers =
-        carver.take<secp256k1_musig_partial_sig const*>(signature_parts.size());
+        pointer_carver.take<secp256k1_musig_partial_sig const*>(signature_parts.size());
     if (part_pointers == nullptr) {
         return error::invalid_input_size;
     }

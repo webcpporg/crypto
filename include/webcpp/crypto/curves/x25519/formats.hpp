@@ -76,25 +76,25 @@ inline constexpr std::size_t max_spki_size = 44;
 inline constexpr std::size_t max_pkcs8_size = 48;
 
 /**
- * Writes a public key's SPKI (RFC 8410) into `out`.
+ * Writes a public key's SPKI (RFC 8410) into `output_bytes`.
  *
  * @tparam Backend The backend; by default the family's.
  * @param public_key 32 bytes.
- * @param out At least `max_spki_size` bytes.
+ * @param output_bytes At least `max_spki_size` bytes.
  * @return The bytes written, 44; `invalid_public_key` for a key of another size;
- * `invalid_input_size` for an `out` too small. Nothing is written on a refusal.
+ * `invalid_input_size` for an `output_bytes` too small. Nothing is written on a refusal.
  */
 template <class Backend = default_backend_t<families::x25519>>
 [[nodiscard]] boost::system::result<std::size_t> encode_spki(
-    std::span<std::uint8_t const> public_key, std::span<std::uint8_t> out) noexcept {
+    std::span<std::uint8_t const> public_key, std::span<std::uint8_t> output_bytes) noexcept {
     if (public_key.size() != 32) {
         return error::invalid_public_key;
     }
-    if (out.size() < max_spki_size) {
+    if (output_bytes.size() < max_spki_size) {
         return error::invalid_input_size;
     }
     detail::x25519_formats_engine<families::x25519, Backend>::encode_spki(
-        public_key.first<32>(), out.first<max_spki_size>());
+        public_key.first<32>(), output_bytes.first<max_spki_size>());
     return max_spki_size;
 }
 
@@ -105,46 +105,47 @@ template <class Backend = default_backend_t<families::x25519>>
  * A key of low order is not refused here: `agree` refuses it with `weak_public_key`.
  *
  * @tparam Backend The backend; by default the family's.
- * @param spki The DER.
+ * @param spki_bytes The DER.
  * @return 32 bytes; `invalid_encoding`.
  */
 template <class Backend = default_backend_t<families::x25519>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> decode_spki(
-    std::span<std::uint8_t const> spki) noexcept {
+    std::span<std::uint8_t const> spki_bytes) noexcept {
     detail::timing_guard const timing;
-    if (spki.size() != max_spki_size) {
+    if (spki_bytes.size() != max_spki_size) {
         return error::invalid_encoding;
     }
     std::array<std::uint8_t, 32> public_key{};
-    auto const decoded = detail::x25519_formats_engine<families::x25519, Backend>::decode_spki(
-        spki.first<max_spki_size>(), public_key);
-    if (!decoded) {
-        return decoded.error();
+    auto const decoded_key = detail::x25519_formats_engine<families::x25519, Backend>::decode_spki(
+        spki_bytes.first<max_spki_size>(), public_key);
+    if (!decoded_key) {
+        return decoded_key.error();
     }
     return public_key;
 }
 
 /**
  * Writes a secret key's PKCS#8 (RFC 8410, version 1: the secret key, without the public key)
- * into `out`, which then holds the secret key: a program wipes it, or seals it, when it is done.
+ * into `output_bytes`, which then holds the secret key: a program wipes it, or seals it, when it is
+ * done.
  *
  * @tparam Backend The backend; by default the family's.
  * @param secret_key 32 bytes, as `public_key` and `agree` take it.
- * @param out At least `max_pkcs8_size` bytes.
+ * @param output_bytes At least `max_pkcs8_size` bytes.
  * @return The bytes written, 48; `invalid_key_size` for a key of another size;
- * `invalid_input_size` for an `out` too small. Nothing is written on a refusal.
+ * `invalid_input_size` for an `output_bytes` too small. Nothing is written on a refusal.
  */
 template <class Backend = default_backend_t<families::x25519>>
 [[nodiscard]] boost::system::result<std::size_t> encode_pkcs8(
-    std::span<std::uint8_t const> secret_key, std::span<std::uint8_t> out) noexcept {
+    std::span<std::uint8_t const> secret_key, std::span<std::uint8_t> output_bytes) noexcept {
     if (secret_key.size() != 32) {
         return error::invalid_key_size;
     }
-    if (out.size() < max_pkcs8_size) {
+    if (output_bytes.size() < max_pkcs8_size) {
         return error::invalid_input_size;
     }
     detail::x25519_formats_engine<families::x25519, Backend>::encode_pkcs8(
-        secret_key.first<32>(), out.first<max_pkcs8_size>());
+        secret_key.first<32>(), output_bytes.first<max_pkcs8_size>());
     return max_pkcs8_size;
 }
 
@@ -156,21 +157,21 @@ template <class Backend = default_backend_t<families::x25519>>
  * lengths.
  *
  * @tparam Backend The backend; by default the family's.
- * @param pkcs8 The DER.
+ * @param pkcs8_bytes The DER.
  * @return 32 secret bytes, which wipe themselves; `invalid_encoding`.
  */
 template <class Backend = default_backend_t<families::x25519>>
 [[nodiscard]] boost::system::result<secret<32>> decode_pkcs8(
-    std::span<std::uint8_t const> pkcs8) noexcept {
+    std::span<std::uint8_t const> pkcs8_bytes) noexcept {
     detail::timing_guard const timing;
-    if (pkcs8.size() != max_pkcs8_size) {
+    if (pkcs8_bytes.size() != max_pkcs8_size) {
         return error::invalid_encoding;
     }
     secret<32> secret_key;
-    auto const decoded = detail::x25519_formats_engine<families::x25519, Backend>::decode_pkcs8(
-        pkcs8.first<max_pkcs8_size>(), secret_key.writable());
-    if (!decoded) {
-        return decoded.error();
+    auto const decoded_key = detail::x25519_formats_engine<families::x25519, Backend>::decode_pkcs8(
+        pkcs8_bytes.first<max_pkcs8_size>(), secret_key.writable());
+    if (!decoded_key) {
+        return decoded_key.error();
     }
     return secret_key;
 }

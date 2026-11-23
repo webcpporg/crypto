@@ -2056,10 +2056,19 @@ inline constexpr bool has_verifier_v<schnorr_t, Key> = true;
 
 }  // namespace webcpp::crypto::detail
 
-// The key pair contract (design D8), on the family's one backend, which this header includes.
+// The key pair concepts (design D4), on the family's one backend, which this header includes: it
+// signs and agrees.
 static_assert(
     ::webcpp::crypto::keypair<
         ::webcpp::crypto::curves::secp256k1::basic_keypair<::webcpp::crypto::backends::secp256k1>>,
     "webcpp::crypto: secp256k1's key pair meets crypto::keypair.");
+static_assert(
+    ::webcpp::crypto::signing_keypair<
+        ::webcpp::crypto::curves::secp256k1::basic_keypair<::webcpp::crypto::backends::secp256k1>>,
+    "webcpp::crypto: secp256k1's key pair meets crypto::signing_keypair.");
+static_assert(
+    ::webcpp::crypto::agreement_keypair<
+        ::webcpp::crypto::curves::secp256k1::basic_keypair<::webcpp::crypto::backends::secp256k1>>,
+    "webcpp::crypto: secp256k1's key pair meets crypto::agreement_keypair.");
 
 #endif  // WEBCPP_CRYPTO_CURVES_SECP256K1_HPP

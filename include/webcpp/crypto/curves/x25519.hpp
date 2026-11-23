@@ -503,6 +503,21 @@ struct x25519_engine {
 // target. Its header specialises it for this header, wherever it was first included.
 #if defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_X25519_SODIUM) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
 #include <webcpp/crypto/backends/sodium.hpp>
+
+// The key pair concepts (design D4), on the family's default backend: it agrees; it does not sign
+// (an Ed25519 key pair signs, and its to_x25519() gives one of these).
+static_assert(
+    ::webcpp::crypto::keypair<
+        ::webcpp::crypto::curves::x25519::basic_keypair<::webcpp::crypto::backends::sodium>>,
+    "webcpp::crypto: X25519's key pair meets crypto::keypair.");
+static_assert(
+    ::webcpp::crypto::agreement_keypair<
+        ::webcpp::crypto::curves::x25519::basic_keypair<::webcpp::crypto::backends::sodium>>,
+    "webcpp::crypto: X25519's key pair meets crypto::agreement_keypair.");
+static_assert(
+    !::webcpp::crypto::signing_keypair<
+        ::webcpp::crypto::curves::x25519::basic_keypair<::webcpp::crypto::backends::sodium>>,
+    "webcpp::crypto: X25519's key pair is no crypto::signing_keypair: it agrees.");
 #endif
 
 #endif  // WEBCPP_CRYPTO_CURVES_X25519_HPP

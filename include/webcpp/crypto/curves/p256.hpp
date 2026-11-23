@@ -967,11 +967,19 @@ struct p_curve_engine<families::p256, Backend> {
 #if defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_P256_BEARSSL) && defined(WEBCPP_CRYPTO_HAS_BEARSSL)
 #include <webcpp/crypto/backends/bearssl.hpp>
 
-// The key pair contract (design D8), on the family's default backend.
+// The key pair concepts (design D4), on the family's default backend: it signs and agrees.
 static_assert(
     ::webcpp::crypto::keypair<
         ::webcpp::crypto::curves::p256::basic_keypair<::webcpp::crypto::backends::bearssl>>,
     "webcpp::crypto: P-256's key pair meets crypto::keypair.");
+static_assert(
+    ::webcpp::crypto::signing_keypair<
+        ::webcpp::crypto::curves::p256::basic_keypair<::webcpp::crypto::backends::bearssl>>,
+    "webcpp::crypto: P-256's key pair meets crypto::signing_keypair.");
+static_assert(
+    ::webcpp::crypto::agreement_keypair<
+        ::webcpp::crypto::curves::p256::basic_keypair<::webcpp::crypto::backends::bearssl>>,
+    "webcpp::crypto: P-256's key pair meets crypto::agreement_keypair.");
 #endif
 
 #endif  // WEBCPP_CRYPTO_CURVES_P256_HPP

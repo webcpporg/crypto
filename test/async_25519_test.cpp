@@ -22,10 +22,10 @@
 //   with a signature of zeros.
 // - async_rfc7748: section 6.1's Alice and Bob, made by async_from_secret, member and free, give
 //   the RFC's public keys and, through async_agree, member and free, with the default backend and
-//   with libsodium named, the RFC's shared secret, as the synchronous agree does; a peer key of
-//   low order completes with weak_public_key and a secret of zeros; a short secret key with
-//   invalid_key_size and an empty key pair, whose async_agree completes with invalid_state;
-//   async_generate, member and free, gives a key pair that agrees with Alice.
+//   with the key pair's type, libsodium's, named, the RFC's shared secret, as the synchronous
+//   agree does; a peer key of low order completes with weak_public_key and a secret of zeros; a
+//   short secret key with invalid_key_size and an empty key pair, whose async_agree completes
+//   with invalid_state; async_generate, member and free, gives a key pair that agrees with Alice.
 // - async_destroyed: the key pairs, the message and the keys destroyed after the initiating call
 //   returns and before the completion: a synchronous backend has read them already, so the
 //   completion gives the right result (the browser's backend will read them later: they are the
@@ -468,11 +468,11 @@ void async_rfc7748(asio::io_context& context) {
     check_async_agree(context, bob, alice_public, shared, {});
     auto const synchronous = alice.agree(bob_public);
     BOOST_TEST(synchronous.has_value() && std::ranges::equal(synchronous->bytes(), shared));
-    // Named backend.
+    // The key pair's type named, libsodium's: the one async_agree's first template argument.
     auto const named =
         complete<crypto::secret<32>>(context, [&](auto const& executor, auto&& token) {
-            return crypto::async_agree<crypto::backends::sodium>(
-                executor, bob, alice_public, std::forward<decltype(token)>(token));
+            return crypto::async_agree<x25519_keypair>(executor, bob, alice_public,
+                                                       std::forward<decltype(token)>(token));
         });
     BOOST_TEST(!named.code);
     async_x25519_refused(context, alice_secret, bob_public);

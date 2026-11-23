@@ -11,14 +11,20 @@
 // R1), so a signature of another curve or scheme is refused by can_verify and by the build, and
 // its bytes made into the other type are refused at run time; ECDSA takes each curve's key object
 // and no bytes. The backend, named, comes first on every curve and picks its own curve's overload
-// alone; Ed25519's policy is the fifth argument.
+// alone; Ed25519's policy is the fifth argument. Every signing key pair (crypto::signing_keypair:
+// Ed25519's, P-256's and secp256k1's, not X25519's) signs through crypto::sign, used through the
+// concept alone, a signature its public key verifies with crypto::verify under each scheme that
+// verifies.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
+#include <webcpp/crypto/curves/x25519.hpp>
+#include <webcpp/crypto/detail/signature.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -27,6 +33,8 @@
 #include <array>
 #include <cstdint>
 #include <span>
+#include <type_traits>
+#include <utility>
 
 namespace crypto = webcpp::crypto;
 
@@ -200,11 +208,52 @@ void backend_first_ecdsa() {
                    .has_value());
 }
 
+// A signing key pair, through crypto::signing_keypair alone: crypto::sign gives the scheme's
+// signature type for its curve, which its public key verifies, and refuses with a changed message.
+template <crypto::signing_keypair Keypair, class Scheme>
+void signs_what_its_public_key_verifies(Scheme scheme) {
+    static_assert(std::is_same_v<std::remove_cvref_t<decltype(*crypto::sign(
+                                     std::declval<Keypair const&>(), scheme, hello_message))>,
+                                 crypto::detail::signature_of_t<Keypair, Scheme>>);
+    auto const key = Keypair::generate();
+    if (!BOOST_TEST(key.has_value())) {
+        return;
+    }
+    auto const public_key = key->public_key();
+    auto const signature = crypto::sign(*key, scheme, hello_message);
+    if (!BOOST_TEST(public_key.has_value()) || !BOOST_TEST(signature.has_value())) {
+        return;
+    }
+    BOOST_TEST(crypto::verify(scheme, *signature, hello_message, *public_key).has_value());
+    hello const changed{'h', 'e', 'l', 'l', 'p'};
+    BOOST_TEST(crypto::verify(scheme, *signature, changed, *public_key) ==
+               crypto::error::invalid_signature);
+}
+
+// D4's signing column: the three signing curves' key pairs, not X25519's.
+static_assert(
+    crypto::signing_keypair<crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>>);
+static_assert(
+    crypto::signing_keypair<crypto::curves::p256::basic_keypair<crypto::backends::bearssl>>);
+static_assert(
+    crypto::signing_keypair<crypto::curves::secp256k1::basic_keypair<crypto::backends::secp256k1>>);
+static_assert(
+    !crypto::signing_keypair<crypto::curves::x25519::basic_keypair<crypto::backends::sodium>>);
+
 }  // namespace
 
 int main() {
     byte_keys();
     backend_first_ed25519();
     backend_first_ecdsa();
+    signs_what_its_public_key_verifies<
+        crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>>(crypto::eddsa);
+    signs_what_its_public_key_verifies<
+        crypto::curves::p256::basic_keypair<crypto::backends::bearssl>>(crypto::ecdsa_sha256);
+    signs_what_its_public_key_verifies<
+        crypto::curves::secp256k1::basic_keypair<crypto::backends::secp256k1>>(
+        crypto::ecdsa_sha256);
+    signs_what_its_public_key_verifies<
+        crypto::curves::secp256k1::basic_keypair<crypto::backends::secp256k1>>(crypto::schnorr);
     return webcpp::test::exit_status(boost::report_errors());
 }

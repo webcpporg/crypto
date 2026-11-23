@@ -68,8 +68,9 @@ the scalar from `random_device`. `secret()` gives the scalar back as a
 `secret<32>`, which wipes itself, and `from_secret` of it gives the same key pair: the
 way a program stores a key pair and loads it again. The key pair computes its
 public point once, when it is made, wipes the scalar when it is moved from and
-destroyed, and answers `invalid_state` moved from. It is a `crypto::keypair`,
-as every curve's is (<<crypto-curves-signatures>>).
+destroyed, and answers `invalid_state` moved from. It is a
+`crypto::signing_keypair` and a `crypto::agreement_keypair`
+(<<crypto-curves-signatures>>).
 
 A `public_key` is a point that the type guarantees valid, kept as SEC 1's
 *uncompressed* form, 65 bytes: 04, then x and y

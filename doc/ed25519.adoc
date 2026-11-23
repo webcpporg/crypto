@@ -31,8 +31,8 @@ for key agreement. The key pair wipes its secret key when it is moved from and
 destroyed. `crypto::verify(crypto::eddsa, signature, message, public_key)`
 checks a signature with the public key alone. The scheme `crypto::eddsa` signs
 the message itself, of any length: a `crypto::prehashed` digest does not
-compile, and the key pair is a `crypto::keypair`, as every curve's is
-(<<crypto-curves-signatures>>).
+compile, and the key pair is a `crypto::signing_keypair` and no
+`crypto::agreement_keypair` (<<crypto-curves-signatures>>).
 
 A `public_key` is the 32 bytes of RFC 8032's encoded point: `public_key::from_bytes`
 makes one from them, checking their size alone, and `bytes()` gives them back.

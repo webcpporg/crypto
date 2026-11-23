@@ -249,9 +249,9 @@ them as `crypto::can_sign` and `crypto::can_verify` do
 [#crypto-curves-keypair]
 ==== The key pair contract
 
-`<webcpp/crypto/keypair.hpp>` declares the concept `crypto::keypair`, which
-every curve's key pair meets, each curve's header checking its own with a
-`static_assert`:
+`<webcpp/crypto/keypair.hpp>` declares three concepts, by what a key pair
+does, each curve's header checking its own row of them with a `static_assert`
+each. The concept `crypto::keypair`, which every curve's key pair meets:
 
 * `from_secret(secret_bytes)` makes it from its secret, and `generate()` draws one
 from `random_device`, each giving `result<K>`;
@@ -260,8 +260,16 @@ key, whose value goes straight into `crypto::verify`: `curves::ed25519::public_k
 `curves::p256::public_key` or `curves::secp256k1::public_key`;
 * `secret()` gives `result<secret<N>>`, the bytes `from_secret` takes, in a
 `secret<N>` that wipes itself: Ed25519's seed, P-256's scalar, secp256k1's secret key. It is the
-export a PKCS#8 file or a backup takes;
-* `sign(scheme, input)` signs with every scheme its curve has, at least one.
+export a PKCS#8 file or a backup takes.
+
+`crypto::signing_keypair` adds `sign(scheme, input)`, with every scheme its
+curve has, at least one, each giving the scheme's signature type: Ed25519's,
+P-256's and secp256k1's key pairs. `crypto::agreement_keypair` adds
+`agree(peer)`, the peer its own typed public key, giving a `secret<N>`:
+X25519's, P-256's and secp256k1's. `crypto::sign` and `async_sign` take a
+signing key pair, `crypto::agree` and `async_agree` an agreement key pair, and
+another stops the build saying what it does: an X25519 key pair agrees and
+does not sign, an Ed25519 key pair signs and does not agree.
 
 Each public key type is made from bytes by its own `from_bytes`, and gives
 its byte forms as members named after the encoding: Ed25519's `bytes()` (32
@@ -343,9 +351,10 @@ token in the asynchronous ones; secp256k1's 32 bytes of extra entropy or
 auxiliary randomness follow the input of `sign` and `crypto::sign`.
 
 Each free synchronous form is declared in the header of what it gates:
-`crypto::sign` in `<webcpp/crypto/signing.hpp>`, beside the catch-all of
-`crypto::verify`, whose overloads each curve's header declares;
-`crypto::agree` in `<webcpp/crypto/keypair.hpp>`; `crypto::from_secret`,
+`crypto::sign` and `crypto::agree` in `<webcpp/crypto/keypair.hpp>`, beside
+the concepts that constrain them; the catch-all of `crypto::verify` in
+`<webcpp/crypto/signing.hpp>`, whose overloads each curve's header declares;
+`crypto::from_secret`,
 `crypto::from_bytes`, `crypto::from_key` and `crypto::generate` in
 `<webcpp/crypto/factories.hpp>`, which `keypair.hpp` and the
 AEAD headers include; `crypto::seal` and `crypto::open` in

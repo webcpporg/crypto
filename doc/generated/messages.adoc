@@ -43,11 +43,29 @@ The fix: Name `+ciphers::aes256<backends::ctaes>+`, include `+<webcpp/crypto/bac
 
 The fix: Call `+async_agree+` on a backend that completes by itself: its synchronous forms cannot wait for it.
 
+|`+agree_ed25519+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: agree: Ed25519 key pairs sign; they do not agree: convert one with to_x25519() and agree with the X25519 key pair.+`
+
+The fix: Convert the Ed25519 key pair with `+to_x25519()+` and agree with the X25519 key pair it gives, and the peer's key converted with `+public_key.to_x25519()+`: an Ed25519 key pair signs and does not agree.
+
 |`+agree_free_wrong_peer+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: agree: this key pair does not agree with this peer: a P-256 key pair agrees with a curves::p256::basic_public_key of its backend, a secp256k1 key pair with a curves::secp256k1::public_key; an Ed25519 key pair agrees through X25519: convert it with to_x25519().+`
 
 The fix: Give `+agree+` the peer's typed public key of the key pair's own curve and backend: `+curves::p256::basic_public_key<Backend>::from_bytes(bytes)+` for P-256, `+curves::secp256k1::public_key::from_bytes(bytes)+` for secp256k1.
+
+|`+async_agree_ed25519+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_agree: Ed25519 key pairs sign; they do not agree: convert one with to_x25519() and agree with the X25519 key pair.+`
+
+The fix: As `+agree_ed25519+`: give `+async_agree+` the X25519 key pair that the Ed25519 key pair's `+to_x25519()+` gives, and the peer's converted key.
+
+|`+async_agree_secp256k1+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_agree takes a key pair of an algorithm WebCrypto has (X25519, P-256): call the key pair's synchronous agree for the others.+`
+
+The fix: Call the key pair's own `+agree+`: secp256k1 is not in WebCrypto, so only X25519's and P-256's key pairs have `+async_agree+`.
 
 |`+async_from_key_xchacha+`
 |native, wasip2, wasip3
@@ -102,6 +120,12 @@ The fix: Give `+async_sign+` the key pair's own scheme: `+crypto::ecdsa_sha256+`
 |`+webcpp::crypto: async_sign takes a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the key pair's synchronous signing function for the others.+`
 
 The fix: Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `+async_sign+`.
+
+|`+async_sign_x25519+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_sign: X25519 key pairs agree; they do not sign: sign with an Ed25519 key pair, which to_x25519() converts for agreement.+`
+
+The fix: As `+sign_x25519+`: give `+async_sign+` an Ed25519 key pair, which signs; an X25519 key pair agrees, with `+async_agree+`.
 
 |`+async_verify_eddsa_bytes_key+`
 |native, wasip2, wasip3
@@ -522,6 +546,12 @@ The fix: Name the scheme with its tag: `+crypto::ecdsa_sha256+`, `+crypto::ecdsa
 |`+webcpp::crypto: crypto::ecdsa_sha256_recoverable takes a 32-byte digest, SHA-256's: crypto::prehashed{digest} of a std::array<std::uint8_t, 32>.+`
 
 The fix: As `+sign_p256_digest_48+`: give `+crypto::ecdsa_sha256_recoverable+` SHA-256's 32-byte digest, or the message itself, which it hashes.
+
+|`+sign_x25519+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: sign: X25519 key pairs agree; they do not sign: sign with an Ed25519 key pair, which to_x25519() converts for agreement.+`
+
+The fix: Sign with an Ed25519 key pair, a `+crypto::signing_keypair+`: an X25519 key pair agrees and does not sign. One Ed25519 key pair can do both: `+to_x25519()+` gives the X25519 key pair that agrees.
 
 |`+silent_payments_other_backend+`
 |native, wasip2

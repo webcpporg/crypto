@@ -71,9 +71,9 @@ build. Its names are grouped by kind, one chapter each, and the headers mirror
 the namespaces as `<webcpp/crypto/<group>/<name>.hpp>`:
 
 * `webcpp::crypto`: `random_device`, `constant_time_equal`, `erase_secret`,
-`error` and the configuration; the signatures' schemes, `prehashed`, `sign` and
-`verify` (`<webcpp/crypto/signing.hpp>`), the key pair contract and `agree`
-(`<webcpp/crypto/keypair.hpp>`), the factories `from_secret`, `from_bytes`,
+`error` and the configuration; the signatures' schemes, `prehashed` and
+`verify` (`<webcpp/crypto/signing.hpp>`), the key pair concepts, `sign` and
+`agree` (`<webcpp/crypto/keypair.hpp>`), the factories `from_secret`, `from_bytes`,
 `from_key` and `generate` (`<webcpp/crypto/factories.hpp>`), and the asynchronous family
 (`<webcpp/crypto/async.hpp>`; <<crypto-root>>, <<crypto-curves-four-forms>>,
 <<crypto-async>>);

@@ -189,9 +189,12 @@ crypto-run constant_time_equal : constant_time_equal_test.cpp ;
 # signing.hpp's tags and their one list, prehashed, the input checks and the
 # concepts, over stand-in key types; the catch-all verify; sha256_of.
 crypto-run signing : signing_test.cpp ;
-# The key pair contract, crypto::keypair: Ed25519's, P-256's and secp256k1's
-# key pairs meet it, stand-ins that lack a member do not, and over a list with
-# a test-only scheme, a stand-in that declares it and does not sign it fails.
+# The three key pair concepts, keypair, signing_keypair and agreement_keypair:
+# stand-ins that sign, agree, do both, lack a member or sign or agree into
+# another type give each verdict; the four curves' key pairs give D4's table,
+# are made again from their secret() and sign or agree through their concept;
+# over a list with a test-only scheme, a stand-in that declares it and does not
+# sign it is no signing_keypair.
 crypto-run keypair : keypair_test.cpp
   : <library>/third_party//bearssl <library>/third_party//sodium
     <library>/third_party//secp256k1 ;
@@ -203,7 +206,8 @@ crypto-run signature_types : signature_types_test.cpp
     <library>/third_party//secp256k1 ;
 # Every curve's crypto::verify in one program: a 32-byte key is BIP340's under
 # schnorr and no key under eddsa, which takes Ed25519's typed key, with no
-# ambiguity.
+# ambiguity; every signing_keypair signs through crypto::sign what its public
+# key verifies.
 crypto-run signing_curves : signing_curves_test.cpp
   : <library>/third_party//bearssl <library>/third_party//sodium
     <library>/third_party//secp256k1 ;

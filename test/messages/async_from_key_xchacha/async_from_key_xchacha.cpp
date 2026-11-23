@@ -12,7 +12,7 @@
 // clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
 // whole text stays on one line.
 // clang-format off
-// expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: their async_seal, async_open and async_from_key run on a native backend; on the browser's backend only AES-GCM is asynchronous.}}
+// expected-error@webcpp/crypto/detail/asynchronous.hpp:* {{webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: their async_seal, async_open and async_from_key run on a native backend; on the browser's backend only AES-GCM is asynchronous.}}
 // clang-format on
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>

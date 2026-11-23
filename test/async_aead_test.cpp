@@ -21,11 +21,16 @@
 //   crypto_box.
 // - wrong_tag: a wrong tag completes with authentication_failed and zeroed data, for an AEAD and
 //   a box, free and member.
+// - At compile time, on a stand-in backend that completes by itself: the asynchronous forms refuse
+//   every AEAD and box but AES-GCM, a const AES-GCM included among those they accept.
 
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
+#include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
+#include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
+#include <webcpp/crypto/detail/asynchronous.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/secret_key_encryption/aead.hpp>
@@ -51,6 +56,33 @@
 #include <span>
 #include <type_traits>
 #include <utility>
+
+// A backend that completes by itself, as part B's browser backend will: its types are named, never
+// made.
+struct stand_in_browser {};
+
+template <>
+inline constexpr bool webcpp::crypto::detail::asynchronous_backend_v<stand_in_browser> = true;
+
+// Which types the asynchronous forms refuse on such a backend (design D6): every AEAD and box but
+// AES-GCM, whatever its qualifiers, and none on a synchronous backend. A const AES-GCM is AES-GCM,
+// which reaches its own path.
+static_assert(webcpp::crypto::detail::refuses_async_aead_v<
+              webcpp::crypto::ciphers::xchacha20_poly1305<stand_in_browser>>);
+static_assert(webcpp::crypto::detail::refuses_async_aead_v<
+              webcpp::crypto::ciphers::xchacha20_poly1305<stand_in_browser> const>);
+static_assert(webcpp::crypto::detail::refuses_async_aead_v<
+              webcpp::crypto::secret_key_encryption::secretbox<stand_in_browser>&>);
+static_assert(!webcpp::crypto::detail::refuses_async_aead_v<
+              webcpp::crypto::ciphers::gcm<webcpp::crypto::ciphers::aes256<stand_in_browser>>>);
+static_assert(
+    !webcpp::crypto::detail::refuses_async_aead_v<
+        webcpp::crypto::ciphers::gcm<webcpp::crypto::ciphers::aes256<stand_in_browser>> const>);
+static_assert(
+    !webcpp::crypto::detail::refuses_async_aead_v<
+        webcpp::crypto::ciphers::gcm<webcpp::crypto::ciphers::aes256<stand_in_browser>> const&>);
+static_assert(!webcpp::crypto::detail::refuses_async_aead_v<
+              webcpp::crypto::ciphers::xchacha20_poly1305<webcpp::crypto::backends::sodium> const>);
 
 namespace asio = webcpp::asio;
 namespace crypto = webcpp::crypto;

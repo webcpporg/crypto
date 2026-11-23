@@ -261,11 +261,9 @@ public:
     [[nodiscard]] static boost::system::result<aead> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
         detail::timing_guard const timing_scope;
-        static_assert(!detail::asynchronous_backend_v<Backend>,
-                      "webcpp::crypto: from_key on this backend completes asynchronously: call "
-                      "async_from_key.");
         if constexpr (detail::asynchronous_backend_v<Backend>) {
-            // Never compiled into a program: the assertion above stopped the build.
+            // WebCrypto has no such construction: the refusal names a native backend (design D6).
+            detail::refuse_aead_on_asynchronous_backend<Backend>();
             return error::backend_failure;
         } else {
             if (key_bytes.size() != key_size) {
@@ -371,11 +369,9 @@ public:
         std::span<std::uint8_t const> associated_data_bytes,
         std::span<std::uint8_t> data_bytes) noexcept {
         detail::timing_guard const timing_scope;
-        static_assert(
-            !detail::asynchronous_backend_v<Backend>,
-            "webcpp::crypto: seal on this backend completes asynchronously: call async_seal.");
         if constexpr (detail::asynchronous_backend_v<Backend>) {
-            // Never compiled into a program: the assertion above stopped the build.
+            // WebCrypto has no such construction: the refusal names a native backend (design D6).
+            detail::refuse_aead_on_asynchronous_backend<Backend>();
             return error::backend_failure;
         } else {
             auto const guard_result =
@@ -443,11 +439,9 @@ public:
         std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
         std::span<std::uint8_t const> tag_bytes) noexcept {
         detail::timing_guard const timing_scope;
-        static_assert(
-            !detail::asynchronous_backend_v<Backend>,
-            "webcpp::crypto: open on this backend completes asynchronously: call async_open.");
         if constexpr (detail::asynchronous_backend_v<Backend>) {
-            // Never compiled into a program: the assertion above stopped the build.
+            // WebCrypto has no such construction: the refusal names a native backend (design D6).
+            detail::refuse_aead_on_asynchronous_backend<Backend>();
             return error::backend_failure;
         } else {
             auto const guard_result = guard_message(nonce_bytes, associated_data_bytes,

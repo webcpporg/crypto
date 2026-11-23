@@ -282,28 +282,13 @@ inline constexpr bool is_secretbox_v<secret_key_encryption::basic_secretbox<Fami
  * WebCrypto has.
  *
  * @tparam Type A `secret_key_encryption::aead::cipher` or a
- * `secret_key_encryption::authenticated_box`, without its qualifiers.
+ * `secret_key_encryption::authenticated_box`, its qualifiers and reference ignored (a const
+ * `gcm` is AES-GCM).
  */
 template <class Type>
 inline constexpr bool refuses_async_aead_v =
-    !is_gcm_v<Type> && asynchronous_backend_v<typename Type::backend_type>;
-
-/**
- * Stops the build: the asynchronous `seal`, `open` or `from_key` of an AEAD or a box WebCrypto
- * lacks, asked of a backend that completes by itself (design D6).
- *
- * Every such function, member and free, calls it first after its guard, before any member of the
- * type is named (ruling P12), so that its text is the build's one message and is written once.
- *
- * @tparam Refused The type or its backend, which makes the refusal dependent.
- */
-template <class Refused>
-constexpr void refuse_async_aead_on_asynchronous_backend() noexcept {
-    static_assert(refused_v<Refused>,
-                  "webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, "
-                  "secret box or crypto_box: their async_seal, async_open and async_from_key run "
-                  "on a native backend; on the browser's backend only AES-GCM is asynchronous.");
-}
+    !is_gcm_v<std::remove_cvref_t<Type>> &&
+    asynchronous_backend_v<typename std::remove_cvref_t<Type>::backend_type>;
 
 /** Whether `Type` is an Ed25519 key pair, `curves::ed25519::basic_keypair<Backend>`. */
 template <class Type>
@@ -684,7 +669,8 @@ auto async_from_key(Executor const& completion_executor, std::span<std::uint8_t 
                       "secret_key_encryption::aead::cipher) or a secret box: a crypto_box is made "
                       "by from_keys.");
     } else if constexpr (detail::refuses_async_aead_v<Cipher>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Cipher>();
+        detail::refuse_aead_on_asynchronous_backend<
+            typename std::remove_cvref_t<Cipher>::backend_type>();
     } else {
         return Cipher::async_from_key(completion_executor, key_bytes,
                                       std::forward<CompletionToken>(completion_token));
@@ -759,7 +745,8 @@ auto async_seal(Executor const& completion_executor, Cipher& aead_cipher,
                 std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::refuses_async_aead_v<Cipher>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Cipher>();
+        detail::refuse_aead_on_asynchronous_backend<
+            typename std::remove_cvref_t<Cipher>::backend_type>();
     } else {
         return aead_cipher.async_seal(completion_executor, nonce_bytes, associated_data_bytes,
                                       data_bytes, std::forward<CompletionToken>(completion_token));
@@ -798,7 +785,8 @@ auto async_open(Executor const& completion_executor, Cipher& aead_cipher,
                 CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::refuses_async_aead_v<Cipher>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Cipher>();
+        detail::refuse_aead_on_asynchronous_backend<
+            typename std::remove_cvref_t<Cipher>::backend_type>();
     } else {
         return aead_cipher.async_open(completion_executor, nonce_bytes, associated_data_bytes,
                                       data_bytes, tag_bytes,
@@ -883,7 +871,8 @@ auto async_seal(Executor const& completion_executor, Box& keyed_box,
                 CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::refuses_async_aead_v<Box>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Box>();
+        detail::refuse_aead_on_asynchronous_backend<
+            typename std::remove_cvref_t<Box>::backend_type>();
     } else {
         return keyed_box.async_seal(completion_executor, nonce_bytes, data_bytes,
                                     std::forward<CompletionToken>(completion_token));
@@ -919,7 +908,8 @@ auto async_open(Executor const& completion_executor, Box& keyed_box,
                 std::span<std::uint8_t const> tag_bytes, CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::refuses_async_aead_v<Box>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Box>();
+        detail::refuse_aead_on_asynchronous_backend<
+            typename std::remove_cvref_t<Box>::backend_type>();
     } else {
         return keyed_box.async_open(completion_executor, nonce_bytes, data_bytes, tag_bytes,
                                     std::forward<CompletionToken>(completion_token));
@@ -1398,7 +1388,7 @@ auto ciphers::aead<Family, Backend>::async_from_key(Executor const& completion_e
                                                     CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+        detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
         return detail::complete_by_post(
             completion_executor, completion_token,
@@ -1415,7 +1405,7 @@ auto ciphers::aead<Family, Backend>::async_seal(Executor const& completion_execu
                                                 CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+        detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
         return detail::complete_by_post(
             completion_executor, completion_token,
@@ -1435,7 +1425,7 @@ auto ciphers::aead<Family, Backend>::async_open(Executor const& completion_execu
                                                 CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+        detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
         return detail::complete_by_post(
             completion_executor, completion_token,
@@ -1452,7 +1442,7 @@ auto secret_key_encryption::basic_secretbox<Family, Backend>::async_from_key(
     CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+        detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
         return detail::complete_by_post(
             completion_executor, completion_token,
@@ -1467,7 +1457,7 @@ auto secret_key_encryption::basic_secretbox<Family, Backend>::async_seal(
     std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+        detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
         return detail::complete_by_post(
             completion_executor, completion_token,
@@ -1483,7 +1473,7 @@ auto secret_key_encryption::basic_secretbox<Family, Backend>::async_open(
     CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+        detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
         return detail::complete_by_post(completion_executor, completion_token,
                                         [this, nonce_bytes, data_bytes, tag_bytes]() noexcept {
@@ -1499,7 +1489,7 @@ auto public_key_encryption::basic_box<Family, Backend>::async_seal(
     std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+        detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
         return detail::complete_by_post(
             completion_executor, completion_token,
@@ -1515,7 +1505,7 @@ auto public_key_encryption::basic_box<Family, Backend>::async_open(
     CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
-        detail::refuse_async_aead_on_asynchronous_backend<Backend>();
+        detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
         return detail::complete_by_post(completion_executor, completion_token,
                                         [this, nonce_bytes, data_bytes, tag_bytes]() noexcept {

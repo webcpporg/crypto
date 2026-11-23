@@ -11,5 +11,7 @@ import webcpp ;
 # alone: the two missing names and the corrected calls of the box forms are
 # the compile's only errors, so a regression that puts another error before or
 # after them fails the test.
+# The pinned "did you mean" texts are clang's typo correction, which names the
+# box forms and may drift with clang updates.
 webcpp.compile-diagnostic async_seal_removed : async_seal_removed.cpp
   : <library>/webcpp/asio//asio : native wasip2 wasip3 : alone ;

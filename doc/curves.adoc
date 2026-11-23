@@ -393,7 +393,10 @@ cannot be used before it is defined", gcc's "use of ... before deduction of
 'auto'", MSVC's C3779; the message and its fix are in
 <<crypto-jamfile-messages>>. On a backend that completes by itself, as the
 browser's will be (<<crypto-async-webcrypto>>), every synchronous form refuses
-at compile time with a message that names its `async_` form: the refusal is in
+at compile time with a message that names its `async_` form, but for the
+constructions WebCrypto lacks (ChaCha20-Poly1305 and its forms, the secret
+boxes, crypto_box), whose synchronous and asynchronous forms alike name a native
+backend, since neither completes there (<<crypto-async>>): the refusals are in
 place already, tested with a stand-in backend, since no such backend exists
 yet.
 

@@ -60,8 +60,8 @@ derivation, its HMAC-SHA-512 and its paths, which only adds a tweak computed
 there to a whole key
 (link:https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki[BIP 32]).
 The second is Ed25519,
-RFC 8032's signatures on edwards25519, with Ed25519ph for a message given in
-pieces (link:https://www.rfc-editor.org/rfc/rfc8032[RFC 8032];
+RFC 8032's signatures on edwards25519, with Ed25519ph for a message's SHA-512
+or a message given in pieces (link:https://www.rfc-editor.org/rfc/rfc8032[RFC 8032];
 <<crypto-ed25519>>). The third is X25519, RFC 7748's key agreement on
 Curve25519, the same curve in another form, with the conversion of an Ed25519
 key to it (link:https://www.rfc-editor.org/rfc/rfc7748[RFC 7748];
@@ -96,9 +96,9 @@ verify. A key pair signs with `key.sign(scheme, input)`, and
 tag object that names the algorithm and, for ECDSA, its hash, as WebCrypto's
 `+{name: "ECDSA", hash: "SHA-256"}+` does
 (link:https://www.w3.org/TR/WebCryptoAPI/#ecdsa-operations[W3C, ECDSA's
-operations]): `crypto::eddsa`, `crypto::ecdsa_sha256`,
-`crypto::ecdsa_sha256_recoverable`, `crypto::ecdsa_keccak256_recoverable` and
-`crypto::schnorr`. It is named at every
+operations]): `crypto::eddsa`, `crypto::eddsa_prehashed`,
+`crypto::ecdsa_sha256`, `crypto::ecdsa_sha256_recoverable`,
+`crypto::ecdsa_keccak256_recoverable` and `crypto::schnorr`. It is named at every
 call, on every curve, so that the call says what it signs; a tag's constructor
 is explicit, so that `+{}+` never stands for a scheme.
 
@@ -108,12 +108,12 @@ The input is a message or a digest, and the program says which:
 span, a `std::array`, a `std::vector`, of any size, the empty one included.
 ECDSA hashes it with SHA-256 inside the call, as WebCrypto does, and Ethereum's
 `crypto::ecdsa_keccak256_recoverable` with Keccak-256; EdDSA and Schnorr sign it
-as given.
+as given; Ed25519ph, `crypto::eddsa_prehashed`, takes none.
 * A *digest* is `+crypto::prehashed{digest}+`, made from a
 `std::array<std::uint8_t, N>`, a span of the fixed size N, or a Boost.Hash2
 digest such as the result of `webcpp::hash::sha2_256`. ECDSA signs it as
-given. The marker refers to its digest, as a span does, and must not outlive
-it.
+given, and so does Ed25519ph, `crypto::eddsa_prehashed`, a message's SHA-512.
+The marker refers to its digest, as a span does, and must not outlive it.
 
 The hazard this removes is the 32-byte message. A SHA-256 digest is 32 bytes,
 and so is many a message: a key, a protocol's hash, a nonce. Where a function
@@ -135,6 +135,12 @@ so.
 | signed as given (RFC 8032's PureEdDSA)
 | does not compile
 | `curves::ed25519::signature`, 64 bytes
+
+| `crypto::eddsa_prehashed`
+| Ed25519: `curves::ed25519::keypair`; `curves::ed25519::public_key` (native backends)
+| does not compile
+| 64 bytes, the message's SHA-512 (RFC 8032's Ed25519ph)
+| `curves::ed25519::signature`, 64 bytes, not interchangeable with a signature of `crypto::eddsa`
 
 | `crypto::ecdsa_sha256`
 | P-256: `curves::p256::keypair`; `curves::p256::public_key`
@@ -169,7 +175,8 @@ so.
 
 Every other pair stops the build in a `static_assert` whose message says why:
 a scheme the key's curve does not have, `crypto::eddsa` or `crypto::schnorr`
-with a marker, a marker whose digest is not 32 bytes, a marker made from a span
+with a marker, `crypto::eddsa_prehashed` with a message, a marker whose digest
+is not the scheme's size (32 bytes, or Ed25519ph's 64), a marker made from a span
 whose size the type does not know, a marker on a backend that cannot sign a
 digest; <<crypto-jamfile-messages,the table of messages>> gives each with its
 fix. The

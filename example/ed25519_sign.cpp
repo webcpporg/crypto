@@ -7,8 +7,12 @@
 // Signs RFC 8032's second Ed25519 test with a key pair made from its seed and verifies the
 // signature with the public key alone, `key.sign(crypto::eddsa, message)` and
 // `crypto::verify(crypto::eddsa, signature, message, public_key)`; then signs the message "abc"
-// given in two pieces with Ed25519ph, as RFC 8032's Ed25519ph test does, and verifies it with
-// `verify(signature, public_key)`. Prints each key and signature in hex.
+// given in two pieces with Ed25519ph's streaming signer, `curves::ed25519::prehashed_signer`, as
+// RFC 8032's Ed25519ph test does, and verifies it with `verify(signature, public_key)`; then signs
+// the message's SHA-512, a digest the program has, under the scheme `crypto::eddsa_prehashed`,
+// which gives the same signature, and verifies it with
+// `crypto::verify(crypto::eddsa_prehashed, signature, crypto::prehashed{digest}, public_key)`.
+// Prints each key and signature in hex, and whether the two Ed25519ph signatures are equal.
 // tag::program[]
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/signing.hpp>
@@ -65,7 +69,8 @@ bool sign_whole() {
 }
 
 // Ed25519ph: the message given in pieces, as a large file is read, signed once at the end,
-// over SHA-512, the hash RFC 8032 fixes.
+// over SHA-512, the hash RFC 8032 fixes; then the same message's SHA-512 signed under the scheme
+// crypto::eddsa_prehashed, as a program that has the digest already signs it.
 bool sign_in_pieces() {
     std::array<std::uint8_t, 32> const seed{
         0x83, 0x3f, 0xe6, 0x24, 0x09, 0x23, 0x7b, 0x9d, 0x62, 0xec, 0x77,
@@ -74,7 +79,7 @@ bool sign_in_pieces() {
     };
     std::array<std::uint8_t, 1> const first{'a'};
     std::array<std::uint8_t, 2> const second{'b', 'c'};
-    using signer = ed25519::ph<webcpp::hash::sha2_512>;
+    using signer = ed25519::prehashed_signer<webcpp::hash::sha2_512>;
     auto const key = ed25519::keypair::from_secret(seed);
     auto signing = signer::begin();
     if (!key || !signing || !signing->update(first) || !signing->update(second)) {
@@ -88,8 +93,26 @@ bool sign_in_pieces() {
     print("public key", public_key->bytes());
     print("signature ", signature->bytes());
     auto verifying = signer::begin();
-    return verifying && verifying->update(first) && verifying->update(second) &&
-           verifying->verify(*signature, *public_key).has_value();
+    if (!verifying || !verifying->update(first) || !verifying->update(second) ||
+        !verifying->verify(*signature, *public_key)) {
+        return false;
+    }
+
+    // The digest the signer hashed inside, computed here: the scheme signs it into the same
+    // signature, which crypto::verify checks under the same scheme.
+    webcpp::hash::sha2_512 hasher;
+    hasher.update(first.data(), first.size());
+    hasher.update(second.data(), second.size());
+    auto const digest = hasher.result();
+    auto const from_digest = key->sign(crypto::eddsa_prehashed, crypto::prehashed{digest});
+    if (!from_digest) {
+        return false;
+    }
+    std::printf("eddsa_prehashed gives the same signature: %s\n",
+                *from_digest == *signature ? "yes" : "no");
+    return *from_digest == *signature && crypto::verify(crypto::eddsa_prehashed, *from_digest,
+                                                        crypto::prehashed{digest}, *public_key)
+                                             .has_value();
 }
 
 }  // namespace

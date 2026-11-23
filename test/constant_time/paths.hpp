@@ -200,7 +200,10 @@ int ctaes_block() {
     return check(ok && carries_mark<Checker>(block), "ctaes");
 }
 
-/** Ed25519 on libsodium: from_secret and sign with the seed secret; the kept seed is traced. */
+/**
+ * Ed25519 on libsodium: from_secret and sign, under eddsa and under eddsa_prehashed (Ed25519ph, a
+ * public 64-byte digest), with the seed secret; the kept seed is traced.
+ */
 template <class Checker>
 int sodium_ed25519() {
     std::array<std::uint8_t, 32> seed{};
@@ -209,9 +212,14 @@ int sodium_ed25519() {
     Checker::mark_secret(seed);
     auto const pair = crypto::curves::ed25519::basic_keypair<sodium>::from_secret(seed);
     auto const signature = pair->sign(crypto::eddsa, message);
+    auto const prehashed_signature =
+        pair->sign(crypto::eddsa_prehashed, crypto::prehashed{message});
     auto const kept = pair->secret();
     return check(signature.has_value() && carries_mark<Checker>(signature->bytes()),
                  "Ed25519 on libsodium") +
+           check(prehashed_signature.has_value() &&
+                     carries_mark<Checker>(prehashed_signature->bytes()),
+                 "Ed25519ph on libsodium") +
            check(kept.has_value() && carries_mark<Checker>(kept->bytes()),
                  "Ed25519's secret on libsodium");
 }

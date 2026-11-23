@@ -42,9 +42,34 @@ namespace webcpp::crypto {
 namespace detail {
 
 /**
+ * The input the key pair contract signs under `Scheme`: a message, as
+ * `std::span<std::uint8_t const>`, for a scheme that takes one.
+ *
+ * @tparam Scheme A scheme tag.
+ */
+template <class Scheme, bool = takes_message_v<Scheme>>
+struct contract_input {
+    /** A message. */
+    using type = std::span<std::uint8_t const>;
+};
+
+/**
+ * The input the key pair contract signs under a scheme that takes its digest alone,
+ * `eddsa_prehashed`: the marker of the scheme's digest size.
+ *
+ * @tparam Scheme A scheme tag.
+ */
+template <class Scheme>
+struct contract_input<Scheme, false> {
+    /** The marker of a digest of the scheme's size. */
+    using type = prehashed<scheme_traits<Scheme>::digest_size>;
+};
+
+/**
  * Whether the key pair `Keypair` keeps its curve's word about `Scheme`: a scheme the curve does
  * not declare for it asks nothing; one it declares (`signs_with_v`) asks that
- * `key.sign(scheme, message)` be a valid call.
+ * `key.sign(scheme, input)` be a valid call, the input a message, or for a scheme that takes its
+ * digest alone (`eddsa_prehashed`) the marker of one (`contract_input`).
  *
  * @tparam Keypair A key pair's type.
  * @tparam Scheme A scheme tag.
@@ -52,7 +77,7 @@ namespace detail {
 template <class Keypair, class Scheme>
 concept signs_as_declared = !signs_with_v<Keypair, Scheme> || requires {
     std::declval<Keypair const&>().sign(std::declval<Scheme const&>(),
-                                        std::declval<std::span<std::uint8_t const>&>());
+                                        std::declval<typename contract_input<Scheme>::type&>());
 };
 
 /**
@@ -126,9 +151,10 @@ concept keypair_over = signs_some_scheme_v<Keypair, List> && requires {
  *   public key, which `crypto::verify` takes;
  * - `key.secret()` gives `result<secret<Keypair::secret_key_size>>`, the bytes `from_secret`
  *   takes back;
- * - `key.sign(scheme, message)` is valid for every scheme its curve declares for it
- *   (`detail::signs_with_v`), and it declares at least one; the schemes asked are the library's
- *   one list of them, `detail::all_schemes`, which the concept folds over
+ * - `key.sign(scheme, input)` is valid for every scheme its curve declares for it
+ *   (`detail::signs_with_v`), the input a message, or the marker of a digest for a scheme that
+ *   takes its digest alone (`crypto::eddsa_prehashed`), and it declares at least one; the schemes
+ * asked are the library's one list of them, `detail::all_schemes`, which the concept folds over
  *   (`detail::keypair_over`).
  *
  * @tparam Keypair A type, without its reference and qualifiers.

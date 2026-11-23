@@ -21,8 +21,10 @@
 //   public_key: verify; the free crypto::verify and to_x25519_public, and the free synchronous
 //   forms of the members, crypto::from_secret, crypto::generate and crypto::sign, which enter their
 //   own guard before the member's, and crypto::from_bytes of a public key, which enters none, as
-//   its member does not. Ed25519ph, ph: begin, update, sign, verify. Its formats: decode_spki,
-//   decode_pkcs8 (the encoders call no backend and hold no guard, ruling R4; nor do
+//   its member does not. Ed25519ph, the scheme eddsa_prehashed: basic_keypair::sign, the free
+//   crypto::sign, public_key::verify, crypto::verify, and their asynchronous forms, async_sign and
+//   async_verify, member and free; prehashed_signer: begin, update, sign, verify. Its formats:
+//   decode_spki, decode_pkcs8 (the encoders call no backend and hold no guard, ruling R4; nor do
 //   public_key::from_bytes and bytes). Its signature, signature: from_bytes, member and free,
 //   and bytes, which call no backend and enter no guard.
 // - Ed25519's asynchronous functions: async_from_secret, async_generate, async_sign, async_verify,
@@ -34,6 +36,7 @@
 
 #include "support/timing_seam.hpp"
 
+#include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/secretbox.hpp>
@@ -52,6 +55,8 @@
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/timing_coverage.hpp"
+
+#include <webcpp/asio/io_context.hpp>
 
 #include <boost/core/lightweight_test.hpp>
 
@@ -368,15 +373,118 @@ void cover_ed25519_free() {
     });
 }
 
+/**
+ * Ed25519ph under the scheme `eddsa_prehashed`: the key pair's `sign` and the free `crypto::sign`,
+ * the key's `verify` and the free `crypto::verify` (each entering its own overload's guard first),
+ * a moved-from key pair and a zero signature refused, and their asynchronous forms, member and
+ * free.
+ */
+void cover_ed25519_prehashed() {
+    namespace ed25519 = crypto::curves::ed25519;
+    using keypair = ed25519::basic_keypair<sodium>;
+    auto made = keypair::from_secret(webcpp::test::coverage_key<32>());
+    std::array<std::uint8_t, 64> digest{};
+    digest.fill(0x5a);
+    crypto::prehashed const marker{digest};
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    auto const public_key = made->public_key();
+    auto const signature = made->sign(crypto::eddsa_prehashed, marker);
+    if (!BOOST_TEST(public_key.has_value()) || !BOOST_TEST(signature.has_value())) {
+        return;
+    }
+    ed25519::signature const zero_signature{};
+    covered("ed25519::basic_keypair::sign under eddsa_prehashed on sodium",
+            [&] { BOOST_TEST(made->sign(crypto::eddsa_prehashed, marker).has_value()); });
+    covered("ed25519 crypto::sign under eddsa_prehashed on sodium", "crypto::sign",
+            [&] { BOOST_TEST(crypto::sign(*made, crypto::eddsa_prehashed, marker).has_value()); });
+    covered("ed25519 crypto::verify under eddsa_prehashed on sodium",
+            "crypto::verify(eddsa_prehashed_t", [&] {
+                BOOST_TEST(crypto::verify<sodium>(crypto::eddsa_prehashed, *signature, marker,
+                                                  *public_key, ed25519::strict)
+                               .has_value());
+            });
+    covered(
+        "ed25519 crypto::verify under eddsa_prehashed with a zero signature on sodium",
+        "crypto::verify(eddsa_prehashed_t", [&] {
+            BOOST_TEST(crypto::verify(crypto::eddsa_prehashed, zero_signature, marker, *public_key)
+                           .error() == crypto::error::invalid_signature);
+        });
+    covered(
+        "ed25519::public_key::verify under eddsa_prehashed on sodium",
+        "ed25519::public_key::verify(eddsa_prehashed_t", [&] {
+            BOOST_TEST(public_key->verify(crypto::eddsa_prehashed, *signature, marker).has_value());
+        });
+    covered("ed25519::public_key::verify under eddsa_prehashed with a zero signature on sodium",
+            "ed25519::public_key::verify(eddsa_prehashed_t", [&] {
+                BOOST_TEST(
+                    public_key->verify(crypto::eddsa_prehashed, zero_signature, marker).error() ==
+                    crypto::error::invalid_signature);
+            });
+
+    webcpp::asio::io_context context;
+    auto const executor = context.get_executor();
+    int completions = 0;
+    webcpp::test::async_completion_counter<ed25519::signature> const counted{
+        .completions = &completions,
+    };
+    auto const deliver = [&context] {
+        context.restart();
+        context.run();  // lint-run: the test's event loop
+    };
+    covered("ed25519::basic_keypair::async_sign under eddsa_prehashed on sodium", [&] {
+        made->async_sign(executor, crypto::eddsa_prehashed, marker, counted);
+        deliver();
+    });
+    covered("ed25519 crypto::async_sign under eddsa_prehashed on sodium", "crypto::async_sign",
+            [&] {
+                crypto::async_sign(executor, *made, crypto::eddsa_prehashed, marker, counted);
+                deliver();
+            });
+    covered("ed25519::public_key::async_verify under eddsa_prehashed on sodium", [&] {
+        public_key->async_verify<sodium>(executor, crypto::eddsa_prehashed, *signature, marker,
+                                         counted);
+        deliver();
+    });
+    covered("ed25519::public_key::async_verify under eddsa_prehashed with its policy on sodium",
+            [&] {
+                public_key->async_verify<sodium>(executor, crypto::eddsa_prehashed, *signature,
+                                                 marker, ed25519::strict, counted);
+                deliver();
+            });
+    covered("ed25519 crypto::async_verify under eddsa_prehashed on sodium",
+            "crypto::async_verify(eddsa_prehashed_t", [&] {
+                crypto::async_verify<sodium>(executor, crypto::eddsa_prehashed, *signature, marker,
+                                             *public_key, counted);
+                deliver();
+            });
+    covered("ed25519 crypto::async_verify under eddsa_prehashed with its policy on sodium",
+            "crypto::async_verify(eddsa_prehashed_t", [&] {
+                crypto::async_verify<sodium>(executor, crypto::eddsa_prehashed, zero_signature,
+                                             marker, *public_key, ed25519::strict, counted);
+                deliver();
+            });
+    BOOST_TEST_EQ(completions, 6);
+
+    [[maybe_unused]] keypair const taken(std::move(*made));
+    covered("ed25519::basic_keypair::sign under eddsa_prehashed moved from on sodium", [&] {
+        // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair's refusal
+        BOOST_TEST(made->sign(crypto::eddsa_prehashed, marker).error() ==
+                   crypto::error::invalid_state);
+    });
+}
+
 /** Ed25519ph's `begin`, `update`, `sign` and `verify` of a message, a valid one. */
 void cover_ed25519ph() {
     namespace ed25519 = crypto::curves::ed25519;
-    using ph = ed25519::ph<webcpp::hash::sha2_512, sodium>;
+    using signer_type = ed25519::prehashed_signer<webcpp::hash::sha2_512, sodium>;
     auto const key = ed25519::basic_keypair<sodium>::from_secret(webcpp::test::coverage_key<32>());
     std::array<std::uint8_t, 3> const piece{1, 2, 3};
-    covered("ed25519::ph::begin on sodium", [] { BOOST_TEST(ph::begin().has_value()); });
-    auto signer = ph::begin();
-    auto verifier = ph::begin();
+    covered("ed25519::prehashed_signer::begin on sodium",
+            [] { BOOST_TEST(signer_type::begin().has_value()); });
+    auto signer = signer_type::begin();
+    auto verifier = signer_type::begin();
     if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(signer.has_value()) ||
         !BOOST_TEST(verifier.has_value()) || !BOOST_TEST(verifier->update(piece).has_value())) {
         return;
@@ -385,16 +493,16 @@ void cover_ed25519ph() {
     if (!BOOST_TEST(public_key.has_value())) {
         return;
     }
-    covered("ed25519::ph::update on sodium",
+    covered("ed25519::prehashed_signer::update on sodium",
             [&] { BOOST_TEST(signer->update(piece).has_value()); });
     ed25519::signature signature{};
-    covered("ed25519::ph::sign on sodium", [&] {
+    covered("ed25519::prehashed_signer::sign on sodium", [&] {
         auto const signed_message = signer->sign(*key);
         if (BOOST_TEST(signed_message.has_value())) {
             signature = *signed_message;
         }
     });
-    covered("ed25519::ph::verify on sodium",
+    covered("ed25519::prehashed_signer::verify on sodium",
             [&] { BOOST_TEST(verifier->verify(signature, *public_key).has_value()); });
 }
 
@@ -404,12 +512,12 @@ void cover_ed25519ph() {
  */
 void cover_ed25519ph_refusals() {
     namespace ed25519 = crypto::curves::ed25519;
-    using ph = ed25519::ph<webcpp::hash::sha2_512, sodium>;
+    using signer_type = ed25519::prehashed_signer<webcpp::hash::sha2_512, sodium>;
     auto const key = ed25519::basic_keypair<sodium>::from_secret(webcpp::test::coverage_key<32>());
     ed25519::signature const signature{};
     std::array<std::uint8_t, 3> const piece{1, 2, 3};
-    auto ended = ph::begin();
-    auto refused = ph::begin();
+    auto ended = signer_type::begin();
+    auto refused = signer_type::begin();
     if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(ended.has_value()) ||
         !BOOST_TEST(refused.has_value()) || !BOOST_TEST(ended->sign(*key).has_value())) {
         return;
@@ -418,14 +526,14 @@ void cover_ed25519ph_refusals() {
     if (!BOOST_TEST(public_key.has_value())) {
         return;
     }
-    covered("ed25519::ph::update of an ended message on sodium",
+    covered("ed25519::prehashed_signer::update of an ended message on sodium",
             [&] { BOOST_TEST(ended->update(piece).error() == crypto::error::invalid_state); });
-    covered("ed25519::ph::sign of an ended message on sodium",
+    covered("ed25519::prehashed_signer::sign of an ended message on sodium",
             [&] { BOOST_TEST(ended->sign(*key).error() == crypto::error::invalid_state); });
-    covered("ed25519::ph::verify of an ended message on sodium", [&] {
+    covered("ed25519::prehashed_signer::verify of an ended message on sodium", [&] {
         BOOST_TEST(ended->verify(signature, *public_key).error() == crypto::error::invalid_state);
     });
-    covered("ed25519::ph::verify with a zero signature on sodium", [&] {
+    covered("ed25519::prehashed_signer::verify with a zero signature on sodium", [&] {
         BOOST_TEST(refused->verify(signature, *public_key).error() ==
                    crypto::error::invalid_signature);
     });
@@ -569,6 +677,7 @@ void cover_curves() {
     cover_ed25519_free_forms();
     webcpp::test::cover_signature<crypto::curves::ed25519::signature>("ed25519::signature",
                                                                       "sodium");
+    cover_ed25519_prehashed();
     cover_ed25519ph();
     cover_ed25519ph_refusals();
     cover_ed25519_formats();

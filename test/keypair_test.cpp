@@ -5,7 +5,8 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // The key pair contract, crypto::keypair (design D8): Ed25519's, P-256's and secp256k1's key pairs
-// meet it, on libsodium, BearSSL and libsecp256k1, each through the contract alone, secp256k1's
+// meet it, on libsodium, BearSSL and libsecp256k1, each through the contract alone, Ed25519's with
+// its two schemes (eddsa_prehashed over a 64-byte digest marker), secp256k1's
 // with each of its four schemes (the two recoverable ones over a digest marker, recovered); a
 // stand-in that has every member meets it, and stand-ins that
 // lack one member each (from_secret, generate, public_key_type, secret), whose from_secret,
@@ -327,6 +328,25 @@ static_assert(!crypto::keypair<crypto::curves::secp256k1::public_key>);
 
 namespace {
 
+// Ed25519's key pair under eddsa_prehashed, through the contract: the key pair made again from
+// its secret() signs a 64-byte digest marker, which the first one's public key verifies.
+template <crypto::keypair Keypair>
+void prehashed_round_trip() {
+    auto const key = Keypair::generate();
+    BOOST_TEST(key.has_value());
+    auto const exported = key->secret();
+    BOOST_TEST(exported.has_value());
+    auto const again = Keypair::from_secret(exported->bytes());
+    BOOST_TEST(again.has_value());
+    std::array<std::uint8_t, 64> digest{};
+    digest.fill(0x5a);
+    auto const signature = again->sign(crypto::eddsa_prehashed, crypto::prehashed{digest});
+    BOOST_TEST(signature.has_value());
+    BOOST_TEST(crypto::verify(crypto::eddsa_prehashed, *signature, crypto::prehashed{digest},
+                              *key->public_key())
+                   .has_value());
+}
+
 // Each curve's key pair, used through the contract alone: the key pair made again from its
 // secret() has the same public key, compared with ==, and signs what the first one's public key
 // verifies.
@@ -368,6 +388,7 @@ void recovered_round_trip(Scheme scheme) {
 
 int main() {
     round_trip<crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>>(crypto::eddsa);
+    prehashed_round_trip<crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>>();
     round_trip<crypto::curves::p256::basic_keypair<crypto::backends::bearssl>>(
         crypto::ecdsa_sha256);
     using secp256k1_keypair = crypto::curves::secp256k1::basic_keypair<crypto::backends::secp256k1>;

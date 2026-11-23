@@ -4,13 +4,13 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// An Ed25519 public key's own verify given ECDSA's scheme stops at its verify with the scheme it
-// has, and with that error alone.
+// An Ed25519 public key's own verify given ECDSA's scheme stops at its verify with the schemes
+// it has, and with that error alone.
 
 // clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
 // whole text stays on one line.
 // clang-format off
-// expected-error@webcpp/crypto/curves/ed25519.hpp:* {{webcpp::crypto: an Ed25519 public key verifies crypto::eddsa.}}
+// expected-error@webcpp/crypto/curves/ed25519.hpp:* {{webcpp::crypto: an Ed25519 public key verifies crypto::eddsa or crypto::eddsa_prehashed.}}
 // clang-format on
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/signing.hpp>

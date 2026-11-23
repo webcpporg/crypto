@@ -76,12 +76,14 @@ void expect_no_allocation() {
 
 /**
  * Makes and draws Ed25519 key pairs, signs, verifies strictly, refuses a forged signature,
- * signs and verifies with Ed25519ph in two pieces, and converts both keys to X25519: none of
+ * signs and verifies with Ed25519ph in two pieces and under the scheme eddsa_prehashed, and
+ * converts both keys to X25519: none of
  * it allocates.
  */
 void expect_no_allocation_ed25519() {
     using keypair = crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>;
-    using ph = crypto::curves::ed25519::ph<webcpp::hash::sha2_512, crypto::backends::sodium>;
+    using prehashed_signer =
+        crypto::curves::ed25519::prehashed_signer<webcpp::hash::sha2_512, crypto::backends::sodium>;
     // Strict verification on libsodium, named once: a call's commas would split a macro's
     // argument.
     auto const verify = [](auto const& signature, auto const& message, auto const& public_key) {
@@ -106,16 +108,27 @@ void expect_no_allocation_ed25519() {
         crypto::curves::ed25519::signature const forged{};
         BOOST_TEST(verify(forged, message, *public_key).error() ==
                    crypto::error::invalid_signature);
-        auto signer = ph::begin();
+        auto signer = prehashed_signer::begin();
         BOOST_TEST(signer.has_value());
         BOOST_TEST(signer->update(std::span(message).first(40)).has_value());
         BOOST_TEST(signer->update(std::span(message).subspan(40)).has_value());
-        auto const ph_signature = signer->sign(*made);
-        BOOST_TEST(ph_signature.has_value());
-        auto verifier = ph::begin();
+        auto const streamed_signature = signer->sign(*made);
+        BOOST_TEST(streamed_signature.has_value());
+        auto verifier = prehashed_signer::begin();
         BOOST_TEST(verifier.has_value());
         BOOST_TEST(verifier->update(message).has_value());
-        BOOST_TEST(verifier->verify(*ph_signature, *public_key).has_value());
+        BOOST_TEST(verifier->verify(*streamed_signature, *public_key).has_value());
+        // The same signature under the scheme eddsa_prehashed, from the message's SHA-512.
+        webcpp::hash::sha2_512 hasher;
+        hasher.update(message.data(), message.size());
+        auto const digest = hasher.result();
+        auto const scheme_signature =
+            made->sign(crypto::eddsa_prehashed, crypto::prehashed{digest});
+        BOOST_TEST(scheme_signature.has_value() && *scheme_signature == *streamed_signature);
+        BOOST_TEST(crypto::verify<crypto::backends::sodium>(
+                       crypto::eddsa_prehashed, *scheme_signature, crypto::prehashed{digest},
+                       *public_key, crypto::curves::ed25519::strict)
+                       .has_value());
         auto const x25519_secret = made->x25519_secret();
         BOOST_TEST(x25519_secret.has_value());
         auto const exported = made->secret();

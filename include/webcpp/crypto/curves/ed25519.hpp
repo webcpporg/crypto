@@ -8,9 +8,10 @@
  Ed25519 signatures (RFC 8032): a key pair made from a 32-byte seed, which `secret()` gives back,
  and its public key, `curves::ed25519::public_key`; signatures, `curves::ed25519::signature` of 64
  bytes, `key.sign(crypto::eddsa, message)`, and their verification,
- `crypto::verify(crypto::eddsa, signature, message, public_key)`, strict on libsodium; the
- conversion of a public key to X25519's; and Ed25519ph, the same signature over SHA-512 of a
- message given in pieces.
+ `crypto::verify(crypto::eddsa, signature, message, public_key)`, strict on libsodium; Ed25519ph,
+ the signature of a message's SHA-512, under the scheme `crypto::eddsa_prehashed` from the digest
+ and by `curves::ed25519::prehashed_signer` from the message given in pieces; and the conversion
+ of a public key to X25519's.
 
  The family's default backend, libsodium on every target, is included when the program links
  it; a program that uses the family without linking it stops where it calls it, with the
@@ -85,7 +86,7 @@ struct ed25519_signature_tag {
 namespace webcpp::crypto::curves::ed25519 {
 
 template <class Hash, class Backend>
-class ph;
+class prehashed_signer;
 
 /**
  * The type of the verification policy `strict`.
@@ -104,8 +105,12 @@ struct strict_t {
 inline constexpr strict_t strict{};
 
 /**
- * An Ed25519 signature (RFC 8032), 64 bytes, R then S: what `sign(crypto::eddsa, ...)` gives and
- * `crypto::verify(crypto::eddsa, ...)` takes.
+ * An Ed25519 signature (RFC 8032), 64 bytes, R then S: what `sign(crypto::eddsa, ...)`,
+ * `sign(crypto::eddsa_prehashed, ...)` and `prehashed_signer::sign` give, and `crypto::verify` of
+ * either scheme takes.
+ *
+ * One type for the two schemes, which are not interchangeable: RFC 8032 separates their domains,
+ * so a signature verifies under the scheme that made it alone, and a protocol says which it uses.
  *
  * `from_bytes` checks the size alone; whether S is below the group order and R canonical is the
  * verification policy's judgment.
@@ -138,6 +143,34 @@ template <class Backend, class Policy, class Input>
     if constexpr (input_valid_v<eddsa_t, Input, Backend>) {
         return ed25519_engine<families::ed25519, Backend>::verify(
             key_bytes, message_bytes(message_input), signature_bytes);
+    } else {
+        // Never compiled into a program: check_input stopped the build.
+        return error::invalid_signature;
+    }
+}
+
+/**
+ * Verifies an Ed25519ph signature of a digest on `Backend` under `Policy`: the work of
+ * `public_key::verify` and of `crypto::verify` of `eddsa_prehashed`, which hold the guard.
+ *
+ * @tparam Backend The backend.
+ * @tparam Policy `curves::ed25519::strict_t`; anything else stops the build.
+ * @tparam Input `prehashed<64>`; anything else stops the build.
+ * @param signature_bytes The signature's 64 bytes.
+ * @param digest_input The marker of the message's SHA-512.
+ * @param key_bytes The public key's 32 bytes.
+ * @return Nothing; `invalid_signature` for a signature that does not verify.
+ */
+template <class Backend, class Policy, class Input>
+[[nodiscard]] boost::system::result<void> ed25519ph_verify(
+    std::span<std::uint8_t const, 64> signature_bytes, Input const& digest_input,
+    std::span<std::uint8_t const, 32> key_bytes) noexcept {
+    static_assert(std::is_same_v<Policy, curves::ed25519::strict_t>,
+                  "webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.");
+    check_input<eddsa_prehashed_t, Input, Backend>();
+    if constexpr (input_valid_v<eddsa_prehashed_t, Input, Backend>) {
+        return ed25519ph_engine<tags::ed25519ph, Backend>::verify_digest(
+            key_bytes, digest_input.digest, signature_bytes);
     } else {
         // Never compiled into a program: check_input stopped the build.
         return error::invalid_signature;
@@ -192,6 +225,8 @@ public:
      * `crypto::verify(crypto::eddsa, signature_value, message_input, key, verify_policy)`, of which
      * it is the member form, with the same work, results and refusals.
      *
+     * Ed25519ph's is the overload of `crypto::eddsa_prehashed`.
+     *
      * @tparam Backend The backend; by default the family's.
      * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
      * @tparam Signature `curves::ed25519::signature`; another type, bytes included, stops the
@@ -216,7 +251,8 @@ public:
         [[maybe_unused]] Policy verify_policy = Policy{}) const noexcept {
         detail::timing_guard const timing_scope;
         static_assert(std::is_same_v<Scheme, eddsa_t>,
-                      "webcpp::crypto: an Ed25519 public key verifies crypto::eddsa.");
+                      "webcpp::crypto: an Ed25519 public key verifies crypto::eddsa or "
+                      "crypto::eddsa_prehashed.");
         static_assert(!detail::asynchronous_backend_v<Backend>,
                       "webcpp::crypto: verify on this backend completes asynchronously: call "
                       "async_verify.");
@@ -226,6 +262,50 @@ public:
                 bytes_);
         } else {
             // Never compiled into a program: an assertion above stopped the build.
+            return error::invalid_signature;
+        }
+    }
+
+    /**
+     * Verifies an Ed25519ph signature (RFC 8032's Ed25519 over a message's SHA-512) with this key,
+     * under a verification policy, strictly as `crypto::eddsa`'s:
+     * `crypto::verify(crypto::eddsa_prehashed, signature_value, digest_input, key, verify_policy)`,
+     * of which it is the member form, with the same work, results and refusals.
+     *
+     * It runs on a native backend: on one that completes by itself it stops the build (WebCrypto
+     * has no Ed25519ph).
+     *
+     * @tparam Backend The backend; by default the family's.
+     * @tparam Signature `curves::ed25519::signature`; another type, bytes included, stops the
+     * build.
+     * @tparam Input `crypto::prehashed<64>`, the message's SHA-512; a message, or a digest of
+     * another size, stops the build.
+     * @tparam Policy `curves::ed25519::strict_t` (libsodium's rules), the only policy declared;
+     * anything else stops the build.
+     * @param signing_scheme `crypto::eddsa_prehashed`.
+     * @param signature_value The signature; bytes from a peer are made into one by
+     * `curves::ed25519::signature::from_bytes`.
+     * @param digest_input `crypto::prehashed{digest}`, the 64 bytes of the message's SHA-512.
+     * @param verify_policy `curves::ed25519::strict`, the default.
+     * @return Nothing; `invalid_signature` for a signature that does not verify, an `eddsa`
+     * signature included, and a key that is not canonical or of small order.
+     */
+    template <class Backend = default_backend_t<families::ed25519>, class Signature, class Input,
+              class Policy = strict_t>
+    [[nodiscard]] boost::system::result<void> verify(
+        [[maybe_unused]] eddsa_prehashed_t signing_scheme, Signature const& signature_value,
+        Input const& digest_input,
+        [[maybe_unused]] Policy verify_policy = Policy{}) const noexcept {
+        detail::timing_guard const timing_scope;
+        static_assert(!detail::asynchronous_backend_v<Backend>,
+                      "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, "
+                      "verify, async_sign and async_verify run on a native backend.");
+        if constexpr (!detail::asynchronous_backend_v<Backend>) {
+            return detail::ed25519ph_verify<Backend, Policy>(
+                detail::checked_signature_bytes<signature, eddsa_prehashed_t>(signature_value),
+                digest_input, bytes_);
+        } else {
+            // Never compiled into a program: the assertion above stopped the build.
             return error::invalid_signature;
         }
     }
@@ -245,16 +325,19 @@ public:
      * @tparam Backend The backend; by default the asynchronous family's
      * (`default_async_backend_t<families::ed25519>`), as the free form's.
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
-     * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
+     * @tparam Scheme `crypto::eddsa_t`, or `crypto::eddsa_prehashed_t` on a native backend;
+     * another scheme stops the build.
      * @tparam Signature `curves::ed25519::signature`; another type, bytes included, stops the
      * build.
-     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
-     * `crypto::prehashed` marker, or anything else, stops the build.
+     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, under
+     * `crypto::eddsa`; `crypto::prehashed<64>` under `crypto::eddsa_prehashed`; anything else stops
+     * the build.
      * @tparam CompletionToken Any completion token for the signature `completion_token` states.
      * @param completion_executor The executor the completion is posted to.
-     * @param signing_scheme `crypto::eddsa`.
+     * @param signing_scheme `crypto::eddsa` or `crypto::eddsa_prehashed`.
      * @param signature_value The signature.
-     * @param message_input The signed bytes, the caller's until the completion.
+     * @param message_input The signed bytes, or the marker of their SHA-512, the caller's until the
+     * completion.
      * @param completion_token The completion token, of signature `void(boost::system::error_code)`:
      * `invalid_signature` for a signature that does not verify; `backend_failure`.
      * @return What the completion token's `async_result` gives.
@@ -280,15 +363,17 @@ public:
      * @tparam Backend The backend; by default the asynchronous family's
      * (`default_async_backend_t<families::ed25519>`), as the free form's.
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
-     * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
+     * @tparam Scheme `crypto::eddsa_t`, or `crypto::eddsa_prehashed_t` on a native backend;
+     * another scheme stops the build.
      * @tparam Signature `curves::ed25519::signature`; another type, bytes included, stops the
      * build.
-     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`.
+     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, under
+     * `crypto::eddsa`; `crypto::prehashed<64>` under `crypto::eddsa_prehashed`.
      * @tparam CompletionToken Any completion token for the signature `completion_token` states.
      * @param completion_executor The executor the completion is posted to.
-     * @param signing_scheme `crypto::eddsa`.
+     * @param signing_scheme `crypto::eddsa` or `crypto::eddsa_prehashed`.
      * @param signature_value The signature.
-     * @param message_input The signed bytes.
+     * @param message_input The signed bytes, or the marker of their SHA-512.
      * @param verify_policy `curves::ed25519::strict`, the only policy declared.
      * @param completion_token The completion token, of signature `void(boost::system::error_code)`,
      * as the overload without a policy completes.
@@ -326,7 +411,7 @@ class basic_keypair {
     using engine = detail::ed25519_engine<families::ed25519, Backend>;
 
     template <class, class>
-    friend class ph;
+    friend class prehashed_signer;
     template <class>
     friend struct detail::ed25519_keypair_access;
     // The asynchronous family's error completions make the empty object a move leaves.
@@ -519,33 +604,53 @@ public:
     }
 
     /**
-     * Signs a message with Ed25519 (RFC 8032's pure Ed25519: the message itself, of any length,
-     * empty included, is signed; no digest is taken).
+     * Signs with Ed25519 (RFC 8032): under `crypto::eddsa`, the pure form, a message, the message
+     * itself, of any length, empty included, with no digest taken; under `crypto::eddsa_prehashed`,
+     * Ed25519ph, the 64 bytes of a message's SHA-512, `crypto::prehashed{digest}` (a message given
+     * in pieces is @ref prehashed_signer's).
      *
-     * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
-     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
-     * `crypto::prehashed` marker, or anything else, stops the build (Ed25519ph is @ref ph).
-     * @param signing_scheme `crypto::eddsa`.
-     * @param message_input Any bytes.
+     * The two signatures, of one type, are not interchangeable: each verifies under its own scheme.
+     *
+     * `crypto::eddsa_prehashed` runs on a native backend: on one that completes by itself it stops
+     * the build (WebCrypto has no Ed25519ph).
+     *
+     * @tparam Scheme `crypto::eddsa_t` or `crypto::eddsa_prehashed_t`; another scheme stops the
+     * build.
+     * @tparam Input Under `crypto::eddsa`, a message, bytes that convert to
+     * `std::span<std::uint8_t const>`, a marker stopping the build; under
+     * `crypto::eddsa_prehashed`, `crypto::prehashed<64>`, a message or a digest of another size
+     * stopping the build.
+     * @param signing_scheme `crypto::eddsa` or `crypto::eddsa_prehashed`.
+     * @param signing_input The message, or the marker of its SHA-512.
      * @return The signature, `curves::ed25519::signature`; `invalid_state` moved from;
      * `backend_failure`.
      */
     template <class Scheme, class Input>
     [[nodiscard]] boost::system::result<detail::signature_of_t<basic_keypair, Scheme>> sign(
-        [[maybe_unused]] Scheme signing_scheme, Input const& message_input) const noexcept {
+        [[maybe_unused]] Scheme signing_scheme, Input const& signing_input) const noexcept {
         detail::timing_guard const timing_scope;
-        static_assert(std::is_same_v<Scheme, eddsa_t>,
-                      "webcpp::crypto: an Ed25519 key signs with crypto::eddsa.");
-        static_assert(!detail::asynchronous_backend_v<Backend>,
-                      "webcpp::crypto: sign on this backend completes asynchronously: call "
-                      "async_sign.");
-        if constexpr (std::is_same_v<Scheme, eddsa_t> && !detail::asynchronous_backend_v<Backend>) {
+        static_assert(
+            !(std::is_same_v<Scheme, eddsa_prehashed_t> && detail::asynchronous_backend_v<Backend>),
+            "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, "
+            "async_sign and async_verify run on a native backend.");
+        constexpr bool known_scheme =
+            std::is_same_v<Scheme, eddsa_t> || std::is_same_v<Scheme, eddsa_prehashed_t>;
+        static_assert(known_scheme,
+                      "webcpp::crypto: an Ed25519 key signs with crypto::eddsa or "
+                      "crypto::eddsa_prehashed.");
+        static_assert(
+            !detail::asynchronous_backend_v<Backend> || std::is_same_v<Scheme, eddsa_prehashed_t>,
+            "webcpp::crypto: sign on this backend completes asynchronously: call "
+            "async_sign.");
+        if constexpr (known_scheme && !detail::asynchronous_backend_v<Backend>) {
             detail::check_input<Scheme, Input, Backend>();
-            if constexpr (detail::input_valid_v<Scheme, Input, Backend>) {
-                return signed_message(detail::message_bytes(message_input));
-            } else {
+            if constexpr (!detail::input_valid_v<Scheme, Input, Backend>) {
                 // Never compiled into a program: check_input stopped the build.
                 return error::backend_failure;
+            } else if constexpr (std::is_same_v<Scheme, eddsa_prehashed_t>) {
+                return signed_digest(signing_input.digest);
+            } else {
+                return signed_message(detail::message_bytes(signing_input));
             }
         } else {
             // Never compiled into a program: an assertion above stopped the build.
@@ -554,9 +659,12 @@ public:
     }
 
     /**
-     * Signs a message with Ed25519, asynchronously: `sign` run when the operation is initiated,
-     * its result posted to `completion_executor`; the member form of the free `crypto::async_sign`,
-     * with the same arguments and this key pair, which calls it.
+     * Signs with Ed25519, asynchronously: `sign` run when the operation is initiated, its result
+     * posted to `completion_executor`; the member form of the free `crypto::async_sign`, with the
+     * same arguments and this key pair, which calls it.
+     *
+     * `crypto::eddsa_prehashed` runs on a native backend: on one that completes by itself it stops
+     * the build (WebCrypto has no Ed25519ph).
      *
      * The scheme and the input are checked as `crypto::can_sign` checks them, before anything
      * else. The key pair and the message's bytes are the caller's until the completion.
@@ -566,13 +674,15 @@ public:
      * "deduced return type used before it is defined".
      *
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
-     * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
-     * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`; a
-     * `crypto::prehashed` marker, or anything else, stops the build.
+     * @tparam Scheme `crypto::eddsa_t` or `crypto::eddsa_prehashed_t`; another scheme stops the
+     * build.
+     * @tparam Input Under `crypto::eddsa`, a message, bytes that convert to
+     * `std::span<std::uint8_t const>`; under `crypto::eddsa_prehashed`, `crypto::prehashed<64>`;
+     * anything else stops the build.
      * @tparam CompletionToken Any completion token for the signature `completion_token` states.
      * @param completion_executor The executor the completion is posted to.
-     * @param signing_scheme `crypto::eddsa`.
-     * @param message_input Any bytes.
+     * @param signing_scheme `crypto::eddsa` or `crypto::eddsa_prehashed`.
+     * @param message_input The message, or the marker of its SHA-512.
      * @param completion_token The completion token, of signature
      * `void(boost::system::error_code, curves::ed25519::signature)`; on an error the signature of
      * zeros (`invalid_state`, `backend_failure`).
@@ -618,6 +728,22 @@ private:
         return detail::signature_access::of<signature>(signature_bytes);
     }
 
+    // The work of sign under eddsa_prehashed, which holds the guard: Ed25519ph's signature of the
+    // digest.
+    [[nodiscard]] boost::system::result<signature> signed_digest(
+        std::span<std::uint8_t const, 64> digest_bytes) const noexcept {
+        if (!keyed_) {
+            return error::invalid_state;
+        }
+        std::array<std::uint8_t, 64> signature_bytes{};
+        auto const signed_bytes = detail::ed25519ph_engine<tags::ed25519ph, Backend>::sign_digest(
+            state_, digest_bytes, signature_bytes);
+        if (!signed_bytes) {
+            return signed_bytes.error();
+        }
+        return detail::signature_access::of<signature>(signature_bytes);
+    }
+
     state_type state_{};
     bool keyed_ = false;
 };
@@ -650,23 +776,24 @@ template <class Backend = default_backend_t<families::ed25519>>
 }
 
 /**
- * Ed25519ph (RFC 8032 section 5.1), the Ed25519 signature of a message's SHA-512, given in
- * pieces.
+ * Ed25519ph (RFC 8032 section 5.1), the Ed25519 signature of a message's SHA-512, the message
+ * given in pieces: the streaming form of the scheme `crypto::eddsa_prehashed`, which signs a digest
+ * the program has, and gives the same signature.
  *
  * A large message need not be held whole: the signer is begun, updated with each piece, then
  * signs with a key pair or verifies with a public key, either of which ends the message. Its
  * state is wiped by every move, by the end of a message and by the destructor.
  *
- * Its signature is not Ed25519's of the same message: a verifier is told which of the two a
- * protocol uses.
+ * Its signature, a `curves::ed25519::signature`, is not `crypto::eddsa`'s of the same message: a
+ * verifier is told which of the two a protocol uses.
  *
  * @tparam Hash `webcpp::hash::sha2_512`, which RFC 8032 fixes; any other is refused.
  * @tparam Backend The backend; by default the family's (`default_backend_t<families::ed25519>`).
  */
 template <class Hash, class Backend = default_backend_t<families::ed25519>>
-class ph {
+class prehashed_signer {
     // clang-format off
-    static_assert(std::is_same_v<Hash, ::webcpp::hash::sha2_512>, "webcpp::crypto: Ed25519ph is defined over SHA-512 (RFC 8032 section 5.1); name curves::ed25519::ph<webcpp::hash::sha2_512>.");
+    static_assert(std::is_same_v<Hash, ::webcpp::hash::sha2_512>, "webcpp::crypto: Ed25519ph is defined over SHA-512 (RFC 8032 section 5.1); name curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>.");
     // clang-format on
 
     using state_type = detail::ed25519ph_state<tags::ed25519ph, Backend>;
@@ -689,9 +816,9 @@ public:
      *
      * @return The signer, ready for the message's pieces; `backend_failure`.
      */
-    [[nodiscard]] static boost::system::result<ph> begin() noexcept {
+    [[nodiscard]] static boost::system::result<prehashed_signer> begin() noexcept {
         detail::timing_guard const timing_scope;
-        ph begun_hash;
+        prehashed_signer begun_hash;
         auto const begin_result = engine::begin(begun_hash.state_);
         if (!begin_result) {
             return begin_result.error();
@@ -705,7 +832,8 @@ public:
      *
      * @param moved_from The signer moved from.
      */
-    ph(ph&& moved_from) noexcept : begun_(std::exchange(moved_from.begun_, false)) {
+    prehashed_signer(prehashed_signer&& moved_from) noexcept
+        : begun_(std::exchange(moved_from.begun_, false)) {
         state_ = moved_from.state_;
         engine::reset(moved_from.state_);
     }
@@ -716,7 +844,7 @@ public:
      * @param moved_from The signer moved from, wiped and ended after.
      * @return This signer.
      */
-    ph& operator=(ph&& moved_from) noexcept {
+    prehashed_signer& operator=(prehashed_signer&& moved_from) noexcept {
         if (this != &moved_from) {
             engine::reset(state_);
             begun_ = std::exchange(moved_from.begun_, false);
@@ -727,12 +855,12 @@ public:
     }
 
     /** Not copyable: the state of a message has one owner. */
-    ph(ph const&) = delete;
+    prehashed_signer(prehashed_signer const&) = delete;
     /** Not copyable: the state of a message has one owner. */
-    ph& operator=(ph const&) = delete;
+    prehashed_signer& operator=(prehashed_signer const&) = delete;
 
     /** Wipes the state of the message. */
-    ~ph() { engine::reset(state_); }
+    ~prehashed_signer() { engine::reset(state_); }
 
     /**
      * Adds a piece of the message.
@@ -755,8 +883,8 @@ public:
      *
      * @param key_pair The key pair, of the same backend.
      * @return The signature, `curves::ed25519::signature` (an Ed25519ph signature, which only
-     * Ed25519ph verifies); `invalid_state` once the message is ended, or moved from, or with a
-     * moved-from key pair; `backend_failure`.
+     * Ed25519ph verifies: this signer or `crypto::eddsa_prehashed`); `invalid_state` once the
+     * message is ended, or moved from, or with a moved-from key pair; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<::webcpp::crypto::curves::ed25519::signature> sign(
         basic_keypair<Backend> const& key_pair) noexcept {
@@ -803,7 +931,7 @@ public:
     }
 
 private:
-    ph() noexcept = default;
+    prehashed_signer() noexcept = default;
 
     // The message is ended: its state is wiped, and only begin makes another.
     void end() noexcept {
@@ -863,6 +991,52 @@ template <class Backend = default_backend_t<families::ed25519>, class Signature,
     }
 }
 
+/**
+ * Verifies an Ed25519ph signature (RFC 8032's Ed25519 over a message's SHA-512, the digest given
+ * as `crypto::prehashed{digest}`) under a verification policy, strictly as `crypto::eddsa`'s.
+ *
+ * An `eddsa` signature, of the same type, does not verify here, nor this scheme's under `eddsa`:
+ * RFC 8032 separates the two. The key's own `verify` is its member form, with the same work. It
+ * runs on a native backend: on one that completes by itself it stops the build (WebCrypto has no
+ * Ed25519ph).
+ *
+ * @tparam Backend The backend; by default the family's.
+ * @tparam Signature `curves::ed25519::signature`; another type, bytes included, stops the build.
+ * @tparam Input `crypto::prehashed<64>`, the message's SHA-512; a message, or a digest of another
+ * size, stops the build.
+ * @tparam Policy `curves::ed25519::strict_t` (libsodium's rules), the only policy declared;
+ * anything else stops the build.
+ * @param signing_scheme `crypto::eddsa_prehashed`.
+ * @param signature_value The signature; bytes from a peer are made into one by
+ * `curves::ed25519::signature::from_bytes`.
+ * @param digest_input `crypto::prehashed{digest}`, the 64 bytes of the message's SHA-512.
+ * @param public_key The signer's public key.
+ * @param verify_policy `curves::ed25519::strict`, the default.
+ * @return Nothing; `invalid_signature` for a signature that does not verify, a key that is not
+ * canonical or of small order included.
+ */
+template <class Backend = default_backend_t<families::ed25519>, class Signature, class Input,
+          class Policy = curves::ed25519::strict_t>
+[[nodiscard]] boost::system::result<void> verify(
+    [[maybe_unused]] eddsa_prehashed_t signing_scheme, Signature const& signature_value,
+    Input const& digest_input, curves::ed25519::public_key const& public_key,
+    [[maybe_unused]] Policy verify_policy = Policy{}) noexcept {
+    detail::timing_guard const timing_scope;
+    static_assert(!detail::asynchronous_backend_v<Backend>,
+                  "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, "
+                  "verify, async_sign and async_verify run on a native backend.");
+    if constexpr (!detail::asynchronous_backend_v<Backend>) {
+        auto const key_bytes = public_key.bytes();
+        return detail::ed25519ph_verify<Backend, Policy>(
+            detail::checked_signature_bytes<curves::ed25519::signature, eddsa_prehashed_t>(
+                signature_value),
+            digest_input, key_bytes);
+    } else {
+        // Never compiled into a program: the assertion above stopped the build.
+        return error::invalid_signature;
+    }
+}
+
 }  // namespace webcpp::crypto
 
 namespace webcpp::crypto::detail {
@@ -874,6 +1048,15 @@ namespace webcpp::crypto::detail {
  */
 template <class Backend>
 inline constexpr bool signs_with_v<curves::ed25519::basic_keypair<Backend>, eddsa_t> = true;
+
+/**
+ * An Ed25519 key pair signs with `eddsa_prehashed`, Ed25519ph.
+ *
+ * @tparam Backend The key pair's backend.
+ */
+template <class Backend>
+inline constexpr bool signs_with_v<curves::ed25519::basic_keypair<Backend>, eddsa_prehashed_t> =
+    true;
 
 /**
  * An Ed25519 key pair's backend.
@@ -893,6 +1076,10 @@ struct key_backend<curves::ed25519::basic_keypair<Backend>> {
 template <>
 inline constexpr bool verifies_with_v<curves::ed25519::public_key, eddsa_t> = true;
 
+/** An Ed25519 public key verifies `eddsa_prehashed`, Ed25519ph. */
+template <>
+inline constexpr bool verifies_with_v<curves::ed25519::public_key, eddsa_prehashed_t> = true;
+
 /**
  * An Ed25519 key pair's signature under `eddsa`, `curves::ed25519::signature`.
  *
@@ -904,9 +1091,28 @@ struct signature_of<curves::ed25519::basic_keypair<Backend>, eddsa_t> {
     using type = curves::ed25519::signature;
 };
 
+/**
+ * An Ed25519 key pair's signature under `eddsa_prehashed`, `curves::ed25519::signature`, the type
+ * `eddsa`'s is.
+ *
+ * @tparam Backend The key's backend.
+ */
+template <class Backend>
+struct signature_of<curves::ed25519::basic_keypair<Backend>, eddsa_prehashed_t> {
+    /** The signature type. */
+    using type = curves::ed25519::signature;
+};
+
 /** An Ed25519 public key's signature under `eddsa`, `curves::ed25519::signature`. */
 template <>
 struct signature_of<curves::ed25519::public_key, eddsa_t> {
+    /** The signature type. */
+    using type = curves::ed25519::signature;
+};
+
+/** An Ed25519 public key's signature under `eddsa_prehashed`, `curves::ed25519::signature`. */
+template <>
+struct signature_of<curves::ed25519::public_key, eddsa_prehashed_t> {
     /** The signature type. */
     using type = curves::ed25519::signature;
 };
@@ -917,6 +1123,13 @@ struct signature_of<curves::ed25519::public_key, eddsa_t> {
  */
 template <>
 inline constexpr bool has_verifier_v<eddsa_t, curves::ed25519::public_key> = true;
+
+/**
+ * `crypto::verify` of `eddsa_prehashed` against an Ed25519 public key is Ed25519ph's, so that the
+ * catch-all steps aside.
+ */
+template <>
+inline constexpr bool has_verifier_v<eddsa_prehashed_t, curves::ed25519::public_key> = true;
 
 /**
  * Ed25519's engine on a backend whose header does not specialise it: the family's refusal,
@@ -1000,6 +1213,20 @@ struct ed25519ph_engine {
     /** Never called; fails closed. */
     template <class... Arguments>
     [[nodiscard]] static boost::system::result<void> verify(Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> sign_digest(
+        Arguments&&... /*arguments*/) noexcept {
+        return error::backend_failure;
+    }
+
+    /** Never called; fails closed. */
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> verify_digest(
+        Arguments&&... /*arguments*/) noexcept {
         return error::backend_failure;
     }
 

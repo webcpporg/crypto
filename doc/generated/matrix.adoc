@@ -136,7 +136,7 @@
 |native, wasip2, wasip3, emscripten
 |`+ed25519_sodium+`, `+ed25519_wycheproof_sodium+`, `+ed25519_speccheck+`, `+oracle_25519+`
 
-|`+curves::ed25519::ph+`
+|`+curves::ed25519::prehashed_signer+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+ed25519ph_sodium+`
@@ -431,7 +431,7 @@ The same, by target: the backends each operation runs on.
 |libsodium
 |libsodium
 
-|`+curves::ed25519::ph+`
+|`+curves::ed25519::prehashed_signer+`
 |libsodium
 |libsodium
 |libsodium

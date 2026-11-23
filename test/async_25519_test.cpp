@@ -36,6 +36,10 @@
 //   signature, received as a std::vector and made into the type with from_bytes, and refuses a
 //   changed one with invalid_signature; from_bytes refuses 63 and 65 bytes with
 //   invalid_signature); each asynchronous completion arrives after the initiating call returned.
+// - eddsa_prehashed_async: under crypto::eddsa_prehashed, RFC 8032 section 7.3's key pair signs
+//   the marker of "abc"'s SHA-512 through key.async_sign and crypto::async_sign into the
+//   synchronous signature, which async_verify, member and free, accepts, with the defaults and with
+//   the backend and the policy named; each completion arrives after the initiating call returned.
 
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
@@ -46,6 +50,7 @@
 #include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/hash/algorithms.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -58,6 +63,7 @@
 #include <webcpp/asio/use_awaitable.hpp>
 
 #include <boost/core/lightweight_test.hpp>
+#include <boost/hash2/digest.hpp>
 #include <boost/system/error_code.hpp>
 
 #include <algorithm>
@@ -174,6 +180,9 @@ static_assert(crypto::detail::has_async_verifier_v<crypto::eddsa_t, ed25519::pub
 static_assert(!crypto::detail::has_async_verifier_v<crypto::eddsa_t, std::array<std::uint8_t, 32>>);
 static_assert(
     !crypto::detail::has_async_verifier_v<crypto::eddsa_t, std::span<std::uint8_t const>>);
+static_assert(crypto::detail::has_async_verifier_v<crypto::eddsa_prehashed_t, ed25519::public_key>);
+static_assert(
+    !crypto::detail::has_async_verifier_v<crypto::eddsa_prehashed_t, std::array<std::uint8_t, 32>>);
 
 /**
  * The public key of a case's hex, 32 bytes; a key not made throws (or, without exceptions, ends
@@ -624,6 +633,69 @@ void async_four_forms(asio::io_context& context) {
     check_four_signatures(context, *key, message, signature, crypto::error::invalid_state);
 }
 
+void eddsa_prehashed_async(asio::io_context& context) {
+    using crypto::backends::sodium;
+    // RFC 8032 section 7.3, TEST abc.
+    auto const key =
+        keypair::from_secret(
+            test::from_hex("833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42"))
+            .value();
+    auto const public_key =
+        key_of("ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf");
+    std::array<std::uint8_t, 3> const abc{0x61, 0x62, 0x63};
+    webcpp::hash::sha2_512 hasher;
+    hasher.update(abc.data(), abc.size());
+    boost::hash2::digest<64> const digest = hasher.result();
+    crypto::prehashed const marker{digest};
+    auto const expected = key.sign(crypto::eddsa_prehashed, marker);
+    if (!BOOST_TEST(expected.has_value())) {
+        return;
+    }
+    // clang-format off
+    BOOST_TEST(std::ranges::equal(expected->bytes(), test::from_hex("98a70222f0b8121aa9d30f813d683f809e462b469c7ff87639499bb94e6dae4131f85042463c2a355a2003d062adf5aaa10b8c61e636062aaad11c2a26083406")));
+    // clang-format on
+
+    auto const signed_member =
+        complete<signature_type>(context, [&](auto const& executor, auto&& token) {
+            return key.async_sign(executor, crypto::eddsa_prehashed, marker,
+                                  std::forward<decltype(token)>(token));
+        });
+    BOOST_TEST(!signed_member.code);
+    BOOST_TEST(signed_member.value && std::get<0>(*signed_member.value) == *expected);
+    auto const signed_free =
+        complete<signature_type>(context, [&](auto const& executor, auto&& token) {
+            return crypto::async_sign(executor, key, crypto::eddsa_prehashed, marker,
+                                      std::forward<decltype(token)>(token));
+        });
+    BOOST_TEST(!signed_free.code);
+    BOOST_TEST(signed_free.value && std::get<0>(*signed_free.value) == *expected);
+
+    BOOST_TEST(!complete_code(context, [&](auto const& executor, auto&& token) {
+        return public_key.async_verify(executor, crypto::eddsa_prehashed, *expected, marker,
+                                       std::forward<decltype(token)>(token));
+    }));
+    BOOST_TEST(!complete_code(context, [&](auto const& executor, auto&& token) {
+        return public_key.async_verify<sodium>(executor, crypto::eddsa_prehashed, *expected, marker,
+                                               ed25519::strict,
+                                               std::forward<decltype(token)>(token));
+    }));
+    BOOST_TEST(!complete_code(context, [&](auto const& executor, auto&& token) {
+        return crypto::async_verify(executor, crypto::eddsa_prehashed, *expected, marker,
+                                    public_key, std::forward<decltype(token)>(token));
+    }));
+    BOOST_TEST(!complete_code(context, [&](auto const& executor, auto&& token) {
+        return crypto::async_verify<sodium>(executor, crypto::eddsa_prehashed, *expected, marker,
+                                            public_key, ed25519::strict,
+                                            std::forward<decltype(token)>(token));
+    }));
+    // The pure scheme's signature of the same message is refused under eddsa_prehashed.
+    BOOST_TEST(complete_code(context, [&](auto const& executor, auto&& token) {
+                   return crypto::async_verify(executor, crypto::eddsa_prehashed,
+                                               key.sign(crypto::eddsa, abc).value(), marker,
+                                               public_key, std::forward<decltype(token)>(token));
+               }) == crypto::error::invalid_signature);
+}
+
 }  // namespace
 
 int main() {
@@ -636,5 +708,6 @@ int main() {
     async_destroyed(context);
     async_coroutine(context);
     async_four_forms(context);
+    eddsa_prehashed_async(context);
     return webcpp::test::exit_status(boost::report_errors());
 }

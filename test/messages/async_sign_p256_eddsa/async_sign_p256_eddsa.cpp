@@ -10,7 +10,7 @@
 // clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
 // whole text stays on one line.
 // clang-format off
-// expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: async_sign: this key pair does not sign with this scheme: an Ed25519 key pair signs with crypto::eddsa, a P-256 key pair with crypto::ecdsa_sha256.}}
+// expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: async_sign: this key pair does not sign with this scheme: an Ed25519 key pair signs with crypto::eddsa or crypto::eddsa_prehashed, a P-256 key pair with crypto::ecdsa_sha256.}}
 // clang-format on
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/curves/p256.hpp>

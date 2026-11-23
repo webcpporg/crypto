@@ -10,5 +10,6 @@
 #include <webcpp/hash/algorithms.hpp>
 
 int main() {
-    return webcpp::crypto::curves::ed25519::ph<webcpp::hash::sha2_256>::begin() ? 0 : 1;
+    return webcpp::crypto::curves::ed25519::prehashed_signer<webcpp::hash::sha2_256>::begin() ? 0
+                                                                                              : 1;
 }

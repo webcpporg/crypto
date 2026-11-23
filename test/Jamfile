@@ -582,7 +582,13 @@ crypto-run ed25519_sodium : ed25519_sodium_test.cpp
 crypto-run ed25519_wycheproof_sodium : ed25519_wycheproof_sodium_test.cpp
   : <library>/third_party//sodium <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;
-crypto-run ed25519ph_sodium : ed25519ph_sodium_test.cpp : <library>/third_party//sodium ;
+# Ed25519ph on libsodium, the scheme crypto::eddsa_prehashed and the streaming
+# signer: RFC 8032 section 7.3's case, the signer equal to the scheme, the two
+# Ed25519 schemes not interchangeable; P-256's and secp256k1's key pairs, which
+# do not sign under the scheme, are linked for can_sign's checks.
+crypto-run ed25519ph_sodium : ed25519ph_sodium_test.cpp
+  : <library>/third_party//sodium <library>/third_party//bearssl
+    <library>/third_party//secp256k1 ;
 # The key pair's secret key and the signer's state are zero once moved from,
 # moved over, ended and destroyed: optimised, every call inlined, as secret's.
 crypto-run ed25519_wipe_sodium : ed25519_wipe_sodium_test.cpp

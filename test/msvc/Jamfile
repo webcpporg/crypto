@@ -74,3 +74,4 @@ build-project p256_default_not_linked ;
 build-project p256_on_sodium ;
 build-project aes_block_default_not_linked ;
 build-project sign_keccak_without_xkcp ;
+build-project sign_eddsa_prehashed_message ;

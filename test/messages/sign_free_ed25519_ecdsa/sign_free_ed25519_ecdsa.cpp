@@ -5,12 +5,12 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // An Ed25519 key pair given ECDSA's scheme through the free crypto::sign stops at the key pair's
-// sign, which crypto::sign calls, with the scheme it has, and with that error alone.
+// sign, which crypto::sign calls, with the schemes it has, and with that error alone.
 
 // clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
 // whole text stays on one line.
 // clang-format off
-// expected-error@webcpp/crypto/curves/ed25519.hpp:* {{webcpp::crypto: an Ed25519 key signs with crypto::eddsa.}}
+// expected-error@webcpp/crypto/curves/ed25519.hpp:* {{webcpp::crypto: an Ed25519 key signs with crypto::eddsa or crypto::eddsa_prehashed.}}
 // clang-format on
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/signing.hpp>

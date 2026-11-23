@@ -18,7 +18,7 @@
 |
 |
 |
-|`eddsa`, `ecdsa_sha256`, `ecdsa_sha256_recoverable`, `ecdsa_keccak256_recoverable`, `schnorr`, `prehashed`, `can_sign`, `can_verify`, `sign`, `verify`
+|`eddsa`, `eddsa_prehashed`, `ecdsa_sha256`, `ecdsa_sha256_recoverable`, `ecdsa_keccak256_recoverable`, `schnorr`, `prehashed`, `can_sign`, `can_verify`, `sign`, `verify`
 |`keypair`, `agree`
 |`from_secret`, `from_bytes`, `from_key`, `generate`
 
@@ -73,7 +73,7 @@
 |you branch on a failure: forged data, a wrong size, no entropy
 |a key goes to or comes from a file, a form or a tool as `-----BEGIN PUBLIC KEY-----` text; with the `encode_spki` and `encode_pkcs8` of `curves::ed25519`, `curves::x25519`, `curves::secp256k1` or `curves::p256`
 |a native program on OpenSSL must allocate only from its own arena; on WebAssembly, BearSSL allocates nothing
-|a key pair signs with `key_pair.sign(scheme, input)` or `sign(key_pair, scheme, input)`, and a signature is checked with `public_key.verify(scheme, signature, input)` or `verify(scheme, signature, input, public_key)`; a digest computed elsewhere, such as a Bitcoin sighash or an Ethereum EIP-191 digest, goes in marked as `prehashed`, never as a bare span; the two recoverable schemes have no `verify`: their signature gives its key to `curves::secp256k1::recover`
+|a key pair signs with `key_pair.sign(scheme, input)` or `sign(key_pair, scheme, input)`, and a signature is checked with `public_key.verify(scheme, signature, input)` or `verify(scheme, signature, input, public_key)`; a digest computed elsewhere, such as a Bitcoin sighash, an Ethereum EIP-191 digest or the SHA-512 Ed25519ph signs, goes in marked as `prehashed`, never as a bare span; the two recoverable schemes have no `verify`: their signature gives its key to `curves::secp256k1::recover`
 |a template takes any curve's key pair: `from_secret`, `generate`, a typed `public_key()` that `verify` takes, `secret()`, and `sign(scheme, input)`; `agree(key_pair, peer)` is the free form of `key_pair.agree(peer)`
 |generic code makes any key pair, public key or AEAD by its type, each factory named by its input, or draws a key pair, `generate<K>()`; the free forms of the static members `from_secret`, `from_bytes`, `from_key` and `generate`
 |===

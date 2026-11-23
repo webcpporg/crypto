@@ -30,7 +30,7 @@ namespace crypto = webcpp::crypto;
 namespace ed25519 = webcpp::crypto::curves::ed25519;
 
 using ed25519::keypair;
-using signer = ed25519::ph<webcpp::hash::sha2_512>;
+using signer = ed25519::prehashed_signer<webcpp::hash::sha2_512>;
 constexpr std::size_t keypair_state =
     sizeof(crypto::detail::ed25519_state<crypto::families::ed25519, crypto::backends::sodium>);
 constexpr std::size_t signer_state =

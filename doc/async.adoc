@@ -43,7 +43,7 @@ its own, and the handler would run off the program's loop.
 | `void(error_code, Gcm)` for `async_from_key`, `void(error_code, tag)` for `async_seal`, `void(error_code)` for `async_open`
 
 | Ed25519 (<<crypto-ed25519>>)
-| `async_from_secret<Keypair>(executor, seed, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, crypto::eddsa, message, token)`, `async_verify(executor, crypto::eddsa, signature, message, public_key, token)`, the policy optional before the token
+| `async_from_secret<Keypair>(executor, seed, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, crypto::eddsa, message, token)`, `async_verify(executor, crypto::eddsa, signature, message, public_key, token)`, the policy optional before the token; on a native backend the same under `crypto::eddsa_prehashed` with `+crypto::prehashed{digest}+`, the message's SHA-512 (<<crypto-ed25519>>), which the browser's backend refuses at compile time
 | `void(error_code, Keypair)` for `async_from_secret` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`
 
 | X25519 (<<crypto-x25519>>)

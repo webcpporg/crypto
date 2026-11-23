@@ -6,12 +6,12 @@
 
 // async_sign of an Ed25519 key pair given a digest marked as one, crypto::prehashed{digest}, with
 // crypto::eddsa stops at the input's check, as the synchronous sign does: pure Ed25519 signs the
-// message itself, and the text names Ed25519ph; with that error alone.
+// message itself, and the text names crypto::eddsa_prehashed (Ed25519ph); with that error alone.
 
 // clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
 // whole text stays on one line.
 // clang-format off
-// expected-error@webcpp/crypto/signing.hpp:* {{webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure Ed25519) and takes no digest; Ed25519ph, which hashes the message, is curves::ed25519::ph.}}
+// expected-error@webcpp/crypto/signing.hpp:* {{webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure Ed25519) and takes no digest; a message's SHA-512 is signed with crypto::eddsa_prehashed (Ed25519ph).}}
 // clang-format on
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>

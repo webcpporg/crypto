@@ -13,7 +13,7 @@
 
 |What it does
 |BIP 340 Schnorr and ECDSA signatures, recoverable signatures, ECDH in three forms, tweaks, ElligatorSwift, MuSig2, silent payments, SPKI and PKCS#8
-|Ed25519 signatures, and Ed25519ph over SHA-512 for a message given in pieces; the X25519 secret key of a key pair
+|Ed25519 signatures, and Ed25519ph over SHA-512, of a digest (`crypto::eddsa_prehashed`) or of a message given in pieces; the X25519 secret key of a key pair
 |Key agreement (Diffie-Hellman on Curve25519): two parties who exchanged public keys share a 32-byte secret, which `key_exchange::kx_keypair` and the boxes of `public_key_encryption` build on
 |Key pairs made from a 32-byte scalar or drawn from `random_device`, public keys validated once, as SEC 1's uncompressed point or two coordinates, ECDSA over SHA-256 of a message or a digest with RFC 6979's nonce, signed low S, raw and DER, and low S checked or normalized, ECDH's raw x coordinate, SPKI and PKCS#8
 

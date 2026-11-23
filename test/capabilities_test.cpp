@@ -575,7 +575,7 @@ int main() {
     BOOST_TEST((webcpp::test::made<crypto::curves::ed25519::basic_keypair<backends::sodium>, families::ed25519, families::ed25519, backends::sodium>()));
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
-    BOOST_TEST((webcpp::test::made<crypto::curves::ed25519::ph<webcpp::hash::sha2_512, backends::sodium>, families::ed25519, tags::ed25519ph, backends::sodium>()));
+    BOOST_TEST((webcpp::test::made<crypto::curves::ed25519::prehashed_signer<webcpp::hash::sha2_512, backends::sodium>, families::ed25519, tags::ed25519ph, backends::sodium>()));
 #endif
 #if (defined(WEBCPP_CRYPTO_DETAIL_TARGET_NATIVE) || defined(WEBCPP_TARGET_WASIP2) || defined(WEBCPP_TARGET_WASIP3) || defined(WEBCPP_TARGET_EMSCRIPTEN)) && defined(WEBCPP_CRYPTO_HAS_SODIUM)
     BOOST_TEST((webcpp::test::made<crypto::curves::x25519::algorithm<backends::sodium>, families::x25519, families::x25519, backends::sodium>()));

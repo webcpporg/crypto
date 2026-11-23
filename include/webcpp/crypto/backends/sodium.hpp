@@ -383,6 +383,30 @@ struct aead_engine<Family, backends::sodium> {
 #include <cstdint>
 #include <span>
 
+// libsodium's internal Ed25519, which its Ed25519ph calls with `prehashed` 1 once its own SHA-512
+// state is final (crypto_sign/ed25519/sign_ed25519.c's crypto_sign_ed25519ph_final_create and
+// _final_verify): declared with the signatures libsodium's private
+// crypto_sign/ed25519/ref10/sign_ed25519_ref10.h gives them, since its public API cannot sign a
+// digest the program already has (design D9, ruling P27). They link because webcpp builds libsodium
+// from its sources, a static library, on every target; a libsodium that renamed them, or a prebuilt
+// one that hid them, fails at the link, and RFC 8032's Ed25519ph vectors
+// (test/ed25519ph_sodium_test.cpp) check what they compute.
+extern "C" {
+// libsodium's own names, which it reserves for itself and which no C++ name of webcpp's style
+// spells:
+// NOLINTBEGIN(bugprone-reserved-identifier,readability-identifier-naming)
+int _crypto_sign_ed25519_detached(unsigned char* signature_bytes,
+                                  unsigned long long* signature_size,
+                                  unsigned char const* message_bytes,
+                                  unsigned long long message_size, unsigned char const* secret_key,
+                                  int prehashed_flag);
+int _crypto_sign_ed25519_verify_detached(unsigned char const* signature_bytes,
+                                         unsigned char const* message_bytes,
+                                         unsigned long long message_size,
+                                         unsigned char const* public_key, int prehashed_flag);
+// NOLINTEND(bugprone-reserved-identifier,readability-identifier-naming)
+}
+
 namespace webcpp::crypto::detail {
 
 /** What an Ed25519 key pair stores on libsodium. */
@@ -513,7 +537,10 @@ struct ed25519ph_state<tags::ed25519ph, backends::sodium> {
     crypto_sign_ed25519ph_state hashing{};
 };
 
-/** Ed25519ph on libsodium, `crypto_sign_ed25519ph_*`. */
+/**
+ * Ed25519ph on libsodium: a message given in pieces through `crypto_sign_ed25519ph_*`, and a
+ * digest the program has through the internal Ed25519 those functions end in.
+ */
 template <>
 struct ed25519ph_engine<tags::ed25519ph, backends::sodium> {
     /** The signer's state. */
@@ -569,6 +596,52 @@ struct ed25519ph_engine<tags::ed25519ph, backends::sodium> {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
         if (crypto_sign_ed25519ph_final_verify(&begun_state.hashing, signature_bytes.data(),
                                                public_key.data()) != 0) {
+            return error::invalid_signature;
+        }
+        return {};
+    }
+
+    /**
+     * Signs a message's SHA-512, Ed25519ph's digest, with a key pair: libsodium's internal
+     * `_crypto_sign_ed25519_detached` with `prehashed` 1, the call
+     * `crypto_sign_ed25519ph_final_create` makes with its state's digest (ruling P27; RFC 8032's
+     * Ed25519ph vectors guard this dependency on libsodium's internals).
+     *
+     * @return Nothing; `backend_failure`.
+     */
+    [[nodiscard]] static boost::system::result<void> sign_digest(
+        ed25519_state<families::ed25519, backends::sodium> const& keyed_state,
+        std::span<std::uint8_t const, 64> digest_bytes,
+        std::span<std::uint8_t, 64> output_bytes) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        // libsodium's internal function (ruling P27); the RFC 8032 Ed25519ph vectors guard it.
+        if (_crypto_sign_ed25519_detached(output_bytes.data(), nullptr, digest_bytes.data(),
+                                          digest_bytes.size(), keyed_state.secret_key.data(),
+                                          1) != 0) {
+            return error::backend_failure;
+        }
+        return {};
+    }
+
+    /**
+     * Verifies Ed25519ph's signature of a message's SHA-512, strictly: libsodium's internal
+     * `_crypto_sign_ed25519_verify_detached` with `prehashed` 1, the call
+     * `crypto_sign_ed25519ph_final_verify` makes with its state's digest (ruling P27; RFC 8032's
+     * Ed25519ph vectors guard this dependency on libsodium's internals).
+     *
+     * @return Nothing; `invalid_signature`; `backend_failure`.
+     */
+    [[nodiscard]] static boost::system::result<void> verify_digest(
+        std::span<std::uint8_t const, 32> public_key,
+        std::span<std::uint8_t const, 64> digest_bytes,
+        std::span<std::uint8_t const, 64> signature_bytes) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
+        }
+        // libsodium's internal function (ruling P27); the RFC 8032 Ed25519ph vectors guard it.
+        if (_crypto_sign_ed25519_verify_detached(signature_bytes.data(), digest_bytes.data(),
+                                                 digest_bytes.size(), public_key.data(), 1) != 0) {
             return error::invalid_signature;
         }
         return {};

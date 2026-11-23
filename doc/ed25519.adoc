@@ -77,16 +77,62 @@ in the asynchronous forms. An asynchronous form needs
 `crypto::async_verify(executor, crypto::eddsa, signature, message, public_key, token)`
 |===
 
-*Ed25519ph* signs the SHA-512 of a message instead of the message: a program
-that signs a large file reads it in pieces, gives each to `update`, and signs
-once at the end. Its type names the hash, `ph<webcpp::hash::sha2_512>`, which
-the header brings with it, since RFC 8032 fixes it; another hash does not
-compile. It signs with a key pair, `sign(key_pair)`, which gives a
-`curves::ed25519::signature`, and verifies with `verify(signature,
-public_key)`, the signature first and of that type, as in every `verify`.
-An Ed25519ph signature is not an Ed25519 signature of the
-same message, and neither verifies as the other: a protocol says which of the
-two it uses.
+*Ed25519ph* signs the SHA-512 of a message instead of the message (RFC 8032's
+prehashed form). A program that has the digest already signs it under the
+scheme `crypto::eddsa_prehashed`, marked as one:
+`+key_pair.sign(crypto::eddsa_prehashed, crypto::prehashed{digest})+`, `digest`
+the 64 bytes of the message's SHA-512 (webcpp::hash's `sha2_512` computes it),
+and `+crypto::verify(crypto::eddsa_prehashed, signature, crypto::prehashed{digest},
+public_key)+` or `+public_key.verify(crypto::eddsa_prehashed, signature,
+crypto::prehashed{digest})+` checks it, strictly, as `crypto::eddsa` does. The
+scheme takes the digest alone: a message, even one of 64 bytes, and a digest of
+another size do not compile.
+
+A program that signs a large file it reads in pieces gives each to the
+streaming signer, `prehashed_signer<webcpp::hash::sha2_512>`, which hashes them,
+and signs once at the end. Its type names the hash, which the header brings
+with it, since RFC 8032 fixes it; another hash does not compile. It signs with a
+key pair, `sign(key_pair)`, and verifies with `verify(signature, public_key)`,
+the signature first, as in every `verify`; over the same message it gives the
+signature the scheme gives of the message's SHA-512, and each verifies the
+other's.
+
+Both give a `curves::ed25519::signature`, the type `crypto::eddsa` gives, but the
+two schemes are not interchangeable: RFC 8032 separates their domains, so an
+Ed25519ph signature is not an Ed25519 signature of the same message, and
+neither verifies under the other scheme, which reports `invalid_signature`. A
+protocol says which of the two it uses.
+
+Ed25519ph runs on a native backend: WebCrypto has no Ed25519ph, and on the
+browser's backend every function under `crypto::eddsa_prehashed`, `sign`,
+`verify` and their asynchronous forms, stops the build with that reason; sign
+the message with `crypto::eddsa` there. On libsodium, the scheme calls the
+internal Ed25519 function that libsodium's own Ed25519ph ends in, since its
+public functions sign only a digest they computed; webcpp builds libsodium from
+its sources, and RFC 8032's Ed25519ph vectors check the result on every target.
+
+.Ed25519ph's operations in their forms (native backends)
+[cols="1,3,3",options="header"]
+|===
+| Operation | Synchronous: the member; its free form | Asynchronous: the member; its free form
+
+| Sign a digest
+| `+key_pair.sign(crypto::eddsa_prehashed, crypto::prehashed{digest})+` +
+`+crypto::sign(key_pair, crypto::eddsa_prehashed, crypto::prehashed{digest})+`
+| `+key_pair.async_sign(executor, crypto::eddsa_prehashed, crypto::prehashed{digest}, token)+` +
+`+crypto::async_sign(executor, key_pair, crypto::eddsa_prehashed, crypto::prehashed{digest}, token)+`
+
+| Verify a digest
+| `+public_key.verify(crypto::eddsa_prehashed, signature, crypto::prehashed{digest})+` +
+`+crypto::verify(crypto::eddsa_prehashed, signature, crypto::prehashed{digest}, public_key)+`
+| `+public_key.async_verify(executor, crypto::eddsa_prehashed, signature, crypto::prehashed{digest}, token)+` +
+`+crypto::async_verify(executor, crypto::eddsa_prehashed, signature, crypto::prehashed{digest}, public_key, token)+`
+
+| A message in pieces
+| `prehashed_signer<webcpp::hash::sha2_512>::begin()`, `update(piece)`, then
+`sign(key_pair)` or `verify(signature, public_key)`
+| none
+|===
 
 include::generated/backends-ed25519_keypair.adoc[]
 
@@ -97,7 +143,8 @@ include::generated/backends-ed25519_verify.adoc[]
 include::generated/backends-ed25519ph.adoc[]
 
 *Example.* RFC 8032's second test signed and verified, then its Ed25519ph test,
-the message given in two pieces:
+the message given in two pieces to the streaming signer, and its SHA-512 signed
+under `crypto::eddsa_prehashed` into the same signature:
 
 [source,cpp]
 ----

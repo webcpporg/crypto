@@ -230,7 +230,7 @@ public:
     }
 
 protected:
-    /** An empty object, which `make_as` keys. */
+    /** An empty object, which `keyed_as` keys. */
     basic_aes() noexcept = default;
 
     /**
@@ -241,7 +241,7 @@ protected:
      * @return The cipher; `invalid_key_size`; the backend's errors.
      */
     template <class Derived>
-    [[nodiscard]] static boost::system::result<Derived> make_as(
+    [[nodiscard]] static boost::system::result<Derived> keyed_as(
         std::span<std::uint8_t const> key_bytes) noexcept {
         if (key_bytes.size() != key_size) {
             return error::invalid_key_size;
@@ -282,7 +282,7 @@ public:
     [[nodiscard]] static boost::system::result<aes128> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
         detail::timing_guard const timing_scope;
-        return detail::basic_aes<16, Backend>::template make_as<aes128>(key_bytes);
+        return detail::basic_aes<16, Backend>::template keyed_as<aes128>(key_bytes);
     }
 
 private:
@@ -308,7 +308,7 @@ public:
     [[nodiscard]] static boost::system::result<aes192> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
         detail::timing_guard const timing_scope;
-        return detail::basic_aes<24, Backend>::template make_as<aes192>(key_bytes);
+        return detail::basic_aes<24, Backend>::template keyed_as<aes192>(key_bytes);
     }
 
 private:
@@ -334,7 +334,7 @@ public:
     [[nodiscard]] static boost::system::result<aes256> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
         detail::timing_guard const timing_scope;
-        return detail::basic_aes<32, Backend>::template make_as<aes256>(key_bytes);
+        return detail::basic_aes<32, Backend>::template keyed_as<aes256>(key_bytes);
     }
 
 private:

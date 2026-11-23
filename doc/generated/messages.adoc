@@ -55,6 +55,12 @@ The fix: Give `+agree+` the peer's typed public key of the key pair's own curve 
 
 The fix: Call the synchronous `+from_key+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
 
+|`+async_from_secret_secp256k1+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_from_secret takes a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the synchronous from_secret for the others.+`
+
+The fix: Call the synchronous `+from_secret+`: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `+async_from_secret+`.
+
 |`+async_member_without_async_hpp+`
 |native, wasip2, wasip3
 |`+with deduced return type cannot be used before it is defined+`
@@ -237,7 +243,7 @@ The fix: Return `+std::optional<std::span<std::uint8_t const, 32>>+`, a span ove
 
 |`+make_removed+`
 |native, wasip2, wasip3
-|`+no member named 'make' in+`
+|`+unexpected type name 'keypair': expected expression+`
 
 The fix: Call the factory named by its input, member or free: `+from_secret+` for a key pair, `+from_bytes+` for a public key, `+from_key+` for a cipher (`+crypto::from_secret<K>(bytes)+`, `+K::from_secret(bytes)+`); `+make+` is gone, with no alias.
 
@@ -966,13 +972,13 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: crypto_kx's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//kx-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//kx-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
-`+memory_missing_definition_install+`:: The memory option set in the program's project, the install called, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
+`+memory_missing_definition_from_key+`:: The memory option set in the program's project, a `+from_key+` on OpenSSL, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
 +
 Its Jamfile:
 +
 [listing]
 ----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_missing_definition_install/Jamfile[tag=jamfile]
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_missing_definition_from_key/Jamfile[tag=jamfile]
 ----
 +
 On each target, the build's output contains:
@@ -983,13 +989,13 @@ On each target, the build's output contains:
 * native, Linux:
 ** `pass:[undefined reference to &#96;webcpp::crypto::openssl_memory_resource()']`
 
-`+memory_missing_definition_make+`:: The memory option set in the program's project, a `+from_key+` on OpenSSL, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
+`+memory_missing_definition_install+`:: The memory option set in the program's project, the install called, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
 +
 Its Jamfile:
 +
 [listing]
 ----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_missing_definition_make/Jamfile[tag=jamfile]
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_missing_definition_install/Jamfile[tag=jamfile]
 ----
 +
 On each target, the build's output contains:
@@ -1148,6 +1154,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Call the synchronous `+from_key+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
 
+|`+async_from_secret_secp256k1+`
+|the compile
+|Call the synchronous `+from_secret+`: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `+async_from_secret+`.
+
 |`+async_open_xchacha+`
 |the compile
 |Call the AEAD's own `+open+`: only AES-GCM has `+async_open+`.
@@ -1276,11 +1286,11 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Return `+std::optional<std::span<std::uint8_t const, 32>>+`, a span over a tweak the lookup keeps, such as a map's entry; never the tweak by value.
 
-|`+memory_missing_definition_install+`
+|`+memory_missing_definition_from_key+`
 |the link
 |Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
 
-|`+memory_missing_definition_make+`
+|`+memory_missing_definition_install+`
 |the link
 |Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
 

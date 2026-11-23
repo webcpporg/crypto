@@ -166,7 +166,8 @@ begin, which is why SEC 1 has a peer's public key validated before it is used
 (link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 2.3.3]), is refused with
 `invalid_public_key`: BearSSL decodes uncompressed points alone. WebCrypto's
 raw export is uncompressed, so a browser's key arrives in the form
-`from_bytes` takes; a key a tool sends compressed is decompressed by that tool first.
+`from_bytes` takes; a key a tool sends compressed is decompressed by that tool
+first.
 
 [#crypto-p256-ecdsa]
 ==== ECDSA

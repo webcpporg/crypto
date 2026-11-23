@@ -6,7 +6,7 @@
 
 import webcpp ;
 
-webcpp.link-fail memory_missing_definition_make : app.cpp
+webcpp.link-fail memory_missing_definition_from_key : app.cpp
   : <library>/webcpp/crypto//crypto <library>/webcpp/crypto//openssl
     <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
   : native ;

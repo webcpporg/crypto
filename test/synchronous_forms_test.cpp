@@ -102,6 +102,26 @@ bool same_secret(crypto::secret<N> const& left, crypto::secret<N> const& right) 
 }
 
 /**
+ * Whether two results both hold a value, each checked before it is read, and equal values: two
+ * public keys, or two secrets (of their bytes).
+ *
+ * @param left A result.
+ * @param right Another result of the same value type.
+ * @return True when both hold a value and the values are equal.
+ */
+template <class Result>
+bool same_values(Result const& left, Result const& right) {
+    if (!BOOST_TEST(left.has_value()) || !BOOST_TEST(right.has_value())) {
+        return false;
+    }
+    if constexpr (requires { same_secret(*left, *right); }) {
+        return same_secret(*left, *right);
+    } else {
+        return *left == *right;
+    }
+}
+
+/**
  * A changed copy of a signature: its last byte flipped.
  *
  * @param signature A signature.
@@ -126,8 +146,8 @@ void from_secret_forms() {
     auto const free_made = crypto::from_secret<Keypair>(secret_key);
     static_assert(std::is_same_v<decltype(free_made), decltype(member_made)>);
     if (BOOST_TEST(member_made.has_value()) && BOOST_TEST(free_made.has_value())) {
-        BOOST_TEST(same_secret(*free_made->secret(), *member_made->secret()));
-        BOOST_TEST(*free_made->public_key() == *member_made->public_key());
+        BOOST_TEST(same_values(free_made->secret(), member_made->secret()));
+        BOOST_TEST(same_values(free_made->public_key(), member_made->public_key()));
     }
 }
 
@@ -329,7 +349,8 @@ void public_key_and_resource_forms() {
     std::ranges::copy(y_bytes, joined.begin() + 33);
     same_result(p256_public_key::from_bytes(joined),
                 p256_public_key::from_coordinates(x_bytes, y_bytes));
-    BOOST_TEST(*p256_public_key::from_coordinates(x_bytes, y_bytes) == *p256_made->public_key());
+    BOOST_TEST(
+        same_values(p256_public_key::from_coordinates(x_bytes, y_bytes), p256_made->public_key()));
 
     auto const compressed = secp_made->public_key()->compressed();
     same_result(secp256k1::public_key::from_bytes(compressed),
@@ -340,8 +361,8 @@ void public_key_and_resource_forms() {
     auto const free_made = crypto::from_secret<secp_keypair>(secret_bytes(1), resource);
     static_assert(std::is_same_v<decltype(free_made), decltype(member_made)>);
     if (BOOST_TEST(member_made.has_value()) && BOOST_TEST(free_made.has_value())) {
-        BOOST_TEST(same_secret(*free_made->secret(), *member_made->secret()));
-        BOOST_TEST(*free_made->public_key() == *secp_made->public_key());
+        BOOST_TEST(same_values(free_made->secret(), member_made->secret()));
+        BOOST_TEST(same_values(free_made->public_key(), secp_made->public_key()));
     }
     auto const generated = crypto::generate<secp_keypair>(resource);
     static_assert(

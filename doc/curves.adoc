@@ -238,12 +238,13 @@ key, whose value goes straight into `crypto::verify`: `curves::ed25519::public_k
 export a PKCS#8 file or a backup takes;
 * `sign(scheme, input)` signs with every scheme its curve has, at least one.
 
-Each public key type is made from bytes by its own `from_bytes`, and gives its byte
-forms as members named after the encoding: Ed25519's `bytes()` (32 bytes),
-P-256's `uncompressed()` (65), and secp256k1's `compressed()` (33),
-`uncompressed()` (65) and `xonly()` (32). P-256's and secp256k1's `from_bytes`
-check the point, as P-256's `from_coordinates(x, y)` does; Ed25519's checks the size alone, whether the point is canonical
-and not of small order being its verification policy's judgment.
+Each public key type is made from bytes by its own `from_bytes`, and gives
+its byte forms as members named after the encoding: Ed25519's `bytes()` (32
+bytes), P-256's `uncompressed()` (65), and secp256k1's `compressed()` (33),
+`uncompressed()` (65) and `xonly()` (32). P-256's and secp256k1's
+`from_bytes` check the point, as P-256's `from_coordinates(x, y)` does;
+Ed25519's checks the size alone, whether the point is canonical and not of
+small order being its verification policy's judgment.
 
 ECDH is `agree(peer)` on every curve that has it, the peer a typed public key,
 and gives the shared point's raw x coordinate as a `secret<32>`, as

@@ -5,11 +5,12 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 /**
- The free synchronous forms of the static members that make an object, each named by its input
- (design D3c, D9, R23): `crypto::from_secret<K>(secret_bytes)`, which serves key pairs,
- `crypto::from_bytes<T>(bytes)`, which serves public keys, `crypto::from_key<C>(key_bytes)`, which
- serves AES-GCM and every AEAD, and `crypto::generate<K>()`, each calling the member it is named
- after.
+ The free synchronous forms of the static members that make an object, each named by its input:
+ `crypto::from_secret<K>(secret_bytes)`, which serves key pairs, `crypto::from_bytes<T>(bytes)`,
+ which serves public values made from their bytes, `crypto::from_key<C>(key_bytes)`, which serves
+ AES-GCM and every AEAD, and `crypto::generate<K>()`, each calling the member it is named after.
+ The four forms of an operation are crypto/unified-sign's design D9, the header of the free forms
+ its R23; the names by input are crypto/uniform-types' D3c, and this header's name its R13.
 
  It depends on nothing but the configuration and the timing guard, so that `keypair.hpp` and the
  AEAD headers include it without bringing in what the other needs.
@@ -48,10 +49,14 @@ template <class Keypair, class... Arguments>
 
 /**
  * Makes a public value from its bytes, `Type::from_bytes(forwarded_arguments...)`: the free form
- * of the type's own `from_bytes`, which it calls, with its results and its errors. It holds no
- * timing guard: the member it calls holds its own where it calls a backend.
+ * of the type's own `from_bytes`, which it calls, with its results and its errors.
  *
- * @tparam Type A type whose static `from_bytes` takes these arguments: a public key.
+ * It holds no timing guard, since it calls no backend itself: a member `from_bytes` that checks its
+ * bytes with a backend (a point on the curve) holds its own, and one that only checks their size
+ * and copies them holds none, as no function without a backend call does.
+ *
+ * @tparam Type A type whose static `from_bytes` takes these arguments: a public value, such as a
+ * public key.
  * @tparam Arguments The types of `from_bytes`'s arguments.
  * @param forwarded_arguments `from_bytes`'s arguments: the bytes.
  * @return What `Type::from_bytes(forwarded_arguments...)` returns: the value, or its error.

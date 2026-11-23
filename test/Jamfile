@@ -177,6 +177,12 @@ crypto-run async_25519 : async_25519_test.cpp
 crypto-run async_p256 : async_p256_test.cpp
   : <library>/webcpp/asio//asio <library>/third_party//bearssl
     <library>/third_party//wycheproof <library>/webcpp//boost_json ;
+# The free async_agree, one template over the key pair, on a stand-in backend
+# that completes by itself, natively: X25519's and P-256's key pairs reach the
+# stand-in's engine, the free form and the member alike, with the caller's key
+# pair and peer, and complete through the executor.
+crypto-run async_agree_engine : async_agree_engine_test.cpp
+  : <library>/webcpp/asio//asio : native ;
 # Without threads (WEBCPP_CRYPTO_NO_THREADS natively; WASI has none), a heavy
 # operation's async_ variant that forgets its refusal stops at
 # detail::run_on_work's stand-in, which names the refusal, and with that

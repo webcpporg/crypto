@@ -304,12 +304,22 @@ struct only_test_scheme_keypair {
         test_scheme_t, std::span<std::uint8_t const>) const noexcept;
 };
 
-// Whether Type is one of this test's stand-ins, whose schemes all sign into stand_in_signature.
+// Whether Type is one of this test's stand-ins, whose schemes all sign into stand_in_signature:
+// each named, so that no curve's key pair takes the stand-ins' signature type.
 template <class Type>
 constexpr bool is_stand_in_v =
-    !std::is_same_v<Type, stand_in_public_key> && !std::is_same_v<Type, stand_in_signature> &&
-    !std::is_same_v<Type, test_scheme_t> && std::is_class_v<Type> &&
-    requires { Type::secret_key_size; };
+    std::is_same_v<Type, complete_keypair> || std::is_same_v<Type, agreeing_keypair> ||
+    std::is_same_v<Type, signing_and_agreeing_keypair> || std::is_same_v<Type, byte_sign_keypair> ||
+    std::is_same_v<Type, byte_agree_keypair> || std::is_same_v<Type, byte_peer_keypair> ||
+    std::is_same_v<Type, no_secret_keypair> || std::is_same_v<Type, wrong_secret_keypair> ||
+    std::is_same_v<Type, byte_public_keypair> || std::is_same_v<Type, no_generate_keypair> ||
+    std::is_same_v<Type, no_scheme_keypair> || std::is_same_v<Type, unsigned_scheme_keypair> ||
+    std::is_same_v<Type, no_from_secret_keypair> ||
+    std::is_same_v<Type, no_public_key_type_keypair> ||
+    std::is_same_v<Type, wrong_generate_keypair> ||
+    std::is_same_v<Type, wrong_from_secret_keypair> ||
+    std::is_same_v<Type, unsigned_test_scheme_keypair> ||
+    std::is_same_v<Type, test_scheme_keypair> || std::is_same_v<Type, only_test_scheme_keypair>;
 
 }  // namespace
 
@@ -360,6 +370,14 @@ struct signature_of<Keypair, Scheme> {
 };
 
 }  // namespace webcpp::crypto::detail
+
+// The curves' key pairs keep their own signature types: the stand-ins' partial specialization
+// names none of them.
+static_assert(!is_stand_in_v<crypto::curves::ed25519::basic_keypair<crypto::backends::sodium>>);
+static_assert(!is_stand_in_v<crypto::curves::p256::basic_keypair<crypto::backends::bearssl>>);
+static_assert(
+    !is_stand_in_v<crypto::curves::secp256k1::basic_keypair<crypto::backends::secp256k1>>);
+static_assert(!is_stand_in_v<crypto::curves::x25519::basic_keypair<crypto::backends::sodium>>);
 
 // The three concepts' verdicts, keypair then signing_keypair then agreement_keypair.
 // Signs alone.
@@ -467,6 +485,12 @@ using ed25519_pair = crypto::curves::ed25519::basic_keypair<crypto::backends::so
 using x25519_pair = crypto::curves::x25519::basic_keypair<crypto::backends::sodium>;
 using p256_pair = crypto::curves::p256::basic_keypair<crypto::backends::bearssl>;
 using secp256k1_pair = crypto::curves::secp256k1::basic_keypair<crypto::backends::secp256k1>;
+static_assert(std::is_same_v<crypto::detail::signature_of_t<ed25519_pair, crypto::eddsa_t>,
+                             crypto::curves::ed25519::signature>);
+static_assert(std::is_same_v<crypto::detail::signature_of_t<p256_pair, crypto::ecdsa_sha256_t>,
+                             crypto::curves::p256::ecdsa_signature>);
+static_assert(std::is_same_v<crypto::detail::signature_of_t<secp256k1_pair, crypto::schnorr_t>,
+                             crypto::curves::secp256k1::schnorr_signature>);
 static_assert(crypto::keypair<ed25519_pair>);
 static_assert(crypto::signing_keypair<ed25519_pair>);
 static_assert(!crypto::agreement_keypair<ed25519_pair>);

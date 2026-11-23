@@ -339,7 +339,7 @@ template <class Keypair, class PublicKey>
 /**
  * Stops the build: the key pair is not an agreement key pair whose `agree` takes this peer: an
  * Ed25519 key pair, which signs and does not agree, or a peer of another curve, another backend,
- * or bytes.
+ * or bytes, each with its own message.
  *
  * @tparam Keypair The key pair's type, a `keypair`.
  * @tparam PublicKey The peer's type.
@@ -358,10 +358,10 @@ template <class Keypair, class PublicKey>
                       "one with to_x25519() and agree with the X25519 key pair.");
     } else {
         static_assert(detail::refused_v<Keypair>,
-                      "webcpp::crypto: agree: this key pair does not agree with this peer: a P-256 "
-                      "key pair agrees with a curves::p256::basic_public_key of its backend, a "
-                      "secp256k1 key pair with a curves::secp256k1::public_key; an Ed25519 key "
-                      "pair agrees through X25519: convert it with to_x25519().");
+                      "webcpp::crypto: agree: this key pair does not agree with this peer: an "
+                      "X25519 key pair agrees with a curves::x25519::public_key, a P-256 key pair "
+                      "with a curves::p256::basic_public_key of its backend, a secp256k1 key pair "
+                      "with a curves::secp256k1::public_key.");
     }
     return {};
 }

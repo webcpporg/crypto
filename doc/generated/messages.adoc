@@ -51,9 +51,9 @@ The fix: Convert the Ed25519 key pair with `+to_x25519()+` and agree with the X2
 
 |`+agree_free_wrong_peer+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: agree: this key pair does not agree with this peer: a P-256 key pair agrees with a curves::p256::basic_public_key of its backend, a secp256k1 key pair with a curves::secp256k1::public_key; an Ed25519 key pair agrees through X25519: convert it with to_x25519().+`
+|`+webcpp::crypto: agree: this key pair does not agree with this peer: an X25519 key pair agrees with a curves::x25519::public_key, a P-256 key pair with a curves::p256::basic_public_key of its backend, a secp256k1 key pair with a curves::secp256k1::public_key.+`
 
-The fix: Give `+agree+` the peer's typed public key of the key pair's own curve and backend: `+curves::p256::basic_public_key<Backend>::from_bytes(bytes)+` for P-256, `+curves::secp256k1::public_key::from_bytes(bytes)+` for secp256k1.
+The fix: Give `+agree+` the peer's typed public key of the key pair's own curve and backend: `+curves::x25519::public_key::from_bytes(bytes)+` for X25519, `+curves::p256::basic_public_key<Backend>::from_bytes(bytes)+` for P-256, `+curves::secp256k1::public_key::from_bytes(bytes)+` for secp256k1.
 
 |`+async_agree_ed25519+`
 |native, wasip2, wasip3
@@ -66,6 +66,12 @@ The fix: As `+agree_ed25519+`: give `+async_agree+` the X25519 key pair that the
 |`+webcpp::crypto: async_agree takes a key pair of an algorithm WebCrypto has (X25519, P-256): call the key pair's synchronous agree for the others.+`
 
 The fix: Call the key pair's own `+agree+`: secp256k1 is not in WebCrypto, so only X25519's and P-256's key pairs have `+async_agree+`.
+
+|`+async_agree_wrong_peer+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_agree: this key pair does not agree with this peer: an X25519 key pair agrees with a curves::x25519::public_key, a P-256 key pair with a curves::p256::basic_public_key of its backend.+`
+
+The fix: As `+agree_free_wrong_peer+`: give `+async_agree+` the peer's typed public key of the key pair's own curve and backend, `+curves::x25519::public_key::from_bytes(bytes)+` for X25519, `+curves::p256::basic_public_key<Backend>::from_bytes(bytes)+` for P-256.
 
 |`+async_from_key_xchacha+`
 |native, wasip2, wasip3

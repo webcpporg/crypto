@@ -90,6 +90,7 @@ build-project agree_ed25519 ;
 build-project async_sign_x25519 ;
 build-project async_agree_ed25519 ;
 build-project async_agree_secp256k1 ;
+build-project async_agree_wrong_peer ;
 build-project verify_asynchronous_backend ;
 build-project verify_free_asynchronous_backend ;
 build-project sign_asynchronous_backend ;

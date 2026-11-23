@@ -120,6 +120,7 @@
 #include <boost/system/result.hpp>
 
 #include <array>
+#include <concepts>
 #include <cstdint>
 #include <span>
 #include <type_traits>
@@ -341,6 +342,31 @@ constexpr void refuse_async_sign_keypair() noexcept {
                       "(Ed25519, P-256): call the key pair's synchronous signing function for the "
                       "others.");
     }
+}
+
+/**
+ * Whether `Keypair` agrees with a peer of the type `PublicKey`, as `async_agree` takes them: an
+ * agreement key pair and a peer of its own `public_key_type`, exactly, so that the operation keeps
+ * the caller's peer and never a temporary converted from it.
+ *
+ * @tparam Keypair A key pair's type, or any type.
+ * @tparam PublicKey The peer's type.
+ */
+template <class Keypair, class PublicKey>
+concept agrees_with_peer =
+    agreement_keypair<Keypair> && std::same_as<PublicKey, typename Keypair::public_key_type>;
+
+/**
+ * Stops the build: `async_agree` was given an agreement key pair of an algorithm WebCrypto lacks
+ * (secp256k1), whose own synchronous `agree` the program calls instead.
+ *
+ * @tparam Keypair An agreement key pair's type other than X25519's and P-256's.
+ */
+template <class Keypair>
+constexpr void refuse_async_agree_keypair() noexcept {
+    static_assert(refused_v<Keypair>,
+                  "webcpp::crypto: async_agree takes a key pair of an algorithm WebCrypto has "
+                  "(X25519, P-256): call the key pair's synchronous agree for the others.");
 }
 
 /**
@@ -1068,6 +1094,7 @@ void async_verify([[maybe_unused]] Executor const& completion_executor,
  * @tparam Keypair An `agreement_keypair` of an algorithm WebCrypto has: a
  * `curves::x25519::basic_keypair<Backend>` or a `curves::p256::basic_keypair<Backend>`.
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
+ * @tparam PublicKey The peer's public key's type, the key pair's own `public_key_type`.
  * @tparam CompletionToken Any completion token for the signature `completion_token` states.
  * @param completion_executor The executor the completion is posted to.
  * @param key_pair This side's key pair.
@@ -1080,16 +1107,13 @@ void async_verify([[maybe_unused]] Executor const& completion_executor,
  * `weak_public_key` on X25519, `backend_failure`).
  * @return What the completion token's `async_result` gives.
  */
-template <class Keypair, class Executor, class CompletionToken>
-    requires agreement_keypair<Keypair>
+template <class Keypair, class Executor, class PublicKey, class CompletionToken>
+    requires detail::agrees_with_peer<Keypair, PublicKey>
 auto async_agree(Executor const& completion_executor, Keypair const& key_pair,
-                 typename Keypair::public_key_type const& peer_public_key,
-                 CompletionToken&& completion_token) {
+                 PublicKey const& peer_public_key, CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (!detail::is_x25519_keypair_v<Keypair> && !detail::is_p256_keypair_v<Keypair>) {
-        static_assert(detail::refused_v<Keypair>,
-                      "webcpp::crypto: async_agree takes a key pair of an algorithm WebCrypto has "
-                      "(X25519, P-256): call the key pair's synchronous agree for the others.");
+        detail::refuse_async_agree_keypair<Keypair>();
     } else {
         return key_pair.async_agree(completion_executor, peer_public_key,
                                     std::forward<CompletionToken>(completion_token));
@@ -1097,10 +1121,12 @@ auto async_agree(Executor const& completion_executor, Keypair const& key_pair,
 }
 
 /**
- * Stops the build: `async_agree` takes an agreement key pair (`crypto::agreement_keypair`), and an
- * Ed25519 key pair signs and does not agree.
+ * Stops the build: `async_agree` takes an agreement key pair (`crypto::agreement_keypair`) and a
+ * peer of its own `public_key_type`, and this call does not: an Ed25519 key pair, which signs and
+ * does not agree, a key pair of an algorithm WebCrypto lacks (secp256k1), or a peer of another
+ * curve, another backend, or bytes, each with its own message.
  *
- * @tparam Keypair The key pair's type, a `signing_keypair` that is no `agreement_keypair`.
+ * @tparam Keypair The key pair's type, a `keypair`.
  * @tparam Executor The executor's type.
  * @tparam PublicKey The peer's type.
  * @tparam CompletionToken The completion token's type.
@@ -1110,14 +1136,25 @@ auto async_agree(Executor const& completion_executor, Keypair const& key_pair,
  * @param completion_token The completion token.
  */
 template <class Keypair, class Executor, class PublicKey, class CompletionToken>
-    requires(signing_keypair<Keypair> && !agreement_keypair<Keypair>)
+    requires(keypair<Keypair> && !detail::agrees_with_peer<Keypair, PublicKey>)
 void async_agree([[maybe_unused]] Executor const& completion_executor,
                  [[maybe_unused]] Keypair const& key_pair,
                  [[maybe_unused]] PublicKey const& peer_public_key,
                  [[maybe_unused]] CompletionToken&& completion_token) {
-    static_assert(detail::refused_v<Keypair>,
-                  "webcpp::crypto: async_agree: Ed25519 key pairs sign; they do not agree: convert "
-                  "one with to_x25519() and agree with the X25519 key pair.");
+    if constexpr (signing_keypair<Keypair> && !agreement_keypair<Keypair>) {
+        static_assert(detail::refused_v<Keypair>,
+                      "webcpp::crypto: async_agree: Ed25519 key pairs sign; they do not agree: "
+                      "convert one with to_x25519() and agree with the X25519 key pair.");
+    } else if constexpr (!detail::is_x25519_keypair_v<Keypair> &&
+                         !detail::is_p256_keypair_v<Keypair>) {
+        detail::refuse_async_agree_keypair<Keypair>();
+    } else {
+        static_assert(
+            detail::refused_v<Keypair>,
+            "webcpp::crypto: async_agree: this key pair does not agree with this peer: an "
+            "X25519 key pair agrees with a curves::x25519::public_key, a P-256 key pair "
+            "with a curves::p256::basic_public_key of its backend.");
+    }
 }
 
 // The asynchronous members (design D9), declared in their classes and defined here, so that a

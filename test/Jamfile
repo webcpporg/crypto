@@ -382,10 +382,11 @@ crypto-run secp256k1_ecdh : secp256k1_ecdh_test.cpp
 crypto-run secp256k1_keys : secp256k1_keys_test.cpp : <library>/third_party//secp256k1 ;
 # Recoverable ECDSA signatures, libsecp256k1's edge cases, and hedged ECDSA.
 crypto-run secp256k1_recovery : secp256k1_recovery_test.cpp : <library>/third_party//secp256k1 ;
-# Ethereum's recoverable ECDSA over Keccak-256 (crypto::ecdsa_keccak256_recoverable):
-# go-ethereum's recovery vector, web3.js's personal_sign, a message hashed with
-# Keccak-256 (XKCP's) and never SHA3-256, low S, and a signature recovered under
-# the other recoverable scheme giving another key.
+# Ethereum's recoverable ECDSA over Keccak-256
+# (crypto::ecdsa_keccak256_recoverable): go-ethereum's recovery vector,
+# web3.js's personal_sign, a message hashed with Keccak-256 (XKCP's) and never
+# SHA3-256, low S, and a signature recovered under the other recoverable scheme
+# giving another key.
 crypto-run secp256k1_ethereum : secp256k1_ethereum_test.cpp
   : <library>/third_party//secp256k1 <library>/third_party//xkcp ;
 # libsecp256k1's recovery and ElligatorSwift modules called through its C API,

@@ -8,7 +8,7 @@ project : requirements <library>/webcpp/crypto//crypto <library>/webcpp/crypto//
 
 import webcpp ;
 
-# alone: the two refusals are the compile's only errors, so a regression that puts
-# another error before or after them fails the test.
+# alone: the two refusals are the compile's only errors, so a regression that
+# puts another error before or after them fails the test.
 webcpp.compile-diagnostic make_removed : make_removed.cpp
   : : native wasip2 wasip3 : alone ;

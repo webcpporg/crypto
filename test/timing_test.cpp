@@ -191,6 +191,16 @@ void names_function_qualifiers() {
               "ciphers::aead::open"));
 }
 
+// A label that starts with `::` writes no component before the identifier: its scope is empty, as
+// a label without `::`, and it names no function.
+void names_function_leading_separator() {
+    webcpp::test::named_function const named = webcpp::test::function_named("::seal");
+    BOOST_TEST(named.identifier == "seal");
+    BOOST_TEST(named.scope.empty());
+    BOOST_TEST(named.qualifiers.empty());
+    BOOST_TEST(!webcpp::test::names_function("void webcpp::crypto::seal(int)", named));
+}
+
 // MSVC writes the exception specification of a function that may throw after its parameters,
 // clang and GCC none: crypto::from_secret and crypto::generate of secp256k1's key pair, whose
 // memory resource may throw, are read as their own in either spelling.
@@ -331,6 +341,7 @@ int main() {
     names_function_spellings();
     names_function_requires_clause();
     names_function_qualifiers();
+    names_function_leading_separator();
     names_function_exception_specifications();
     guard_sets_and_clears();
     guard_leaves_set_bit();

@@ -115,7 +115,10 @@ inline named_function function_named(std::string_view spelled) {
                          ? std::string_view{}
                          : qualifiers.substr(component_separator + 2);
     }
-    named.scope = named.qualifiers.back();
+    if (!named.qualifiers.empty()) {
+        // A label that starts with `::` (`::seal`) writes no component: its scope stays empty.
+        named.scope = named.qualifiers.back();
+    }
     return named;
 }
 

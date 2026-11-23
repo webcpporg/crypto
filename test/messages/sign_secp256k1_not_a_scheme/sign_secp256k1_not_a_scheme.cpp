@@ -10,7 +10,7 @@
 // clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
 // whole text stays on one line.
 // clang-format off
-// expected-error@webcpp/crypto/curves/secp256k1.hpp:* {{webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, crypto::ecdsa_sha256_recoverable or crypto::schnorr.}}
+// expected-error@webcpp/crypto/curves/secp256k1.hpp:* {{webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, crypto::ecdsa_sha256_recoverable, crypto::ecdsa_keccak256_recoverable or crypto::schnorr.}}
 // clang-format on
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/signing.hpp>

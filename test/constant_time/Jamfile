@@ -67,10 +67,11 @@ rule clang-on-linux ( properties * )
 }
 
 # The libraries the memcheck programs link: BearSSL, OpenSSL, ctaes,
-# libsodium, and libsecp256k1 as secp256k1_ctgrind below builds it.
+# libsodium, libsecp256k1 as secp256k1_ctgrind below builds it, and XKCP, whose
+# Keccak-256 hashes the public message Ethereum's recoverable ECDSA signs.
 CTGRIND = <library>/third_party//bearssl <library>/webcpp/crypto//openssl
     <library>/third_party//ctaes <library>/third_party//sodium
-    <library>secp256k1_ctgrind <variant>release
+    <library>secp256k1_ctgrind <library>/third_party//xkcp <variant>release
     <debug-symbols>on
     <conditional>@linux-only
     <define>WEBCPP_CRYPTO_DETAIL_CT_VALGRIND <webcpp-drive-timeout>300 ;
@@ -194,9 +195,12 @@ lib secp256k1_msan : $(SECP256K1_LIBRARY)
 explicit secp256k1_msan ;
 
 # BearSSL stays on its portable code, whose plain C MemorySanitizer follows
-# exactly; the engine marks the tag's verdict public.
+# exactly; the engine marks the tag's verdict public. XKCP is linked as
+# /third_party//xkcp builds it, not instrumented: it hashes only the public
+# message Ethereum's recoverable ECDSA signs, into a state and a digest that
+# webcpp::hash's keccak_256 initialises before XKCP writes them.
 MSAN = <library>bearssl_msan <library>ctaes_msan <library>sodium_msan
-    <library>secp256k1_msan
+    <library>secp256k1_msan <library>/third_party//xkcp
     <define>WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE <define>WEBCPP_CRYPTO_DETAIL_CT_MSAN
     <cxxflags>$(MSAN_FLAGS) <linkflags>-fsanitize=memory <variant>release
     <debug-symbols>on <conditional>@clang-on-linux ;

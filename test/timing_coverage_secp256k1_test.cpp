@@ -21,13 +21,16 @@
 // What it covers, by family; a family libsecp256k1 gains adds its line and its checks:
 // - secp256k1, curves/secp256k1.hpp: public_key's from_bytes, compressed, uncompressed, xonly,
 //   operator== and operator<=>; basic_keypair: from_secret, public_key, secret, sign with each
-//   scheme (ecdsa_sha256 of a message and of a digest, ecdsa_sha256_recoverable, schnorr with its
-//   auxiliary randomness drawn), sign hedged, sign with Schnorr's auxiliary randomness given,
-//   agree, agree_hashed, agree_point, tweak_xonly; public_key::verify of ecdsa_sha256 and of
-//   schnorr; the free recover, crypto::verify of ecdsa_sha256 and of schnorr (against the typed
+//   scheme (ecdsa_sha256 of a message and of a digest, ecdsa_sha256_recoverable,
+//   ecdsa_keccak256_recoverable of a message and of a digest, schnorr with its auxiliary
+//   randomness drawn), sign hedged, sign with Schnorr's auxiliary randomness given, agree,
+//   agree_hashed, agree_point, tweak_xonly; public_key::verify of ecdsa_sha256 and of schnorr;
+//   the free recover of each recoverable scheme, of a message and of a digest, crypto::verify of
+//   ecdsa_sha256 and of schnorr (against the typed
 //   key and against x-only bytes), to_der, from_der, normalize_low_s, is_low_s, tweak_xonly; the
 //   free synchronous forms of the members, crypto::from_secret, crypto::generate, crypto::sign
-//   (with each scheme, Schnorr's randomness drawn and given, and hedged) and crypto::agree, which
+//   (with each scheme, Keccak-256's of a message and of a digest, Schnorr's randomness drawn and
+//   given, and hedged) and crypto::agree, which
 //   enter their own guard before the member's, and crypto::from_bytes of a public key, which holds
 //   none (the member's is its first). Not guarded (no libsecp256k1 call): ecdsa_signature's,
 //   recoverable_signature's and schnorr_signature's from_bytes, member and free, and bytes, and
@@ -176,6 +179,14 @@ void cover_keypair_signing() {
             [&] { BOOST_TEST(made.sign(crypto::ecdsa_sha256, digest).has_value()); });
     covered("secp256k1::basic_keypair::sign with ecdsa_sha256_recoverable on secp256k1",
             [&] { BOOST_TEST(made.sign(crypto::ecdsa_sha256_recoverable, digest).has_value()); });
+    covered(
+        "secp256k1::basic_keypair::sign with ecdsa_keccak256_recoverable of a message on secp256k1",
+        "secp256k1::basic_keypair::sign",
+        [&] { BOOST_TEST(made.sign(crypto::ecdsa_keccak256_recoverable, hash).has_value()); });
+    covered(
+        "secp256k1::basic_keypair::sign with ecdsa_keccak256_recoverable of a digest on secp256k1",
+        "secp256k1::basic_keypair::sign",
+        [&] { BOOST_TEST(made.sign(crypto::ecdsa_keccak256_recoverable, digest).has_value()); });
     covered("secp256k1::basic_keypair::sign with schnorr, its randomness drawn, on secp256k1",
             [&] { BOOST_TEST(made.sign(crypto::schnorr, hash).has_value()); });
     covered("secp256k1::basic_keypair::sign hedged on secp256k1",
@@ -207,6 +218,13 @@ void cover_keypair_signing_moved_from() {
         "secp256k1",
         "secp256k1::basic_keypair::sign", [&] {
             BOOST_TEST(empty.sign(crypto::ecdsa_sha256_recoverable, digest).error() ==
+                       crypto::error::invalid_state);
+        });
+    covered(
+        "secp256k1::basic_keypair::sign with ecdsa_keccak256_recoverable moved from on "
+        "secp256k1",
+        "secp256k1::basic_keypair::sign", [&] {
+            BOOST_TEST(empty.sign(crypto::ecdsa_keccak256_recoverable, hash).error() ==
                        crypto::error::invalid_state);
         });
     covered("secp256k1::basic_keypair::sign with schnorr moved from on secp256k1", [&] {
@@ -328,6 +346,41 @@ void cover_verification() {
     });
 }
 
+/** recover of Ethereum's scheme, of a message and of a digest, and with a recovery id of 4. */
+void cover_ethereum_recovery() {
+    auto const signer = keypair_of(0x53);
+    bytes32 const hash = secret_bytes(0x5c);
+    crypto::prehashed const digest{hash};
+    auto const keccak = signer.sign(crypto::ecdsa_keccak256_recoverable, hash);
+    if (!BOOST_TEST(keccak.has_value())) {
+        return;
+    }
+    auto id_of_four = keccak->bytes();
+    id_of_four[64] = 4;
+    auto const bad_id = secp::recoverable_signature::from_bytes(id_of_four);
+    if (!BOOST_TEST(bad_id.has_value())) {
+        return;
+    }
+    covered("secp256k1::recover with ecdsa_keccak256_recoverable of a message on secp256k1",
+            "secp256k1::recover(ecdsa_keccak256_recoverable_t", [&] {
+                BOOST_TEST(
+                    secp::recover(crypto::ecdsa_keccak256_recoverable, *keccak, hash).has_value());
+            });
+    covered(
+        "secp256k1::recover with ecdsa_keccak256_recoverable of a digest on secp256k1",
+        "secp256k1::recover(ecdsa_keccak256_recoverable_t", [&] {
+            BOOST_TEST(
+                secp::recover(crypto::ecdsa_keccak256_recoverable, *keccak, digest).has_value());
+        });
+    covered(
+        "secp256k1::recover with ecdsa_keccak256_recoverable and a recovery id of 4 on "
+        "secp256k1",
+        "secp256k1::recover(ecdsa_keccak256_recoverable_t", [&] {
+            BOOST_TEST(secp::recover(crypto::ecdsa_keccak256_recoverable, *bad_id, hash).error() ==
+                       crypto::error::invalid_signature);
+        });
+}
+
 /** public_key::verify of both its schemes, each of a signature that does not verify too. */
 void cover_public_key_verify() {
     auto const signer = keypair_of(0x52);
@@ -408,6 +461,17 @@ void cover_free_forms() {
     covered("secp256k1 crypto::sign with ecdsa_sha256_recoverable on secp256k1", "crypto::sign",
             [&] {
                 BOOST_TEST(crypto::sign(made, crypto::ecdsa_sha256_recoverable, hash).has_value());
+            });
+    covered(
+        "secp256k1 crypto::sign with ecdsa_keccak256_recoverable of a message on secp256k1",
+        "crypto::sign", [&] {
+            BOOST_TEST(crypto::sign(made, crypto::ecdsa_keccak256_recoverable, hash).has_value());
+        });
+    covered("secp256k1 crypto::sign with ecdsa_keccak256_recoverable of a digest on secp256k1",
+            "crypto::sign", [&] {
+                BOOST_TEST(
+                    crypto::sign(made, crypto::ecdsa_keccak256_recoverable, crypto::prehashed{hash})
+                        .has_value());
             });
     covered("secp256k1 crypto::sign with schnorr, its randomness drawn, on secp256k1",
             "crypto::sign",
@@ -1082,6 +1146,7 @@ int main() {
     cover_keypair_agreement();
     cover_public_keys();
     cover_verification();
+    cover_ethereum_recovery();
     cover_public_key_verify();
     cover_free_factories();
     cover_free_forms();

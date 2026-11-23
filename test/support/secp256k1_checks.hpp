@@ -136,6 +136,9 @@ inline void expect_empty_keypair(webcpp::crypto::curves::secp256k1::keypair& key
                webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.sign(webcpp::crypto::ecdsa_sha256_recoverable, message).error() ==
                webcpp::crypto::error::invalid_state);
+    BOOST_TEST(
+        key.sign(webcpp::crypto::ecdsa_keccak256_recoverable, webcpp::crypto::prehashed{message})
+            .error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.tweak_xonly(tweak).error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(webcpp::crypto::curves::secp256k1::ellswift_create(key, aux).error() ==
                webcpp::crypto::error::invalid_state);

@@ -90,14 +90,16 @@ webcpp.headers-alone crypto : ../include
 crypto-run user_globals : user_globals_test.cpp
   : <library>/third_party//bearssl <library>/third_party//ctaes
     <library>/third_party//secp256k1 <library>/third_party//sodium
-    <library>/webcpp/crypto//openssl <library>/webcpp/asio//asio
+    <library>/third_party//xkcp <library>/webcpp/crypto//openssl
+    <library>/webcpp/asio//asio
   : native ;
 # With OpenSSL's memory functions routed to a memory resource, the adapter's
 # own non-template functions, which only that option compiles.
 crypto-run user_globals_memory_resource : user_globals_test.cpp
   : <library>/third_party//bearssl <library>/third_party//ctaes
     <library>/third_party//secp256k1 <library>/third_party//sodium
-    <library>/webcpp/crypto//openssl <library>/webcpp/asio//asio
+    <library>/third_party//xkcp <library>/webcpp/crypto//openssl
+    <library>/webcpp/asio//asio
     <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
   : native ;
 
@@ -243,7 +245,7 @@ crypto-run timing_coverage_ctaes : timing_coverage_ctaes_test.cpp
 crypto-run timing_coverage_sodium : timing_coverage_sodium_test.cpp
   : <library>/third_party//sodium <library>/webcpp/asio//asio ;
 crypto-run timing_coverage_secp256k1 : timing_coverage_secp256k1_test.cpp
-  : <library>/third_party//secp256k1 <library>/webcpp/asio//asio ;
+  : <library>/third_party//secp256k1 <library>/third_party//xkcp <library>/webcpp/asio//asio ;
 # The specification's scenarios on libsodium's Ed25519: a thread whose DIT is
 # clear finds it clear after sign, one that set it finds it still set.
 crypto-run timing_sodium : timing_sodium_test.cpp : <library>/third_party//sodium ;
@@ -348,6 +350,11 @@ webcpp.compile default_selection_bearssl : default_selection_test.cpp
 # crypto.hpp's branch for libsecp256k1, which headers-alone, without the
 # library, leaves out.
 webcpp.compile crypto_secp256k1 : crypto_secp256k1_test.cpp : <library>/third_party//secp256k1 ;
+# secp256k1's header alone with XKCP linked, its Keccak-256 branch included,
+# which the headers-alone entry above, without XKCP, leaves out (a header
+# compiles alone once there).
+webcpp.compile secp256k1_keccak_alone : secp256k1_keccak_alone_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//xkcp ;
 # crypto.hpp with OpenSSL alone linked, where on WASI BearSSL stays the
 # default: the program names OpenSSL in the type.
 crypto-run crypto_openssl_alone : crypto_openssl_alone_test.cpp
@@ -368,6 +375,12 @@ crypto-run secp256k1_ecdh : secp256k1_ecdh_test.cpp
 crypto-run secp256k1_keys : secp256k1_keys_test.cpp : <library>/third_party//secp256k1 ;
 # Recoverable ECDSA signatures, libsecp256k1's edge cases, and hedged ECDSA.
 crypto-run secp256k1_recovery : secp256k1_recovery_test.cpp : <library>/third_party//secp256k1 ;
+# Ethereum's recoverable ECDSA over Keccak-256 (crypto::ecdsa_keccak256_recoverable):
+# go-ethereum's recovery vector, web3.js's personal_sign, a message hashed with
+# Keccak-256 (XKCP's) and never SHA3-256, low S, and a signature recovered under
+# the other recoverable scheme giving another key.
+crypto-run secp256k1_ethereum : secp256k1_ethereum_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//xkcp ;
 # libsecp256k1's recovery and ElligatorSwift modules called through its C API,
 # which stays reachable beside the wrappers, and compared with them.
 crypto-run secp256k1_c_api : secp256k1_c_api_test.cpp : <library>/third_party//secp256k1 ;

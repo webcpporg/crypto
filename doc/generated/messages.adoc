@@ -403,6 +403,12 @@ The fix: Call `+async_sign+` on a backend that completes by itself: its synchron
 
 The fix: Sign with `+crypto::eddsa+`, Ed25519's scheme; `+crypto::ecdsa_sha256+` is P-256's and secp256k1's.
 
+|`+sign_ed25519_keccak+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: an Ed25519 key signs with crypto::eddsa.+`
+
+The fix: Sign with `+crypto::eddsa+`, Ed25519's scheme; Ethereum's `+crypto::ecdsa_keccak256_recoverable+` is secp256k1's.
+
 |`+sign_ed25519_prehashed+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure Ed25519) and takes no digest; Ed25519ph, which hashes the message, is curves::ed25519::ph.+`
@@ -421,11 +427,29 @@ The fix: As `+sign_ed25519_ecdsa+`: `+crypto::sign+` calls the key pair's own `+
 
 The fix: Give `+crypto::sign+` the key pair, whose public key verifies: `+crypto::sign(key_pair, scheme, input)+`, then `+crypto::verify(scheme, signature, input, public_key)+` or `+public_key.verify(scheme, signature, input)+`.
 
+|`+sign_keccak_digest_20+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto::ecdsa_keccak256_recoverable takes a 32-byte digest, Keccak-256's: crypto::prehashed{digest} of a std::array<std::uint8_t, 32>.+`
+
+The fix: As `+sign_p256_digest_48+`: give `+crypto::ecdsa_keccak256_recoverable+` Keccak-256's 32-byte digest, or the message itself, which it hashes with Keccak-256.
+
+|`+sign_keccak_without_xkcp+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto::ecdsa_keccak256_recoverable hashes a message with webcpp::hash's keccak_256, which needs XKCP: add /third_party//xkcp to the program's Jamfile, or sign crypto::prehashed{digest}.+`
+
+The fix: Add `+/third_party//xkcp+` to the program's Jamfile, whose Keccak-256 hashes the message, or build the 32-byte digest elsewhere and sign `+crypto::prehashed{digest}+`, which needs no XKCP.
+
 |`+sign_p256_digest_48+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: crypto::ecdsa_sha256 takes a 32-byte digest, SHA-256's: crypto::prehashed{digest} of a std::array<std::uint8_t, 32>.+`
 
 The fix: Give `+crypto::ecdsa_sha256+` SHA-256's 32-byte digest, `+crypto::prehashed{digest}+` of a `+std::array<std::uint8_t, 32>+`, or the message itself, which it hashes.
+
+|`+sign_p256_keccak+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: a P-256 key signs with crypto::ecdsa_sha256.+`
+
+The fix: Sign with `+crypto::ecdsa_sha256+`, P-256's scheme; Ethereum's `+crypto::ecdsa_keccak256_recoverable+` is secp256k1's.
 
 |`+sign_p256_schnorr+`
 |native, wasip2, wasip3
@@ -441,15 +465,15 @@ The fix: Sign the message itself with `+crypto::schnorr+`, BIP340's, which has n
 
 |`+sign_secp256k1_eddsa+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, crypto::ecdsa_sha256_recoverable or crypto::schnorr.+`
+|`+webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, crypto::ecdsa_sha256_recoverable, crypto::ecdsa_keccak256_recoverable or crypto::schnorr.+`
 
-The fix: Sign with `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+` or `+crypto::schnorr+`, secp256k1's schemes; `+crypto::eddsa+` is Ed25519's.
+The fix: Sign with `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+`, `+crypto::ecdsa_keccak256_recoverable+` or `+crypto::schnorr+`, secp256k1's schemes; `+crypto::eddsa+` is Ed25519's.
 
 |`+sign_secp256k1_not_a_scheme+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, crypto::ecdsa_sha256_recoverable or crypto::schnorr.+`
+|`+webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, crypto::ecdsa_sha256_recoverable, crypto::ecdsa_keccak256_recoverable or crypto::schnorr.+`
 
-The fix: Name the scheme with its tag: `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+` or `+crypto::schnorr+`.
+The fix: Name the scheme with its tag: `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+`, `+crypto::ecdsa_keccak256_recoverable+` or `+crypto::schnorr+`.
 
 |`+sign_secp256k1_recoverable_digest_48+`
 |native, wasip2, wasip3
@@ -477,7 +501,7 @@ The fix: Call `+async_verify+` on a backend that completes by itself: its synchr
 
 |`+verify_ecdsa_bytes_key+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
 The fix: Give `+crypto::ecdsa_sha256+` the public key as a typed object, `+curves::secp256k1::public_key::from_bytes(bytes)+` or `+curves::p256::public_key::from_bytes(bytes)+`: bytes never choose the curve.
 
@@ -489,7 +513,7 @@ The fix: Make the 64 bytes received into a `+curves::ed25519::signature+` with `
 
 |`+verify_eddsa_bytes_key+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
 The fix: Give `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::from_bytes(bytes)+` for a key received as bytes.
 
@@ -501,9 +525,15 @@ The fix: As `+verify_asynchronous_backend+`.
 
 |`+verify_free_secp256k1_recoverable+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
 The fix: As `+verify_member_secp256k1_recoverable+`: give a recoverable signature to `+curves::secp256k1::recover+`, which gives the signer's key; `+crypto::verify+` takes `+crypto::ecdsa_sha256+` and `+crypto::schnorr+` with a secp256k1 key.
+
+|`+verify_keccak_recoverable+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable signature gives its key to curves::secp256k1::recover.+`
+
+The fix: Give the signature to `+curves::secp256k1::recover(crypto::ecdsa_keccak256_recoverable, signature, input)+`, which gives the signer's key, and compare that key, or its address, with the one expected: Ethereum's recoverable ECDSA has no `+verify+`.
 
 |`+verify_member_ed25519_ecdsa+`
 |native, wasip2, wasip3
@@ -525,7 +555,7 @@ The fix: Verify with `+crypto::ecdsa_sha256+`, P-256's scheme; `+crypto::eddsa+`
 
 |`+verify_member_secp256k1_recoverable+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: a secp256k1 public key verifies crypto::ecdsa_sha256 or crypto::schnorr; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
+|`+webcpp::crypto: a secp256k1 public key verifies crypto::ecdsa_sha256 or crypto::schnorr; a crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
 The fix: Give a recoverable signature to `+curves::secp256k1::recover(crypto::ecdsa_sha256_recoverable, signature, input)+`, which gives the signer's key; a public key verifies `+crypto::ecdsa_sha256+` and `+crypto::schnorr+`.
 
@@ -1401,6 +1431,10 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |`+secret_of_no_bytes+`
 |the compile
 |Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
+
+|`+sign_keccak_without_xkcp+`
+|the compile
+|Add `+/third_party//xkcp+` to the program's Jamfile, whose Keccak-256 hashes the message, or build the 32-byte digest elsewhere and sign `+crypto::prehashed{digest}+`, which needs no XKCP.
 
 |`+silent_payments_other_backend+`
 |the compile

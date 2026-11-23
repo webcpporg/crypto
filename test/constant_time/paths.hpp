@@ -394,10 +394,11 @@ int secp256k1_ecdh() {
 
 /**
  * The key pair's signatures, BIP340 with its auxiliary randomness given and drawn, the
- * recoverable ECDSA and the hedged one of a digest, then its x-only tweak: the key pair's
- * secret, the given auxiliary randomness and the extra entropy secret, the message, the digest
- * and the tweak public (libsecp256k1's `ctime_tests.c` holds the tweak public too). The drawn
- * auxiliary randomness comes from the system's generator, unmarked: its signature is traced
+ * recoverable ECDSA and the hedged one of a digest, Ethereum's recoverable ECDSA of a message
+ * (hashed with Keccak-256, XKCP's, which the programs link), then its x-only tweak: the key
+ * pair's secret, the given auxiliary randomness and the extra entropy secret, the message, the
+ * digest and the tweak public (libsecp256k1's `ctime_tests.c` holds the tweak public too). The
+ * drawn auxiliary randomness comes from the system's generator, unmarked: its signature is traced
  * through the key pair's secret alone. Each signature is traced.
  */
 template <class Checker>
@@ -415,6 +416,7 @@ int secp256k1_signing() {
     auto const schnorr = pair->sign(crypto::schnorr, message_hash, extra_entropy);
     auto const drawn = pair->sign(crypto::schnorr, message_hash);
     auto const recoverable = pair->sign(crypto::ecdsa_sha256_recoverable, digest);
+    auto const ethereum = pair->sign(crypto::ecdsa_keccak256_recoverable, message_hash);
     auto const hedged = pair->sign(crypto::ecdsa_sha256, digest, extra_entropy);
     std::array<std::uint8_t, 32> tweak_bytes{};
     tweak_bytes.fill(0x24);
@@ -425,6 +427,8 @@ int secp256k1_signing() {
                  "secp256k1's sign with schnorr, its auxiliary randomness drawn") +
            check(recoverable.has_value() && carries_mark<Checker>(recoverable->bytes()),
                  "secp256k1's sign with ecdsa_sha256_recoverable") +
+           check(ethereum.has_value() && carries_mark<Checker>(ethereum->bytes()),
+                 "secp256k1's sign with ecdsa_keccak256_recoverable") +
            check(hedged.has_value() && carries_mark<Checker>(hedged->bytes()),
                  "secp256k1's hedged sign with ecdsa_sha256") +
            check(tweaked.has_value(), "secp256k1's tweak_xonly");

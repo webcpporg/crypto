@@ -185,10 +185,12 @@ Ethereum compares addresses rather than keys, the last 20 bytes of the
 Keccak-256 of the uncompressed key (the yellow paper, appendix F), and a wallet
 signs a message after EIP-191's prefix
 (link:https://eips.ethereum.org/EIPS/eip-191[EIP-191]), whose digest is
-Keccak-256's: the library passes it as `+crypto::prehashed{digest}+`, which the
-scheme signs and recovers as given (<<crypto-curves-signatures-ethereum>>).
-Both are the protocol's rules, which a domain library built on crypto, such as
-a future webcpp::ethereum, computes; crypto holds the signature and the recovery. This
+Keccak-256's: Ethereum's scheme is `crypto::ecdsa_keccak256_recoverable`, which
+signs and recovers that digest given as `+crypto::prehashed{digest}+`
+(<<crypto-secp256k1-ethereum>>, with a `personal_sign` example that prints `v`
+and the address). The digest, `v` and the address are the protocol's rules,
+which the program, or a domain library built on crypto, such as a future
+webcpp::ethereum, computes; crypto holds the signature and the recovery. This
 section names no application.
 
 *Mistakes to avoid.* Never trust a recovered key on its own: a changed or

@@ -84,12 +84,14 @@ nothing else (<<crypto-memory>>). The namespace's functions, by header:
 * `<webcpp/crypto/curves/secp256k1.hpp>`: the key pair's `from_secret` and
 `generate`, its `public_key()` and its `secret()`, its signatures (`sign` with
 `crypto::schnorr`, its auxiliary randomness drawn or given, with
-`crypto::ecdsa_sha256`, hedged or not, and with
-`crypto::ecdsa_sha256_recoverable`), its ECDH (`agree`, `agree_hashed`,
+`crypto::ecdsa_sha256`, hedged or not, with
+`crypto::ecdsa_sha256_recoverable`, and with Ethereum's
+`crypto::ecdsa_keccak256_recoverable`), its ECDH (`agree`, `agree_hashed`,
 `agree_point`) and its tweak in place (`tweak_xonly`); `crypto::verify` with
 `crypto::schnorr` and `crypto::ecdsa_sha256`, which checks a signature with a
 public key alone; `recover`, which finds the key of a recoverable signature
-(<<crypto-secp256k1-recovery>>); the `public_key` type, made from its bytes by
+(<<crypto-secp256k1-recovery>>, <<crypto-secp256k1-ethereum>>); the
+`public_key` type, made from its bytes by
 `public_key::from_bytes` and written by `compressed()`, `uncompressed()` and
 `xonly()` (<<crypto-secp256k1-keys>>); `to_der`, `from_der` (strict DER),
 `normalize_low_s` and `is_low_s`, ECDSA's DER and low-S forms; and
@@ -311,8 +313,8 @@ recovery id, 0 to 3, names the one that made it
 `recoverable_signature::from_bytes`) and the same input, the message it hashes or
 a digest marked `crypto::prehashed`. It refuses with `invalid_signature` an id
 above 3, an r or an s not below the group order, and a signature from which no
-key is recovered. Ethereum's digest is Keccak-256's, not SHA-256's (how it is
-signed under this scheme: <<crypto-curves-signatures-ethereum>>).
+key is recovered. Ethereum's digest is Keccak-256's, not SHA-256's: its scheme
+is `crypto::ecdsa_keccak256_recoverable` (<<crypto-secp256k1-ethereum>>).
 
 include::generated/backends-recovery.adoc[]
 
@@ -348,13 +350,108 @@ account the key's hash must name.
 * Ethereum's `v` is the recovery id plus 27, or plus an offset of the chain's
 (link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow
 paper, appendix F]): passing `v` as the id makes `recover` refuse it. That
-encoding, and the message hash Ethereum signs, are a domain library's.
+encoding, and the digest Ethereum signs, are the program's
+(<<crypto-secp256k1-ethereum>>).
 * The hedged form gives a different signature each time, so a test that
 compares signatures with fixed bytes uses the unhedged form. Use the hedged
 form where the signer runs on hardware an attacker can fault or observe: the
 nonce then no longer depends on the key and the hash alone, so two signings of
 one hash do not repeat the same computation. Never reuse the 32 bytes: fixed
 extra data leaves the signature deterministic, as plain RFC 6979.
+
+[#crypto-secp256k1-ethereum]
+==== Ethereum
+
+Ethereum signs with recoverable ECDSA over Keccak-256
+(link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow
+paper, appendix F]), the scheme `crypto::ecdsa_keccak256_recoverable`.
+`sign(crypto::ecdsa_keccak256_recoverable, input)` gives the
+`recoverable_signature` of <<crypto-secp256k1-recovery>>, r, s with a low S as
+EIP-2 requires (link:https://eips.ethereum.org/EIPS/eip-2[EIP-2]) and the
+recovery id, and `recover(crypto::ecdsa_keccak256_recoverable, signature,
+input)` gives the signer's `public_key`. The input is a message, which the call
+hashes with Keccak-256 (`webcpp::hash::keccak_256`, the original padding, never
+SHA3-256), or the 32-byte digest the program builds, given as
+`+crypto::prehashed{digest}+`. The scheme has no `crypto::verify`, as
+`crypto::ecdsa_sha256_recoverable` has none: Ethereum compares the key
+recovered, or its address, with the one expected. It has no asynchronous form,
+as no operation of secp256k1's has one.
+
+Keccak-256 is XKCP's: a program that signs or recovers a message adds
+`/third_party//xkcp` to its Jamfile, and without it the build stops with that
+line (<<crypto-jamfile-messages>>). A digest marker needs no XKCP.
+
+[source,bash]
+----
+exe wallet : wallet.cpp /webcpp/crypto//crypto /third_party//secp256k1
+    /third_party//xkcp ;
+----
+
+crypto computes none of the protocol's encodings: not the digest a wallet
+signs, not `v`, not the address. The digest is EIP-191's for a signed message
+(link:https://eips.ethereum.org/EIPS/eip-191[EIP-191]), EIP-712's for typed
+data (link:https://eips.ethereum.org/EIPS/eip-712[EIP-712]), or a transaction's
+hash; `v` encodes the recovery id, and the address is the last 20 bytes of the
+Keccak-256 of the uncompressed key without its 0x04:
+
+.Ethereum's `v`, from `recovery_id()`
+[cols="2,2,3",options="header"]
+|===
+| Where | `v` | Back to the recovery id
+
+| `personal_sign` (EIP-191), a legacy transaction before EIP-155
+| 27 + id
+| `v - 27`
+
+| A legacy transaction with EIP-155's replay protection
+(link:https://eips.ethereum.org/EIPS/eip-155[EIP-155])
+| 35 + 2 x chain id + id
+| `v - 35 - 2 x chain id`
+
+| A typed transaction (EIP-2930, EIP-1559 and later), its `yParity`
+| id
+| `yParity`
+|===
+
+*Example.* A wallet signs "Some data" as `personal_sign` does, with web3.js's
+documented key, and the reader recovers its address: EIP-191's digest, built
+over webcpp::hash,
+
+[source,cpp]
+----
+include::{examples}/ethereum_personal_sign.cpp[tag=digest,indent=0]
+----
+
+signed as a digest, with `v` made from the recovery id,
+
+[source,cpp]
+----
+include::{examples}/ethereum_personal_sign.cpp[tag=sign,indent=0]
+----
+
+and the signer's key recovered from the same digest, then its address:
+
+[source,cpp]
+----
+include::{examples}/ethereum_personal_sign.cpp[tag=recover,indent=0]
+----
+
+[listing]
+----
+include::{examples}/ethereum_personal_sign.expected[]
+----
+
+*Pitfalls.*
+
+* A message signed with `crypto::ecdsa_keccak256_recoverable` and recovered
+under `crypto::ecdsa_sha256_recoverable`, or the other way round, is hashed
+with the other hash and gives another key, not an error: both schemes give one
+signature type, and the comparison with the key expected is the check.
+* Give the scheme the digest the protocol signs: a message passed in place of
+EIP-191's digest is hashed without its prefix and recovers another key.
+* `recover` accepts a high S, as libsecp256k1's recovery and Ethereum's
+`ecrecover` do; `sign` gives a low S always. A node that applies EIP-2 to a
+transaction checks `is_low_s` of its r and s itself.
 
 [#crypto-secp256k1-tweaks]
 ==== Tweaks, negation and combination

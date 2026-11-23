@@ -6,7 +6,8 @@
 
 // The key pair contract, crypto::keypair (design D8): Ed25519's, P-256's and secp256k1's key pairs
 // meet it, on libsodium, BearSSL and libsecp256k1, each through the contract alone, secp256k1's
-// with each of its three schemes; a stand-in that has every member meets it, and stand-ins that
+// with each of its four schemes (the two recoverable ones over a digest marker, recovered); a
+// stand-in that has every member meets it, and stand-ins that
 // lack one member each (from_secret, generate, public_key_type, secret), whose from_secret,
 // generate, public_key or secret gives another type, or whose curve declares no scheme, or a
 // scheme they do not sign, do not; the contract folds over the list of schemes,
@@ -344,6 +345,25 @@ void round_trip(Scheme scheme) {
     BOOST_TEST(crypto::verify(scheme, *signature, message, *key->public_key()).has_value());
 }
 
+// A recoverable scheme of secp256k1's key pair, through the contract: the key pair made again
+// from its secret() signs a digest marker, and recover gives the first one's public key.
+template <crypto::keypair Keypair, class Scheme>
+void recovered_round_trip(Scheme scheme) {
+    auto const key = Keypair::generate();
+    BOOST_TEST(key.has_value());
+    auto const exported = key->secret();
+    BOOST_TEST(exported.has_value());
+    auto const again = Keypair::from_secret(exported->bytes());
+    BOOST_TEST(again.has_value());
+    std::array<std::uint8_t, 32> digest{};
+    digest.fill(0x3c);
+    auto const signature = again->sign(scheme, crypto::prehashed{digest});
+    BOOST_TEST(signature.has_value());
+    auto const recovered =
+        crypto::curves::secp256k1::recover(scheme, *signature, crypto::prehashed{digest});
+    BOOST_TEST(recovered.has_value() && *recovered == *key->public_key());
+}
+
 }  // namespace
 
 int main() {
@@ -353,5 +373,7 @@ int main() {
     using secp256k1_keypair = crypto::curves::secp256k1::basic_keypair<crypto::backends::secp256k1>;
     round_trip<secp256k1_keypair>(crypto::ecdsa_sha256);
     round_trip<secp256k1_keypair>(crypto::schnorr);
+    recovered_round_trip<secp256k1_keypair>(crypto::ecdsa_sha256_recoverable);
+    recovered_round_trip<secp256k1_keypair>(crypto::ecdsa_keccak256_recoverable);
     return webcpp::test::exit_status(boost::report_errors());
 }

@@ -18,14 +18,15 @@
 // header gave a local or a parameter until each took two words; then every public header.
 //
 // How the list was made: an aggregate translation unit of every header of include/, every
-// backend linked, its AST dumped (clang -Xclang -ast-dump), each ParmVarDecl, VarDecl and
-// BindingDecl inside a function of include/ whose name matches ^[a-z][a-z0-9]*$; again with
-// WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE, WEBCPP_CRYPTO_DETAIL_TIMING_COVERED and
-// WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED, and without threads, for the code only they compile. The
-// namespace-scope constants (`eddsa`, `schnorr`, `strict`, the generated tables' `supported` and
-// `linked`) and the static data members (each backend's `name`, `overhead`) are not locals, and
-// are left out: C4459 applies to neither; `size` (ed25519's `public_key::size`) and `order`
-// (`p_curve_traits`) are static data members too, listed only because they were also locals.
+// backend and XKCP linked (secp256k1's Keccak-256 path), its AST dumped (clang -Xclang
+// -ast-dump), each ParmVarDecl, VarDecl and BindingDecl inside a function of include/ whose name
+// matches ^[a-z][a-z0-9]*$; again with WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE,
+// WEBCPP_CRYPTO_DETAIL_TIMING_COVERED and WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED, and without
+// threads, for the code only they compile. The namespace-scope constants (`eddsa`, `schnorr`,
+// `strict`, the generated tables' `supported` and `linked`) and the static data members (each
+// backend's `name`, `overhead`) are not locals, and are left out: C4459 applies to neither;
+// `size` (ed25519's `public_key::size`) and `order` (`p_curve_traits`) are static data members
+// too, listed only because they were also locals.
 //
 // A name that the platform's C library already declares as a global (`encrypt`, <unistd.h>'s)
 // cannot be a program's global there anyway: it is declared on MSVC alone.
@@ -48,6 +49,7 @@
 #include <webcpp/asio/query.hpp>
 #include <webcpp/config.hpp>
 #include <webcpp/hash/algorithms.hpp>
+#include <webcpp/hash/keccak.hpp>
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/errc.hpp>

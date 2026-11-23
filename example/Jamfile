@@ -62,6 +62,12 @@ webcpp.example ecdh_x_coordinate.cpp : <library>/third_party//secp256k1 ;
 # and the hash.
 webcpp.example recover_signer.cpp : <library>/third_party//secp256k1 ;
 
+# Ethereum's personal_sign: EIP-191's digest built over webcpp::hash's
+# Keccak-256, signed with crypto::ecdsa_keccak256_recoverable, r, s and v
+# printed, and the signer's address recovered (web3.js's documented vector).
+webcpp.example ethereum_personal_sign.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//xkcp ;
+
 # A watch-only wallet: the same tweak on the public key and on the secret key,
 # and a signature of the tweaked key pair verified under the tweaked public key.
 webcpp.example key_tweak.cpp : <library>/third_party//secp256k1 ;

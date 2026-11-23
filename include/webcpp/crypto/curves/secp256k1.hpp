@@ -9,10 +9,12 @@
  back, and its typed public key, `curves::secp256k1::public_key`, made from SEC1 bytes by
  `public_key::from_bytes` and giving its compressed, uncompressed and x-only forms;
  `key.sign(scheme, input)` with `crypto::ecdsa_sha256` (hedged too),
- `crypto::ecdsa_sha256_recoverable` and `crypto::schnorr` (BIP340), the input a message or, for
- ECDSA, `crypto::prehashed{digest}`, each giving its own signature type, `ecdsa_signature`,
- `recoverable_signature` and `schnorr_signature`; `crypto::verify` of ECDSA against the public key
- and of Schnorr against the public key or its 32-byte x-only form; `recover`, the signer's key; ECDH
+ `crypto::ecdsa_sha256_recoverable`, `crypto::ecdsa_keccak256_recoverable` (Ethereum's, over
+ Keccak-256: a message needs `/third_party//xkcp`) and `crypto::schnorr` (BIP340), the input a
+ message or, for ECDSA, `crypto::prehashed{digest}`, each giving its own signature type,
+ `ecdsa_signature`, `recoverable_signature` (both recoverable schemes) and `schnorr_signature`;
+ `crypto::verify` of ECDSA against the public key and of Schnorr against the public key or its
+ 32-byte x-only form; `recover`, the signer's key, under either recoverable scheme; ECDH
  in three forms, `agree` (the shared x, as P-256's), `agree_hashed` and `agree_point`, each a
  secret; ECDSA's DER form, `normalize_low_s` and `is_low_s`, the tweak of an x-only key, and the
  workspace a function over many keys borrows.
@@ -37,6 +39,11 @@
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 
+#ifdef WEBCPP_HASH_HAS_XKCP
+#include <webcpp/hash/keccak.hpp>  // crypto::ecdsa_keccak256_recoverable's hash of a message
+#endif
+
+#include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
 
 #include <algorithm>
@@ -408,6 +415,40 @@ template <class Input>
     }
 }
 
+/**
+ * The 32-byte digest Ethereum's recoverable ECDSA signs and recovers from: a marker's digest,
+ * copied, or the Keccak-256 of a message (webcpp::hash's `keccak_256`, the original padding,
+ * never SHA3-256), which needs XKCP: without `/third_party//xkcp`, a message stops the build.
+ *
+ * @tparam Input A message or `prehashed<32>`, which `check_input` has accepted.
+ * @param signing_input The message or the marker.
+ * @return The digest.
+ */
+template <class Input>
+[[nodiscard]] std::array<std::uint8_t, 32> secp256k1_keccak_digest(
+    Input const& signing_input) noexcept {
+    std::array<std::uint8_t, 32> digest_bytes{};
+    if constexpr (is_prehashed_v<Input>) {
+        std::ranges::copy(signing_input.digest, digest_bytes.begin());
+    } else {
+#ifdef WEBCPP_HASH_HAS_XKCP
+        auto const bytes_of_message = message_bytes(signing_input);
+        ::webcpp::hash::keccak_256 keccak_hasher;
+        keccak_hasher.update(bytes_of_message.data(), bytes_of_message.size());
+        static_assert(
+            std::is_same_v<::webcpp::hash::keccak_256::result_type, boost::hash2::digest<32>>);
+        auto const hash_result = keccak_hasher.result();
+        std::copy_n(hash_result.data(), digest_bytes.size(), digest_bytes.begin());
+#else
+        static_assert(refused_v<Input>,
+                      "webcpp::crypto: crypto::ecdsa_keccak256_recoverable hashes a message with "
+                      "webcpp::hash's keccak_256, which needs XKCP: add /third_party//xkcp to the "
+                      "program's Jamfile, or sign crypto::prehashed{digest}.");
+#endif
+    }
+    return digest_bytes;
+}
+
 extern "C" {
 
 /**
@@ -588,8 +629,9 @@ namespace webcpp::crypto::curves::secp256k1 {
 using ecdsa_signature = detail::basic_signature<detail::secp256k1_ecdsa_signature_tag, 64>;
 
 /**
- * A secp256k1 recoverable ECDSA signature, 65 bytes, r, s and the recovery id: what
- * `sign(crypto::ecdsa_sha256_recoverable, ...)` gives and `recover` takes.
+ * A secp256k1 recoverable ECDSA signature, 65 bytes, r, s and the recovery id: what `sign` gives
+ * with `crypto::ecdsa_sha256_recoverable` and with `crypto::ecdsa_keccak256_recoverable`, and
+ * what `recover` takes, under the scheme that signed it (design R20).
  *
  * `recovery_id()` reads its last byte. `from_bytes` checks the size alone; `recover` refuses an id
  * above 3.
@@ -756,8 +798,9 @@ public:
         constexpr bool is_schnorr = std::is_same_v<Scheme, schnorr_t>;
         static_assert(is_ecdsa || is_schnorr,
                       "webcpp::crypto: a secp256k1 public key verifies crypto::ecdsa_sha256 or "
-                      "crypto::schnorr; a crypto::ecdsa_sha256_recoverable signature gives its "
-                      "key to curves::secp256k1::recover.");
+                      "crypto::schnorr; a crypto::ecdsa_sha256_recoverable or a "
+                      "crypto::ecdsa_keccak256_recoverable signature gives its key to "
+                      "curves::secp256k1::recover.");
         if constexpr (is_ecdsa) {
             return webcpp::crypto::detail::secp256k1_verify_ecdsa<Backend>(
                 webcpp::crypto::detail::checked_signature_bytes<ecdsa_signature, ecdsa_sha256_t>(
@@ -1029,23 +1072,28 @@ public:
     }
 
     /**
-     * Signs with one of secp256k1's three schemes: ECDSA over SHA-256 with RFC 6979's nonce, low
-     * S, as libsecp256k1 signs; the same with the recovery id; or BIP340's Schnorr, with 32 bytes
-     * of auxiliary randomness drawn from the system's generator, as BIP340 recommends.
+     * Signs with one of secp256k1's four schemes: ECDSA over SHA-256 with RFC 6979's nonce, low
+     * S, as libsecp256k1 signs; the same with the recovery id; Ethereum's recoverable ECDSA, the
+     * same over Keccak-256 (EIP-2's low S); or BIP340's Schnorr, with 32 bytes of auxiliary
+     * randomness drawn from the system's generator, as BIP340 recommends.
      *
-     * @tparam Scheme `crypto::ecdsa_sha256_t`, `crypto::ecdsa_sha256_recoverable_t` or
-     * `crypto::schnorr_t`; another scheme stops the build.
+     * @tparam Scheme `crypto::ecdsa_sha256_t`, `crypto::ecdsa_sha256_recoverable_t`,
+     * `crypto::ecdsa_keccak256_recoverable_t` or `crypto::schnorr_t`; another scheme stops the
+     * build.
      * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
-     * empty included; or, for the two ECDSA schemes, `crypto::prehashed<32>`; anything else stops
-     * the build.
-     * @param signing_scheme `crypto::ecdsa_sha256`, `crypto::ecdsa_sha256_recoverable` or
-     * `crypto::schnorr`.
-     * @param signing_input For ECDSA, the message, hashed with SHA-256 inside the call, or
-     * `crypto::prehashed{digest}`, a 32-byte digest signed as given (a Bitcoin sighash); for
-     * Schnorr, the message itself, signed as given.
+     * empty included; or, for the three ECDSA schemes, `crypto::prehashed<32>`; anything else
+     * stops the build, and so does a message for `ecdsa_keccak256_recoverable` in a program that
+     * does not link `/third_party//xkcp`.
+     * @param signing_scheme `crypto::ecdsa_sha256`, `crypto::ecdsa_sha256_recoverable`,
+     * `crypto::ecdsa_keccak256_recoverable` or `crypto::schnorr`.
+     * @param signing_input For ECDSA, the message, hashed inside the call with SHA-256, or with
+     * Keccak-256 for `ecdsa_keccak256_recoverable`, or `crypto::prehashed{digest}`, a 32-byte
+     * digest signed as given (a Bitcoin sighash, an EIP-191 or EIP-712 digest, a transaction's
+     * hash); for Schnorr, the message itself, signed as given.
      * @return The scheme's signature: an `ecdsa_signature`, r then s, for `ecdsa_sha256`; a
-     * `recoverable_signature`, r, s and the recovery id 0 to 3, for `ecdsa_sha256_recoverable`; a
-     * `schnorr_signature`, BIP340's, for `schnorr`; `invalid_state` moved from;
+     * `recoverable_signature`, r, s and the recovery id 0 to 3, for `ecdsa_sha256_recoverable` and
+     * `ecdsa_keccak256_recoverable`; a `schnorr_signature`, BIP340's, for `schnorr`;
+     * `invalid_state` moved from;
      * `entropy_unavailable` when Schnorr's auxiliary randomness cannot be drawn;
      * `backend_failure`.
      */
@@ -1056,10 +1104,12 @@ public:
         detail::timing_guard const timing_scope;
         constexpr bool has_scheme = std::is_same_v<Scheme, ecdsa_sha256_t> ||
                                     std::is_same_v<Scheme, ecdsa_sha256_recoverable_t> ||
+                                    std::is_same_v<Scheme, ecdsa_keccak256_recoverable_t> ||
                                     std::is_same_v<Scheme, schnorr_t>;
         static_assert(has_scheme,
                       "webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, "
-                      "crypto::ecdsa_sha256_recoverable or crypto::schnorr.");
+                      "crypto::ecdsa_sha256_recoverable, crypto::ecdsa_keccak256_recoverable or "
+                      "crypto::schnorr.");
         if constexpr (has_scheme) {
             detail::check_input<Scheme, Input, Backend>();
             if constexpr (!detail::input_valid_v<Scheme, Input, Backend>) {
@@ -1070,8 +1120,11 @@ public:
             } else if constexpr (std::is_same_v<Scheme, ecdsa_sha256_t>) {
                 return signed_ecdsa(webcpp::crypto::detail::secp256k1_digest(signing_input),
                                     nullptr);
-            } else {
+            } else if constexpr (std::is_same_v<Scheme, ecdsa_sha256_recoverable_t>) {
                 return signed_recoverable(webcpp::crypto::detail::secp256k1_digest(signing_input));
+            } else {
+                return signed_recoverable(
+                    webcpp::crypto::detail::secp256k1_keccak_digest(signing_input));
             }
         } else {
             // Never compiled into a program: the assertion above stopped the build.
@@ -1425,14 +1478,46 @@ inline curves::secp256k1::public_key secp256k1_access::make_public_key() noexcep
     return {};
 }
 
+/**
+ * The public key that made a recoverable signature of a 32-byte digest
+ * (`secp256k1_ecdsa_recover`), the work of `recover` under both recoverable schemes, unguarded:
+ * each `recover` holds the guard.
+ *
+ * A high S is accepted, as libsecp256k1's recovery and Ethereum's `ecrecover` accept it.
+ *
+ * @param signature_bytes The signature: r, s, then the recovery id.
+ * @param message_hash The 32-byte digest signed.
+ * @return The key; `invalid_signature` for a recovery id above 3, an r or an s not below the
+ * group order, or a signature from which no key is recovered.
+ */
+[[nodiscard]] inline boost::system::result<curves::secp256k1::public_key> secp256k1_recovered(
+    std::array<std::uint8_t, curves::secp256k1::recoverable_signature_size> const& signature_bytes,
+    std::span<std::uint8_t const, 32> message_hash) noexcept {
+    read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
+    // libsecp256k1 checks the id with ARG_CHECK, whose callback aborts: refused first here.
+    int const recovery_id = signature_bytes[curves::secp256k1::recoverable_signature_size - 1];
+    if (recovery_id > 3) {
+        return error::invalid_signature;
+    }
+    secp256k1_selftest();
+    secp256k1_ecdsa_recoverable_signature parsed_value{};
+    curves::secp256k1::public_key recovered_key = secp256k1_access::make_public_key();
+    if (secp256k1_ecdsa_recoverable_signature_parse_compact(
+            secp256k1_context_static, &parsed_value, signature_bytes.data(), recovery_id) == 0 ||
+        secp256k1_ecdsa_recover(secp256k1_context_static, &secp256k1_access::point(recovered_key),
+                                &parsed_value, message_hash.data()) == 0) {
+        return error::invalid_signature;
+    }
+    return recovered_key;
+}
+
 }  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::curves::secp256k1 {
 
 /**
- * The public key that made a recoverable signature (`secp256k1_ecdsa_recover`), as Ethereum
- * identifies a transaction's signer: the same inputs as
- * `sign(crypto::ecdsa_sha256_recoverable, signing_input)`.
+ * The public key that made a recoverable signature (`secp256k1_ecdsa_recover`) of ECDSA over
+ * SHA-256: the same inputs as `sign(crypto::ecdsa_sha256_recoverable, signing_input)`.
  *
  * Tip: recovery finds some key for almost any signature; the signature is the expected
  * signer's only when the key recovered is the one expected.
@@ -1461,25 +1546,57 @@ template <class Backend = default_backend_t<families::secp256k1>, class Signatur
             signature_value);
     detail::check_input<ecdsa_sha256_recoverable_t, Input, Backend>();
     if constexpr (detail::input_valid_v<ecdsa_sha256_recoverable_t, Input, Backend>) {
-        auto const message_hash = webcpp::crypto::detail::secp256k1_digest(signing_input);
-        webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
-        // libsecp256k1 checks the id with ARG_CHECK, whose callback aborts: refused first here.
-        int const recovery_id = signature_bytes[recoverable_signature_size - 1];
-        if (recovery_id > 3) {
-            return error::invalid_signature;
-        }
-        secp256k1_selftest();
-        using access = webcpp::crypto::detail::secp256k1_access;
-        secp256k1_ecdsa_recoverable_signature parsed_value{};
-        public_key recovered_key = access::make_public_key();
-        if (secp256k1_ecdsa_recoverable_signature_parse_compact(
-                secp256k1_context_static, &parsed_value, signature_bytes.data(), recovery_id) ==
-                0 ||
-            secp256k1_ecdsa_recover(secp256k1_context_static, &access::point(recovered_key),
-                                    &parsed_value, message_hash.data()) == 0) {
-            return error::invalid_signature;
-        }
-        return recovered_key;
+        return webcpp::crypto::detail::secp256k1_recovered(
+            signature_bytes, webcpp::crypto::detail::secp256k1_digest(signing_input));
+    } else {
+        // Never compiled into a program: check_input stopped the build.
+        return error::invalid_signature;
+    }
+}
+
+/**
+ * The public key that made a signature of Ethereum's recoverable ECDSA over Keccak-256
+ * (`secp256k1_ecdsa_recover`), as Ethereum identifies a transaction's or a message's signer: the
+ * same inputs as `sign(crypto::ecdsa_keccak256_recoverable, signing_input)`.
+ *
+ * Ethereum's `v` is the program's to turn into the recovery id (27 + id for `personal_sign`,
+ * 35 + 2 x chain id + id for EIP-155, the id itself, `yParity`, for a typed transaction), and the
+ * address the program's to compute from the key: crypto computes neither.
+ *
+ * A high S is accepted, as libsecp256k1's recovery and Ethereum's `ecrecover` accept it; EIP-2
+ * refuses one in a transaction, which a program checks with `is_low_s` where it applies.
+ *
+ * Tip: recovery finds some key for almost any signature; the signature is the expected
+ * signer's only when the key, or its address, is the one expected.
+ *
+ * @tparam Backend The backend, `backends::secp256k1`.
+ * @tparam Signature `curves::secp256k1::recoverable_signature`; another type, bytes included,
+ * stops the build.
+ * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, or
+ * `crypto::prehashed<32>`; anything else stops the build, and so does a message in a program
+ * that does not link `/third_party//xkcp`.
+ * @param signing_scheme `crypto::ecdsa_keccak256_recoverable`.
+ * @param signature_value The signature: r, s, then the recovery id, 0 to 3; 65 bytes from a peer
+ * are made into one by `recoverable_signature::from_bytes`.
+ * @param signing_input The signed message, hashed with Keccak-256 inside the call, or
+ * `crypto::prehashed{digest}`, the 32-byte digest signed (an EIP-191 or EIP-712 digest, a
+ * transaction's hash).
+ * @return The key; `invalid_signature` for a recovery id above 3, an r or an s not below the
+ * group order, or a signature from which no key is recovered.
+ */
+template <class Backend = default_backend_t<families::secp256k1>, class Signature, class Input>
+[[nodiscard]] boost::system::result<public_key> recover(
+    [[maybe_unused]] ecdsa_keccak256_recoverable_t signing_scheme, Signature const& signature_value,
+    Input const& signing_input) noexcept {
+    detail::timing_guard const timing_scope;
+    static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
+    auto const& signature_bytes =
+        detail::checked_signature_bytes<recoverable_signature, ecdsa_keccak256_recoverable_t>(
+            signature_value);
+    detail::check_input<ecdsa_keccak256_recoverable_t, Input, Backend>();
+    if constexpr (detail::input_valid_v<ecdsa_keccak256_recoverable_t, Input, Backend>) {
+        return webcpp::crypto::detail::secp256k1_recovered(
+            signature_bytes, webcpp::crypto::detail::secp256k1_keccak_digest(signing_input));
     } else {
         // Never compiled into a program: check_input stopped the build.
         return error::invalid_signature;
@@ -1779,6 +1896,15 @@ inline constexpr bool
     signs_with_v<curves::secp256k1::basic_keypair<Backend>, ecdsa_sha256_recoverable_t> = true;
 
 /**
+ * A secp256k1 key pair signs with Ethereum's recoverable ECDSA over Keccak-256.
+ *
+ * @tparam Backend The key pair's backend.
+ */
+template <class Backend>
+inline constexpr bool
+    signs_with_v<curves::secp256k1::basic_keypair<Backend>, ecdsa_keccak256_recoverable_t> = true;
+
+/**
  * A secp256k1 key pair signs with BIP340's Schnorr.
  *
  * @tparam Backend The key pair's backend.
@@ -1824,6 +1950,19 @@ struct signature_of<curves::secp256k1::basic_keypair<Backend>, ecdsa_sha256_t> {
  */
 template <class Backend>
 struct signature_of<curves::secp256k1::basic_keypair<Backend>, ecdsa_sha256_recoverable_t> {
+    /** The signature type. */
+    using type = curves::secp256k1::recoverable_signature;
+};
+
+/**
+ * A secp256k1 key pair's signature under Ethereum's recoverable ECDSA over Keccak-256,
+ * `curves::secp256k1::recoverable_signature`, the type `ecdsa_sha256_recoverable` gives (design
+ * R20): the bytes are the same, and the scheme is the input's hash.
+ *
+ * @tparam Backend The key's backend.
+ */
+template <class Backend>
+struct signature_of<curves::secp256k1::basic_keypair<Backend>, ecdsa_keccak256_recoverable_t> {
     /** The signature type. */
     using type = curves::secp256k1::recoverable_signature;
 };

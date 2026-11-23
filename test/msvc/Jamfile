@@ -73,3 +73,4 @@ build-project label_lookup_by_value ;
 build-project p256_default_not_linked ;
 build-project p256_on_sodium ;
 build-project aes_block_default_not_linked ;
+build-project sign_keccak_without_xkcp ;

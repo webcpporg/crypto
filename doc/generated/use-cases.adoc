@@ -102,11 +102,12 @@
 |<<crypto-p2p-nostr-dm,[.keep]`+ecdh_x_coordinate.cpp+`>>
 
 |Find who signed a message or a transaction without being sent their key (Ethereum's signatures)
-|In `+curves::secp256k1+`: `+keypair::sign(crypto::ecdsa_sha256_recoverable, message)+`, `+recover+`
+|In `+curves::secp256k1+`: `+keypair::sign(crypto::ecdsa_keccak256_recoverable, message)+`, `+recover+`
 |libsecp256k1
 |`+/webcpp/crypto//crypto+` +
-`+/third_party//secp256k1+`
-|<<crypto-wallets-recovery,[.keep]`+recover_signer.cpp+`>>
+`+/third_party//secp256k1+` +
+`+/third_party//xkcp+`
+|<<crypto-wallets-recovery,[.keep]`+ethereum_personal_sign.cpp+`>>
 
 |Derive child keys for a watch-only wallet (BIP 32's derivation is a domain library's)
 |In `+curves::secp256k1+`: `+seckey_tweak_add+`, `+pubkey_tweak_add+`

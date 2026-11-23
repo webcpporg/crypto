@@ -6,7 +6,8 @@
 
 /**
  What every curve's signing shares (design D1 to D3): the scheme tags, `eddsa`, `ecdsa_sha256`,
- `ecdsa_sha256_recoverable` and `schnorr`, and the library's one list of them,
+ `ecdsa_sha256_recoverable`, `ecdsa_keccak256_recoverable` and `schnorr`, and the library's one
+ list of them,
  `detail::all_schemes`; the marker of a digest, `prehashed{digest}`; the
  concepts `can_sign` and `can_verify`, which say which key, scheme, signature and input go
  together; the free synchronous `sign(key_pair, scheme, input)`, the key pair's `sign` (design
@@ -76,6 +77,17 @@ struct ecdsa_sha256_recoverable_t {
 };
 
 /**
+ * The type of @ref ecdsa_keccak256_recoverable, Ethereum's recoverable ECDSA over Keccak-256, on
+ * secp256k1.
+ *
+ * Its explicit default constructor keeps `{}` from standing for a scheme.
+ */
+struct ecdsa_keccak256_recoverable_t {
+    /** Makes the tag; explicit, so that only its name makes one. */
+    explicit ecdsa_keccak256_recoverable_t() = default;
+};
+
+/**
  * The type of @ref schnorr, BIP340's Schnorr signatures, on secp256k1.
  *
  * Its explicit default constructor keeps `{}` from standing for a scheme.
@@ -99,7 +111,8 @@ struct scheme_list {};
  * The library's one list of schemes, every scheme tag: a new scheme is one more tag here, and
  * `is_scheme_v` and the key pair contract, `crypto::keypair`, take it from this list.
  */
-using all_schemes = scheme_list<eddsa_t, ecdsa_sha256_t, ecdsa_sha256_recoverable_t, schnorr_t>;
+using all_schemes = scheme_list<eddsa_t, ecdsa_sha256_t, ecdsa_sha256_recoverable_t,
+                                ecdsa_keccak256_recoverable_t, schnorr_t>;
 
 /**
  * Whether `Type` is a member of the list `List`: false for a type that is not a `scheme_list`.
@@ -147,6 +160,16 @@ inline constexpr ecdsa_sha256_t ecdsa_sha256{};
  * id, from which `recover` gives the public key.
  */
 inline constexpr ecdsa_sha256_recoverable_t ecdsa_sha256_recoverable{};
+
+/**
+ * Ethereum's recoverable ECDSA, secp256k1's: the message is hashed with Keccak-256 inside the call
+ * (the original padding, never SHA3-256; it needs XKCP, `/third_party//xkcp`), or a 32-byte digest
+ * the program builds is given as `prehashed{digest}`; its signature is 65 bytes, r, s with a low
+ * s and the recovery id, from which `recover` gives the public key.
+ *
+ * Ethereum's `v` and the address are the program's to compute.
+ */
+inline constexpr ecdsa_keccak256_recoverable_t ecdsa_keccak256_recoverable{};
 
 /**
  * BIP340's Schnorr signatures, secp256k1's: it signs the message itself, of any length, and has
@@ -266,6 +289,15 @@ struct scheme_traits<ecdsa_sha256_recoverable_t> {
     /** The signature's size in bytes, with the recovery id. */
     static constexpr std::size_t signature_size = 65;
     /** The digest's size in bytes, SHA-256's. */
+    static constexpr std::size_t digest_size = 32;
+};
+
+/** Ethereum's recoverable ECDSA's: a 65-byte signature, and Keccak-256's 32-byte digest. */
+template <>
+struct scheme_traits<ecdsa_keccak256_recoverable_t> {
+    /** The signature's size in bytes, with the recovery id. */
+    static constexpr std::size_t signature_size = 65;
+    /** The digest's size in bytes, Keccak-256's. */
     static constexpr std::size_t digest_size = 32;
 };
 
@@ -407,6 +439,11 @@ constexpr void check_input() noexcept {
         static_assert(refused_v<Input>,
                       "webcpp::crypto: crypto::ecdsa_sha256_recoverable takes a 32-byte digest, "
                       "SHA-256's: crypto::prehashed{digest} of a std::array<std::uint8_t, 32>.");
+    } else if constexpr (decltype(Input::digest)::extent != scheme_traits<Scheme>::digest_size &&
+                         std::is_same_v<Scheme, ecdsa_keccak256_recoverable_t>) {
+        static_assert(refused_v<Input>,
+                      "webcpp::crypto: crypto::ecdsa_keccak256_recoverable takes a 32-byte digest, "
+                      "Keccak-256's: crypto::prehashed{digest} of a std::array<std::uint8_t, 32>.");
     } else if constexpr (decltype(Input::digest)::extent != scheme_traits<Scheme>::digest_size) {
         static_assert(refused_v<Input>,
                       "webcpp::crypto: crypto::ecdsa_sha256 takes a 32-byte digest, SHA-256's: "
@@ -505,7 +542,8 @@ template <class Expected, class Signature, class Verifier>
                       "curves::secp256k1::schnorr_signature: make one from 64 bytes with "
                       "curves::secp256k1::schnorr_signature::from_bytes.");
     } else if constexpr (is_signature_of_tag_v<Expected, secp256k1_recoverable_signature_tag, 65> &&
-                         std::is_same_v<Verifier, ecdsa_sha256_recoverable_t>) {
+                         (std::is_same_v<Verifier, ecdsa_sha256_recoverable_t> ||
+                          std::is_same_v<Verifier, ecdsa_keccak256_recoverable_t>)) {
         static_assert(signature_matches,
                       "webcpp::crypto: recover takes a curves::secp256k1::recoverable_signature: "
                       "make one from 65 bytes with "
@@ -716,8 +754,8 @@ template <class Scheme, class Signature, class Input, class PublicKey>
                   "crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a "
                   "curves::p256::basic_public_key or a curves::secp256k1::public_key, "
                   "crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a "
-                  "crypto::ecdsa_sha256_recoverable signature gives its key to "
-                  "curves::secp256k1::recover.");
+                  "crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable "
+                  "signature gives its key to curves::secp256k1::recover.");
     return {};
 }
 

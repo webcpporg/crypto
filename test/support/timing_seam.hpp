@@ -22,10 +22,12 @@
 #include <boost/core/lightweight_test.hpp>
 
 #include <cstddef>
+#include <iterator>
 #include <source_location>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace webcpp::test {
 
@@ -61,12 +63,18 @@ inline void timing_entered(std::source_location const& where) noexcept {
 namespace webcpp::test {
 
 /**
- * A function as a check names it: its identifier, the scope that qualifies it, and optionally a
- * word its parameter list holds, for overloads of one scope and name.
+ * A function as a check names it: its identifier, the scope that qualifies it and the qualifiers
+ * the check writes before that scope, and optionally a word its parameter list holds, for
+ * overloads of one scope and name.
  */
 struct named_function {
     /** The class or namespace that qualifies it, unqualified and without template arguments. */
     std::string scope;
+    /**
+     * Every component the check writes before the identifier, the outermost first, `scope` last:
+     * `secret_key_encryption`, `aead` for `secret_key_encryption::aead::seal`.
+     */
+    std::vector<std::string> qualifiers;
     /** Its name: an identifier, or `operator` and its symbol (`operator==`). */
     std::string identifier;
     /** A word its parameter list holds, or empty for any. */
@@ -77,8 +85,9 @@ struct named_function {
  * Reads a function, spelled `<qualifiers>::<scope>::<identifier>`, optionally followed by
  * `(<parameter word>`, or by a space and words that say how it is called.
  *
- * The scope is the component before the identifier, empty when there is none. A check named
- * `pem::algorithm::unarmour of a text without lines on sodium` names `algorithm::unarmour`;
+ * The scope is the component before the identifier, empty when there is none; every component
+ * before it is kept too, and each must match (`names_function`). A check named
+ * `pem::algorithm::unarmour of a text without lines on sodium` names `pem::algorithm::unarmour`;
  * `secp256k1::equal(digest` names `secp256k1::equal` with a parameter list that holds `digest`.
  *
  * @param spelled The function as a check spells it.
@@ -98,11 +107,15 @@ inline named_function function_named(std::string_view spelled) {
         return named;
     }
     named.identifier = std::string(qualified.substr(separator + 2));
-    std::string_view const qualifiers = qualified.substr(0, separator);
-    std::size_t const scope_separator = qualifiers.rfind("::");
-    named.scope = std::string(scope_separator == std::string_view::npos
-                                  ? qualifiers
-                                  : qualifiers.substr(scope_separator + 2));
+    std::string_view qualifiers = qualified.substr(0, separator);
+    while (!qualifiers.empty()) {
+        std::size_t const component_separator = qualifiers.find("::");
+        named.qualifiers.emplace_back(qualifiers.substr(0, component_separator));
+        qualifiers = component_separator == std::string_view::npos
+                         ? std::string_view{}
+                         : qualifiers.substr(component_separator + 2);
+    }
+    named.scope = named.qualifiers.back();
     return named;
 }
 
@@ -227,8 +240,9 @@ inline std::size_t parameter_list_of(std::string_view text) {
 /**
  * Whether a `function_name()` is the named function: its own name, the qualified name before its
  * outermost parameter list (and before the template arguments MSVC writes there), ends with
- * `::<scope>::<identifier>`, its scope read without template arguments, and its parameter list
- * holds the named word. A name in the return type or a parameter type never counts, a named
+ * `::<qualifiers>::<scope>::<identifier>`, each component read without its template arguments,
+ * so that `secret_key_encryption::aead::seal` is not `ciphers::aead<F, B>::seal`, and its parameter
+ * list holds the named word. A name in the return type or a parameter type never counts, a named
  * function without a scope never matches, and a lambda's (`(lambda)`, `(anonymous class)`,
  * `<lambda()>`, `<lambda_1>`) never is: a guard belongs at the top of the public function, not in
  * a lambda in it.
@@ -264,9 +278,24 @@ inline bool names_function(std::string_view entered, named_function const& named
         }
         name = name.substr(0, end);
     }
-    if (!name.ends_with(needle) ||
-        qualifier_before(text, name.size() - needle.size()) != named.scope) {
+    if (!name.ends_with(needle)) {
         return false;
+    }
+    // Each component the check names, from the scope outwards, its template arguments skipped.
+    std::size_t separator = name.size() - needle.size();
+    for (auto component = named.qualifiers.rbegin(); component != named.qualifiers.rend();
+         ++component) {
+        std::string_view const found = qualifier_before(text, separator);
+        if (found != *component) {
+            return false;
+        }
+        separator = static_cast<std::size_t>(found.data() - text.data());
+        if (std::next(component) != named.qualifiers.rend()) {
+            if (separator < 2 || text.substr(separator - 2, 2) != "::") {
+                return false;
+            }
+            separator -= 2;
+        }
     }
     std::string_view const parameters = text.substr(open, text.rfind(')') - open);
     return named.parameter.empty() || parameters.find(named.parameter) != std::string_view::npos;

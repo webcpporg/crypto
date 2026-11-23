@@ -713,9 +713,9 @@ crypto-run allocation_sodium : allocation_sodium_test.cpp : <library>/third_part
 # through an adapter without associated data; public_key_encryption::box
 # and its XChaCha20 twin, on X25519's typed keys, NaCl's case both ways, the
 # same checks through an adapter, two parties' messages, a failed open,
-# from_keys' guards, a peer key of small order and the box forms; and sealed boxes, sealed to
-# an X25519 public key, opened by their recipient's key pair alone and
-# refused, the output zeroed, otherwise.
+# from_keys' guards, a peer key of small order and the box forms; and sealed
+# boxes, sealed to an X25519 public key, opened by their recipient's key pair
+# alone and refused, the output zeroed, otherwise.
 crypto-run secretbox_sodium : secretbox_sodium_test.cpp : <library>/third_party//sodium ;
 crypto-run box_sodium : box_sodium_test.cpp : <library>/third_party//sodium ;
 

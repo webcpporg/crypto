@@ -439,6 +439,18 @@ The fix: Call the box form, `+secret_key_encryption::seal(box, nonce, data)+` or
 
 The fix: Call crypto::secret_key_encryption::aead::seal and open, in <webcpp/crypto/secret_key_encryption/aead.hpp>, which every AEAD's header includes.
 
+|`+seal_removed_call+`
+|native
+|`+no member named 'open' in namespace 'webcpp::crypto'+`
+
+The fix: As `+seal_removed+`: call crypto::secret_key_encryption::aead::seal and open, which the cipher's header brings.
+
+|`+seal_removed_call_wasi+`
+|wasip2, wasip3
+|`+too many arguments to function call, expected 2, have 5+`
+
+The fix: As `+seal_removed_call+`: call crypto::secret_key_encryption::aead::seal and open; clang's offer of the C library's fopen is not the AEAD's open.
+
 |`+secp256k1_not_linked+`
 |native, wasip2
 |`+webcpp::crypto: <webcpp/crypto/curves/secp256k1.hpp> needs libsecp256k1, which is not linked. In the program's Jamfile, add /third_party//secp256k1 beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_SECP256K1=1 and link libsecp256k1 built with webcpp's src/canary_secp256k1.c)+`
@@ -474,6 +486,12 @@ The fix: Name `+families::secretbox_xsalsa20poly1305+` or `+families::secretbox_
 |`+no member named 'secretbox_xchacha20poly1305' in namespace 'webcpp::crypto::ciphers'+`
 
 The fix: Name `+crypto::secret_key_encryption::secretbox+` and `+secretbox_xchacha20poly1305+`, the secret boxes' namespace; `+ciphers::secretbox+` is gone, with no alias.
+
+|`+secretbox_removed_call+`
+|native, wasip2, wasip3
+|`+no template named 'secretbox_xchacha20poly1305' in namespace 'webcpp::crypto::ciphers'; did you mean 'webcpp::crypto::secret_key_encryption::secretbox_xchacha20poly1305'?+`
+
+The fix: As `+secretbox_removed+`: name `+crypto::secret_key_encryption::secretbox<>+` and `+secretbox_xchacha20poly1305<>+`, the names clang offers.
 
 |`+sign_asynchronous_backend+`
 |native, wasip2, wasip3

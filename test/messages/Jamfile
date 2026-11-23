@@ -125,3 +125,6 @@ build-project seal_removed ;
 build-project secretbox_header_removed ;
 build-project secretbox_removed ;
 build-project secretbox_not_a_family ;
+build-project secretbox_removed_call ;
+build-project seal_removed_call ;
+build-project seal_removed_call_wasi ;

@@ -795,9 +795,9 @@ template <class Aead>
 void cover_aead(std::string const& family, std::string const& backend) {
     std::string const on = " on " + backend;
     auto const key = coverage_key<Aead::key_size>();
-    covered(family + "::from_key" + on, "aead::from_key",
+    covered(family + "::from_key" + on, "ciphers::aead::from_key",
             [&key] { BOOST_TEST(Aead::from_key(key).has_value()); });
-    covered(family + "::from_key with a short key" + on, "aead::from_key", [&key] {
+    covered(family + "::from_key with a short key" + on, "ciphers::aead::from_key", [&key] {
         BOOST_TEST(Aead::from_key(std::span(key).first(Aead::key_size - 1)).error() ==
                    webcpp::crypto::error::invalid_key_size);
     });
@@ -808,20 +808,20 @@ void cover_aead(std::string const& family, std::string const& backend) {
     std::array<std::uint8_t, Aead::nonce_size> const nonce{};
     std::array<std::uint8_t, 40> data{};
     typename Aead::result_type tag{};
-    covered(family + "::seal" + on, "aead::seal", [&] {
+    covered(family + "::seal" + on, "ciphers::aead::seal", [&] {
         auto const sealed = made->seal(nonce, {}, data);
         if (BOOST_TEST(sealed.has_value())) {
             tag = *sealed;
         }
     });
-    covered(family + "::open" + on, "aead::open", [&] {
+    covered(family + "::open" + on, "ciphers::aead::open", [&] {
         BOOST_TEST(made->open(nonce, {}, data, std::span(tag.data(), tag.size())).has_value());
     });
-    covered(family + "::seal with a short nonce" + on, "aead::seal", [&] {
+    covered(family + "::seal with a short nonce" + on, "ciphers::aead::seal", [&] {
         BOOST_TEST(made->seal(std::span(nonce).first(Aead::nonce_size - 1), {}, data).error() ==
                    webcpp::crypto::error::invalid_nonce_size);
     });
-    covered(family + "::open with a short nonce" + on, "aead::open", [&] {
+    covered(family + "::open with a short nonce" + on, "ciphers::aead::open", [&] {
         BOOST_TEST(made->open(std::span(nonce).first(Aead::nonce_size - 1), {}, data,
                               std::span(tag.data(), tag.size()))
                        .error() == webcpp::crypto::error::invalid_nonce_size);

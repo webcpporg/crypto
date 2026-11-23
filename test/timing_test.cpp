@@ -158,6 +158,39 @@ void names_function_requires_clause() {
         !webcpp::test::names_function(entered, webcpp::test::function_named("pk::to_x25519")));
 }
 
+// A check names every component it writes, each compared: the free AEAD form,
+// secret_key_encryption::aead::seal, is not the member of the class template ciphers::aead, whose
+// last component is spelled alike.
+void names_function_qualifiers() {
+    auto const names = [](std::string_view entered, std::string_view spelled) {
+        return webcpp::test::names_function(entered, webcpp::test::function_named(spelled));
+    };
+    constexpr std::string_view member =
+        "boost::system::result<digest<16>> webcpp::crypto::ciphers::aead<F, "
+        "B>::seal(std::span<const "
+        "unsigned char>, std::span<const unsigned char>, std::span<unsigned char>) [F = f, B = b]";
+    constexpr std::string_view free_form =
+        "boost::system::result<typename Cipher::result_type> "
+        "webcpp::crypto::secret_key_encryption::aead::seal(Cipher &, std::span<const unsigned "
+        "char>, std::span<const unsigned char>, std::span<unsigned char>) [Cipher = c]";
+    BOOST_TEST(!names(member, "secret_key_encryption::aead::seal"));
+    BOOST_TEST(names(member, "ciphers::aead::seal"));
+    BOOST_TEST(names(member, "aead::seal"));
+    BOOST_TEST(names(free_form, "secret_key_encryption::aead::seal"));
+    BOOST_TEST(!names(free_form, "ciphers::aead::seal"));
+    BOOST_TEST(names(free_form, "crypto::secret_key_encryption::aead::seal"));
+    BOOST_TEST(!names(free_form, "other::secret_key_encryption::aead::seal"));
+    // MSVC writes the class template's arguments, which each component skips.
+    BOOST_TEST(
+        !names("class boost::system::result<void> __cdecl webcpp::crypto::ciphers::aead<struct "
+               "f,struct b>::open(class std::span<unsigned char const ,-1>)",
+               "secret_key_encryption::aead::open"));
+    BOOST_TEST(
+        names("class boost::system::result<void> __cdecl webcpp::crypto::ciphers::aead<struct "
+              "f,struct b>::open(class std::span<unsigned char const ,-1>)",
+              "ciphers::aead::open"));
+}
+
 // MSVC writes the exception specification of a function that may throw after its parameters,
 // clang and GCC none: crypto::from_secret and crypto::generate of secp256k1's key pair, whose
 // memory resource may throw, are read as their own in either spelling.
@@ -297,6 +330,7 @@ int main() {
     seam_names_function();
     names_function_spellings();
     names_function_requires_clause();
+    names_function_qualifiers();
     names_function_exception_specifications();
     guard_sets_and_clears();
     guard_leaves_set_bit();

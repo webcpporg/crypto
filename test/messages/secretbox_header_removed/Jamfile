@@ -8,7 +8,7 @@ project : requirements <library>/webcpp/crypto//crypto ;
 
 import webcpp ;
 
-# alone: the missing header is the compile's only error, so a regression that puts another error
-# before or after it fails the test.
+# alone: the missing header is the compile's only error, so a regression that
+# puts another error before or after it fails the test.
 webcpp.compile-diagnostic secretbox_header_removed : secretbox_header_removed.cpp
   : : native wasip2 wasip3 : alone ;

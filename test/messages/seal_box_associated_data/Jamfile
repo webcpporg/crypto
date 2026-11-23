@@ -8,7 +8,7 @@ project : requirements <library>/webcpp/crypto//crypto ;
 
 import webcpp ;
 
-# alone: the refusal is the compile's only error, so a regression that puts another error
-# before or after it fails the test.
+# alone: the refusal is the compile's only error, so a regression that puts
+# another error before or after it fails the test.
 webcpp.compile-diagnostic seal_box_associated_data : seal_box_associated_data.cpp
   : : native wasip2 wasip3 : alone ;

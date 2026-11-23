@@ -10,14 +10,14 @@
 // whose backend is libsodium on every target (design D5, D11): NaCl's case of libsodium's
 // test/default/secretbox.c and .exp and libsodium's XChaCha20 cases of test/default/xchacha20.c;
 // seal(nonce, data), the member and the box form secret_key_encryption::seal(box, nonce, data),
-// giving the ciphertext and the tag libsodium's crypto_secretbox_detached and
-// crypto_secretbox_xchacha20poly1305_detached give, called here, and open and
-// secret_key_encryption::open opening them; no seal or open that takes associated data; a failed
-// open, through the member and the box form alike (a changed byte of the ciphertext, the tag or
-// the nonce: authentication_failed, the data zeroed; a short tag, a long nonce, a box moved from:
-// refused, the data untouched); and every guard, tampering, moves, empty inputs and aliasing
-// spans of support/aead_checks.hpp, through an adapter that passes no associated data. Their
-// limit, 2^64 - 17 bytes, no span reaches.
+// named in full and found unqualified by argument-dependent lookup, giving the ciphertext and the
+// tag libsodium's crypto_secretbox_detached and crypto_secretbox_xchacha20poly1305_detached give,
+// called here, and open and secret_key_encryption::open opening them; no seal or open that takes
+// associated data; a failed open, through the member and the box form alike (a changed byte of the
+// ciphertext, the tag or the nonce: authentication_failed, the data zeroed; a short tag, a long
+// nonce, a box moved from: refused, the data untouched); and every guard, tampering, moves, empty
+// inputs and aliasing spans of support/aead_checks.hpp, through an adapter that passes no
+// associated data. Their limit, 2^64 - 17 bytes, no span reaches.
 
 #include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
 #include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
@@ -240,6 +240,15 @@ void check_against_sodium(std::string_view key_hex, std::string_view nonce_hex,
     }
     BOOST_TEST(by_member == expected);
     BOOST_TEST(by_free == expected);
+    // Unqualified, argument-dependent lookup finds the box forms in the box's namespace.
+    auto by_lookup = message;
+    auto const lookup_tag = seal(*made, nonce, by_lookup);
+    BOOST_TEST(lookup_tag.has_value() && *lookup_tag == *member_tag);
+    BOOST_TEST(by_lookup == expected);
+    BOOST_TEST(open(*made, nonce, by_lookup,
+                    std::span<std::uint8_t const>(lookup_tag->data(), lookup_tag->size()))
+                   .has_value());
+    BOOST_TEST(by_lookup == message);
     BOOST_TEST_EQ(to_hex(*member_tag), to_hex(expected_tag));
     BOOST_TEST_EQ(to_hex(*free_tag), to_hex(expected_tag));
     auto const tag = std::span<std::uint8_t const>(member_tag->data(), member_tag->size());

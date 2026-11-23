@@ -53,8 +53,10 @@ struct aead_state;
 template <class Family, class Backend>
 struct aead_engine;
 
-/** What a `secret_key_encryption::basic_secretbox` of the family `Family` stores (see @ref
- * block_state). */
+/**
+ * What a `secret_key_encryption::basic_secretbox` of the family `Family` stores (see
+ * @ref block_state).
+ */
 template <class Family, class Backend>
 struct secretbox_state;
 

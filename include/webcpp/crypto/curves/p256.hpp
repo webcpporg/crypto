@@ -223,9 +223,8 @@ public:
 
     /**
      * Verifies an ECDSA signature over SHA-256 with this key, asynchronously: `verify` run when the
-     * operation is initiated, its result posted to `completion_executor`; the member form of
-     * `crypto::async_verify(completion_executor, crypto::ecdsa_sha256, signature_bytes,
-     * signing_input, key, completion_token)`, which calls it.
+     * operation is initiated, its result posted to `completion_executor`; the member form of the
+     * free `crypto::async_verify`, with the same arguments and this key, which calls it.
      *
      * The key and the bytes the signature and the input view are the caller's until the
      * completion.
@@ -377,9 +376,8 @@ public:
 
     /**
      * Makes a key pair from its secret scalar, asynchronously: `from_secret` run when the operation
-     * is initiated, its result posted to `completion_executor`; the member form of
-     * `crypto::async_from_secret<basic_keypair>(completion_executor, secret_scalar,
-     * completion_token)`, which calls it.
+     * is initiated, its result posted to `completion_executor`; the member form of the free
+     * `crypto::async_from_secret<basic_keypair>`, with the same arguments, which calls it.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
@@ -531,9 +529,8 @@ public:
 
     /**
      * Signs with ECDSA over SHA-256, asynchronously: `sign` run when the operation is initiated,
-     * its result posted to `completion_executor`; the member form of
-     * `crypto::async_sign(completion_executor, key_pair, signing_scheme, signing_input,
-     * completion_token)`, which calls it.
+     * its result posted to `completion_executor`; the member form of the free `crypto::async_sign`,
+     * with the same arguments and this key pair, which calls it.
      *
      * The scheme and the input are checked as `crypto::can_sign` checks them, before anything
      * else. The key pair and the bytes the input views are the caller's until the completion.

@@ -541,9 +541,9 @@ template <class Aead>
 }
 
 /**
- * Opens a message in place, `keyed_aead.open(iv_bytes, additional_data_bytes, data_bytes,
- * tag_bytes)`: the free form of the AEAD's own `open`, which it calls, with its results and its
- * errors.
+ * Opens a message in place,
+ * `keyed_aead.open(iv_bytes, additional_data_bytes, data_bytes, tag_bytes)`: the free form of the
+ * AEAD's own `open`, which it calls, with its results and its errors.
  *
  * @tparam Aead A type whose `open` takes these arguments: `ciphers::gcm<Cipher>` or
  * `ciphers::aead<Family, Backend>`.

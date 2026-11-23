@@ -201,9 +201,10 @@ public:
      * @tparam CompletionToken Any completion token for the signature `completion_token` states.
      * @param completion_executor The executor the completion is posted to.
      * @param key_bytes `key_size` bytes, the caller's until the completion.
-     * @param completion_token The completion token, of signature `void(boost::system::error_code,
-     * gcm)`; on an error the object is empty, and every member refuses with `invalid_state`
-     * (`invalid_key_size`, `errc::not_enough_memory`, `backend_failure`).
+     * @param completion_token The completion token, of signature
+     * `void(boost::system::error_code, gcm)`; on an error the object is empty, and every member
+     * refuses with `invalid_state` (`invalid_key_size`, `errc::not_enough_memory`,
+     * `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>

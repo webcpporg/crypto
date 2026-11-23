@@ -44,14 +44,16 @@
    cancellation rules (`detail/heavy.hpp`). They exist only where the build has threads
    (`WEBCPP_CRYPTO_HAS_THREADS`); elsewhere each name refuses at compile time.
 
- Each cheap function has its member form (design D9): `K::async_from_secret(executor, secret_bytes,
- token)`, `C::async_from_key(executor, key_bytes, token)`, `K::async_generate(executor, token)`,
- `key_pair.async_sign(executor, scheme, input, token)`, `key_pair.async_agree(executor, peer,
- token)` (P-256), `public_key.async_verify(executor, scheme, signature, input[, policy], token)` and
- AES-GCM's `aead.async_seal` and `aead.async_open`. The classes declare them and this header defines
- them, so that a curve's or a cipher's header never includes Asio; the free function calls the
- member, which runs the synchronous member, so that the four forms of an operation share their
- guards, refusals and errors. X25519's `async_agree` has no member: X25519 has no key pair class.
+ Each cheap function has its member form (design D9):
+ `K::async_from_secret(executor, secret_bytes, token)`,
+ `C::async_from_key(executor, key_bytes, token)`, `K::async_generate(executor, token)`,
+ `key_pair.async_sign(executor, scheme, input, token)`,
+ `key_pair.async_agree(executor, peer, token)` (P-256),
+ `public_key.async_verify(executor, scheme, signature, input[, policy], token)` and AES-GCM's
+ `aead.async_seal` and `aead.async_open`. The classes declare them and this header defines them,
+ so that a curve's or a cipher's header never includes Asio; the free function calls the member,
+ which runs the synchronous member, so that the four forms of an operation share their guards,
+ refusals and errors. X25519's `async_agree` has no member: X25519 has no key pair class.
 
  The default backend of each is the synchronous function's, `default_async_backend_t<Family>`,
  `default_backend_t<Family>` on every target, Emscripten included: the browser's backend is used
@@ -482,8 +484,9 @@ auto initiate_verify_ed25519(Executor const& completion_executor,
  * `Keypair::from_secret(secret_bytes)` run when the operation is initiated, its result posted to
  * `completion_executor`.
  *
- * The free form of `Keypair::async_from_secret(completion_executor, secret_bytes,
- * completion_token)`, which it calls.
+ * The free form of
+ * `Keypair::async_from_secret(completion_executor, secret_bytes, completion_token)`, which it
+ * calls.
  *
  * The secret is read before the call returns on a synchronous backend, later on the browser's: it
  * is the caller's until the completion.
@@ -496,10 +499,10 @@ auto initiate_verify_ed25519(Executor const& completion_executor,
  * @param completion_executor The executor the completion is posted to.
  * @param secret_bytes The seed's `seed_size` bytes for an Ed25519 key pair, the secret scalar's
  * `secret_key_size` (32 bytes, big-endian) for a P-256 key pair.
- * @param completion_token The completion token, of signature `void(boost::system::error_code,
- * Keypair)`; on an error the key pair is empty, and every member refuses with `invalid_state`
- * (`invalid_key_size`, `invalid_secret_key` for a P-256 scalar 0 or not below the group order,
- * `backend_failure`).
+ * @param completion_token The completion token, of signature
+ * `void(boost::system::error_code, Keypair)`; on an error the key pair is empty, and every member
+ * refuses with `invalid_state` (`invalid_key_size`, `invalid_secret_key` for a P-256 scalar 0 or
+ * not below the group order, `backend_failure`).
  * @return What the completion token's `async_result` gives.
  */
 template <class Keypair, class Executor, class CompletionToken>
@@ -534,9 +537,9 @@ auto async_from_secret(Executor const& completion_executor,
  * @tparam CompletionToken Any completion token for the signature `completion_token` states.
  * @param completion_executor The executor the completion is posted to.
  * @param key_bytes `Cipher::key_size` bytes.
- * @param completion_token The completion token, of signature `void(boost::system::error_code,
- * Cipher)`; on an error the object is empty, and every member refuses with `invalid_state`
- * (`invalid_key_size`, `errc::not_enough_memory`, `backend_failure`).
+ * @param completion_token The completion token, of signature
+ * `void(boost::system::error_code, Cipher)`; on an error the object is empty, and every member
+ * refuses with `invalid_state` (`invalid_key_size`, `errc::not_enough_memory`, `backend_failure`).
  * @return What the completion token's `async_result` gives.
  */
 template <class Cipher, class Executor, class CompletionToken>
@@ -567,9 +570,9 @@ auto async_from_key(Executor const& completion_executor, std::span<std::uint8_t 
  * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
  * @tparam CompletionToken Any completion token for the signature `completion_token` states.
  * @param completion_executor The executor the completion is posted to.
- * @param completion_token The completion token, of signature `void(boost::system::error_code,
- * Keypair)`; on an error the key pair is empty, and every member refuses with `invalid_state`
- * (`entropy_unavailable`, `backend_failure`).
+ * @param completion_token The completion token, of signature
+ * `void(boost::system::error_code, Keypair)`; on an error the key pair is empty, and every member
+ * refuses with `invalid_state` (`entropy_unavailable`, `backend_failure`).
  * @return What the completion token's `async_result` gives.
  */
 template <class Keypair = curves::ed25519::keypair, class Executor, class CompletionToken>
@@ -589,9 +592,8 @@ auto async_generate(Executor const& completion_executor, CompletionToken&& compl
  * Seals a message in place, asynchronously: `aead_cipher.seal` run when the operation is initiated,
  * its result posted to `completion_executor`.
  *
- * The free form of
- * `aead_cipher.async_seal(completion_executor, iv_bytes, additional_data_bytes, data_bytes,
- * completion_token)`, which it calls.
+ * The free form of the member `aead_cipher.async_seal`, with the same arguments, which it
+ * calls.
  *
  * `aead_cipher` and the spans are the caller's until the completion: a synchronous backend reads
  * and writes them before the call returns, the browser's later. `data_bytes` holds the ciphertext
@@ -630,9 +632,8 @@ auto async_seal(Executor const& completion_executor, Gcm& aead_cipher,
  * Opens a message in place, asynchronously: `aead_cipher.open` run when the operation is initiated,
  * its result posted to `completion_executor`.
  *
- * The free form of
- * `aead_cipher.async_open(completion_executor, iv_bytes, additional_data_bytes, data_bytes,
- * tag_bytes, completion_token)`, which it calls.
+ * The free form of the member `aead_cipher.async_open`, with the same arguments, which it
+ * calls.
  *
  * `aead_cipher` and the spans are the caller's until the completion. `data_bytes` holds the
  * plaintext at a successful completion; a wrong tag (`authentication_failed`) or a backend's
@@ -669,11 +670,11 @@ auto async_open(Executor const& completion_executor, Gcm& aead_cipher,
 }
 
 /**
- * Signs with an Ed25519 or a P-256 key pair, asynchronously: `key_pair.sign(signing_scheme,
- * signing_input)` run when the operation is initiated, its result posted to `completion_executor`.
+ * Signs with an Ed25519 or a P-256 key pair, asynchronously:
+ * `key_pair.sign(signing_scheme, signing_input)` run when the operation is initiated, its result
+ * posted to `completion_executor`.
  *
- * The free form of `key_pair.async_sign(completion_executor, signing_scheme, signing_input,
- * completion_token)`, which it calls.
+ * The free form of the member `key_pair.async_sign`, with the same arguments, which it calls.
  *
  * Ed25519 signs the message with `crypto::eddsa`; P-256 signs with `crypto::ecdsa_sha256` the
  * message, which it hashes with SHA-256, as WebCrypto's ECDSA with SHA-256 signs, or
@@ -723,10 +724,8 @@ auto async_sign(Executor const& completion_executor, Keypair const& key_pair, Sc
  * `crypto::verify<Backend>(crypto::eddsa, signature_bytes, message_bytes, public_key)` run when the
  * operation is initiated, its result posted to `completion_executor`.
  *
- * The free form of
- * `public_key.async_verify<Backend>(completion_executor, crypto::eddsa, signature_bytes,
- * message_bytes, completion_token)`, which it calls, and which runs the key's `verify`, with the
- * same work.
+ * The free form of the member `public_key.async_verify<Backend>`, with the same arguments,
+ * `crypto::eddsa` first, which it calls, and which runs the key's `verify`, with the same work.
  *
  * The input is checked as `crypto::can_verify` checks it, before anything else: a marker stops
  * the build (Ed25519 signs the message itself). The signature's and the message's bytes are the
@@ -800,10 +799,9 @@ auto async_verify(Executor const& completion_executor, eddsa_t signing_scheme,
  * SHA-256, as WebCrypto's ECDSA with SHA-256 verifies, or `crypto::prehashed{digest}` gives its
  * digest.
  *
- * The free form of
- * `public_key.async_verify(completion_executor, crypto::ecdsa_sha256, signature_bytes,
- * signing_input, completion_token)`, which it calls, and which runs the key's `verify`, with the
- * same work.
+ * The free form of the member `public_key.async_verify`, with the same arguments,
+ * `crypto::ecdsa_sha256` first, which it calls, and which runs the key's `verify`, with the same
+ * work.
  *
  * A high S and a low S are both accepted, as `crypto::verify` and WebCrypto accept them. The
  * input is checked as `crypto::can_verify` checks it, before anything else: a marker on a backend
@@ -887,9 +885,9 @@ void async_verify([[maybe_unused]] Executor const& completion_executor,
  * @param completion_executor The executor the completion is posted to.
  * @param secret_key 32 bytes.
  * @param peer_public_key 32 bytes.
- * @param completion_token The completion token, of signature `void(boost::system::error_code,
- * secret<32>)`: the shared secret; on an error a secret of zeros (`invalid_key_size`,
- * `invalid_public_key`, `weak_public_key`, `backend_failure`).
+ * @param completion_token The completion token, of signature
+ * `void(boost::system::error_code, secret<32>)`: the shared secret; on an error a secret of zeros
+ * (`invalid_key_size`, `invalid_public_key`, `weak_public_key`, `backend_failure`).
  * @return What the completion token's `async_result` gives.
  */
 template <class Backend = default_async_backend_t<families::x25519>, class Executor,
@@ -927,9 +925,9 @@ auto async_agree(Executor const& completion_executor, std::span<std::uint8_t con
  * @param completion_executor The executor the completion is posted to.
  * @param key_pair This side's key pair.
  * @param peer_public_key The peer's public key, validated when it was made.
- * @param completion_token The completion token, of signature `void(boost::system::error_code,
- * secret<32>)`: the shared x, big-endian; on an error a secret of zeros (`invalid_state` for an
- * empty key pair, `backend_failure`).
+ * @param completion_token The completion token, of signature
+ * `void(boost::system::error_code, secret<32>)`: the shared x, big-endian; on an error a secret of
+ * zeros (`invalid_state` for an empty key pair, `backend_failure`).
  * @return What the completion token's `async_result` gives.
  */
 template <class Backend, class Executor, class CompletionToken>

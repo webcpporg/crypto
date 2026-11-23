@@ -176,8 +176,9 @@ public:
 
     /**
      * Verifies an Ed25519 signature (RFC 8032's pure Ed25519) with this key, under a verification
-     * policy (design D31): `crypto::verify(crypto::eddsa, signature_bytes, message_input, key,
-     * verify_policy)`, of which it is the member form, with the same work, results and refusals.
+     * policy (design D31):
+     * `crypto::verify(crypto::eddsa, signature_bytes, message_input, key, verify_policy)`, of which
+     * it is the member form, with the same work, results and refusals.
      *
      * @tparam Backend The backend; by default the family's.
      * @tparam Scheme `crypto::eddsa_t`; another scheme stops the build.
@@ -214,9 +215,8 @@ public:
 
     /**
      * Verifies an Ed25519 signature with this key, asynchronously, strictly: `verify` run when the
-     * operation is initiated, its result posted to `completion_executor`; the member form of
-     * `crypto::async_verify<Backend>(completion_executor, crypto::eddsa, signature_bytes,
-     * message_input, key, completion_token)`, which calls it.
+     * operation is initiated, its result posted to `completion_executor`; the member form of the
+     * free `crypto::async_verify<Backend>`, with the same arguments and this key, which calls it.
      *
      * The signature's and the message's bytes are the caller's until the completion; the key is
      * copied.
@@ -389,9 +389,8 @@ public:
 
     /**
      * Makes a key pair from a seed, asynchronously: `from_secret` run when the operation is
-     * initiated, its result posted to `completion_executor`; the member form of
-     * `crypto::async_from_secret<basic_keypair>(completion_executor, seed_bytes,
-     * completion_token)`, which calls it.
+     * initiated, its result posted to `completion_executor`; the member form of the free
+     * `crypto::async_from_secret<basic_keypair>`, with the same arguments, which calls it.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
@@ -535,9 +534,8 @@ public:
 
     /**
      * Signs a message with Ed25519, asynchronously: `sign` run when the operation is initiated,
-     * its result posted to `completion_executor`; the member form of
-     * `crypto::async_sign(completion_executor, key_pair, signing_scheme, message_input,
-     * completion_token)`, which calls it.
+     * its result posted to `completion_executor`; the member form of the free `crypto::async_sign`,
+     * with the same arguments and this key pair, which calls it.
      *
      * The scheme and the input are checked as `crypto::can_sign` checks them, before anything
      * else. The key pair and the message's bytes are the caller's until the completion.

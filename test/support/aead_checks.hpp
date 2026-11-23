@@ -275,8 +275,9 @@ void check_aead_iv_and_tag_sizes(typename Calls::object& made, std::span<std::ui
     std::vector<std::uint8_t> const nonce(Calls::nonce_size, 9);
     std::array<std::uint8_t, Calls::tag_size> const tag{};
     // Every IV size but the family's: none, one byte less and more, and the other families'.
-    std::array<std::size_t, 6> const sizes{0, Calls::nonce_size - 1, Calls::nonce_size + 1, 8, 12,
-                                           24};
+    std::array<std::size_t, 6> const sizes{
+        0, Calls::nonce_size - 1, Calls::nonce_size + 1, 8, 12, 24,
+    };
     for (std::size_t const size : sizes) {
         if (size == Calls::nonce_size) {
             continue;

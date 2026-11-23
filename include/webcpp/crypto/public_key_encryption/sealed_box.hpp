@@ -5,10 +5,11 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 /**
- `basic_sealed_box`, libsodium's sealed boxes (`crypto_box_seal`): anonymous encryption to a
- public key. `sealed_box` names it on its default backend, libsodium on every target, whose
- header this one includes when the program links it; a program that uses it without linking it
- stops where it calls it, with the Jamfile line that links it.
+ `basic_sealed_box`, libsodium's sealed boxes (`crypto_box_seal`): anonymous encryption to an
+ X25519 public key, opened with the recipient's X25519 key pair. `sealed_box` names it on its
+ default backend, libsodium on every target, whose header this one includes when the program links
+ it; a program that uses it without linking it stops where it calls it, with the Jamfile line that
+ links it.
 
  It lives in `public_key_encryption` beside `box`, named by what it does, encryption to a public
  key: `crypto::hybrid` is left free for the post-quantum hybrids (X25519MLKEM768, X-Wing), which
@@ -21,6 +22,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
@@ -68,6 +70,10 @@ struct basic_sealed_box {
     using family_type = families::sealed_box;
     /** The algorithm of the capability table: the family's own tag, its one algorithm. */
     using name_type = families::sealed_box;
+    /** The recipient's key pair's type, of the sealed box's backend. */
+    using keypair_type = curves::x25519::basic_keypair<Backend>;
+    /** The recipient's public key's type. */
+    using public_key_type = curves::x25519::public_key;
     /** The size of a public key and of a secret key. */
     static constexpr std::size_t key_size = 32;
     /** How much longer a sealed box is than its message: the drawn public key and the tag. */
@@ -78,32 +84,28 @@ struct basic_sealed_box {
      * drawn public key, the tag, then the ciphertext.
      *
      * The message may be the first `message_bytes.size()` bytes of `output_bytes`, sealed in place;
-     * it overlaps `output_bytes` in no other way, and the key does not.
+     * it overlaps `output_bytes` in no other way.
      *
-     * The sizes are checked first; a refusal of theirs or of the key's leaves `output_bytes`
-     * untouched. A failure of the work zeroes it.
+     * The sizes are checked first; their refusal leaves `output_bytes` untouched. A failure of
+     * the work zeroes it.
      *
-     * @param recipient_public_key The recipient's X25519 public key, `key_size` bytes.
+     * @param recipient_public_key The recipient's X25519 public key.
      * @param message_bytes The message.
      * @param output_bytes `message_bytes.size() + overhead` bytes.
      * @return Nothing; `invalid_input_size` for an `output_bytes` of another size;
-     * `invalid_public_key` for a key of another size; `weak_public_key` for a key of small order;
-     * `backend_failure`.
+     * `weak_public_key` for a key of small order; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> seal(
-        std::span<std::uint8_t const> recipient_public_key,
-        std::span<std::uint8_t const> message_bytes,
+        public_key_type const& recipient_public_key, std::span<std::uint8_t const> message_bytes,
         std::span<std::uint8_t> output_bytes) noexcept {
         detail::timing_guard const timing_scope;
         if (output_bytes.size() < overhead ||
             output_bytes.size() - overhead != message_bytes.size()) {
             return error::invalid_input_size;
         }
-        if (recipient_public_key.size() != key_size) {
-            return error::invalid_public_key;
-        }
         auto const seal_result =
-            engine::seal(recipient_public_key.first<key_size>(), message_bytes, output_bytes);
+            engine::seal(std::span<std::uint8_t const, key_size>(recipient_public_key.bytes()),
+                         message_bytes, output_bytes);
         if (!seal_result) {
             detail::wipe(output_bytes.data(), output_bytes.size());
             return seal_result.error();
@@ -113,40 +115,35 @@ struct basic_sealed_box {
 
     /**
      * Opens `sealed_bytes` into `output_bytes`, of `sealed_bytes.size() - overhead` bytes, with the
-     * recipient's keys.
+     * recipient's key pair.
      *
-     * `output_bytes` overlaps neither `sealed_bytes` nor the keys.
+     * `output_bytes` overlaps neither `sealed_bytes` nor the key pair.
      *
-     * The sizes are checked first; a refusal of theirs or of the keys' leaves `output_bytes`
+     * The sizes are checked first, then the key pair; a refusal of theirs leaves `output_bytes`
      * untouched. When the box does not open, or the backend fails, `output_bytes` is zeroed.
      *
-     * @param recipient_public_key The recipient's X25519 public key, `key_size` bytes.
-     * @param recipient_secret_key The recipient's X25519 secret key, `key_size` bytes.
+     * @param recipient_keypair The recipient's X25519 key pair.
      * @param sealed_bytes A sealed box, at least `overhead` bytes.
      * @param output_bytes `sealed_bytes.size() - overhead` bytes.
      * @return Nothing; `invalid_input_size` for a `sealed_bytes` shorter than `overhead` or an
-     * `output_bytes` of another size; `invalid_public_key`; `invalid_key_size`;
+     * `output_bytes` of another size; `invalid_state` for a key pair moved from;
      * `authentication_failed` when the box was not sealed to this key pair, or was changed;
      * `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> open(
-        std::span<std::uint8_t const> recipient_public_key,
-        std::span<std::uint8_t const> recipient_secret_key,
-        std::span<std::uint8_t const> sealed_bytes, std::span<std::uint8_t> output_bytes) noexcept {
+        keypair_type const& recipient_keypair, std::span<std::uint8_t const> sealed_bytes,
+        std::span<std::uint8_t> output_bytes) noexcept {
         detail::timing_guard const timing_scope;
         if (sealed_bytes.size() < overhead ||
             output_bytes.size() != sealed_bytes.size() - overhead) {
             return error::invalid_input_size;
         }
-        if (recipient_public_key.size() != key_size) {
-            return error::invalid_public_key;
+        if (!detail::x25519_access::keyed(recipient_keypair)) {
+            return error::invalid_state;
         }
-        if (recipient_secret_key.size() != key_size) {
-            return error::invalid_key_size;
-        }
-        auto const open_result =
-            engine::open(recipient_public_key.first<key_size>(),
-                         recipient_secret_key.first<key_size>(), sealed_bytes, output_bytes);
+        auto const open_result = engine::open(
+            detail::x25519_access::public_bytes(recipient_keypair),
+            detail::x25519_access::secret_bytes(recipient_keypair), sealed_bytes, output_bytes);
         if (!open_result) {
             detail::wipe(output_bytes.data(), output_bytes.size());
             return open_result.error();
@@ -189,6 +186,9 @@ struct sealed_box_engine {
 };
 
 }  // namespace webcpp::crypto::detail
+
+/** Defined once this header's declarations are, which libsodium's engine specialises. */
+#define WEBCPP_CRYPTO_DETAIL_SEALED_BOX_DECLARED
 
 // The default backend's engine, when the program links it (design D32): libsodium on every
 // target. Its header specialises it for this header, wherever it was first included.

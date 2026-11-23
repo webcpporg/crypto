@@ -7,12 +7,12 @@
 // On libsodium nothing allocates: from_key, seal and open of the three ChaCha20-Poly1305 AEADs and
 // of the two secret boxes, a failed open included; Ed25519's key pair, signature, strict
 // verification, Ed25519ph and the conversion to X25519; X25519's public key and agreement, a
-// refused one included; crypto_kx's key pairs and session keys, a refused peer included; RFC
-// 8410's SPKI and PKCS#8 of both curves and their PEM, both ways; the two boxes' from_keys, seal
-// and open, a refused peer key and a failed open included; and the sealed boxes' seal and open, a
-// failed open included, make no call of operator new, nor of the C library's allocator where the
-// target lets a program count it; a control proves the counter moves. Each later family on
-// libsodium adds its calls here.
+// refused one included; crypto_kx's key pairs, from a seed and from an X25519 key pair, and session
+// keys, a refused peer included; RFC 8410's SPKI and PKCS#8 of both curves and their PEM, both
+// ways; the two boxes' from_keys, seal and open, a refused peer key and a failed open included; and
+// the sealed boxes' seal and open, a failed open included, make no call of operator new, nor of the
+// C library's allocator where the target lets a program count it; a control proves the counter
+// moves. Each later family on libsodium adds its calls here.
 
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
@@ -192,19 +192,29 @@ std::array<std::uint8_t, 32> x25519_public_of(std::span<std::uint8_t const> secr
  */
 template <class Box>
 void expect_no_allocation_box() {
-    std::array<std::uint8_t, 32> alice{};
-    alice.fill(7);
-    std::array<std::uint8_t, 32> bob{};
-    bob.fill(9);
-    std::array<std::uint8_t, 32> const low_order{};
+    using crypto::curves::x25519::public_key;
+    using keypair = crypto::curves::x25519::basic_keypair<crypto::backends::sodium>;
+    std::array<std::uint8_t, 32> alice_secret{};
+    alice_secret.fill(7);
+    std::array<std::uint8_t, 32> bob_secret{};
+    bob_secret.fill(9);
+    std::array<std::uint8_t, 32> const zero_bytes{};
     std::array<std::uint8_t, Box::nonce_size> const nonce{};
     std::array<std::uint8_t, 4096> data{};
-    auto const alice_public = x25519_public_of(alice);
-    auto const bob_public = x25519_public_of(bob);
+    auto const alice_public = public_key::from_bytes(x25519_public_of(alice_secret));
+    auto const bob_public = public_key::from_bytes(x25519_public_of(bob_secret));
+    auto const low_order = public_key::from_bytes(zero_bytes);
+    BOOST_TEST(alice_public.has_value() && bob_public.has_value() && low_order.has_value());
+    if (!alice_public || !bob_public || !low_order) {
+        return;
+    }
     std::size_t const before = webcpp::test::allocations();
     {
-        auto sender = Box::from_keys(alice, bob_public);
-        auto receiver = Box::from_keys(bob, alice_public);
+        auto const alice = keypair::from_secret(alice_secret);
+        auto const bob = keypair::from_secret(bob_secret);
+        BOOST_TEST(alice.has_value() && bob.has_value());
+        auto sender = Box::from_keys(*alice, *bob_public);
+        auto receiver = Box::from_keys(*bob, *alice_public);
         BOOST_TEST(sender.has_value() && receiver.has_value());
         auto const tag = sender->seal(nonce, data);
         BOOST_TEST(tag.has_value());
@@ -212,7 +222,7 @@ void expect_no_allocation_box() {
         std::array<std::uint8_t, Box::tag_size> const forged{};
         BOOST_TEST(receiver->open(nonce, data, forged).error() ==
                    crypto::error::authentication_failed);
-        BOOST_TEST(Box::from_keys(alice, low_order).error() == crypto::error::weak_public_key);
+        BOOST_TEST(Box::from_keys(*alice, *low_order).error() == crypto::error::weak_public_key);
         Box const moved = std::move(*sender);
     }
     BOOST_TEST_EQ(webcpp::test::allocations(), before);
@@ -224,18 +234,23 @@ void expect_no_allocation_box() {
  */
 void expect_no_allocation_sealed_box() {
     using sealed_box = crypto::public_key_encryption::basic_sealed_box<crypto::backends::sodium>;
-    std::array<std::uint8_t, 32> bob{};
-    bob.fill(11);
-    auto const bob_public = x25519_public_of(bob);
+    std::array<std::uint8_t, 32> bob_secret{};
+    bob_secret.fill(11);
     std::array<std::uint8_t, 1000> const message{};
     std::array<std::uint8_t, message.size() + sealed_box::overhead> sealed{};
     std::array<std::uint8_t, message.size()> opened{};
     std::size_t const before = webcpp::test::allocations();
     {
-        BOOST_TEST(sealed_box::seal(bob_public, message, sealed).has_value());
-        BOOST_TEST(sealed_box::open(bob_public, bob, sealed, opened).has_value());
+        auto const bob =
+            crypto::curves::x25519::basic_keypair<crypto::backends::sodium>::from_secret(
+                bob_secret);
+        BOOST_TEST(bob.has_value());
+        auto const bob_public = bob->public_key();
+        BOOST_TEST(bob_public.has_value());
+        BOOST_TEST(sealed_box::seal(*bob_public, message, sealed).has_value());
+        BOOST_TEST(sealed_box::open(*bob, sealed, opened).has_value());
         sealed[40] ^= 1U;
-        BOOST_TEST(sealed_box::open(bob_public, bob, sealed, opened).error() ==
+        BOOST_TEST(sealed_box::open(*bob, sealed, opened).error() ==
                    crypto::error::authentication_failed);
     }
     BOOST_TEST_EQ(webcpp::test::allocations(), before);
@@ -282,8 +297,9 @@ void expect_no_allocation_formats() {
 }
 
 /**
- * Makes and draws crypto_kx key pairs, computes the client's and the server's session keys, and
- * refuses a peer key of low order (the all-zero point): none of it allocates.
+ * Makes crypto_kx key pairs from seeds and from an X25519 key pair, draws one, computes the
+ * client's and the server's session keys, and refuses a peer key of low order (the all-zero
+ * point): none of it allocates.
  */
 void expect_no_allocation_kx() {
     using kx_keypair = crypto::key_exchange::kx_keypair<crypto::backends::sodium>;
@@ -291,7 +307,12 @@ void expect_no_allocation_kx() {
     client_seed.fill(11);
     std::array<std::uint8_t, kx_keypair::seed_size> server_seed{};
     server_seed.fill(13);
-    std::array<std::uint8_t, kx_keypair::public_key_size> const low_order{};
+    std::array<std::uint8_t, kx_keypair::public_key_size> const zero_bytes{};
+    auto const low_order = crypto::curves::x25519::public_key::from_bytes(zero_bytes);
+    BOOST_TEST(low_order.has_value());
+    if (!low_order) {
+        return;
+    }
     std::size_t const before = webcpp::test::allocations();
     {
         auto client = kx_keypair::derive_from_seed(client_seed);
@@ -300,6 +321,11 @@ void expect_no_allocation_kx() {
         BOOST_TEST(server.has_value());
         auto const drawn = kx_keypair::generate();
         BOOST_TEST(drawn.has_value());
+        auto inner = crypto::curves::x25519::basic_keypair<crypto::backends::sodium>::from_secret(
+            server_seed);
+        BOOST_TEST(inner.has_value());
+        auto const wrapped = kx_keypair::from_keypair(std::move(*inner));
+        BOOST_TEST(wrapped.has_value());
         auto const client_public = client->public_key();
         BOOST_TEST(client_public.has_value());
         auto const server_public = server->public_key();
@@ -308,7 +334,7 @@ void expect_no_allocation_kx() {
         BOOST_TEST(client_keys.has_value());
         auto const server_keys = server->server_session_keys(*client_public);
         BOOST_TEST(server_keys.has_value());
-        BOOST_TEST(client->client_session_keys(low_order).error() ==
+        BOOST_TEST(client->client_session_keys(*low_order).error() ==
                    crypto::error::weak_public_key);
         kx_keypair const moved = std::move(*client);
     }

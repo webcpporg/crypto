@@ -618,7 +618,7 @@ crypto-run x25519_sodium : x25519_sodium_test.cpp : <library>/third_party//sodiu
 crypto-run x25519_mock : x25519_mock_test.cpp ;
 # ciphers::aead's and public_key_encryption::basic_box's generic layer on a
 # stand-in engine that writes the data before it fails: a failed seal zeroes
-# it, as a failed open does.
+# it, as a failed open does. The box's X25519 key pair is the stand-in's too.
 crypto-run aead_box_mock : aead_box_mock_test.cpp ;
 crypto-run x25519_wycheproof_sodium : x25519_wycheproof_sodium_test.cpp
   : <library>/third_party//sodium <library>/third_party//wycheproof
@@ -654,12 +654,14 @@ crypto-run formats_25519_openssl_oracle : formats_25519_openssl_oracle_test.cpp
 crypto-run formats_25519_webcrypto_oracle : formats_25519_webcrypto_oracle_test.cpp
   : <library>/third_party//sodium <linkflags>-sJSPI : emscripten ;
 
-# crypto_kx on libsodium: libsodium's kx.exp, the client's transmit key the
-# server's receive key and the reverse, a peer of small order refused as weak,
-# the guards and generate() under the planted entropy source. The key pair's
-# secret key, kx.exp's client_sk, is zero once moved from, moved over and
-# destroyed, and the session keys once destroyed: optimised, every call
-# inlined, as Ed25519's.
+# crypto_kx on libsodium, on X25519's typed keys: libsodium's kx.exp, the
+# client's transmit key the server's receive key and the reverse,
+# derive_from_seed against libsodium's crypto_kx_seed_keypair and apart from
+# from_keypair of the same bytes, a peer of small order refused as weak, the
+# guards and generate() under the planted entropy source. The secret key of
+# the X25519 key pair inside, kx.exp's client_sk, is zero once moved from,
+# moved over and destroyed, and the session keys once destroyed: optimised,
+# every call inlined, as Ed25519's.
 crypto-run kx_sodium : kx_sodium_test.cpp
   : <library>/third_party//sodium <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
 crypto-run kx_wipe_sodium : kx_wipe_sodium_test.cpp
@@ -681,9 +683,11 @@ crypto-run allocation_sodium : allocation_sodium_test.cpp : <library>/third_part
 # libsodium's boxes, its default on every target: crypto_secretbox and its
 # XChaCha20 twin, libsodium's cases and every check of support/aead_checks.hpp
 # that applies to a family without additional data; public_key_encryption::box
-# and its XChaCha20 twin, NaCl's case both ways, the same checks through an
-# adapter, from_keys' guards and a peer key of small order; and sealed boxes,
-# opened by their recipient alone and refused, the output zeroed, otherwise.
+# and its XChaCha20 twin, on X25519's typed keys, NaCl's case both ways, the
+# same checks through an adapter, two parties' messages, a failed open,
+# from_keys' guards and a peer key of small order; and sealed boxes, sealed to
+# an X25519 public key, opened by their recipient's key pair alone and
+# refused, the output zeroed, otherwise.
 crypto-run secretbox_sodium : secretbox_sodium_test.cpp : <library>/third_party//sodium ;
 crypto-run box_sodium : box_sodium_test.cpp : <library>/third_party//sodium ;
 

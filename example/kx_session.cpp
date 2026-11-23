@@ -11,6 +11,7 @@
 // tag::program[]
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/constant_time_equal.hpp>
+#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/key_exchange/kx.hpp>
 
@@ -78,8 +79,8 @@ bool client_and_server() {
     if (!client_public || !server_public) {
         return false;
     }
-    print("client public", *client_public);
-    print("server public", *server_public);
+    print("client public", client_public->bytes());
+    print("server public", server_public->bytes());
     auto const client_keys = client->client_session_keys(*server_public);
     auto const server_keys = server->server_session_keys(*client_public);
     if (!client_keys || !server_keys) {
@@ -98,11 +99,12 @@ bool client_and_server() {
 // A peer key of low order gives an all-zero X25519 secret, which crypto_kx refuses.
 bool low_order_refused() {
     auto const key = key_exchange::kx_keypair<>::derive_from_seed(std::array<std::uint8_t, 32>{});
-    std::array<std::uint8_t, 32> const zero_point{};
-    if (!key) {
+    auto const zero_point =
+        crypto::curves::x25519::public_key::from_bytes(std::array<std::uint8_t, 32>{});
+    if (!key || !zero_point) {
         return false;
     }
-    auto const keys = key->server_session_keys(zero_point);
+    auto const keys = key->server_session_keys(*zero_point);
     if (!keys && keys.error() == crypto::error::weak_public_key) {
         std::printf("low order     refused: weak_public_key\n");
         return true;

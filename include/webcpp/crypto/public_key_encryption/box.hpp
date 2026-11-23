@@ -5,8 +5,9 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 /**
- `basic_box`, NaCl's and libsodium's `crypto_box`: X25519 agrees a key with a peer's public key
- once (libsodium's `beforenm`), then each message is sealed and opened in place with
+ `basic_box`, NaCl's and libsodium's `crypto_box`, on X25519's typed keys: an X25519 key pair
+ agrees a key with a peer's X25519 public key once (libsodium's `beforenm`), then each message is
+ sealed and opened in place with
  XSalsa20-Poly1305, or XChaCha20-Poly1305, the tag apart. `box` and `box_xchacha20poly1305` name
  the two families on their default backend, libsodium on every target, whose header this one
  includes when the program links it; a program that uses them without linking it stops where it
@@ -24,6 +25,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
@@ -89,7 +91,8 @@ namespace webcpp::crypto::public_key_encryption {
 /**
  * `crypto_box`: authenticated encryption between two key pairs.
  *
- * `from_keys` agrees a key from the own secret key and the peer's public key, once per pair of keys
+ * `from_keys` agrees a key from the own X25519 key pair and the peer's X25519 public key, once
+ * per pair of keys
  * (libsodium's `beforenm`); `seal` and `open` then work in place, the tag apart, under that key.
  * Either party of the pair can have written a message: the box proves that it comes from one of
  * them, not which.
@@ -125,6 +128,10 @@ public:
     using name_type = Family;
     /** The tag, Boost.Hash2's digest of `tag_size` bytes. */
     using result_type = boost::hash2::digest<16>;
+    /** The own key pair's type, of the box's backend. */
+    using keypair_type = curves::x25519::basic_keypair<Backend>;
+    /** The peer's public key's type. */
+    using public_key_type = curves::x25519::public_key;
     /** The secret key's and the peer's public key's size. */
     static constexpr std::size_t key_size = 32;
     /** The nonce's size, exactly. */
@@ -141,27 +148,25 @@ public:
     static constexpr std::uint64_t max_message_size = ~std::uint64_t{0} - 16;
 
     /**
-     * Agrees the box's key from the own secret key and the peer's public key.
+     * Agrees the box's key from the own key pair and the peer's public key.
      *
-     * @param secret_key The own X25519 secret key, `key_size` bytes.
-     * @param peer_public_key The peer's X25519 public key, `key_size` bytes.
-     * @return The box; `invalid_key_size`; `invalid_public_key` for a peer key of another
-     * size; `weak_public_key` for a peer key of small order, whose shared secret an attacker
-     * knows; `backend_failure` when the backend cannot start.
+     * @param own_keypair The own X25519 key pair, read here alone: the box keeps the agreed key,
+     * not the key pair.
+     * @param peer_public_key The peer's X25519 public key.
+     * @return The box; `invalid_state` for a key pair moved from; `weak_public_key` for a peer
+     * key of small order, whose shared secret an attacker knows; `backend_failure` when the
+     * backend cannot start.
      */
     [[nodiscard]] static boost::system::result<basic_box> from_keys(
-        std::span<std::uint8_t const> secret_key,
-        std::span<std::uint8_t const> peer_public_key) noexcept {
+        keypair_type const& own_keypair, public_key_type const& peer_public_key) noexcept {
         detail::timing_guard const timing_scope;
-        if (secret_key.size() != key_size) {
-            return error::invalid_key_size;
-        }
-        if (peer_public_key.size() != key_size) {
-            return error::invalid_public_key;
+        if (!detail::x25519_access::keyed(own_keypair)) {
+            return error::invalid_state;
         }
         basic_box made_object;
-        auto const agreement_result = engine::init(made_object.state_, secret_key.first<key_size>(),
-                                                   peer_public_key.first<key_size>());
+        auto const agreement_result =
+            engine::init(made_object.state_, detail::x25519_access::secret_bytes(own_keypair),
+                         std::span<std::uint8_t const, key_size>(peer_public_key.bytes()));
         if (!agreement_result) {
             return agreement_result.error();
         }
@@ -363,6 +368,9 @@ struct box_engine : box_refusal<Family, Backend> {
 };
 
 }  // namespace webcpp::crypto::detail
+
+/** Defined once this header's declarations are, which libsodium's engine specialises. */
+#define WEBCPP_CRYPTO_DETAIL_BOX_DECLARED
 
 // The default backend's engines, when the program links it (design D32): libsodium on every
 // target. Its header specialises them for this header, wherever it was first included.

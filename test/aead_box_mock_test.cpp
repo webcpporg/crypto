@@ -8,9 +8,10 @@
 // seal and open write into the data before they fail, as OpenSSL can once it began to encrypt: a
 // seal that fails zeroes the data as a failed open does, so that neither the plaintext nor bytes
 // that look sealed stay behind; a guard's refusal leaves it untouched; an engine's error is passed
-// on.
+// on. The box's key pair is X25519's on the same stand-in, whose engine answers with fixed bytes.
 
 #include <webcpp/crypto/ciphers/aead.hpp>
+#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -86,6 +87,26 @@ struct aead_engine<families::chacha20_poly1305, test::aead_stand_in> {
     /** Nothing to wipe. */
     static void reset(
         aead_state<families::chacha20_poly1305, test::aead_stand_in>& /*state*/) noexcept {}
+};
+
+/** The stand-in's X25519, for the box's key pair: any secret key has a public key of 9s. */
+template <>
+struct x25519_engine<families::x25519, test::aead_stand_in> {
+    /** Writes a public key of 9s. */
+    [[nodiscard]] static boost::system::result<void> base(
+        std::span<std::uint8_t const, 32> /*secret_key*/,
+        std::span<std::uint8_t, 32> public_bytes) noexcept {
+        std::ranges::fill(public_bytes, std::uint8_t{9});
+        return {};
+    }
+
+    /** Never called by the box, which agrees through its own engine. */
+    [[nodiscard]] static boost::system::result<void> agree(
+        std::span<std::uint8_t const, 32> /*secret_key*/,
+        std::span<std::uint8_t const, 32> /*peer_public_key*/,
+        std::span<std::uint8_t, 32> /*shared_bytes*/) noexcept {
+        return error::backend_failure;
+    }
 };
 
 /** The stand-in's XSalsa20-Poly1305 box: every call writes the data first, then answers. */
@@ -183,7 +204,12 @@ void check_box() {
     using box =
         crypto::public_key_encryption::basic_box<crypto::families::box_xsalsa20poly1305, stand_in>;
     std::array<std::uint8_t, box::key_size> const key{};
-    auto made = box::from_keys(key, key);
+    auto const own = crypto::curves::x25519::basic_keypair<stand_in>::from_secret(key);
+    auto const peer = crypto::curves::x25519::public_key::from_bytes(key);
+    if (!BOOST_TEST(own.has_value()) || !BOOST_TEST(peer.has_value())) {
+        return;
+    }
+    auto made = box::from_keys(*own, *peer);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }

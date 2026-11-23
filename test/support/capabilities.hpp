@@ -30,13 +30,13 @@ constexpr std::size_t key_size_of() {
 
 /**
  * Makes an algorithm, through the type a program names, from a key whose bytes are all 1 (its
- * `from_key`, a key pair's `from_secret`, `crypto_kx`'s `derive_from_seed`), or, for one made of a
- * secret key and a peer's public key (a box, `from_keys`), from that key twice, or, for
- * one keyed by no key of its own (Ed25519ph's signer), begins it, or, for sealed boxes, seals
- * an empty message to that key as a public key, or, for PEM, armours that key as a public key's
- * DER: a cell the capability table marks present whose engine is missing fails to compile here.
- * The type names its family and its algorithm as the table does, and `supports_v` says that the
- * backend has it.
+ * `from_key`, a key pair's `from_secret`, `crypto_kx`'s `derive_from_seed`), or, for one made of
+ * an X25519 key pair and a peer's public key (a box, `from_keys`), from the key pair of that key
+ * as its secret and that key as the peer's, or, for one keyed by no key of its own (Ed25519ph's
+ * signer), begins it, or, for sealed boxes, seals an empty message to that key as a public key,
+ * or, for PEM, armours that key as a public key's DER: a cell the capability table marks present
+ * whose engine is missing fails to compile here. The type names its family and its algorithm as the
+ * table does, and `supports_v` says that the backend has it.
  *
  * @tparam Algorithm The type a program names, on `Backend`.
  * @tparam Family Its family's tag.
@@ -59,11 +59,23 @@ template <class Algorithm, class Family, class Name, class Backend>
         return Algorithm::from_secret(key_bytes).has_value();
     } else if constexpr (requires { Algorithm::derive_from_seed(key_bytes); }) {
         return Algorithm::derive_from_seed(key_bytes).has_value();
-    } else if constexpr (requires { Algorithm::from_keys(key_bytes, key_bytes); }) {
-        return Algorithm::from_keys(key_bytes, key_bytes).has_value();
-    } else if constexpr (requires { Algorithm::overhead; }) {
-        std::array<std::uint8_t, Algorithm::overhead> sealed{};
-        return Algorithm::seal(key_bytes, {}, sealed).has_value();
+    } else if constexpr (requires {
+                             typename Algorithm::keypair_type;
+                             Algorithm::key_size;
+                         }) {
+        // A box, made of an X25519 key pair and a peer's public key, or a sealed box, sealing to
+        // a public key: both of that key, the key pair's secret and the peer's public key.
+        auto const peer_key = Algorithm::public_key_type::from_bytes(key_bytes);
+        if (!peer_key) {
+            return false;
+        }
+        if constexpr (requires { Algorithm::overhead; }) {
+            std::array<std::uint8_t, Algorithm::overhead> sealed{};
+            return Algorithm::seal(*peer_key, {}, sealed).has_value();
+        } else {
+            auto const own_keypair = Algorithm::keypair_type::from_secret(key_bytes);
+            return own_keypair && Algorithm::from_keys(*own_keypair, *peer_key).has_value();
+        }
     } else {
         std::array<char, 128> text{};
         return Algorithm::armour("PUBLIC KEY", key_bytes, text).has_value();

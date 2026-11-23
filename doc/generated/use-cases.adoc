@@ -208,7 +208,7 @@
 |<<crypto-x25519,[.keep]`+x25519_agree.cpp+`>>
 
 |Give a client and a server a key for each direction from each other's public key, as libsodium's `crypto_kx` does
-|In `+key_exchange+`: `+kx_keypair::derive_from_seed+`, `+kx_keypair::generate+`, `+client_session_keys+`, `+server_session_keys+`
+|In `+key_exchange+`: `+kx_keypair::from_keypair+`, `+kx_keypair::derive_from_seed+`, `+kx_keypair::generate+`, `+client_session_keys+`, `+server_session_keys+`
 |libsodium
 |`+/webcpp/crypto//crypto+` +
 `+/webcpp/crypto//kx-default+`

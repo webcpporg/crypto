@@ -553,11 +553,11 @@
         {
             "id": "kx_keypair",
             "family": "kx",
-            "functions": ["derive_from_seed", "generate", "public_key", "client_session_keys", "server_session_keys"],
+            "functions": ["from_keypair", "derive_from_seed", "generate", "keypair", "public_key", "client_session_keys", "server_session_keys"],
             "namespace": "key_exchange",
             "api": "key_exchange::kx_keypair",
             "header": "<webcpp/crypto/key_exchange/kx.hpp>",
-            "what": "libsodium's `crypto_kx`: a key pair made from a 32-byte seed or drawn from `random_device`, and the two session keys of a client or a server, each a `secret<32>`, from the peer's public key; a peer key of low order is refused with `weak_public_key`.",
+            "what": "libsodium's `crypto_kx` on X25519's typed keys: a key pair that holds an X25519 key pair, taken as is, derived from a 32-byte seed as libsodium does (BLAKE2b-256 of the seed) or drawn from `random_device`, and the two session keys of a client or a server, each a `secret<32>`, from the peer's X25519 public key; a peer key of low order is refused with `weak_public_key`.",
             "section": "crypto-kx",
             "backends": {"sodium": {"tests": ["kx_sodium", "kx_wipe_sodium", "allocation_sodium"]}}
         },
@@ -637,7 +637,7 @@
             "namespace": "public_key_encryption",
             "api": "public_key_encryption::box",
             "header": "<webcpp/crypto/public_key_encryption/box.hpp>",
-            "what": "NaCl's and libsodium's `crypto_box`: X25519 agrees a key once per pair of keys, refusing a peer key of small order, then XSalsa20-Poly1305 seals and opens each message in place, with a 24-byte nonce safe to draw at random.",
+            "what": "NaCl's and libsodium's `crypto_box`: X25519 agrees a key once per pair of keys, from the own X25519 key pair and the peer's X25519 public key, refusing a peer key of small order, then XSalsa20-Poly1305 seals and opens each message in place, with a 24-byte nonce safe to draw at random.",
             "section": "crypto-box",
             "default": "`box` names the default backend.",
             "backends": {"sodium": {"tests": ["box_sodium", "allocation_sodium"]}}
@@ -661,7 +661,7 @@
             "namespace": "public_key_encryption",
             "api": "public_key_encryption::sealed_box",
             "header": "<webcpp/crypto/public_key_encryption/sealed_box.hpp>",
-            "what": "libsodium's sealed boxes, `crypto_box_seal`: anonymous encryption to a public key under a key pair drawn per message, 48 bytes longer than the message, which only the recipient's key pair opens.",
+            "what": "libsodium's sealed boxes, `crypto_box_seal`: anonymous encryption to an X25519 public key under a key pair drawn per message, 48 bytes longer than the message, which only the recipient's X25519 key pair opens.",
             "section": "crypto-sealed-box",
             "default": "`sealed_box` names the default backend.",
             "backends": {"sodium": {"tests": ["box_sodium", "allocation_sodium"]}}
@@ -1249,9 +1249,9 @@
             "columns": ["Construction", "What it does", "Keys", "Nonce", "Overhead per message", "Standards and sources", "Choose it when"],
             "cited": ["Standards and sources"],
             "rows": [
-                ["`box`: X25519-XSalsa20-Poly1305", "Authenticated encryption between two key pairs: X25519 agrees a key once per pair, then XSalsa20-Poly1305 seals each message; either party can have written it", "the own 32-byte secret key and the peer's 32-byte X25519 public key", "24 bytes, safe to draw at random ({xsalsa20})", "a 16-byte tag", "{nacl-box}, {libsodium-box}", "two parties who know each other's public keys exchange messages, in NaCl's and libsodium's format; a peer key of small order is refused"],
+                ["`box`: X25519-XSalsa20-Poly1305", "Authenticated encryption between two key pairs: X25519 agrees a key once per pair, then XSalsa20-Poly1305 seals each message; either party can have written it", "the own X25519 key pair and the peer's X25519 public key", "24 bytes, safe to draw at random ({xsalsa20})", "a 16-byte tag", "{nacl-box}, {libsodium-box}", "two parties who know each other's public keys exchange messages, in NaCl's and libsodium's format; a peer key of small order is refused"],
                 ["`box_xchacha20poly1305`: X25519-XChaCha20-Poly1305", "The same, with XChaCha20-Poly1305 sealing each message", "the same", "24 bytes, safe to draw at random", "a 16-byte tag", "{libsodium-box}", "the peer uses libsodium's `crypto_box_curve25519xchacha20poly1305`; otherwise `box`, NaCl's format"],
-                ["`sealed_box`: X25519-XSalsa20-Poly1305, anonymous", "Encryption to a public key alone: a key pair drawn per message, whose public key travels with it; the recipient cannot tell who sealed it, and the sender cannot open it afterwards", "to seal, the recipient's 32-byte public key; to open, the recipient's key pair", "none: derived from the two public keys", "48 bytes: the ephemeral public key and the tag", "{libsodium-sealed}", "anyone may write to a recipient who must not learn who wrote: anonymous feedback, a drop box; it proves nothing about the sender"]
+                ["`sealed_box`: X25519-XSalsa20-Poly1305, anonymous", "Encryption to a public key alone: a key pair drawn per message, whose public key travels with it; the recipient cannot tell who sealed it, and the sender cannot open it afterwards", "to seal, the recipient's X25519 public key; to open, the recipient's X25519 key pair", "none: derived from the two public keys", "48 bytes: the ephemeral public key and the tag", "{libsodium-sealed}", "anyone may write to a recipient who must not learn who wrote: anonymous feedback, a drop box; it proves nothing about the sender"]
             ]
         },
         "key_exchange": {
@@ -1259,7 +1259,7 @@
             "columns": ["Construction", "What it does", "Keys", "Output", "Standards and sources", "Choose it when"],
             "cited": ["Standards and sources"],
             "rows": [
-                ["`kx_keypair`: crypto_kx", "Session keys for a client and a server: X25519 agrees a secret, and BLAKE2b-512 of it and both public keys gives each side a key to receive with and one to transmit with", "a key pair made from a 32-byte seed or drawn, and the peer's 32-byte X25519 public key", "two 32-byte `secret<32>` per side, the client's `transmit` the server's `receive`", "{libsodium-kx}", "a client and a server that swapped public keys need a key for each direction, as libsodium's `crypto_kx` gives them; a peer key of low order is refused; a protocol with a KDF of its own uses X25519's `agree` instead"]
+                ["`kx_keypair`: crypto_kx", "Session keys for a client and a server: X25519 agrees a secret, and BLAKE2b-512 of it and both public keys gives each side a key to receive with and one to transmit with", "a key pair that holds an X25519 key pair, taken as is, derived from a 32-byte seed or drawn, and the peer's X25519 public key", "two 32-byte `secret<32>` per side, the client's `transmit` the server's `receive`", "{libsodium-kx}", "a client and a server that swapped public keys need a key for each direction, as libsodium's `crypto_kx` gives them; a peer key of low order is refused; a protocol with a KDF of its own uses X25519's `agree` instead"]
             ]
         }
     },
@@ -1292,7 +1292,7 @@
         {"need": "Hash, or compute an HMAC", "namespace": "Boost.Hash2, not this library", "api": "`boost::hash2::sha2_256`, `hmac_sha2_256`", "backend": "none", "jamfile": "`/webcpp/crypto//crypto` brings Boost's headers", "example": "constant_time_equal_hmac", "section": "crypto-overview-hash2"},
         {"need": "Sign and verify with Ed25519 (RFC 8032), or with Ed25519ph a message's SHA-512 or a large message in pieces", "namespace": "webcpp::crypto::curves::ed25519", "api": "`keypair::from_secret`, `keypair::generate`, `keypair::sign(crypto::eddsa, message)`, `keypair::sign(crypto::eddsa_prehashed, crypto::prehashed{digest})`, `crypto::verify`; `prehashed_signer<webcpp::hash::sha2_512>`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default", "example": "ed25519_sign", "section": "crypto-ed25519"},
         {"need": "Agree a shared secret with a peer's public key (X25519, RFC 7748), or with the X25519 form of an Ed25519 key", "namespace": "webcpp::crypto::curves::x25519", "api": "`keypair::from_secret`, `keypair::generate`, `public_key::from_bytes`, `keypair::agree`; `curves::ed25519::to_x25519_public`, `curves::ed25519::keypair::x25519_secret`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//x25519-default", "example": "x25519_agree", "section": "crypto-x25519"},
-        {"need": "Give a client and a server a key for each direction from each other's public key, as libsodium's `crypto_kx` does", "namespace": "webcpp::crypto::key_exchange", "api": "`kx_keypair::derive_from_seed`, `kx_keypair::generate`, `client_session_keys`, `server_session_keys`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//kx-default", "example": "kx_session", "section": "crypto-kx"},
+        {"need": "Give a client and a server a key for each direction from each other's public key, as libsodium's `crypto_kx` does", "namespace": "webcpp::crypto::key_exchange", "api": "`kx_keypair::from_keypair`, `kx_keypair::derive_from_seed`, `kx_keypair::generate`, `client_session_keys`, `server_session_keys`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//kx-default", "example": "kx_session", "section": "crypto-kx"},
         {"need": "Export or import an Ed25519 or X25519 key in the standard forms OpenSSL and WebCrypto use: SPKI and PKCS#8 (RFC 8410), as DER or PEM text", "namespace": "webcpp::crypto::curves", "api": "`ed25519::encode_spki`, `decode_spki`, `encode_pkcs8`, `decode_pkcs8`, the same in `x25519`; `webcpp::crypto::pem::armour`, `unarmour`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default /webcpp/crypto//x25519-default /webcpp/crypto//pem-default", "example": "key_formats", "section": "crypto-key-formats"},
         {"need": "Encrypt messages in a chat app, on the web and natively, each with a random nonce", "namespace": "webcpp::crypto::ciphers", "api": "`xchacha20_poly1305<>`: `from_key`, `seal`, `open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//xchacha20_poly1305-default", "example": "xchacha_seal", "section": "crypto-chacha"},
         {"need": "Encrypt a record or a file under one secret key, each with a random nonce, in libsodium's secret-box format", "namespace": "webcpp::crypto::ciphers", "api": "`secretbox<>`, `secretbox_xchacha20poly1305<>`: `from_key`, `seal`, `open`", "backend": "libsodium", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default", "example": "file_share", "section": "crypto-secretbox"},

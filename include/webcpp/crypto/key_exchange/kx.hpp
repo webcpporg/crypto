@@ -5,9 +5,11 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 /**
- libsodium's key exchange, `crypto_kx`: a key pair on Curve25519 made from a 32-byte seed, and
- the two 32-byte session keys a client and a server compute from each other's public key, one
- to receive with and one to transmit with, the client's transmit key the server's receive key.
+ libsodium's key exchange, `crypto_kx`, on X25519's typed keys: a key pair that holds an
+ X25519 key pair, made from one, drawn, or derived from a 32-byte seed as libsodium does, and the
+ two 32-byte session keys a client and a server compute from each other's X25519 public key,
+ one to receive with and one to transmit with, the client's transmit key the server's receive
+ key.
 
  The family's default backend, libsodium on every target, is included when the program links
  it; a program that uses the family without linking it stops where it calls it, with the
@@ -25,6 +27,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
+#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
@@ -32,6 +35,7 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: random_device draws generate()'s seed
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/supports.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -42,13 +46,6 @@
 #include <utility>
 
 namespace webcpp::crypto::detail {
-
-/**
- * What a `crypto_kx` key pair stores on a backend whose header does not specialise it: nothing,
- * since its engine refuses the backend where the family is called.
- */
-template <class Name, class Backend>
-struct kx_state {};
 
 /** The work of `crypto_kx` on a backend; the primary refuses (defined at the end of this header).
  */
@@ -68,8 +65,13 @@ struct session_keys {
 };
 
 /**
- * A `crypto_kx` key pair: its secret key, kept by the backend and wiped by every move and by the
- * destructor, and its public key, which the peer receives.
+ * A `crypto_kx` key pair: an X25519 key pair (`curves::x25519::basic_keypair`), whose secret key
+ * it wipes by every move and by the destructor, and whose public key the peer receives.
+ *
+ * It is made from an X25519 key pair (`from_keypair`), which it takes as is, from a fresh one
+ * (`generate`), or from a 32-byte seed as libsodium's `crypto_kx_seed_keypair` does
+ * (`derive_from_seed`), whose secret key is BLAKE2b-256 of the seed: the same 32 bytes give two
+ * key pairs, the seed hashed first.
  *
  * A client computes its session keys
  * with `client_session_keys` from the server's public key, the server with `server_session_keys`
@@ -78,12 +80,13 @@ struct session_keys {
  * The session keys are libsodium's construction, BLAKE2b-512 of the X25519 shared secret and
  * both public keys, client first: only another `crypto_kx` derives them.
  *
- * @tparam Backend The backend; by default the family's (`default_backend_t<families::kx>`).
+ * @tparam Backend The backend; by default the family's (`default_backend_t<families::kx>`), and
+ * that of the X25519 key pair it holds.
  */
 template <class Backend = default_backend_t<families::kx>>
 class kx_keypair {
-    using state_type = detail::kx_state<families::kx, Backend>;
     using engine = detail::kx_engine<families::kx, Backend>;
+    using access = detail::x25519_access;
 
 public:
     /** The family, for `supports_v`. */
@@ -92,6 +95,10 @@ public:
     using name_type = families::kx;
     /** The backend. */
     using backend_type = Backend;
+    /** The X25519 key pair it holds. */
+    using keypair_type = curves::x25519::basic_keypair<Backend>;
+    /** The public key's type, which the peer's session keys take. */
+    using public_key_type = curves::x25519::public_key;
     /** The seed's size. */
     static constexpr std::size_t seed_size = 32;
     /** The public key's size. */
@@ -99,9 +106,31 @@ public:
     /** Each session key's size. */
     static constexpr std::size_t session_key_size = 32;
 
+    // A backend with no X25519 cannot make the key pair this one holds: refused where the class
+    // is named.
+    static_assert(supports_v<keypair_type, Backend>,
+                  "webcpp::crypto: key_exchange::kx_keypair holds an X25519 key pair of its own "
+                  "backend, which has no X25519.");
+
+    /**
+     * Takes an X25519 key pair as it is: its secret key is the key pair's, as `crypto_kx` uses
+     * it, with no hash (`derive_from_seed` hashes its seed).
+     *
+     * @param key_pair The key pair, moved in: the result owns its secret key.
+     * @return The key pair; `invalid_state` for a key pair moved from.
+     */
+    [[nodiscard]] static boost::system::result<kx_keypair> from_keypair(
+        keypair_type key_pair) noexcept {
+        detail::timing_guard const timing_scope;
+        if (!access::keyed(key_pair)) {
+            return error::invalid_state;
+        }
+        return kx_keypair(std::move(key_pair));
+    }
+
     /**
      * Derives a key pair from a seed, `crypto_kx_seed_keypair`: the same seed gives the same key
-     * pair, its secret BLAKE2b-256 of the seed.
+     * pair, its secret key BLAKE2b-256 of the seed, not the seed itself.
      *
      * @param seed_bytes 32 bytes.
      * @return The key pair; `invalid_key_size`; `backend_failure`.
@@ -112,14 +141,17 @@ public:
         if (seed_bytes.size() != seed_size) {
             return error::invalid_key_size;
         }
-        kx_keypair made_pair;
-        auto const engine_keyed =
-            engine::seed_keypair(made_pair.state_, seed_bytes.template first<seed_size>());
-        if (!engine_keyed) {
-            return engine_keyed.error();
+        secret<keypair_type::secret_key_size> derived_secret;
+        auto const engine_derived =
+            engine::seed_keypair(seed_bytes.template first<seed_size>(), derived_secret.writable());
+        if (!engine_derived) {
+            return engine_derived.error();
         }
-        made_pair.keyed_ = true;
-        return made_pair;
+        auto derived_pair = keypair_type::from_secret(derived_secret.bytes());
+        if (!derived_pair) {
+            return derived_pair.error();
+        }
+        return kx_keypair(std::move(derived_pair).unsafe_value());
     }
 
     /**
@@ -142,63 +174,32 @@ public:
     }
 
     /**
-     * Moves the key pair; the source is wiped and empty.
+     * The X25519 key pair it holds, for a program that keeps its secret key (`secret()`) or
+     * agrees with it through X25519 itself.
      *
-     * @param moved_from The key pair moved from.
+     * @return The key pair, valid while this one lives; moved from, an empty one, every member
+     * of which refuses with `invalid_state`.
      */
-    kx_keypair(kx_keypair&& moved_from) noexcept : keyed_(std::exchange(moved_from.keyed_, false)) {
-        state_ = moved_from.state_;
-        engine::reset(moved_from.state_);
-    }
+    [[nodiscard]] keypair_type const& keypair() const noexcept { return key_pair_; }
 
     /**
-     * Moves over this key pair, which is wiped first.
+     * The public key, which the peer needs: the X25519 key pair's.
      *
-     * @param moved_from The key pair moved from, wiped and empty after.
-     * @return This key pair.
+     * @return The public key; `invalid_state` moved from.
      */
-    kx_keypair& operator=(kx_keypair&& moved_from) noexcept {
-        if (this != &moved_from) {
-            engine::reset(state_);
-            keyed_ = std::exchange(moved_from.keyed_, false);
-            state_ = moved_from.state_;
-            engine::reset(moved_from.state_);
-        }
-        return *this;
-    }
-
-    /** Not copyable: a secret key has one owner. */
-    kx_keypair(kx_keypair const&) = delete;
-    /** Not copyable: a secret key has one owner. */
-    kx_keypair& operator=(kx_keypair const&) = delete;
-
-    /** Wipes the secret key. */
-    ~kx_keypair() { engine::reset(state_); }
-
-    /**
-     * The public key, which the peer needs.
-     *
-     * @return 32 bytes; `invalid_state` moved from.
-     */
-    [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> public_key() const noexcept {
-        if (!keyed_) {
-            return error::invalid_state;
-        }
-        std::array<std::uint8_t, 32> key_bytes{};
-        engine::public_key(state_, key_bytes);
-        return key_bytes;
+    [[nodiscard]] boost::system::result<public_key_type> public_key() const noexcept {
+        return key_pair_.public_key();
     }
 
     /**
      * The client's keys, from the server's public key, `crypto_kx_client_session_keys`.
      *
-     * @param server_public_key 32 bytes.
-     * @return The session keys; `invalid_state` moved from; `invalid_public_key` for a key of
-     * another size; `weak_public_key` for a key of low order, whose X25519 shared secret is all
-     * zero; `backend_failure`.
+     * @param server_public_key The server's X25519 public key.
+     * @return The session keys; `invalid_state` moved from; `weak_public_key` for a key of low
+     * order, whose X25519 shared secret is all zero; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<session_keys> client_session_keys(
-        std::span<std::uint8_t const> server_public_key) const noexcept {
+        public_key_type const& server_public_key) const noexcept {
         detail::timing_guard const timing_scope;
         return session<true>(server_public_key);
     }
@@ -206,48 +207,69 @@ public:
     /**
      * The server's keys, from the client's public key, `crypto_kx_server_session_keys`.
      *
-     * @param client_public_key 32 bytes.
-     * @return The session keys; `invalid_state` moved from; `invalid_public_key` for a key of
-     * another size; `weak_public_key` for a key of low order, whose X25519 shared secret is all
-     * zero; `backend_failure`.
+     * @param client_public_key The client's X25519 public key.
+     * @return The session keys; `invalid_state` moved from; `weak_public_key` for a key of low
+     * order, whose X25519 shared secret is all zero; `backend_failure`.
      */
     [[nodiscard]] boost::system::result<session_keys> server_session_keys(
-        std::span<std::uint8_t const> client_public_key) const noexcept {
+        public_key_type const& client_public_key) const noexcept {
         detail::timing_guard const timing_scope;
         return session<false>(client_public_key);
     }
 
-private:
-    kx_keypair() noexcept = default;
+    /**
+     * Moves the key pair; the source is wiped and empty.
+     *
+     * @param moved_from The key pair moved from.
+     */
+    kx_keypair(kx_keypair&& moved_from) noexcept = default;
 
     /**
-     * One side's computation, the client's or the server's: the guards both share, then a direct
-     * call of the engine's function for that side.
+     * Moves over this key pair, whose secret key is wiped first.
+     *
+     * @param moved_from The key pair moved from, wiped and empty after.
+     * @return This key pair.
+     */
+    kx_keypair& operator=(kx_keypair&& moved_from) noexcept = default;
+
+    /** Not copyable: a secret key has one owner. */
+    kx_keypair(kx_keypair const&) = delete;
+    /** Not copyable: a secret key has one owner. */
+    kx_keypair& operator=(kx_keypair const&) = delete;
+
+    /** Wipes the secret key. */
+    ~kx_keypair() = default;
+
+private:
+    explicit kx_keypair(keypair_type&& key_pair) noexcept : key_pair_(std::move(key_pair)) {}
+
+    /**
+     * One side's computation, the client's or the server's: the guard both share, then a direct
+     * call of the engine's function for that side, with the key pair's bytes.
      */
     template <bool Client>
     [[nodiscard]] boost::system::result<session_keys> session(
-        std::span<std::uint8_t const> peer_public_key) const noexcept {
-        if (!keyed_) {
+        public_key_type const& peer_public_key) const noexcept {
+        if (!access::keyed(key_pair_)) {
             return error::invalid_state;
         }
-        if (peer_public_key.size() != public_key_size) {
-            return error::invalid_public_key;
-        }
         session_keys derived_keys;
-        auto const peer_bytes = peer_public_key.first<public_key_size>();
+        auto const secret_bytes = access::secret_bytes(key_pair_);
+        auto const public_bytes = access::public_bytes(key_pair_);
+        std::span<std::uint8_t const, public_key_size> const peer_bytes = peer_public_key.bytes();
         auto const engine_done =
-            Client ? engine::client(state_, peer_bytes, derived_keys.receive.writable(),
-                                    derived_keys.transmit.writable())
-                   : engine::server(state_, peer_bytes, derived_keys.receive.writable(),
-                                    derived_keys.transmit.writable());
+            Client
+                ? engine::client(secret_bytes, public_bytes, peer_bytes,
+                                 derived_keys.receive.writable(), derived_keys.transmit.writable())
+                : engine::server(secret_bytes, public_bytes, peer_bytes,
+                                 derived_keys.receive.writable(), derived_keys.transmit.writable());
         if (!engine_done) {
             return engine_done.error();
         }
         return derived_keys;
     }
 
-    state_type state_{};
-    bool keyed_ = false;
+    keypair_type key_pair_;
 };
 
 }  // namespace webcpp::crypto::key_exchange
@@ -258,8 +280,8 @@ namespace webcpp::crypto::detail {
  * `crypto_kx`'s engine on a backend whose header does not specialise it: the family's refusal,
  * which names what the program needs (`detail/capabilities.hpp`). Its functions are never
  * called: the refusal stops the build where the class is instantiated, and they keep the
- * compiler from adding errors of their own after it; those that return report
- * `backend_failure`, so that a path the refusal missed fails closed.
+ * compiler from adding errors of their own after it; they report `backend_failure`, so that a
+ * path the refusal missed fails closed.
  */
 template <class Name, class Backend>
 struct kx_engine {
@@ -272,32 +294,23 @@ struct kx_engine {
         return error::backend_failure;
     }
 
-    /** Never called. */
-    template <class... Arguments>
-    static void public_key(Arguments&&... /*arguments*/) noexcept {}
-
     /** Never called; fails closed. */
-    [[nodiscard]] static boost::system::result<void> client(
-        kx_state<Name, Backend> const& /*keyed*/, std::span<std::uint8_t const, 32> /*peer*/,
-        std::span<std::uint8_t, 32> /*receive*/,
-        std::span<std::uint8_t, 32> /*transmit*/) noexcept {
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> client(Arguments&&... /*arguments*/) noexcept {
         return error::backend_failure;
     }
 
     /** Never called; fails closed. */
-    [[nodiscard]] static boost::system::result<void> server(
-        kx_state<Name, Backend> const& /*keyed*/, std::span<std::uint8_t const, 32> /*peer*/,
-        std::span<std::uint8_t, 32> /*receive*/,
-        std::span<std::uint8_t, 32> /*transmit*/) noexcept {
+    template <class... Arguments>
+    [[nodiscard]] static boost::system::result<void> server(Arguments&&... /*arguments*/) noexcept {
         return error::backend_failure;
     }
-
-    /** Never called. */
-    template <class... Arguments>
-    static void reset(Arguments&&... /*arguments*/) noexcept {}
 };
 
 }  // namespace webcpp::crypto::detail
+
+/** Defined once this header's declarations are, which libsodium's engine specialises. */
+#define WEBCPP_CRYPTO_DETAIL_KX_DECLARED
 
 // The default backend's engine, when the program links it (design D32): libsodium on every
 // target. Its header specialises it for this header, wherever it was first included.

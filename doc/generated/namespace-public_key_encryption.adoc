@@ -22,9 +22,9 @@
 |Encryption to a public key alone: a key pair drawn per message, whose public key travels with it; the recipient cannot tell who sealed it, and the sender cannot open it afterwards
 
 |Keys
-|the own 32-byte secret key and the peer's 32-byte X25519 public key
+|the own X25519 key pair and the peer's X25519 public key
 |the same
-|to seal, the recipient's 32-byte public key; to open, the recipient's key pair
+|to seal, the recipient's X25519 public key; to open, the recipient's X25519 key pair
 
 |Nonce
 |24 bytes, safe to draw at random (link:https://cr.yp.to/snuffle/xsalsa-20081128.pdf[D. J. Bernstein, Extending the Salsa20 nonce, 2008])

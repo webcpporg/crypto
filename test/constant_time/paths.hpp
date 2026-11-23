@@ -251,15 +251,16 @@ int sodium_x25519() {
 }
 
 /**
- * A box on libsodium: from_keys with the secret key secret, then seal and open as an AEAD's. The
- * agreement's verdict is libsodium's own branch (sodium_verdicts.supp).
+ * A box on libsodium: from_keys with the X25519 key pair of a secret secret key, its public key
+ * marked public, then seal and open as an AEAD's. The agreement's verdict is libsodium's own
+ * branch (sodium_verdicts.supp).
  */
 template <class Checker, class Box>
 int sodium_box(char const* what) {
+    namespace x25519 = crypto::curves::x25519;
     std::array<std::uint8_t, 32> peer_secret{};
     peer_secret.fill(0x24);
-    auto const peer =
-        crypto::curves::x25519::basic_keypair<sodium>::from_secret(peer_secret)->public_key();
+    auto const peer = x25519::basic_keypair<sodium>::from_secret(peer_secret)->public_key();
     std::array<std::uint8_t, 32> secret_key{};
     std::array<std::uint8_t, Box::nonce_size> const nonce{};
     std::array<std::uint8_t, 64> data{};
@@ -267,7 +268,11 @@ int sodium_box(char const* what) {
     data.fill(0x17);
     Checker::mark_secret(secret_key);
     Checker::mark_secret(data);
-    auto made = Box::from_keys(secret_key, peer->bytes());
+    auto const own = x25519::basic_keypair<sodium>::from_secret(secret_key);
+    // The own public key is public, though computed from the secret key: the box reads its
+    // secret key alone.
+    Checker::mark_public(crypto::detail::x25519_access::public_bytes(*own));
+    auto made = Box::from_keys(*own, *peer);
     auto tag = made->seal(nonce, data);
     int const failures =
         check(tag.has_value() && carries_mark<Checker>(data) && carries_mark<Checker>(*tag), what);
@@ -279,36 +284,42 @@ int sodium_box(char const* what) {
 }
 
 /**
- * The sealed box on libsodium: seal with the message secret, then open with the recipient's
- * secret key and the sealed box secret. The verdict is libsodium's own branches (the agreement's
- * and the tag's, sodium_verdicts.supp), then the engine's, which marks it public.
+ * The sealed box on libsodium: seal with the message secret to the recipient's public key, then
+ * open with the recipient's key pair, its secret key secret and its public key public, and the
+ * sealed box secret. The verdict is libsodium's own branches (the agreement's and the tag's,
+ * sodium_verdicts.supp), then the engine's, which marks it public.
  */
 template <class Checker>
 int sodium_sealed_box() {
     using crypto::public_key_encryption::sealed_box;
     std::array<std::uint8_t, 32> secret_key{};
     secret_key.fill(0x42);
-    auto const public_key =
-        crypto::curves::x25519::basic_keypair<sodium>::from_secret(secret_key)->public_key();
+    Checker::mark_secret(secret_key);
+    auto const recipient = crypto::curves::x25519::basic_keypair<sodium>::from_secret(secret_key);
+    // The public key, computed from the secret key, is public: it is published.
+    Checker::mark_public(crypto::detail::x25519_access::public_bytes(*recipient));
+    auto const public_key = recipient->public_key();
     std::array<std::uint8_t, 64> message{};
     message.fill(0x17);
     Checker::mark_secret(message);
     std::array<std::uint8_t, 64 + sealed_box::overhead> sealed{};
-    bool const sealed_ok = public_key.has_value() &&
-                           sealed_box::seal(public_key->bytes(), message, sealed).has_value();
+    bool const sealed_ok =
+        public_key.has_value() && sealed_box::seal(*public_key, message, sealed).has_value();
     int const failures = check(sealed_ok && carries_mark<Checker>(sealed), "sealed box's seal");
-    Checker::mark_secret(secret_key);
     // The drawn public key, the first 32 bytes, is public: it travels in clear, and libsodium
     // checks its order. The tag and the ciphertext are secret.
     Checker::mark_secret(std::span<std::uint8_t>{sealed}.subspan(32));
     std::array<std::uint8_t, 64> opened{};
-    auto const result = sealed_box::open(public_key->bytes(), secret_key, sealed, opened);
+    auto const result = sealed_box::open(*recipient, sealed, opened);
     bool const opened_verdict = result.has_value();
     Checker::verdict(opened_verdict);
     return failures + check(opened_verdict && carries_mark<Checker>(opened), "sealed box's open");
 }
 
-/** kx on libsodium: both key pairs from secret seeds, both sides' session keys. */
+/**
+ * kx on libsodium: both key pairs from secret seeds, their public keys marked public where the
+ * key pairs keep them, both sides' session keys.
+ */
 template <class Checker>
 int sodium_kx() {
     using keypair = crypto::key_exchange::kx_keypair<sodium>;
@@ -320,11 +331,11 @@ int sodium_kx() {
     Checker::mark_secret(server_seed);
     auto const client = keypair::derive_from_seed(client_seed);
     auto const server = keypair::derive_from_seed(server_seed);
+    // The public keys are public: sent to the peer.
+    Checker::mark_public(crypto::detail::x25519_access::public_bytes(client->keypair()));
+    Checker::mark_public(crypto::detail::x25519_access::public_bytes(server->keypair()));
     auto const client_key = *client->public_key();
     auto const server_key = *server->public_key();
-    // The public keys are public: sent to the peer.
-    Checker::mark_public(client_key);
-    Checker::mark_public(server_key);
     auto const client_keys = client->client_session_keys(server_key);
     auto const server_keys = server->server_session_keys(client_key);
     return check(client_keys.has_value() && server_keys.has_value() &&

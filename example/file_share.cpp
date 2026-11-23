@@ -7,7 +7,7 @@
 // A file-sharing app shares a file with a recipient it knows only by an X25519 public key: the
 // file is sealed once in a secret box under a key drawn for this file, and that file key is
 // sealed to the recipient's public key in a sealed box. The upload holds both; only the
-// recipient's secret key opens the file key, and the file key opens the file. Prints what the
+// recipient's key pair opens the file key, and the file key opens the file. Prints what the
 // recipient reads, the sizes on the wire, and the refusals of a changed upload and of another
 // key pair.
 // tag::program[]
@@ -22,7 +22,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -44,7 +43,8 @@ struct upload {
 // tag::share[]
 // The sender: a key for this file alone, the file in a secret box under it, the key sealed to
 // the recipient.
-bool share(crypto::random_device& device, std::span<std::uint8_t const> recipient_public_key,
+bool share(crypto::random_device& device,
+           crypto::curves::x25519::public_key const& recipient_public_key,
            std::string_view contents, upload& out) {
     crypto::secret<32> file_key;
     if (!device.fill(file_key.writable()) || !device.fill(out.nonce)) {
@@ -67,11 +67,9 @@ bool share(crypto::random_device& device, std::span<std::uint8_t const> recipien
 
 // tag::receive[]
 // The recipient: the file key out of the sealed box, then the file out of the secret box.
-void receive(char const* who, std::span<std::uint8_t const> public_key,
-             std::span<std::uint8_t const> secret_key, upload received) {
+void receive(char const* who, crypto::curves::x25519::keypair const& key_pair, upload received) {
     crypto::secret<32> file_key;
-    auto const key_opened =
-        sealed_box::open(public_key, secret_key, received.sealed_key, file_key.writable());
+    auto const key_opened = sealed_box::open(key_pair, received.sealed_key, file_key.writable());
     if (!key_opened) {
         std::string const reason = key_opened.error().message();
         std::printf("%s: the file key refused: %s\n", who, reason.c_str());
@@ -99,46 +97,33 @@ int main() {
     crypto::random_device device;
     // The recipient's key pair, made once on the recipient's device; only the public key is
     // published.
-    crypto::secret<32> secret_key;
-    if (!device.fill(secret_key.writable())) {
-        return 1;
-    }
-    auto const key_pair = crypto::curves::x25519::keypair::from_secret(secret_key.bytes());
+    auto const key_pair = crypto::curves::x25519::keypair::generate();
     if (!key_pair) {
         return 1;
     }
-    auto const typed_public_key = key_pair->public_key();
-    if (!typed_public_key) {
+    auto const public_key = key_pair->public_key();
+    if (!public_key) {
         return 1;
     }
-    auto const& public_key = typed_public_key->bytes();
 
     upload sent;
-    if (!share(device, public_key, "quarterly report, draft 3", sent)) {
+    if (!share(device, *public_key, "quarterly report, draft 3", sent)) {
         return 1;
     }
     std::printf("on the wire: %zu bytes of sealed key, %zu of nonce, %zu of tag, %zu of file\n",
                 sent.sealed_key.size(), sent.nonce.size(), sent.tag.size(), sent.file.size());
-    receive("the recipient", public_key, secret_key.bytes(), sent);
+    receive("the recipient", *key_pair, sent);
 
     // The storage service changes the file.
     upload changed = sent;
     changed.file[0] ^= 0x01U;
-    receive("the recipient, the upload changed", public_key, secret_key.bytes(), changed);
+    receive("the recipient, the upload changed", *key_pair, changed);
     // Someone else's key pair cannot open the file key.
-    crypto::secret<32> other_secret;
-    if (!device.fill(other_secret.writable())) {
-        return 1;
-    }
-    auto const other_pair = crypto::curves::x25519::keypair::from_secret(other_secret.bytes());
+    auto const other_pair = crypto::curves::x25519::keypair::generate();
     if (!other_pair) {
         return 1;
     }
-    auto const other_public = other_pair->public_key();
-    if (!other_public) {
-        return 1;
-    }
-    receive("another key pair", other_public->bytes(), other_secret.bytes(), sent);
+    receive("another key pair", *other_pair, sent);
     return 0;
 }
 

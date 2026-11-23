@@ -118,15 +118,18 @@ constexpr std::array<std::uint8_t, 32> rfc7748_peer_key{
 };
 
 // A keyed object of the type under test, from a key of non-zero bytes (a cipher's key, or a key
-// pair's secret); a box's from that secret key and a peer's public key.
+// pair's secret); a box's from the X25519 key pair of that secret key and a peer's public key.
 template <class T>
 T keyed(std::uint8_t first) {
     std::array<std::uint8_t, 32> key{};
     for (std::size_t i = 0; i < key.size(); ++i) {
         key[i] = static_cast<std::uint8_t>(first + i);
     }
-    if constexpr (requires { T::from_keys(key, rfc7748_peer_key); }) {
-        auto made = T::from_keys(key, rfc7748_peer_key);
+    if constexpr (requires { typename T::keypair_type; }) {
+        auto const own = T::keypair_type::from_secret(key);
+        auto const peer = T::public_key_type::from_bytes(rfc7748_peer_key);
+        webcpp::test::require(own.has_value() && peer.has_value());
+        auto made = T::from_keys(*own, *peer);
         webcpp::test::require(made.has_value());
         return std::move(*made);
     } else if constexpr (requires { T::from_key(key); }) {

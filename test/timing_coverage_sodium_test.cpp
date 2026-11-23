@@ -15,7 +15,8 @@
 // What it covers, by family; a family libsodium gains adds its line and its checks:
 // - ChaCha20-Poly1305, its original form, XChaCha20-Poly1305 and both secret boxes, aead:
 //   from_key, seal, open; the free crypto::from_key, crypto::seal and crypto::open.
-// - Both boxes, basic_box: from_keys, seal, open. The sealed box, basic_sealed_box: seal, open.
+// - Both boxes, basic_box: from_keys, of a moved-from key pair too, seal, open. The sealed box,
+//   basic_sealed_box: seal, open, of a moved-from key pair too.
 // - PEM: algorithm::armour, algorithm::unarmour, and the free armour and unarmour, which forward.
 // - Ed25519, basic_keypair: from_secret, generate, public_key, secret, sign, x25519_secret;
 //   public_key: verify; the free crypto::verify and to_x25519_public, and the free synchronous
@@ -35,7 +36,9 @@
 //   enter none; the free crypto::from_secret, crypto::generate and crypto::agree, and crypto::
 //   from_bytes, which enters none; the asynchronous async_from_secret, async_generate and
 //   async_agree, member and free. Its formats: decode_spki, decode_pkcs8.
-// - crypto_kx, kx_keypair: derive_from_seed, generate, client_session_keys, server_session_keys.
+// - crypto_kx, kx_keypair: from_keypair, derive_from_seed, generate, client_session_keys,
+//   server_session_keys, each of a moved-from key pair too where it applies; keypair and
+//   public_key, which call no backend and enter none.
 
 #include "support/timing_seam.hpp"
 
@@ -98,7 +101,7 @@ void cover_ciphers() {
 // The boxes.
 // ---------------------------------------------------------------------------------------------
 
-/** An X25519 key pair whose secret key is `fill` repeated, for the boxes. */
+/** An X25519 key pair's bytes, its secret key `fill` repeated, for X25519's own checks. */
 struct coverage_keypair {
     /** The secret key. */
     std::array<std::uint8_t, 32> secret_key{};
@@ -119,8 +122,18 @@ coverage_keypair make_keypair(std::uint8_t fill) {
 }
 
 /**
- * A box's guarded functions: `from_keys`, a secret key of the wrong size included, `seal` and
- * `open`, a nonce of the wrong size included.
+ * The typed X25519 key pair whose secret key is 32 bytes `fill`, made outside a check, for the
+ * boxes and crypto_kx.
+ */
+crypto::curves::x25519::basic_keypair<sodium> typed_keypair(std::uint8_t fill) {
+    std::array<std::uint8_t, 32> secret_key{};
+    secret_key.fill(fill);
+    return crypto::curves::x25519::basic_keypair<sodium>::from_secret(secret_key).value();
+}
+
+/**
+ * A box's guarded functions: `from_keys`, a moved-from key pair included, `seal` and `open`, a
+ * nonce of the wrong size included.
  *
  * @tparam Box `basic_box<Family, sodium>`.
  * @param family The family's name, as the public alias spells it.
@@ -128,18 +141,20 @@ coverage_keypair make_keypair(std::uint8_t fill) {
 template <class Box>
 void cover_box(std::string const& family) {
     std::string const on = " on sodium";
-    auto const alice = make_keypair(0x41);
-    auto const bob = make_keypair(0x42);
+    auto alice = typed_keypair(0x41);
+    auto const bob_public = typed_keypair(0x42).public_key().value();
     covered(family + "::from_keys" + on, "basic_box::from_keys",
-            [&] { BOOST_TEST(Box::from_keys(alice.secret_key, bob.public_key).has_value()); });
-    covered(family + "::from_keys with a short secret key" + on, "basic_box::from_keys", [&] {
-        BOOST_TEST(Box::from_keys(std::span(alice.secret_key).first(31), bob.public_key).error() ==
-                   crypto::error::invalid_key_size);
-    });
-    auto made = Box::from_keys(alice.secret_key, bob.public_key);
+            [&] { BOOST_TEST(Box::from_keys(alice, bob_public).has_value()); });
+    auto made = Box::from_keys(alice, bob_public);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
+    auto const kept = std::move(alice);
+    // NOLINTBEGIN(bugprone-use-after-move,clang-analyzer-cplusplus.Move): the refusal
+    covered(family + "::from_keys of a moved-from key pair" + on, "basic_box::from_keys", [&] {
+        BOOST_TEST(Box::from_keys(alice, bob_public).error() == crypto::error::invalid_state);
+    });
+    // NOLINTEND(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
     std::array<std::uint8_t, Box::nonce_size> const nonce{};
     std::array<std::uint8_t, 40> data{};
     typename Box::result_type tag{};
@@ -163,27 +178,35 @@ void cover_box(std::string const& family) {
     });
 }
 
-/** The sealed box's `seal` and `open`, an output of the wrong size included. */
+/**
+ * The sealed box's `seal` and `open`, an output of the wrong size and a moved-from key pair
+ * included.
+ */
 void cover_sealed_box() {
     using sealed_box = crypto::public_key_encryption::basic_sealed_box<sodium>;
-    auto const bob = make_keypair(0x42);
+    auto bob = typed_keypair(0x42);
+    auto const bob_public = bob.public_key().value();
     std::array<std::uint8_t, 8> const message{1, 2, 3, 4, 5, 6, 7, 8};
     std::array<std::uint8_t, message.size() + sealed_box::overhead> sealed{};
     std::array<std::uint8_t, message.size()> opened{};
     covered("sealed_box::seal on sodium", "basic_sealed_box::seal",
-            [&] { BOOST_TEST(sealed_box::seal(bob.public_key, message, sealed).has_value()); });
-    covered("sealed_box::open on sodium", "basic_sealed_box::open", [&] {
-        BOOST_TEST(sealed_box::open(bob.public_key, bob.secret_key, sealed, opened).has_value());
-    });
+            [&] { BOOST_TEST(sealed_box::seal(bob_public, message, sealed).has_value()); });
+    covered("sealed_box::open on sodium", "basic_sealed_box::open",
+            [&] { BOOST_TEST(sealed_box::open(bob, sealed, opened).has_value()); });
     covered("sealed_box::seal into a short output on sodium", "basic_sealed_box::seal", [&] {
-        BOOST_TEST(sealed_box::seal(bob.public_key, message, std::span(sealed).first(1)).error() ==
+        BOOST_TEST(sealed_box::seal(bob_public, message, std::span(sealed).first(1)).error() ==
                    crypto::error::invalid_input_size);
     });
     covered("sealed_box::open into a short output on sodium", "basic_sealed_box::open", [&] {
-        BOOST_TEST(
-            sealed_box::open(bob.public_key, bob.secret_key, sealed, std::span(opened).first(1))
-                .error() == crypto::error::invalid_input_size);
+        BOOST_TEST(sealed_box::open(bob, sealed, std::span(opened).first(1)).error() ==
+                   crypto::error::invalid_input_size);
     });
+    auto const kept = std::move(bob);
+    // NOLINTBEGIN(bugprone-use-after-move,clang-analyzer-cplusplus.Move): the refusal
+    covered("sealed_box::open of a moved-from key pair on sodium", "basic_sealed_box::open", [&] {
+        BOOST_TEST(sealed_box::open(bob, sealed, opened).error() == crypto::error::invalid_state);
+    });
+    // NOLINTEND(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
 }
 
 /** Both boxes and the sealed box. */
@@ -696,26 +719,20 @@ void cover_x25519_formats() {
 }
 
 /**
- * crypto_kx's key pair: `derive_from_seed`, a seed of the wrong size included, `generate` (the
- * system's entropy), and `client_session_keys` and `server_session_keys`, a peer key of the wrong
- * size included. `public_key` copies bytes and holds no guard (ruling R4).
+ * crypto_kx's session keys: `client_session_keys` and `server_session_keys`, of a moved-from key
+ * pair too. `keypair` and `public_key` call no backend and enter none.
  */
-void cover_kx() {
+void cover_kx_sessions() {
     using kx_keypair = crypto::key_exchange::kx_keypair<sodium>;
-    auto const seed = webcpp::test::coverage_key<kx_keypair::seed_size>();
-    covered("key_exchange::kx_keypair::derive_from_seed on sodium",
-            [&] { BOOST_TEST(kx_keypair::derive_from_seed(seed).has_value()); });
-    covered("key_exchange::kx_keypair::derive_from_seed with a short seed on sodium", [&] {
-        BOOST_TEST(kx_keypair::derive_from_seed(std::span(seed).first(31)).error() ==
-                   crypto::error::invalid_key_size);
-    });
-    covered("key_exchange::kx_keypair::generate on sodium",
-            [] { BOOST_TEST(kx_keypair::generate().has_value()); });
-    auto const client = kx_keypair::derive_from_seed(seed);
+    auto client = kx_keypair::derive_from_seed(webcpp::test::coverage_key<kx_keypair::seed_size>());
     auto const server = kx_keypair::generate();
     if (!BOOST_TEST(client.has_value()) || !BOOST_TEST(server.has_value())) {
         return;
     }
+    webcpp::test::uncovered("key_exchange::kx_keypair::keypair on sodium",
+                            [&] { BOOST_TEST(client->keypair().public_key().has_value()); });
+    webcpp::test::uncovered("key_exchange::kx_keypair::public_key on sodium",
+                            [&] { BOOST_TEST(client->public_key().has_value()); });
     auto const client_public = client->public_key();
     auto const server_public = server->public_key();
     if (!BOOST_TEST(client_public.has_value()) || !BOOST_TEST(server_public.has_value())) {
@@ -725,14 +742,49 @@ void cover_kx() {
             [&] { BOOST_TEST(client->client_session_keys(*server_public).has_value()); });
     covered("key_exchange::kx_keypair::server_session_keys on sodium",
             [&] { BOOST_TEST(server->server_session_keys(*client_public).has_value()); });
-    covered("key_exchange::kx_keypair::client_session_keys with a short key on sodium", [&] {
-        BOOST_TEST(client->client_session_keys(std::span(*server_public).first(31)).error() ==
-                   crypto::error::invalid_public_key);
+    auto const moved = std::move(*client);
+    // NOLINTBEGIN(bugprone-use-after-move,clang-analyzer-cplusplus.Move): the refusals
+    covered("key_exchange::kx_keypair::client_session_keys of a moved-from key pair on sodium",
+            [&] {
+                BOOST_TEST(client->client_session_keys(*server_public).error() ==
+                           crypto::error::invalid_state);
+            });
+    covered("key_exchange::kx_keypair::server_session_keys of a moved-from key pair on sodium",
+            [&] {
+                BOOST_TEST(client->server_session_keys(*server_public).error() ==
+                           crypto::error::invalid_state);
+            });
+    // NOLINTEND(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
+}
+
+/**
+ * crypto_kx's key pair: `from_keypair`, a moved-from X25519 key pair included,
+ * `derive_from_seed`, a seed of the wrong size included, and `generate` (the system's entropy);
+ * then its session keys.
+ */
+void cover_kx() {
+    using kx_keypair = crypto::key_exchange::kx_keypair<sodium>;
+    auto const seed = webcpp::test::coverage_key<kx_keypair::seed_size>();
+    auto fresh = typed_keypair(0x43);
+    covered("key_exchange::kx_keypair::from_keypair on sodium",
+            [&] { BOOST_TEST(kx_keypair::from_keypair(std::move(fresh)).has_value()); });
+    auto inner = typed_keypair(0x44);
+    auto const kept = std::move(inner);
+    // NOLINTBEGIN(bugprone-use-after-move,clang-analyzer-cplusplus.Move): the refusal
+    covered("key_exchange::kx_keypair::from_keypair of a moved-from key pair on sodium", [&] {
+        BOOST_TEST(kx_keypair::from_keypair(std::move(inner)).error() ==
+                   crypto::error::invalid_state);
     });
-    covered("key_exchange::kx_keypair::server_session_keys with a short key on sodium", [&] {
-        BOOST_TEST(server->server_session_keys(std::span(*client_public).first(31)).error() ==
-                   crypto::error::invalid_public_key);
+    // NOLINTEND(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
+    covered("key_exchange::kx_keypair::derive_from_seed on sodium",
+            [&] { BOOST_TEST(kx_keypair::derive_from_seed(seed).has_value()); });
+    covered("key_exchange::kx_keypair::derive_from_seed with a short seed on sodium", [&] {
+        BOOST_TEST(kx_keypair::derive_from_seed(std::span(seed).first(31)).error() ==
+                   crypto::error::invalid_key_size);
     });
+    covered("key_exchange::kx_keypair::generate on sodium",
+            [] { BOOST_TEST(kx_keypair::generate().has_value()); });
+    cover_kx_sessions();
 }
 
 /** Ed25519, Ed25519ph, X25519, crypto_kx, and the decoders of the key formats. */

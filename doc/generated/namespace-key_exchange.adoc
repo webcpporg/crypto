@@ -18,7 +18,7 @@
 |Session keys for a client and a server: X25519 agrees a secret, and BLAKE2b-512 of it and both public keys gives each side a key to receive with and one to transmit with
 
 |Keys
-|a key pair made from a 32-byte seed or drawn, and the peer's 32-byte X25519 public key
+|a key pair that holds an X25519 key pair, taken as is, derived from a 32-byte seed or drawn, and the peer's X25519 public key
 
 |Output
 |two 32-byte `secret<32>` per side, the client's `transmit` the server's `receive`

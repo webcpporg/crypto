@@ -4,14 +4,15 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// A crypto_kx key pair's secret key is zero in its storage once moved from, once moved over and
-// once destroyed, and a side's session keys are zero in theirs once destroyed, read at -O2 with
-// every call inlined (the Jamfile's requirements), where a wipe the optimiser may drop as a dead
-// store would be dropped. The secret key is the first member of the key pair's state, itself the
-// key pair's first member, at the start of its storage: the classes are standard-layout, which
-// the test asserts. Alive, the key pair made from kx.c's seed holds kx.exp's client_sk there,
-// which the key pair's interface never shows.
+// A crypto_kx key pair's secret key, held by the X25519 key pair inside it, is zero in its
+// storage once moved from, once moved over and once destroyed, and a side's session keys are zero
+// in theirs once destroyed, read at -O2 with every call inlined (the Jamfile's requirements),
+// where a wipe the optimiser may drop as a dead store would be dropped. Where the secret key lies
+// in the key pair is read once, alive, through detail::x25519_access, as an offset from the key
+// pair's start, then probed at that offset after each move and after the destructor. Alive, the
+// key pair made from kx.c's seed holds kx.exp's client_sk there.
 
+#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/key_exchange/kx.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -35,13 +36,9 @@ namespace crypto = webcpp::crypto;
 namespace key_exchange = webcpp::crypto::key_exchange;
 
 using key_exchange::kx_keypair;
-using state = crypto::detail::kx_state<crypto::families::kx, crypto::backends::sodium>;
 
-// The secret key's bytes, at the start of the state.
-constexpr std::size_t secret_key_size = sizeof(state::secret_key);
-
-static_assert(std::is_standard_layout_v<kx_keypair<>> && std::is_standard_layout_v<state>);
-static_assert(secret_key_size == 32 && offsetof(state, secret_key) == 0);
+// The secret key's size.
+constexpr std::size_t secret_key_size = 32;
 // A side's session keys are their two keys' bytes, nothing else.
 static_assert(std::is_standard_layout_v<key_exchange::session_keys> &&
               sizeof(key_exchange::session_keys) == 64);
@@ -69,6 +66,19 @@ WEBCPP_TEST_NOINLINE bool memory_is_zero(void const* where, std::size_t count) {
     return true;
 }
 
+// Where the inner X25519 key pair keeps its secret key, from the start of a kx key pair's storage.
+std::size_t secret_offset(kx_keypair<> const& key_pair) {
+    auto const secret_bytes = crypto::detail::x25519_access::secret_bytes(key_pair.keypair());
+    auto const* const start = reinterpret_cast<std::byte const*>(&key_pair);
+    auto const* const secret = reinterpret_cast<std::byte const*>(secret_bytes.data());
+    return static_cast<std::size_t>(secret - start);
+}
+
+// The secret key's storage, `offset` bytes into an object's storage.
+void const* at(void const* where, std::size_t offset) {
+    return static_cast<std::byte const*>(where) + offset;
+}
+
 // The count bytes at `where`, an object's storage read as bytes.
 std::vector<std::uint8_t> bytes_at(void const* where, std::size_t count) {
     std::span<std::uint8_t const> const bytes(static_cast<std::uint8_t const*>(where), count);
@@ -87,29 +97,32 @@ void key_pairs() {
     if (!made) {
         return;
     }
-    // Alive, the state holds the secret key, kx.exp's client_sk: the checks below can fail.
+    std::size_t const offset = secret_offset(*made);
+    BOOST_TEST(offset + secret_key_size <= sizeof(kx_keypair<>));
+    // Alive, the storage holds the secret key, kx.exp's client_sk: the checks below can fail.
     BOOST_TEST(
-        bytes_at(&*made, secret_key_size) ==
+        bytes_at(at(&*made, offset), secret_key_size) ==
         webcpp::test::from_hex("cb2f5160fc1f7e05a55ef49d340b48da2e5a78099d53393351cd579dd42503d6"));
-    BOOST_TEST(!memory_is_zero(&*made, secret_key_size));
+    BOOST_TEST(!memory_is_zero(at(&*made, offset), secret_key_size));
 
     kx_keypair<> taken = std::move(*made);
-    BOOST_TEST(memory_is_zero(&*made, secret_key_size));
+    BOOST_TEST(memory_is_zero(at(&*made, offset), secret_key_size));
 
     auto other = kx_keypair<>::derive_from_seed(kx_c_seed);
     BOOST_TEST(other.has_value());
     if (other) {
         taken = std::move(*other);
-        BOOST_TEST(memory_is_zero(&*other, secret_key_size));
+        BOOST_TEST(memory_is_zero(at(&*other, offset), secret_key_size));
     }
 
     // Destroyed in storage this frame owns: its bytes are read after the destructor.
     alignas(kx_keypair<>) std::array<std::byte, sizeof(kx_keypair<>)> storage{};
     kx_keypair<>* const placed =
         std::construct_at(reinterpret_cast<kx_keypair<>*>(storage.data()), std::move(taken));
-    BOOST_TEST(!memory_is_zero(placed, secret_key_size));
+    BOOST_TEST(secret_offset(*placed) == offset);
+    BOOST_TEST(!memory_is_zero(at(placed, offset), secret_key_size));
     std::destroy_at(placed);
-    BOOST_TEST(memory_is_zero(storage.data(), secret_key_size));
+    BOOST_TEST(memory_is_zero(at(storage.data(), offset), secret_key_size));
 }
 
 void sessions() {

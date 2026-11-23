@@ -36,7 +36,11 @@ There is no weaker fallback, ever: no clock, no `rand`, no address. When the
 source fails, `fill` returns `entropy_unavailable` and zeroes its output, so
 that nothing the caller could use by mistake is left in it; where there is no
 source at all (an Emscripten audio worklet, which has no `crypto`), it returns
-`errc::not_supported`. The function asks in pieces of at most 256 bytes, the
+`errc::not_supported`. In the browser and in node, a `crypto.getRandomValues`
+that throws (replaced by a script of the page, or refused by its host) gives
+`entropy_unavailable` too, and the program runs on: crypto calls it itself and
+catches the exception, where Emscripten's `getentropy` would let it unwind
+through WebAssembly and terminate the program. The function asks in pieces of at most 256 bytes, the
 limit of `getentropy`, and checks every call.
 
 `fill(bytes)` is the interface. With exceptions, `random_device` is also a

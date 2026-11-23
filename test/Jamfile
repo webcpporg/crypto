@@ -501,6 +501,11 @@ crypto-run canary_read : canary_read_test.cpp
 crypto-run random_device : random_device_test.cpp ;
 crypto-run random_device_failing : random_device_failing_test.cpp
   : <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
+# On Emscripten under node, a throwing crypto.getRandomValues and no crypto at
+# all, the draw linked from two translation units.
+crypto-run random_device_browser : random_device_browser_test.cpp
+    support/random_device_second_unit.cpp
+  : <library>/third_party//bearssl : emscripten ;
 webcpp.compile-diagnostic random_device_no_call : random_device_no_call_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS : native wasip2 ;
 

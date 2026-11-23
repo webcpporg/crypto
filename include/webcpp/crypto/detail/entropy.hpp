@@ -26,6 +26,8 @@
 // The test seam: a test defines the source, which returns 0, or -1 with
 // errno set, as getentropy does (lint-world: the call it stands in for, named, not made).
 extern "C" int webcpp_test_entropy(void* output_bytes, std::size_t byte_count);
+#elif defined(__EMSCRIPTEN__)
+#include <emscripten/em_asm.h>
 #elif !defined(_WIN32)
 #include <sys/random.h>  // lint-world: getentropy, the system's entropy, this header's purpose
 #endif
@@ -39,11 +41,19 @@ inline constexpr std::size_t entropy_piece = 256;
  * Asks the platform's one source for `byte_count` bytes, at most @ref entropy_piece.
  *
  * Linux, macOS and WASI: the POSIX entropy call, which fills the buffer or fails with `errno`
- * set (POSIX.1-2024; wasmtime serves it with the host's generator). Emscripten: the same call
- * becomes `crypto.getRandomValues` in the browser and in node, and fails with `ENOTSUP` in an
- * audio worklet, which has no `crypto` (Emscripten's `src/lib/libwasi.js`). Windows:
- * `BCryptGenRandom` with `BCRYPT_USE_SYSTEM_PREFERRED_RNG`, the system's generator
- * (learn.microsoft.com, `BCryptGenRandom`).
+ * set (POSIX.1-2024; wasmtime serves it with the host's generator). Emscripten:
+ * `crypto.getRandomValues`, in the browser and in node, called here and not through
+ * Emscripten's own entropy call: that one (`random_get` in `src/lib/libwasi.js`) lets an
+ * exception thrown by `crypto.getRandomValues`, or by node's `randomFillSync`, unwind through
+ * WebAssembly, which terminates the program. Here a throw is caught in JavaScript and becomes
+ * `error::entropy_unavailable`, and a missing `crypto.getRandomValues` (an audio worklet's
+ * case) `errc::not_supported`. The draw goes into a fresh array, then is copied into the
+ * module's memory, since `getRandomValues` refuses a view of shared memory (W3C WebCryptoAPI).
+ * It is an `EM_ASM_INT` in this inline function, whose code string is one merged definition
+ * across translation units: an `EM_JS` defines external symbols in every translation unit that
+ * includes it, and a program of two such units would not link. Windows: `BCryptGenRandom` with
+ * `BCRYPT_USE_SYSTEM_PREFERRED_RNG`, the system's generator (learn.microsoft.com,
+ * `BCryptGenRandom`).
  *
  * @param output_bytes Where to write.
  * @param byte_count How many bytes, 1 to @ref entropy_piece.
@@ -56,6 +66,26 @@ inline constexpr std::size_t entropy_piece = 256;
     NTSTATUS const status_code = ::BCryptGenRandom(  // lint-world: the entropy, on Windows
         nullptr, output_bytes, static_cast<ULONG>(byte_count), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
     int const failure_code = BCRYPT_SUCCESS(status_code) ? 0 : EIO;
+#elif defined(__EMSCRIPTEN__) && !defined(WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY)
+    // 0: filled; 1: no crypto.getRandomValues (an audio worklet); 2: it threw. The code is a
+    // string with its newlines gone: a comment inside it ends only with its closing mark. It is
+    // JavaScript, which clang-format would break (`!==` into `! ==`).
+    // clang-format off
+    int const draw_status = EM_ASM_INT({
+        const source = globalThis.crypto;
+        if (!source || typeof source.getRandomValues !== 'function') return 1;
+        try {
+            /* a fresh buffer: never a view of shared memory */
+            const drawn = new Uint8Array($1);
+            source.getRandomValues(drawn);
+            HEAPU8.set(drawn, $0);
+            return 0;
+        } catch (error) {
+            return 2;
+        }
+    }, output_bytes, static_cast<int>(byte_count));
+    // clang-format on
+    int const failure_code = draw_status == 0 ? 0 : (draw_status == 1 ? ENOTSUP : EIO);
 #else
 #ifdef WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY
     int const call_result =

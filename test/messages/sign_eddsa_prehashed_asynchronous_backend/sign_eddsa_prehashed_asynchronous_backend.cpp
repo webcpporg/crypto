@@ -14,7 +14,7 @@
 // clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
 // whole text stays on one line.
 // clang-format off
-// expected-error@webcpp/crypto/curves/ed25519.hpp:* {{webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, async_sign and async_verify run on a native backend.}}
+// expected-error@webcpp/crypto/signing.hpp:* {{webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, async_sign and async_verify run on a native backend.}}
 // clang-format on
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/signing.hpp>

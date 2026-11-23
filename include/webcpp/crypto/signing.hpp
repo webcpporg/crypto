@@ -290,6 +290,8 @@ struct scheme_traits;
 /** Ed25519's: a 64-byte signature, and no digest. */
 template <>
 struct scheme_traits<eddsa_t> {
+    /** Whether it takes a message: it does. */
+    static constexpr bool takes_message = true;
     /** The signature's size in bytes. */
     static constexpr std::size_t signature_size = 64;
     /** The digest's size in bytes, 0: the scheme takes none. */
@@ -299,6 +301,8 @@ struct scheme_traits<eddsa_t> {
 /** Ed25519ph's: a 64-byte signature, and SHA-512's 64-byte digest. */
 template <>
 struct scheme_traits<eddsa_prehashed_t> {
+    /** Whether it takes a message: no, its digest alone. */
+    static constexpr bool takes_message = false;
     /** The signature's size in bytes. */
     static constexpr std::size_t signature_size = 64;
     /** The digest's size in bytes, SHA-512's. */
@@ -308,6 +312,8 @@ struct scheme_traits<eddsa_prehashed_t> {
 /** ECDSA over SHA-256's: a 64-byte signature, and SHA-256's 32-byte digest. */
 template <>
 struct scheme_traits<ecdsa_sha256_t> {
+    /** Whether it takes a message: it does. */
+    static constexpr bool takes_message = true;
     /** The signature's size in bytes. */
     static constexpr std::size_t signature_size = 64;
     /** The digest's size in bytes, SHA-256's. */
@@ -317,6 +323,8 @@ struct scheme_traits<ecdsa_sha256_t> {
 /** Recoverable ECDSA over SHA-256's: a 65-byte signature, and SHA-256's 32-byte digest. */
 template <>
 struct scheme_traits<ecdsa_sha256_recoverable_t> {
+    /** Whether it takes a message: it does. */
+    static constexpr bool takes_message = true;
     /** The signature's size in bytes, with the recovery id. */
     static constexpr std::size_t signature_size = 65;
     /** The digest's size in bytes, SHA-256's. */
@@ -326,6 +334,8 @@ struct scheme_traits<ecdsa_sha256_recoverable_t> {
 /** Ethereum's recoverable ECDSA's: a 65-byte signature, and Keccak-256's 32-byte digest. */
 template <>
 struct scheme_traits<ecdsa_keccak256_recoverable_t> {
+    /** Whether it takes a message: it does. */
+    static constexpr bool takes_message = true;
     /** The signature's size in bytes, with the recovery id. */
     static constexpr std::size_t signature_size = 65;
     /** The digest's size in bytes, Keccak-256's. */
@@ -335,6 +345,8 @@ struct scheme_traits<ecdsa_keccak256_recoverable_t> {
 /** BIP340's: a 64-byte signature, and no digest. */
 template <>
 struct scheme_traits<schnorr_t> {
+    /** Whether it takes a message: it does. */
+    static constexpr bool takes_message = true;
     /** The signature's size in bytes. */
     static constexpr std::size_t signature_size = 64;
     /** The digest's size in bytes, 0: the scheme takes none. */
@@ -419,13 +431,23 @@ template <class Backend>
 inline constexpr bool signs_prehashed_v = !asynchronous_backend_v<Backend>;
 
 /**
- * Whether the scheme `Scheme` takes a message: every scheme but `eddsa_prehashed`, which takes its
- * digest alone.
+ * Whether the scheme `Scheme` takes a message, as its `scheme_traits` says (`takes_message`):
+ * every scheme but `eddsa_prehashed`, which takes its digest alone; true for a type with no traits,
+ * such as a test's own scheme.
  *
- * @tparam Scheme A scheme tag.
+ * @tparam Scheme A scheme tag, or any type.
  */
 template <class Scheme>
-inline constexpr bool takes_message_v = !std::is_same_v<Scheme, eddsa_prehashed_t>;
+inline constexpr bool takes_message_v = true;
+
+/**
+ * Whether a scheme with traits takes a message: its `scheme_traits<Scheme>::takes_message`.
+ *
+ * @tparam Scheme A scheme tag with traits.
+ */
+template <class Scheme>
+    requires requires { scheme_traits<Scheme>::takes_message; }
+inline constexpr bool takes_message_v<Scheme> = scheme_traits<Scheme>::takes_message;
 
 /**
  * Whether `Input` is a valid input of `Scheme` on `Backend`: a message, on every scheme that takes
@@ -504,6 +526,23 @@ constexpr void check_input() noexcept {
                       "webcpp::crypto: this backend cannot sign or verify a digest (WebCrypto has "
                       "no prehash mode): pass the message.");
     }
+}
+
+/**
+ * Stops the build: Ed25519ph, `eddsa_prehashed`, asked of a backend that completes by itself,
+ * which WebCrypto is and has no Ed25519ph.
+ *
+ * Every function of the scheme, `sign` and `verify`, member and free, and their asynchronous
+ * forms, calls it first after its guard, before any engine is named, so that its text is the
+ * build's one message and is written once.
+ *
+ * @tparam Refused The backend, or another type of the call, which makes the refusal dependent.
+ */
+template <class Refused>
+constexpr void refuse_ed25519ph_on_asynchronous_backend() noexcept {
+    static_assert(refused_v<Refused>,
+                  "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, "
+                  "verify, async_sign and async_verify run on a native backend.");
 }
 
 /**

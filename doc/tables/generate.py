@@ -86,7 +86,9 @@ VERDICTS = ('accept', 'reject')
 RUN_RULES = ('crypto-run', 'memory-run', 'webcpp.run', 'webcpp.compile',
              'webcpp.compile-diagnostic', 'webcpp.compile-fail', 'webcpp.link-fail',
              'webcpp.example')
-EXPECTED_ERROR = re.compile(r'expected-error@\S+ \{\{(.*)\}\}')
+# A message test's text: clang's -verify directive, with the count it takes when two calls raise
+# the same text (`expected-error@<file>:* 2 {{text}}`).
+EXPECTED_ERROR = re.compile(r'expected-error@\S+(?: \d+)? \{\{(.*)\}\}')
 SOURCE = re.compile(r'\{([a-z0-9-]+)\}')
 # A comparison table's cell that the data writes: {speed:<family>}, the family's throughput from
 # doc/performance.json, or {constant_time:<family>}, its measured constant time from crypto.json.

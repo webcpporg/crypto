@@ -282,6 +282,10 @@ static_assert(!crypto::detail::input_valid_v<crypto::ecdsa_keccak256_recoverable
 static_assert(crypto::detail::is_scheme_v<crypto::eddsa_prehashed_t>);
 static_assert(!crypto::detail::takes_message_v<crypto::eddsa_prehashed_t>);
 static_assert(crypto::detail::takes_message_v<crypto::eddsa_t>);
+// The fact lives in the scheme's traits; a type with none, a test's own scheme, takes a message.
+static_assert(!crypto::detail::scheme_traits<crypto::eddsa_prehashed_t>::takes_message);
+static_assert(crypto::detail::scheme_traits<crypto::schnorr_t>::takes_message);
+static_assert(crypto::detail::takes_message_v<plain_tag>);
 static_assert(
     crypto::detail::input_valid_v<crypto::eddsa_prehashed_t, crypto::prehashed<64>, void>);
 static_assert(!crypto::detail::input_valid_v<crypto::eddsa_prehashed_t, message_span, void>);

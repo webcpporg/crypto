@@ -109,6 +109,12 @@ The fix: Call the key pair's own signing function: secp256k1 is not in WebCrypto
 
 The fix: Give `+async_verify+` with `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`, as `+crypto::verify+` takes it: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::from_bytes(bytes)+`.
 
+|`+async_verify_eddsa_prehashed_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, async_sign and async_verify run on a native backend.+`
+
+The fix: As `+verify_eddsa_prehashed_asynchronous_backend+`: `+async_verify+` under `+crypto::eddsa_prehashed+`, free and member, runs on a native backend.
+
 |`+async_verify_named_backend+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: async_verify takes crypto::eddsa or crypto::eddsa_prehashed with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
@@ -546,6 +552,12 @@ The fix: Make the 64 bytes received into a `+curves::ed25519::signature+` with `
 |`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa and crypto::eddsa_prehashed take a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
 The fix: Give `+crypto::eddsa+` (or `+crypto::eddsa_prehashed+`) the public key as a `+curves::ed25519::public_key+`: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::from_bytes(bytes)+` for a key received as bytes.
+
+|`+verify_eddsa_prehashed_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, async_sign and async_verify run on a native backend.+`
+
+The fix: Verify under `+crypto::eddsa_prehashed+` on a native backend, `+crypto::verify+` and the key's `+verify+` alike: WebCrypto has no Ed25519ph; on the browser's backend, verify a signature of the message with `+crypto::eddsa+`.
 
 |`+verify_eddsa_prehashed_message+`
 |native, wasip2, wasip3

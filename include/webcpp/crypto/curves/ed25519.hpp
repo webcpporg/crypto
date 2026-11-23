@@ -297,9 +297,9 @@ public:
         Input const& digest_input,
         [[maybe_unused]] Policy verify_policy = Policy{}) const noexcept {
         detail::timing_guard const timing_scope;
-        static_assert(!detail::asynchronous_backend_v<Backend>,
-                      "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, "
-                      "verify, async_sign and async_verify run on a native backend.");
+        if constexpr (detail::asynchronous_backend_v<Backend>) {
+            detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
+        }
         if constexpr (!detail::asynchronous_backend_v<Backend>) {
             return detail::ed25519ph_verify<Backend, Policy>(
                 detail::checked_signature_bytes<signature, eddsa_prehashed_t>(signature_value),
@@ -629,10 +629,10 @@ public:
     [[nodiscard]] boost::system::result<detail::signature_of_t<basic_keypair, Scheme>> sign(
         [[maybe_unused]] Scheme signing_scheme, Input const& signing_input) const noexcept {
         detail::timing_guard const timing_scope;
-        static_assert(
-            !(std::is_same_v<Scheme, eddsa_prehashed_t> && detail::asynchronous_backend_v<Backend>),
-            "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, "
-            "async_sign and async_verify run on a native backend.");
+        if constexpr (std::is_same_v<Scheme, eddsa_prehashed_t> &&
+                      detail::asynchronous_backend_v<Backend>) {
+            detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
+        }
         constexpr bool known_scheme =
             std::is_same_v<Scheme, eddsa_t> || std::is_same_v<Scheme, eddsa_prehashed_t>;
         static_assert(known_scheme,
@@ -1022,9 +1022,9 @@ template <class Backend = default_backend_t<families::ed25519>, class Signature,
     Input const& digest_input, curves::ed25519::public_key const& public_key,
     [[maybe_unused]] Policy verify_policy = Policy{}) noexcept {
     detail::timing_guard const timing_scope;
-    static_assert(!detail::asynchronous_backend_v<Backend>,
-                  "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, "
-                  "verify, async_sign and async_verify run on a native backend.");
+    if constexpr (detail::asynchronous_backend_v<Backend>) {
+        detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
+    }
     if constexpr (!detail::asynchronous_backend_v<Backend>) {
         auto const key_bytes = public_key.bytes();
         return detail::ed25519ph_verify<Backend, Policy>(

@@ -481,12 +481,6 @@ auto initiate_verify_ed25519(Executor const& completion_executor, Signature cons
         static_assert(refused_v<Scheme>,
                       "webcpp::crypto: an Ed25519 public key verifies crypto::eddsa or "
                       "crypto::eddsa_prehashed.");
-    } else if constexpr (std::is_same_v<Scheme, eddsa_prehashed_t> &&
-                         asynchronous_backend_v<Backend>) {
-        static_assert(
-            refused_v<Scheme>,
-            "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, "
-            "async_sign and async_verify run on a native backend.");
     } else if constexpr (!check_signature<curves::ed25519::signature, Signature, Scheme>()) {
         // Never compiled into a program: check_signature stopped the build.
     } else if constexpr (!input_valid_v<Scheme, Input, Backend>) {
@@ -743,10 +737,7 @@ auto async_sign(Executor const& completion_executor, Keypair const& key_pair, Sc
                 Input const& signing_input, CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::ed25519ph_on_browser_v<Keypair, Scheme>) {
-        static_assert(
-            detail::refused_v<Scheme>,
-            "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, "
-            "async_sign and async_verify run on a native backend.");
+        detail::refuse_ed25519ph_on_asynchronous_backend<Scheme>();
     } else if constexpr (!detail::is_webcrypto_keypair_v<Keypair>) {
         static_assert(
             detail::refused_v<Keypair>,
@@ -872,10 +863,7 @@ auto async_verify(Executor const& completion_executor, eddsa_prehashed_t signing
                   CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
-        static_assert(
-            detail::refused_v<Backend>,
-            "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, "
-            "async_sign and async_verify run on a native backend.");
+        detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
     } else {
         return public_key.template async_verify<Backend>(
             completion_executor, signing_scheme, signature_value, digest_input,
@@ -915,10 +903,7 @@ auto async_verify(Executor const& completion_executor, eddsa_prehashed_t signing
                   CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
-        static_assert(
-            detail::refused_v<Backend>,
-            "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, "
-            "async_sign and async_verify run on a native backend.");
+        detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
     } else {
         return public_key.template async_verify<Backend>(
             completion_executor, signing_scheme, signature_value, digest_input, verification_policy,
@@ -1161,10 +1146,7 @@ auto curves::ed25519::basic_keypair<Backend>::async_sign(Executor const& complet
                                                          CompletionToken&& completion_token) const {
     detail::timing_guard const timing_scope;
     if constexpr (detail::ed25519ph_on_browser_v<basic_keypair, Scheme>) {
-        static_assert(
-            detail::refused_v<Scheme>,
-            "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, "
-            "async_sign and async_verify run on a native backend.");
+        detail::refuse_ed25519ph_on_asynchronous_backend<Scheme>();
     } else {
         return detail::initiate_sign(completion_executor, *this, signing_scheme, message_input,
                                      std::forward<CompletionToken>(completion_token));
@@ -1181,10 +1163,7 @@ auto curves::ed25519::public_key::async_verify(Executor const& completion_execut
     detail::timing_guard const timing_scope;
     if constexpr (std::is_same_v<Scheme, eddsa_prehashed_t> &&
                   detail::asynchronous_backend_v<Backend>) {
-        static_assert(
-            detail::refused_v<Scheme>,
-            "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, "
-            "async_sign and async_verify run on a native backend.");
+        detail::refuse_ed25519ph_on_asynchronous_backend<Scheme>();
     } else {
         return detail::initiate_verify_ed25519<Backend, Scheme>(
             completion_executor, signature_value, message_input, *this, strict,
@@ -1202,10 +1181,7 @@ auto curves::ed25519::public_key::async_verify(Executor const& completion_execut
     detail::timing_guard const timing_scope;
     if constexpr (std::is_same_v<Scheme, eddsa_prehashed_t> &&
                   detail::asynchronous_backend_v<Backend>) {
-        static_assert(
-            detail::refused_v<Scheme>,
-            "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, "
-            "async_sign and async_verify run on a native backend.");
+        detail::refuse_ed25519ph_on_asynchronous_backend<Scheme>();
     } else {
         return detail::initiate_verify_ed25519<Backend, Scheme>(
             completion_executor, signature_value, message_input, *this, verify_policy,

@@ -75,6 +75,17 @@ def test_a_program_inside_an_if_is_a_fault(scratch: Path) -> None:
         raise AssertionError('a program inside an if was read as declared everywhere')
 
 
+def test_a_message_expected_more_than_once_is_read(scratch: Path) -> None:
+    # clang's -verify counts a text that two calls raise: `expected-error@<file>:* 2 {{text}}`.
+    # The case is a message test all the same, whose text the page lists and whose fix it needs.
+    written(scratch, 'test/messages/twice/Jamfile',
+            'webcpp.compile-diagnostic twice : twice.cpp : : native : alone ;\n')
+    written(scratch, 'test/messages/twice/twice.cpp',
+            '// expected-error@webcpp/crypto/signing.hpp:* 2 {{webcpp::crypto: refused.}}\n')
+    found = generate.messages(scratch)
+    assert found == {'twice': ('webcpp::crypto: refused.', ['native'])}, found
+
+
 def test_the_memory_option_s_tests_are_declared(scratch: Path) -> None:
     # The OpenSSL memory option's programs live in test/openssl_memory, each through its own
     # rule; a name that two Jamfiles declare is a fault, since a table would cite one of them.
@@ -1466,6 +1477,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_rule_body_declares_nothing,
     test_a_program_inside_an_if_is_a_fault,
     test_the_memory_option_s_tests_are_declared,
+    test_a_message_expected_more_than_once_is_read,
     test_a_backend_says_why_it_is_missing_elsewhere,
     test_a_reason_elsewhere_is_openssl_s_alone,
     test_an_outcome_reads_each_directive,

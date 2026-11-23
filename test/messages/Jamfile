@@ -109,3 +109,5 @@ build-project verify_eddsa_prehashed_message ;
 build-project sign_eddsa_prehashed_asynchronous_backend ;
 build-project async_sign_eddsa_prehashed_asynchronous_backend ;
 build-project ph_removed ;
+build-project verify_eddsa_prehashed_asynchronous_backend ;
+build-project async_verify_eddsa_prehashed_asynchronous_backend ;

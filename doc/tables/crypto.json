@@ -1486,6 +1486,8 @@
         "verify_eddsa_prehashed_message": "As `sign_eddsa_prehashed_message`: verify under `crypto::eddsa_prehashed` the marker of the message's SHA-512, or the message itself under `crypto::eddsa`.",
         "sign_eddsa_prehashed_asynchronous_backend": "Sign under `crypto::eddsa_prehashed` with a key pair of a native backend: WebCrypto has no Ed25519ph; on the browser's backend, sign the message with `crypto::eddsa`.",
         "async_sign_eddsa_prehashed_asynchronous_backend": "As `sign_eddsa_prehashed_asynchronous_backend`: `async_sign` under `crypto::eddsa_prehashed` runs on a native backend.",
+        "verify_eddsa_prehashed_asynchronous_backend": "Verify under `crypto::eddsa_prehashed` on a native backend, `crypto::verify` and the key's `verify` alike: WebCrypto has no Ed25519ph; on the browser's backend, verify a signature of the message with `crypto::eddsa`.",
+        "async_verify_eddsa_prehashed_asynchronous_backend": "As `verify_eddsa_prehashed_asynchronous_backend`: `async_verify` under `crypto::eddsa_prehashed`, free and member, runs on a native backend.",
         "ph_removed": "Name Ed25519ph's streaming signer `curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>`, the same `begin`, `update`, `sign` and `verify`; `curves::ed25519::ph` is gone, with no alias.",
         "heavy_without_threads_on_emscripten": "As `heavy_without_threads`: on Emscripten, add `<threading>multi`.",
         "chacha_on_ctaes_on_emscripten": "As `chacha_on_ctaes`.",

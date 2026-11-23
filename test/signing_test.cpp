@@ -7,9 +7,12 @@
 // signing.hpp's vocabulary, over stand-in key types that this test declares: the tags take no
 // `{}`, prehashed deduces its size from a fixed-size digest and converts to and from nothing,
 // can_sign and can_verify accept a message or a marker of the scheme's digest size, and refuse
-// a marker on a backend that completes by itself; the catch-all verify is a candidate only where
+// a marker on a backend that completes by itself; can_verify takes the signature type the key's
+// curve names for the scheme (detail::signature_of) and no other, bytes included; the catch-all
+// verify is a candidate only where
 // no curve declares a verifier; sha256_of gives FIPS 180-2's digest.
 
+#include <webcpp/crypto/detail/signature.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -50,6 +53,20 @@ struct stand_in_async_backend {};
 // A public key a curve gives a verifier of its own, so that the catch-all steps aside.
 struct stand_in_verified_key {};
 
+// The signature of the stand-in public key under ECDSA over SHA-256.
+struct stand_in_signature_tag {
+    [[maybe_unused]] static constexpr bool recoverable = false;
+};
+
+using stand_in_signature = crypto::detail::basic_signature<stand_in_signature_tag, 64>;
+
+// Another curve's signature, of the same size.
+struct other_signature_tag {
+    [[maybe_unused]] static constexpr bool recoverable = false;
+};
+
+using other_signature = crypto::detail::basic_signature<other_signature_tag, 64>;
+
 // An empty struct without an explicit default constructor, to show the check below can pass.
 struct plain_tag {};
 
@@ -62,6 +79,11 @@ inline constexpr bool signs_with_v<stand_in_keypair, ecdsa_sha256_t> = true;
 
 template <>
 inline constexpr bool verifies_with_v<stand_in_public_key, ecdsa_sha256_t> = true;
+
+template <>
+struct signature_of<stand_in_public_key, ecdsa_sha256_t> {
+    using type = stand_in_signature;
+};
 
 template <>
 struct key_backend<stand_in_keypair> {
@@ -174,17 +196,29 @@ static_assert(crypto::can_sign<stand_in_async_keypair, crypto::ecdsa_sha256_t, m
 static_assert(
     !crypto::can_sign<stand_in_async_keypair, crypto::ecdsa_sha256_t, crypto::prehashed<32>>);
 
-// can_verify: the same, over the public key.
-static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, message_span, stand_in_public_key>);
+// can_verify: the same, over the public key, with the key's signature type.
+static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, stand_in_signature, message_span,
+                                 stand_in_public_key>);
+static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, stand_in_signature const&,
+                                 crypto::prehashed<32>, stand_in_public_key const&>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, stand_in_signature, crypto::prehashed<48>,
+                                  stand_in_public_key>);
 static_assert(
-    crypto::can_verify<crypto::ecdsa_sha256_t, crypto::prehashed<32>, stand_in_public_key const&>);
-static_assert(
-    !crypto::can_verify<crypto::ecdsa_sha256_t, crypto::prehashed<48>, stand_in_public_key>);
-static_assert(!crypto::can_verify<crypto::schnorr_t, message_span, stand_in_public_key>);
+    !crypto::can_verify<crypto::schnorr_t, stand_in_signature, message_span, stand_in_public_key>);
+// Another type of the same size, and bytes, are no signature of the key's (design R1).
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, other_signature, message_span,
+                                  stand_in_public_key>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, std::array<std::uint8_t, 64>,
+                                  message_span, stand_in_public_key>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>,
+                                  message_span, stand_in_public_key>);
+// A key whose curve names no signature type verifies nothing.
+static_assert(std::is_void_v<crypto::detail::signature_of_t<stand_in_keypair, crypto::eddsa_t>>);
 
 // The two traits are apart: a key pair does not verify, a public key does not sign.
 static_assert(!crypto::can_sign<stand_in_public_key, crypto::ecdsa_sha256_t, message_span>);
-static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, message_span, stand_in_keypair>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, stand_in_signature, message_span,
+                                  stand_in_keypair>);
 
 // The catch-all verify is a candidate where no curve declares a verifier, and steps aside where
 // one does; a requires-expression reads its declaration alone, never its refusal.

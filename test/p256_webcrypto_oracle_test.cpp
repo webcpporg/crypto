@@ -253,15 +253,15 @@ void judge(our_case const& ours, oracle_answer const& answer, p256::public_key c
            std::size_t index, tally& found) {
     bool const ran = answer.ran == 0;
     found.check(ran && answer.verified == 1, "WebCrypto verifies ours", index);
+    // WebCrypto's signature as it arrives, 64 bytes, made into the type.
+    auto const theirs = p256::ecdsa_signature::from_bytes(answer.signature);
     bool const we_verify =
-        ran &&
-        crypto::verify(crypto::ecdsa_sha256, answer.signature, ours.message, public_key)
-            .has_value() &&
-        crypto::verify(crypto::ecdsa_sha256, answer.signature, crypto::prehashed{ours.digest},
-                       public_key)
+        ran && theirs.has_value() &&
+        crypto::verify(crypto::ecdsa_sha256, *theirs, ours.message, public_key).has_value() &&
+        crypto::verify(crypto::ecdsa_sha256, *theirs, crypto::prehashed{ours.digest}, public_key)
             .has_value();
     found.check(we_verify, "we verify WebCrypto's", index);
-    if (ran && p256::is_low_s(answer.signature)) {
+    if (ran && theirs.has_value() && p256::is_low_s(*theirs)) {
         ++found.low_s;
     }
     found.check(ran && bytes_of(answer.shared) == ours.shared_x, "ECDH", index);
@@ -305,7 +305,7 @@ void one_case(std::mt19937_64& rng, std::size_t index, tally& found) {
     BOOST_TEST(p256::is_low_s(*signature));
     BOOST_TEST(
         crypto::verify(crypto::ecdsa_sha256, *signature, ours.message, *public_key).has_value());
-    ours.signature = *signature;
+    ours.signature = signature->bytes();
     if (corrupted && index == corrupted_signature) {
         ours.signature[5] ^= 0x01U;
     }

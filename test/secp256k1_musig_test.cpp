@@ -509,7 +509,7 @@ void sig_agg() {
         if (!BOOST_TEST(signature.has_value())) {
             continue;
         }
-        BOOST_TEST(std::ranges::equal(*signature, hex(c.at("expected"))));
+        BOOST_TEST(std::ranges::equal(signature->bytes(), hex(c.at("expected"))));
         aggregated_count += static_cast<int>(
             BOOST_TEST(crypto::verify(crypto::schnorr, *signature, message, key.xonly_public_key())
                            .has_value()));

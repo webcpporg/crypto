@@ -183,8 +183,15 @@ void sodium_rows(std::vector<edge_case> const& cases, verdicts& raw, verdicts& s
             strict.emplace_back(verdict(false));
             continue;
         }
+        // Every case's signature is 64 bytes (checked where the cases are read).
+        auto const signature = ed25519::signature::from_bytes(tested.signature);
+        BOOST_TEST(signature.has_value());
+        if (!signature) {
+            strict.emplace_back(verdict(false));
+            continue;
+        }
         auto const verified = crypto::verify<crypto::backends::sodium>(
-            crypto::eddsa, tested.signature, tested.message, *public_key, ed25519::strict);
+            crypto::eddsa, *signature, tested.message, *public_key, ed25519::strict);
         if (!verified) {
             BOOST_TEST(verified.error() == crypto::error::invalid_signature);
         }

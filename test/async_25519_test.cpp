@@ -12,8 +12,9 @@
 //   backend named and its policy given, and with the defaults; each completion arrives after the
 //   initiating call returned.
 // - async_verify_changed: a changed byte of the signature or of the message completes with
-//   invalid_signature, a signature of 63 bytes too, and the key's bytes where the signature goes,
-//   as the order before the signature came first (key, message, signature) put them.
+//   invalid_signature; a signature of 63 bytes, and the key's bytes where the signature goes, as
+//   the order before the signature came first (key, message, signature) put them, are refused by
+//   ed25519::signature::from_bytes, before any verify.
 // - async_generate: async_generate gives a key pair whose signature verifies, on the default
 //   backend and on libsodium named.
 // - async_from_secret_refused: a seed of 31 bytes completes with invalid_key_size and an empty key
@@ -30,11 +31,11 @@
 // - async_four_forms: each Ed25519 operation in its four forms (design D9), the member and the
 //   free, synchronous and asynchronous, gives the same result: from_secret (the same public key,
 //   and the same refusal of a short seed), generate (a key pair whose signature verifies), sign
-//   (RFC 8032's signature, and an empty key pair's invalid_state and zeros), verify with the
-//   defaults and with the backend and the policy named (each accepts the signature and refuses a
-//   changed one with invalid_signature; each takes the signature as a std::vector, a dynamic span
-//   of 64 bytes, or one of 63 or 65 bytes, invalid_signature); each asynchronous completion arrives
-//   after the initiating call returned.
+//   (RFC 8032's signature, an ed25519::signature, and an empty key pair's invalid_state and
+//   zeros), verify with the defaults and with the backend and the policy named (each accepts the
+//   signature, received as a std::vector and made into the type with from_bytes, and refuses a
+//   changed one with invalid_signature; from_bytes refuses 63 and 65 bytes with
+//   invalid_signature); each asynchronous completion arrives after the initiating call returned.
 
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
@@ -79,7 +80,14 @@ namespace test = webcpp::test;
 namespace {
 
 using keypair = ed25519::basic_keypair<crypto::backends::sodium>;
-using signature_type = std::array<std::uint8_t, 64>;
+using signature_type = ed25519::signature;
+
+// The signature of 64 bytes, as one received is made.
+signature_type typed(std::span<std::uint8_t const> signature_bytes) {
+    auto made = signature_type::from_bytes(signature_bytes);
+    BOOST_TEST(made.has_value());
+    return made ? *made : signature_type{};
+}
 
 // What a completion saw: its calls, whether the initiating call had returned, its error code and
 // its value, if it has one.
@@ -209,7 +217,7 @@ void async_rfc8032(asio::io_context& context) {
             continue;
         }
         auto const& signature = std::get<0>(*signed_async.value);
-        BOOST_TEST(std::ranges::equal(signature, expected));
+        BOOST_TEST(std::ranges::equal(signature.bytes(), expected));
         auto const signed_sync = key.sign(crypto::eddsa, message);
         BOOST_TEST(signed_sync.has_value() && *signed_sync == signature);
         auto const verified = complete_code(context, [&](auto const& executor, auto&& token) {
@@ -236,7 +244,7 @@ void async_verify_changed(asio::io_context& context) {
     auto const verify = [&](ed25519::public_key const& key,
                             std::span<std::uint8_t const> signed_bytes) {
         return complete_code(context, [&](auto const& executor, auto&& token) {
-            return crypto::async_verify(executor, crypto::eddsa, signed_bytes, message, key,
+            return crypto::async_verify(executor, crypto::eddsa, typed(signed_bytes), message, key,
                                         std::forward<decltype(token)>(token));
         });
     };
@@ -248,10 +256,11 @@ void async_verify_changed(asio::io_context& context) {
     BOOST_TEST(verify(public_key, signature) == crypto::error::invalid_signature);
     message[0] ^= 1U;
     BOOST_TEST(!verify(public_key, signature));
-    BOOST_TEST(verify(public_key, std::span(signature).first(63)) ==
+    BOOST_TEST(signature_type::from_bytes(std::span(signature).first(63)).error() ==
                crypto::error::invalid_signature);
     // The order before the signature came first: the 32-byte key where the signature goes.
-    BOOST_TEST(verify(public_key, public_key.bytes()) == crypto::error::invalid_signature);
+    BOOST_TEST(signature_type::from_bytes(public_key.bytes()).error() ==
+               crypto::error::invalid_signature);
 }
 
 template <class Keypair>
@@ -314,7 +323,7 @@ void async_from_secret_refused(asio::io_context& context) {
         });
     BOOST_TEST(signed_empty.code == crypto::error::invalid_state);
     if (BOOST_TEST(signed_empty.value.has_value())) {
-        BOOST_TEST(all_zero(std::get<0>(*signed_empty.value)));
+        BOOST_TEST(all_zero(std::get<0>(*signed_empty.value).bytes()));
     }
 }
 
@@ -398,7 +407,7 @@ void async_destroyed(asio::io_context& context) {
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST(!sign_code);
-    BOOST_TEST(std::ranges::equal(signature, expected));
+    BOOST_TEST(std::ranges::equal(signature.bytes(), expected));
     BOOST_TEST(!agree_code);
     BOOST_TEST(std::ranges::equal(
         shared,
@@ -422,7 +431,7 @@ void async_coroutine(asio::io_context& context) {
             auto [sign_code, signature] = co_await crypto::async_sign(
                 executor, key, crypto::eddsa, message, asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(!sign_code);
-            BOOST_TEST(std::ranges::equal(signature, test::from_hex(tested.signature)));
+            BOOST_TEST(std::ranges::equal(signature.bytes(), test::from_hex(tested.signature)));
             auto [verify_code] =
                 co_await crypto::async_verify(executor, crypto::eddsa, signature, message,
                                               public_key, asio::as_tuple(asio::use_awaitable));
@@ -537,24 +546,24 @@ void check_four_signatures(asio::io_context& context, keypair const& key,
     if (expected_code) {
         BOOST_TEST(member_sync.error() == expected_code);
         BOOST_TEST(free_sync.error() == expected_code);
-        BOOST_TEST(all_zero(std::get<0>(*member_async.value)));
-        BOOST_TEST(all_zero(std::get<0>(*free_async.value)));
+        BOOST_TEST(all_zero(std::get<0>(*member_async.value).bytes()));
+        BOOST_TEST(all_zero(std::get<0>(*free_async.value).bytes()));
         return;
     }
     if (!BOOST_TEST(member_sync.has_value()) || !BOOST_TEST(free_sync.has_value())) {
         return;
     }
-    BOOST_TEST(std::ranges::equal(*member_sync, expected));
+    BOOST_TEST(std::ranges::equal(member_sync->bytes(), expected));
     BOOST_TEST(*free_sync == *member_sync);
     BOOST_TEST(std::get<0>(*member_async.value) == *member_sync);
     BOOST_TEST(std::get<0>(*free_async.value) == *member_sync);
 }
 
 // verify in its four forms, with the defaults and with the backend and the policy named: the
-// same answer, the signature given to each as it is given here (a std::vector or a span).
-template <class Signature>
+// same answer.
 void check_four_verifications(asio::io_context& context, ed25519::public_key const& key,
-                              Signature const& signature, std::span<std::uint8_t const> message,
+                              signature_type const& signature,
+                              std::span<std::uint8_t const> message,
                               boost::system::error_code expected_code) {
     using crypto::backends::sodium;
     auto const code_of = [](boost::system::result<void> const& done) {
@@ -599,18 +608,16 @@ void async_four_forms(asio::io_context& context) {
         return;
     }
     check_four_signatures(context, *key, message, signature, {});
-    check_four_verifications(context, public_key, signature, message, {});
-    check_four_verifications(context, public_key, std::span<std::uint8_t const>(signature), message,
-                             {});
+    // The signature received as a std::vector, made into the type.
+    check_four_verifications(context, public_key, typed(signature), message, {});
     auto longer = signature;
     longer.push_back(0);
-    check_four_verifications(context, public_key, longer, message,
-                             crypto::error::invalid_signature);
-    check_four_verifications(context, public_key,
-                             std::span<std::uint8_t const>(signature).first(63), message,
-                             crypto::error::invalid_signature);
+    BOOST_TEST(signature_type::from_bytes(longer).error() == crypto::error::invalid_signature);
+    BOOST_TEST(
+        signature_type::from_bytes(std::span<std::uint8_t const>(signature).first(63)).error() ==
+        crypto::error::invalid_signature);
     signature[10] ^= 1U;
-    check_four_verifications(context, public_key, signature, message,
+    check_four_verifications(context, public_key, typed(signature), message,
                              crypto::error::invalid_signature);
     [[maybe_unused]] keypair const taken(std::move(*key));
     // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): the empty key pair

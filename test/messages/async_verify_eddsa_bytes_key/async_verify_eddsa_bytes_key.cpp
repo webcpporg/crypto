@@ -26,7 +26,7 @@
 
 int main() {
     namespace crypto = webcpp::crypto;
-    std::array<std::uint8_t, 64> const signature{};
+    crypto::curves::ed25519::signature const signature{};
     std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
     std::array<std::uint8_t, 32> const key_bytes{};
     webcpp::asio::io_context context;

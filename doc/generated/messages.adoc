@@ -109,6 +109,12 @@ The fix: Give `+async_verify+` with `+crypto::eddsa+` the public key as a `+curv
 
 The fix: As `+async_verify_wrong_key+`: naming the backend does not add a scheme; call `+crypto::verify+` for `+crypto::schnorr+` and secp256k1's keys.
 
+|`+async_verify_p256_bytes_signature+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: a P-256 key verifies a curves::p256::ecdsa_signature: make one from 64 bytes with curves::p256::ecdsa_signature::from_bytes.+`
+
+The fix: As `+verify_p256_secp256k1_signature+`: make the 64 bytes received into a `+curves::p256::ecdsa_signature+` with `+from_bytes+`, then give it to `+async_verify+`.
+
 |`+async_verify_wrong_key+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: async_verify takes crypto::eddsa with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
@@ -355,6 +361,12 @@ The fix: Add `+/webcpp/crypto//pem-default+`, which links `+/third_party//sodium
 
 The fix: Give `+crypto::prehashed+` a digest of a fixed size: a `+std::array<std::uint8_t, 32>+`, a `+std::span<std::uint8_t const, 32>+` or a `+boost::hash2::digest<32>+`.
 
+|`+recover_ecdsa_signature+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: recover takes a curves::secp256k1::recoverable_signature: make one from 65 bytes with curves::secp256k1::recoverable_signature::from_bytes.+`
+
+The fix: Give `+recover+` a `+curves::secp256k1::recoverable_signature+`, which `+sign(crypto::ecdsa_sha256_recoverable, input)+` gives, or made from 65 bytes with `+from_bytes+`; an ECDSA signature without its recovery id verifies with `+crypto::verify+` and the signer's public key.
+
 |`+seal_asynchronous_backend+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: seal on this backend completes asynchronously: call async_seal.+`
@@ -469,6 +481,12 @@ The fix: Call `+async_verify+` on a backend that completes by itself: its synchr
 
 The fix: Give `+crypto::ecdsa_sha256+` the public key as a typed object, `+curves::secp256k1::public_key::from_bytes(bytes)+` or `+curves::p256::public_key::from_bytes(bytes)+`: bytes never choose the curve.
 
+|`+verify_ed25519_bytes_signature+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: an Ed25519 key verifies a curves::ed25519::signature under crypto::eddsa: make one from 64 bytes with curves::ed25519::signature::from_bytes.+`
+
+The fix: Make the 64 bytes received into a `+curves::ed25519::signature+` with `+curves::ed25519::signature::from_bytes+`, which checks their size, and verify that.
+
 |`+verify_eddsa_bytes_key+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
@@ -510,6 +528,18 @@ The fix: Verify with `+crypto::ecdsa_sha256+`, P-256's scheme; `+crypto::eddsa+`
 |`+webcpp::crypto: a secp256k1 public key verifies crypto::ecdsa_sha256 or crypto::schnorr; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
 The fix: Give a recoverable signature to `+curves::secp256k1::recover(crypto::ecdsa_sha256_recoverable, signature, input)+`, which gives the signer's key; a public key verifies `+crypto::ecdsa_sha256+` and `+crypto::schnorr+`.
+
+|`+verify_p256_secp256k1_signature+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: a P-256 key verifies a curves::p256::ecdsa_signature: make one from 64 bytes with curves::p256::ecdsa_signature::from_bytes.+`
+
+The fix: Give a P-256 key a `+curves::p256::ecdsa_signature+`, made from the 64 bytes received with `+curves::p256::ecdsa_signature::from_bytes+`; a secp256k1 signature verifies with a `+curves::secp256k1::public_key+`.
+
+|`+verify_schnorr_as_ecdsa+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: a secp256k1 key verifies a curves::secp256k1::ecdsa_signature under crypto::ecdsa_sha256: make one from 64 bytes with curves::secp256k1::ecdsa_signature::from_bytes.+`
+
+The fix: Verify a BIP340 signature with `+crypto::schnorr+`, its scheme; `+crypto::ecdsa_sha256+` takes a `+curves::secp256k1::ecdsa_signature+`, which `+sign(crypto::ecdsa_sha256, input)+` gives.
 
 |`+x25519_default_not_linked+`
 |native, wasip2, wasip3

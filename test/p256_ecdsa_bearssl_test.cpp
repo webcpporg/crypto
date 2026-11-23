@@ -4,7 +4,9 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// P-256 ECDSA on BearSSL, sign(ecdsa_sha256, input) and crypto::verify: RFC 6979's two SHA-256
+// P-256 ECDSA on BearSSL, sign(ecdsa_sha256, input) and crypto::verify: sign gives a
+// p256::ecdsa_signature, and verify takes one, made from 64 bytes received (a vector) with
+// from_bytes, which refuses 63 and 65; RFC 6979's two SHA-256
 // signatures byte for byte, low S (the "sample" one normalized), the same on every signing, from
 // the message and from its digest; verification of both forms of a signature and every refusal
 // (a bit of the digest, of r or of s, another key, r or s 0 or n), and the digests 0 modulo n
@@ -12,12 +14,13 @@
 // is_low_s and normalize_low_s at their boundary; low S over 1,000 signatures of random digests
 // under a key and 256 of random messages under keys of their own, all drawn from a printed seed
 // that a define replays; DER both ways against encodings written by hand, the short buffer, the
-// strict decoder's refusals and integers shorter than 32 bytes.
+// strict decoder's refusals and integers shorter than 32 bytes, typed both ways.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/digest.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -36,6 +39,7 @@
 #include <random>
 #include <span>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -50,8 +54,16 @@ using p256::keypair;
 using p256::public_key;
 using bytes = std::vector<std::uint8_t>;
 using webcpp::test::hex;
-using signature = std::array<std::uint8_t, p256::signature_size>;
+using signature = p256::ecdsa_signature;
+using signature_bytes = std::array<std::uint8_t, p256::signature_size>;
 using digest = std::array<std::uint8_t, p256::digest_size>;
+
+// The signature of 64 bytes, as one received is made.
+signature typed(signature_bytes const& value) {
+    auto made = signature::from_bytes(value);
+    BOOST_TEST(made.has_value());
+    return made ? *made : signature{};
+}
 
 // The SHA-256 of a text, with webcpp::hash.
 digest sha256(std::string_view text) {
@@ -64,19 +76,27 @@ digest sha256(std::string_view text) {
 }
 
 // r and s of a signature, put together.
-signature joined(std::span<std::uint8_t const, 32> r, std::span<std::uint8_t const, 32> s) {
-    signature out{};
+signature_bytes joined(std::span<std::uint8_t const, 32> r, std::span<std::uint8_t const, 32> s) {
+    signature_bytes out{};
     std::ranges::copy(r, out.begin());
     std::ranges::copy(s, out.begin() + 32);
     return out;
 }
 
-std::span<std::uint8_t const, 32> r_of(signature const& value) {
+std::span<std::uint8_t const, 32> r_of(signature_bytes const& value) {
     return std::span<std::uint8_t const, 64>(value).first<32>();
 }
 
-std::span<std::uint8_t const, 32> s_of(signature const& value) {
+std::span<std::uint8_t const, 32> s_of(signature_bytes const& value) {
     return std::span<std::uint8_t const, 64>(value).last<32>();
+}
+
+std::span<std::uint8_t const, 32> r_of(signature const& value) {
+    return r_of(value.bytes());
+}
+
+std::span<std::uint8_t const, 32> s_of(signature const& value) {
+    return s_of(value.bytes());
 }
 
 // Bytes put together, as a DER is written by hand: its headers and its integers.
@@ -121,8 +141,8 @@ void rfc6979_signatures() {
     auto const sample = key->sign(crypto::ecdsa_sha256, crypto::prehashed{sha256("sample")});
     auto const test = key->sign(crypto::ecdsa_sha256, crypto::prehashed{sha256("test")});
     if (BOOST_TEST(sample.has_value()) && BOOST_TEST(test.has_value())) {
-        BOOST_TEST(*sample == data::rfc6979_sample_low_s);
-        BOOST_TEST(*test == data::rfc6979_test);
+        BOOST_TEST(sample->bytes() == data::rfc6979_sample_low_s);
+        BOOST_TEST(test->bytes() == data::rfc6979_test);
     }
     auto const again = key->sign(crypto::ecdsa_sha256, crypto::prehashed{sha256("sample")});
     if (BOOST_TEST(again.has_value()) && sample.has_value()) {
@@ -144,7 +164,7 @@ void sign_normalizes_raw_s() {
     if (BOOST_TEST(sample.has_value()) && BOOST_TEST(test.has_value())) {
         BOOST_TEST(std::ranges::equal(r_of(*sample), r_of(data::rfc6979_sample)));
         BOOST_TEST(std::ranges::equal(s_of(*sample), negated(s_of(data::rfc6979_sample))));
-        BOOST_TEST(*test == data::rfc6979_test);
+        BOOST_TEST(test->bytes() == data::rfc6979_test);
     }
 
     using p256_family = crypto::families::p256;
@@ -168,8 +188,8 @@ void sign_normalizes_raw_s() {
 
 // RFC 6979, section A.2.5, the message "sample" itself, hashed inside sign: the section's r, and
 // n - s for the section's s, which is high; crypto::verify accepts the section's own high-S
-// signature as well as sign's; is_low_s tells the two apart, and normalize_low_s of the
-// section's signature is sign's.
+// signature, made with from_bytes as one received is, as well as sign's; is_low_s tells the two
+// apart, and normalize_low_s of the section's signature is sign's.
 void rfc6979_sample_message() {
     auto const key = keypair::from_secret(data::rfc6979_scalar);
     auto const verifier = public_key::from_bytes(data::rfc6979_public);
@@ -180,11 +200,13 @@ void rfc6979_sample_message() {
         hex<32>("efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf3716");
     auto const section_s =
         hex<32>("f7cb1c942d657c41d436c7a1b6e29f65f3e900dbb9aff4064dc4ab2f843acda8");
-    auto const section = joined(section_r, section_s);
+    auto const received = signature::from_bytes(joined(section_r, section_s));
     auto const signed_message = key->sign(crypto::ecdsa_sha256, text_bytes("sample"));
-    if (!BOOST_TEST(signed_message.has_value())) {
+    if (!BOOST_TEST(received.has_value()) || !BOOST_TEST(signed_message.has_value())) {
         return;
     }
+    static_assert(std::is_same_v<std::remove_cvref_t<decltype(*signed_message)>, signature>);
+    auto const& section = *received;
     BOOST_TEST(std::ranges::equal(r_of(*signed_message), section_r));
     BOOST_TEST(std::ranges::equal(s_of(*signed_message), negated(section_s)));
     BOOST_TEST(
@@ -207,15 +229,16 @@ void verify_both_forms() {
     }
     auto const sample = sha256("sample");
     auto const test = sha256("test");
-    auto const verified = [](signature const& value, digest const& hash,
+    auto const verified = [](signature_bytes const& value, digest const& hash,
                              public_key const& verifier) {
-        return crypto::verify(crypto::ecdsa_sha256, value, crypto::prehashed{hash}, verifier);
+        return crypto::verify(crypto::ecdsa_sha256, typed(value), crypto::prehashed{hash},
+                              verifier);
     };
     BOOST_TEST(verified(data::rfc6979_sample, sample, *key).has_value());
     BOOST_TEST(verified(data::rfc6979_sample_low_s, sample, *key).has_value());
     BOOST_TEST(verified(data::rfc6979_test, test, *key).has_value());
 
-    auto const refused = [&key, &verified](signature const& value, digest const& hash) {
+    auto const refused = [&key, &verified](signature_bytes const& value, digest const& hash) {
         return verified(value, hash, *key).error() == error::invalid_signature;
     };
     BOOST_TEST(refused(data::rfc6979_test, sample));
@@ -322,26 +345,26 @@ void zero_digest() {
 }
 
 void low_s() {
-    BOOST_TEST(!p256::is_low_s(data::rfc6979_sample));
-    BOOST_TEST(p256::is_low_s(data::rfc6979_sample_low_s));
-    BOOST_TEST(p256::is_low_s(data::rfc6979_test));
-    auto const normalized = p256::normalize_low_s(data::rfc6979_sample);
+    BOOST_TEST(!p256::is_low_s(typed(data::rfc6979_sample)));
+    BOOST_TEST(p256::is_low_s(typed(data::rfc6979_sample_low_s)));
+    BOOST_TEST(p256::is_low_s(typed(data::rfc6979_test)));
+    auto const normalized = p256::normalize_low_s(typed(data::rfc6979_sample));
     if (BOOST_TEST(normalized.has_value())) {
-        BOOST_TEST(*normalized == data::rfc6979_sample_low_s);
+        BOOST_TEST(normalized->bytes() == data::rfc6979_sample_low_s);
     }
-    auto const unchanged = p256::normalize_low_s(data::rfc6979_test);
+    auto const unchanged = p256::normalize_low_s(typed(data::rfc6979_test));
     if (BOOST_TEST(unchanged.has_value())) {
-        BOOST_TEST(*unchanged == data::rfc6979_test);
+        BOOST_TEST(unchanged->bytes() == data::rfc6979_test);
     }
 
     // The boundary: (n - 1) / 2 is low, one more is high and normalizes to (n - 1) / 2.
     auto const r = r_of(data::rfc6979_sample);
-    auto const half = joined(r, data::half_order);
+    auto const half = typed(joined(r, data::half_order));
     auto above_half = data::half_order;
     ++above_half.back();  // ends with a8: no carry
     BOOST_TEST(p256::is_low_s(half));
-    BOOST_TEST(!p256::is_low_s(joined(r, above_half)));
-    auto const lowered = p256::normalize_low_s(joined(r, above_half));
+    BOOST_TEST(!p256::is_low_s(typed(joined(r, above_half))));
+    auto const lowered = p256::normalize_low_s(typed(joined(r, above_half)));
     if (BOOST_TEST(lowered.has_value())) {
         BOOST_TEST(*lowered == half);
     }
@@ -350,8 +373,8 @@ void low_s() {
     auto const s = s_of(data::rfc6979_test);
     for (auto const& out_of_range :
          {joined(zero, s), joined(r, zero), joined(data::order, s), joined(r, data::order)}) {
-        BOOST_TEST(p256::normalize_low_s(out_of_range).error() == error::invalid_signature);
-        BOOST_TEST(!p256::is_low_s(out_of_range));
+        BOOST_TEST(p256::normalize_low_s(typed(out_of_range)).error() == error::invalid_signature);
+        BOOST_TEST(!p256::is_low_s(typed(out_of_range)));
     }
 }
 
@@ -403,7 +426,7 @@ void low_s_random(std::uint64_t seed) {
         BOOST_TEST(
             crypto::verify(crypto::ecdsa_sha256, *signed_hash, crypto::prehashed{hash}, *verifier)
                 .has_value());
-        auto const high = joined(r_of(*signed_hash), negated(s_of(*signed_hash)));
+        auto const high = typed(joined(r_of(*signed_hash), negated(s_of(*signed_hash))));
         BOOST_TEST(!p256::is_low_s(high));
         BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, high, crypto::prehashed{hash}, *verifier)
                        .has_value());
@@ -455,15 +478,16 @@ void der_round_trip() {
              std::pair{data::rfc6979_sample_low_s, low_der},
          }) {
         std::array<std::uint8_t, p256::max_der_size> output{};
-        auto const written = p256::to_der(value, output);
+        auto const written = p256::to_der(typed(value), output);
         if (!BOOST_TEST(written.has_value())) {
             continue;
         }
         BOOST_TEST_EQ(*written, expected.size());
         BOOST_TEST(std::ranges::equal(std::span(output).first(*written), expected));
         auto const decoded = p256::from_der(expected);
+        static_assert(std::is_same_v<std::remove_cvref_t<decltype(*decoded)>, signature>);
         if (BOOST_TEST(decoded.has_value())) {
-            BOOST_TEST(*decoded == value);
+            BOOST_TEST(*decoded == typed(value));
         }
     }
     BOOST_TEST_EQ(rfc_der.size(), 72U);
@@ -472,16 +496,17 @@ void der_round_trip() {
     // A buffer shorter than max_der_size is refused whatever the signature's length, untouched.
     for (std::size_t const size : {std::size_t{71}, std::size_t{70}}) {
         bytes buffer(size, 0xa5);
-        BOOST_TEST(p256::to_der(data::rfc6979_sample_low_s, buffer).error() ==
+        BOOST_TEST(p256::to_der(typed(data::rfc6979_sample_low_s), buffer).error() ==
                    error::invalid_input_size);
         BOOST_TEST(std::ranges::all_of(buffer, [](std::uint8_t byte) { return byte == 0xa5; }));
     }
 
     std::array<std::uint8_t, 32> const zero{};
     std::array<std::uint8_t, p256::max_der_size> output{};
-    BOOST_TEST(p256::to_der(joined(zero, s_of(data::rfc6979_test)), output).error() ==
+    BOOST_TEST(p256::to_der(typed(joined(zero, s_of(data::rfc6979_test))), output).error() ==
                error::invalid_signature);
-    BOOST_TEST(p256::to_der(joined(r, data::order), output).error() == error::invalid_signature);
+    BOOST_TEST(p256::to_der(typed(joined(r, data::order)), output).error() ==
+               error::invalid_signature);
 }
 
 void der_strict() {
@@ -524,28 +549,69 @@ void der_short_integers() {
     for (auto const& [value, expected] :
          {std::pair{joined(one, two), both_short}, std::pair{joined(one, low), r_short}}) {
         std::array<std::uint8_t, p256::max_der_size> output{};
-        auto const written = p256::to_der(value, output);
+        auto const written = p256::to_der(typed(value), output);
         if (BOOST_TEST(written.has_value())) {
             BOOST_TEST(std::ranges::equal(std::span(output).first(*written), expected));
         }
         auto const decoded = p256::from_der(expected);
         if (BOOST_TEST(decoded.has_value())) {
-            BOOST_TEST(*decoded == value);
+            BOOST_TEST(decoded->bytes() == value);
         }
+    }
+}
+
+// A signature received as bytes, in a vector: made into the type with from_bytes, it verifies
+// through the key's verify and crypto::verify; 63 and 65 bytes are refused by from_bytes, so that
+// no verify ever sees a signature of another size.
+void signature_from_vector() {
+    auto const key = keypair::from_secret(data::rfc6979_scalar);
+    auto const verifier = public_key::from_bytes(data::rfc6979_public);
+    if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(verifier.has_value())) {
+        return;
+    }
+    auto const signed_message = key->sign(crypto::ecdsa_sha256, text_bytes("sample"));
+    if (!BOOST_TEST(signed_message.has_value())) {
+        return;
+    }
+    bytes const received(signed_message->bytes().begin(), signed_message->bytes().end());
+    auto const made = signature::from_bytes(received);
+    if (!BOOST_TEST(made.has_value())) {
+        return;
+    }
+    BOOST_TEST(*made == *signed_message);
+    BOOST_TEST(verifier->verify(crypto::ecdsa_sha256, *made, text_bytes("sample")).has_value());
+    BOOST_TEST(
+        crypto::verify(crypto::ecdsa_sha256, *made, text_bytes("sample"), *verifier).has_value());
+    BOOST_TEST(crypto::from_bytes<signature>(received).has_value());
+    for (std::size_t const size : {std::size_t{63}, std::size_t{65}}) {
+        bytes resized = received;
+        resized.resize(size);
+        BOOST_TEST(signature::from_bytes(resized).error() == error::invalid_signature);
     }
 }
 
 // A key pair signs and its public key verifies; never the other way round.
 static_assert(crypto::can_sign<keypair, crypto::ecdsa_sha256_t, std::span<std::uint8_t const>>);
 static_assert(crypto::can_sign<keypair, crypto::ecdsa_sha256_t, crypto::prehashed<32>>);
-static_assert(
-    crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>, public_key>);
+static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, signature, std::span<std::uint8_t const>,
+                                 public_key>);
 static_assert(!crypto::can_sign<p256::basic_public_key<crypto::backends::bearssl>,
                                 crypto::ecdsa_sha256_t, std::span<std::uint8_t const>>);
-static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>, keypair>);
+static_assert(
+    !crypto::can_verify<crypto::ecdsa_sha256_t, signature, std::span<std::uint8_t const>, keypair>);
 // Bytes are no P-256 key: ECDSA never infers its curve from a number of bytes.
-static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>,
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, signature, std::span<std::uint8_t const>,
                                   std::array<std::uint8_t, 64>>);
+// Bytes are no P-256 signature (design R1): verify takes the type alone.
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, signature_bytes,
+                                  std::span<std::uint8_t const>, public_key>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>,
+                                  std::span<std::uint8_t const>, public_key>);
+// sign gives the type.
+static_assert(
+    std::is_same_v<decltype(std::declval<keypair const&>().sign(
+                       crypto::ecdsa_sha256, std::declval<std::span<std::uint8_t const>>())),
+                   boost::system::result<signature>>);
 
 }  // namespace
 
@@ -566,5 +632,6 @@ int main() {
     der_round_trip();
     der_strict();
     der_short_integers();
+    signature_from_vector();
     return webcpp::test::exit_status(boost::report_errors());
 }

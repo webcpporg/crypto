@@ -70,7 +70,7 @@ int main() {
         std::printf("failed\n");
         return 1;
     }
-    print("signature ", *signature);
+    print("signature ", signature->bytes());
     // Always low S: the RFC's own S is high, and sign gives n - s.
     std::printf("low S      %s\n", p256::is_low_s(*signature) ? "yes" : "no");
 

@@ -127,10 +127,15 @@ int main() {
     std::printf("verified\n");
 
     // tag::normalize[]
-    // The high-S twin: same r, s replaced by n - s.
-    auto high = *signature;
-    auto const flipped = order_minus(std::span<std::uint8_t const, 64>(high).last<32>());
-    std::ranges::copy(flipped, high.begin() + 32);
+    // The high-S twin: same r, s replaced by n - s, as a signature from elsewhere arrives.
+    auto high_bytes = signature->bytes();
+    auto const flipped = order_minus(std::span<std::uint8_t const, 64>(high_bytes).last<32>());
+    std::ranges::copy(flipped, high_bytes.begin() + 32);
+    auto const received = secp256k1::ecdsa_signature::from_bytes(high_bytes);
+    if (!received) {
+        return 1;
+    }
+    auto const& high = *received;
     auto const refused =
         crypto::verify(crypto::ecdsa_sha256, high, crypto::prehashed{sighash}, *public_key);
     if (refused || refused.error() != crypto::error::invalid_signature) {

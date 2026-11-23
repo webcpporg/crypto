@@ -515,8 +515,9 @@ void cover_async_gcm(std::string const& family, std::string const& backend) {
 /**
  * Ed25519's asynchronous functions, `async_from_secret`, `async_generate`, `async_sign` and
  * `async_verify` (both overloads, without and with the policy), free and member, each called with
- * valid input and with input refused before the backend (a seed of 31 bytes, a signature of 63, a
- * moved-from key pair), an `io_context` run after each call so that its completion is delivered.
+ * valid input, with input refused before the backend (a seed of 31 bytes, a moved-from key pair)
+ * and with a signature of zeros, which the backend refuses, an `io_context` run after each call so
+ * that its completion is delivered.
  * The first guard each enters is its own (the member a free one calls, and the synchronous call
  * the member makes, hold others, which run after).
  *
@@ -526,7 +527,7 @@ void cover_async_gcm(std::string const& family, std::string const& backend) {
 template <class Keypair>
 void cover_async_ed25519(std::string const& backend) {
     namespace crypto = webcpp::crypto;
-    using signature_type = std::array<std::uint8_t, 64>;
+    using signature_type = crypto::curves::ed25519::signature;
     using backend_type = Keypair::backend_type;
     std::string const on = " on " + backend;
     webcpp::asio::io_context context;
@@ -535,6 +536,7 @@ void cover_async_ed25519(std::string const& backend) {
     std::array<std::uint8_t, 3> const message{1, 2, 3};
     int completions = 0;
     signature_type kept{};
+    signature_type const zero_signature{};
     async_completion_counter<signature_type> const counted{.completions = &completions};
     async_completion_counter<signature_type> const keeping{
         .completions = &completions,
@@ -594,9 +596,9 @@ void cover_async_ed25519(std::string const& backend) {
                                            crypto::curves::ed25519::strict, counted);
         deliver();
     });
-    covered("ed25519::async_verify with a short signature" + on, "crypto::async_verify", [&] {
-        crypto::async_verify<backend_type>(executor, crypto::eddsa, std::span(kept).first(63),
-                                           message, *public_key, counted);
+    covered("ed25519::async_verify with a zero signature" + on, "crypto::async_verify", [&] {
+        crypto::async_verify<backend_type>(executor, crypto::eddsa, zero_signature, message,
+                                           *public_key, counted);
         deliver();
     });
     covered("ed25519::basic_keypair::async_sign" + on, [&] {
@@ -613,9 +615,9 @@ void cover_async_ed25519(std::string const& backend) {
                                                         crypto::curves::ed25519::strict, counted);
         deliver();
     });
-    covered("ed25519::public_key::async_verify with a short signature" + on, [&] {
-        public_key->template async_verify<backend_type>(
-            executor, crypto::eddsa, std::span(kept).first(63), message, counted);
+    covered("ed25519::public_key::async_verify with a zero signature" + on, [&] {
+        public_key->template async_verify<backend_type>(executor, crypto::eddsa, zero_signature,
+                                                        message, counted);
         deliver();
     });
     [[maybe_unused]] Keypair const taken(std::move(*made));

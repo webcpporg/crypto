@@ -130,31 +130,31 @@ so.
 | Ed25519: `curves::ed25519::keypair`; `curves::ed25519::public_key`
 | signed as given (RFC 8032's PureEdDSA)
 | does not compile
-| 64 bytes
+| `curves::ed25519::signature`, 64 bytes
 
 | `crypto::ecdsa_sha256`
 | P-256: `curves::p256::keypair`; `curves::p256::public_key`
 | hashed with SHA-256 inside the call
 | 32 bytes, signed as given
-| 64 bytes, r then s, low S
+| `curves::p256::ecdsa_signature`, 64 bytes, r then s, low S
 
 | `crypto::ecdsa_sha256`
 | secp256k1: `curves::secp256k1::keypair`; `curves::secp256k1::public_key`
 | hashed with SHA-256 inside the call
 | 32 bytes, signed as given
-| 64 bytes, r then s, low S
+| `curves::secp256k1::ecdsa_signature`, 64 bytes, r then s, low S
 
 | `crypto::ecdsa_sha256_recoverable`
 | secp256k1: `curves::secp256k1::keypair`; none: `recover` gives the key
 | hashed with SHA-256 inside the call
 | 32 bytes, signed as given
-| 65 bytes, r, s and the recovery id
+| `curves::secp256k1::recoverable_signature`, 65 bytes, r, s and the recovery id
 
 | `crypto::schnorr`
 | secp256k1: `curves::secp256k1::keypair`; `curves::secp256k1::public_key`, or its 32-byte x-only form
 | signed as given (BIP 340)
 | does not compile
-| 64 bytes
+| `curves::secp256k1::schnorr_signature`, 64 bytes
 |===
 
 Every other pair stops the build in a `static_assert` whose message says why:
@@ -164,19 +164,25 @@ whose size the type does not know, a marker on a backend that cannot sign a
 digest; <<crypto-jamfile-messages,the table of messages>> gives each with its
 fix. The
 concepts `crypto::can_sign<Keypair, Scheme, Input>` and
-`crypto::can_verify<Scheme, Input, PublicKey>` give a program's own templates
-the same answer. A public key's type says its curve: ECDSA's key is a
+`crypto::can_verify<Scheme, Signature, Input, PublicKey>` give a program's own
+templates the same answer. A public key's type says its curve: ECDSA's key is a
 validated object on both curves, never bytes, so that `crypto::ecdsa_sha256`
 never infers its curve from a number of bytes. BIP 340's keys are bytes on the
 wire, so `crypto::schnorr` also takes the 32-byte x-only key.
 
-The signature is bytes, as it arrives from the network or a file: every
-`verify`, member and free, synchronous and asynchronous, on every curve, and
-secp256k1's `recover` take it as `std::span<std::uint8_t const>`, so a
-`std::array`, a `std::vector` or a span of a received buffer goes to every
-form unchanged. Its size is checked first, before the key and the backend: a
-signature of another size than the table's is `invalid_signature`, never a
-build error.
+The signature is a type of its curve and scheme, the table's last column:
+`sign` returns it, and every `verify`, member and free, synchronous and
+asynchronous, on every curve, and secp256k1's `recover` take it and nothing
+else, so that a signature of another curve or scheme, or bytes, stops the
+build with a message naming the type expected. Each is a value, copied and
+compared with `==`, and gives its bytes with `bytes()`. A signature that
+arrives from the network or a file is made first, with its type's
+`from_bytes(bytes)` or `crypto::from_bytes<T>(bytes)`, from a `std::array`, a
+`std::vector` or a span of a received buffer: its size alone is checked there,
+and another size than the table's is `invalid_signature`; whether its numbers
+are in range is the verification's judgment. Ed25519's two schemes share
+`curves::ed25519::signature`, which Ed25519ph's signer gives too: the type does
+not tell them apart, and each verifies only its own scheme's.
 
 ECDSA signs low S on both curves, s at most (n - 1) / 2: libsecp256k1 signs
 so, and P-256's RFC 6979 signature is normalized after it is made, n - s
@@ -192,7 +198,7 @@ DER, low S and the 64-byte form are formats of a signature, not schemes, and
 they need the curve's order: each ECDSA curve's namespace has the same four
 functions. `to_der(signature, output)` writes strict DER into at least
 `max_der_size` bytes and returns its length, allocating nothing;
-`from_der(der)` reads strict DER back into the 64 bytes;
+`from_der(der)` reads strict DER back into the curve's `ecdsa_signature`;
 `normalize_low_s(signature)` returns the low-S form, and `invalid_signature`
 for an r or an s that is 0 or not below n; `is_low_s(signature)` is true
 exactly when r is between 1 and n - 1 and s between 1 and (n - 1) / 2, and

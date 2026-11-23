@@ -338,18 +338,20 @@ void cover_ed25519_free() {
             crypto::verify<sodium>(crypto::eddsa, *signature, message, *public_key, ed25519::strict)
                 .has_value()));
     });
-    covered("ed25519 crypto::verify with a short signature on sodium", "crypto::verify", [&] {
-        BOOST_TEST((crypto::verify<sodium>(crypto::eddsa, std::span(*signature).first(63), message,
-                                           *public_key, ed25519::strict)
+    // A signature of another size is refused by from_bytes, which calls no backend; one that does
+    // not verify is the backend's refusal.
+    ed25519::signature const zero_signature{};
+    covered("ed25519 crypto::verify with a zero signature on sodium", "crypto::verify", [&] {
+        BOOST_TEST((crypto::verify<sodium>(crypto::eddsa, zero_signature, message, *public_key,
+                                           ed25519::strict)
                         .error() == crypto::error::invalid_signature));
     });
     covered("ed25519::public_key::verify on sodium", [&] {
         BOOST_TEST(public_key->verify(crypto::eddsa, *signature, message).has_value());
     });
-    covered("ed25519::public_key::verify with a short signature on sodium", [&] {
-        BOOST_TEST(
-            public_key->verify(crypto::eddsa, std::span(*signature).first(63), message).error() ==
-            crypto::error::invalid_signature);
+    covered("ed25519::public_key::verify with a zero signature on sodium", [&] {
+        BOOST_TEST(public_key->verify(crypto::eddsa, zero_signature, message).error() ==
+                   crypto::error::invalid_signature);
     });
     covered("ed25519::to_x25519_public on sodium",
             [&] { BOOST_TEST(ed25519::to_x25519_public<sodium>(*public_key).has_value()); });
@@ -385,7 +387,7 @@ void cover_ed25519ph() {
     }
     covered("ed25519::ph::update on sodium",
             [&] { BOOST_TEST(signer->update(piece).has_value()); });
-    std::array<std::uint8_t, ph::signature_size> signature{};
+    ed25519::signature signature{};
     covered("ed25519::ph::sign on sodium", [&] {
         auto const signed_message = signer->sign(*key);
         if (BOOST_TEST(signed_message.has_value())) {
@@ -398,18 +400,18 @@ void cover_ed25519ph() {
 
 /**
  * Ed25519ph's `update`, `sign` and `verify` of an ended message, refused before the backend, and
- * `verify` with a signature of the wrong size.
+ * `verify` of a signature that does not verify, refused by the backend.
  */
 void cover_ed25519ph_refusals() {
     namespace ed25519 = crypto::curves::ed25519;
     using ph = ed25519::ph<webcpp::hash::sha2_512, sodium>;
     auto const key = ed25519::basic_keypair<sodium>::from_secret(webcpp::test::coverage_key<32>());
-    std::array<std::uint8_t, ph::signature_size> const signature{};
+    ed25519::signature const signature{};
     std::array<std::uint8_t, 3> const piece{1, 2, 3};
     auto ended = ph::begin();
-    auto short_signature = ph::begin();
+    auto refused = ph::begin();
     if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(ended.has_value()) ||
-        !BOOST_TEST(short_signature.has_value()) || !BOOST_TEST(ended->sign(*key).has_value())) {
+        !BOOST_TEST(refused.has_value()) || !BOOST_TEST(ended->sign(*key).has_value())) {
         return;
     }
     auto const public_key = key->public_key();
@@ -423,8 +425,8 @@ void cover_ed25519ph_refusals() {
     covered("ed25519::ph::verify of an ended message on sodium", [&] {
         BOOST_TEST(ended->verify(signature, *public_key).error() == crypto::error::invalid_state);
     });
-    covered("ed25519::ph::verify with a short signature on sodium", [&] {
-        BOOST_TEST(short_signature->verify(std::span(signature).first(63), *public_key).error() ==
+    covered("ed25519::ph::verify with a zero signature on sodium", [&] {
+        BOOST_TEST(refused->verify(signature, *public_key).error() ==
                    crypto::error::invalid_signature);
     });
 }

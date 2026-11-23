@@ -172,7 +172,7 @@ void ed25519_through_webcrypto(std::mt19937_64& generator) {
         bool const same =
             BOOST_TEST(std::ranges::equal(std::span(out).first(48), pkcs8)) &&
             BOOST_TEST(std::ranges::equal(std::span(out).subspan(48, 44), spki)) &&
-            BOOST_TEST(std::ranges::equal(std::span(out).subspan(92, 64), *signature));
+            BOOST_TEST(std::ranges::equal(std::span(out).subspan(92, 64), signature->bytes()));
         if (!same) {
             static_cast<void>(std::fprintf(stderr, "Ed25519 disagrees with WebCrypto: seed %s\n",
                                            test::to_hex(seed_bytes).c_str()));
@@ -199,7 +199,7 @@ void ed25519_from_webcrypto() {
             continue;
         }
         BOOST_TEST(*its_public == *public_key);
-        BOOST_TEST(std::ranges::equal(*signature, std::span(out).subspan(92, 64)));
+        BOOST_TEST(std::ranges::equal(signature->bytes(), std::span(out).subspan(92, 64)));
         std::array<std::uint8_t, 48> pkcs8_again{};
         std::array<std::uint8_t, 44> spki_again{};
         BOOST_TEST(ed25519::encode_pkcs8(*pair, pkcs8_again).has_value());

@@ -303,10 +303,12 @@ made it
 paper, appendix F]). An ECDSA signature fits up to four keys, and the
 recovery id, 0 to 3, names the one that made it
 (link:https://www.secg.org/sec1-v2.pdf[SEC 1, section 4.1.6]).
-`sign(crypto::ecdsa_sha256_recoverable, input)` writes 65 bytes, r, s and the
-id, with the same r and s as `sign(crypto::ecdsa_sha256, input)`, and
+`sign(crypto::ecdsa_sha256_recoverable, input)` gives a
+`recoverable_signature`, 65 bytes, r, s and the id, with the same r and s as
+`sign(crypto::ecdsa_sha256, input)`, and
 `recover(crypto::ecdsa_sha256_recoverable, signature, input)` returns the
-`public_key` from those 65 bytes and the same input, the message it hashes or
+`public_key` from that signature (65 bytes received are made into one with
+`recoverable_signature::from_bytes`) and the same input, the message it hashes or
 a digest marked `crypto::prehashed`. It refuses with `invalid_signature` an id
 above 3, an r or an s not below the group order, and a signature from which no
 key is recovered. Ethereum's digest is Keccak-256's, not SHA-256's (how it is

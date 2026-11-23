@@ -16,6 +16,7 @@
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
+#include <boost/system/result.hpp>
 
 #include <secp256k1.h>
 #include <secp256k1_ellswift.h>
@@ -77,8 +78,11 @@ void recovery(secp256k1_context const* context, secret_key const& secret,
     std::array<std::uint8_t, secp::recoverable_signature_size> with_id{};
     std::ranges::copy(compact, with_id.begin());
     with_id[64] = static_cast<std::uint8_t>(id);
+    auto const typed = secp::recoverable_signature::from_bytes(with_id);
+    BOOST_TEST(typed.has_value());
     auto const wrapped =
-        secp::recover(crypto::ecdsa_sha256_recoverable, with_id, crypto::prehashed{hash});
+        typed ? secp::recover(crypto::ecdsa_sha256_recoverable, *typed, crypto::prehashed{hash})
+              : boost::system::result<secp::public_key>(typed.error());
     auto const expected_key = secp::public_key::from_bytes(expected);
     if (BOOST_TEST(wrapped && expected_key)) {
         BOOST_TEST(*wrapped == *expected_key);

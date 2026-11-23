@@ -87,9 +87,10 @@ void ecdsa_bitcoin() {
             BOOST_TEST_EQ(secp256k1_ecdsa_signature_serialize_compact(secp256k1_context_static,
                                                                       compact.data(), &parsed),
                           1);
-            auto const result = crypto::verify(crypto::ecdsa_sha256, compact, message, *key);
+            auto const signature = secp::ecdsa_signature::from_bytes(compact).value();
+            auto const result = crypto::verify(crypto::ecdsa_sha256, signature, message, *key);
             auto const of_digest =
-                crypto::verify(crypto::ecdsa_sha256, compact, crypto::prehashed{hash}, *key);
+                crypto::verify(crypto::ecdsa_sha256, signature, crypto::prehashed{hash}, *key);
             BOOST_TEST_EQ(result.has_value(), of_digest.has_value());
             auto const verdict = str(t.at("result"));
             if (verdict == "valid") {

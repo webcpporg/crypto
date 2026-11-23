@@ -7,9 +7,11 @@
 // Every curve's crypto::verify in one program: a 32-byte array is BIP340's x-only key under
 // crypto::schnorr and no key under crypto::eddsa, which takes curves::ed25519::public_key (design
 // R17), each call resolved to its curve's overload with no ambiguity and no catch-all, and each
-// signature verifying under its own scheme alone; ECDSA takes each curve's key object and no
-// bytes. The backend, named, comes first on every curve and picks its own curve's overload alone;
-// Ed25519's policy is the fifth argument.
+// signature verifying under its own scheme alone: its type is its curve's and scheme's (design
+// R1), so a signature of another curve or scheme is refused by can_verify and by the build, and
+// its bytes made into the other type are refused at run time; ECDSA takes each curve's key object
+// and no bytes. The backend, named, comes first on every curve and picks its own curve's overload
+// alone; Ed25519's policy is the fifth argument.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
@@ -32,45 +34,62 @@ namespace {
 
 using key_bytes = std::array<std::uint8_t, 32>;
 using message_bytes = std::span<std::uint8_t const>;
+using ed25519_signature = crypto::curves::ed25519::signature;
+using crypto::curves::secp256k1::schnorr_signature;
+using secp256k1_ecdsa_signature = crypto::curves::secp256k1::ecdsa_signature;
+using p256_ecdsa_signature = crypto::curves::p256::ecdsa_signature;
+using p256_bearssl_key = crypto::curves::p256::basic_public_key<crypto::backends::bearssl>;
 
 // A 32-byte array is a key of schnorr alone; eddsa's key is Ed25519's object.
 static_assert(!crypto::detail::has_verifier_v<crypto::eddsa_t, key_bytes>);
 static_assert(crypto::detail::has_verifier_v<crypto::schnorr_t, key_bytes>);
 static_assert(!crypto::detail::has_verifier_v<crypto::ecdsa_sha256_t, key_bytes>);
-static_assert(!crypto::can_verify<crypto::eddsa_t, message_bytes, key_bytes>);
-static_assert(crypto::can_verify<crypto::schnorr_t, message_bytes, key_bytes>);
-static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, message_bytes, key_bytes>);
-static_assert(
-    crypto::can_verify<crypto::eddsa_t, message_bytes, crypto::curves::ed25519::public_key>);
-static_assert(
-    !crypto::can_verify<crypto::schnorr_t, message_bytes, crypto::curves::ed25519::public_key>);
+static_assert(!crypto::can_verify<crypto::eddsa_t, ed25519_signature, message_bytes, key_bytes>);
+static_assert(crypto::can_verify<crypto::schnorr_t, schnorr_signature, message_bytes, key_bytes>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, secp256k1_ecdsa_signature, message_bytes,
+                                  key_bytes>);
+static_assert(crypto::can_verify<crypto::eddsa_t, ed25519_signature, message_bytes,
+                                 crypto::curves::ed25519::public_key>);
+static_assert(!crypto::can_verify<crypto::schnorr_t, schnorr_signature, message_bytes,
+                                  crypto::curves::ed25519::public_key>);
 // A span of a size known only at run time is no key.
-static_assert(!crypto::can_verify<crypto::eddsa_t, message_bytes, std::span<std::uint8_t const>>);
-static_assert(!crypto::can_verify<crypto::schnorr_t, message_bytes, std::span<std::uint8_t const>>);
-// ECDSA's key is each curve's object.
-static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, message_bytes,
+static_assert(!crypto::can_verify<crypto::eddsa_t, ed25519_signature, message_bytes,
+                                  std::span<std::uint8_t const>>);
+static_assert(!crypto::can_verify<crypto::schnorr_t, schnorr_signature, message_bytes,
+                                  std::span<std::uint8_t const>>);
+// ECDSA's key is each curve's object, and its signature each curve's type.
+static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, secp256k1_ecdsa_signature, message_bytes,
                                  crypto::curves::secp256k1::public_key>);
-static_assert(
-    crypto::can_verify<crypto::ecdsa_sha256_t, message_bytes,
-                       crypto::curves::p256::basic_public_key<crypto::backends::bearssl>>);
+static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, p256_ecdsa_signature, message_bytes,
+                                 p256_bearssl_key>);
+// The wrong curve (the spec's scenario): a secp256k1 signature is no P-256 signature, and the
+// other way round, though both are 64 bytes, r then s.
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, secp256k1_ecdsa_signature, message_bytes,
+                                  p256_bearssl_key>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, p256_ecdsa_signature, message_bytes,
+                                  crypto::curves::secp256k1::public_key>);
+// The wrong scheme: Ed25519's and BIP340's signatures, both 64 bytes, are not each other's.
+static_assert(!crypto::can_verify<crypto::eddsa_t, schnorr_signature, message_bytes,
+                                  crypto::curves::ed25519::public_key>);
+static_assert(!crypto::can_verify<crypto::schnorr_t, ed25519_signature, message_bytes, key_bytes>);
 
-using p256_key = crypto::curves::p256::basic_public_key<crypto::backends::bearssl>;
-using signature_bytes = std::array<std::uint8_t, 64>;
-
-// Whether crypto::verify<Backend>(crypto::ecdsa_sha256, ...) is callable with `Key`: a P-256 key
-// takes its own backend alone, which is deduced and which an explicit other one contradicts.
+// Whether crypto::verify<Backend>(crypto::ecdsa_sha256, ...) is callable with `Key` and its
+// signature type: a P-256 key takes its own backend alone, which is deduced and which an explicit
+// other one contradicts.
 template <class Backend, class Key>
 concept verifies_ecdsa_on =
-    requires(signature_bytes const& signature, message_bytes message, Key const& key) {
+    requires(crypto::detail::signature_of_t<Key, crypto::ecdsa_sha256_t> const& signature,
+             message_bytes message, Key const& key) {
         crypto::verify<Backend>(crypto::ecdsa_sha256, signature, message, key);
     };
-static_assert(verifies_ecdsa_on<crypto::backends::bearssl, p256_key>);
-static_assert(!verifies_ecdsa_on<crypto::backends::openssl, p256_key>);
+static_assert(verifies_ecdsa_on<crypto::backends::bearssl, p256_bearssl_key>);
+static_assert(!verifies_ecdsa_on<crypto::backends::openssl, p256_bearssl_key>);
 static_assert(
     verifies_ecdsa_on<crypto::backends::secp256k1, crypto::curves::secp256k1::public_key>);
 
 // Ed25519 and BIP340 signatures, each against its key, Ed25519's typed and BIP340's x-only key
-// held in a 32-byte array: each verifies under its own scheme and is refused under the other.
+// held in a 32-byte array: each verifies under its own scheme; its bytes, made into the other
+// scheme's type as bytes from the wire would be, are refused under the other.
 void byte_keys() {
     key_bytes seed{};
     seed.fill(0x42);
@@ -89,9 +108,15 @@ void byte_keys() {
     }
     BOOST_TEST(crypto::verify(crypto::eddsa, *eddsa_signature, message, ed25519_key).has_value());
     BOOST_TEST(crypto::verify(crypto::schnorr, *schnorr_signature, message, xonly_key).has_value());
-    BOOST_TEST(crypto::verify(crypto::eddsa, *schnorr_signature, message, ed25519_key).error() ==
+    auto const schnorr_as_eddsa = ed25519_signature::from_bytes(schnorr_signature->bytes());
+    auto const eddsa_as_schnorr =
+        crypto::curves::secp256k1::schnorr_signature::from_bytes(eddsa_signature->bytes());
+    if (!BOOST_TEST(schnorr_as_eddsa.has_value()) || !BOOST_TEST(eddsa_as_schnorr.has_value())) {
+        return;
+    }
+    BOOST_TEST(crypto::verify(crypto::eddsa, *schnorr_as_eddsa, message, ed25519_key).error() ==
                crypto::error::invalid_signature);
-    BOOST_TEST(crypto::verify(crypto::schnorr, *eddsa_signature, message, xonly_key).has_error());
+    BOOST_TEST(crypto::verify(crypto::schnorr, *eddsa_as_schnorr, message, xonly_key).has_error());
 }
 
 using hello = std::array<std::uint8_t, 5>;
@@ -123,8 +148,9 @@ void backend_first_ed25519() {
     BOOST_TEST(crypto::verify(crypto::eddsa, *signature, hello_message, ed25519_key,
                               crypto::curves::ed25519::strict)
                    .has_value());
-    auto altered = *signature;
-    altered[0] ^= 0x01U;
+    auto altered_bytes = signature->bytes();
+    altered_bytes[0] ^= 0x01U;
+    auto const altered = ed25519_signature::from_bytes(altered_bytes).value();
     BOOST_TEST(crypto::verify<crypto::backends::sodium>(crypto::eddsa, altered, hello_message,
                                                         ed25519_key,
                                                         crypto::curves::ed25519::strict)

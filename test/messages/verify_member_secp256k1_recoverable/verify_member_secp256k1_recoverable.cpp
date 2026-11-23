@@ -28,7 +28,7 @@ int main() {
         return 1;
     }
     auto const public_key = key->public_key();
-    std::array<std::uint8_t, 64> const signature{};
+    crypto::curves::secp256k1::recoverable_signature const signature{};
     std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
     return public_key && public_key->verify(crypto::ecdsa_sha256_recoverable, signature, message)
                ? 0

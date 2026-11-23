@@ -5,9 +5,10 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Ed25519ph on libsodium: RFC 8032 section 7.3's test, the message "abc" given in one piece and
-// in two, signed into the RFC's signature and verified with verify(signature, public_key), the
-// signature first and the key a curves::ed25519::public_key; the key's bytes where the signature
-// goes refused as a signature; a signature changed in one bit and a different message refused; a
+// in two, signed into the RFC's signature, a curves::ed25519::signature, and verified with
+// verify(signature, public_key), the signature first, of that type, and the key a
+// curves::ed25519::public_key; the key's bytes, and 63 bytes, refused as a signature by
+// from_bytes; a signature changed in one bit and a different message refused; a
 // message is signed or verified once, and a moved-from signer and a moved-from key pair are refused
 // with invalid_state.
 
@@ -68,7 +69,12 @@ void rfc8032_ph() {
         return;
     }
     auto const& public_key = *made_key;
-    auto const expected = test::from_hex(signature_hex);
+    auto const expected_bytes = test::from_hex(signature_hex);
+    auto const made_signature = ed25519::signature::from_bytes(expected_bytes);
+    if (!BOOST_TEST(made_signature.has_value())) {
+        return;
+    }
+    auto const& expected = *made_signature;
     std::vector<std::uint8_t> const abc{0x61, 0x62, 0x63};
     std::vector<std::vector<std::uint8_t>> const one_piece{abc};
     std::vector<std::vector<std::uint8_t>> const two_pieces{{0x61}, {0x62, 0x63}};
@@ -76,16 +82,18 @@ void rfc8032_ph() {
     for (auto const& pieces : {one_piece, two_pieces, with_empty}) {
         auto signing = begun(pieces);
         auto const signature = signing.sign(*key);
-        BOOST_TEST(signature && std::ranges::equal(*signature, expected));
+        BOOST_TEST(signature && *signature == expected);
         auto verifying = begun(pieces);
         BOOST_TEST(verifying.verify(expected, public_key).has_value());
     }
 
     // Changed in one bit, the signature is refused; so is another message.
-    auto changed = expected;
+    auto changed = expected_bytes;
     changed[40] ^= 0x01U;
     auto verifying = begun(two_pieces);
-    BOOST_TEST(verifying.verify(changed, public_key).error() == crypto::error::invalid_signature);
+    BOOST_TEST(
+        verifying.verify(ed25519::signature::from_bytes(changed).value(), public_key).error() ==
+        crypto::error::invalid_signature);
     auto other = begun({{0x61, 0x62}});
     BOOST_TEST(other.verify(expected, public_key).error() == crypto::error::invalid_signature);
 
@@ -93,17 +101,17 @@ void rfc8032_ph() {
     BOOST_TEST(crypto::verify(crypto::eddsa, expected, abc, public_key).error() ==
                crypto::error::invalid_signature);
 
-    // The arguments in the other order, (public_key, signature): the key's 32 bytes stand where
-    // the signature goes and are refused as a signature; the signature's bytes are no key.
-    auto swapped = begun(one_piece);
-    BOOST_TEST(swapped.verify(key_bytes, public_key).error() == crypto::error::invalid_signature);
+    // The arguments in the other order, (public_key, signature): the key's 32 bytes are no
+    // signature, refused by from_bytes (bytes where the signature goes do not compile); the
+    // signature's bytes are no key.
+    BOOST_TEST(ed25519::signature::from_bytes(key_bytes).error() ==
+               crypto::error::invalid_signature);
     static_assert(!std::is_convertible_v<std::vector<std::uint8_t>, ed25519::public_key>);
 
-    // A signature of another size; a key of another size is never made.
+    // A signature of another size, and a key of another size, are never made.
     BOOST_TEST(ed25519::public_key::from_bytes(std::span(key_bytes).first(31)).error() ==
                crypto::error::invalid_public_key);
-    auto short_signature = begun(one_piece);
-    BOOST_TEST(short_signature.verify(std::span(expected).first(63), public_key).error() ==
+    BOOST_TEST(ed25519::signature::from_bytes(std::span(expected_bytes).first(63)).error() ==
                crypto::error::invalid_signature);
 }
 
@@ -121,8 +129,10 @@ void spent_and_moved() {
     BOOST_TEST(signing.update(abc).error() == crypto::error::invalid_state);
     BOOST_TEST(signing.sign(*key).error() == crypto::error::invalid_state);
     auto const public_key = ed25519::public_key::from_bytes(test::from_hex(public_key_hex));
-    BOOST_TEST(public_key && signing.verify(test::from_hex(signature_hex), *public_key).error() ==
-                                 crypto::error::invalid_state);
+    BOOST_TEST(public_key &&
+               signing.verify(ed25519::signature::from_bytes(test::from_hex(signature_hex)).value(),
+                              *public_key)
+                       .error() == crypto::error::invalid_state);
 
     // Moved, the target carries the message on; the source is spent.
     auto first = begun({{0x61}});
@@ -135,7 +145,7 @@ void spent_and_moved() {
     auto third = begun({});
     third = std::move(second);
     auto const signature = third.sign(*key);
-    BOOST_TEST(signature && std::ranges::equal(*signature, test::from_hex(signature_hex)));
+    BOOST_TEST(signature && std::ranges::equal(signature->bytes(), test::from_hex(signature_hex)));
 
     // A moved-from key pair signs nothing, and the message stays to be signed.
     ed25519::keypair const taken = std::move(*key);
@@ -143,7 +153,7 @@ void spent_and_moved() {
     // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): tested
     BOOST_TEST(fourth.sign(*key).error() == crypto::error::invalid_state);
     auto const after = fourth.sign(taken);
-    BOOST_TEST(after && std::ranges::equal(*after, test::from_hex(signature_hex)));
+    BOOST_TEST(after && std::ranges::equal(after->bytes(), test::from_hex(signature_hex)));
 }
 
 }  // namespace

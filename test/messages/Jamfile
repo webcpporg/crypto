@@ -93,3 +93,8 @@ build-project verify_member_ed25519_ecdsa ;
 build-project verify_member_secp256k1_recoverable ;
 build-project verify_free_secp256k1_recoverable ;
 build-project async_member_without_async_hpp ;
+build-project verify_p256_secp256k1_signature ;
+build-project verify_schnorr_as_ecdsa ;
+build-project verify_ed25519_bytes_signature ;
+build-project recover_ecdsa_signature ;
+build-project async_verify_p256_bytes_signature ;

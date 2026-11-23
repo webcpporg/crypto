@@ -21,7 +21,7 @@
 
 int main() {
     namespace crypto = webcpp::crypto;
-    std::array<std::uint8_t, 64> const signature{};
+    crypto::curves::secp256k1::ecdsa_signature const signature{};
     std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
     return crypto::verify(crypto::ecdsa_sha256, signature, message, std::array<std::uint8_t, 33>{})
                ? 0

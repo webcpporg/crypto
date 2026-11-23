@@ -23,7 +23,7 @@ int main() {
     namespace crypto = webcpp::crypto;
     auto const public_key =
         crypto::curves::ed25519::public_key::from_bytes(std::array<std::uint8_t, 32>{});
-    std::array<std::uint8_t, 64> const signature{};
+    crypto::curves::ed25519::signature const signature{};
     std::array<std::uint8_t, 64> const digest{};
     return public_key && public_key->verify(crypto::eddsa, signature, crypto::prehashed{digest})
                ? 0

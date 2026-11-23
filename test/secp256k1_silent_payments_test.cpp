@@ -413,7 +413,7 @@ void check_found(bip352_receive_subtest const& subtest, sp::found_output const& 
     auto const spending = keypair_of(spend_tweaked->bytes());
     auto const signature = spending.sign(crypto::schnorr, message, aux);
     if (BOOST_TEST(signature.has_value())) {
-        BOOST_TEST(std::ranges::equal(*signature, subtest.found_signatures[at]));
+        BOOST_TEST(std::ranges::equal(signature->bytes(), subtest.found_signatures[at]));
     }
     auto const output_of_key = spending.public_key();
     if (BOOST_TEST(output_of_key.has_value())) {

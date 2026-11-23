@@ -316,9 +316,14 @@ void cover_verification() {
                 BOOST_TEST(crypto::verify(crypto::schnorr, *schnorr, hash, not_a_key).error() ==
                            crypto::error::invalid_public_key);
             });
-    (*recoverable)[64] = 4;
+    auto id_of_four = recoverable->bytes();
+    id_of_four[64] = 4;
+    auto const bad_id = secp::recoverable_signature::from_bytes(id_of_four);
+    if (!BOOST_TEST(bad_id.has_value())) {
+        return;
+    }
     covered("secp256k1::recover with a recovery id of 4 on secp256k1", [&] {
-        BOOST_TEST(secp::recover(crypto::ecdsa_sha256_recoverable, *recoverable, hash).error() ==
+        BOOST_TEST(secp::recover(crypto::ecdsa_sha256_recoverable, *bad_id, hash).error() ==
                    crypto::error::invalid_signature);
     });
 }
@@ -334,17 +339,23 @@ void cover_public_key_verify() {
         !BOOST_TEST(ecdsa.has_value())) {
         return;
     }
+    // The other scheme's signature, its bytes made into this scheme's type: it does not verify.
+    auto const schnorr_as_ecdsa = secp::ecdsa_signature::from_bytes(schnorr->bytes());
+    auto const ecdsa_as_schnorr = secp::schnorr_signature::from_bytes(ecdsa->bytes());
+    if (!BOOST_TEST(schnorr_as_ecdsa.has_value()) || !BOOST_TEST(ecdsa_as_schnorr.has_value())) {
+        return;
+    }
     covered("secp256k1::public_key::verify of ecdsa_sha256 on secp256k1", [&] {
         BOOST_TEST(public_key->verify(crypto::ecdsa_sha256, *ecdsa, hash).has_value());
     });
     covered("secp256k1::public_key::verify of schnorr on secp256k1",
             [&] { BOOST_TEST(public_key->verify(crypto::schnorr, *schnorr, hash).has_value()); });
     covered("secp256k1::public_key::verify of ecdsa_sha256 of another signature on secp256k1", [&] {
-        BOOST_TEST(public_key->verify(crypto::ecdsa_sha256, *schnorr, hash).error() ==
+        BOOST_TEST(public_key->verify(crypto::ecdsa_sha256, *schnorr_as_ecdsa, hash).error() ==
                    crypto::error::invalid_signature);
     });
     covered("secp256k1::public_key::verify of schnorr of another signature on secp256k1", [&] {
-        BOOST_TEST(public_key->verify(crypto::schnorr, *ecdsa, hash).error() ==
+        BOOST_TEST(public_key->verify(crypto::schnorr, *ecdsa_as_schnorr, hash).error() ==
                    crypto::error::invalid_signature);
     });
 }
@@ -455,7 +466,7 @@ void cover_low_s() {
     if (!BOOST_TEST(ecdsa.has_value())) {
         return;
     }
-    std::array<std::uint8_t, 64> const zero_signature{};
+    secp::ecdsa_signature const zero_signature{};
     covered("secp256k1::normalize_low_s on secp256k1",
             [&] { BOOST_TEST(secp::normalize_low_s(*ecdsa).has_value()); });
     covered("secp256k1::is_low_s on secp256k1", [&] { BOOST_TEST(secp::is_low_s(*ecdsa)); });

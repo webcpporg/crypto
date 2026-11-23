@@ -182,7 +182,7 @@ int main() {
         return 1;
     }
     std::printf("the aggregate signature verifies as one BIP 340 signature: %zu bytes\n",
-                signature->size());
+                signature->bytes().size());
     return 0;
 }
 

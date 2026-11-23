@@ -164,32 +164,34 @@ bool ed25519_case(std::mt19937_64& rng, std::size_t index) {
         return false;
     }
     auto const public_key = pair->public_key();
-    auto signature = pair->sign(crypto::eddsa, message);
+    auto const signed_message = pair->sign(crypto::eddsa, message);
     BOOST_TEST(public_key.has_value());
-    BOOST_TEST(signature.has_value());
-    if (!public_key || !signature) {
+    BOOST_TEST(signed_message.has_value());
+    if (!public_key || !signed_message) {
         return false;
     }
-    BOOST_TEST(crypto::verify(crypto::eddsa, *signature, message, *public_key).has_value());
+    BOOST_TEST(crypto::verify(crypto::eddsa, *signed_message, message, *public_key).has_value());
+    // The signature's bytes, as WebCrypto is given them.
+    auto signature = signed_message->bytes();
     if (corrupted && index == corrupted_ed25519) {
-        (*signature)[5] ^= 0x01U;
+        signature[5] ^= 0x01U;
     }
     std::array<std::uint8_t, 32> oracle_public_key{};
     std::array<std::uint8_t, 64> oracle_signature{};
     int verified = 0;
     auto const public_key_bytes = public_key->bytes();
     int const ran = subtle_ed25519(key_seed.data(), public_key_bytes.data(), message.data(),
-                                   message.size(), signature->data(), oracle_public_key.data(),
+                                   message.size(), signature.data(), oracle_public_key.data(),
                                    oracle_signature.data(), &verified);
     BOOST_TEST_EQ(ran, 0);
     bool const agrees = ran == 0 && verified == 1 && oracle_public_key == public_key_bytes &&
-                        oracle_signature == *signature;
+                        oracle_signature == signature;
     if (!agrees) {
         std::printf(
             "Ed25519 case %zu: WebCrypto disagrees (verified %d, public key %s, "
             "signature %s)\n",
             index, verified, oracle_public_key == public_key_bytes ? "equal" : "differs",
-            oracle_signature == *signature ? "equal" : "differs");
+            oracle_signature == signature ? "equal" : "differs");
     }
     return agrees;
 }

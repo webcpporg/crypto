@@ -55,7 +55,7 @@ bool sign_and_verify(secp256k1::keypair const& key, std::span<std::uint8_t const
         return false;
     }
     print("public key", public_key->xonly());
-    print("signature ", *signature);
+    print("signature ", signature->bytes());
     return crypto::verify(crypto::schnorr, *signature, message, *public_key).has_value();
 }
 

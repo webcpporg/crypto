@@ -73,7 +73,7 @@ void p256_calls() {
         BOOST_TEST(p256::from_der(std::span(der).first(*written)).has_value());
     }
     BOOST_TEST(p256::normalize_low_s(*signature).has_value());
-    BOOST_TEST(p256::is_low_s(data::rfc6979_test));
+    BOOST_TEST(p256::is_low_s(*signature));
     BOOST_TEST(pair->agree(*key).has_value());
     std::array<std::uint8_t, p256::max_spki_size> spki{};
     std::array<std::uint8_t, p256::max_pkcs8_size> pkcs8{};

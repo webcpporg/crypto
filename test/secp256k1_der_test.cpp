@@ -4,10 +4,11 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// secp256k1's ECDSA encodings: compact to strict DER and back for signatures of
-// sign(crypto::ecdsa_sha256, message), the strict decoder against Wycheproof's Bitcoin ECDSA
-// vectors (DER, counted per flag), every refusal of to_der, low-S normalization of a high-S
-// signature, and is_low_s's answer on each form and on numbers out of range.
+// secp256k1's ECDSA encodings, each taking or giving a secp256k1::ecdsa_signature: compact to
+// strict DER and back for signatures of sign(crypto::ecdsa_sha256, message), the strict decoder
+// against Wycheproof's Bitcoin ECDSA vectors (DER, counted per flag), every refusal of to_der,
+// low-S normalization of a high-S signature, and is_low_s's answer on each form and on numbers
+// out of range.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -40,6 +41,13 @@ namespace json = boost::json;
 namespace {
 
 using bytes = std::vector<std::uint8_t>;
+
+// The signature of 64 bytes, as one received is made.
+secp::ecdsa_signature typed(std::span<std::uint8_t const> signature_bytes) {
+    auto made = secp::ecdsa_signature::from_bytes(signature_bytes);
+    BOOST_TEST(made.has_value());
+    return made ? *made : secp::ecdsa_signature{};
+}
 
 std::array<std::uint8_t, 32> sha256(std::span<std::uint8_t const> data) {
     boost::hash2::sha2_256 hasher;
@@ -124,12 +132,12 @@ void to_der_refusals() {
     // r not below the group order, and a zero s, are not signatures.
     std::array<std::uint8_t, secp::max_der_size> out{};
     out.fill(0xa5);
-    auto overflowing = signature;
+    auto overflowing = signature.bytes();
     std::ranges::fill(std::span(overflowing).first(32), std::uint8_t{0xff});
-    BOOST_TEST(secp::to_der(overflowing, out).error() == crypto::error::invalid_signature);
-    auto zero_s = signature;
+    BOOST_TEST(secp::to_der(typed(overflowing), out).error() == crypto::error::invalid_signature);
+    auto zero_s = signature.bytes();
     std::ranges::fill(std::span(zero_s).last(32), std::uint8_t{0});
-    BOOST_TEST(secp::to_der(zero_s, out).error() == crypto::error::invalid_signature);
+    BOOST_TEST(secp::to_der(typed(zero_s), out).error() == crypto::error::invalid_signature);
     BOOST_TEST(std::ranges::all_of(out, [](std::uint8_t b) { return b == 0xa5; }));
 
     // The decoder refuses the empty input, which has no data to give libsecp256k1.
@@ -143,7 +151,7 @@ void normalization() {
     crypto::prehashed const digest{hash};
     auto const signature = *key.sign(crypto::ecdsa_sha256, digest);
     auto const public_key = *key.public_key();
-    auto const high = test::negate_s(signature);
+    auto const high = typed(test::negate_s(signature.bytes()));
     BOOST_TEST(high != signature);
     BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, high, digest, public_key).error() ==
                crypto::error::invalid_signature);
@@ -157,17 +165,18 @@ void normalization() {
     // Not a signature.
     std::array<std::uint8_t, 64> overflowing{};
     overflowing.fill(0xff);
-    BOOST_TEST(secp::normalize_low_s(overflowing).error() == crypto::error::invalid_signature);
+    BOOST_TEST(secp::normalize_low_s(typed(overflowing)).error() ==
+               crypto::error::invalid_signature);
 }
 
 // A compact signature of r and s, each a 32-byte big-endian number given in hex.
-std::array<std::uint8_t, 64> compact_of(std::string_view r_hex, std::string_view s_hex) {
+secp::ecdsa_signature compact_of(std::string_view r_hex, std::string_view s_hex) {
     std::array<std::uint8_t, 64> compact{};
     auto const r = test::from_hex(r_hex);
     auto const s = test::from_hex(s_hex);
     std::ranges::copy(r, compact.begin());
     std::ranges::copy(s, compact.begin() + 32);
-    return compact;
+    return typed(compact);
 }
 
 // is_low_s: true exactly when 0 < r < n and 0 < s <= (n - 1) / 2; the boundary on each side of
@@ -178,7 +187,7 @@ void low_s_answers() {
     hash.fill(0x51);
     auto const signature = *key.sign(crypto::ecdsa_sha256, crypto::prehashed{hash});
     BOOST_TEST(secp::is_low_s(signature));
-    BOOST_TEST(!secp::is_low_s(test::negate_s(signature)));
+    BOOST_TEST(!secp::is_low_s(typed(test::negate_s(signature.bytes()))));
     constexpr std::string_view one =
         "0000000000000000000000000000000000000000000000000000000000000001";
     constexpr std::string_view zero =
@@ -202,7 +211,7 @@ void low_s_answers() {
     BOOST_TEST(!secp::is_low_s(compact_of(one, order)));
     std::array<std::uint8_t, 64> all_ones{};
     all_ones.fill(0xff);
-    BOOST_TEST(!secp::is_low_s(all_ones));
+    BOOST_TEST(!secp::is_low_s(typed(all_ones)));
 }
 
 // How many of a flag's cases the strict decoder accepts.

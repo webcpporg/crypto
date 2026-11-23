@@ -25,7 +25,6 @@
 #include <boost/core/lightweight_test.hpp>
 #include <boost/json.hpp>
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -42,7 +41,7 @@ namespace p256 = webcpp::crypto::curves::p256;
 namespace test = webcpp::test;
 namespace json = boost::json;
 
-using signature = std::array<std::uint8_t, p256::signature_size>;
+using signature = p256::ecdsa_signature;
 
 json::value load(std::string const& name) {
     auto const text = test::read_file(WEBCPP_TEST_WYCHEPROOF "/testvectors_v1/" + name + ".json");
@@ -98,7 +97,7 @@ bool verified_both_ways(std::string const& name, json::value const& t, signature
     return verified;
 }
 
-// One file's cases: `decode` turns a case's signature into the raw form, or refuses it; a valid
+// One file's cases: `decode` turns a case's signature into its type, or refuses it; a valid
 // case must decode and verify, an invalid one must be refused at either step.
 template <class Decode>
 counts run(std::string const& name, Decode decode) {
@@ -142,18 +141,11 @@ counts run(std::string const& name, Decode decode) {
 }
 
 void p1363() {
-    // A signature of another size than 64 bytes is refused before crypto::verify, which takes
-    // 64.
-    auto const seen =
-        run("ecdsa_secp256r1_sha256_p1363_test",
-            [](std::vector<std::uint8_t> const& encoded) -> boost::system::result<signature> {
-                if (encoded.size() != p256::signature_size) {
-                    return crypto::error::invalid_signature;
-                }
-                signature value{};
-                std::ranges::copy(encoded, value.begin());
-                return value;
-            });
+    // A signature of another size than 64 bytes is refused by from_bytes, before crypto::verify,
+    // which takes the type.
+    auto const seen = run(
+        "ecdsa_secp256r1_sha256_p1363_test",
+        [](std::vector<std::uint8_t> const& encoded) { return signature::from_bytes(encoded); });
     BOOST_TEST_EQ(seen.total, 262);
     BOOST_TEST_EQ(seen.valid, 173);
     BOOST_TEST_EQ(seen.invalid, 89);

@@ -89,16 +89,16 @@ int main() {
     // member when it is initiated and completes through the loop, never inside the call.
     asio::io_context loop;
     auto const executor = loop.get_executor();
-    std::array<std::uint8_t, 64> async_signature{};
-    std::array<std::uint8_t, 64> free_async_signature{};
+    p256::ecdsa_signature async_signature;
+    p256::ecdsa_signature free_async_signature;
     key->async_sign(executor, crypto::ecdsa_sha256, message,
-                    [&](boost::system::error_code code, std::array<std::uint8_t, 64> made) {
+                    [&](boost::system::error_code code, p256::ecdsa_signature made) {
                         if (!code) {
                             async_signature = made;
                         }
                     });
     crypto::async_sign(executor, *key, crypto::ecdsa_sha256, message,
-                       [&](boost::system::error_code code, std::array<std::uint8_t, 64> made) {
+                       [&](boost::system::error_code code, p256::ecdsa_signature made) {
                            if (!code) {
                                free_async_signature = made;
                            }
@@ -109,7 +109,7 @@ int main() {
         std::printf("failed\n");
         return 1;
     }
-    print("signature", *signature);
+    print("signature", signature->bytes());
     report("sign: free", *free_signature == *signature);
     report("sign: async member", async_signature == *signature);
     report("sign: async free", free_async_signature == *signature);

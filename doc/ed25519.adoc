@@ -81,8 +81,9 @@ in the asynchronous forms. An asynchronous form needs
 that signs a large file reads it in pieces, gives each to `update`, and signs
 once at the end. Its type names the hash, `ph<webcpp::hash::sha2_512>`, which
 the header brings with it, since RFC 8032 fixes it; another hash does not
-compile. It signs with a key pair, `sign(key_pair)`, and verifies with
-`verify(signature, public_key)`, the signature first, as in every `verify`.
+compile. It signs with a key pair, `sign(key_pair)`, which gives a
+`curves::ed25519::signature`, and verifies with `verify(signature,
+public_key)`, the signature first and of that type, as in every `verify`.
 An Ed25519ph signature is not an Ed25519 signature of the
 same message, and neither verifies as the other: a protocol says which of the
 two it uses.

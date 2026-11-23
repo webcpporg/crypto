@@ -103,7 +103,7 @@ void expect_no_allocation_ed25519() {
         BOOST_TEST(signature.has_value());
         auto const verified = verify(*signature, message, *public_key);
         BOOST_TEST(verified.has_value());
-        std::array<std::uint8_t, 64> const forged{};
+        crypto::curves::ed25519::signature const forged{};
         BOOST_TEST(verify(forged, message, *public_key).error() ==
                    crypto::error::invalid_signature);
         auto signer = ph::begin();

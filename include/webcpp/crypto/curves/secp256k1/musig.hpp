@@ -20,6 +20,7 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
+#include <webcpp/crypto/detail/signature.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -566,11 +567,11 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
  * @param signature_parts Every signer's partial signature, at least one.
  * @param pointer_space At least `workspace_size(signature_parts.size())` bytes; zero when the
  * function returns, whatever it returns.
- * @return 64 bytes; `invalid_input_size` for no partial signatures or a short workspace;
- * `backend_failure`.
+ * @return The BIP 340 signature, a `curves::secp256k1::schnorr_signature`; `invalid_input_size`
+ * for no partial signatures or a short workspace; `backend_failure`.
  */
 template <class Backend = default_backend_t<families::secp256k1_musig>>
-[[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> partial_signature_aggregate(
+[[nodiscard]] boost::system::result<schnorr_signature> partial_signature_aggregate(
     session const& signing_session, std::span<partial_signature const> signature_parts,
     workspace pointer_space) noexcept {
     detail::timing_guard const timing_scope;
@@ -599,7 +600,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
                                         signature_parts.size()) == 0) {
         return error::backend_failure;
     }
-    return output_bytes;
+    return webcpp::crypto::detail::signature_access::of<schnorr_signature>(output_bytes);
 }
 
 /**

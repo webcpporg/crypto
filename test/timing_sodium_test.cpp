@@ -60,7 +60,7 @@ void sign_test_1() {
     }
     auto const signature = made->sign(webcpp::crypto::eddsa, std::span<std::uint8_t const>());
     if (BOOST_TEST(signature.has_value())) {
-        BOOST_TEST(std::ranges::equal(*signature, expected));
+        BOOST_TEST(std::ranges::equal(signature->bytes(), expected));
     }
 }
 

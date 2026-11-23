@@ -210,7 +210,7 @@ int sodium_ed25519() {
     auto const pair = crypto::curves::ed25519::basic_keypair<sodium>::from_secret(seed);
     auto const signature = pair->sign(crypto::eddsa, message);
     auto const kept = pair->secret();
-    return check(signature.has_value() && carries_mark<Checker>(*signature),
+    return check(signature.has_value() && carries_mark<Checker>(signature->bytes()),
                  "Ed25519 on libsodium") +
            check(kept.has_value() && carries_mark<Checker>(kept->bytes()),
                  "Ed25519's secret on libsodium");
@@ -419,13 +419,13 @@ int secp256k1_signing() {
     std::array<std::uint8_t, 32> tweak_bytes{};
     tweak_bytes.fill(0x24);
     auto const tweaked = pair->tweak_xonly(tweak_bytes);
-    return check(schnorr.has_value() && carries_mark<Checker>(*schnorr),
+    return check(schnorr.has_value() && carries_mark<Checker>(schnorr->bytes()),
                  "secp256k1's sign with schnorr") +
-           check(drawn.has_value() && carries_mark<Checker>(*drawn),
+           check(drawn.has_value() && carries_mark<Checker>(drawn->bytes()),
                  "secp256k1's sign with schnorr, its auxiliary randomness drawn") +
-           check(recoverable.has_value() && carries_mark<Checker>(*recoverable),
+           check(recoverable.has_value() && carries_mark<Checker>(recoverable->bytes()),
                  "secp256k1's sign with ecdsa_sha256_recoverable") +
-           check(hedged.has_value() && carries_mark<Checker>(*hedged),
+           check(hedged.has_value() && carries_mark<Checker>(hedged->bytes()),
                  "secp256k1's hedged sign with ecdsa_sha256") +
            check(tweaked.has_value(), "secp256k1's tweak_xonly");
 }
@@ -693,7 +693,7 @@ int bearssl_p256_sign() {
         return check(false, "P-256's sign on BearSSL");
     }
     int const failures =
-        check(carries_mark<Checker>(*signature), "P-256's sign on BearSSL, traced");
+        check(carries_mark<Checker>(signature->bytes()), "P-256's sign on BearSSL, traced");
     auto const low = p256::normalize_low_s(*signature);
     // Not const: the mark changes the object in the checker's shadow, so it is read again.
     // NOLINTNEXTLINE(misc-const-correctness): see above

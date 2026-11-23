@@ -232,12 +232,16 @@ void constant_time_equal_enters() {
 void p256_low_s_unguarded() {
     namespace p256 = webcpp::crypto::curves::p256;
     namespace data = webcpp::test::p256;
-    webcpp::test::uncovered("p256::normalize_low_s", [] {
-        auto const normalized = p256::normalize_low_s(data::rfc6979_sample);
-        BOOST_TEST(normalized.has_value() && *normalized == data::rfc6979_sample_low_s);
+    auto const sample = p256::ecdsa_signature::from_bytes(data::rfc6979_sample);
+    auto const test = p256::ecdsa_signature::from_bytes(data::rfc6979_test);
+    if (!BOOST_TEST(sample.has_value()) || !BOOST_TEST(test.has_value())) {
+        return;
+    }
+    webcpp::test::uncovered("p256::normalize_low_s", [&sample] {
+        auto const normalized = p256::normalize_low_s(*sample);
+        BOOST_TEST(normalized.has_value() && normalized->bytes() == data::rfc6979_sample_low_s);
     });
-    webcpp::test::uncovered("p256::is_low_s",
-                            [] { BOOST_TEST(p256::is_low_s(data::rfc6979_test)); });
+    webcpp::test::uncovered("p256::is_low_s", [&test] { BOOST_TEST(p256::is_low_s(*test)); });
 }
 
 // erase_secret calls no backend: it stores zeroes through detail::wipe, and holds no guard.

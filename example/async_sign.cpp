@@ -79,7 +79,7 @@ asio::awaitable<bool> sign_and_verify() {
         co_return false;
     }
     print("public key", public_key->bytes());
-    print("signature ", signature);
+    print("signature ", signature.bytes());
     // The verifier holds the public key, the message and the signature; nothing secret.
     auto [verified] = co_await crypto::async_verify(executor, crypto::eddsa, signature, message,
                                                     *public_key, use);

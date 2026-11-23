@@ -24,8 +24,9 @@
 //   without error, and of a changed digest with invalid_signature. A key pair of a backend that
 //   completes by itself (a stand-in whose detail::asynchronous_backend_v is true) signs a message
 //   and no digest, checked by crypto::can_sign without instantiating the key pair's class.
-// - async_verify_refused: a changed byte of the signature, a signature of 63 bytes and one whose
-//   r is 0 complete with invalid_signature.
+// - async_verify_refused: a changed byte of the signature and a signature whose r is 0 complete
+//   with invalid_signature; a signature of 63 bytes is refused by
+//   p256::ecdsa_signature::from_bytes, before any verify.
 // - async_generate: async_generate gives a key pair whose signature verifies, on the default
 //   backend and on BearSSL named.
 // - async_from_secret_refused: a scalar of 31 bytes completes with invalid_key_size, the group
@@ -38,9 +39,10 @@
 // - async_four_forms: each operation in its four forms (design D9), the member and the free,
 //   synchronous and asynchronous, gives the same result: from_secret (the same public key),
 //   generate (a key pair whose signature verifies), sign of a message and of prehashed{digest} (the
-//   same signature, RFC 6979's), verify (each accepts the signature and refuses a changed one with
-//   invalid_signature; each takes the signature as a std::vector, or 63 or 65 bytes,
-//   invalid_signature), agree (the same secret); and the refusals are the same, a short scalar's
+//   same signature, RFC 6979's, a p256::ecdsa_signature), verify (each accepts the signature,
+//   received as a std::vector and made into the type with from_bytes, and refuses a changed one
+//   with invalid_signature; from_bytes refuses 63 and 65 bytes with invalid_signature), agree (the
+//   same secret); and the refusals are the same, a short scalar's
 //   invalid_key_size and an empty key pair's invalid_state, each asynchronous completion arriving
 //   after the initiating call returned.
 // - async_member_deferred: key.async_sign with asio::deferred, of a crypto::prehashed{digest}
@@ -113,16 +115,25 @@ static_assert(!crypto::can_sign<p256::basic_keypair<stand_in_async_backend>, cry
                                 crypto::prehashed<32>>);
 static_assert(crypto::can_sign<p256::basic_keypair<stand_in_async_backend>, crypto::ecdsa_sha256_t,
                                std::span<std::uint8_t const>>);
-static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, crypto::prehashed<32>,
-                                  p256::basic_public_key<stand_in_async_backend>>);
-static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>,
-                                 p256::basic_public_key<stand_in_async_backend>>);
+static_assert(
+    !crypto::can_verify<crypto::ecdsa_sha256_t, p256::ecdsa_signature, crypto::prehashed<32>,
+                        p256::basic_public_key<stand_in_async_backend>>);
+static_assert(
+    crypto::can_verify<crypto::ecdsa_sha256_t, p256::ecdsa_signature, std::span<std::uint8_t const>,
+                       p256::basic_public_key<stand_in_async_backend>>);
 
 namespace {
 
 using keypair = p256::basic_keypair<crypto::backends::bearssl>;
 using public_key = p256::basic_public_key<crypto::backends::bearssl>;
-using signature_type = std::array<std::uint8_t, p256::signature_size>;
+using signature_type = p256::ecdsa_signature;
+
+// The signature of 64 bytes, as one received is made.
+signature_type typed(std::span<std::uint8_t const> signature_bytes) {
+    auto made = signature_type::from_bytes(signature_bytes);
+    BOOST_TEST(made.has_value());
+    return made ? *made : signature_type{};
+}
 
 // The number of cases of each Wycheproof file run through the asynchronous functions.
 constexpr int wycheproof_cases = 50;
@@ -218,7 +229,7 @@ completed<signature_type> sign_async(asio::io_context& context, keypair const& k
 
 boost::system::error_code verify_async(asio::io_context& context, public_key const& key,
                                        std::span<std::uint8_t const> message,
-                                       std::span<std::uint8_t const> signature) {
+                                       signature_type const& signature) {
     return complete_code(context, [&](auto const& executor, auto&& token) {
         return crypto::async_verify(executor, crypto::ecdsa_sha256, signature, message, key,
                                     std::forward<decltype(token)>(token));
@@ -253,14 +264,14 @@ void async_rfc6979(asio::io_context& context) {
             continue;
         }
         auto const& signature = std::get<0>(*signed_async.value);
-        BOOST_TEST(signature == expected);
+        BOOST_TEST(signature.bytes() == expected);
         auto const signed_sync =
             key->sign(crypto::ecdsa_sha256, crypto::prehashed{sha256(message)});
         BOOST_TEST(signed_sync.has_value() && *signed_sync == signature);
         BOOST_TEST(!verify_async(context, *own, message, signature));
     }
     // The RFC's own "sample" signature, whose S is high: accepted too.
-    BOOST_TEST(!verify_async(context, *own, bytes_of("sample"), data::rfc6979_sample));
+    BOOST_TEST(!verify_async(context, *own, bytes_of("sample"), typed(data::rfc6979_sample)));
 }
 
 json::value load(std::string const& name) {
@@ -284,19 +295,18 @@ void check_wycheproof_ecdsa_case(asio::io_context& context, public_key const& ke
     if (!BOOST_TEST_EQ(encoded.size(), p256::signature_size)) {
         return;
     }
-    std::span<std::uint8_t const, p256::signature_size> const signature(encoded.data(),
-                                                                        encoded.size());
+    auto const signature = typed(encoded);
     auto const verified_sync =
         crypto::verify(crypto::ecdsa_sha256, signature, crypto::prehashed{sha256(message)}, key);
     BOOST_TEST(verified_sync.has_value());
-    BOOST_TEST(!verify_async(context, key, message, encoded));
+    BOOST_TEST(!verify_async(context, key, message, signature));
     // A changed byte of the message: both refuse it.
     message.push_back(0);
     message.front() ^= 1U;
     BOOST_TEST(
         crypto::verify(crypto::ecdsa_sha256, signature, crypto::prehashed{sha256(message)}, key)
             .error() == crypto::error::invalid_signature);
-    BOOST_TEST(verify_async(context, key, message, encoded) == crypto::error::invalid_signature);
+    BOOST_TEST(verify_async(context, key, message, signature) == crypto::error::invalid_signature);
 }
 
 void async_wycheproof_ecdsa_group(asio::io_context& context, json::value const& group, int& run) {
@@ -433,14 +443,16 @@ void async_verify_refused(asio::io_context& context) {
     }
     auto const message = bytes_of("test");
     auto signature = data::rfc6979_test;
-    BOOST_TEST(!verify_async(context, *key, message, signature));
+    BOOST_TEST(!verify_async(context, *key, message, typed(signature)));
     signature[10] ^= 1U;
-    BOOST_TEST(verify_async(context, *key, message, signature) == crypto::error::invalid_signature);
+    BOOST_TEST(verify_async(context, *key, message, typed(signature)) ==
+               crypto::error::invalid_signature);
     signature[10] ^= 1U;
-    BOOST_TEST(verify_async(context, *key, message, std::span(signature).first(63)) ==
+    BOOST_TEST(signature_type::from_bytes(std::span(signature).first(63)).error() ==
                crypto::error::invalid_signature);
     std::fill_n(signature.begin(), p256::coordinate_size, std::uint8_t{0});
-    BOOST_TEST(verify_async(context, *key, message, signature) == crypto::error::invalid_signature);
+    BOOST_TEST(verify_async(context, *key, message, typed(signature)) ==
+               crypto::error::invalid_signature);
 }
 
 template <class Keypair>
@@ -494,7 +506,7 @@ void check_empty_keypair(asio::io_context& context, keypair const& empty, public
     auto const signed_empty = sign_async(context, empty, message);
     BOOST_TEST(signed_empty.code == crypto::error::invalid_state);
     if (BOOST_TEST(signed_empty.value.has_value())) {
-        BOOST_TEST(all_zero(std::get<0>(*signed_empty.value)));
+        BOOST_TEST(all_zero(std::get<0>(*signed_empty.value).bytes()));
     }
     auto const agreed_empty = agree_async(context, empty, peer);
     BOOST_TEST(agreed_empty.code == crypto::error::invalid_state);
@@ -560,7 +572,7 @@ void async_destroyed(asio::io_context& context) {
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST(!sign_code);
-    BOOST_TEST(signature == data::rfc6979_sample_low_s);
+    BOOST_TEST(signature.bytes() == data::rfc6979_sample_low_s);
     BOOST_TEST(!agree_code);
     BOOST_TEST(shared == expected_shared);
 }
@@ -596,7 +608,7 @@ asio::awaitable<void> coroutine_body(bool& done) {
     auto [sign_code, signature] = co_await crypto::async_sign(
         executor, key, crypto::ecdsa_sha256, message, asio::as_tuple(asio::use_awaitable));
     BOOST_TEST(!sign_code);
-    BOOST_TEST(signature == data::rfc6979_test);
+    BOOST_TEST(signature.bytes() == data::rfc6979_test);
     auto const own = key.public_key();
     if (!BOOST_TEST(own.has_value())) {
         co_return;
@@ -706,24 +718,23 @@ void check_four_signatures(asio::io_context& context, keypair const& key, Input 
     if (expected_code) {
         BOOST_TEST(member_sync.error() == expected_code);
         BOOST_TEST(free_sync.error() == expected_code);
-        BOOST_TEST(all_zero(std::get<0>(*member_async.value)));
-        BOOST_TEST(all_zero(std::get<0>(*free_async.value)));
+        BOOST_TEST(all_zero(std::get<0>(*member_async.value).bytes()));
+        BOOST_TEST(all_zero(std::get<0>(*free_async.value).bytes()));
         return;
     }
     if (!BOOST_TEST(member_sync.has_value()) || !BOOST_TEST(free_sync.has_value())) {
         return;
     }
-    BOOST_TEST(*member_sync == data::rfc6979_test);
+    BOOST_TEST(member_sync->bytes() == data::rfc6979_test);
     BOOST_TEST(*free_sync == *member_sync);
     BOOST_TEST(std::get<0>(*member_async.value) == *member_sync);
     BOOST_TEST(std::get<0>(*free_async.value) == *member_sync);
 }
 
-// verify in its four forms, of `input`: the same answer, the signature given to each as it is
-// given here (an array, a std::vector or a span).
-template <class Signature, class Input>
+// verify in its four forms, of `input`: the same answer.
+template <class Input>
 void check_four_verifications(asio::io_context& context, public_key const& key,
-                              Signature const& signature, Input const& input,
+                              signature_type const& signature, Input const& input,
                               boost::system::error_code expected_code) {
     auto const code_of = [](boost::system::result<void> const& done) {
         return done ? boost::system::error_code{} : done.error();
@@ -796,7 +807,7 @@ void async_member_deferred(asio::io_context& context) {
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST_EQ(calls, 1);
-    BOOST_TEST(signature == data::rfc6979_test);
+    BOOST_TEST(signature.bytes() == data::rfc6979_test);
 }
 
 void async_four_forms(asio::io_context& context) {
@@ -817,20 +828,25 @@ void async_four_forms(asio::io_context& context) {
     auto digest = sha256(message);
     check_four_signatures(context, *key, message, {});
     check_four_signatures(context, *key, crypto::prehashed{digest}, {});
-    check_four_verifications(context, *own, data::rfc6979_test, message, {});
-    check_four_verifications(context, *own, data::rfc6979_test, crypto::prehashed{digest}, {});
+    auto const rfc_test = typed(data::rfc6979_test);
+    check_four_verifications(context, *own, rfc_test, message, {});
+    check_four_verifications(context, *own, rfc_test, crypto::prehashed{digest}, {});
+    // The signature received as a std::vector, made into the type; 63 and 65 bytes are refused
+    // by from_bytes.
     std::vector<std::uint8_t> const received(data::rfc6979_test.begin(), data::rfc6979_test.end());
-    check_four_verifications(context, *own, received, message, {});
+    check_four_verifications(context, *own, typed(received), message, {});
     auto longer = received;
     longer.push_back(0);
-    check_four_verifications(context, *own, longer, message, crypto::error::invalid_signature);
-    check_four_verifications(context, *own, std::span<std::uint8_t const>(received).first(63),
-                             message, crypto::error::invalid_signature);
+    BOOST_TEST(signature_type::from_bytes(longer).error() == crypto::error::invalid_signature);
+    BOOST_TEST(
+        signature_type::from_bytes(std::span<std::uint8_t const>(received).first(63)).error() ==
+        crypto::error::invalid_signature);
     auto changed = data::rfc6979_test;
     changed[10] ^= 1U;
-    check_four_verifications(context, *own, changed, message, crypto::error::invalid_signature);
+    check_four_verifications(context, *own, typed(changed), message,
+                             crypto::error::invalid_signature);
     digest[0] ^= 1U;
-    check_four_verifications(context, *own, data::rfc6979_test, crypto::prehashed{digest},
+    check_four_verifications(context, *own, rfc_test, crypto::prehashed{digest},
                              crypto::error::invalid_signature);
     check_four_agreements(context, *key, *peer, {});
     [[maybe_unused]] keypair const taken(std::move(*key));

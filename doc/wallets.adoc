@@ -165,9 +165,9 @@ candidates; a recoverable signature adds the id, 0 to 3, of the one that
 verifies, so that a reader computes the signer's key from the signature and
 the hash alone. Ethereum finds a transaction's sender this way
 (link:https://ethereum.github.io/yellowpaper/paper.pdf[Ethereum's yellow paper,
-appendix F]). `sign(crypto::ecdsa_sha256_recoverable, input)` makes the 65
-bytes, and `recover(crypto::ecdsa_sha256_recoverable, signature, input)` finds
-the key (<<crypto-secp256k1-recovery>>). Recovery finds some key for almost any
+appendix F]). `sign(crypto::ecdsa_sha256_recoverable, input)` makes the
+65-byte `recoverable_signature`, and
+`recover(crypto::ecdsa_sha256_recoverable, signature, input)` finds the key (<<crypto-secp256k1-recovery>>). Recovery finds some key for almost any
 signature and any hash: what makes it a check is the comparison with the key
 the reader expects.
 

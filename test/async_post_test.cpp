@@ -29,7 +29,8 @@
 //   call returns, a bound executor, the handler's allocator, every token, an error's empty
 //   value.
 // - post_verify_*: the same cases through Ed25519's async_verify (no value), RFC 8032's test 2,
-//   and, for the value shapes, async_sign (an array) and async_agree (a secret<32>): never
+//   and, for the value shapes, async_sign (an ed25519::signature) and async_agree (a
+//   secret<32>): never
 //   inside the call, the work done when the call returns, a bound executor, the handler's
 //   allocator, every token, an error's empty value.
 // Each check takes the operation's start as a callable of (executor, token).
@@ -84,6 +85,7 @@ namespace {
 
 using key = crypto::secret<32>;
 using block = std::array<std::uint8_t, 64>;
+using signature_value = crypto::curves::ed25519::signature;
 
 // How many times a test-only operation's synchronous call has run.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): counted by the calls
@@ -792,17 +794,28 @@ struct verify_fixture {
     crypto::curves::ed25519::keypair key_pair =
         *crypto::curves::ed25519::keypair::from_secret(seed);
 
+    // The signature as it is received, made into its type when the operation is made; value(): a
+    // signature not made throws, or ends the program without exceptions.
+    [[nodiscard]] crypto::curves::ed25519::signature typed_signature() const {
+        return crypto::curves::ed25519::signature::from_bytes(signature).value();
+    }
+
     auto verify() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_verify(executor, crypto::eddsa, signature, message, public_key,
-                                        std::forward<decltype(token)>(token));
+            return crypto::async_verify(executor, crypto::eddsa, typed_signature(), message,
+                                        public_key, std::forward<decltype(token)>(token));
         };
     }
 
+    // A signature with a changed byte, which does not verify.
     auto verify_refused() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_verify(executor, crypto::eddsa, std::span(signature).first(63),
-                                        message, public_key, std::forward<decltype(token)>(token));
+            auto changed = typed_signature().bytes();
+            ++changed[3];
+            return crypto::async_verify(
+                executor, crypto::eddsa,
+                crypto::curves::ed25519::signature::from_bytes(changed).value(), message,
+                public_key, std::forward<decltype(token)>(token));
         };
     }
 
@@ -861,10 +874,10 @@ void post_verify_inline(asio::io_context& context) {
     --fixture.signature[3];
     auto const short_signature = complete_later<>(context, fixture.verify_refused());
     BOOST_TEST(short_signature.code == crypto::error::invalid_signature);
-    // The value shapes: a signature (an array) and a shared secret, and an error's empty value.
-    auto const signed_message = complete_later<block>(context, fixture.sign());
+    // The value shapes: a signature and a shared secret, and an error's empty value.
+    auto const signed_message = complete_later<signature_value>(context, fixture.sign());
     BOOST_TEST(!signed_message.code);
-    BOOST_TEST(std::ranges::equal(std::get<0>(signed_message.value), fixture.signature));
+    BOOST_TEST(std::ranges::equal(std::get<0>(signed_message.value).bytes(), fixture.signature));
     auto const agreed = complete_later<key>(context, fixture.agree());
     BOOST_TEST(!agreed.code);
     auto const agree_refused = complete_later<key>(context, fixture.agree_refused());
@@ -875,7 +888,7 @@ void post_verify_inline(asio::io_context& context) {
 void post_verify_bound_executor() {
     verify_fixture fixture;
     complete_on_bound<>(fixture.verify());
-    complete_on_bound<block>(fixture.sign());
+    complete_on_bound<signature_value>(fixture.sign());
     complete_on_bound<key>(fixture.agree());
 }
 
@@ -922,11 +935,11 @@ void post_verify_tokens(asio::io_context& context) {
 #endif
 
     // deferred: the synchronous call runs when the operation is launched, not when it is made.
-    ++fixture.signature[0];
+    ++fixture.message[0];
     auto operation = fixture.verify()(executor, asio::deferred);
-    --fixture.signature[0];
+    --fixture.message[0];
     int deferred_calls = 0;
-    // The signature is intact again when the operation is launched: the call reads it then.
+    // The message is intact again when the operation is launched: the call reads it then.
     std::move(operation)([&](boost::system::error_code code) {
         ++deferred_calls;
         BOOST_TEST(!code);
@@ -965,7 +978,7 @@ void post_verify_tokens(asio::io_context& context) {
             auto [sign_code, signature] =
                 co_await fixture.sign()(coro, asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(!sign_code);
-            BOOST_TEST(std::ranges::equal(signature, fixture.signature));
+            BOOST_TEST(std::ranges::equal(signature.bytes(), fixture.signature));
             auto [refused_code] =
                 co_await fixture.verify_refused()(coro, asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(refused_code == crypto::error::invalid_signature);

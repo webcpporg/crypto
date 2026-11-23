@@ -8,9 +8,11 @@
  What every curve's signing shares (design D1 to D3): the scheme tags, `eddsa`, `ecdsa_sha256`,
  `ecdsa_sha256_recoverable` and `schnorr`, and the library's one list of them,
  `detail::all_schemes`; the marker of a digest, `prehashed{digest}`; the
- concepts `can_sign` and `can_verify`, which say which key, scheme and input go together; the
- free synchronous `sign(key_pair, scheme, input)`, the key pair's `sign` (design D9); and the
- catch-alls of `sign` and `verify`, which stop the build with what goes together.
+ concepts `can_sign` and `can_verify`, which say which key, scheme, signature and input go
+ together; the free synchronous `sign(key_pair, scheme, input)`, the key pair's `sign` (design
+ D9); `detail::check_signature`, which stops a `verify` or a `recover` given a signature of
+ another curve or scheme, naming the type expected (design R1); and the catch-alls of `sign` and
+ `verify`, which stop the build with what goes together.
 
  A signature's input is a message, any bytes that convert to `std::span<std::uint8_t const>`, of
  any size, empty included, or a digest marked as one, `prehashed{digest}`: no call tells the two
@@ -447,6 +449,65 @@ template <class Input>
     return digest_bytes;
 }
 
+struct ed25519_signature_tag;
+struct p256_ecdsa_signature_tag;
+struct secp256k1_ecdsa_signature_tag;
+struct secp256k1_recoverable_signature_tag;
+struct secp256k1_schnorr_signature_tag;
+
+/**
+ * The verifier of `curves::ed25519::ph`, Ed25519ph's streaming signer, for `check_signature`: it
+ * has no scheme tag of its own. Declared only.
+ */
+struct ed25519ph_verifier_t;
+
+/**
+ * Stops the build when `Signature` is not `Expected`, the signature type `Verifier` takes, with
+ * the message that names the type expected and how to make one from bytes, and does nothing when
+ * it is: every `verify` and `recover`, member and free, synchronous and asynchronous, calls it
+ * before it reads the signature. The text is the verifier's: a static assertion's message is a
+ * literal, so each verifier has its own branch.
+ *
+ * @tparam Expected The signature type of the key and scheme: a `basic_signature`.
+ * @tparam Signature The type given, without its reference and qualifiers.
+ * @tparam Verifier The scheme tag the call verifies or recovers under, or
+ * `ed25519ph_verifier_t` for Ed25519ph's streaming signer.
+ */
+template <class Expected, class Signature, class Verifier>
+constexpr void check_signature() noexcept {
+    constexpr bool signature_matches = std::is_same_v<Expected, Signature>;
+    if constexpr (std::is_same_v<Verifier, ed25519ph_verifier_t>) {
+        static_assert(signature_matches,
+                      "webcpp::crypto: verify: Ed25519ph verifies a curves::ed25519::signature: "
+                      "make one from 64 bytes with curves::ed25519::signature::from_bytes.");
+    } else if constexpr (std::is_same_v<Verifier, eddsa_t>) {
+        static_assert(signature_matches,
+                      "webcpp::crypto: verify: an Ed25519 key verifies a "
+                      "curves::ed25519::signature under crypto::eddsa: make one from 64 bytes "
+                      "with curves::ed25519::signature::from_bytes.");
+    } else if constexpr (std::is_same_v<Verifier, schnorr_t>) {
+        static_assert(signature_matches,
+                      "webcpp::crypto: verify: crypto::schnorr verifies a "
+                      "curves::secp256k1::schnorr_signature: make one from 64 bytes with "
+                      "curves::secp256k1::schnorr_signature::from_bytes.");
+    } else if constexpr (std::is_same_v<Verifier, ecdsa_sha256_recoverable_t>) {
+        static_assert(signature_matches,
+                      "webcpp::crypto: recover takes a curves::secp256k1::recoverable_signature: "
+                      "make one from 65 bytes with "
+                      "curves::secp256k1::recoverable_signature::from_bytes.");
+    } else if constexpr (std::is_same_v<Expected, basic_signature<p256_ecdsa_signature_tag, 64>>) {
+        static_assert(signature_matches,
+                      "webcpp::crypto: verify: a P-256 key verifies a "
+                      "curves::p256::ecdsa_signature: make one from 64 bytes with "
+                      "curves::p256::ecdsa_signature::from_bytes.");
+    } else {
+        static_assert(signature_matches,
+                      "webcpp::crypto: verify: a secp256k1 key verifies a "
+                      "curves::secp256k1::ecdsa_signature under crypto::ecdsa_sha256: make one "
+                      "from 64 bytes with curves::secp256k1::ecdsa_signature::from_bytes.");
+    }
+}
+
 /**
  * Whether a curve gives `crypto::verify` of `Scheme` for the public key `Key`: false here; each
  * curve specialises it for its own keys, and the catch-all `verify` steps aside where it is true.
@@ -475,17 +536,21 @@ concept can_sign =
                           typename detail::key_backend<std::remove_cvref_t<Keypair>>::type>;
 
 /**
- * Whether `crypto::verify` checks a signature of `Scheme` over `Input` against `PublicKey`: when
- * the key's curve has the scheme and the input is a message, or a marker of the scheme's digest
- * size on a backend that verifies one.
+ * Whether `crypto::verify` checks a signature of the type `Signature` and of `Scheme` over `Input`
+ * against `PublicKey`: when the key's curve has the scheme, the signature is the type of the
+ * key's curve and scheme (`curves::p256::ecdsa_signature` for a P-256 key, ...), and the input is
+ * a message, or a marker of the scheme's digest size on a backend that verifies one.
  *
  * @tparam Scheme A scheme tag.
+ * @tparam Signature The signature's type.
  * @tparam Input The input's type: a message, or `prehashed<N>`.
  * @tparam PublicKey The public key's type, a curve's type or bytes.
  */
-template <class Scheme, class Input, class PublicKey>
+template <class Scheme, class Signature, class Input, class PublicKey>
 concept can_verify =
     detail::verifies_with_v<std::remove_cvref_t<PublicKey>, Scheme> &&
+    std::is_same_v<std::remove_cvref_t<Signature>,
+                   detail::signature_of_t<std::remove_cvref_t<PublicKey>, Scheme>> &&
     detail::input_valid_v<Scheme, std::remove_cvref_t<Input>,
                           typename detail::key_backend<std::remove_cvref_t<PublicKey>>::type>;
 
@@ -581,7 +646,7 @@ template <class Keypair, class Scheme, class Input, class... Extra>
  * @tparam Input The input's type.
  * @tparam PublicKey The public key's type.
  * @param signing_scheme The scheme.
- * @param signature_bytes The signature.
+ * @param signature_value The signature.
  * @param signing_input The message or the marker.
  * @param public_key The public key.
  * @return Never: the call does not compile.
@@ -590,7 +655,7 @@ template <class Scheme, class Signature, class Input, class PublicKey>
     requires(detail::is_scheme_v<Scheme> &&
              !detail::has_verifier_v<Scheme, std::remove_cvref_t<PublicKey>>)
 [[nodiscard]] boost::system::result<void> verify(
-    [[maybe_unused]] Scheme signing_scheme, [[maybe_unused]] Signature const& signature_bytes,
+    [[maybe_unused]] Scheme signing_scheme, [[maybe_unused]] Signature const& signature_value,
     [[maybe_unused]] Input const& signing_input,
     [[maybe_unused]] PublicKey const& public_key) noexcept {
     static_assert(detail::refused_v<Scheme>,

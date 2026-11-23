@@ -139,7 +139,7 @@ void check_input(json::value const& input, int index) {
         BOOST_TEST_EQ(hash_type, 0);
     }
     if (!signature || witness.size() < 64 ||
-        !std::ranges::equal(*signature, std::span(witness).first(64))) {
+        !std::ranges::equal(signature->bytes(), std::span(witness).first(64))) {
         fail("keyPathSpending input " + std::to_string(index) + ": signature differs");
     }
     BOOST_TEST(signature && crypto::verify(crypto::schnorr, *signature, sighash, output->key));

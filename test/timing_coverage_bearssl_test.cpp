@@ -186,23 +186,28 @@ void cover_p256_verify() {
     namespace p256 = crypto::curves::p256;
     namespace data = webcpp::test::p256;
     auto const key = p256::basic_public_key<bearssl>::from_bytes(data::rfc6979_public);
-    if (!BOOST_TEST(key.has_value())) {
+    auto const test = p256::ecdsa_signature::from_bytes(data::rfc6979_test);
+    auto zero_r_bytes = data::rfc6979_test;
+    std::fill_n(zero_r_bytes.begin(), 32, std::uint8_t{0});
+    auto const zero_r = p256::ecdsa_signature::from_bytes(zero_r_bytes);
+    if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(test.has_value()) ||
+        !BOOST_TEST(zero_r.has_value())) {
         return;
     }
-    webcpp::test::covered("p256 crypto::verify of a message on bearssl", "crypto::verify", [&key] {
-        BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, data::rfc6979_test, p256_test_message, *key)
-                       .has_value());
-    });
-    webcpp::test::covered("p256 crypto::verify of a digest on bearssl", "crypto::verify", [&key] {
-        BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, data::rfc6979_test,
-                                  crypto::prehashed{p256_test_digest}, *key)
-                       .has_value());
-    });
-    auto zero_r = data::rfc6979_test;
-    std::fill_n(zero_r.begin(), 32, std::uint8_t{0});
+    webcpp::test::covered(
+        "p256 crypto::verify of a message on bearssl", "crypto::verify", [&key, &test] {
+            BOOST_TEST(
+                crypto::verify(crypto::ecdsa_sha256, *test, p256_test_message, *key).has_value());
+        });
+    webcpp::test::covered("p256 crypto::verify of a digest on bearssl", "crypto::verify",
+                          [&key, &test] {
+                              BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, *test,
+                                                        crypto::prehashed{p256_test_digest}, *key)
+                                             .has_value());
+                          });
     webcpp::test::covered("p256 crypto::verify of r = 0 on bearssl", "crypto::verify",
                           [&key, &zero_r] {
-                              BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, zero_r,
+                              BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, *zero_r,
                                                         crypto::prehashed{p256_test_digest}, *key)
                                              .error() == crypto::error::invalid_signature);
                           });
@@ -214,22 +219,23 @@ void cover_p256_public_key_verify() {
     namespace p256 = crypto::curves::p256;
     namespace data = webcpp::test::p256;
     auto const key = p256::basic_public_key<bearssl>::from_bytes(data::rfc6979_public);
-    if (!BOOST_TEST(key.has_value())) {
+    auto const test = p256::ecdsa_signature::from_bytes(data::rfc6979_test);
+    auto zero_r_bytes = data::rfc6979_test;
+    std::fill_n(zero_r_bytes.begin(), 32, std::uint8_t{0});
+    auto const zero_r = p256::ecdsa_signature::from_bytes(zero_r_bytes);
+    if (!BOOST_TEST(key.has_value()) || !BOOST_TEST(test.has_value()) ||
+        !BOOST_TEST(zero_r.has_value())) {
         return;
     }
-    webcpp::test::covered("p256::basic_public_key::verify of a message on bearssl", [&key] {
-        BOOST_TEST(
-            key->verify(crypto::ecdsa_sha256, data::rfc6979_test, p256_test_message).has_value());
+    webcpp::test::covered("p256::basic_public_key::verify of a message on bearssl", [&key, &test] {
+        BOOST_TEST(key->verify(crypto::ecdsa_sha256, *test, p256_test_message).has_value());
     });
-    webcpp::test::covered("p256::basic_public_key::verify of a digest on bearssl", [&key] {
-        BOOST_TEST(key->verify(crypto::ecdsa_sha256, data::rfc6979_test,
-                               crypto::prehashed{p256_test_digest})
+    webcpp::test::covered("p256::basic_public_key::verify of a digest on bearssl", [&key, &test] {
+        BOOST_TEST(key->verify(crypto::ecdsa_sha256, *test, crypto::prehashed{p256_test_digest})
                        .has_value());
     });
-    auto zero_r = data::rfc6979_test;
-    std::fill_n(zero_r.begin(), 32, std::uint8_t{0});
     webcpp::test::covered("p256::basic_public_key::verify of r = 0 on bearssl", [&key, &zero_r] {
-        BOOST_TEST(key->verify(crypto::ecdsa_sha256, zero_r, crypto::prehashed{p256_test_digest})
+        BOOST_TEST(key->verify(crypto::ecdsa_sha256, *zero_r, crypto::prehashed{p256_test_digest})
                        .error() == crypto::error::invalid_signature);
     });
 }
@@ -269,7 +275,7 @@ void cover_p256_free_forms() {
     }
     webcpp::test::covered("p256 crypto::sign on bearssl", "crypto::sign", [&made] {
         auto const signature = crypto::sign(*made, crypto::ecdsa_sha256, p256_test_message);
-        BOOST_TEST(signature.has_value() && *signature == data::rfc6979_test);
+        BOOST_TEST(signature.has_value() && signature->bytes() == data::rfc6979_test);
     });
     webcpp::test::covered("p256 crypto::agree on bearssl", "crypto::agree",
                           [&made, &peer] { BOOST_TEST(crypto::agree(*made, *peer).has_value()); });
@@ -291,20 +297,24 @@ void cover_p256_der() {
     namespace p256 = crypto::curves::p256;
     namespace data = webcpp::test::p256;
     std::array<std::uint8_t, p256::max_der_size> der{};
-    webcpp::test::covered("p256::to_der on bearssl", [&der] {
-        BOOST_TEST(p256::to_der<bearssl>(data::rfc6979_test, der).has_value());
+    auto const test = p256::ecdsa_signature::from_bytes(data::rfc6979_test);
+    if (!BOOST_TEST(test.has_value())) {
+        return;
+    }
+    webcpp::test::covered("p256::to_der on bearssl", [&der, &test] {
+        BOOST_TEST(p256::to_der<bearssl>(*test, der).has_value());
     });
-    webcpp::test::covered("p256::to_der into 71 bytes on bearssl", [&der] {
-        BOOST_TEST(p256::to_der<bearssl>(data::rfc6979_test, std::span(der).first(71)).error() ==
+    webcpp::test::covered("p256::to_der into 71 bytes on bearssl", [&der, &test] {
+        BOOST_TEST(p256::to_der<bearssl>(*test, std::span(der).first(71)).error() ==
                    crypto::error::invalid_input_size);
     });
-    auto const encoded = p256::to_der<bearssl>(data::rfc6979_test, der);
+    auto const encoded = p256::to_der<bearssl>(*test, der);
     if (!BOOST_TEST(encoded.has_value())) {
         return;
     }
-    webcpp::test::covered("p256::from_der on bearssl", [&der, &encoded] {
+    webcpp::test::covered("p256::from_der on bearssl", [&der, &encoded, &test] {
         auto const decoded = p256::from_der<bearssl>(std::span(der).first(*encoded));
-        BOOST_TEST(decoded.has_value() && *decoded == data::rfc6979_test);
+        BOOST_TEST(decoded.has_value() && *decoded == *test);
     });
     webcpp::test::covered("p256::from_der of nothing on bearssl", [] {
         BOOST_TEST(p256::from_der<bearssl>({}).error() == crypto::error::invalid_signature);
@@ -323,13 +333,13 @@ void cover_p256_ecdsa() {
     webcpp::test::covered(
         "p256::basic_keypair::sign of a message on bearssl", "p256::basic_keypair::sign", [&made] {
             auto const signature = made->sign(crypto::ecdsa_sha256, p256_test_message);
-            BOOST_TEST(signature.has_value() && *signature == data::rfc6979_test);
+            BOOST_TEST(signature.has_value() && signature->bytes() == data::rfc6979_test);
         });
     webcpp::test::covered(
         "p256::basic_keypair::sign of a digest on bearssl", "p256::basic_keypair::sign", [&made] {
             auto const signature =
                 made->sign(crypto::ecdsa_sha256, crypto::prehashed{p256_test_digest});
-            BOOST_TEST(signature.has_value() && *signature == data::rfc6979_test);
+            BOOST_TEST(signature.has_value() && signature->bytes() == data::rfc6979_test);
         });
     cover_p256_sign_moved_from(p256_test_digest);
     cover_p256_verify();
@@ -396,7 +406,7 @@ void cover_p256_formats() {
 }
 
 // P-256's asynchronous functions, each with valid input and with input refused before BearSSL (a
-// scalar of 31 bytes, a signature of 63 bytes, a moved-from key pair), an io_context run after
+// scalar of 31 bytes, a signature whose r is 0, a moved-from key pair), an io_context run after
 // each call so that its completion is delivered. The first guard each enters is its own (the
 // synchronous call it makes holds others, which run after).
 void cover_async_p256() {
@@ -404,7 +414,7 @@ void cover_async_p256() {
     namespace data = webcpp::test::p256;
     using keypair = p256::basic_keypair<bearssl>;
     using public_key = p256::basic_public_key<bearssl>;
-    using signature_type = std::array<std::uint8_t, p256::signature_size>;
+    using signature_type = p256::ecdsa_signature;
     webcpp::asio::io_context context;
     auto const executor = context.get_executor();
     std::array<std::uint8_t, 3> const message{1, 2, 3};
@@ -453,7 +463,12 @@ void cover_async_p256() {
     });
     auto made = keypair::from_secret(data::rfc6979_scalar);
     auto const key = public_key::from_bytes(data::rfc6979_public);
-    if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(key.has_value())) {
+    auto const rfc_test = signature_type::from_bytes(data::rfc6979_test);
+    auto zero_r_bytes = data::rfc6979_test;
+    std::fill_n(zero_r_bytes.begin(), 32, std::uint8_t{0});
+    auto const zero_r = signature_type::from_bytes(zero_r_bytes);
+    if (!BOOST_TEST(made.has_value()) || !BOOST_TEST(key.has_value()) ||
+        !BOOST_TEST(rfc_test.has_value()) || !BOOST_TEST(zero_r.has_value())) {
         return;
     }
     webcpp::test::covered("p256::async_sign on bearssl", "crypto::async_sign", [&] {
@@ -470,13 +485,12 @@ void cover_async_p256() {
         deliver();
     });
     webcpp::test::covered("p256::async_verify of a digest on bearssl", "crypto::async_verify", [&] {
-        crypto::async_verify(executor, crypto::ecdsa_sha256, data::rfc6979_test,
+        crypto::async_verify(executor, crypto::ecdsa_sha256, *rfc_test,
                              crypto::prehashed{p256_test_digest}, *key, counted);
         deliver();
     });
-    webcpp::test::covered("p256::async_verify of 63 bytes on bearssl", "crypto::async_verify", [&] {
-        crypto::async_verify(executor, crypto::ecdsa_sha256, std::span(kept).first(63), message,
-                             *key, counted);
+    webcpp::test::covered("p256::async_verify of r = 0 on bearssl", "crypto::async_verify", [&] {
+        crypto::async_verify(executor, crypto::ecdsa_sha256, *zero_r, message, *key, counted);
         deliver();
     });
     webcpp::test::covered("p256::async_agree on bearssl", "crypto::async_agree", [&] {
@@ -497,13 +511,12 @@ void cover_async_p256() {
         deliver();
     });
     webcpp::test::covered("p256::basic_public_key::async_verify of a digest on bearssl", [&] {
-        key->async_verify(executor, crypto::ecdsa_sha256, data::rfc6979_test,
+        key->async_verify(executor, crypto::ecdsa_sha256, *rfc_test,
                           crypto::prehashed{p256_test_digest}, counted);
         deliver();
     });
-    webcpp::test::covered("p256::basic_public_key::async_verify of 63 bytes on bearssl", [&] {
-        key->async_verify(executor, crypto::ecdsa_sha256, std::span(kept).first(63), message,
-                          counted);
+    webcpp::test::covered("p256::basic_public_key::async_verify of r = 0 on bearssl", [&] {
+        key->async_verify(executor, crypto::ecdsa_sha256, *zero_r, message, counted);
         deliver();
     });
     webcpp::test::covered("p256::basic_keypair::async_agree on bearssl", [&] {

@@ -206,15 +206,18 @@ public_key, token)` do the same through a completion, with the same inputs
 (<<crypto-async>>).
 
 A signature has two forms. The *raw* form, 64 bytes, r then s at 32 bytes each
-(link:https://standards.ieee.org/ieee/1363/2049/[IEEE 1363]), is the one
-`sign` gives and `crypto::verify` takes: what WebCrypto signs and verifies
+(link:https://standards.ieee.org/ieee/1363/2049/[IEEE 1363]), is the one a
+`curves::p256::ecdsa_signature` holds, which `sign` gives and `crypto::verify`
+takes, and `ecdsa_signature::from_bytes` makes from 64 bytes received: what
+WebCrypto signs and verifies
 (link:https://www.w3.org/TR/WebCryptoAPI/[W3C]) and what a JSON Web Token's
 ES256 carries (link:https://www.rfc-editor.org/rfc/rfc7518#section-3.4[RFC
 7518, section 3.4]). *DER*, 8 to 72 bytes: a SEQUENCE of two INTEGERs, is the
 form of X.509 certificates and OpenSSL
 (link:https://www.rfc-editor.org/rfc/rfc3279#section-2.2.3[RFC 3279, section
 2.2.3]): `to_der(signature, output)` writes it into at least `max_der_size`
-bytes and returns its length, and `from_der(bytes)` reads it back, accepting
+bytes and returns its length, and `from_der(bytes)` reads it back into an
+`ecdsa_signature`, accepting
 strict DER only, the encoding `to_der` writes, and refusing anything else with
 `invalid_signature`.
 

@@ -7,9 +7,11 @@
 // The five signature types (design D1): each is made from bytes of its own size alone, by its
 // from_bytes and by crypto::from_bytes, gives them back unchanged through bytes(), and refuses one
 // byte fewer or more with invalid_signature; recoverable_signature gives its last byte as the
-// recovery id, which no other type has. Each is a regular value type, and none converts to or is
-// made from another of them or bytes. detail::signature_of names each curve's type for its key
-// pairs and public keys under each scheme they sign or verify, and void for any other pair.
+// recovery id, which no other type has; detail::signature_access::of, the library's way from a
+// backend's bytes, keeps them as from_bytes does. Each is a regular value type, and none converts
+// to or is made from another of them or bytes. detail::signature_of names each curve's type for
+// its key pairs and public keys under each scheme they sign or verify, and void for any other
+// pair.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
@@ -162,6 +164,16 @@ void round_trips() {
     Signature const zero_value{};
     BOOST_TEST(
         std::ranges::all_of(zero_value.bytes(), [](std::uint8_t byte) { return byte == 0; }));
+    // The library's own way from a backend's bytes, detail::signature_access::of, keeps them as
+    // from_bytes does, and gives them back through bytes().
+    std::array<std::uint8_t, Signature::size> backend_bytes{};
+    std::ranges::copy(wire_bytes, backend_bytes.begin());
+    auto const of_backend = crypto::detail::signature_access::of<Signature>(backend_bytes);
+    BOOST_TEST(of_backend.bytes() == backend_bytes);
+    BOOST_TEST(made.has_value() && of_backend == *made);
+    static_assert(
+        std::is_same_v<decltype(crypto::detail::signature_access::of<Signature>(backend_bytes)),
+                       Signature>);
 }
 
 template <class... Signatures>

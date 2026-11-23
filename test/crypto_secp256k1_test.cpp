@@ -26,9 +26,10 @@ namespace secp = webcpp::crypto::curves::secp256k1;
 static_assert(std::is_same_v<secp::keypair::backend_type, webcpp::crypto::backends::secp256k1>);
 static_assert(webcpp::crypto::can_sign<secp::keypair, webcpp::crypto::schnorr_t,
                                        std::span<std::uint8_t const>>);
-static_assert(webcpp::crypto::can_verify<webcpp::crypto::schnorr_t, std::span<std::uint8_t const>,
-                                         std::array<std::uint8_t, 32>>);
-static_assert(webcpp::crypto::can_verify<webcpp::crypto::ecdsa_sha256_t,
+static_assert(
+    webcpp::crypto::can_verify<webcpp::crypto::schnorr_t, secp::schnorr_signature,
+                               std::span<std::uint8_t const>, std::array<std::uint8_t, 32>>);
+static_assert(webcpp::crypto::can_verify<webcpp::crypto::ecdsa_sha256_t, secp::ecdsa_signature,
                                          std::span<std::uint8_t const>, secp::public_key>);
 static_assert(std::is_function_v<decltype(secp::normalize_low_s<>)>);
 static_assert(std::is_function_v<decltype(secp::is_low_s<>)>);

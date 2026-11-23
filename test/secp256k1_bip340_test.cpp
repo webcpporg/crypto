@@ -78,8 +78,8 @@ void check_signing(std::vector<std::string> const& f, std::vector<std::uint8_t> 
     BOOST_TEST(public_key.has_value() && std::ranges::equal(public_key->xonly(), pub));
     auto const made = key->sign(crypto::schnorr, message, std::span<std::uint8_t const, 32>(aux));
     BOOST_TEST(made.has_value());
-    if (made.has_value() && !std::ranges::equal(*made, signature)) {
-        fail("row " + f[0] + ": signature differs: " + test::to_hex(*made));
+    if (made.has_value() && !std::ranges::equal(made->bytes(), signature)) {
+        fail("row " + f[0] + ": signature differs: " + test::to_hex(made->bytes()));
     }
 }
 
@@ -101,8 +101,8 @@ void check_row(std::vector<std::string> const& f, tally& t) {
         check_signing(f, pub, message, signature);
     }
     auto const result =
-        crypto::verify(crypto::schnorr, std::span<std::uint8_t const, 64>(signature), message,
-                       std::span<std::uint8_t const, 32>(pub));
+        crypto::verify(crypto::schnorr, secp::schnorr_signature::from_bytes(signature).value(),
+                       message, std::span<std::uint8_t const, 32>(pub));
     if (f[6] == "TRUE") {
         ++t.accepted;
         BOOST_TEST(result.has_value());

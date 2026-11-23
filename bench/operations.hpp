@@ -186,7 +186,7 @@ public:
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
                     "from_secret")) {}
 
-    std::uint8_t run() { return take(key_.sign(schnorr, message_, aux_), "sign")[0]; }
+    std::uint8_t run() { return take(key_.sign(schnorr, message_, aux_), "sign").bytes()[0]; }
 
     bool check() {
         auto const signature = take(key_.sign(schnorr, message_, aux_), "sign");
@@ -267,7 +267,7 @@ public:
 private:
     std::array<std::uint8_t, 32> hash_{};
     curves::secp256k1::basic_keypair<Backend> key_;
-    std::array<std::uint8_t, curves::secp256k1::recoverable_signature_size> signature_{};
+    curves::secp256k1::recoverable_signature signature_;
 };
 
 // BIP 324's shared secret of a key pair and a peer, each known by its ElligatorSwift encoding.
@@ -335,7 +335,7 @@ public:
                        "from_secret")),
           signers_key_(aggregate(first_, second_, space_)) {}
 
-    std::uint8_t run() { return sign()[0]; }
+    std::uint8_t run() { return sign().bytes()[0]; }
 
     bool check() {
         return crypto::verify(schnorr, sign(), message_, signers_key_.xonly_public_key())
@@ -355,7 +355,7 @@ private:
         return take(curves::secp256k1::musig::key_aggregate<Backend>(keys, space), "key_aggregate");
     }
 
-    std::array<std::uint8_t, 64> sign() {
+    curves::secp256k1::schnorr_signature sign() {
         namespace musig = curves::secp256k1::musig;
         auto first_nonce = take(musig::nonce_gen(first_, signers_key_, message_), "nonce_gen");
         auto second_nonce = take(musig::nonce_gen(second_, signers_key_, message_), "nonce_gen");
@@ -462,7 +462,9 @@ public:
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
                     "from_secret")) {}
 
-    std::uint8_t run() { return take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign")[0]; }
+    std::uint8_t run() {
+        return take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign").bytes()[0];
+    }
 
     bool check() {
         auto const signature = take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign");
@@ -495,12 +497,14 @@ public:
 
     std::uint8_t run() {
         take(crypto::verify(ecdsa_sha256, signature_, prehashed{digest_}, public_key_), "verify");
-        return signature_[0];
+        return signature_.bytes()[0];
     }
 
     bool check() {
-        auto other = signature_;
-        other[63] ^= 1U;
+        auto other_bytes = signature_.bytes();
+        other_bytes[63] ^= 1U;
+        auto const other =
+            take(curves::p256::ecdsa_signature::from_bytes(other_bytes), "from_bytes");
         return crypto::verify(ecdsa_sha256, signature_, prehashed{digest_}, public_key_)
                    .has_value() &&
                !crypto::verify(ecdsa_sha256, other, prehashed{digest_}, public_key_).has_value();
@@ -510,7 +514,7 @@ private:
     std::array<std::uint8_t, 32> digest_{};
     curves::p256::basic_keypair<Backend> key_;
     curves::p256::basic_public_key<Backend> public_key_;
-    std::array<std::uint8_t, curves::p256::signature_size> signature_{};
+    curves::p256::ecdsa_signature signature_;
 };
 
 // The x coordinate of the ECDH shared point of a P-256 key pair and a peer's public key, agree.
@@ -558,7 +562,7 @@ public:
           key_(take(curves::ed25519::basic_keypair<Backend>::from_secret(filled<32>(seed)),
                     "from_secret")) {}
 
-    std::uint8_t run() { return take(key_.sign(eddsa, message_), "sign")[0]; }
+    std::uint8_t run() { return take(key_.sign(eddsa, message_), "sign").bytes()[0]; }
 
     bool check() {
         auto const signature = take(key_.sign(eddsa, message_), "sign");

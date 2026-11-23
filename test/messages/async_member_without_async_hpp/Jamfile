@@ -8,7 +8,8 @@ project : requirements <library>/webcpp/crypto//crypto <library>/webcpp/crypto//
 
 import webcpp ;
 
-# alone: the compiler's error is the compile's only one, so a regression that puts another error
-# before or after it, or a curve's header that includes async.hpp, fails the test.
+# alone: the compiler's error is the compile's only one, so a regression that
+# puts another error before or after it, or a curve's header that includes
+# async.hpp, fails the test.
 webcpp.compile-diagnostic async_member_without_async_hpp : async_member_without_async_hpp.cpp
   : <library>/webcpp/asio//asio : native wasip2 wasip3 : alone ;

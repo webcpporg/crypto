@@ -10,13 +10,15 @@
 // clear, leaves it set when it was set, and nests; constant_time_equal enters its own guard. Built
 // with WEBCPP_TEST_TIMING_THREADS (timing_threads, native, with threads), a guard on one thread
 // leaves another's DIT clear. P-256's normalize_low_s and is_low_s, which call no backend, enter no
-// guard: this program links none, and curves/p256.hpp needs none to declare them.
+// guard: this program links none, and curves/p256.hpp needs none to declare them; nor does
+// erase_secret, which only stores zeroes.
 
 #include "support/timing_seam.hpp"
 
 #include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
+#include <webcpp/crypto/erase_secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/p256_data.hpp"
@@ -238,6 +240,17 @@ void p256_low_s_unguarded() {
                             [] { BOOST_TEST(p256::is_low_s(data::rfc6979_test)); });
 }
 
+// erase_secret calls no backend: it stores zeroes through detail::wipe, and holds no guard.
+void erase_secret_unguarded() {
+    webcpp::test::uncovered("erase_secret", [] {
+        std::array<std::uint8_t, 16> const zero{};
+        std::array<std::uint8_t, 16> password{};
+        password.fill(0x5a);
+        webcpp::crypto::erase_secret(password);
+        BOOST_TEST(password == zero);
+    });
+}
+
 #ifdef WEBCPP_TEST_TIMING_THREADS
 // While a guard holds DIT on this thread, another thread reads it clear. The other thread is
 // started before the guard, so that it cannot inherit the state at its creation (Linux's clone
@@ -273,6 +286,7 @@ int main() {
     nested_guards();
     constant_time_equal_enters();
     p256_low_s_unguarded();
+    erase_secret_unguarded();
 #ifdef WEBCPP_TEST_TIMING_THREADS
     other_thread_untouched();
 #endif

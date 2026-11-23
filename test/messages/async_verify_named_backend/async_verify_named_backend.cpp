@@ -16,6 +16,7 @@
 // clang-format on
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
+#include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/signing.hpp>
 
 #include <webcpp/asio/io_context.hpp>
@@ -27,7 +28,7 @@
 
 int main() {
     namespace crypto = webcpp::crypto;
-    std::array<std::uint8_t, 64> const signature{};
+    crypto::curves::secp256k1::schnorr_signature const signature{};
     std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
     std::array<std::uint8_t, 32> const xonly_key{};
     webcpp::asio::io_context context;

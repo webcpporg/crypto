@@ -5,11 +5,13 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // No local name in a crypto header hides a program's global. MSVC warns, C4459, at a parameter
-// or a local of a header's function that has the name of a global of the program ("declaration
-// of 'timing' hides global declaration"), an error at /W4 /WX; clang and GCC never warn across
-// namespaces, so the test is MSVC's, and natively it only compiles. A local takes two words, the
-// role then the kind (`timing_scope`, `completion_token`, `signature_bytes`), which no program
-// names a global.
+// or a local of a header's non-template function (inline code) that has the name of a global of
+// the program ("declaration of 'timing' hides global declaration"), an error at /W4 /WX; it does
+// not warn in function templates, generic lambdas or members of class templates, even
+// instantiated, so the names that live only in templates are listed defensively, for a function
+// that stops being a template. Clang and GCC never warn across namespaces, so the test is
+// MSVC's, and natively it only compiles. A local takes two words, the role then the kind
+// (`timing_scope`, `completion_token`, `signature_bytes`), which no program names a global.
 //
 // Every header of another library that a crypto header includes comes first, so that their own
 // names are parsed before the globals exist; then a global of every one-word name a crypto
@@ -22,7 +24,8 @@
 // WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED, and without threads, for the code only they compile. The
 // namespace-scope constants (`eddsa`, `schnorr`, `strict`, the generated tables' `supported` and
 // `linked`) and the static data members (each backend's `name`, `overhead`) are not locals, and
-// are left out.
+// are left out: C4459 applies to neither; `size` (ed25519's `public_key::size`) and `order`
+// (`p_curve_traits`) are static data members too, listed only because they were also locals.
 //
 // A name that the platform's C library already declares as a global (`encrypt`, <unistd.h>'s)
 // cannot be a program's global there anyway: it is declared on MSVC alone.

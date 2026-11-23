@@ -18,7 +18,7 @@
  and "hybrid encryption" (a KEM with a DEM) does not describe it either, a word left free for
  the post-quantum hybrids (X25519MLKEM768, X-Wing).
 
- @see "Key exchange: webcpp::crypto::key_exchange", in the guide.
+ @see "Key exchange: `webcpp::crypto::key_exchange`", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_KEY_EXCHANGE_KX_HPP
 #define WEBCPP_CRYPTO_KEY_EXCHANGE_KX_HPP

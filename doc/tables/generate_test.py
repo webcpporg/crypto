@@ -1231,6 +1231,23 @@ def test_the_constant_time_page_fills_each_target_from_the_lane(_: Path) -> None
     assert '|no backend\n|yes\n|memcheck (Linux): `+equal+`\n|not measured yet\n' in page, page
 
 
+def test_the_constant_time_page_escapes_the_bars_of_a_lane_note(_: Path) -> None:
+    data = two_ciphers()
+    for backend in data['backends'].values():
+        backend.update({'library': 'l', 'constant_time': 'by design, |t| below 10',
+                        'constant_time_sources': []})
+    entry = data['families'][0]['backends']['sodium']
+    entry['lane_note'] = {'dudect': 'judged constant time, |t| 1.70'}
+    page = generate.constant_time_page(data)
+    # A bar in a table's cell ends the cell: |t| would split the note over two cells, and
+    # Asciidoctor then drops the incomplete row.
+    assert ('|by design, \\|t\\| below 10\n'
+            '|memcheck (Linux): ChaCha20-Poly1305; dudect: ChaCha20-Poly1305 (judged constant '
+            'time, \\|t\\| 1.70)\n'
+            '|dudect: ChaCha20-Poly1305 (judged constant time, \\|t\\| 1.70; measured '
+            'differently, below)\n') in page, page
+
+
 def test_a_note_on_one_family_of_a_cell_names_that_family(_: Path) -> None:
     data = two_ciphers()
     for backend in data['backends'].values():
@@ -1506,6 +1523,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_speed_cell_names_each_operation_and_refuses_an_unknown_backend,
     test_a_measured_cell_escapes_the_bars_of_its_finding,
     test_the_constant_time_page_fills_each_target_from_the_lane,
+    test_the_constant_time_page_escapes_the_bars_of_a_lane_note,
     test_a_note_on_one_family_of_a_cell_names_that_family,
     test_a_lane_entry_the_family_does_not_claim_is_a_fault,
     test_a_finding_of_one_checker_marks_that_checker_alone,

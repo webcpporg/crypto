@@ -1373,13 +1373,14 @@ def lane_cell(data: Data, backend: str, target: str) -> str:
 
 def constant_time_page(data: Data) -> str:
     """Constant time per backend: by its library's design, and per target what the lane runs,
-    from the same `lane` entries as the comparison tables."""
+    from the same `lane` entries as the comparison tables, each cell's bars escaped, as a
+    finding's or a note's |t| would otherwise end the cell."""
     rows: List[List[str]] = []
     for backend in libraries(data):
         facts = data['backends'][backend]
         sources = ''.join(f'; {{{source}}}' for source in facts['constant_time_sources'])
-        rows.append([facts['title'], marked(cite(data, facts['constant_time'] + sources))]
-                    + [lane_cell(data, backend, target) for target in data['targets']])
+        rows.append([facts['title'], cell(marked(cite(data, facts['constant_time'] + sources)))]
+                    + [cell(lane_cell(data, backend, target)) for target in data['targets']])
     return table(['Backend', 'By design'] + [f'Measured, {target}' for target in data['targets']],
                  rows) + constant_time_notes(data)
 

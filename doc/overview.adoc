@@ -71,18 +71,30 @@ build. Its names are grouped by kind, one chapter each, and the headers mirror
 the namespaces as `<webcpp/crypto/<group>/<name>.hpp>`:
 
 * `webcpp::crypto`: `random_device`, `constant_time_equal`, `erase_secret`,
-`error` and the configuration; the signatures' schemes, `prehashed` and
-`verify` (`<webcpp/crypto/signing.hpp>`), the key pair concepts, `sign` and
-`agree` (`<webcpp/crypto/keypair.hpp>`), the factories `from_secret`, `from_bytes`,
-`from_key` and `generate` (`<webcpp/crypto/factories.hpp>`), and the asynchronous family
+`secret<N>`, `error` and the configuration (<<crypto-protecting-secrets>>); the
+signatures' schemes, `prehashed` and `verify` (`<webcpp/crypto/signing.hpp>`),
+the key pair concepts, `sign` and `agree` (`<webcpp/crypto/keypair.hpp>`), the
+factories `from_secret`, `from_bytes`, `from_key` and `generate`
+(`<webcpp/crypto/factories.hpp>`), and the asynchronous family
 (`<webcpp/crypto/async.hpp>`; <<crypto-root>>, <<crypto-curves-four-forms>>,
 <<crypto-async>>);
-* `webcpp::crypto::ciphers`: `aes128`, `aes192`, `aes256`, `gcm`, `aes128_gcm`
-and `aes256_gcm` (<<crypto-ciphers>>);
+* `webcpp::crypto::ciphers`: `aes128`, `aes192`, `aes256`, `gcm`, `aes128_gcm`,
+`aes256_gcm`, `chacha20_poly1305`, `chacha20_poly1305_original` and
+`xchacha20_poly1305` (<<crypto-ciphers>>);
+* `webcpp::crypto::secret_key_encryption`: `secretbox`,
+`secretbox_xchacha20poly1305`, the box forms and `aead`, the AEAD contract
+(<<crypto-secret-key-encryption>>);
 * `webcpp::crypto::curves::secp256k1`: key pairs, signatures, ECDH, the
 encodings and the x-only tweak on secp256k1 (<<crypto-curves>>);
+* `webcpp::crypto::curves::ed25519` and `curves::x25519`: Ed25519's key pairs
+and signatures, X25519's key pairs and agreement, and the conversion between
+them (<<crypto-ed25519>>, <<crypto-x25519>>);
 * `webcpp::crypto::curves::p256`: key pairs, ECDSA, ECDH and the encodings on
 P-256 (<<crypto-p256>>);
+* `webcpp::crypto::public_key_encryption`: `box`, `box_xchacha20poly1305` and
+`sealed_box` (<<crypto-public-key-encryption>>);
+* `webcpp::crypto::key_exchange`: `kx_keypair`, libsodium's `crypto_kx`
+(<<crypto-key-exchange>>);
 * `webcpp::crypto::backends`: the backends (<<crypto-backends>>).
 
 `<webcpp/crypto.hpp>` includes every header whose backend the program links.

@@ -81,8 +81,8 @@ in the standard forms OpenSSL and WebCrypto use, SPKI and PKCS#8, as DER or PEM
 text (<<crypto-key-formats>>). Every curve signs and verifies by the same two
 names, the scheme named at every call, and its key pair keeps one contract
 (<<crypto-curves-signatures>>); each operation has the member and its free form,
-and, where WebCrypto has the algorithm (Ed25519 and P-256), their asynchronous
-forms (<<crypto-curves-four-forms>>).
+and, where WebCrypto has the algorithm (Ed25519, X25519 and P-256), their
+asynchronous forms (<<crypto-curves-four-forms>>).
 
 include::generated/namespace-curves.adoc[]
 
@@ -510,19 +510,20 @@ associated_data, data, token)`,
 associated_data, data, tag, token)`
 |===
 
-The synchronous forms exist wherever the member does: on Ed25519's, P-256's and
-secp256k1's key pairs and public keys (`agree` on P-256 and secp256k1), and on
-AES-GCM and every AEAD of `ciphers::basic_chacha20_poly1305`, the
-ChaCha20-Poly1305 forms; the secret boxes and the crypto_boxes, which take no
-associated data, have the box forms instead (<<crypto-box-forms>>), asynchronous
-too. The asynchronous forms exist for what WebCrypto has: Ed25519's and P-256's
-key pairs and public keys (`async_agree` on P-256), and AES-GCM; and, on a
-native backend, every other AEAD and box (<<crypto-async>>). A public key has no
-`async_from_bytes`: the asynchronous family makes key pairs
-(`async_from_secret`), AEADs and secret boxes (`async_from_key`) only. Ed25519's
-verification policy is an optional argument of all four, before the token in the
-asynchronous ones; secp256k1's 32 bytes of extra entropy or auxiliary randomness
-follow the input of `sign` and `crypto::sign`.
+The synchronous forms exist wherever the member does: on Ed25519's, X25519's,
+P-256's and secp256k1's key pairs and public keys (`agree` on X25519, P-256 and
+secp256k1), and on AES-GCM and every AEAD of `ciphers::basic_chacha20_poly1305`,
+the ChaCha20-Poly1305 forms; the secret boxes and the crypto_boxes, which take
+no associated data, have the box forms instead (<<crypto-box-forms>>),
+asynchronous too. The asynchronous forms exist for what WebCrypto has:
+Ed25519's, X25519's and P-256's key pairs and public keys (`async_agree` on
+X25519 and P-256), and AES-GCM; and, on a native backend, every other AEAD and
+box (<<crypto-async>>). A public key has no `async_from_bytes`: the asynchronous
+family makes key pairs (`async_from_secret`), AEADs and secret boxes
+(`async_from_key`) only. Ed25519's verification policy is an optional argument
+of all four, before the token in the asynchronous ones; secp256k1's 32 bytes of
+extra entropy or auxiliary randomness follow the input of `sign` and
+`crypto::sign`.
 
 Each free synchronous form is declared in the header of what it gates:
 `crypto::sign` and `crypto::agree` in `<webcpp/crypto/keypair.hpp>`, beside

@@ -178,14 +178,17 @@ inline void sodium_entropy_buf(void* const output_data, std::size_t const byte_c
 }
 
 /**
- * libsodium's `randombytes_random`, which draws 4 bytes through @ref sodium_entropy_buf.
+ * libsodium's `randombytes_random`, which draws 4 bytes through @ref sodium_entropy_buf; their
+ * copy on the stack is wiped before it returns.
  *
  * @return The bytes, read in the machine's order.
  */
 inline std::uint32_t sodium_entropy_random() noexcept {
     std::array<std::uint8_t, sizeof(std::uint32_t)> drawn_bytes{};
     sodium_entropy_buf(drawn_bytes.data(), drawn_bytes.size());
-    return std::bit_cast<std::uint32_t>(drawn_bytes);
+    auto const drawn_value = std::bit_cast<std::uint32_t>(drawn_bytes);
+    wipe_object(drawn_bytes);
+    return drawn_value;
 }
 
 /** Does nothing: crypto's entropy has no state to stir. libsodium's `randombytes_stir`. */
@@ -270,6 +273,7 @@ private:
     if (!initialised_seen.load(std::memory_order_acquire)) {
         std::array<std::uint8_t, 4> probe_bytes{};
         auto const probed = fill_from_system(probe_bytes);
+        wipe_object(probe_bytes);
         if (!probed) {
             return probed.error();
         }

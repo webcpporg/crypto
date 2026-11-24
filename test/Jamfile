@@ -515,6 +515,10 @@ crypto-run sodium_entropy_browser : sodium_entropy_browser_test.cpp
 # zeros on.
 webcpp.run-fail sodium_entropy_unwatched : sodium_entropy_unwatched_test.cpp
   : <library>/third_party//sodium : emscripten ;
+# On Emscripten under node, crypto's entropy as libsodium's generator leaves no
+# copy of a draw in the stack's free part, read at -O2.
+crypto-run sodium_entropy_wipe : sodium_entropy_wipe_test.cpp
+  : <library>/third_party//sodium $(OPTIMISED) : emscripten ;
 webcpp.compile-diagnostic random_device_no_call : random_device_no_call_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS : native wasip2 ;
 

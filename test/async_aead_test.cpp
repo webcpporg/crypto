@@ -116,7 +116,7 @@ constexpr std::array<std::uint8_t, 40> plaintext = [] {
 }();
 
 /** The associated data of an AEAD's message. */
-constexpr std::array<std::uint8_t, 5> associated_data{1, 2, 3, 4, 5};
+constexpr std::array<std::uint8_t, 5> test_associated_data{1, 2, 3, 4, 5};
 
 /** A key of `Size` bytes of 0x42. */
 template <std::size_t Size>
@@ -177,7 +177,8 @@ sealed_reference<Keyed> synchronous_seal(Keyed& keyed_object) {
     sealed_reference<Keyed> reference;
     auto const nonce = test_nonce<Keyed::nonce_size>();
     if constexpr (aead::cipher<Keyed>) {
-        reference.tag = keyed_object.seal(nonce, associated_data, reference.ciphertext).value();
+        reference.tag =
+            keyed_object.seal(nonce, test_associated_data, reference.ciphertext).value();
     } else {
         reference.tag = keyed_object.seal(nonce, reference.ciphertext).value();
     }
@@ -194,19 +195,19 @@ asio::awaitable<void> aead_round_trip() {
     auto const nonce = test_nonce<Cipher::nonce_size>();
 
     std::array<std::uint8_t, 40> data = plaintext;
-    auto const tag = co_await aead::async_seal(executor, cipher, nonce, associated_data, data,
+    auto const tag = co_await aead::async_seal(executor, cipher, nonce, test_associated_data, data,
                                                asio::use_awaitable);
     BOOST_TEST(tag == reference.tag);
     BOOST_TEST(data == reference.ciphertext);
-    co_await aead::async_open(executor, cipher, nonce, associated_data, data,
+    co_await aead::async_open(executor, cipher, nonce, test_associated_data, data,
                               std::span(tag.data(), tag.size()), asio::use_awaitable);
     BOOST_TEST(data == plaintext);
 
-    auto const member_tag =
-        co_await cipher.async_seal(executor, nonce, associated_data, data, asio::use_awaitable);
+    auto const member_tag = co_await cipher.async_seal(executor, nonce, test_associated_data, data,
+                                                       asio::use_awaitable);
     BOOST_TEST(member_tag == reference.tag);
     BOOST_TEST(data == reference.ciphertext);
-    co_await cipher.async_open(executor, nonce, associated_data, data,
+    co_await cipher.async_open(executor, nonce, test_associated_data, data,
                                std::span(member_tag.data(), member_tag.size()),
                                asio::use_awaitable);
     BOOST_TEST(data == plaintext);
@@ -280,7 +281,7 @@ void check_empty(Keyed& empty_object) {
     std::array<std::uint8_t, 40> data = plaintext;
     auto const nonce = test_nonce<Keyed::nonce_size>();
     if constexpr (aead::cipher<Keyed>) {
-        BOOST_TEST(empty_object.seal(nonce, associated_data, data).error() ==
+        BOOST_TEST(empty_object.seal(nonce, test_associated_data, data).error() ==
                    crypto::error::invalid_state);
     } else {
         BOOST_TEST(empty_object.seal(nonce, data).error() == crypto::error::invalid_state);
@@ -356,16 +357,17 @@ void never_inline_case(asio::io_context& context) {
     std::span<std::uint8_t const> const tag(reference.tag.data(), reference.tag.size());
     if constexpr (aead::cipher<Keyed>) {
         check_never_inline(context, [&](auto handler) {
-            aead::async_seal(executor, keyed_object, nonce, associated_data, data, handler);
+            aead::async_seal(executor, keyed_object, nonce, test_associated_data, data, handler);
         });
         check_never_inline(context, [&](auto handler) {
-            aead::async_open(executor, keyed_object, nonce, associated_data, data, tag, handler);
+            aead::async_open(executor, keyed_object, nonce, test_associated_data, data, tag,
+                             handler);
         });
         check_never_inline(context, [&](auto handler) {
-            keyed_object.async_seal(executor, nonce, associated_data, data, handler);
+            keyed_object.async_seal(executor, nonce, test_associated_data, data, handler);
         });
         check_never_inline(context, [&](auto handler) {
-            keyed_object.async_open(executor, nonce, associated_data, data, tag, handler);
+            keyed_object.async_open(executor, nonce, test_associated_data, data, tag, handler);
         });
     } else {
         check_never_inline(context, [&](auto handler) {
@@ -405,9 +407,10 @@ void wrong_tag_case(asio::io_context& context) {
         auto const keep = [&code](boost::system::error_code done) { code = done; };
         if constexpr (aead::cipher<Keyed>) {
             if (member) {
-                keyed_object.async_open(executor, nonce, associated_data, data, tag, keep);
+                keyed_object.async_open(executor, nonce, test_associated_data, data, tag, keep);
             } else {
-                aead::async_open(executor, keyed_object, nonce, associated_data, data, tag, keep);
+                aead::async_open(executor, keyed_object, nonce, test_associated_data, data, tag,
+                                 keep);
             }
         } else if (member) {
             keyed_object.async_open(executor, nonce, data, tag, keep);

@@ -59,7 +59,7 @@ using digest_bytes = std::array<std::uint8_t, 64>;
 using signer = ed25519::prehashed_signer<webcpp::hash::sha2_512>;
 
 // RFC 8032 section 7.3, TEST abc.
-constexpr char const* secret_key =
+constexpr char const* secret_key_hex =
     "833fe62409237b9d62ec77587520911e9a759cec1d19755b7da901b96dca3d42";
 constexpr char const* public_key_hex =
     "ec172b93ad5e563bf4932c70e1245034c35467ef2efd4d64ebf819683467e2bf";
@@ -76,7 +76,7 @@ boost::hash2::digest<64> sha512(std::span<std::uint8_t const> message) {
 
 /** RFC 8032 section 7.3's key pair. */
 ed25519::keypair rfc_key() {
-    return ed25519::keypair::from_secret(test::from_hex(secret_key)).value();
+    return ed25519::keypair::from_secret(test::from_hex(secret_key_hex)).value();
 }
 
 /** RFC 8032 section 7.3's public key. */
@@ -100,7 +100,7 @@ signer begun(std::vector<std::vector<std::uint8_t>> const& pieces) {
 }
 
 void rfc8032_ph() {
-    auto const key = ed25519::keypair::from_secret(test::from_hex(secret_key));
+    auto const key = ed25519::keypair::from_secret(test::from_hex(secret_key_hex));
     BOOST_TEST(key.has_value());
     if (!key) {
         return;
@@ -158,7 +158,7 @@ void rfc8032_ph() {
 }
 
 void spent_and_moved() {
-    auto key = ed25519::keypair::from_secret(test::from_hex(secret_key));
+    auto key = ed25519::keypair::from_secret(test::from_hex(secret_key_hex));
     BOOST_TEST(key.has_value());
     if (!key) {
         return;

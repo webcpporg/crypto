@@ -18,7 +18,8 @@
 // the test seam WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY, failing and answering; and the conversion to
 // X25519, to_x25519() of the key pair and of its public key, member and free, equal to libsodium's
 // crypto_sign_ed25519_sk_to_curve25519 and pk_to_curve25519, the converted key pair agreeing with
-// an X25519 peer, and keys of small order or not canonical refused.
+// an X25519 peer, and keys of small order or not canonical refused; the key pair's x25519_secret()
+// and the free to_x25519_public, which to_x25519() replaced, are not public.
 
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
@@ -389,6 +390,17 @@ void generated() {
 template <class Value>
 concept converts_to_x25519 = requires(Value const& value) { crypto::to_x25519(value); };
 
+// Whether a key pair still gives its X25519 secret as bytes, the member to_x25519() replaced
+// (design D7): written through a dependent helper, as above.
+template <class Keypair>
+concept gives_x25519_secret = requires(Keypair const& key_pair) { key_pair.x25519_secret(); };
+
+// Whether the free to_x25519_public of a public key's namespace, which to_x25519() replaced
+// (design D7), is still found, by argument-dependent lookup.
+template <class PublicKey>
+concept converts_by_to_x25519_public =
+    requires(PublicKey const& converted_key) { to_x25519_public(converted_key); };
+
 // RFC 7748 section 6.1's Bob, an X25519 peer of the converted key pair.
 constexpr std::string_view bob_secret =
     "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb";
@@ -577,6 +589,9 @@ int main() {
                        boost::system::result<crypto::curves::x25519::public_key>>);
     static_assert(!converts_to_x25519<crypto::curves::x25519::keypair>);
     static_assert(!converts_to_x25519<std::array<std::uint8_t, 32>>);
+    static_assert(!gives_x25519_secret<ed25519::keypair>);
+    static_assert(!converts_by_to_x25519_public<ed25519::public_key>);
+    static_assert(!converts_by_to_x25519_public<ed25519::keypair>);
     rfc8032();
     guards();
     refusals();

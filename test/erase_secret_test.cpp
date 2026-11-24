@@ -5,9 +5,10 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // crypto::erase_secret zeroes every byte of a contiguous range the program may write, and none
-// around it; it takes no range that is not contiguous, and a buffer erased just before its scope
-// ends is zero in its storage afterwards, read at -O2 with every call inlined (the Jamfile's
-// <optimization>speed <inlining>full), where a store the optimiser may drop is the case.
+// around it; it takes no range that is not contiguous, and no pointer with a size; and a buffer
+// erased just before its scope ends is zero in its storage afterwards, read at -O2 with every
+// call inlined (the Jamfile's <optimization>speed <inlining>full), where a store the optimiser
+// may drop is the case.
 
 #include <webcpp/crypto/erase_secret.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -37,6 +38,17 @@ static_assert(erasable<std::vector<std::uint8_t>&>);
 static_assert(erasable<std::span<std::byte>>);
 static_assert(!erasable<std::list<char>&>);
 static_assert(!erasable<std::vector<bool>&>);
+
+// Whether erase_secret takes a pointer and a size, the overload it has none of: a range carries
+// its own size (design D10).
+template <class Pointer>
+concept erasable_by_pointer_and_size = requires(Pointer erased_data, std::size_t byte_count) {
+    crypto::erase_secret(erased_data, byte_count);
+};
+
+static_assert(!erasable_by_pointer_and_size<std::uint8_t*>);
+static_assert(!erasable_by_pointer_and_size<char*>);
+static_assert(!erasable_by_pointer_and_size<void*>);
 static_assert(noexcept(crypto::erase_secret(std::declval<std::vector<std::uint8_t>&>())));
 
 // A function the optimiser cannot see into, so that what it is handed is read from memory.

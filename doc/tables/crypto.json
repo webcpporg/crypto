@@ -1539,6 +1539,8 @@
         "secret_of_no_bytes": "Give `secret` the number of bytes it holds, at least one, as in `secret<32>`.",
         "equal_header_removed": "Include `<webcpp/crypto/constant_time_equal.hpp>`, the header of `constant_time_equal`; `equal.hpp` is gone, with no header left at its path.",
         "equal_removed": "Call `crypto::constant_time_equal`, the same comparison of two spans or two digests in constant time; `crypto::equal` is gone, with no alias.",
+        "wipe_removed": "Call `crypto::erase_secret`, which zeroes a contiguous range the program owns (a `std::string&`, a `std::span<std::byte>`) with stores the optimiser keeps; `crypto::wipe` is gone, with no alias.",
+        "x25519_free_functions_removed": "Make the key pair with `curves::x25519::keypair::from_secret(secret)`, then call its `public_key()`, and its `agree` with the peer's `curves::x25519::public_key` from `from_bytes`; the free functions over bytes are gone, with no alias.",
         "iv_size_removed": "Name nonce_size, max_nonce_size and error::invalid_nonce_size: crypto spells its names out.",
         "aead_template_removed": "Name `ciphers::basic_chacha20_poly1305<Family, Backend>`, or its aliases `chacha20_poly1305`, `chacha20_poly1305_original` and `xchacha20_poly1305`: the template is named for its algorithm, with no alias.",
         "aead_template_removed_call": "As `aead_template_removed`: name `ciphers::basic_chacha20_poly1305`.",

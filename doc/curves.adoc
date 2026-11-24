@@ -35,9 +35,10 @@ and the key pair's `public_key`, `secret`, `sign` with `crypto::schnorr`,
 and `crypto::ecdsa_sha256`, `recover`, `to_der`, `from_der`, `normalize_low_s`,
 `is_low_s` and the x-only key's `tweak_xonly`;
 * `secp256k1/tweak.hpp`, tweaks of whole keys, the arithmetic of BIP 32's
-derivation and of watch-only wallets: `secret_key_tweak_add`, `secret_key_tweak_mul`,
-`secret_key_negate`, `public_key_tweak_add`, `public_key_tweak_mul`, `public_key_negate` and
-`public_key_combine` (<<crypto-secp256k1-tweaks>>);
+derivation and of watch-only wallets: `secret_key_tweak_add`,
+`secret_key_tweak_mul`, `secret_key_negate`, `public_key_tweak_add`,
+`public_key_tweak_mul`, `public_key_negate` and `public_key_combine`
+(<<crypto-secp256k1-tweaks>>);
 * `secp256k1/formats.hpp`, keys in the SPKI and PKCS#8 files that OpenSSL
 exchanges: `encode_spki`, `decode_spki`, `encode_pkcs8` and `decode_pkcs8`
 (<<crypto-secp256k1-formats>>);
@@ -341,19 +342,19 @@ token)`,
 token)`
 |===
 
-The synchronous forms exist wherever the member does: on Ed25519's, P-256's
-and secp256k1's key pairs and public keys (`agree` on P-256 and secp256k1),
-and on AES-GCM and every AEAD of `ciphers::basic_chacha20_poly1305`, the
-ChaCha20-Poly1305 forms; the secret boxes and the crypto_boxes, which take no associated data, have the
-box forms instead (<<crypto-box-forms>>), asynchronous too. The asynchronous
-forms exist for what WebCrypto has: Ed25519's and P-256's key pairs and public
-keys (`async_agree` on P-256), and AES-GCM; and, on a native backend, every
-other AEAD and box (<<crypto-async>>). A public key has no `async_from_bytes`:
-the asynchronous family makes key pairs (`async_from_secret`), AEADs and secret
-boxes (`async_from_key`) only.
-Ed25519's verification policy is an optional argument of all four, before the
-token in the asynchronous ones; secp256k1's 32 bytes of extra entropy or
-auxiliary randomness follow the input of `sign` and `crypto::sign`.
+The synchronous forms exist wherever the member does: on Ed25519's, P-256's and
+secp256k1's key pairs and public keys (`agree` on P-256 and secp256k1), and on
+AES-GCM and every AEAD of `ciphers::basic_chacha20_poly1305`, the
+ChaCha20-Poly1305 forms; the secret boxes and the crypto_boxes, which take no
+associated data, have the box forms instead (<<crypto-box-forms>>), asynchronous
+too. The asynchronous forms exist for what WebCrypto has: Ed25519's and P-256's
+key pairs and public keys (`async_agree` on P-256), and AES-GCM; and, on a
+native backend, every other AEAD and box (<<crypto-async>>). A public key has no
+`async_from_bytes`: the asynchronous family makes key pairs
+(`async_from_secret`), AEADs and secret boxes (`async_from_key`) only. Ed25519's
+verification policy is an optional argument of all four, before the token in the
+asynchronous ones; secp256k1's 32 bytes of extra entropy or auxiliary randomness
+follow the input of `sign` and `crypto::sign`.
 
 Each free synchronous form is declared in the header of what it gates:
 `crypto::sign` and `crypto::agree` in `<webcpp/crypto/keypair.hpp>`, beside

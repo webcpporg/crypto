@@ -34,13 +34,13 @@ void sealed_and_opened(webcpp::crypto::ciphers::aes256_gcm& cipher) {
     auto const executor = context.get_executor();
     // clang-format off
     // expected-error@+3 {{no member named 'async_seal' in namespace 'webcpp::crypto'; did you mean 'webcpp::crypto::secret_key_encryption::async_seal'?}}
-    // expected-error@+2 {{no matching function for call to 'async_seal'}}
+    // expected-error@+2 {{no matching function for call to 'async_seal'}} (knock-on)
     // clang-format on
     webcpp::crypto::async_seal(executor, cipher, nonce, associated_data, data,
                                [](boost::system::error_code, boost::hash2::digest<16>) {});
     // clang-format off
     // expected-error@+3 {{no member named 'async_open' in namespace 'webcpp::crypto'; did you mean 'webcpp::crypto::secret_key_encryption::async_open'?}}
-    // expected-error@+2 {{no matching function for call to 'async_open'}}
+    // expected-error@+2 {{no matching function for call to 'async_open'}} (knock-on)
     // clang-format on
     webcpp::crypto::async_open(executor, cipher, nonce, associated_data, data, tag,
                                [](boost::system::error_code) {});

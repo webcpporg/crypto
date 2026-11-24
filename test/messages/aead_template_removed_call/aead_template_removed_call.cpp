@@ -25,7 +25,7 @@ using cipher = webcpp::crypto::ciphers::aead<webcpp::crypto::families::chacha20_
 
 /** Makes a ChaCha20-Poly1305 cipher through the removed template's name. */
 bool made_from_key(std::array<std::uint8_t, 32> const& key) {
-    // expected-error@+1 {{use of undeclared identifier 'cipher'}}
+    // expected-error@+1 {{use of undeclared identifier 'cipher'}} (knock-on)
     return cipher::from_key(key).has_value();
 }
 

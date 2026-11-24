@@ -83,7 +83,40 @@ def test_a_message_expected_more_than_once_is_read(scratch: Path) -> None:
     written(scratch, 'test/messages/twice/twice.cpp',
             '// expected-error@webcpp/crypto/signing.hpp:* 2 {{webcpp::crypto: refused.}}\n')
     found = generate.messages(scratch)
-    assert found == {'twice': ('webcpp::crypto: refused.', ['native'])}, found
+    assert found == {'twice': (['webcpp::crypto: refused.'], ['native'])}, found
+
+
+def test_a_message_test_s_first_error_is_its_message(scratch: Path) -> None:
+    # A removed name's alias stops the build, and every use of the alias adds clang's own
+    # error after it: the page lists the first, and leaves out the one marked as a knock-on.
+    written(scratch, 'test/messages/alias/Jamfile',
+            'webcpp.compile-diagnostic alias : alias.cpp : : native : alone ;\n')
+    written(scratch, 'test/messages/alias/alias.cpp', (
+        "// expected-error@+1 {{no template named 'old' in namespace 'n'}}\n"
+        'using cipher = n::old<int>;\n'
+        "// expected-error@+1 {{use of undeclared identifier 'cipher'}} (knock-on)\n"
+        'int x = cipher::size;\n'))
+    found = generate.messages(scratch)
+    assert found == {'alias': (["no template named 'old' in namespace 'n'"], ['native'])}, found
+
+
+def test_a_test_of_several_removed_names_lists_each(scratch: Path) -> None:
+    # A test that pins several removed names lists every one, in the source's order, each once.
+    written(scratch, 'test/messages/names/Jamfile',
+            'webcpp.compile-diagnostic names : names.cpp : : native wasip2 : alone ;\n')
+    written(scratch, 'test/messages/names/names.cpp', (
+        "// expected-error@+1 {{no member named 'a' in namespace 'n'}}\n"
+        'using n::a;\n'
+        "// expected-error@+1 {{no member named 'b' in namespace 'n'}}\n"
+        'using n::b;\n'
+        "// expected-error@+1 {{no member named 'a' in namespace 'n'}}\n"
+        'using n::a;\n'))
+    found = generate.messages(scratch)
+    assert found == {'names': (["no member named 'a' in namespace 'n'",
+                                "no member named 'b' in namespace 'n'"],
+                               ['native', 'wasip2'])}, found
+    page = generate.messages_page({'fixes': {'names': 'Name m.'}}, found, {}, {})
+    assert "`+no member named 'a' in namespace 'n'+`\n\n`+no member named 'b'" in page, page
 
 
 def test_the_memory_option_s_tests_are_declared(scratch: Path) -> None:

@@ -13,7 +13,7 @@
 // shows (doc/tables/generate.py reads a test's last directive).
 
 // clang-format off
-// expected-error@*:* {{too many errors emitted, stopping now}}
+// expected-error@*:* {{too many errors emitted, stopping now}} (knock-on)
 // expected-error@*:* {{webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.}}
 // clang-format on
 

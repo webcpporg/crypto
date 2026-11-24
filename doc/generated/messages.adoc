@@ -27,7 +27,7 @@ The fix: Name `+ciphers::basic_chacha20_poly1305<Family, Backend>+`, or its alia
 
 |`+aead_template_removed_call+`
 |native, wasip2, wasip3
-|`+use of undeclared identifier 'cipher'+`
+|`+no template named 'aead' in namespace 'webcpp::crypto::ciphers'+`
 
 The fix: As `+aead_template_removed+`: name `+ciphers::basic_chacha20_poly1305+`.
 
@@ -141,13 +141,17 @@ The fix: As `+async_seal_xchacha+`: name a native backend, such as `+backends::s
 
 |`+async_seal_removed+`
 |native, wasip2, wasip3
-|`+no matching function for call to 'async_open'+`
+|`+no member named 'async_seal' in namespace 'webcpp::crypto'; did you mean 'webcpp::crypto::secret_key_encryption::async_seal'?+`
+
+`+no member named 'async_open' in namespace 'webcpp::crypto'; did you mean 'webcpp::crypto::secret_key_encryption::async_open'?+`
 
 The fix: Call crypto::secret_key_encryption::aead::async_seal and async_open. clang's suggestion, `+secret_key_encryption::async_seal+` and `+async_open+`, is the box form, which takes no associated data and is wrong for an AES-GCM or ChaCha20-Poly1305 user.
 
 |`+async_seal_removed_declaration+`
 |native, wasip2, wasip3
-|`+no member named 'async_open' in namespace 'webcpp::crypto'+`
+|`+no member named 'async_seal' in namespace 'webcpp::crypto'+`
+
+`+no member named 'async_open' in namespace 'webcpp::crypto'+`
 
 The fix: As `+async_seal_removed+`: call crypto::secret_key_encryption::aead::async_seal and async_open, in <webcpp/crypto/async.hpp>.
 
@@ -225,7 +229,15 @@ The fix: Add `+/third_party//bearssl+`.
 
 |`+box_default_not_linked+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//sealed_box-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//sealed_box-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+|`+webcpp::crypto: XSalsa20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+webcpp::crypto: XChaCha20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+webcpp::crypto: X25519-XSalsa20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+webcpp::crypto: X25519-XChaCha20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//sealed_box-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//sealed_box-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
 The fix: The secret boxes', the boxes' and the sealed boxes' default is libsodium on every target: add the family's alias, as `+/webcpp/crypto//box_xsalsa20poly1305-default+`, which links `+/third_party//sodium+`.
 
@@ -237,7 +249,11 @@ The fix: Name `+families::box_xsalsa20poly1305+` or `+families::box_xchacha20pol
 
 |`+chacha_default_not_linked+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: XChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//xchacha20_poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//xchacha20_poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+|`+webcpp::crypto: ChaCha20-Poly1305's default backend on this target is libsodium, which is not linked. Add /webcpp/crypto//chacha20_poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//chacha20_poly1305-default ; or name another backend in the type, as in ciphers::chacha20_poly1305<backends::bearssl>. The backends that have it: sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+webcpp::crypto: original ChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//chacha20_poly1305_original-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//chacha20_poly1305_original-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+webcpp::crypto: XChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//xchacha20_poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//xchacha20_poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
 The fix: The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add the family's alias, as `+/webcpp/crypto//chacha20_poly1305-default+`, which links `+/third_party//sodium+`.
 
@@ -339,7 +355,9 @@ The fix: Name `+gcm<aes256<backends::bearssl>>+` or `+gcm<aes256<backends::opens
 
 |`+heavy_without_threads+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.+`
+|`+webcpp::crypto: a heavy operation's async_ variant needs a build with threads; if no error above names the synchronous call, this variant lacks WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS.+`
+
+`+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.+`
 
 The fix: Call the synchronous operation the message names, or build with threads: natively without `+WEBCPP_CRYPTO_NO_THREADS+`, on Emscripten with `+-pthread+`; WASI has none.
 
@@ -357,13 +375,17 @@ The fix: Include `+<webcpp/crypto/public_key_encryption/box.hpp>+` for `+box+` a
 
 |`+hybrid_names_removed+`
 |native, wasip2, wasip3
-|`+no member named 'kx_keypair'+`
+|`+no member named 'hybrid'+`
+
+`+no member named 'kx_keypair'+`
 
 The fix: Name `+crypto::public_key_encryption::box+`, `+box_xchacha20poly1305+` and `+sealed_box+`, and `+crypto::key_exchange::kx_keypair+` and `+session_keys+`; `+crypto::hybrid+` and the names in `+curves::x25519+` are gone, with no alias.
 
 |`+iv_size_removed+`
 |native, wasip2, wasip3
-|`+no member named 'invalid_iv_size' in+`
+|`+no member named 'iv_size' in+`
+
+`+no member named 'invalid_iv_size' in+`
 
 The fix: Name nonce_size, max_nonce_size and error::invalid_nonce_size: crypto spells its names out.
 
@@ -381,7 +403,7 @@ The fix: Return `+std::optional<std::span<std::uint8_t const, 32>>+`, a span ove
 
 |`+make_removed+`
 |native, wasip2, wasip3
-|`+unexpected type name 'keypair': expected expression+`
+|`+no member named 'make' in+`
 
 The fix: Call the factory named by its input, member or free: `+from_secret+` for a key pair, `+from_bytes+` for a public key, `+from_key+` for a cipher (`+crypto::from_secret<K>(bytes)+`, `+K::from_secret(bytes)+`); `+make+` is gone, with no alias.
 
@@ -471,7 +493,7 @@ The fix: Add `+/webcpp/crypto//pem-default+`, which links `+/third_party//sodium
 
 |`+ph_removed+`
 |native, wasip2, wasip3
-|`+no matching function for call to 'begin'+`
+|`+no member named 'ph' in namespace+`
 
 The fix: Name Ed25519ph's streaming signer `+curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>+`, the same `+begin+`, `+update+`, `+sign+` and `+verify+`; `+curves::ed25519::ph+` is gone, with no alias.
 
@@ -483,7 +505,9 @@ The fix: Give `+crypto::prehashed+` a digest of a fixed size: a `+std::array<std
 
 |`+prevouts_summary_removed+`
 |native, wasip2
-|`+no member named 'make_prevouts_summary' in namespace 'webcpp::crypto::curves::secp256k1::silent_payments'+`
+|`+no member named 'prevouts_summary' in namespace 'webcpp::crypto::curves::secp256k1::silent_payments'+`
+
+`+no member named 'make_prevouts_summary' in namespace 'webcpp::crypto::curves::secp256k1::silent_payments'+`
 
 The fix: Name silent_payments::previous_outputs_summary and make_previous_outputs_summary: crypto spells out libsecp256k1's prevouts.
 
@@ -519,19 +543,25 @@ The fix: Name a native backend, such as `+backends::sodium+`, for the crypto_box
 
 |`+seal_removed+`
 |native, wasip2, wasip3
-|`+no member named 'open' in namespace 'webcpp::crypto'+`
+|`+no member named 'seal' in namespace 'webcpp::crypto'+`
+
+`+no member named 'open' in namespace 'webcpp::crypto'+`
 
 The fix: Call crypto::secret_key_encryption::aead::seal and open, in <webcpp/crypto/secret_key_encryption/aead.hpp>, which every AEAD's header includes.
 
 |`+seal_removed_call+`
 |native
-|`+no member named 'open' in namespace 'webcpp::crypto'+`
+|`+no member named 'seal' in namespace 'webcpp::crypto'+`
+
+`+no member named 'open' in namespace 'webcpp::crypto'+`
 
 The fix: As `+seal_removed+`: call crypto::secret_key_encryption::aead::seal and open, which the cipher's header brings.
 
 |`+seal_removed_call_wasi+`
 |wasip2, wasip3
-|`+too many arguments to function call, expected 2, have 5+`
+|`+no member named 'seal' in namespace 'webcpp::crypto'+`
+
+`+no member named 'open' in namespace 'webcpp::crypto'; did you mean 'fopen'?+`
 
 The fix: As `+seal_removed_call+`: call crypto::secret_key_encryption::aead::seal and open; clang's offer of the C library's fopen is not the AEAD's open.
 
@@ -555,13 +585,37 @@ The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp2
 
 |`+secp256k1_tweak_names_removed+`
 |native, wasip2
-|`+no member named 'seckey_negate' in namespace 'webcpp::crypto::curves::secp256k1'+`
+|`+no member named 'pubkey_tweak_add' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'pubkey_tweak_mul' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'pubkey_negate' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'pubkey_combine' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'seckey_tweak_add' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'seckey_tweak_mul' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'seckey_negate' in namespace 'webcpp::crypto::curves::secp256k1'+`
 
 The fix: Call public_key_tweak_add, public_key_tweak_mul, public_key_negate, public_key_combine, secret_key_tweak_add, secret_key_tweak_mul and secret_key_negate: crypto spells out the names libsecp256k1 abbreviates.
 
 |`+secp256k1_tweak_names_removed_call+`
 |native, wasip2
-|`+no member named 'seckey_negate' in namespace 'webcpp::crypto::curves::secp256k1'+`
+|`+no member named 'pubkey_tweak_add' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'pubkey_tweak_mul' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'pubkey_negate' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'pubkey_combine' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'seckey_tweak_add' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'seckey_tweak_mul' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'seckey_negate' in namespace 'webcpp::crypto::curves::secp256k1'+`
 
 The fix: As `+secp256k1_tweak_names_removed+`.
 
@@ -585,13 +639,17 @@ The fix: Name `+families::secretbox_xsalsa20poly1305+` or `+families::secretbox_
 
 |`+secretbox_removed+`
 |native, wasip2, wasip3
-|`+no member named 'secretbox_xchacha20poly1305' in namespace 'webcpp::crypto::ciphers'+`
+|`+no member named 'secretbox' in namespace 'webcpp::crypto::ciphers'+`
+
+`+no member named 'secretbox_xchacha20poly1305' in namespace 'webcpp::crypto::ciphers'+`
 
 The fix: Name `+crypto::secret_key_encryption::secretbox+` and `+secretbox_xchacha20poly1305+`, the secret boxes' namespace; `+ciphers::secretbox+` is gone, with no alias.
 
 |`+secretbox_removed_call+`
 |native, wasip2, wasip3
-|`+no template named 'secretbox_xchacha20poly1305' in namespace 'webcpp::crypto::ciphers'; did you mean 'webcpp::crypto::secret_key_encryption::secretbox_xchacha20poly1305'?+`
+|`+no template named 'secretbox' in namespace 'webcpp::crypto::ciphers'; did you mean 'webcpp::crypto::secret_key_encryption::secretbox'?+`
+
+`+no template named 'secretbox_xchacha20poly1305' in namespace 'webcpp::crypto::ciphers'; did you mean 'webcpp::crypto::secret_key_encryption::secretbox_xchacha20poly1305'?+`
 
 The fix: As `+secretbox_removed+`: name `+crypto::secret_key_encryption::secretbox<>+` and `+secretbox_xchacha20poly1305<>+`, the names clang offers.
 
@@ -813,13 +871,21 @@ The fix: Verify a BIP340 signature with `+crypto::schnorr+`, its scheme; `+crypt
 
 |`+x25519_asynchronous_backend+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: agree on this backend completes asynchronously: call async_agree.+`
+|`+webcpp::crypto: from_secret on this backend completes asynchronously: call async_from_secret.+`
+
+`+webcpp::crypto: generate on this backend completes asynchronously: call async_generate.+`
+
+`+webcpp::crypto: agree on this backend completes asynchronously: call async_agree.+`
 
 The fix: Call `+async_from_secret+`, `+async_generate+` or `+async_agree+` on a backend that completes by itself: an X25519 key pair's synchronous forms cannot wait for it.
 
 |`+x25519_constructions_other_backend+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: public_key_encryption::basic_sealed_box takes an X25519 key pair of its own backend, which has no X25519.+`
+|`+webcpp::crypto: key_exchange::kx_keypair holds an X25519 key pair of its own backend, which has no X25519.+`
+
+`+webcpp::crypto: public_key_encryption::basic_box takes an X25519 key pair of its own backend, which has no X25519.+`
+
+`+webcpp::crypto: public_key_encryption::basic_sealed_box takes an X25519 key pair of its own backend, which has no X25519.+`
 
 The fix: Name a backend that has X25519 as well, as libsodium, the default of crypto_kx, the boxes and the sealed box on every target: each takes an X25519 key pair of its own backend.
 

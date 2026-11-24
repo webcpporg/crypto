@@ -136,14 +136,14 @@ and wipes the pair if the tweak gives no valid key; what the tweak means is
 the domain library's.
 
 The x-only tweak is BIP 341's arithmetic: it lifts the key to the point with an
-even y, and the key pair's version negates the secret key when the public
-key's y is odd. It serves the protocols built on x-only keys, such as Taproot's
-output key or a pay-to-contract commitment to an x-only key. It is not BIP 32's
-child derivation, which adds to the parent's full point and secret key without
-that negation: for the half of the parents whose public key has an odd y, an
-x-only tweak derives another child than every BIP 32 wallet, whose addresses a
-wallet restored from the same seed never finds. BIP 32 tweaks the full key,
-with `secret_key_tweak_add` and `public_key_tweak_add` (<<crypto-secp256k1-tweaks>>),
+even y, and the key pair's version negates the secret key when the public key's
+y is odd. It serves the protocols built on x-only keys, such as Taproot's output
+key or a pay-to-contract commitment to an x-only key. It is not BIP 32's child
+derivation, which adds to the parent's full point and secret key without that
+negation: for the half of the parents whose public key has an odd y, an x-only
+tweak derives another child than every BIP 32 wallet, whose addresses a wallet
+restored from the same seed never finds. BIP 32 tweaks the full key, with
+`secret_key_tweak_add` and `public_key_tweak_add` (<<crypto-secp256k1-tweaks>>),
 and computes its tweak with HMAC-SHA-512, which is a domain library's
 (link:https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki[BIP 32]).
 
@@ -229,17 +229,16 @@ include::{examples}/musig_wallet.expected[]
 The wallet's address, its transactions and the hash each device signs are a
 domain library's. This section names no application.
 
-*Mistakes to avoid.* Reusing a nonce: two partial signatures with one nonce
-give away the secret key, so a nonce is made when the signature is made, never
+*Mistakes to avoid.* Reusing a nonce: two partial signatures with one nonce give
+away the secret key, so a nonce is made when the signature is made, never
 stored, and never restored from a backup; `partial_sign` takes it by value and
-refuses one already used. Signing before every nonce is in: a device that
-signs while the other can still choose its nonce lets it steer the final nonce,
-which the two rounds exist to prevent
-(link:https://eprint.iacr.org/2020/1261[Nick, Ruffing and Seurin, MuSig2]). A
-naive key sum: the plain sum of the two public keys, `public_key_combine`, is not
-a multisignature, since a device that announces its key after seeing the
-other's can choose one that cancels it and spend alone; `key_aggregate` weighs
-each key by a hash of all of them (BIP 327).
+refuses one already used. Signing before every nonce is in: a device that signs
+while the other can still choose its nonce lets it steer the final nonce, which
+the two rounds exist to prevent (link:https://eprint.iacr.org/2020/1261[Nick,
+Ruffing and Seurin, MuSig2]). A naive key sum: the plain sum of the two public
+keys, `public_key_combine`, is not a multisignature, since a device that
+announces its key after seeing the other's can choose one that cancels it and
+spend alone; `key_aggregate` weighs each key by a hash of all of them (BIP 327).
 
 [#crypto-wallets-silent]
 === A reusable address: silent payments

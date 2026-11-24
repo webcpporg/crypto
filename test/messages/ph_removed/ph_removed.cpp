@@ -16,8 +16,8 @@ int main() {
     // and `::begin` as a global name: four errors for the line, as a program that still names it
     // sees them, the first the missing name.
     // expected-error@+4 {{no member named 'ph' in namespace}}
-    // expected-error@+3 {{expected '(' for function-style cast or type construction}}
-    // expected-error@+2 {{no member named 'begin' in the global namespace}}
-    // expected-error@+1 {{no matching function for call to 'begin'}}
+    // expected-error@+3 {{expected '(' for function-style cast or type construction}} (knock-on)
+    // expected-error@+2 {{no member named 'begin' in the global namespace}} (knock-on)
+    // expected-error@+1 {{no matching function for call to 'begin'}} (knock-on)
     return webcpp::crypto::curves::ed25519::ph<webcpp::hash::sha2_512>::begin() ? 0 : 1;
 }

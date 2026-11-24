@@ -26,7 +26,7 @@ bool sealed_and_opened(webcpp::crypto::ciphers::chacha20_poly1305<>& cipher) {
     bool const sealed = webcpp::crypto::seal(cipher, nonce, {}, data).has_value();
     // clang-format off
     // expected-error@+3 {{no member named 'open' in namespace 'webcpp::crypto'; did you mean 'fopen'?}}
-    // expected-error@+2 {{too many arguments to function call, expected 2, have 5}}
+    // expected-error@+2 {{too many arguments to function call, expected 2, have 5}} (knock-on)
     // clang-format on
     bool const opened = webcpp::crypto::open(cipher, nonce, {}, data, tag).has_value();
     return sealed && opened;

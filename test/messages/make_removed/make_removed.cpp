@@ -23,7 +23,7 @@ int main() {
     // goes: two errors for the line, as a program that still calls it sees them.
     using keypair = crypto::curves::p256::keypair;
     // expected-error@+2 {{no member named 'make' in}}
-    // expected-error@+1 {{unexpected type name 'keypair': expected expression}}
+    // expected-error@+1 {{unexpected type name 'keypair': expected expression}} (knock-on)
     auto const free_made = crypto::make<keypair>(scalar);
     return member_made && free_made ? 0 : 1;
 }

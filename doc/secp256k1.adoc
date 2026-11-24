@@ -98,8 +98,8 @@ public key alone; `recover`, which finds the key of a recoverable signature
 `tweak_xonly`, the tweak of an x-only public key;
 * `<webcpp/crypto/curves/secp256k1/tweak.hpp>`: `secret_key_tweak_add`,
 `secret_key_tweak_mul` and `secret_key_negate`, `public_key_tweak_add`,
-`public_key_tweak_mul` and `public_key_negate`, and `public_key_combine` with its
-`combine_workspace_size`: the tweaks, negation and combination of whole keys
+`public_key_tweak_mul` and `public_key_negate`, and `public_key_combine` with
+its `combine_workspace_size`: the tweaks, negation and combination of whole keys
 (<<crypto-secp256k1-tweaks>>);
 * `<webcpp/crypto/curves/secp256k1/formats.hpp>`: `encode_spki`,
 `decode_spki`, `encode_pkcs8` and `decode_pkcs8`, the keys' SPKI and PKCS#8,
@@ -116,11 +116,10 @@ the `parse_` and `serialize_` functions of the public nonce, the aggregate
 nonce and the partial signature, and `workspace_size`: many signers' one
 signature (<<crypto-secp256k1-musig>>);
 * `<webcpp/crypto/curves/secp256k1/silent_payments.hpp>`, namespace
-`silent_payments`: `create_outputs`, `create_label`,
-`create_labeled_spend_key`, `make_previous_outputs_summary` and `scan_outputs`, with
-`send_workspace_size`, `summary_workspace_size` and `scan_workspace_size`:
-one reusable address whose payments look unrelated
-(<<crypto-secp256k1-silent-payments>>).
+`silent_payments`: `create_outputs`, `create_label`, `create_labeled_spend_key`,
+`make_previous_outputs_summary` and `scan_outputs`, with `send_workspace_size`,
+`summary_workspace_size` and `scan_workspace_size`: one reusable address whose
+payments look unrelated (<<crypto-secp256k1-silent-payments>>).
 
 Every function reads libsecp256k1's canary, so that a program linked with
 another build of the library does not link.
@@ -470,14 +469,14 @@ key pair without the server ever holding a secret.
 `<webcpp/crypto/curves/secp256k1/tweak.hpp>` offers that arithmetic on whole
 keys, each function a call of libsecp256k1:
 
-* `secret_key_tweak_add` and `secret_key_tweak_mul`: a secret key plus or times a
-32-byte tweak, modulo the group order, returned as a `secret<32>`;
-`public_key_tweak_add` and `public_key_tweak_mul`: P + tG and tP, the public keys of
-those two secrets;
-* `secret_key_negate` and `public_key_negate`: the negation of either, n - d and -P,
-each a `result` like the other tweaks;
-* `public_key_combine`: the sum of public keys, the public key of the sum of their
-secrets. libsecp256k1 takes an array of pointers to the keys, which crypto
+* `secret_key_tweak_add` and `secret_key_tweak_mul`: a secret key plus or times
+a 32-byte tweak, modulo the group order, returned as a `secret<32>`;
+`public_key_tweak_add` and `public_key_tweak_mul`: P + tG and tP, the public
+keys of those two secrets;
+* `secret_key_negate` and `public_key_negate`: the negation of either, n - d and
+-P, each a `result` like the other tweaks;
+* `public_key_combine`: the sum of public keys, the public key of the sum of
+their secrets. libsecp256k1 takes an array of pointers to the keys, which crypto
 builds in a `workspace` the caller lends, of `combine_workspace_size(n)` bytes,
 so that nothing is allocated; the workspace is wiped before the call returns.
 
@@ -714,8 +713,9 @@ signature. `<webcpp/crypto/curves/secp256k1/musig.hpp>`, namespace
 `public_key` is BIP 327's KeySort. Its `xonly_public_key` is the key the
 signature verifies under; `tweak_add` and `tweak_xonly_add` tweak it as a
 protocol asks;
-* `generate_nonce` makes one signer's nonce for one signature from its key pair, its
-randomness drawn inside: a `secret_nonce` to keep and a `public_nonce` to send;
+* `generate_nonce` makes one signer's nonce for one signature from its key pair,
+its randomness drawn inside: a `secret_nonce` to keep and a `public_nonce` to
+send;
 * `nonce_aggregate` sums the public nonces, and `nonce_process` makes the
 `session` of the 32-byte message;
 * `partial_sign` signs this signer's part, consuming its secret nonce;
@@ -773,12 +773,11 @@ include::{examples}/musig_network.expected[]
 spent by its key path
 (link:https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki[BIP 341]).
 `tweak_xonly_add` tweaks it by its TapTweak tagged hash before any nonce is
-made, since the session and the partial signatures need the key as tweaked,
-and `generate_nonce` mixes in the key it is given (BIP 327's NonceGen takes it only
-as an optional input); the signature then verifies under the output key and
-not under the internal one.
-The hash is the protocol's, a domain library's to compute; the example shows
-it with webcpp::hash's SHA-256:
+made, since the session and the partial signatures need the key as tweaked, and
+`generate_nonce` mixes in the key it is given (BIP 327's NonceGen takes it only
+as an optional input); the signature then verifies under the output key and not
+under the internal one. The hash is the protocol's, a domain library's to
+compute; the example shows it with webcpp::hash's SHA-256:
 
 [source,cpp]
 ----
@@ -845,9 +844,9 @@ and a spend `public_key`, which the sender decodes from the address), from the
 key pairs of the Taproot inputs and of the other eligible inputs, apart, and
 the smallest outpoint's 36 bytes;
 * `make_previous_outputs_summary` sums the eligible inputs' public keys for the
-recipient, into a `previous_outputs_summary`, and `scan_outputs` scans a transaction's
-x-only outputs with the scan key pair and the spend key: each `found_output`
-holds the output's key, its `spend_tweak` (a `secret<32>`, which
+recipient, into a `previous_outputs_summary`, and `scan_outputs` scans a
+transaction's x-only outputs with the scan key pair and the spend key: each
+`found_output` holds the output's key, its `spend_tweak` (a `secret<32>`, which
 `secret_key_tweak_add` adds to the spend secret key to spend the output,
 <<crypto-secp256k1-tweaks>>) and the label it was sent to;
 * `create_label` makes the scan key's `m`-th label, 0 being BIP 352's change

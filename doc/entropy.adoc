@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 [#crypto-entropy]
-=== Entropy
+==== Entropy
 
 A *cryptographically secure random number generator* produces numbers that an
 attacker cannot predict, even after seeing many of them
@@ -104,7 +104,7 @@ favours small codes. `std::uniform_int_distribution` does not.
 to use, and the operation that needed one fails.
 
 [#crypto-entropy-bearssl]
-==== Seeding BearSSL's own generator
+===== Seeding BearSSL's own generator
 
 A program that calls BearSSL's C API directly, for something crypto does not
 wrap, seeds BearSSL's generators from `random_device`: crypto builds BearSSL

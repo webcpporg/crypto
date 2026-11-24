@@ -38,13 +38,13 @@ tag and decrypts `data_bytes` in place;
 * `begin_open`, `authenticate`, `verify`, `decrypt` and `end_open` open a
 message in pieces, in two passes (<<crypto-gcm-incremental-open>>).
 
-`from_key`, `seal` and `open` have four forms each, the member and its free form,
-synchronous and asynchronous, with the same work, errors and refusals
-(<<crypto-curves-four-forms>>); the pieces' functions are members alone. AES-GCM
-is a `secret_key_encryption::aead::streaming_cipher`, whose free `seal` and
-`open` its header brings (<<crypto-aead-contract>>). An
-asynchronous form needs `<webcpp/crypto/async.hpp>` and
-`<library>/webcpp/asio//asio` in the Jamfile (<<crypto-async>>):
+`from_key`, `seal` and `open` have four forms each, the member and its free
+form, synchronous and asynchronous, with the same work, errors and refusals
+(<<crypto-curves-four-forms>>); the pieces' functions are members alone.
+AES-GCM is a `secret_key_encryption::aead::streaming_cipher`, whose free `seal`
+and `open` its header brings (<<crypto-aead-contract>>). An asynchronous form
+needs `<webcpp/crypto/async.hpp>` and `<library>/webcpp/asio//asio` in the
+Jamfile (<<crypto-async>>):
 
 .AES-GCM's operations in their four forms
 [cols="1,3,3",options="header"]
@@ -69,6 +69,25 @@ asynchronous form needs `<webcpp/crypto/async.hpp>` and
 | `aead.async_open(executor, nonce, associated_data, data, tag, token)` +
 `secret_key_encryption::aead::async_open(executor, aead, nonce, associated_data, data, tag, token)`
 |===
+
+*On the web and natively.* AES-GCM is the one AEAD browsers' WebCrypto has.
+On a native backend, and on every backend of this version, its four forms all
+run, the asynchronous ones completing through the event loop. On the browser's
+backend, once it is built (<<crypto-async-webcrypto>>), its seal and open are
+asynchronous alone, and each synchronous form stops the build naming its
+`async_` form. The other AEADs of `ciphers` and the boxes have their
+asynchronous forms too, on a native backend, so that a program that seals in
+an event loop writes one shape for every AEAD; on the browser's backend no form
+of them runs, synchronous or asynchronous, and each stops the build with one
+text:
+
+[listing]
+----
+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret
+box or crypto_box: no form of them, synchronous or asynchronous, runs on the
+browser's backend; name a native backend for them. On the browser's backend
+only AES-GCM seals and opens.
+----
 
 include::generated/backends-gcm.adoc[]
 

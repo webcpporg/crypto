@@ -36,11 +36,7 @@ include::jamfile.adoc[]
 
 include::root.adoc[]
 
-include::entropy.adoc[]
-
-include::constant_time_equal.adoc[]
-
-include::erase_secret.adoc[]
+include::protecting_secrets.adoc[]
 
 include::errors.adoc[]
 

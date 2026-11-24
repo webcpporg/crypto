@@ -15,13 +15,17 @@ encrypts a message to a contact whose public key it knows; a feedback form
 encrypts a report to a key whose owner alone may read it. The namespace
 `webcpp::crypto::public_key_encryption` holds NaCl's and libsodium's
 constructions in this version: the box, between two key pairs, and the sealed
-box, from anyone to a public key. Both agree with X25519 (<<crypto-x25519>>)
-and seal with XSalsa20-Poly1305, the secret box's cipher (<<crypto-secretbox>>),
-or, for `box_xchacha20poly1305`, XChaCha20-Poly1305, on libsodium, their
-default on every target. The namespace is named by the problem it solves: the
-word hybrid now names the post-quantum hybrids, as X25519MLKEM768 and X-Wing,
-for which `webcpp::crypto::hybrid` is kept free, and a later HPKE
+box, from anyone to a public key. Both agree with X25519 (<<crypto-x25519>>) and
+seal with XSalsa20-Poly1305, the secret box's cipher (<<crypto-secretbox>>), or,
+for `box_xchacha20poly1305`, XChaCha20-Poly1305, on libsodium, their default on
+every target. The namespace is named by the problem it solves: the word hybrid
+now names the post-quantum hybrids, as X25519MLKEM768 and X-Wing, for which
+`webcpp::crypto::hybrid` is kept free, and a later HPKE
 (link:https://www.rfc-editor.org/rfc/rfc9180[RFC 9180]) joins the boxes here.
+The namespaces of crypto are named by purpose, as
+<<crypto-namespaces-by-purpose,the table of the namespaces>> lists them: what
+encrypts under one secret key is in `secret_key_encryption`, what encrypts
+between key pairs here, and libsodium's session keys in `key_exchange`.
 
 *Which one.* A box when the two parties know each other's public keys and the
 recipient must know the message came from the other: a chat between two
@@ -42,23 +46,23 @@ include::generated/namespace-public_key_encryption.adoc[]
 `public_key_encryption::box`, in
 `<webcpp/crypto/public_key_encryption/box.hpp>`, is NaCl's `crypto_box`
 (link:https://nacl.cr.yp.to/box.html[NaCl];
-link:https://doc.libsodium.org/public-key_cryptography/authenticated_encryption[libsodium's documentation]).
-`box::from_keys(own_keypair, peer_public_key)` agrees a key from the own X25519
-key pair (`curves::x25519::basic_keypair`, <<crypto-x25519>>) and the peer's
-`x25519::public_key`, once for the pair (libsodium's `beforenm`), and keeps
-that key alone, not the key pair; the box then works in place, without
-associated data: `seal(nonce_bytes, data_bytes)` encrypts and returns the
-16-byte tag, and `open(nonce_bytes, data_bytes, tag_bytes)` checks it and
-decrypts, zeroing the data when it does not match. A box is an
-`authenticated_box`, as a secret box is: its free forms are the box forms,
-`secret_key_encryption::seal(box, nonce, data)` and
+link:https://doc.libsodium.org/public-key_cryptography/authenticated_encryption[libsodium's
+documentation]). `box::from_keys(own_keypair, peer_public_key)` agrees a key
+from the own X25519 key pair (`curves::x25519::basic_keypair`,
+<<crypto-x25519>>) and the peer's `x25519::public_key`, once for the pair
+(libsodium's `beforenm`), and keeps that key alone, not the key pair; the box
+then works in place, without associated data: `seal(nonce_bytes, data_bytes)`
+encrypts and returns the 16-byte tag, and `open(nonce_bytes, data_bytes,
+tag_bytes)` checks it and decrypts, zeroing the data when it does not match. A
+box is an `authenticated_box`, as a secret box is: its free forms are the box
+forms, `secret_key_encryption::seal(box, nonce, data)` and
 `secret_key_encryption::open(box, nonce, data, tag)`, named in full
-(<<crypto-box-forms>>); no free `seal` or `open` is in this namespace. Alice's box made from her key pair and Bob's
-public key, and Bob's made from his key pair and Alice's public key, hold
-the same key: what one seals the other opens. `box_xchacha20poly1305` is
-libsodium's `crypto_box_curve25519xchacha20poly1305`, the same with
-XChaCha20-Poly1305. A box is moved and not copied, and wipes its key when
-moved from and destroyed.
+(<<crypto-box-forms>>); no free `seal` or `open` is in this namespace. Alice's
+box made from her key pair and Bob's public key, and Bob's made from his key
+pair and Alice's public key, hold the same key: what one seals the other opens.
+`box_xchacha20poly1305` is libsodium's `crypto_box_curve25519xchacha20poly1305`,
+the same with XChaCha20-Poly1305. A box is moved and not copied, and wipes its
+key when moved from and destroyed.
 
 A peer's public key of small order makes the shared secret one an attacker
 knows: `from_keys` refuses it with `weak_public_key`, as libsodium's `beforenm`
@@ -119,19 +123,19 @@ a protocol that needs to know says so inside the message, or signs it.
 === Sealed boxes
 
 `public_key_encryption::sealed_box`, in
-`<webcpp/crypto/public_key_encryption/sealed_box.hpp>`, is
-libsodium's sealed box, `crypto_box_seal`
-(link:https://doc.libsodium.org/public-key_cryptography/sealed_boxes[libsodium's documentation]):
-anyone who knows a public key can seal a message to it, and only the key pair
-opens it. `seal(recipient_public_key, message, out)`, the recipient's key an
-`x25519::public_key`, writes to `out`, of the message's size plus `overhead`,
-48 bytes, a key pair libsodium draws for the message, its public key, the tag
-and the ciphertext, and wipes the drawn secret key; the nonce comes from the
-two public keys. `open(recipient_keypair, sealed, out)`, the recipient's
-`x25519::basic_keypair`, writes the message to `out`, of the sealed box's size
-less 48 bytes, and zeroes `out` when the box does not open: sealed to another
-key pair, or changed. The sizes are checked first (`invalid_input_size`), then
-the key pair (`invalid_state` for one moved from).
+`<webcpp/crypto/public_key_encryption/sealed_box.hpp>`, is libsodium's sealed
+box, `crypto_box_seal`
+(link:https://doc.libsodium.org/public-key_cryptography/sealed_boxes[libsodium's
+documentation]): anyone who knows a public key can seal a message to it, and
+only the key pair opens it. `seal(recipient_public_key, message, out)`, the
+recipient's key an `x25519::public_key`, writes to `out`, of the message's size
+plus `overhead`, 48 bytes, a key pair libsodium draws for the message, its
+public key, the tag and the ciphertext, and wipes the drawn secret key; the
+nonce comes from the two public keys. `open(recipient_keypair, sealed, out)`,
+the recipient's `x25519::basic_keypair`, writes the message to `out`, of the
+sealed box's size less 48 bytes, and zeroes `out` when the box does not open:
+sealed to another key pair, or changed. The sizes are checked first
+(`invalid_input_size`), then the key pair (`invalid_state` for one moved from).
 
 include::generated/backends-sealed_box.adoc[]
 

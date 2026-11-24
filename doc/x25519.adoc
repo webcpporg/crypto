@@ -29,14 +29,29 @@ is made, is `public_key()`, a `curves::x25519::public_key`, whose `bytes()` a
 program sends, and `secret()` gives the secret key back, to keep. A peer's key
 arrives as bytes and is made by `public_key::from_bytes(bytes)`, which checks
 their size alone. `key_pair.agree(peer_key)` gives the shared secret, a
-`secret<32>` that wipes itself; `crypto::agree(key_pair, peer_key)` is its free
-form, and `async_agree` its asynchronous one (<<crypto-async>>). A moved-from
-key pair refuses every call with `invalid_state`. A peer's public key of low
-order makes the shared secret all zero, whatever the secret key: `agree`
-refuses it with `weak_public_key`, so that an attacker who sends such a key
-cannot make both sides use a secret it knows (design D8). Every case of
-Wycheproof's X25519 file gives its shared secret, and its 31 all-zero cases
-give `weak_public_key` (`x25519_wycheproof_sodium`).
+`secret<32>` that wipes itself. A moved-from key pair refuses every call with
+`invalid_state`. A peer's public key of low order makes the shared secret all
+zero, whatever the secret key: `agree` refuses it with `weak_public_key`, so
+that an attacker who sends such a key cannot make both sides use a secret it
+knows (design D8). Every case of Wycheproof's X25519 file gives its shared
+secret, and its 31 all-zero cases give `weak_public_key`
+(`x25519_wycheproof_sodium`).
+
+The keys are typed: a key pair is a `keypair`, a public key a
+`curves::x25519::public_key`, and no operation takes either as bytes, so that a
+peer's key is never mistaken for the program's own secret, nor an Ed25519 key's
+bytes for an X25519 key. Each operation has the four forms of every key pair
+(<<crypto-curves-four-forms>>): the members above; their free forms
+`crypto::from_secret<keypair>(secret_bytes)`, `crypto::generate<keypair>()`
+and `crypto::agree(key_pair, peer_key)`; and, X25519 being in WebCrypto, their
+asynchronous forms, `keypair::async_from_secret`, `keypair::async_generate`
+and `key_pair.async_agree`, and the free `crypto::async_from_secret`,
+`crypto::async_generate` and `crypto::async_agree`, in
+`<webcpp/crypto/async.hpp>` (<<crypto-async>>). A public key is made by
+`public_key::from_bytes` or `crypto::from_bytes<public_key>`, synchronously
+alone, as every public key is. The key pair is a `crypto::agreement_keypair`
+and not a `crypto::signing_keypair`: X25519 agrees and does not sign
+(<<crypto-curves-keypair>>).
 
 include::generated/backends-x25519_keypair.adoc[]
 

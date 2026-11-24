@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 [#crypto-constant-time-equal]
-=== Comparing tags in constant time
+==== Comparing tags in constant time
 
 A *timing attack* recovers a secret by measuring how long a program takes to
 handle different inputs

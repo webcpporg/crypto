@@ -52,7 +52,9 @@ inline constexpr std::size_t entropy_piece = 256;
  * Emscripten's MIN_NODE_VERSION is 18.3), node's `require('node:crypto').webcrypto` is the
  * same generator under another name; with neither (an audio worklet's case) the answer is
  * `errc::not_supported`. The draw goes into a fresh array, then is copied into the
- * module's memory, since `getRandomValues` refuses a view of shared memory (W3C WebCryptoAPI).
+ * module's memory, since `getRandomValues` refuses a view of shared memory (W3C WebCryptoAPI);
+ * the array is zeroed after the copy, and after a step that throws, so that no copy of the draw
+ * stays in JavaScript's heap until the collector frees it.
  * It is an `EM_ASM_INT` in this inline function, whose code string is one merged definition
  * across translation units: an `EM_JS` defines external symbols in every translation unit that
  * includes it, and a program of two such units would not link. Windows: `BCryptGenRandom` with
@@ -80,6 +82,7 @@ inline constexpr std::size_t entropy_piece = 256;
     static_assert(sizeof(output_bytes) == 4, "webcpp::crypto: the browser draw assumes wasm32");
     // clang-format off
     int const draw_status = EM_ASM_INT({
+        let drawn = null;
         try {
             let source = globalThis.crypto;
             if ((!source || typeof source.getRandomValues !== 'function') &&
@@ -88,12 +91,15 @@ inline constexpr std::size_t entropy_piece = 256;
             }
             if (!source || typeof source.getRandomValues !== 'function') return 1;
             /* a fresh buffer: never a view of shared memory */
-            const drawn = new Uint8Array($1);
+            drawn = new Uint8Array($1);
             source.getRandomValues(drawn);
             HEAPU8.set(drawn, $0);
             return 0;
         } catch (error) {
             return 2;
+        } finally {
+            /* the draw leaves no copy of itself in JavaScript's heap */
+            if (drawn !== null) drawn.fill(0);
         }
     }, output_bytes, static_cast<int>(byte_count));
     // clang-format on

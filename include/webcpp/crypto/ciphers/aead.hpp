@@ -285,7 +285,8 @@ public:
      * `crypto::async_from_key<aead>(executor, key_bytes, token)`, which calls it.
      *
      * On a native backend only: WebCrypto has no ChaCha20-Poly1305, and on a backend that
-     * completes by itself the call stops the build (design D6).
+     * completes by itself this call stops the build, as `from_key`, `seal`, `open` and the other
+     * asynchronous forms do (design D6).
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's

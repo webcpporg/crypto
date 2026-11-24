@@ -33,8 +33,9 @@ inline constexpr bool asynchronous_backend_v = false;
  * Every form of such a construction on such a backend, synchronous or asynchronous, member or
  * free, calls it first after its guard, before any member of the type or its engine is named
  * (ruling P12), so that its text is the build's one message, is written once, and points to a
- * native backend: no form of these constructions completes there. AES-GCM, which WebCrypto has,
- * keeps its own refusal, which names its `async_` form.
+ * native backend: no form of these constructions, synchronous or asynchronous, completes there,
+ * and its text says so. AES-GCM, which WebCrypto has, keeps its own refusal, which names its
+ * `async_` form.
  *
  * @tparam Backend The backend, whose `asynchronous_backend_v` is true.
  */
@@ -42,8 +43,9 @@ template <class Backend>
 constexpr void refuse_aead_on_asynchronous_backend() noexcept {
     static_assert(!asynchronous_backend_v<Backend>,
                   "webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, "
-                  "secret box or crypto_box: their async_seal, async_open and async_from_key run "
-                  "on a native backend; on the browser's backend only AES-GCM is asynchronous.");
+                  "secret box or crypto_box: no form of them, synchronous or asynchronous, runs on "
+                  "the browser's backend; name a native backend for them. On the browser's backend "
+                  "only AES-GCM seals and opens.");
 }
 
 }  // namespace webcpp::crypto::detail

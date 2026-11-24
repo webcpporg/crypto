@@ -28,7 +28,8 @@
      `secret_key_encryption::aead::async_seal` and `async_open` for ChaCha20-Poly1305 and its
      forms; `async_from_key` for a secret box, and the box forms
      `secret_key_encryption::async_seal` and `async_open` for a secret box and a crypto_box. On a
-     backend that completes by itself each stops the build: only AES-GCM is asynchronous there.
+     backend that completes by itself each stops the build, as its synchronous form does: only
+     AES-GCM seals and opens there.
    - Ed25519: `async_from_secret` (a key pair from its seed), `async_generate`,
      `async_sign(executor, key_pair, crypto::eddsa, message, token)` and
      `async_verify(executor, crypto::eddsa, signature, message, public_key[, policy], token)`,

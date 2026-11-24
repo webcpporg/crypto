@@ -101,10 +101,10 @@ P-256's own types, the key pair and the validated `public_key`, and
 The AEADs and boxes WebCrypto lacks (ChaCha20-Poly1305 and its forms, the
 secret boxes, crypto_box) have their asynchronous seal, open and from_key on a
 native backend alone, so that a program sealing in an event loop writes one
-shape for every AEAD: on a backend that completes by itself, as the browser's
-will (<<crypto-async-webcrypto>>), only AES-GCM is asynchronous, and any other
-stops the build with a message that says so and names a native backend, from
-its synchronous forms as from its asynchronous ones. The other algorithms of crypto
+shape for every AEAD. On a backend that completes by itself, as the browser's
+will (<<crypto-async-webcrypto>>), no form of them runs, synchronous or
+asynchronous: only AES-GCM seals and opens there, and any other stops the build
+with a message that says so and names a native backend. The other algorithms of crypto
 that WebCrypto lacks (secp256k1) have no asynchronous function: naming one stops
 the build with a message that names the synchronous function to call. The texts
 and fixes are in <<crypto-jamfile-messages>>. The synchronous functions are as

@@ -355,9 +355,7 @@ The fix: Name `+gcm<aes256<backends::bearssl>>+` or `+gcm<aes256<backends::opens
 
 |`+heavy_without_threads+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: a heavy operation's async_ variant needs a build with threads; if no error above names the synchronous call, this variant lacks WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS.+`
-
-`+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.+`
+|`+webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.+`
 
 The fix: Call the synchronous operation the message names, or build with threads: natively without `+WEBCPP_CRYPTO_NO_THREADS+`, on Emscripten with `+-pthread+`; WASI has none.
 

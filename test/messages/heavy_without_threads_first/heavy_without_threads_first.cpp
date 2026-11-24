@@ -9,8 +9,8 @@
 // detail::run_on_work's stand-in, whose text defers to "an error above". The test is alone: the
 // refusal and clang's fatal "too many errors emitted" are the compile's only errors, so a
 // regression that puts the stand-in, or any other error, first fails it. -verify cannot order
-// its directives; the limit does. The refusal's directive comes last, as the message the page
-// shows (doc/tables/generate.py reads a test's last directive).
+// its directives; the limit does. The page shows the refusal alone (doc/tables/generate.py lists
+// a test's directives in source order and skips one marked knock-on, as clang's limit error is).
 
 // clang-format off
 // expected-error@*:* {{too many errors emitted, stopping now}} (knock-on)

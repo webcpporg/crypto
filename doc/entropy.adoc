@@ -46,6 +46,20 @@ there crypto draws from `require('node:crypto').webcrypto`, the same
 generator under another name, not a weaker one. The function asks in pieces
 of at most 256 bytes, the limit of `getentropy`, and checks every call.
 
+On Emscripten, libsodium draws through crypto too. Its own JavaScript generator
+throws when `crypto.getRandomValues` and node's `randomBytes` both fail, and
+the exception terminates the program; crypto installs its generator in its
+place (`randombytes_set_implementation`) before its first libsodium call. A
+sealed box whose ephemeral key cannot be drawn returns `entropy_unavailable`,
+its output zeroed, and so does the first libsodium function of a program when
+`sodium_init` cannot draw its canary for `sodium_malloc`, which crypto never
+allocates through: libsodium is initialised all the same, with a zero canary,
+and later calls run. A draw that fails in a libsodium function the program calls
+itself, which no crypto call observes, ends the program through
+`sodium_misuse`, as libsodium does natively, rather than hand on zeros. A
+program that sets its own libsodium generator sets it after crypto's first
+libsodium call, or crypto's replaces it.
+
 `fill(bytes)` is the interface. With exceptions, `random_device` is also a
 standard random bit generator, shaped as `std::random_device`: its
 `operator()` throws `boost::system::system_error` when the source fails, so it

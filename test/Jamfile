@@ -506,6 +506,15 @@ crypto-run random_device_failing : random_device_failing_test.cpp
 crypto-run random_device_browser : random_device_browser_test.cpp
     support/random_device_second_unit.cpp
   : <library>/third_party//bearssl : emscripten ;
+# On Emscripten under node, libsodium draws through crypto's entropy: with
+# every source throwing, a sealed box reports entropy_unavailable. A program of
+# its own, so that no libsodium call precedes the plant.
+crypto-run sodium_entropy_browser : sodium_entropy_browser_test.cpp
+  : <library>/third_party//sodium : emscripten ;
+# A failed draw outside a call crypto watches ends the program, never handing
+# zeros on.
+webcpp.run-fail sodium_entropy_unwatched : sodium_entropy_unwatched_test.cpp
+  : <library>/third_party//sodium : emscripten ;
 webcpp.compile-diagnostic random_device_no_call : random_device_no_call_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS : native wasip2 ;
 

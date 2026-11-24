@@ -42,6 +42,15 @@
 #include <span>
 #include <string_view>
 
+#ifdef __EMSCRIPTEN__  // crypto's entropy, libsodium's generator there
+#include <webcpp/crypto/detail/entropy.hpp>
+
+#include <sodium/randombytes.h>
+
+#include <bit>
+#include <cstddef>
+#endif
+
 /** The canary's name, which every libsodium function of webcpp::crypto reads. */
 #define WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY \
     WEBCPP_CRYPTO_DETAIL_CANARY(sodium, WEBCPP_CRYPTO_SODIUM_COMMIT, portable)
@@ -68,16 +77,145 @@ struct sodium {
 
 namespace webcpp::crypto::detail {
 
+#ifdef __EMSCRIPTEN__
+// On Emscripten libsodium draws through its own JavaScript (randombytes.c): its stir, which
+// sodium_init runs, throws "No secure random number generator found" when
+// crypto.getRandomValues and node's randomBytes throw, and the throw unwinds through
+// WebAssembly. crypto installs its own implementation instead, before the first sodium_init,
+// which reads crypto's entropy (detail/entropy.hpp). Its buf returns void, so a failed draw is
+// reported through the watch's flag.
+
+/** How many calls crypto observes on this thread are running: the depth of the watches. */
+inline thread_local int sodium_draws_watched = 0;
+/** Whether a draw failed inside the innermost watch that is running on this thread. */
+inline thread_local bool sodium_draw_failed = false;
+
+/**
+ * Watches the libsodium draws of one call crypto makes: while it lives, a failed draw is flagged
+ * rather than fatal. A watch inside another keeps the outer one's failure.
+ */
+class sodium_draw_watch {
+public:
+    /** Starts watching, with no failure seen yet. */
+    sodium_draw_watch() noexcept : outer_failed_(sodium_draw_failed) {
+        ++sodium_draws_watched;
+        sodium_draw_failed = false;
+    }
+
+    sodium_draw_watch(sodium_draw_watch const&) = delete;
+    sodium_draw_watch& operator=(sodium_draw_watch const&) = delete;
+    sodium_draw_watch(sodium_draw_watch&&) = delete;
+    sodium_draw_watch& operator=(sodium_draw_watch&&) = delete;
+
+    /** Stops watching; an outer watch still sees its own failure, and this one's. */
+    ~sodium_draw_watch() {
+        --sodium_draws_watched;
+        sodium_draw_failed = outer_failed_ || sodium_draw_failed;
+    }
+
+    /**
+     * Whether a draw failed since the watch started.
+     *
+     * @return Whether one did.
+     */
+    [[nodiscard]] bool failed() const noexcept { return sodium_draw_failed; }
+
+private:
+    bool outer_failed_;
+};
+
+/**
+ * Fills `output_data` from crypto's entropy: libsodium's `randombytes_buf`. When the draw fails
+ * the bytes are zeroed; inside a watched call the failure is flagged for its caller, outside one
+ * no caller could see it, so it ends the program through `sodium_misuse`, libsodium's own
+ * reaction to a draw that cannot be made, rather than hand zeros on.
+ *
+ * @param output_data Where to write.
+ * @param byte_count How many bytes.
+ */
+inline void sodium_entropy_buf(void* const output_data, std::size_t const byte_count) noexcept {
+    if (!fill_from_system({static_cast<std::uint8_t*>(output_data), byte_count})) {
+        if (sodium_draws_watched == 0) {
+            sodium_misuse();
+        }
+        sodium_draw_failed = true;
+    }
+}
+
+/**
+ * Draws 4 bytes through @ref sodium_entropy_buf: libsodium's `randombytes_random`.
+ *
+ * @return The bytes, read in the machine's order.
+ */
+inline std::uint32_t sodium_entropy_random() noexcept {
+    std::array<std::uint8_t, sizeof(std::uint32_t)> drawn_bytes{};
+    sodium_entropy_buf(drawn_bytes.data(), drawn_bytes.size());
+    return std::bit_cast<std::uint32_t>(drawn_bytes);
+}
+
+/** Does nothing: crypto's entropy has no state to stir. libsodium's `randombytes_stir`. */
+inline void sodium_entropy_stir() noexcept {}
+
+/**
+ * The implementation's name, libsodium's `randombytes_implementation_name`.
+ *
+ * @return "webcpp-crypto".
+ */
+inline char const* sodium_entropy_name() noexcept {
+    return "webcpp-crypto";
+}
+
+/**
+ * crypto's entropy as libsodium's generator. `uniform` and `close` are null: libsodium derives
+ * `randombytes_uniform` from `random`, and there is nothing to close.
+ */
+inline randombytes_implementation const sodium_entropy{&sodium_entropy_name, &sodium_entropy_random,
+                                                       &sodium_entropy_stir, nullptr,
+                                                       &sodium_entropy_buf,  nullptr};
+#else
+/**
+ * Off Emscripten libsodium draws from the system's generator itself, which ends the program when
+ * it cannot: a watch sees no failure. No thread-local state either, whose first access on a
+ * thread allocates on some platforms (macOS).
+ */
+class sodium_draw_watch {
+public:
+    /**
+     * Whether a draw failed since the watch started.
+     *
+     * @return False.
+     */
+    [[nodiscard]] bool failed() const noexcept { return failed_; }
+
+private:
+    bool failed_ = false;
+};
+#endif
+
 /**
  Reads libsodium's canary and initialises libsodium, which every engine calls first.
  `sodium_init` is idempotent and takes libsodium's own lock; its state is libsodium's.
+ On Emscripten, it first installs crypto's entropy as libsodium's generator, once, and watches
+ `sodium_init`'s draw: libsodium's `sodium_malloc` canary, which crypto never allocates
+ through. When that draw fails libsodium is initialised all the same, its canary zero, and a
+ later call finds it ready.
 
- @return Nothing; `backend_failure` when `sodium_init` returns -1.
+ @return Nothing; `backend_failure` when `sodium_init` returns -1; `entropy_unavailable` when its
+ draw failed.
 */
 [[nodiscard]] inline boost::system::result<void> sodium_ready() noexcept {
     read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+#ifdef __EMSCRIPTEN__
+    // Before the first sodium_init, whose stir would otherwise run libsodium's JavaScript.
+    static int const installed_code = randombytes_set_implementation(&sodium_entropy);
+    static_cast<void>(installed_code);
+#endif
+    sodium_draw_watch const init_draws;
     if (sodium_init() < 0) {
         return error::backend_failure;
+    }
+    if (init_draws.failed()) {
+        return error::entropy_unavailable;
     }
     return {};
 }
@@ -864,10 +1002,12 @@ template <>
 struct sealed_box_engine<families::sealed_box, backends::sodium> {
     /**
      * Seals `message_bytes` into `output_bytes` (`basic_sealed_box` has checked the sizes):
-     * libsodium draws the key pair from its own generator and wipes its secret key.
+     * libsodium draws the key pair from its generator, crypto's entropy on Emscripten, and wipes
+     * its secret key. When that draw failed, `output_bytes` is zeroed.
      *
      * @return Nothing; `weak_public_key` for a recipient key of small order, which libsodium's
-     * box refuses; `backend_failure` when libsodium cannot start.
+     * box refuses; `entropy_unavailable` when the draw failed; `backend_failure` when libsodium
+     * cannot start.
      */
     [[nodiscard]] static boost::system::result<void> seal(
         std::span<std::uint8_t const, 32> recipient_public_key,
@@ -877,8 +1017,14 @@ struct sealed_box_engine<families::sealed_box, backends::sodium> {
         if (!library_ready) {
             return library_ready;
         }
-        if (crypto_box_seal(output_bytes.data(), message_bytes.data(), message_bytes.size(),
-                            recipient_public_key.data()) != 0) {
+        sodium_draw_watch const seal_draws;
+        int const seal_code = crypto_box_seal(output_bytes.data(), message_bytes.data(),
+                                              message_bytes.size(), recipient_public_key.data());
+        if (seal_draws.failed()) {
+            wipe(output_bytes.data(), output_bytes.size());
+            return error::entropy_unavailable;
+        }
+        if (seal_code != 0) {
             return error::weak_public_key;
         }
         return {};

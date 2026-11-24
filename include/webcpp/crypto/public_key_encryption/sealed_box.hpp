@@ -101,7 +101,8 @@ struct basic_sealed_box {
      * @param message_bytes The message.
      * @param output_bytes `message_bytes.size() + overhead` bytes.
      * @return Nothing; `invalid_input_size` for an `output_bytes` of another size;
-     * `weak_public_key` for a key of small order; `backend_failure`.
+     * `weak_public_key` for a key of small order; `entropy_unavailable` when the ephemeral key
+     * pair could not be drawn; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> seal(
         public_key_type const& recipient_public_key, std::span<std::uint8_t const> message_bytes,

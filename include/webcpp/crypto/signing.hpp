@@ -536,11 +536,11 @@ constexpr void check_input() noexcept {
  * forms, calls it first after its guard, before any engine is named, so that its text is the
  * build's one message and is written once.
  *
- * @tparam Refused The backend, or another type of the call, which makes the refusal dependent.
+ * @tparam Backend The backend that completes by itself, which makes the refusal dependent.
  */
-template <class Refused>
+template <class Backend>
 constexpr void refuse_ed25519ph_on_asynchronous_backend() noexcept {
-    static_assert(refused_v<Refused>,
+    static_assert(refused_v<Backend>,
                   "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, "
                   "verify, async_sign and async_verify run on a native backend.");
 }

@@ -924,7 +924,8 @@ auto async_open(Executor const& completion_executor, Box& keyed_box,
  * `key_pair.sign(signing_scheme, signing_input)` run when the operation is initiated, its result
  * posted to `completion_executor`.
  *
- * The free form of the member `key_pair.async_sign`, with the same arguments, which it calls.
+ * The free form of the member `key_pair.async_sign`, which it calls with the arguments after
+ * `key_pair`.
  *
  * Ed25519 signs the message with `crypto::eddsa`, or with `crypto::eddsa_prehashed` (Ed25519ph)
  * `crypto::prehashed{digest}`, the message's 64-byte SHA-512, on a native backend alone (WebCrypto
@@ -966,7 +967,8 @@ auto async_sign(Executor const& completion_executor, Keypair const& key_pair, Sc
                 Input const& signing_input, CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::ed25519ph_on_browser_v<Keypair, Scheme>) {
-        detail::refuse_ed25519ph_on_asynchronous_backend<Scheme>();
+        detail::refuse_ed25519ph_on_asynchronous_backend<
+            typename detail::key_backend<Keypair>::type>();
     } else if constexpr (!detail::is_ed25519_keypair_v<Keypair> &&
                          !detail::is_p256_keypair_v<Keypair>) {
         detail::refuse_async_sign_keypair<Keypair>();
@@ -1006,8 +1008,9 @@ void async_sign([[maybe_unused]] Executor const& completion_executor,
  * `crypto::verify<Backend>(crypto::eddsa, signature_value, message_bytes, public_key)` run when the
  * operation is initiated, its result posted to `completion_executor`.
  *
- * The free form of the member `public_key.async_verify<Backend>`, with the same arguments,
- * `crypto::eddsa` first, which it calls, and which runs the key's `verify`, with the same work.
+ * The free form of the member `public_key.async_verify<Backend>`, which it calls with the
+ * arguments other than `public_key`, the scheme `crypto::eddsa` among them, and which runs the
+ * key's `verify`, with the same work.
  *
  * The signature and the input are checked as `crypto::can_verify` checks them, before anything
  * else: a signature of another type, bytes included, stops the build, and so does a marker
@@ -1082,9 +1085,10 @@ auto async_verify(Executor const& completion_executor, eddsa_t signing_scheme,
  * strictly: `crypto::verify<Backend>` of `crypto::eddsa_prehashed` run when the operation is
  * initiated, its result posted to `completion_executor`.
  *
- * The free form of the member `public_key.async_verify<Backend>`, with the same arguments, which
- * it calls, and which runs the key's `verify`, with the same work. It runs on a native backend: on
- * one that completes by itself it stops the build first (WebCrypto has no Ed25519ph).
+ * The free form of the member `public_key.async_verify<Backend>`, which it calls with the
+ * arguments other than `public_key`, the scheme `crypto::eddsa_prehashed` among them, and which
+ * runs the key's `verify`, with the same work. It runs on a native backend: on one that completes
+ * by itself it stops the build first (WebCrypto has no Ed25519ph).
  *
  * The signature and the input are checked as `crypto::can_verify` checks them, before anything
  * else: a signature of another type, bytes included, stops the build, and so do a message and a
@@ -1170,9 +1174,9 @@ auto async_verify(Executor const& completion_executor, eddsa_prehashed_t signing
  * SHA-256, as WebCrypto's ECDSA with SHA-256 verifies, or `crypto::prehashed{digest}` gives its
  * digest.
  *
- * The free form of the member `public_key.async_verify`, with the same arguments,
- * `crypto::ecdsa_sha256` first, which it calls, and which runs the key's `verify`, with the same
- * work.
+ * The free form of the member `public_key.async_verify`, which it calls with the arguments
+ * other than `public_key`, the scheme `crypto::ecdsa_sha256` among them, and which runs the key's
+ * `verify`, with the same work.
  *
  * A high S and a low S are both accepted, as `crypto::verify` and WebCrypto accept them. The
  * signature and the input are checked as `crypto::can_verify` checks them, before anything else:
@@ -1539,7 +1543,7 @@ auto curves::ed25519::basic_keypair<Backend>::async_sign(Executor const& complet
                                                          CompletionToken&& completion_token) const {
     detail::timing_guard const timing_scope;
     if constexpr (detail::ed25519ph_on_browser_v<basic_keypair, Scheme>) {
-        detail::refuse_ed25519ph_on_asynchronous_backend<Scheme>();
+        detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
     } else {
         return detail::initiate_sign(completion_executor, *this, signing_scheme, message_input,
                                      std::forward<CompletionToken>(completion_token));
@@ -1556,7 +1560,7 @@ auto curves::ed25519::public_key::async_verify(Executor const& completion_execut
     detail::timing_guard const timing_scope;
     if constexpr (std::is_same_v<Scheme, eddsa_prehashed_t> &&
                   detail::asynchronous_backend_v<Backend>) {
-        detail::refuse_ed25519ph_on_asynchronous_backend<Scheme>();
+        detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
     } else {
         return detail::initiate_verify_ed25519<Backend, Scheme>(
             completion_executor, signature_value, message_input, *this, strict,
@@ -1574,7 +1578,7 @@ auto curves::ed25519::public_key::async_verify(Executor const& completion_execut
     detail::timing_guard const timing_scope;
     if constexpr (std::is_same_v<Scheme, eddsa_prehashed_t> &&
                   detail::asynchronous_backend_v<Backend>) {
-        detail::refuse_ed25519ph_on_asynchronous_backend<Scheme>();
+        detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
     } else {
         return detail::initiate_verify_ed25519<Backend, Scheme>(
             completion_executor, signature_value, message_input, *this, verify_policy,

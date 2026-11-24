@@ -45,9 +45,13 @@ inline constexpr std::size_t entropy_piece = 256;
  * `crypto.getRandomValues`, in the browser and in node, called here and not through
  * Emscripten's own entropy call: that one (`random_get` in `src/lib/libwasi.js`) lets an
  * exception thrown by `crypto.getRandomValues`, or by node's `randomFillSync`, unwind through
- * WebAssembly, which terminates the program. Here a throw is caught in JavaScript and becomes
- * `error::entropy_unavailable`, and a missing `crypto.getRandomValues` (an audio worklet's
- * case) `errc::not_supported`. The draw goes into a fresh array, then is copied into the
+ * WebAssembly, which terminates the program. Here every step runs inside one `try`, the reads
+ * of `globalThis.crypto` and of its `getRandomValues` included, so a throw anywhere (a
+ * throwing getter too) is caught in JavaScript and becomes `error::entropy_unavailable`.
+ * Without `globalThis.crypto` (node 18 without `--experimental-global-webcrypto`, while
+ * Emscripten's MIN_NODE_VERSION is 18.3), node's `require('node:crypto').webcrypto` is the
+ * same generator under another name; with neither (an audio worklet's case) the answer is
+ * `errc::not_supported`. The draw goes into a fresh array, then is copied into the
  * module's memory, since `getRandomValues` refuses a view of shared memory (W3C WebCryptoAPI).
  * It is an `EM_ASM_INT` in this inline function, whose code string is one merged definition
  * across translation units: an `EM_JS` defines external symbols in every translation unit that
@@ -67,14 +71,22 @@ inline constexpr std::size_t entropy_piece = 256;
         nullptr, output_bytes, static_cast<ULONG>(byte_count), BCRYPT_USE_SYSTEM_PREFERRED_RNG);
     int const failure_code = BCRYPT_SUCCESS(status_code) ? 0 : EIO;
 #elif defined(__EMSCRIPTEN__) && !defined(WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY)
-    // 0: filled; 1: no crypto.getRandomValues (an audio worklet); 2: it threw. The code is a
-    // string with its newlines gone: a comment inside it ends only with its closing mark. It is
-    // JavaScript, which clang-format would break (`!==` into `! ==`).
+    // 0: filled; 1: no getRandomValues, neither the global one nor node's (an audio worklet);
+    // 2: a step threw. The code is a string with its newlines gone: a comment inside it ends
+    // only with its closing mark. It is JavaScript, which clang-format would break (`!==` into
+    // `! ==`).
+    // $0 is a 32-bit pointer, read as a Number: under MEMORY64 (wasm64) Emscripten passes a
+    // pointer to EM_ASM differently, and this code would need to change with it.
+    static_assert(sizeof(output_bytes) == 4, "webcpp::crypto: the browser draw assumes wasm32");
     // clang-format off
     int const draw_status = EM_ASM_INT({
-        const source = globalThis.crypto;
-        if (!source || typeof source.getRandomValues !== 'function') return 1;
         try {
+            let source = globalThis.crypto;
+            if ((!source || typeof source.getRandomValues !== 'function') &&
+                typeof require === 'function') {
+                source = require('node:crypto').webcrypto;
+            }
+            if (!source || typeof source.getRandomValues !== 'function') return 1;
             /* a fresh buffer: never a view of shared memory */
             const drawn = new Uint8Array($1);
             source.getRandomValues(drawn);

@@ -7,8 +7,11 @@
 // On Emscripten under node, as a page meets it: with crypto.getRandomValues (and node's
 // randomFillSync) throwing, random_device's fill returns entropy_unavailable with its output
 // zeroed, and P-256's generate entropy_unavailable, the program running on; with the originals
-// back, fill succeeds, from this translation unit and from a second one; with no crypto at all
-// (an audio worklet's case), fill returns errc::not_supported.
+// back, fill succeeds, from this translation unit and from a second one; with a globalThis.crypto
+// whose getter throws, entropy_unavailable; with no globalThis.crypto (node 18's case), fill
+// draws from require('node:crypto').webcrypto; with neither (an audio worklet's case), fill
+// returns errc::not_supported. The test runs as a CommonJS program under node, where require is
+// a function.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
@@ -56,11 +59,34 @@ void restore_sources() {
     });
 }
 
-// An audio worklet has no crypto.
-void remove_crypto() {
+// A getter of globalThis.crypto that throws.
+void plant_throwing_crypto_getter() {
+    EM_ASM({
+        Object.defineProperty(globalThis, 'crypto', {
+            get() { throw new Error('planted getter'); },
+            configurable: true
+        });
+    });
+}
+
+// Node 18 without --experimental-global-webcrypto has no globalThis.crypto.
+void remove_global_crypto() {
     EM_ASM({
         Object.defineProperty(globalThis, 'crypto', {value: undefined, configurable: true});
     });
+}
+
+// An audio worklet has no crypto, and no node:crypto either: require's answer for it is
+// replaced with a module that has no webcrypto.
+void remove_node_crypto() {
+    EM_ASM({
+        const original = require;
+        require = (name) => (name === 'node:crypto' ? {} : original(name));
+    });
+}
+
+bool require_is_a_function() {
+    return EM_ASM_INT({ return typeof require === 'function' ? 1 : 0; }) == 1;
 }
 // clang-format on
 
@@ -90,7 +116,20 @@ int main() {
     BOOST_TEST(webcpp::test::fill_in_second_unit(second_unit_buffer).has_value());
     BOOST_TEST(!all_zero(second_unit_buffer));
 
-    remove_crypto();
+    plant_throwing_crypto_getter();
+    std::ranges::fill(buffer, 0xa5);
+    filled = crypto::random_device{}.fill(buffer);
+    BOOST_TEST(!filled && filled.error() == crypto::error::entropy_unavailable);
+    BOOST_TEST(all_zero(buffer));
+
+    BOOST_TEST(require_is_a_function());
+    remove_global_crypto();
+    std::ranges::fill(buffer, 0);
+    filled = crypto::random_device{}.fill(buffer);
+    BOOST_TEST(filled.has_value());
+    BOOST_TEST(!all_zero(buffer));
+
+    remove_node_crypto();
     std::ranges::fill(buffer, 0xa5);
     filled = crypto::random_device{}.fill(buffer);
     BOOST_TEST(!filled && filled.error() == boost::system::errc::not_supported);

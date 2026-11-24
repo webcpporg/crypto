@@ -40,8 +40,11 @@ source at all (an Emscripten audio worklet, which has no `crypto`), it returns
 that throws (replaced by a script of the page, or refused by its host) gives
 `entropy_unavailable` too, and the program runs on: crypto calls it itself and
 catches the exception, where Emscripten's `getentropy` would let it unwind
-through WebAssembly and terminate the program. The function asks in pieces of at most 256 bytes, the
-limit of `getentropy`, and checks every call.
+through WebAssembly and terminate the program. Node 18, which Emscripten still
+supports, has no global `crypto` without `--experimental-global-webcrypto`:
+there crypto draws from `require('node:crypto').webcrypto`, the same
+generator under another name, not a weaker one. The function asks in pieces
+of at most 256 bytes, the limit of `getentropy`, and checks every call.
 
 `fill(bytes)` is the interface. With exceptions, `random_device` is also a
 standard random bit generator, shaped as `std::random_device`: its

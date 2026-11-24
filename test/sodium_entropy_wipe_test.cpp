@@ -11,9 +11,10 @@
 // would be dropped. crypto.getRandomValues is planted to fill every array with a pattern of 4
 // bytes, one per call; each call runs in a function that is never inlined, under 1 KiB of
 // padding, so that its frame is gone when it returns and the calls that read the stack do not
-// reach it. The stack's free part, from its end up to the stack pointer, is read from
-// JavaScript, whose reads of the module's memory are well defined. The test runs as a CommonJS
-// program under node.
+// reach it; a positive control, a call that leaves a third pattern in its frame unwiped, shows
+// the scan reaches such a frame. The stack's free part, from its end up to the stack pointer, is
+// read from JavaScript, whose reads of the module's memory are well defined. The test runs as a
+// CommonJS program under node.
 
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -27,6 +28,7 @@
 
 #include <array>
 #include <bit>
+#include <cstddef>
 #include <cstdint>
 
 namespace {
@@ -34,6 +36,8 @@ namespace {
 // The probe's pattern, then randombytes_random's.
 constexpr std::array<std::uint8_t, 4> probe_pattern{0x5e, 0xc7, 0x3a, 0x91};
 constexpr std::array<std::uint8_t, 4> random_pattern{0xd2, 0x49, 0xb6, 0x0f};
+// The positive control's pattern, which a call leaves on the stack unwiped.
+constexpr std::array<std::uint8_t, 4> control_pattern{0x83, 0x1e, 0xf4, 0x6a};
 
 // Runs `call` in a frame of its own under 1 KiB of the stack, and returns what it returns.
 template <class Call>
@@ -46,6 +50,17 @@ __attribute__((noinline)) bool under_padding(Call call) {
 // The calls that draw, never inlined.
 __attribute__((noinline)) bool first_sodium_call() {
     return webcpp::crypto::detail::sodium_ready().has_value();
+}
+
+// The positive control: writes the control pattern into its frame and returns without wiping,
+// so that the scan must find it; were the stack's layout to change so that the scan no longer
+// reaches a dead frame under the padding, this fails instead of the checks passing vacuously.
+__attribute__((noinline)) bool leaves_pattern() {
+    std::array<std::uint8_t volatile, 4> left_bytes{};
+    for (std::size_t index = 0; index < left_bytes.size(); ++index) {
+        left_bytes[index] = control_pattern[index];
+    }
+    return left_bytes[0] == control_pattern[0];
 }
 
 __attribute__((noinline)) bool random_is_pattern() {
@@ -83,6 +98,11 @@ bool pattern_below_stack_pointer(std::array<std::uint8_t, 4> const& pattern) {
 }  // namespace
 
 int main() {
+    // The scan finds a draw's copy that a call leaves behind.
+    bool const control_written = under_padding(leaves_pattern);
+    BOOST_TEST(pattern_below_stack_pointer(control_pattern));
+    BOOST_TEST(control_written);
+
     // The first libsodium call of the program: its probe draws the pattern, then sodium_init its
     // canary, into libsodium's own storage.
     plant_pattern(probe_pattern);

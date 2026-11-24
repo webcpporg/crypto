@@ -73,13 +73,12 @@ namespace webcpp::crypto::backends {
 /**
  * The backend libsodium (design D7).
  *
- * On Emscripten libsodium draws from crypto's entropy, `crypto.getRandomValues`, as
- * `random_device` does. Until crypto has initialised libsodium, every function on libsodium first
- * draws a few bytes from it, and returns `entropy_unavailable` when the draw fails, or
- * `errc::not_supported` where there is no generator at all, libsodium then left uninitialised for
- * the next call; a function that draws nothing (a signature, a key pair from its secret) then
- * runs whatever the generator does. A sealed box returns the same errors whenever its ephemeral
- * key cannot be drawn.
+ * On Emscripten libsodium draws from crypto's entropy, `crypto.getRandomValues`. Until crypto
+ * has initialised libsodium, every function on libsodium first draws a few bytes from it, and
+ * returns `entropy_unavailable` when the draw fails, or `errc::not_supported` where there is no
+ * generator at all, libsodium then left uninitialised for the next call; a function that draws
+ * nothing (a signature, a key pair from its secret) then runs whatever the generator does. A sealed
+ * box returns the same errors whenever its ephemeral key cannot be drawn.
  */
 struct sodium {
     /** The backend's name, which the examples print. */

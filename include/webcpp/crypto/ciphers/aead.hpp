@@ -5,10 +5,11 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 /**
- `aead<Family, Backend>`, one-shot authenticated encryption in place with associated data, and
- the families it takes: ChaCha20-Poly1305, its original form and XChaCha20-Poly1305. Each is a
- `secret_key_encryption::aead::cipher` (design D5), whose header, which this one includes, holds
- the free synchronous forms of every AEAD's members, AES-GCM's included (design D9, D11),
+ `basic_chacha20_poly1305<Family, Backend>`, one-shot authenticated encryption in place with
+ associated data, and the families it takes: ChaCha20-Poly1305, its original form and
+ XChaCha20-Poly1305. Each is a `secret_key_encryption::aead::cipher` (design D5), whose header,
+ which this one includes, holds the free synchronous forms of every AEAD's members, AES-GCM's
+ included (design D9, D11),
  `secret_key_encryption::aead::seal(cipher, nonce, associated_data, data)` and
  `secret_key_encryption::aead::open(cipher, nonce, associated_data, data, tag)`. The secret boxes,
  which take no associated data, are `secret_key_encryption::basic_secretbox`.
@@ -93,13 +94,13 @@ struct xchacha20_poly1305 {
 namespace webcpp::crypto::detail {
 
 /**
- * What a `ciphers::aead` stores on a backend whose header does not specialise it: nothing,
- * since its engine refuses the backend where the family is called.
+ * What a `ciphers::basic_chacha20_poly1305` stores on a backend whose header does not specialise
+ * it: nothing, since its engine refuses the backend where the family is called.
  */
 template <class Family, class Backend>
 struct aead_state {};
 
-/** Whether `Family` is one of the AEAD families `ciphers::aead` takes. */
+/** Whether `Family` is one of the AEAD families `ciphers::basic_chacha20_poly1305` takes. */
 template <class Family>
 inline constexpr bool aead_family = false;
 
@@ -116,7 +117,7 @@ template <>
 inline constexpr bool aead_family<families::xchacha20_poly1305> = true;
 
 /**
- * The sizes and limits `ciphers::aead` reads from its family: the family's own.
+ * The sizes and limits `ciphers::basic_chacha20_poly1305` reads from its family: the family's own.
  *
  * @tparam Family An AEAD family.
  */
@@ -124,8 +125,8 @@ template <class Family, bool = aead_family<Family>>
 struct aead_sizes : Family {};
 
 /**
- * The sizes of a type that is no AEAD family, which `ciphers::aead` refuses first: placeholders,
- * so that the compiler adds no error of its own after the refusal.
+ * The sizes of a type that is no AEAD family, which `ciphers::basic_chacha20_poly1305` refuses
+ * first: placeholders, so that the compiler adds no error of its own after the refusal.
  */
 template <class Family>
 struct aead_sizes<Family, false> {
@@ -143,7 +144,8 @@ struct aead_sizes<Family, false> {
 
 /**
  * The refusal of an AEAD family on a backend whose header does not specialise its engine: each
- * family's below. A type that is no AEAD family has none here: `ciphers::aead` refuses it first.
+ * family's below. A type that is no AEAD family has none here: `ciphers::basic_chacha20_poly1305`
+ * refuses it first.
  */
 template <class Family, class Backend>
 struct aead_refusal {};
@@ -221,10 +223,10 @@ namespace webcpp::crypto::ciphers {
  * family's default.
  */
 template <class Family, class Backend>
-class aead {
+class basic_chacha20_poly1305 {
     // The first error a program that names another type sees, and its only one.
     static_assert(detail::aead_family<Family>,
-                  "webcpp::crypto: ciphers::aead takes an AEAD family: "
+                  "webcpp::crypto: ciphers::basic_chacha20_poly1305 takes an AEAD family: "
                   "families::chacha20_poly1305, families::chacha20_poly1305_original or "
                   "families::xchacha20_poly1305.");
 
@@ -258,7 +260,7 @@ public:
      * @param key_bytes `key_size` bytes.
      * @return The object; `invalid_key_size`; `backend_failure` when the backend cannot start.
      */
-    [[nodiscard]] static boost::system::result<aead> from_key(
+    [[nodiscard]] static boost::system::result<basic_chacha20_poly1305> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
         detail::timing_guard const timing_scope;
         if constexpr (detail::asynchronous_backend_v<Backend>) {
@@ -269,7 +271,7 @@ public:
             if (key_bytes.size() != key_size) {
                 return error::invalid_key_size;
             }
-            aead made_object;
+            basic_chacha20_poly1305 made_object;
             auto const key_result = engine::init(made_object.state_, key_bytes);
             if (!key_result) {
                 return key_result.error();
@@ -280,9 +282,10 @@ public:
     }
 
     /**
-     * Makes an object under a key, asynchronously: `from_key` run when the operation is
-     * initiated, its result posted to `completion_executor`; the member form of
-     * `crypto::async_from_key<aead>(executor, key_bytes, token)`, which calls it.
+     * Makes an object under a key, asynchronously: `from_key` run when the operation is initiated,
+     * its result posted to `completion_executor`; the member form of
+     * `crypto::async_from_key<basic_chacha20_poly1305>(executor, key_bytes, token)`, which calls
+     * it.
      *
      * On a native backend only: WebCrypto has no ChaCha20-Poly1305, and on a backend that
      * completes by itself this call stops the build, as `from_key`, `seal`, `open` and the other
@@ -297,8 +300,8 @@ public:
      * @param completion_executor The executor the completion is posted to.
      * @param key_bytes `key_size` bytes, the caller's until the completion.
      * @param completion_token The completion token, of signature
-     * `void(boost::system::error_code, aead)`; on an error the object is empty, and every member
-     * refuses with `invalid_state` (`invalid_key_size`, `backend_failure`).
+     * `void(boost::system::error_code, basic_chacha20_poly1305)`; on an error the object is empty,
+     * and every member refuses with `invalid_state` (`invalid_key_size`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
@@ -313,7 +316,8 @@ public:
      *
      * @param moved_source The source, empty afterwards.
      */
-    aead(aead&& moved_source) noexcept : keyed_(std::exchange(moved_source.keyed_, false)) {
+    basic_chacha20_poly1305(basic_chacha20_poly1305&& moved_source) noexcept
+        : keyed_(std::exchange(moved_source.keyed_, false)) {
         if (keyed_) {
             engine::move(state_, moved_source.state_);
         }
@@ -325,7 +329,7 @@ public:
      * @param moved_source The source, empty afterwards.
      * @return This object.
      */
-    aead& operator=(aead&& moved_source) noexcept {
+    basic_chacha20_poly1305& operator=(basic_chacha20_poly1305&& moved_source) noexcept {
         if (this != &moved_source) {
             engine::reset(state_);
             keyed_ = std::exchange(moved_source.keyed_, false);
@@ -337,12 +341,12 @@ public:
     }
 
     /** Not copyable: a key has one owner, which wipes it. */
-    aead(aead const&) = delete;
+    basic_chacha20_poly1305(basic_chacha20_poly1305 const&) = delete;
     /** Not copyable: a key has one owner, which wipes it. */
-    aead& operator=(aead const&) = delete;
+    basic_chacha20_poly1305& operator=(basic_chacha20_poly1305 const&) = delete;
 
     /** Wipes the key. */
-    ~aead() { engine::reset(state_); }
+    ~basic_chacha20_poly1305() { engine::reset(state_); }
 
     /**
      * Seals a message in place: `data_bytes` holds the plaintext before and the ciphertext
@@ -497,7 +501,7 @@ private:
     // The asynchronous family's error completions make the empty object a move leaves.
     friend struct detail::async_access;
 
-    aead() noexcept = default;
+    basic_chacha20_poly1305() noexcept = default;
 
     // Every guard of a message, in the documented order: the state, the nonce, the tag
     // (open's; seal passes tag_size), the lengths. None reads a byte of the spans.

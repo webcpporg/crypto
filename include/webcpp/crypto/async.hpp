@@ -1384,26 +1384,25 @@ auto ciphers::gcm<Cipher>::async_open(Executor const& completion_executor,
 
 template <class Family, class Backend>
 template <class Executor, class CompletionToken>
-auto ciphers::aead<Family, Backend>::async_from_key(Executor const& completion_executor,
-                                                    std::span<std::uint8_t const> key_bytes,
-                                                    CompletionToken&& completion_token) {
+auto ciphers::basic_chacha20_poly1305<Family, Backend>::async_from_key(
+    Executor const& completion_executor, std::span<std::uint8_t const> key_bytes,
+    CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
         return detail::complete_by_post(
             completion_executor, completion_token,
-            [key_bytes]() noexcept { return aead::from_key(key_bytes); });
+            [key_bytes]() noexcept { return basic_chacha20_poly1305::from_key(key_bytes); });
     }
 }
 
 template <class Family, class Backend>
 template <class Executor, class CompletionToken>
-auto ciphers::aead<Family, Backend>::async_seal(Executor const& completion_executor,
-                                                std::span<std::uint8_t const> nonce_bytes,
-                                                std::span<std::uint8_t const> associated_data_bytes,
-                                                std::span<std::uint8_t> data_bytes,
-                                                CompletionToken&& completion_token) {
+auto ciphers::basic_chacha20_poly1305<Family, Backend>::async_seal(
+    Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
+    std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
+    CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_aead_on_asynchronous_backend<Backend>();
@@ -1418,12 +1417,10 @@ auto ciphers::aead<Family, Backend>::async_seal(Executor const& completion_execu
 
 template <class Family, class Backend>
 template <class Executor, class CompletionToken>
-auto ciphers::aead<Family, Backend>::async_open(Executor const& completion_executor,
-                                                std::span<std::uint8_t const> nonce_bytes,
-                                                std::span<std::uint8_t const> associated_data_bytes,
-                                                std::span<std::uint8_t> data_bytes,
-                                                std::span<std::uint8_t const> tag_bytes,
-                                                CompletionToken&& completion_token) {
+auto ciphers::basic_chacha20_poly1305<Family, Backend>::async_open(
+    Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
+    std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
+    std::span<std::uint8_t const> tag_bytes, CompletionToken&& completion_token) {
     detail::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_aead_on_asynchronous_backend<Backend>();

@@ -4,14 +4,14 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// The checks of a ciphers::aead on one family and backend: the family's known answers, every
-// guard in its order (the state, the IV's size, the tag's size, the length) each leaving the
-// data untouched, tampering with every byte of the ciphertext, the tag, the additional data
-// and the IV, each failing with authentication_failed and the data zeroed, moves of empty
-// objects, empty inputs, and spans that touch or overlap (the genesis's Review Focus 2, 3
-// and 6). The checks reach the object through an adapter (aead_calls), so that an object of
-// another shape, as public_key_encryption::box, which has no additional data and is made of two
-// keys, runs those that apply to it (ruling C35).
+// The checks of a ciphers::basic_chacha20_poly1305 on one family and backend: the family's known
+// answers, every guard in its order (the state, the IV's size, the tag's size, the length) each
+// leaving the data untouched, tampering with every byte of the ciphertext, the tag, the additional
+// data and the IV, each failing with authentication_failed and the data zeroed, moves of empty
+// objects, empty inputs, and spans that touch or overlap (the genesis's Review Focus 2, 3 and 6).
+// The checks reach the object through an adapter (aead_calls), so that an object of another shape,
+// as public_key_encryption::box, which has no additional data and is made of two keys, runs those
+// that apply to it (ruling C35).
 //
 // The known answers: RFC 8439's section 2.8.2 and appendix A.5 for ChaCha20-Poly1305, the
 // XChaCha draft's appendix A.3.1 for XChaCha20-Poly1305, and the cases of libsodium's own
@@ -183,15 +183,15 @@ inline constexpr std::array<aead_case, 3> xchacha20_poly1305_cases{
 };
 
 /**
- * How the checks reach a `ciphers::aead`: made from `key_size` bytes, its calls its own. The
- * checks take such an adapter, so that an object of another shape runs those that apply to it:
- * `Calls` gives the object's type `object`, its sizes, `from_key(key)`, `seal(object&, nonce,
- * associated_data, data)` and `open(object&, nonce, associated_data, data, tag)`, and says whether
- * the object takes additional data (`has_additional_data`, false for a box, whose calls have
- * none: the checks pass none) and whether it is made of one key of `key_size` bytes (`one_key`,
- * whose sizes the guards check).
+ * How the checks reach a `ciphers::basic_chacha20_poly1305`: made from `key_size` bytes, its calls
+ * its own. The checks take such an adapter, so that an object of another shape runs those that
+ * apply to it: `Calls` gives the object's type `object`, its sizes, `from_key(key)`,
+ * `seal(object&, nonce, associated_data, data)` and
+ * `open(object&, nonce, associated_data, data, tag)`, and says whether the object takes additional
+ * data (`has_additional_data`, false for a box, whose calls have none: the checks pass none) and
+ * whether it is made of one key of `key_size` bytes (`one_key`, whose sizes the guards check).
  *
- * @tparam Aead A `ciphers::aead`.
+ * @tparam Aead A `ciphers::basic_chacha20_poly1305`.
  */
 template <class Aead>
 struct aead_calls {
@@ -638,7 +638,10 @@ void check_aead_with(std::span<aead_case const> cases) {
     check_aead_edges<Calls>();
 }
 
-/** Every check of this file on one `ciphers::aead`, against the family's known answers. */
+/**
+ * Every check of this file on one `ciphers::basic_chacha20_poly1305`, against the family's known
+ * answers.
+ */
 template <class Aead>
 void check_aead(std::span<aead_case const> cases) {
     check_aead_with<aead_calls<Aead>>(cases);

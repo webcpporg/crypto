@@ -243,12 +243,12 @@ inline std::size_t parameter_list_of(std::string_view text) {
 /**
  * Whether a `function_name()` is the named function: its own name, the qualified name before its
  * outermost parameter list (and before the template arguments MSVC writes there), ends with
- * `::<qualifiers>::<scope>::<identifier>`, each component read without its template arguments,
- * so that `secret_key_encryption::aead::seal` is not `ciphers::aead<F, B>::seal`, and its parameter
- * list holds the named word. A name in the return type or a parameter type never counts, a named
- * function without a scope never matches, and a lambda's (`(lambda)`, `(anonymous class)`,
- * `<lambda()>`, `<lambda_1>`) never is: a guard belongs at the top of the public function, not in
- * a lambda in it.
+ * `::<qualifiers>::<scope>::<identifier>`, each component read without its template arguments, so
+ * that `secret_key_encryption::aead::seal` is not `ciphers::basic_chacha20_poly1305<F, B>::seal`,
+ * and its parameter list holds the named word. A name in the return type or a parameter type never
+ * counts, a named function without a scope never matches, and a lambda's (`(lambda)`,
+ * `(anonymous class)`, `<lambda()>`, `<lambda_1>`) never is: a guard belongs at the top of the
+ * public function, not in a lambda in it.
  *
  * @param entered A `function_name()`, as clang, GCC or MSVC spells it.
  * @param named The function a check names.

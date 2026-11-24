@@ -343,8 +343,8 @@ token)`
 
 The synchronous forms exist wherever the member does: on Ed25519's, P-256's
 and secp256k1's key pairs and public keys (`agree` on P-256 and secp256k1),
-and on AES-GCM and every AEAD of `ciphers::aead`, the ChaCha20-Poly1305 forms;
-the secret boxes and the crypto_boxes, which take no associated data, have the
+and on AES-GCM and every AEAD of `ciphers::basic_chacha20_poly1305`, the
+ChaCha20-Poly1305 forms; the secret boxes and the crypto_boxes, which take no associated data, have the
 box forms instead (<<crypto-box-forms>>), asynchronous too. The asynchronous
 forms exist for what WebCrypto has: Ed25519's and P-256's key pairs and public
 keys (`async_agree` on P-256), and AES-GCM; and, on a native backend, every

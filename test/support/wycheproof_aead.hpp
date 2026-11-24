@@ -4,7 +4,7 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Wycheproof's tests of an AEAD of ciphers::aead, read at run time from
+// Wycheproof's tests of an AEAD of ciphers::basic_chacha20_poly1305, read at run time from
 // third_party/libs/wycheproof: those with the family's IV size seal and open, the valid
 // matching and the invalid failing with authentication_failed and the data zeroed; those with
 // another IV size give invalid_nonce_size on seal and open, the data untouched.

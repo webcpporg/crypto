@@ -42,7 +42,7 @@ namespace webcpp::crypto::ciphers {
  * @tparam Backend The backend; the default is the family's.
  */
 template <class Backend = default_backend_t<families::chacha20_poly1305>>
-using chacha20_poly1305 = aead<families::chacha20_poly1305, Backend>;
+using chacha20_poly1305 = basic_chacha20_poly1305<families::chacha20_poly1305, Backend>;
 
 /**
  * The original ChaCha20-Poly1305: a 32-byte key, an 8-byte nonce, a 16-byte tag.
@@ -50,7 +50,8 @@ using chacha20_poly1305 = aead<families::chacha20_poly1305, Backend>;
  * @tparam Backend The backend; the default is the family's.
  */
 template <class Backend = default_backend_t<families::chacha20_poly1305_original>>
-using chacha20_poly1305_original = aead<families::chacha20_poly1305_original, Backend>;
+using chacha20_poly1305_original =
+    basic_chacha20_poly1305<families::chacha20_poly1305_original, Backend>;
 
 /**
  * XChaCha20-Poly1305: a 32-byte key, a 24-byte nonce safe to draw at random, a 16-byte tag.
@@ -58,7 +59,7 @@ using chacha20_poly1305_original = aead<families::chacha20_poly1305_original, Ba
  * @tparam Backend The backend; the default is the family's.
  */
 template <class Backend = default_backend_t<families::xchacha20_poly1305>>
-using xchacha20_poly1305 = aead<families::xchacha20_poly1305, Backend>;
+using xchacha20_poly1305 = basic_chacha20_poly1305<families::xchacha20_poly1305, Backend>;
 
 // Each is a one-shot AEAD, which seals no message in pieces (design D5's table).
 static_assert(

@@ -159,14 +159,14 @@ void names_function_requires_clause() {
 }
 
 // A check names every component it writes, each compared: the free AEAD form,
-// secret_key_encryption::aead::seal, is not the member of the class template ciphers::aead, whose
-// last component is spelled alike.
+// secret_key_encryption::aead::seal, is not the member of the class template
+// ciphers::basic_chacha20_poly1305, and a label names the class by its own name.
 void names_function_qualifiers() {
     auto const names = [](std::string_view entered, std::string_view spelled) {
         return webcpp::test::names_function(entered, webcpp::test::function_named(spelled));
     };
     constexpr std::string_view member =
-        "boost::system::result<digest<16>> webcpp::crypto::ciphers::aead<F, "
+        "boost::system::result<digest<16>> webcpp::crypto::ciphers::basic_chacha20_poly1305<F, "
         "B>::seal(std::span<const "
         "unsigned char>, std::span<const unsigned char>, std::span<unsigned char>) [F = f, B = b]";
     constexpr std::string_view free_form =
@@ -174,21 +174,24 @@ void names_function_qualifiers() {
         "webcpp::crypto::secret_key_encryption::aead::seal(Cipher &, std::span<const unsigned "
         "char>, std::span<const unsigned char>, std::span<unsigned char>) [Cipher = c]";
     BOOST_TEST(!names(member, "secret_key_encryption::aead::seal"));
-    BOOST_TEST(names(member, "ciphers::aead::seal"));
-    BOOST_TEST(names(member, "aead::seal"));
+    BOOST_TEST(names(member, "ciphers::basic_chacha20_poly1305::seal"));
+    BOOST_TEST(names(member, "basic_chacha20_poly1305::seal"));
+    BOOST_TEST(!names(member, "aead::seal"));
     BOOST_TEST(names(free_form, "secret_key_encryption::aead::seal"));
-    BOOST_TEST(!names(free_form, "ciphers::aead::seal"));
+    BOOST_TEST(!names(free_form, "ciphers::basic_chacha20_poly1305::seal"));
     BOOST_TEST(names(free_form, "crypto::secret_key_encryption::aead::seal"));
     BOOST_TEST(!names(free_form, "other::secret_key_encryption::aead::seal"));
     // MSVC writes the class template's arguments, which each component skips.
     BOOST_TEST(
-        !names("class boost::system::result<void> __cdecl webcpp::crypto::ciphers::aead<struct "
+        !names("class boost::system::result<void> __cdecl "
+               "webcpp::crypto::ciphers::basic_chacha20_poly1305<struct "
                "f,struct b>::open(class std::span<unsigned char const ,-1>)",
                "secret_key_encryption::aead::open"));
     BOOST_TEST(
-        names("class boost::system::result<void> __cdecl webcpp::crypto::ciphers::aead<struct "
+        names("class boost::system::result<void> __cdecl "
+              "webcpp::crypto::ciphers::basic_chacha20_poly1305<struct "
               "f,struct b>::open(class std::span<unsigned char const ,-1>)",
-              "ciphers::aead::open"));
+              "ciphers::basic_chacha20_poly1305::open"));
 }
 
 // A label that starts with `::` writes no component before the identifier: its scope is empty, as

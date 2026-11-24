@@ -29,8 +29,9 @@ using chacha = crypto::ciphers::chacha20_poly1305<>;
 // family and its algorithm as the capability table does.
 static_assert(std::is_same_v<crypto::default_backend_t<crypto::families::chacha20_poly1305>,
                              crypto::backends::sodium>);
-static_assert(std::is_same_v<chacha, crypto::ciphers::aead<crypto::families::chacha20_poly1305,
-                                                           crypto::backends::sodium>>);
+static_assert(
+    std::is_same_v<chacha, crypto::ciphers::basic_chacha20_poly1305<
+                               crypto::families::chacha20_poly1305, crypto::backends::sodium>>);
 static_assert(std::is_same_v<chacha::family_type, crypto::families::chacha20_poly1305>);
 static_assert(std::is_same_v<chacha::name_type, crypto::families::chacha20_poly1305>);
 static_assert(crypto::supports_v<chacha, crypto::backends::sodium>);

@@ -5,11 +5,10 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // The coverage of detail::timing_guard by the families every backend shares: each public function
-// of the AES block cipher, gcm and ciphers::aead, and the free crypto::from_key,
-// secret_key_encryption::aead::seal and secret_key_encryption::aead::open that call gcm's and
-// aead's, called once with valid input and once with input
-// refused before the backend is reached, must enter a guard and leave the thread's DIT as
-// it found it. Each backend's timing_coverage_<backend>_test.cpp calls these on the algorithms
+// of the AES block cipher, gcm and ciphers::basic_chacha20_poly1305, and the free
+// crypto::from_key, secret_key_encryption::aead::seal and secret_key_encryption::aead::open that
+// call theirs, called once with valid input and once with input refused before the backend is
+// reached, must enter a guard and leave the thread's DIT as it found it. Each backend's timing_coverage_<backend>_test.cpp calls these on the algorithms
 // it builds; a test includes support/timing_seam.hpp before any crypto header, then this one.
 
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_TIMING_COVERAGE_HPP
@@ -736,10 +735,10 @@ void cover_async_x25519(std::string const& backend) {
 
 /**
  * The free `crypto::from_key`, `secret_key_encryption::aead::seal` and
- * `secret_key_encryption::aead::open` over a `ciphers::aead`, each entering its own guard before
- * the member's, a key and a nonce of the wrong size included.
+ * `secret_key_encryption::aead::open` over a `ciphers::basic_chacha20_poly1305`, each entering its
+ * own guard before the member's, a key and a nonce of the wrong size included.
  *
- * @tparam Aead `aead<Family, Backend>`: ChaCha20-Poly1305 and its forms.
+ * @tparam Aead `basic_chacha20_poly1305<Family, Backend>`: ChaCha20-Poly1305 and its forms.
  * @param family The family's name, as the public alias spells it.
  * @param on ` on <backend>`, which ends each name.
  */
@@ -790,12 +789,13 @@ void cover_aead_free_forms(std::string const& family, std::string const& on) {
 }
 
 /**
- * ciphers::aead's asynchronous functions (design D6): `crypto::async_from_key` and the static
- * `async_from_key`, a key of the wrong size included, and `async_seal` and `async_open`, free
- * (`secret_key_encryption::aead`) and member, a nonce of the wrong size included, an `io_context`
- * run after each call so that its completion is delivered. The first guard each enters is its own.
+ * ciphers::basic_chacha20_poly1305's asynchronous functions (design D6): `crypto::async_from_key`
+ * and the static `async_from_key`, a key of the wrong size included, and `async_seal` and
+ * `async_open`, free (`secret_key_encryption::aead`) and member, a nonce of the wrong size
+ * included, an `io_context` run after each call so that its completion is delivered. The first
+ * guard each enters is its own.
  *
- * @tparam Aead `aead<Family, Backend>`: ChaCha20-Poly1305 and its forms.
+ * @tparam Aead `basic_chacha20_poly1305<Family, Backend>`: ChaCha20-Poly1305 and its forms.
  * @param family The family's name, as the public alias spells it.
  * @param on ` on <backend>`, which ends each name.
  */
@@ -826,12 +826,13 @@ void cover_async_aead(std::string const& family, std::string const& on) {
                 webcpp::crypto::async_from_key<Aead>(executor, short_key, counted);
                 deliver();
             });
-    covered(family + "::async_from_key" + on, "ciphers::aead::async_from_key", [&] {
-        Aead::async_from_key(executor, key, counted);
-        deliver();
-    });
-    covered(family + "::async_from_key with a short key" + on, "ciphers::aead::async_from_key",
+    covered(family + "::async_from_key" + on, "ciphers::basic_chacha20_poly1305::async_from_key",
             [&] {
+                Aead::async_from_key(executor, key, counted);
+                deliver();
+            });
+    covered(family + "::async_from_key with a short key" + on,
+            "ciphers::basic_chacha20_poly1305::async_from_key", [&] {
                 Aead::async_from_key(executor, short_key, counted);
                 deliver();
             });
@@ -863,31 +864,33 @@ void cover_async_aead(std::string const& family, std::string const& on) {
                 aead::async_open(executor, *made, short_nonce, {}, data, tag(), counted);
                 deliver();
             });
-    covered(family + "::async_seal" + on, "ciphers::aead::async_seal", [&] {
+    covered(family + "::async_seal" + on, "ciphers::basic_chacha20_poly1305::async_seal", [&] {
         made->async_seal(executor, nonce, {}, data, keeping);
         deliver();
     });
-    covered(family + "::async_open" + on, "ciphers::aead::async_open", [&] {
+    covered(family + "::async_open" + on, "ciphers::basic_chacha20_poly1305::async_open", [&] {
         made->async_open(executor, nonce, {}, data, tag(), counted);
         deliver();
     });
-    covered(family + "::async_seal with a short nonce" + on, "ciphers::aead::async_seal", [&] {
-        made->async_seal(executor, short_nonce, {}, data, counted);
-        deliver();
-    });
-    covered(family + "::async_open with a short nonce" + on, "ciphers::aead::async_open", [&] {
-        made->async_open(executor, short_nonce, {}, data, tag(), counted);
-        deliver();
-    });
+    covered(family + "::async_seal with a short nonce" + on,
+            "ciphers::basic_chacha20_poly1305::async_seal", [&] {
+                made->async_seal(executor, short_nonce, {}, data, counted);
+                deliver();
+            });
+    covered(family + "::async_open with a short nonce" + on,
+            "ciphers::basic_chacha20_poly1305::async_open", [&] {
+                made->async_open(executor, short_nonce, {}, data, tag(), counted);
+                deliver();
+            });
     BOOST_TEST_EQ(completions, 12);
 }
 
 /**
- * ciphers::aead's guarded functions: `from_key`, a key of the wrong size included, `seal` and
- * `open`, a nonce of the wrong size included, and the free forms that call them
- * (`cover_aead_free_forms`), and their asynchronous forms (`cover_async_aead`).
+ * ciphers::basic_chacha20_poly1305's guarded functions: `from_key`, a key of the wrong size
+ * included, `seal` and `open`, a nonce of the wrong size included, and the free forms that call
+ * them (`cover_aead_free_forms`), and their asynchronous forms (`cover_async_aead`).
  *
- * @tparam Aead `aead<Family, Backend>`: ChaCha20-Poly1305 and its forms.
+ * @tparam Aead `basic_chacha20_poly1305<Family, Backend>`: ChaCha20-Poly1305 and its forms.
  * @param family The family's name, as the public alias spells it.
  * @param backend The backend's name.
  */
@@ -895,12 +898,13 @@ template <class Aead>
 void cover_aead(std::string const& family, std::string const& backend) {
     std::string const on = " on " + backend;
     auto const key = coverage_key<Aead::key_size>();
-    covered(family + "::from_key" + on, "ciphers::aead::from_key",
+    covered(family + "::from_key" + on, "ciphers::basic_chacha20_poly1305::from_key",
             [&key] { BOOST_TEST(Aead::from_key(key).has_value()); });
-    covered(family + "::from_key with a short key" + on, "ciphers::aead::from_key", [&key] {
-        BOOST_TEST(Aead::from_key(std::span(key).first(Aead::key_size - 1)).error() ==
-                   webcpp::crypto::error::invalid_key_size);
-    });
+    covered(family + "::from_key with a short key" + on,
+            "ciphers::basic_chacha20_poly1305::from_key", [&key] {
+                BOOST_TEST(Aead::from_key(std::span(key).first(Aead::key_size - 1)).error() ==
+                           webcpp::crypto::error::invalid_key_size);
+            });
     auto made = Aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
@@ -908,24 +912,26 @@ void cover_aead(std::string const& family, std::string const& backend) {
     std::array<std::uint8_t, Aead::nonce_size> const nonce{};
     std::array<std::uint8_t, 40> data{};
     typename Aead::result_type tag{};
-    covered(family + "::seal" + on, "ciphers::aead::seal", [&] {
+    covered(family + "::seal" + on, "ciphers::basic_chacha20_poly1305::seal", [&] {
         auto const sealed = made->seal(nonce, {}, data);
         if (BOOST_TEST(sealed.has_value())) {
             tag = *sealed;
         }
     });
-    covered(family + "::open" + on, "ciphers::aead::open", [&] {
+    covered(family + "::open" + on, "ciphers::basic_chacha20_poly1305::open", [&] {
         BOOST_TEST(made->open(nonce, {}, data, std::span(tag.data(), tag.size())).has_value());
     });
-    covered(family + "::seal with a short nonce" + on, "ciphers::aead::seal", [&] {
-        BOOST_TEST(made->seal(std::span(nonce).first(Aead::nonce_size - 1), {}, data).error() ==
-                   webcpp::crypto::error::invalid_nonce_size);
-    });
-    covered(family + "::open with a short nonce" + on, "ciphers::aead::open", [&] {
-        BOOST_TEST(made->open(std::span(nonce).first(Aead::nonce_size - 1), {}, data,
-                              std::span(tag.data(), tag.size()))
-                       .error() == webcpp::crypto::error::invalid_nonce_size);
-    });
+    covered(
+        family + "::seal with a short nonce" + on, "ciphers::basic_chacha20_poly1305::seal", [&] {
+            BOOST_TEST(made->seal(std::span(nonce).first(Aead::nonce_size - 1), {}, data).error() ==
+                       webcpp::crypto::error::invalid_nonce_size);
+        });
+    covered(family + "::open with a short nonce" + on, "ciphers::basic_chacha20_poly1305::open",
+            [&] {
+                BOOST_TEST(made->open(std::span(nonce).first(Aead::nonce_size - 1), {}, data,
+                                      std::span(tag.data(), tag.size()))
+                               .error() == webcpp::crypto::error::invalid_nonce_size);
+            });
     cover_aead_free_forms<Aead>(family, on);
     cover_async_aead<Aead>(family, on);
 }

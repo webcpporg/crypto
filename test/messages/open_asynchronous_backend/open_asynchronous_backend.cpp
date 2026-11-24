@@ -32,7 +32,8 @@ inline constexpr bool webcpp::crypto::detail::asynchronous_backend_v<stand_in_br
 
 /** ChaCha20-Poly1305 on the stand-in. */
 using stand_in_aead =
-    webcpp::crypto::ciphers::aead<webcpp::crypto::families::chacha20_poly1305, stand_in_browser>;
+    webcpp::crypto::ciphers::basic_chacha20_poly1305<webcpp::crypto::families::chacha20_poly1305,
+                                                     stand_in_browser>;
 
 namespace {
 

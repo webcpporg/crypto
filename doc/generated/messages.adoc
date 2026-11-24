@@ -15,9 +15,21 @@ At compile time, checked word for word by the message tests of `test/messages` w
 
 |`+aead_not_a_family+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original or families::xchacha20_poly1305.+`
+|`+webcpp::crypto: ciphers::basic_chacha20_poly1305 takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original or families::xchacha20_poly1305.+`
 
 The fix: Name one of the three ChaCha20-Poly1305 families; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`, and a secret box `+secret_key_encryption::basic_secretbox+`, as in `+secret_key_encryption::secretbox<>+`.
+
+|`+aead_template_removed+`
+|native, wasip2, wasip3
+|`+no member named 'aead' in namespace 'webcpp::crypto::ciphers'+`
+
+The fix: Name `+ciphers::basic_chacha20_poly1305<Family, Backend>+`, or its aliases `+chacha20_poly1305+`, `+chacha20_poly1305_original+` and `+xchacha20_poly1305+`: the template is named for its algorithm, with no alias.
+
+|`+aead_template_removed_call+`
+|native, wasip2, wasip3
+|`+use of undeclared identifier 'cipher'+`
+
+The fix: As `+aead_template_removed+`: name `+ciphers::basic_chacha20_poly1305+`.
 
 |`+aes_block_default_not_linked+`
 |native
@@ -533,7 +545,7 @@ The fix: Include `+<webcpp/crypto/secret_key_encryption/secretbox.hpp>+`, the se
 |native, wasip2, wasip3
 |`+webcpp::crypto: secret_key_encryption::basic_secretbox takes a secret box family: families::secretbox_xsalsa20poly1305 or families::secretbox_xchacha20poly1305.+`
 
-The fix: Name `+families::secretbox_xsalsa20poly1305+` or `+families::secretbox_xchacha20poly1305+`, or use `+secret_key_encryption::secretbox<>+` or `+secret_key_encryption::secretbox_xchacha20poly1305<>+`; an AEAD is `+ciphers::aead+`, as in `+ciphers::xchacha20_poly1305<>+`.
+The fix: Name `+families::secretbox_xsalsa20poly1305+` or `+families::secretbox_xchacha20poly1305+`, or use `+secret_key_encryption::secretbox<>+` or `+secret_key_encryption::secretbox_xchacha20poly1305<>+`; an AEAD is `+ciphers::basic_chacha20_poly1305+`, as in `+ciphers::xchacha20_poly1305<>+`.
 
 |`+secretbox_removed+`
 |native, wasip2, wasip3
@@ -784,7 +796,7 @@ The fix: Add `+/webcpp/crypto//x25519-default+`, which links `+/third_party//sod
 
 At build and link time, from the fixtures of the user's Jamfiles, each built on a scratch superproject: the texts the build's output contains, per target and linker, as each fixture checks them.
 
-`+aead_not_a_family_on_emscripten+`:: A program for Emscripten that gives `+ciphers::aead+` AES-GCM's family, which `+ciphers::gcm+` serves instead. The fix: As `+aead_not_a_family+`.
+`+aead_not_a_family_on_emscripten+`:: A program for Emscripten that gives `+ciphers::basic_chacha20_poly1305+` AES-GCM's family, which `+ciphers::gcm+` serves instead. The fix: As `+aead_not_a_family+`.
 +
 Its Jamfile:
 +
@@ -796,7 +808,7 @@ include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/aead_not_a_family_on_
 On each target, the build's output contains:
 +
 * emscripten:
-** `+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original, families::xchacha20_poly1305, families::secretbox_xsalsa20poly1305 or families::secretbox_xchacha20poly1305.+`
+** `+webcpp::crypto: ciphers::basic_chacha20_poly1305 takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original or families::xchacha20_poly1305.+`
 
 `+aes_block_default_not_linked_on_emscripten+`:: A program for Emscripten that calls the AES block cipher on its default, ctaes, and links none. The fix: Add `+/webcpp/crypto//aes_block-default+`, which links `+/third_party//ctaes+` there, to the program's sources.
 +

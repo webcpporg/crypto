@@ -51,8 +51,8 @@ namespace webcpp::crypto::secret_key_encryption::aead {
 /**
  * Whether `Cipher` is a one-shot AEAD (design D5).
  *
- * `ciphers::gcm<Cipher>` and every `ciphers::aead<Family, Backend>`, ChaCha20-Poly1305 in its
- * three nonce sizes, are:
+ * `ciphers::gcm<Cipher>` and every `ciphers::basic_chacha20_poly1305<Family, Backend>`,
+ * ChaCha20-Poly1305 in its three nonce sizes, are:
  * - `Cipher::key_size`, `Cipher::nonce_size` and `Cipher::tag_size`, sizes in bytes, and
  *   `typename Cipher::result_type`, the tag;
  * - `Cipher::from_key(key_bytes)` gives `result<Cipher>`;
@@ -129,7 +129,8 @@ concept streaming_cipher =
  * `keyed_cipher.seal(nonce_bytes, associated_data_bytes, data_bytes)`: the free form of the
  * AEAD's own `seal`, which it calls, with its results and its errors.
  *
- * @tparam Cipher A `cipher`: `ciphers::gcm<Cipher>` or `ciphers::aead<Family, Backend>`.
+ * @tparam Cipher A `cipher`: `ciphers::gcm<Cipher>` or
+ * `ciphers::basic_chacha20_poly1305<Family, Backend>`.
  * @param keyed_cipher The keyed object.
  * @param nonce_bytes The nonce, never reused under this key.
  * @param associated_data_bytes Authenticated, not encrypted.
@@ -152,7 +153,8 @@ template <cipher Cipher>
  * `keyed_cipher.open(nonce_bytes, associated_data_bytes, data_bytes, tag_bytes)`: the free form
  * of the AEAD's own `open`, which it calls, with its results and its errors.
  *
- * @tparam Cipher A `cipher`: `ciphers::gcm<Cipher>` or `ciphers::aead<Family, Backend>`.
+ * @tparam Cipher A `cipher`: `ciphers::gcm<Cipher>` or
+ * `ciphers::basic_chacha20_poly1305<Family, Backend>`.
  * @param keyed_cipher The keyed object.
  * @param nonce_bytes The nonce of the seal.
  * @param associated_data_bytes The associated data of the seal.

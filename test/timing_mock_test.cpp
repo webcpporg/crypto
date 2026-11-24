@@ -83,22 +83,22 @@ struct aead_engine<families::chacha20_poly1305, test::timing_stand_in> {
 namespace {
 
 namespace crypto = webcpp::crypto;
-using aead =
-    crypto::ciphers::aead<crypto::families::chacha20_poly1305, webcpp::test::timing_stand_in>;
+using cipher = crypto::ciphers::basic_chacha20_poly1305<crypto::families::chacha20_poly1305,
+                                                        webcpp::test::timing_stand_in>;
 
 // From clear: the backend's seal runs with DIT set where the CPU has it, and DIT is clear after.
 void backend_runs_with_dit() {
     BOOST_TEST(!crypto::detail::dit_is_set());
-    std::array<std::uint8_t, aead::key_size> const key{};
-    auto made = aead::from_key(key);
+    std::array<std::uint8_t, cipher::key_size> const key{};
+    auto made = cipher::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
     BOOST_TEST(!crypto::detail::dit_is_set());
-    std::array<std::uint8_t, aead::nonce_size> const nonce{};
+    std::array<std::uint8_t, cipher::nonce_size> const nonce{};
     std::array<std::uint8_t, 8> data{};
     webcpp::test::dit_during_seal = !crypto::detail::cpu_has_dit();
-    webcpp::test::require_enters("aead::seal", [&made, &nonce, &data] {
+    webcpp::test::require_enters("basic_chacha20_poly1305::seal", [&made, &nonce, &data] {
         BOOST_TEST(made->seal(nonce, {}, data).has_value());
     });
     BOOST_TEST_EQ(webcpp::test::dit_during_seal, crypto::detail::cpu_has_dit());
@@ -109,10 +109,11 @@ void backend_runs_with_dit() {
 // and DIT is clear after.
 void early_error_restores_state() {
     BOOST_TEST(!crypto::detail::dit_is_set());
-    std::array<std::uint8_t, aead::key_size - 1> const short_key{};
-    webcpp::test::require_enters("aead::from_key with a 31-byte key", [&short_key] {
-        BOOST_TEST(aead::from_key(short_key).error() == crypto::error::invalid_key_size);
-    });
+    std::array<std::uint8_t, cipher::key_size - 1> const short_key{};
+    webcpp::test::require_enters(
+        "basic_chacha20_poly1305::from_key with a 31-byte key", [&short_key] {
+            BOOST_TEST(cipher::from_key(short_key).error() == crypto::error::invalid_key_size);
+        });
     BOOST_TEST(!crypto::detail::dit_is_set());
 }
 

@@ -59,6 +59,8 @@ build-project erase_secret_const_range ;
 build-project equal_header_removed ;
 build-project equal_removed ;
 build-project iv_size_removed ;
+build-project aead_template_removed ;
+build-project aead_template_removed_call ;
 build-project musig_nonce_copied ;
 build-project ellswift_other_backend ;
 build-project musig_other_backend ;

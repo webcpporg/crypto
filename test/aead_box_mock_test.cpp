@@ -4,12 +4,12 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// ciphers::aead's, secret_key_encryption::basic_secretbox's and public_key_encryption::basic_box's
-// generic layer on a stand-in backend whose seal and open write into the data before they fail,
-// as OpenSSL can once it began to encrypt: a seal that fails zeroes the data as a failed open
-// does, so that neither the plaintext nor bytes that look sealed stay behind; a guard's refusal
-// leaves it untouched; an engine's error is passed on. The box's key pair is X25519's on the same
-// stand-in, whose engine answers with fixed bytes.
+// ciphers::basic_chacha20_poly1305's, secret_key_encryption::basic_secretbox's and
+// public_key_encryption::basic_box's generic layer on a stand-in backend whose seal and open write
+// into the data before they fail, as OpenSSL can once it began to encrypt: a seal that fails zeroes
+// the data as a failed open does, so that neither the plaintext nor bytes that look sealed stay
+// behind; a guard's refusal leaves it untouched; an engine's error is passed on. The box's key pair
+// is X25519's on the same stand-in, whose engine answers with fixed bytes.
 
 #include <webcpp/crypto/ciphers/aead.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
@@ -219,19 +219,20 @@ void check_failures(Seal seal, Open open) {
 }
 
 void check_aead() {
-    using aead = crypto::ciphers::aead<crypto::families::chacha20_poly1305, stand_in>;
-    std::array<std::uint8_t, aead::key_size> const key{};
-    auto made = aead::from_key(key);
+    using cipher =
+        crypto::ciphers::basic_chacha20_poly1305<crypto::families::chacha20_poly1305, stand_in>;
+    std::array<std::uint8_t, cipher::key_size> const key{};
+    auto made = cipher::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    std::array<std::uint8_t, aead::tag_size> const tag{};
+    std::array<std::uint8_t, cipher::tag_size> const tag{};
     check_failures(
         [&made](std::span<std::uint8_t const> nonce, std::span<std::uint8_t> data) {
-            return made->seal(nonce.first(std::min(nonce.size(), aead::nonce_size)), {}, data);
+            return made->seal(nonce.first(std::min(nonce.size(), cipher::nonce_size)), {}, data);
         },
         [&made, &tag](std::span<std::uint8_t const> nonce, std::span<std::uint8_t> data) {
-            return made->open(nonce.first(aead::nonce_size), {}, data, tag);
+            return made->open(nonce.first(cipher::nonce_size), {}, data, tag);
         });
 }
 

@@ -28,8 +28,9 @@ static_assert(
     std::is_same_v<crypto::default_backend_t<crypto::families::chacha20_poly1305_original>,
                    crypto::backends::sodium>);
 static_assert(
-    std::is_same_v<original, crypto::ciphers::aead<crypto::families::chacha20_poly1305_original,
-                                                   crypto::backends::sodium>>);
+    std::is_same_v<original,
+                   crypto::ciphers::basic_chacha20_poly1305<
+                       crypto::families::chacha20_poly1305_original, crypto::backends::sodium>>);
 static_assert(std::is_same_v<original::family_type, crypto::families::chacha20_poly1305_original>);
 static_assert(std::is_same_v<original::name_type, crypto::families::chacha20_poly1305_original>);
 static_assert(crypto::supports_v<original, crypto::backends::sodium>);

@@ -26,8 +26,9 @@ using xchacha = crypto::ciphers::xchacha20_poly1305<>;
 
 static_assert(std::is_same_v<crypto::default_backend_t<crypto::families::xchacha20_poly1305>,
                              crypto::backends::sodium>);
-static_assert(std::is_same_v<xchacha, crypto::ciphers::aead<crypto::families::xchacha20_poly1305,
-                                                            crypto::backends::sodium>>);
+static_assert(
+    std::is_same_v<xchacha, crypto::ciphers::basic_chacha20_poly1305<
+                                crypto::families::xchacha20_poly1305, crypto::backends::sodium>>);
 static_assert(std::is_same_v<xchacha::family_type, crypto::families::xchacha20_poly1305>);
 static_assert(std::is_same_v<xchacha::name_type, crypto::families::xchacha20_poly1305>);
 static_assert(crypto::supports_v<xchacha, crypto::backends::sodium>);

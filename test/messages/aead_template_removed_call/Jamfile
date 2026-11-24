@@ -1,0 +1,15 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+project : requirements <library>/webcpp/crypto//crypto ;
+
+import webcpp ;
+
+# alone: the missing template and the alias it leaves undeclared are the
+# compile's only errors, so a regression that puts another error before or
+# after them fails the test.
+webcpp.compile-diagnostic aead_template_removed_call : aead_template_removed_call.cpp
+  : <library>/third_party//sodium : native wasip2 wasip3 : alone ;

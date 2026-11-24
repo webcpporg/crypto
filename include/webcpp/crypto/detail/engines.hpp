@@ -41,12 +41,14 @@ struct gcm_state;
 /** The work of GCM on a backend (see @ref block_state). */
 template <class Backend, std::size_t KeySize>
 struct gcm_engine;
-/** What a `ciphers::aead` of the family `Family` stores (see @ref block_state). */
+/**
+ * What a `ciphers::basic_chacha20_poly1305` of the family `Family` stores (see @ref block_state).
+ */
 template <class Family, class Backend>
 struct aead_state;
 /**
- * The work of a `ciphers::aead` of the family `Family` on a backend, whose specialisation
- * provides `init(state&, key)`, `seal(state&, nonce, associated_data, data, tag&)`,
+ * The work of a `ciphers::basic_chacha20_poly1305` of the family `Family` on a backend, whose
+ * specialisation provides `init(state&, key)`, `seal(state&, nonce, associated_data, data, tag&)`,
  * `open(state&, nonce, associated_data, data, tag const&)`, `move(to, from)` and `reset(state&)`
  * (see @ref block_state).
  */

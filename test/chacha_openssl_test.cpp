@@ -28,8 +28,9 @@ using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::openssl>;
 
 // The type names its family and its algorithm as the capability table does, and the table
 // has the cell on this target.
-static_assert(std::is_same_v<chacha, crypto::ciphers::aead<crypto::families::chacha20_poly1305,
-                                                           crypto::backends::openssl>>);
+static_assert(
+    std::is_same_v<chacha, crypto::ciphers::basic_chacha20_poly1305<
+                               crypto::families::chacha20_poly1305, crypto::backends::openssl>>);
 static_assert(std::is_same_v<chacha::family_type, crypto::families::chacha20_poly1305>);
 static_assert(crypto::supports_v<chacha, crypto::backends::openssl>);
 static_assert(chacha::key_size == 32 && chacha::nonce_size == 12 && chacha::tag_size == 16);

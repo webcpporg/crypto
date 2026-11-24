@@ -104,10 +104,10 @@ int main() {
     payment_tweak(chain_code.bytes, wallet_public->compressed(), 7, tweak);
 
     // The server: the wallet's public key plus the tweak, with no secret anywhere.
-    auto const watched = secp256k1::pubkey_tweak_add(*wallet_public, tweak.bytes);
+    auto const watched = secp256k1::public_key_tweak_add(*wallet_public, tweak.bytes);
 
     // The device: the secret key plus the same tweak, a secret<32> it makes a key pair of.
-    auto const tweaked_secret = secp256k1::seckey_tweak_add(secret.bytes, tweak.bytes);
+    auto const tweaked_secret = secp256k1::secret_key_tweak_add(secret.bytes, tweak.bytes);
     if (!watched || !tweaked_secret) {
         return 1;
     }

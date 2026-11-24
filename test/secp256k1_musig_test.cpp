@@ -18,7 +18,7 @@
 // crypto::verify(crypto::schnorr, ...) accepts under the aggregate key, and a partial signature not
 // below the group order is refused. The vectors' secret nonces (sign_verify's and tweak's
 // secnonces, det_sign_vectors.json, nonce_gen_vectors.json) are not reachable through crypto's
-// interface by design: a secret_nonce exists only from nonce_gen, with fresh randomness;
+// interface by design: a secret_nonce exists only from generate_nonce, with fresh randomness;
 // libsecp256k1's own tests run them in the c-suites lane. Round trips: 2-of-2 and 3-of-3 over
 // seeded key pairs and messages, plain and with an x-only tweak, each partial signature verified,
 // the aggregate verified with crypto::verify(crypto::schnorr, ...), and a partial signature changed
@@ -563,7 +563,7 @@ bool first_round(std::vector<secp::keypair> const& signers, std::vector<std::siz
                  std::vector<musig::secret_nonce>& secrets,
                  std::vector<musig::public_nonce>& publics) {
     for (auto const i : order) {
-        auto made = musig::nonce_gen(signers[i], key, message);
+        auto made = musig::generate_nonce(signers[i], key, message);
         if (!BOOST_TEST(made.has_value())) {
             return false;
         }
@@ -695,8 +695,8 @@ void nonce_rules() {
     auto const key = aggregated(keys);
     auto const message = draw(generator);
 
-    auto alice_nonce = musig::nonce_gen(alice, key, message, message);
-    auto bob_nonce = musig::nonce_gen(bob, key);
+    auto alice_nonce = musig::generate_nonce(alice, key, message, message);
+    auto bob_nonce = musig::generate_nonce(bob, key);
     if (!BOOST_TEST(alice_nonce && bob_nonce)) {
         return;
     }
@@ -723,13 +723,13 @@ void nonce_rules() {
     BOOST_TEST(musig::partial_sign(bob, std::move(nonce), key, signing_session).error() ==
                crypto::error::invalid_state);
 
-    // A moved-from key pair: refused by nonce_gen and by partial_sign.
+    // A moved-from key pair: refused by generate_nonce and by partial_sign.
     auto source = keypair_of(draw(generator));
-    auto fresh = musig::nonce_gen(source, key);
+    auto fresh = musig::generate_nonce(source, key);
     auto const target = std::move(source);
     BOOST_TEST(target.public_key().has_value());
     // NOLINTBEGIN(bugprone-use-after-move): the moved-from pair is what is tested
-    BOOST_TEST(musig::nonce_gen(source, key).error() == crypto::error::invalid_state);
+    BOOST_TEST(musig::generate_nonce(source, key).error() == crypto::error::invalid_state);
     if (BOOST_TEST(fresh.has_value())) {
         BOOST_TEST(musig::partial_sign(source, std::move(fresh->secret_part), key, signing_session)
                        .error() == crypto::error::invalid_state);
@@ -739,11 +739,11 @@ void nonce_rules() {
 
     // A message hash or extra input of 31 bytes.
     std::array<std::uint8_t, 31> const short_input{};
-    BOOST_TEST(musig::nonce_gen(alice, key, short_input).error() ==
+    BOOST_TEST(musig::generate_nonce(alice, key, short_input).error() ==
                crypto::error::invalid_input_size);
-    BOOST_TEST(musig::nonce_gen(alice, key, message, short_input).error() ==
+    BOOST_TEST(musig::generate_nonce(alice, key, message, short_input).error() ==
                crypto::error::invalid_input_size);
-    BOOST_TEST(musig::nonce_gen(alice, key, {}, message).has_value());
+    BOOST_TEST(musig::generate_nonce(alice, key, {}, message).has_value());
 }
 
 // A workspace one byte short, and none: refused, the workspace zero afterwards.
@@ -797,7 +797,7 @@ void refusals() {
         public_of(keypair_of(draw(generator))),
     };
     auto const key = aggregated(keys);
-    auto const nonce = musig::nonce_gen(alice, key);
+    auto const nonce = musig::generate_nonce(alice, key);
     if (!BOOST_TEST(nonce.has_value())) {
         return;
     }

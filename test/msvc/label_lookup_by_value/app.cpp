@@ -39,7 +39,7 @@ int main() {
     std::array<secp::public_key, 1> const inputs{*spend_key};
     std::array<std::uint8_t, sp::outpoint_size> const outpoint{};
     std::vector<std::byte> space(sp::summary_workspace_size(0, 1));
-    auto const summary = sp::make_prevouts_summary(outpoint, {}, inputs, space);
+    auto const summary = sp::make_previous_outputs_summary(outpoint, {}, inputs, space);
     std::array<std::array<std::uint8_t, 32>, 1> const outputs{};
     std::vector<sp::found_output> found(1);
     std::vector<std::byte> scan_space(sp::scan_workspace_size(1));

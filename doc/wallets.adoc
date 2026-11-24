@@ -143,7 +143,7 @@ child derivation, which adds to the parent's full point and secret key without
 that negation: for the half of the parents whose public key has an odd y, an
 x-only tweak derives another child than every BIP 32 wallet, whose addresses a
 wallet restored from the same seed never finds. BIP 32 tweaks the full key,
-with `seckey_tweak_add` and `pubkey_tweak_add` (<<crypto-secp256k1-tweaks>>),
+with `secret_key_tweak_add` and `public_key_tweak_add` (<<crypto-secp256k1-tweaks>>),
 and computes its tweak with HMAC-SHA-512, which is a domain library's
 (link:https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki[BIP 32]).
 
@@ -236,7 +236,7 @@ refuses one already used. Signing before every nonce is in: a device that
 signs while the other can still choose its nonce lets it steer the final nonce,
 which the two rounds exist to prevent
 (link:https://eprint.iacr.org/2020/1261[Nick, Ruffing and Seurin, MuSig2]). A
-naive key sum: the plain sum of the two public keys, `pubkey_combine`, is not
+naive key sum: the plain sum of the two public keys, `public_key_combine`, is not
 a multisignature, since a device that announces its key after seeing the
 other's can choose one that cancels it and spend alone; `key_aggregate` weighs
 each key by a hash of all of them (BIP 327).

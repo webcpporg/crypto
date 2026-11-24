@@ -46,7 +46,7 @@ struct secp256k1_nonce_state {
     secp256k1_musig_secnonce nonce_value{};
     /** The signer's public key, SEC1 compressed, public. */
     std::array<std::uint8_t, 33> signer_key{};
-    /** True from `nonce_gen` until a partial signature, a move or the destructor uses it. */
+    /** True from `generate_nonce` until a partial signature, a move or the destructor uses it. */
     bool fresh = false;
 };
 
@@ -179,7 +179,7 @@ private:
 
 /**
  * A signer's public nonce, parsed (libsecp256k1's pubnonce): public, copied freely, made only
- * by `nonce_gen` and `parse_public_nonce`.
+ * by `generate_nonce` and `parse_public_nonce`.
  */
 class public_nonce {
 private:
@@ -230,7 +230,7 @@ private:
 };
 
 /**
- * A signer's secret nonce: move-only, wiped on move and destruction, made only by `nonce_gen`.
+ * A signer's secret nonce: move-only, wiped on move and destruction, made only by `generate_nonce`.
  *
  * It is consumed by `partial_sign`, which takes it by value, so that a nonce cannot be passed to a
  * second signature without an explicit `std::move` of an object already moved from (which
@@ -281,7 +281,7 @@ private:
     webcpp::crypto::detail::secp256k1_nonce_state native_value_{};
 };
 
-/** What `nonce_gen` returns: the secret nonce to keep, the public nonce to send. */
+/** What `generate_nonce` returns: the secret nonce to keep, the public nonce to send. */
 struct nonce_pair {
     /** The secret nonce, which this signer's `partial_sign` consumes. */
     secret_nonce secret_part;
@@ -361,7 +361,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
  * extra input that is neither empty nor 32 bytes; `entropy_unavailable`; `backend_failure`.
  */
 template <class Backend>
-[[nodiscard]] boost::system::result<nonce_pair> nonce_gen(
+[[nodiscard]] boost::system::result<nonce_pair> generate_nonce(
     basic_keypair<Backend> const& signer_pair, aggregate_key const& signers_key,
     std::span<std::uint8_t const> message_hash = {},
     std::span<std::uint8_t const> extra_input = {}) noexcept {
@@ -484,7 +484,7 @@ template <class Backend = default_backend_t<families::secp256k1_musig>>
  *
  * @tparam Backend The key pair's backend, `backends::secp256k1`.
  * @param signer_pair The signer's key pair.
- * @param signer_nonce The nonce `nonce_gen` made for this key pair, moved in.
+ * @param signer_nonce The nonce `generate_nonce` made for this key pair, moved in.
  * @param signers_key The aggregate key, with its tweaks.
  * @param signing_session The session of the message.
  * @return The partial signature; `invalid_state` for a moved-from key pair or nonce, a nonce

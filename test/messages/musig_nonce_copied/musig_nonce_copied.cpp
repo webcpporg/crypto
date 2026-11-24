@@ -26,7 +26,7 @@ int main() {
     std::array<secp::public_key, 1> const keys{*signer_key};
     std::vector<std::byte> space(musig::workspace_size(keys.size()));
     auto const key = musig::key_aggregate(keys, space);
-    auto made = musig::nonce_gen(*signer, *key);
+    auto made = musig::generate_nonce(*signer, *key);
     std::array<musig::public_nonce, 1> const nonces{made->public_part};
     auto const sum = musig::nonce_aggregate(nonces, space);
     auto const signing_session = musig::nonce_process(*sum, secret_bytes, *key);

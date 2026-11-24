@@ -358,8 +358,10 @@ private:
 
     curves::secp256k1::schnorr_signature sign() {
         namespace musig = curves::secp256k1::musig;
-        auto first_nonce = take(musig::nonce_gen(first_, signers_key_, message_), "nonce_gen");
-        auto second_nonce = take(musig::nonce_gen(second_, signers_key_, message_), "nonce_gen");
+        auto first_nonce =
+            take(musig::generate_nonce(first_, signers_key_, message_), "generate_nonce");
+        auto second_nonce =
+            take(musig::generate_nonce(second_, signers_key_, message_), "generate_nonce");
         std::array<musig::public_nonce, 2> const nonces{first_nonce.public_part,
                                                         second_nonce.public_part};
         auto const nonce_sum = take(musig::nonce_aggregate<Backend>(nonces, space_), "nonce_sum");
@@ -411,9 +413,9 @@ public:
         alignas(std::max_align_t)
             std::array<std::byte, silent_payments::summary_workspace_size(0, 1)>
                 summary_space{};
-        auto const summary = take(silent_payments::make_prevouts_summary<Backend>(
+        auto const summary = take(silent_payments::make_previous_outputs_summary<Backend>(
                                       outpoint_, {}, input_keys, summary_space),
-                                  "make_prevouts_summary");
+                                  "make_previous_outputs_summary");
         std::array<silent_payments::found_output, 1> found{};
         alignas(std::max_align_t) std::array<std::byte, silent_payments::scan_workspace_size(1)>
             scan_space{};

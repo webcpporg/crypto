@@ -100,8 +100,8 @@ int main() {
     auto const message = repeated(0x5a);
 
     // Round one, on each device: a nonce for this signature, its public half sent as bytes.
-    auto phone_nonce = musig::nonce_gen(*phone, *wallet_key, message);
-    auto laptop_nonce = musig::nonce_gen(*laptop, *wallet_key, message);
+    auto phone_nonce = musig::generate_nonce(*phone, *wallet_key, message);
+    auto laptop_nonce = musig::generate_nonce(*laptop, *wallet_key, message);
     if (!phone_nonce || !laptop_nonce) {
         return 1;
     }

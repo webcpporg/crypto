@@ -130,7 +130,7 @@ in both families, the sealed box's `seal` and `open`, and `kx`; libsecp256k1's o
 webcpp's code around libsecp256k1: the key pair's making, its BIP 340,
 recoverable and hedged ECDSA signatures and x-only tweak, ECDH in its three
 forms, the secret key's tweaks and negation, PKCS#8's encoding and decoding,
-ElligatorSwift's `ellswift_create` and `ellswift_xdh`, MuSig2's `nonce_gen` and
+ElligatorSwift's `ellswift_create` and `ellswift_xdh`, MuSig2's `generate_nonce` and
 `partial_sign`, and silent payments' `create_outputs`, `create_label` and
 `scan_outputs`, with the wipe of their workspaces; and BearSSL's P-256: the key
 pair's making, `sign` of a digest (`crypto::prehashed`), which makes its

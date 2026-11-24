@@ -222,7 +222,7 @@ crypto::curves::secp256k1::musig::secret_nonce nonce_of(std::uint8_t first) {
     std::array<std::byte, secp::musig::workspace_size(1)> space{};
     auto const key = secp::musig::key_aggregate(keys, space);
     webcpp::test::require(key.has_value());
-    auto made = secp::musig::nonce_gen(signer, *key);
+    auto made = secp::musig::generate_nonce(signer, *key);
     webcpp::test::require(made.has_value());
     return std::move(made->secret_part);
 }

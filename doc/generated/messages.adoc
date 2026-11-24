@@ -391,6 +391,18 @@ The fix: Call the factory named by its input, member or free: `+from_secret+` fo
 
 The fix: Pass the nonce with std::move, once: a secret nonce signs one message.
 
+|`+musig_nonce_gen_removed+`
+|native, wasip2
+|`+no member named 'nonce_gen' in namespace 'webcpp::crypto::curves::secp256k1::musig'+`
+
+The fix: Call musig::generate_nonce: crypto spells out the names libsecp256k1 abbreviates.
+
+|`+musig_nonce_gen_removed_call+`
+|native, wasip2
+|`+no member named 'nonce_gen' in namespace 'webcpp::crypto::curves::secp256k1::musig'+`
+
+The fix: As `+musig_nonce_gen_removed+`.
+
 |`+musig_other_backend+`
 |native, wasip2
 |`+webcpp::crypto: bearssl has no MuSig2. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
@@ -469,6 +481,18 @@ The fix: Name Ed25519ph's streaming signer `+curves::ed25519::prehashed_signer<w
 
 The fix: Give `+crypto::prehashed+` a digest of a fixed size: a `+std::array<std::uint8_t, 32>+`, a `+std::span<std::uint8_t const, 32>+` or a `+boost::hash2::digest<32>+`.
 
+|`+prevouts_summary_removed+`
+|native, wasip2
+|`+no member named 'make_prevouts_summary' in namespace 'webcpp::crypto::curves::secp256k1::silent_payments'+`
+
+The fix: Name silent_payments::previous_outputs_summary and make_previous_outputs_summary: crypto spells out libsecp256k1's prevouts.
+
+|`+prevouts_summary_removed_call+`
+|native, wasip2
+|`+no member named 'make_prevouts_summary' in namespace 'webcpp::crypto::curves::secp256k1::silent_payments'+`
+
+The fix: As `+prevouts_summary_removed+`.
+
 |`+recover_ecdsa_signature+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: recover takes a curves::secp256k1::recoverable_signature: make one from 65 bytes with curves::secp256k1::recoverable_signature::from_bytes.+`
@@ -528,6 +552,18 @@ The fix: Add `+/third_party//secp256k1+`.
 |`+webcpp::crypto: bearssl has no secp256k1. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
 
 The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::keypair+`.
+
+|`+secp256k1_tweak_names_removed+`
+|native, wasip2
+|`+no member named 'seckey_negate' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+The fix: Call public_key_tweak_add, public_key_tweak_mul, public_key_negate, public_key_combine, secret_key_tweak_add, secret_key_tweak_mul and secret_key_negate: crypto spells out the names libsecp256k1 abbreviates.
+
+|`+secp256k1_tweak_names_removed_call+`
+|native, wasip2
+|`+no member named 'seckey_negate' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+The fix: As `+secp256k1_tweak_names_removed+`.
 
 |`+secret_of_no_bytes+`
 |native, wasip2, wasip3
@@ -677,7 +713,7 @@ The fix: Sign with an Ed25519 key pair, a `+crypto::signing_keypair+`: an X25519
 |native, wasip2
 |`+webcpp::crypto: bearssl has no BIP 352 silent payments. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
 
-The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::silent_payments::make_prevouts_summary(...)+`.
+The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::silent_payments::make_previous_outputs_summary(...)+`.
 
 |`+sodium_not_linked+`
 |native, wasip2, wasip3
@@ -1658,7 +1694,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+silent_payments_other_backend+`
 |the compile
-|Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::silent_payments::make_prevouts_summary(...)+`.
+|Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::silent_payments::make_previous_outputs_summary(...)+`.
 
 |`+sodium_not_linked+`
 |the compile

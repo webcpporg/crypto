@@ -23,7 +23,7 @@ buffer is the caller's.
 open's), `fill`, the signatures (hedged and recoverable too), `agree`,
 `agree_hashed`, `agree_point`, the verifications, `recover`, `public_key::from_bytes`
 and the public key's byte forms, the tweaks and negations,
-`pubkey_combine` (in a `workspace` the caller lends), the SPKI and PKCS#8
+`public_key_combine` (in a `workspace` the caller lends), the SPKI and PKCS#8
 encoders and decoders (`decode_pkcs8` makes a key pair, whose context is the one
 allocation above), and `ellswift_*`, MuSig2's functions and silent payments'
 (each over a `workspace` the caller lends, where it takes one). The counting

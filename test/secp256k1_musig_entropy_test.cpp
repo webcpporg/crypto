@@ -4,13 +4,13 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// MuSig2's nonce with the system's source failing (the test seam
-// WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY, a whole-program define, hence a program of its own): the
-// planted source answers the key pairs' context seeds, which keypair::from_secret draws from the
-// same source, then fails; nonce_gen returns entropy_unavailable, without aborting, after drawing
-// exactly once and calling nothing after the failure. That the buffer the draw wrote is zero
-// on that failure is random_device::fill's contract, tested by random_device_failing; the wipe
-// after a successful draw is detail::secp256k1_secret's destructor's.
+// MuSig2's nonce with the system's source failing (the test seam WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY,
+// a whole-program define, hence a program of its own): the planted source answers the key pairs'
+// context seeds, which keypair::from_secret draws from the same source, then fails; generate_nonce
+// returns entropy_unavailable, without aborting, after drawing exactly once and calling nothing
+// after the failure. That the buffer the draw wrote is zero on that failure is
+// random_device::fill's contract, tested by random_device_failing; the wipe after a successful draw
+// is detail::secp256k1_secret's destructor's.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
@@ -77,13 +77,13 @@ int main() {
     BOOST_TEST_EQ(calls, 2U);
 
     // The source fails now: the nonce's session randomness is not drawn, and nothing is made.
-    auto const refused = musig::nonce_gen(*first, *key);
+    auto const refused = musig::generate_nonce(*first, *key);
     BOOST_TEST(!refused && refused.error() == crypto::error::entropy_unavailable);
     BOOST_TEST_EQ(calls, 3U);
 
     // With the source answering again, the nonce is drawn once.
     answer_after = 1;
-    auto const made = musig::nonce_gen(*second, *key);
+    auto const made = musig::generate_nonce(*second, *key);
     BOOST_TEST(made.has_value());
     BOOST_TEST_EQ(calls, 4U);
     return webcpp::test::exit_status(boost::report_errors());

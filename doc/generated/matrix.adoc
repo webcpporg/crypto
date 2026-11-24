@@ -246,7 +246,7 @@
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_keys+`
 
-|`+curves::secp256k1::seckey_tweak_add+`, `+seckey_tweak_mul+`, `+seckey_negate+`, `+pubkey_tweak_add+`, `+pubkey_tweak_mul+`, `+pubkey_negate+`, `+pubkey_combine+`
+|`+curves::secp256k1::secret_key_tweak_add+`, `+secret_key_tweak_mul+`, `+secret_key_negate+`, `+public_key_tweak_add+`, `+public_key_tweak_mul+`, `+public_key_negate+`, `+public_key_combine+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_tweak+`
@@ -261,12 +261,12 @@
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_ellswift+`
 
-|`+curves::secp256k1::musig::aggregate_key+`, `+key_aggregate+`, `+nonce_gen+`, `+nonce_aggregate+`, `+nonce_process+`, `+partial_sign+`, `+partial_signature_verify+`, `+partial_signature_aggregate+`, `+parse_public_nonce+`, `+serialize_public_nonce+`, `+parse_aggregate_nonce+`, `+serialize_aggregate_nonce+`, `+parse_partial_signature+`, `+serialize_partial_signature+`
+|`+curves::secp256k1::musig::aggregate_key+`, `+key_aggregate+`, `+generate_nonce+`, `+nonce_aggregate+`, `+nonce_process+`, `+partial_sign+`, `+partial_signature_verify+`, `+partial_signature_aggregate+`, `+parse_public_nonce+`, `+serialize_public_nonce+`, `+parse_aggregate_nonce+`, `+serialize_aggregate_nonce+`, `+parse_partial_signature+`, `+serialize_partial_signature+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_musig+`, `+secp256k1_musig_entropy+`
 
-|`+curves::secp256k1::silent_payments::create_outputs+`, `+create_label+`, `+create_labeled_spend_key+`, `+make_prevouts_summary+`, `+scan_outputs+`, `+send_workspace_size+`, `+summary_workspace_size+`, `+scan_workspace_size+`
+|`+curves::secp256k1::silent_payments::create_outputs+`, `+create_label+`, `+create_labeled_spend_key+`, `+make_previous_outputs_summary+`, `+scan_outputs+`, `+send_workspace_size+`, `+summary_workspace_size+`, `+scan_workspace_size+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_silent_payments+`
@@ -544,7 +544,7 @@ The same, by target: the backends each operation runs on.
 |libsecp256k1
 |libsecp256k1
 
-|`+curves::secp256k1::seckey_tweak_add+`, `+seckey_tweak_mul+`, `+seckey_negate+`, `+pubkey_tweak_add+`, `+pubkey_tweak_mul+`, `+pubkey_negate+`, `+pubkey_combine+`
+|`+curves::secp256k1::secret_key_tweak_add+`, `+secret_key_tweak_mul+`, `+secret_key_negate+`, `+public_key_tweak_add+`, `+public_key_tweak_mul+`, `+public_key_negate+`, `+public_key_combine+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
@@ -562,13 +562,13 @@ The same, by target: the backends each operation runs on.
 |libsecp256k1
 |libsecp256k1
 
-|`+curves::secp256k1::musig::aggregate_key+`, `+key_aggregate+`, `+nonce_gen+`, `+nonce_aggregate+`, `+nonce_process+`, `+partial_sign+`, `+partial_signature_verify+`, `+partial_signature_aggregate+`, `+parse_public_nonce+`, `+serialize_public_nonce+`, `+parse_aggregate_nonce+`, `+serialize_aggregate_nonce+`, `+parse_partial_signature+`, `+serialize_partial_signature+`
+|`+curves::secp256k1::musig::aggregate_key+`, `+key_aggregate+`, `+generate_nonce+`, `+nonce_aggregate+`, `+nonce_process+`, `+partial_sign+`, `+partial_signature_verify+`, `+partial_signature_aggregate+`, `+parse_public_nonce+`, `+serialize_public_nonce+`, `+parse_aggregate_nonce+`, `+serialize_aggregate_nonce+`, `+parse_partial_signature+`, `+serialize_partial_signature+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
 
-|`+curves::secp256k1::silent_payments::create_outputs+`, `+create_label+`, `+create_labeled_spend_key+`, `+make_prevouts_summary+`, `+scan_outputs+`, `+send_workspace_size+`, `+summary_workspace_size+`, `+scan_workspace_size+`
+|`+curves::secp256k1::silent_payments::create_outputs+`, `+create_label+`, `+create_labeled_spend_key+`, `+make_previous_outputs_summary+`, `+scan_outputs+`, `+send_workspace_size+`, `+summary_workspace_size+`, `+scan_workspace_size+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1

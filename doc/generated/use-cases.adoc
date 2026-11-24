@@ -110,7 +110,7 @@
 |<<crypto-wallets-recovery,[.keep]`+ethereum_personal_sign.cpp+`>>
 
 |Derive child keys for a watch-only wallet (BIP 32's derivation is a domain library's)
-|In `+curves::secp256k1+`: `+seckey_tweak_add+`, `+pubkey_tweak_add+`
+|In `+curves::secp256k1+`: `+secret_key_tweak_add+`, `+public_key_tweak_add+`
 |libsecp256k1
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+`
@@ -132,14 +132,14 @@
 |<<crypto-p2p-v2,[.keep]`+ellswift_handshake.cpp+`>>
 
 |Publish one donation address that never shows two payments as related (BIP 352's addresses and transactions are a domain library's)
-|In `+curves::secp256k1::silent_payments+`: `+create_outputs+`, `+make_prevouts_summary+`, `+scan_outputs+`
+|In `+curves::secp256k1::silent_payments+`: `+create_outputs+`, `+make_previous_outputs_summary+`, `+scan_outputs+`
 |libsecp256k1
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+`
 |<<crypto-wallets-silent,[.keep]`+silent_payment.cpp+`>>
 
 |Require two devices to sign for a wallet, with one ordinary signature on the chain
-|In `+curves::secp256k1::musig+`: `+key_aggregate+`, `+nonce_gen+`, `+partial_sign+`, `+partial_signature_aggregate+`
+|In `+curves::secp256k1::musig+`: `+key_aggregate+`, `+generate_nonce+`, `+partial_sign+`, `+partial_signature_aggregate+`
 |libsecp256k1
 |`+/webcpp/crypto//crypto+` +
 `+/third_party//secp256k1+`

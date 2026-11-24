@@ -49,9 +49,9 @@ inline void expect_empty_musig_signer(webcpp::crypto::curves::secp256k1::keypair
     if (!BOOST_TEST(signers_key.has_value())) {
         return;
     }
-    BOOST_TEST(secp::musig::nonce_gen(key, *signers_key).error() ==
+    BOOST_TEST(secp::musig::generate_nonce(key, *signers_key).error() ==
                webcpp::crypto::error::invalid_state);
-    auto made = secp::musig::nonce_gen(live, *signers_key);
+    auto made = secp::musig::generate_nonce(live, *signers_key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -99,7 +99,7 @@ inline void expect_empty_silent_payments(webcpp::crypto::curves::secp256k1::keyp
     BOOST_TEST(sp::create_label(key, 0).error() == webcpp::crypto::error::invalid_state);
     std::array<secp::public_key, 1> const input_keys{*live_key};
     std::array<std::byte, sp::summary_workspace_size(0, 1)> summary_space{};
-    auto const summary = sp::make_prevouts_summary(outpoint, {}, input_keys, summary_space);
+    auto const summary = sp::make_previous_outputs_summary(outpoint, {}, input_keys, summary_space);
     if (!BOOST_TEST(summary.has_value())) {
         return;
     }

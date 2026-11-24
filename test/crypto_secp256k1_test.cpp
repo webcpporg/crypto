@@ -33,8 +33,8 @@ static_assert(webcpp::crypto::can_verify<webcpp::crypto::ecdsa_sha256_t, secp::e
                                          std::span<std::uint8_t const>, secp::public_key>);
 static_assert(std::is_function_v<decltype(secp::normalize_low_s<>)>);
 static_assert(std::is_function_v<decltype(secp::is_low_s<>)>);
-static_assert(std::is_function_v<decltype(secp::seckey_tweak_add<>)>);
-static_assert(std::is_function_v<decltype(secp::pubkey_combine<>)>);
+static_assert(std::is_function_v<decltype(secp::secret_key_tweak_add<>)>);
+static_assert(std::is_function_v<decltype(secp::public_key_combine<>)>);
 static_assert(std::is_function_v<decltype(secp::decode_spki<>)>);
 static_assert(std::is_function_v<decltype(secp::decode_pkcs8<>)>);
 static_assert(std::is_function_v<decltype(secp::ellswift_decode<>)>);

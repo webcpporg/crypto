@@ -500,15 +500,15 @@ int secp256k1_secret_tweaks() {
     tweak_bytes.fill(0x17);
     Checker::mark_secret(secret_key);
     Checker::mark_secret(tweak_bytes);
-    auto const added = secp256k1::seckey_tweak_add<backend>(secret_key, tweak_bytes);
-    auto const multiplied = secp256k1::seckey_tweak_mul<backend>(secret_key, tweak_bytes);
-    auto const negated = secp256k1::seckey_negate<backend>(secret_key);
+    auto const added = secp256k1::secret_key_tweak_add<backend>(secret_key, tweak_bytes);
+    auto const multiplied = secp256k1::secret_key_tweak_mul<backend>(secret_key, tweak_bytes);
+    auto const negated = secp256k1::secret_key_negate<backend>(secret_key);
     return check(added.has_value() && carries_mark<Checker>(added->bytes()),
-                 "secp256k1's seckey_tweak_add") +
+                 "secp256k1's secret_key_tweak_add") +
            check(multiplied.has_value() && carries_mark<Checker>(multiplied->bytes()),
-                 "secp256k1's seckey_tweak_mul") +
+                 "secp256k1's secret_key_tweak_mul") +
            check(negated.has_value() && carries_mark<Checker>(negated->bytes()),
-                 "secp256k1's seckey_negate");
+                 "secp256k1's secret_key_negate");
 }
 
 /**
@@ -593,14 +593,14 @@ int secp256k1_musig() {
     if (!signers_key) {
         return check(false, "secp256k1's key_aggregate");
     }
-    auto own_nonce = musig::nonce_gen(*pair, *signers_key, message);
-    auto other_nonce = musig::nonce_gen(*other, *signers_key, message);
+    auto own_nonce = musig::generate_nonce(*pair, *signers_key, message);
+    auto other_nonce = musig::generate_nonce(*other, *signers_key, message);
     if (!own_nonce || !other_nonce) {
-        return check(false, "secp256k1's nonce_gen");
+        return check(false, "secp256k1's generate_nonce");
     }
     // The secret nonce is made from the secret: traced before it signs.
-    int const failures =
-        check(carries_mark<Checker>(bytes_of(own_nonce->secret_part)), "secp256k1's nonce_gen");
+    int const failures = check(carries_mark<Checker>(bytes_of(own_nonce->secret_part)),
+                               "secp256k1's generate_nonce");
     Checker::mark_public(bytes_of(own_nonce->public_part));
     std::array<musig::public_nonce, 2> const nonces{
         own_nonce->public_part,
@@ -666,10 +666,10 @@ int secp256k1_silent_payments() {
     std::array<secp256k1::public_key, 1> const input_keys{*input_key};
     alignas(std::max_align_t) std::array<std::byte, silent_payments::summary_workspace_size(0, 1)>
         summary_space{};
-    auto const summary =
-        silent_payments::make_prevouts_summary<backend>(outpoint, {}, input_keys, summary_space);
+    auto const summary = silent_payments::make_previous_outputs_summary<backend>(
+        outpoint, {}, input_keys, summary_space);
     if (!summary) {
-        return failures + check(false, "secp256k1's make_prevouts_summary");
+        return failures + check(false, "secp256k1's make_previous_outputs_summary");
     }
     std::array<silent_payments::found_output, 1> found{};
     alignas(std::max_align_t) std::array<std::byte, silent_payments::scan_workspace_size(1)>

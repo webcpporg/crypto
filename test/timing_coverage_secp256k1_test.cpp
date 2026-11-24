@@ -20,31 +20,29 @@
 //
 // What it covers, by family; a family libsecp256k1 gains adds its line and its checks:
 // - secp256k1, curves/secp256k1.hpp: public_key's from_bytes, compressed, uncompressed, xonly,
-//   operator== and operator<=>; basic_keypair: from_secret, public_key, secret, sign with each
-//   scheme (ecdsa_sha256 of a message and of a digest, ecdsa_sha256_recoverable,
-//   ecdsa_keccak256_recoverable of a message and of a digest, schnorr with its auxiliary
-//   randomness drawn), sign hedged, sign with Schnorr's auxiliary randomness given, agree,
-//   agree_hashed, agree_point, tweak_xonly; public_key::verify of ecdsa_sha256 and of schnorr;
-//   the free recover of each recoverable scheme, of a message and of a digest, crypto::verify of
-//   ecdsa_sha256 and of schnorr (against the typed
-//   key and against x-only bytes), to_der, from_der, normalize_low_s, is_low_s, tweak_xonly; the
-//   free synchronous forms of the members, crypto::from_secret, crypto::generate, crypto::sign
-//   (with each scheme, Keccak-256's of a message and of a digest, Schnorr's randomness drawn and
-//   given, and hedged) and crypto::agree, which
-//   enter their own guard before the member's, and crypto::from_bytes of a public key, which holds
-//   none (the member's is its first). Not guarded (no libsecp256k1 call): ecdsa_signature's,
-//   recoverable_signature's and schnorr_signature's from_bytes, member and free, and bytes, and
-//   recoverable_signature's recovery_id. Its
-//   formats: encode_spki, decode_spki, encode_pkcs8, decode_pkcs8. Its tweaks: seckey_tweak_add,
-//   seckey_tweak_mul, seckey_negate, pubkey_tweak_add, pubkey_tweak_mul, pubkey_negate,
-//   pubkey_combine.
+// operator== and operator<=>; basic_keypair: from_secret, public_key, secret, sign with each scheme
+// (ecdsa_sha256 of a message and of a digest, ecdsa_sha256_recoverable, ecdsa_keccak256_recoverable
+// of a message and of a digest, schnorr with its auxiliary randomness drawn), sign hedged, sign
+// with Schnorr's auxiliary randomness given, agree, agree_hashed, agree_point, tweak_xonly;
+// public_key::verify of ecdsa_sha256 and of schnorr; the free recover of each recoverable scheme,
+// of a message and of a digest, crypto::verify of ecdsa_sha256 and of schnorr (against the typed
+// key and against x-only bytes), to_der, from_der, normalize_low_s, is_low_s, tweak_xonly; the free
+// synchronous forms of the members, crypto::from_secret, crypto::generate, crypto::sign (with each
+// scheme, Keccak-256's of a message and of a digest, Schnorr's randomness drawn and given, and
+// hedged) and crypto::agree, which enter their own guard before the member's, and
+// crypto::from_bytes of a public key, which holds none (the member's is its first). Not guarded (no
+// libsecp256k1 call): ecdsa_signature's, recoverable_signature's and schnorr_signature's
+// from_bytes, member and free, and bytes, and recoverable_signature's recovery_id. Its formats:
+// encode_spki, decode_spki, encode_pkcs8, decode_pkcs8. Its tweaks: secret_key_tweak_add,
+// secret_key_tweak_mul, secret_key_negate, public_key_tweak_add, public_key_tweak_mul,
+// public_key_negate, public_key_combine.
 // - ElligatorSwift: ellswift_encode, ellswift_decode, ellswift_create, ellswift_xdh.
 // - MuSig2, a whole round of two signers: aggregate_key's xonly_public_key, full_public_key,
-//   tweak_add, tweak_xonly_add; the free key_aggregate, nonce_gen, nonce_aggregate,
+//   tweak_add, tweak_xonly_add; the free key_aggregate, generate_nonce, nonce_aggregate,
 //   nonce_process, partial_sign, partial_signature_verify, partial_signature_aggregate, and the
 //   parse and serialize of the public nonce, the aggregate nonce and the partial signature.
 // - BIP 352 silent payments, a payment created and scanned: create_label,
-//   create_labeled_spend_key, create_outputs, make_prevouts_summary, scan_outputs.
+//   create_labeled_spend_key, create_outputs, make_previous_outputs_summary, scan_outputs.
 
 #include "support/timing_seam.hpp"
 
@@ -741,7 +739,7 @@ struct musig_round {
 };
 
 /**
- * MuSig2's first round, as secp256k1_musig_test.cpp builds it: nonce_gen, of a moved-from key
+ * MuSig2's first round, as secp256k1_musig_test.cpp builds it: generate_nonce, of a moved-from key
  * pair too, and nonce_aggregate, of no nonce too.
  *
  * @param round The round, whose aggregate key is made.
@@ -749,18 +747,18 @@ struct musig_round {
  */
 bool cover_musig_nonces(musig_round& round) {
     auto const empty = moved_from();
-    covered("musig::nonce_gen on secp256k1", [&] {
-        auto made = musig::nonce_gen(round.alice, *round.aggregate, round.message);
+    covered("musig::generate_nonce on secp256k1", [&] {
+        auto made = musig::generate_nonce(round.alice, *round.aggregate, round.message);
         if (BOOST_TEST(made.has_value())) {
             round.alice_nonce.emplace(std::move(*made));
         }
     });
-    covered("musig::nonce_gen moved from on secp256k1", [&] {
-        BOOST_TEST(musig::nonce_gen(empty, *round.aggregate, round.message).error() ==
+    covered("musig::generate_nonce moved from on secp256k1", [&] {
+        BOOST_TEST(musig::generate_nonce(empty, *round.aggregate, round.message).error() ==
                    crypto::error::invalid_state);
     });
-    auto bob_nonce = musig::nonce_gen(round.bob, *round.aggregate, round.message);
-    auto spare_nonce = musig::nonce_gen(round.bob, *round.aggregate, round.message);
+    auto bob_nonce = musig::generate_nonce(round.bob, *round.aggregate, round.message);
+    auto spare_nonce = musig::generate_nonce(round.bob, *round.aggregate, round.message);
     if (!round.alice_nonce || !BOOST_TEST(bob_nonce.has_value()) ||
         !BOOST_TEST(spare_nonce.has_value())) {
         return false;
@@ -903,7 +901,7 @@ struct silent_payment {
     /** The output the sender made. */
     std::array<bytes32, 1> outputs{};
     /** The summary of the sender's inputs, which the recipient scans with. */
-    std::optional<sp::prevouts_summary> summary;
+    std::optional<sp::previous_outputs_summary> summary;
 };
 
 /**
@@ -937,7 +935,7 @@ bool cover_silent_payment_labels(silent_payment& payment) {
 
 /**
  * Sending: create_outputs to the labelled address, to no recipient too, and
- * make_prevouts_summary of the sender's key, of no input too.
+ * make_previous_outputs_summary of the sender's key, of no input too.
  *
  * @param payment The payment, whose labelled spend key is made.
  * @return Whether the output and the summary are made.
@@ -960,16 +958,16 @@ bool cover_silent_payment_sending(silent_payment& payment) {
     });
     std::array<secp::public_key, 1> const sender_keys{public_of(payment.sender)};
     auto summary_space = lent(sp::summary_workspace_size(0, 1));
-    covered("silent_payments::make_prevouts_summary on secp256k1", [&] {
+    covered("silent_payments::make_previous_outputs_summary on secp256k1", [&] {
         auto const made =
-            sp::make_prevouts_summary(payment.outpoint, {}, sender_keys, summary_space);
+            sp::make_previous_outputs_summary(payment.outpoint, {}, sender_keys, summary_space);
         if (BOOST_TEST(made.has_value())) {
             payment.summary = *made;
         }
     });
-    covered("silent_payments::make_prevouts_summary of no input on secp256k1", [&] {
-        BOOST_TEST(sp::make_prevouts_summary(payment.outpoint, {}, std::span(sender_keys).first(0),
-                                             summary_space)
+    covered("silent_payments::make_previous_outputs_summary of no input on secp256k1", [&] {
+        BOOST_TEST(sp::make_previous_outputs_summary(payment.outpoint, {},
+                                                     std::span(sender_keys).first(0), summary_space)
                        .error() == crypto::error::invalid_input_size);
     });
     return payment.summary.has_value();
@@ -1020,7 +1018,7 @@ void cover_silent_payments() {
 // curves/secp256k1/tweak.hpp.
 // ---------------------------------------------------------------------------------------------
 
-/** The tweaks, negations and combination of keys, and pubkey_combine refused. */
+/** The tweaks, negations and combination of keys, and public_key_combine refused. */
 void cover_tweaks() {
     bytes32 const secret_key = secret_bytes(0xb1);
     bytes32 const tweak = secret_bytes(0x0b);
@@ -1028,25 +1026,25 @@ void cover_tweaks() {
         public_of(keypair_of(0xb2)),
         public_of(keypair_of(0xb3)),
     };
-    covered("secp256k1::seckey_tweak_add on secp256k1",
-            [&] { BOOST_TEST(secp::seckey_tweak_add(secret_key, tweak).has_value()); });
-    covered("secp256k1::seckey_tweak_mul on secp256k1",
-            [&] { BOOST_TEST(secp::seckey_tweak_mul(secret_key, tweak).has_value()); });
-    covered("secp256k1::seckey_negate on secp256k1",
-            [&] { BOOST_TEST(secp::seckey_negate(secret_key).has_value()); });
-    covered("secp256k1::pubkey_tweak_add on secp256k1",
-            [&] { BOOST_TEST(secp::pubkey_tweak_add(keys[0], tweak).has_value()); });
-    covered("secp256k1::pubkey_tweak_mul on secp256k1",
-            [&] { BOOST_TEST(secp::pubkey_tweak_mul(keys[0], tweak).has_value()); });
+    covered("secp256k1::secret_key_tweak_add on secp256k1",
+            [&] { BOOST_TEST(secp::secret_key_tweak_add(secret_key, tweak).has_value()); });
+    covered("secp256k1::secret_key_tweak_mul on secp256k1",
+            [&] { BOOST_TEST(secp::secret_key_tweak_mul(secret_key, tweak).has_value()); });
+    covered("secp256k1::secret_key_negate on secp256k1",
+            [&] { BOOST_TEST(secp::secret_key_negate(secret_key).has_value()); });
+    covered("secp256k1::public_key_tweak_add on secp256k1",
+            [&] { BOOST_TEST(secp::public_key_tweak_add(keys[0], tweak).has_value()); });
+    covered("secp256k1::public_key_tweak_mul on secp256k1",
+            [&] { BOOST_TEST(secp::public_key_tweak_mul(keys[0], tweak).has_value()); });
     boost::system::result<secp::public_key> negated = crypto::error::backend_failure;
-    covered("secp256k1::pubkey_negate on secp256k1",
-            [&] { negated = secp::pubkey_negate(keys[0]); });
+    covered("secp256k1::public_key_negate on secp256k1",
+            [&] { negated = secp::public_key_negate(keys[0]); });
     BOOST_TEST((negated && !(*negated == keys[0])));
     auto space = lent(secp::combine_workspace_size(keys.size()));
-    covered("secp256k1::pubkey_combine on secp256k1",
-            [&] { BOOST_TEST(secp::pubkey_combine(keys, space).has_value()); });
-    covered("secp256k1::pubkey_combine of no key on secp256k1", [&] {
-        BOOST_TEST(secp::pubkey_combine(std::span(keys).first(0), space).error() ==
+    covered("secp256k1::public_key_combine on secp256k1",
+            [&] { BOOST_TEST(secp::public_key_combine(keys, space).has_value()); });
+    covered("secp256k1::public_key_combine of no key on secp256k1", [&] {
+        BOOST_TEST(secp::public_key_combine(std::span(keys).first(0), space).error() ==
                    crypto::error::invalid_input_size);
     });
 }

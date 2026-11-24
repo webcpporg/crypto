@@ -7,7 +7,7 @@
 // A donation page that publishes one reusable address (BIP 352's silent payments): a pair of
 // public keys, scan and spend. A donor's wallet with one input pays it: the output key it makes
 // is new, tied to the donor's input. The recipient scans the transaction's outputs with its scan
-// key pair, finds the payment, and makes the key pair that spends it with seckey_tweak_add. A
+// key pair, finds the payment, and makes the key pair that spends it with secret_key_tweak_add. A
 // second donation to the same address gives an output key unrelated to the first, so that an
 // onlooker sees no two payments to one address. The address's encoding, the transaction and the
 // smallest outpoint's choice are a wallet's (a domain library's); the keys are fixed here, so
@@ -91,8 +91,8 @@ int main() {
     std::array<secp256k1::public_key, 1> const input_keys{*donor_key};
     alignas(std::max_align_t) std::array<std::byte, silent_payments::summary_workspace_size(0, 1)>
         summary_space{};
-    auto const summary =
-        silent_payments::make_prevouts_summary(first_outpoint, {}, input_keys, summary_space);
+    auto const summary = silent_payments::make_previous_outputs_summary(first_outpoint, {},
+                                                                        input_keys, summary_space);
     if (!summary) {
         return 1;
     }
@@ -108,7 +108,7 @@ int main() {
     std::printf("the recipient found %zu output\n", *found_count);
 
     // The spend secret plus the found tweak is the output's secret key.
-    auto const output_secret = secp256k1::seckey_tweak_add(spend_secret, found[0].spend_tweak);
+    auto const output_secret = secp256k1::secret_key_tweak_add(spend_secret, found[0].spend_tweak);
     if (!output_secret) {
         return 1;
     }

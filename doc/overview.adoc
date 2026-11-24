@@ -75,9 +75,12 @@ the namespaces as `<webcpp/crypto/<group>/<name>.hpp>`:
 signatures' schemes, `prehashed` and `verify` (`<webcpp/crypto/signing.hpp>`),
 the key pair concepts, `sign` and `agree` (`<webcpp/crypto/keypair.hpp>`), the
 factories `from_secret`, `from_bytes`, `from_key` and `generate`
-(`<webcpp/crypto/factories.hpp>`), and the asynchronous family
-(`<webcpp/crypto/async.hpp>`; <<crypto-root>>, <<crypto-curves-four-forms>>,
-<<crypto-async>>);
+(`<webcpp/crypto/factories.hpp>`), `supports_v`, whether a backend has an
+algorithm on the target (`<webcpp/crypto/supports.hpp>`; <<crypto-backends>>),
+and the asynchronous family (`<webcpp/crypto/async.hpp>`; <<crypto-root>>,
+<<crypto-curves-four-forms>>, <<crypto-async>>);
+* `webcpp::crypto::pem`: `armour`, `unarmour`, `armoured_size` and the labels,
+a key's DER as PEM text (`<webcpp/crypto/pem.hpp>`; <<crypto-key-formats>>);
 * `webcpp::crypto::ciphers`: `aes128`, `aes192`, `aes256`, `gcm`, `aes128_gcm`,
 `aes256_gcm`, `chacha20_poly1305`, `chacha20_poly1305_original` and
 `xchacha20_poly1305` (<<crypto-ciphers>>);

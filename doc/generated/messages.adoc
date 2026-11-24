@@ -905,7 +905,7 @@ The fix: Add `+/webcpp/crypto//x25519-default+`, which links `+/third_party//sod
 
 `+no matching conversion for functional-style cast+`
 
-The fix: Make the key pair with `+curves::x25519::keypair::from_secret(secret)+`, then call its `+public_key()+`, and its `+agree+` with the peer's `+curves::x25519::public_key+` from `+from_bytes+`; the free functions over bytes are gone, with no alias.
+The fix: Make the key pair with `+curves::x25519::keypair::from_secret(secret)+`, then call its `+public_key()+`, and its `+agree+` with the peer's `+curves::x25519::public_key+` from `+from_bytes+`; the free functions over bytes are gone, with no alias. The `+x25519::public_key(secret)+` half pins clang's generic "no matching conversion for functional-style cast", since `+public_key+` now names the type.
 |===
 
 At build and link time, from the fixtures of the user's Jamfiles, each built on a scratch superproject: the texts the build's output contains, per target and linker, as each fixture checks them.

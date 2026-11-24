@@ -8,7 +8,7 @@ project : requirements <library>/webcpp/crypto//crypto ;
 
 import webcpp ;
 
-# alone: the two missing names are the compile's only errors, so a regression that puts
-# another error before or after them fails the test.
+# alone: the two missing names are the compile's only errors, so a regression
+# that puts another error before or after them fails the test.
 webcpp.compile-diagnostic prevouts_summary_removed : prevouts_summary_removed.cpp
   : <library>/third_party//secp256k1 : native wasip2 : alone ;

@@ -660,10 +660,10 @@ crypto-run x25519_sodium : x25519_sodium_test.cpp : <library>/third_party//sodiu
 # X25519's generic layer on a stand-in engine that does not refuse an all-zero
 # shared secret: agree refuses it itself (design D8).
 crypto-run x25519_mock : x25519_mock_test.cpp ;
-# ciphers::basic_chacha20_poly1305's, secret_key_encryption::basic_secretbox's and
-# public_key_encryption::basic_box's generic layer on a stand-in engine that
-# writes the data before it fails: a failed seal zeroes it, as a failed open
-# does. The box's X25519 key pair is the stand-in's too.
+# ciphers::basic_chacha20_poly1305's, secret_key_encryption::basic_secretbox's
+# and public_key_encryption::basic_box's generic layer on a stand-in engine
+# that writes the data before it fails: a failed seal zeroes it, as a failed
+# open does. The box's X25519 key pair is the stand-in's too.
 crypto-run aead_box_mock : aead_box_mock_test.cpp ;
 crypto-run x25519_wycheproof_sodium : x25519_wycheproof_sodium_test.cpp
   : <library>/third_party//sodium <library>/third_party//wycheproof

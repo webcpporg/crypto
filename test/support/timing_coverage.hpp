@@ -8,8 +8,9 @@
 // of the AES block cipher, gcm and ciphers::basic_chacha20_poly1305, and the free
 // crypto::from_key, secret_key_encryption::aead::seal and secret_key_encryption::aead::open that
 // call theirs, called once with valid input and once with input refused before the backend is
-// reached, must enter a guard and leave the thread's DIT as it found it. Each backend's timing_coverage_<backend>_test.cpp calls these on the algorithms
-// it builds; a test includes support/timing_seam.hpp before any crypto header, then this one.
+// reached, must enter a guard and leave the thread's DIT as it found it. Each backend's
+// timing_coverage_<backend>_test.cpp calls these on the algorithms it builds; a test includes
+// support/timing_seam.hpp before any crypto header, then this one.
 
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_TIMING_COVERAGE_HPP
 #define WEBCPP_TEST_CRYPTO_SUPPORT_TIMING_COVERAGE_HPP

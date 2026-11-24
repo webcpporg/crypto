@@ -13,6 +13,10 @@
  `ciphers/aead.hpp`, which it includes, brings their free forms, `secret_key_encryption::aead::seal`
  and `open`.
 
+ On Emscripten, every function on libsodium may return `entropy_unavailable`, or
+ `errc::not_supported` where there is no generator, while libsodium is not yet initialised and
+ the browser's generator fails, as `backends::sodium` says.
+
  @see "ChaCha20-Poly1305", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_CIPHERS_CHACHA20_POLY1305_HPP

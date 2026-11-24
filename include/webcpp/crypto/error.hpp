@@ -57,6 +57,9 @@ enum class error : int {
     /**
      * The system's or the browser's generator failed, or secp256k1's `generate` drew four times
      * and none was a secret key.
+     *
+     * On Emscripten, any function on libsodium may return it while libsodium is not yet
+     * initialised (`backends::sodium`).
      */
     entropy_unavailable = 8,
     /** A secret scalar, a secret key or a tweak, that is zero or not below the group order. */

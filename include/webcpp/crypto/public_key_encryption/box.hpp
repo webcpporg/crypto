@@ -21,6 +21,10 @@
  includes, holds the free forms of every box: `secret_key_encryption::seal(box, nonce, data)` and
  `secret_key_encryption::open(box, nonce, data, tag)`, named in full; none is declared here.
 
+ On Emscripten, every function on libsodium may return `entropy_unavailable`, or
+ `errc::not_supported` where there is no generator, while libsodium is not yet initialised and
+ the browser's generator fails, as `backends::sodium` says.
+
  @see "Boxes", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_PUBLIC_KEY_ENCRYPTION_BOX_HPP

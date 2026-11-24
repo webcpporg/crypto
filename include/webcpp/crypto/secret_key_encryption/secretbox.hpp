@@ -18,6 +18,10 @@
  secret box is no AEAD, since it takes no associated data, so it is not among `ciphers`'
  algorithms, and its free forms are the box forms, `secret_key_encryption::seal` and `open`.
 
+ On Emscripten, every function on libsodium may return `entropy_unavailable`, or
+ `errc::not_supported` where there is no generator, while libsodium is not yet initialised and
+ the browser's generator fails, as `backends::sodium` says.
+
  @see "Secret boxes", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_SECRET_KEY_ENCRYPTION_SECRETBOX_HPP

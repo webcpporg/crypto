@@ -14,6 +14,10 @@
  it; a program that uses the family without linking it stops where it calls it, with the
  Jamfile line that links it.
 
+ On Emscripten, every function on libsodium may return `entropy_unavailable`, or
+ `errc::not_supported` where there is no generator, while libsodium is not yet initialised and
+ the browser's generator fails, as `backends::sodium` says.
+
  @see "X25519", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_CURVES_X25519_HPP

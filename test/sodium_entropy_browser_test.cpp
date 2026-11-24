@@ -7,13 +7,16 @@
 // On Emscripten under node, as a page meets it: libsodium draws through crypto's entropy, not
 // through its own JavaScript, whose stir throws "No secure random number generator found" when
 // crypto.getRandomValues and node's randomBytes throw. A program of its own, so that no
-// libsodium call precedes the plant. With every source throwing, a sealed box returns
-// entropy_unavailable with its output zeroed: the first time from sodium_init's draw, which
-// crypto watches, the second time from crypto_box_seal's draw of the ephemeral key; Ed25519's
-// from_secret, which draws nothing, succeeds; the program runs on. With the originals back, a
-// seal succeeds and the recipient's key pair opens it. The recipient is RFC 7748's Bob, whose
-// public key is made with from_bytes, which calls no backend. The test runs as a CommonJS program
-// under node, where require is a function.
+// libsodium call precedes the plant. With every source throwing, the program's first libsodium
+// call, Ed25519's from_secret, which draws nothing itself, returns entropy_unavailable from
+// crypto's draw before sodium_init, and so does a sealed box, its output zeroed; with no source
+// at all (an audio worklet's case), both return errc::not_supported; the program runs on. With
+// the sources back, sodium_init has not run yet (it returns 0, not 1), and from_secret, a seal
+// and its open succeed. With every source throwing again, libsodium initialised, a sealed box
+// returns entropy_unavailable from crypto_box_seal's draw of the ephemeral key, its output
+// zeroed, and from_secret succeeds. The recipient is RFC 7748's Bob, whose public key is made with
+// from_bytes, which calls no backend. The test runs as a CommonJS program under node, where
+// require is a function.
 
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
@@ -22,6 +25,10 @@
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
+#include <boost/system/errc.hpp>
+#include <boost/system/error_code.hpp>
+
+#include <sodium/core.h>
 
 #include <emscripten/em_asm.h>
 
@@ -71,37 +78,68 @@ void restore_sources() {
         }
     });
 }
+// No source at all: no globalThis.crypto, and a node:crypto without webcrypto, as in an audio
+// worklet; the originals are kept for reveal_sources.
+void hide_sources() {
+    EM_ASM({
+        globalThis.webcppSavedCrypto = globalThis.crypto;
+        Object.defineProperty(globalThis, 'crypto', {value: undefined, configurable: true});
+        globalThis.webcppSavedRequire = require;
+        const original = require;
+        require = (name) => (name === 'node:crypto' ? {} : original(name));
+    });
+}
+
+void reveal_sources() {
+    EM_ASM({
+        Object.defineProperty(globalThis, 'crypto',
+                              {value: globalThis.webcppSavedCrypto, configurable: true});
+        require = globalThis.webcppSavedRequire;
+    });
+}
 // clang-format on
 
 bool all_zero(std::vector<std::uint8_t> const& bytes) {
     return std::ranges::all_of(bytes, [](std::uint8_t byte) { return byte == 0; });
 }
 
-/** A seal that fails with entropy_unavailable, its output, filled with 0xa5 first, zeroed. */
+/** A seal that fails with `expected`, its output, filled with 0xa5 first, zeroed. */
 void expect_seal_refused(x25519::public_key const& recipient,
-                         std::vector<std::uint8_t> const& message) {
+                         std::vector<std::uint8_t> const& message,
+                         boost::system::error_code expected) {
     std::vector<std::uint8_t> sealed(message.size() + sealed_box::overhead, 0xa5);
     auto const sealed_result = sealed_box::seal(recipient, message, sealed);
-    BOOST_TEST(!sealed_result && sealed_result.error() == crypto::error::entropy_unavailable);
+    BOOST_TEST(!sealed_result && sealed_result.error() == expected);
     BOOST_TEST(all_zero(sealed));
 }
 
 }  // namespace
 
 int main() {
+    boost::system::error_code const entropy_unavailable = crypto::error::entropy_unavailable;
+    boost::system::error_code const not_supported =
+        boost::system::errc::make_error_code(boost::system::errc::not_supported);
     plant_throwing_sources();
     auto const recipient = x25519::public_key::from_bytes(bob_public_key).value();
     std::vector<std::uint8_t> const message{'s', 'e', 'a', 'l', 'e', 'd'};
-
-    // sodium_init's draw (its canary), which crypto watches.
-    expect_seal_refused(recipient, message);
-    // crypto_box_seal's draw of the ephemeral key pair.
-    expect_seal_refused(recipient, message);
     std::array<std::uint8_t, 32> seed{};
     seed.fill(0x42);
-    BOOST_TEST(ed25519::keypair::from_secret(seed).has_value());
+
+    // The first libsodium call: crypto's draw before sodium_init fails, which is not run.
+    auto const first_pair = ed25519::keypair::from_secret(seed);
+    BOOST_TEST(!first_pair && first_pair.error() == entropy_unavailable);
+    expect_seal_refused(recipient, message, entropy_unavailable);
+
+    hide_sources();
+    auto const sourceless_pair = ed25519::keypair::from_secret(seed);
+    BOOST_TEST(!sourceless_pair && sourceless_pair.error() == not_supported);
+    expect_seal_refused(recipient, message, not_supported);
+    reveal_sources();
 
     restore_sources();
+    // Not initialised by the failed calls: sodium_init runs now, with crypto's generator.
+    BOOST_TEST_EQ(sodium_init(), 0);
+    BOOST_TEST(ed25519::keypair::from_secret(seed).has_value());
     std::vector<std::uint8_t> sealed(message.size() + sealed_box::overhead, 0);
     BOOST_TEST(sealed_box::seal(recipient, message, sealed).has_value());
     auto const key_pair = x25519::keypair::from_secret(bob_secret_key).value();
@@ -110,5 +148,12 @@ int main() {
     std::vector<std::uint8_t> opened(message.size(), 0xa5);
     BOOST_TEST(sealed_box::open(key_pair, sealed, opened).has_value());
     BOOST_TEST(opened == message);
+
+    // libsodium initialised: crypto_box_seal's draw of the ephemeral key pair fails; a call that
+    // draws nothing runs.
+    plant_throwing_sources();
+    expect_seal_refused(recipient, message, entropy_unavailable);
+    BOOST_TEST(ed25519::keypair::from_secret(seed).has_value());
+    restore_sources();
     return webcpp::test::exit_status(boost::report_errors());
 }

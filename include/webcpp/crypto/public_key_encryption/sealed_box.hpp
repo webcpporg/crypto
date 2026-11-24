@@ -15,6 +15,10 @@
  key: `crypto::hybrid` is left free for the post-quantum hybrids (X25519MLKEM768, X-Wing), which
  the word now names, and a later HPKE (RFC 9180) joins the boxes here.
 
+ On Emscripten, every function on libsodium may return `entropy_unavailable`, or
+ `errc::not_supported` where there is no generator, while libsodium is not yet initialised and
+ the browser's generator fails, as `backends::sodium` says.
+
  @see "Sealed boxes", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_PUBLIC_KEY_ENCRYPTION_SEALED_BOX_HPP

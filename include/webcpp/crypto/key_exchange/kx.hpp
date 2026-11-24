@@ -20,6 +20,10 @@
  and "hybrid encryption" (a KEM with a DEM) does not describe it either, a word left free for
  the post-quantum hybrids (X25519MLKEM768, X-Wing).
 
+ On Emscripten, every function on libsodium may return `entropy_unavailable`, or
+ `errc::not_supported` where there is no generator, while libsodium is not yet initialised and
+ the browser's generator fails, as `backends::sodium` says.
+
  @see "Key exchange: `webcpp::crypto::key_exchange`", in the guide.
 */
 #ifndef WEBCPP_CRYPTO_KEY_EXCHANGE_KX_HPP

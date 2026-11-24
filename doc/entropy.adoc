@@ -49,16 +49,21 @@ of at most 256 bytes, the limit of `getentropy`, and checks every call.
 On Emscripten, libsodium draws through crypto too. Its own JavaScript generator
 throws when `crypto.getRandomValues` and node's `randomBytes` both fail, and
 the exception terminates the program; crypto installs its generator in its
-place (`randombytes_set_implementation`) before its first libsodium call. A
-sealed box whose ephemeral key cannot be drawn returns `entropy_unavailable`,
-its output zeroed, and so does the first libsodium function of a program when
-`sodium_init` cannot draw its canary for `sodium_malloc`, which crypto never
-allocates through: libsodium is initialised all the same, with a zero canary,
-and later calls run. A draw that fails in a libsodium function the program calls
-itself, which no crypto call observes, ends the program through
-`sodium_misuse`, as libsodium does natively, rather than hand on zeros. A
-program that sets its own libsodium generator sets it after crypto's first
-libsodium call, or crypto's replaces it.
+place (`randombytes_set_implementation`) before its first libsodium call.
+Until libsodium is initialised, every function on libsodium first draws a few
+bytes, and returns `entropy_unavailable` when the source fails, or
+`errc::not_supported` where there is none, without initialising libsodium: the
+canary `sodium_init` draws guards the program's own `sodium_malloc`
+allocations, and a source that already fails never leaves it zero (only one
+that fails between that first draw and the one of `sodium_init` could, and the
+call then returns its error too). The next call tries again; once libsodium is
+initialised, a function that draws nothing (a signature, a key pair from its
+secret) runs whatever the source does. A sealed box whose ephemeral key cannot
+be drawn returns the same errors, its output zeroed. A draw that fails in a
+libsodium function the program calls itself, which no crypto call observes,
+ends the program through `sodium_misuse`, as libsodium does natively, rather
+than hand on zeros. A program that sets its own libsodium generator sets it
+after crypto's first libsodium call, or crypto's replaces it.
 
 `fill(bytes)` is the interface. With exceptions, `random_device` is also a
 standard random bit generator, shaped as `std::random_device`: its

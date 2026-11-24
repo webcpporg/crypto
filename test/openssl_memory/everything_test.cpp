@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Everything in the resource, refused otherwise (spec section 8.5): installed first, the
-// configuration file not read, make, the one-shot and incremental seals, good and failed
+// configuration file not read, from_key, the one-shot and incremental seals, good and failed
 // opens and the destructors, for gcm, aes256 and chacha20_poly1305 on OpenSSL, make no call
 // of the C library's allocator from any caller; seal, open and the incremental seal allocate
 // nothing anywhere; a second thread does the same with gcm and chacha20_poly1305 (Review
@@ -35,16 +35,16 @@ using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::open
 using chacha = crypto::ciphers::chacha20_poly1305<crypto::backends::openssl>;
 
 void messages(aead& made) {
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     std::array<std::uint8_t, 64> data{};
     auto const& resource = webcpp::test::the_counting_resource();
     std::size_t const before = resource.allocations();
-    auto const tag = made.seal(iv, {}, data);
+    auto const tag = made.seal(nonce, {}, data);
     BOOST_TEST(tag.has_value());
-    BOOST_TEST(made.open(iv, {}, data, *tag).has_value());
+    BOOST_TEST(made.open(nonce, {}, data, *tag).has_value());
     std::array<std::uint8_t, 16> const bad{};
-    BOOST_TEST(made.open(iv, {}, data, bad).error() == crypto::error::authentication_failed);
-    BOOST_TEST(made.begin_seal(iv, {}).has_value());
+    BOOST_TEST(made.open(nonce, {}, data, bad).error() == crypto::error::authentication_failed);
+    BOOST_TEST(made.begin_seal(nonce, {}).has_value());
     BOOST_TEST(made.update(data).has_value());
     BOOST_TEST(made.result().has_value());
     BOOST_TEST_EQ(resource.allocations(), before);
@@ -52,27 +52,27 @@ void messages(aead& made) {
 
 // ChaCha20-Poly1305's seal, good open and failed open, which allocate nothing anywhere.
 void messages(chacha& made) {
-    std::array<std::uint8_t, 12> const iv{};
+    std::array<std::uint8_t, 12> const nonce{};
     std::array<std::uint8_t, 64> data{};
     auto const& resource = webcpp::test::the_counting_resource();
     std::size_t const before = resource.allocations();
-    auto const tag = made.seal(iv, {}, data);
+    auto const tag = made.seal(nonce, {}, data);
     BOOST_TEST(tag.has_value());
-    BOOST_TEST(made.open(iv, {}, data, *tag).has_value());
+    BOOST_TEST(made.open(nonce, {}, data, *tag).has_value());
     std::array<std::uint8_t, 16> const bad{};
-    BOOST_TEST(made.open(iv, {}, data, bad).error() == crypto::error::authentication_failed);
+    BOOST_TEST(made.open(nonce, {}, data, bad).error() == crypto::error::authentication_failed);
     BOOST_TEST_EQ(resource.allocations(), before);
 }
 
-// make, the messages and the destructor of each AEAD.
+// from_key, the messages and the destructor of each AEAD.
 void every_aead(std::array<std::uint8_t, 32> const& key) {
     {
-        auto made = aead::make(key);
+        auto made = aead::from_key(key);
         BOOST_TEST(made.has_value());
         messages(*made);
     }
     {
-        auto made = chacha::make(key);
+        auto made = chacha::from_key(key);
         BOOST_TEST(made.has_value());
         messages(*made);
     }
@@ -92,7 +92,7 @@ int main() {
     {
         std::array<std::uint8_t, 32> const key{};
         every_aead(key);
-        auto block = crypto::ciphers::aes256<crypto::backends::openssl>::make(key);
+        auto block = crypto::ciphers::aes256<crypto::backends::openssl>::from_key(key);
         BOOST_TEST(block.has_value());
         std::array<std::uint8_t, 32> blocks{};
         auto const& resource = webcpp::test::the_counting_resource();

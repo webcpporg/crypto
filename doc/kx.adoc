@@ -4,16 +4,30 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-[#crypto-kx]
-=== Key exchange: crypto_kx
+[#crypto-key-exchange]
+== Key exchange: `webcpp::crypto::key_exchange`
 
-`<webcpp/crypto/curves/x25519/kx.hpp>` is libsodium's key exchange,
+*Key exchange* gives two parties who swapped public keys the keys a cipher
+needs, without sending any of them. The namespace
+`webcpp::crypto::key_exchange` holds libsodium's `crypto_kx` in this version: a
+construction over X25519 (<<crypto-x25519>>) and BLAKE2b rather than a curve
+primitive, so it is not in `curves`, and named by the problem it solves.
+
+include::generated/namespace-key_exchange.adoc[]
+
+[#crypto-kx]
+=== crypto_kx
+
+`<webcpp/crypto/key_exchange/kx.hpp>` is libsodium's key exchange,
 `crypto_kx`, on libsodium (`/third_party//sodium`, or
 `/webcpp/crypto//kx-default`, which links it on every target), in the namespace
-`webcpp::crypto::curves::x25519`. It turns X25519 (<<crypto-x25519>>) into what
+`webcpp::crypto::key_exchange`. It turns X25519 (<<crypto-x25519>>) into what
 a program that talks to one peer needs: two keys ready for a cipher, one for
 each direction. A chat app's client and its server each hold a
-`kx_keypair`; they send each other their public keys; the client calls
+`kx_keypair`, which holds an X25519 key pair (`curves::x25519::basic_keypair`,
+given back by `keypair()`); they send each other their public keys, each an
+`x25519::public_key` (`public_key()`, or `x25519::public_key::from_bytes` of
+the 32 bytes received); the client calls
 `client_session_keys(server_public_key)` and the server
 `server_session_keys(client_public_key)`. Each gets a `session_keys`, a
 `receive` and a `transmit` key, both `secret<32>` that wipe themselves; the
@@ -29,11 +43,21 @@ names X25519 and a KDF of its own, as TLS 1.3's key schedule does
 (link:https://www.rfc-editor.org/rfc/rfc8446#section-7.1[RFC 8446, section 7.1]),
 uses `agree` instead.
 
-`kx_keypair<>::generate()` draws the key pair's 32-byte seed with
-`random_device`; `kx_keypair<>::make(seed)` makes the same key pair from the
-same seed, as a program that keeps its seed does. A peer's public key of low
-order makes the X25519 secret all zero, whatever the secret key: both
-functions refuse it with `weak_public_key`, as libsodium does (design D8).
+A key pair is made three ways. `kx_keypair<>::generate()` draws a 32-byte
+seed with `random_device`. `kx_keypair<>::derive_from_seed(seed)` is
+libsodium's `crypto_kx_seed_keypair`: it hashes the seed, its secret key
+BLAKE2b-256 of the 32 bytes, and makes the same key pair from the same seed,
+as libsodium does in any language: a program that keeps its seed calls it.
+`kx_keypair<>::from_keypair(key_pair)` takes
+an X25519 key pair (<<crypto-x25519>>) as it is, its secret key used with no
+hash, moved in: the key pair a program already holds, made by
+`x25519::keypair::from_secret(bytes)` from a secret key it keeps. The same 32
+bytes therefore give two key pairs: `derive_from_seed(bytes)` hashes them,
+`from_keypair(*x25519::keypair::from_secret(bytes))` takes them as the secret
+key, and their public keys differ. A key pair moved from is refused with
+`invalid_state`, by `from_keypair` too. A peer's public key of low order
+makes the X25519 secret all zero, whatever the secret key: both functions
+refuse it with `weak_public_key`, as libsodium does (design D8).
 
 include::generated/backends-kx_keypair.adoc[]
 

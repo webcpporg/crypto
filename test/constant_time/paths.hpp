@@ -33,7 +33,7 @@
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
-#include <webcpp/crypto/ciphers/secretbox.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
@@ -44,13 +44,15 @@
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
-#include <webcpp/crypto/curves/x25519/kx.hpp>
 #include <webcpp/crypto/detail/bytes.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
-#include <webcpp/crypto/equal.hpp>
-#include <webcpp/crypto/hybrid/box.hpp>
-#include <webcpp/crypto/hybrid/sealed_box.hpp>
+#include <webcpp/crypto/erase_secret.hpp>
+#include <webcpp/crypto/key_exchange/kx.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
+#include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
 #include <webcpp/crypto/secret.hpp>
+#include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/crypto/signing.hpp>
 
 #include <boost/system/result.hpp>
@@ -98,17 +100,17 @@ bool clear_of_mark(std::span<std::uint8_t const> bytes) {
     return traced.has_value() && !*traced;
 }
 
-/** equal with both sides secret, its result marked public for the test's own branch. */
+/** constant_time_equal with both sides secret, its result marked public for the test's branch. */
 template <class Checker>
-int equal_path() {
+int constant_time_equal_path() {
     std::array<std::uint8_t, 16> a{};
     std::array<std::uint8_t, 16> b{};
     Checker::mark_secret(a);
     Checker::mark_secret(b);
     // Not const: the mark changes the object in the checker's shadow, so it is read again.
-    bool same = crypto::equal(a, b);  // NOLINT(misc-const-correctness)
+    bool same = crypto::constant_time_equal(a, b);  // NOLINT(misc-const-correctness)
     Checker::mark_public(bytes_of(same));
-    return check(same, "equal");
+    return check(same, "constant_time_equal");
 }
 
 /**
@@ -158,35 +160,62 @@ int secret_wipe() {
                  "secret's wipe");
 }
 
+/** erase_secret: it overwrites a secret buffer with constants, without a branch on its bytes. */
+template <class Checker>
+int erase_secret_path() {
+    std::array<std::uint8_t, 32> buffer{};
+    buffer.fill(0x42);
+    Checker::mark_secret(buffer);
+    crypto::erase_secret(buffer);
+    return check(clear_of_mark<Checker>(buffer), "erase_secret");
+}
+
 /**
- * make, seal and open of an AEAD or a secret box with the key, the data and the tag secret: an
- * open of the message, then an open of no message under the same tag, which fails. Each verdict
- * must be public: the engine or the library marks it so, and only it.
+ * from_key, seal and open of an AEAD, with empty associated data, or of a secret box, which takes
+ * none, with the key, the data and the tag secret: an open of the message, then an open of no
+ * message under the same tag, which fails. Each verdict must be public: the engine or the library
+ * marks it so, and only it.
  */
 template <class Checker, class Aead>
 int seal_and_open(char const* what) {
+    constexpr bool without_associated_data = crypto::secret_key_encryption::authenticated_box<Aead>;
+    auto const seal_with = [](Aead& keyed, auto const& nonce_bytes, std::span<std::uint8_t> bytes) {
+        if constexpr (without_associated_data) {
+            return keyed.seal(nonce_bytes, bytes);
+        } else {
+            return keyed.seal(nonce_bytes, {}, bytes);
+        }
+    };
+    auto const open_with = [](Aead& keyed, auto const& nonce_bytes, std::span<std::uint8_t> bytes,
+                              auto const& tag_bytes) {
+        if constexpr (without_associated_data) {
+            return keyed.open(nonce_bytes, bytes, tag_bytes);
+        } else {
+            return keyed.open(nonce_bytes, {}, bytes, tag_bytes);
+        }
+    };
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, Aead::iv_size> const iv{};
+    std::array<std::uint8_t, Aead::nonce_size> const nonce{};
     std::array<std::uint8_t, 64> data{};
     key.fill(0x42);
     data.fill(0x17);
     Checker::mark_secret(key);
     Checker::mark_secret(data);
-    auto made = Aead::make(key);
-    auto tag = made->seal(iv, {}, data);
+    auto made = Aead::from_key(key);
+    auto tag = seal_with(*made, nonce, data);
     int const failures =
         check(tag.has_value() && carries_mark<Checker>(data) && carries_mark<Checker>(*tag), what);
     Checker::mark_secret(*tag);
-    auto const opened = made->open(iv, {}, data, *tag);
+    auto const opened = open_with(*made, nonce, data, *tag);
     bool const opened_verdict = opened.has_value();
     Checker::verdict(opened_verdict);
-    auto const none = made->open(iv, {}, std::span<std::uint8_t>{}, *tag);
+    auto const none = open_with(*made, nonce, std::span<std::uint8_t>{}, *tag);
     bool const none_verdict = none.has_value();
     Checker::verdict(none_verdict);
     return failures + check(opened_verdict && !none_verdict, what);
 }
 
-/** make, encrypt and decrypt of ctaes with the key and the block secret. */
+/** from_key, encrypt and decrypt of ctaes with the key and the block secret. */
 template <class Checker>
 int ctaes_block() {
     std::array<std::uint8_t, 32> key{};
@@ -195,23 +224,45 @@ int ctaes_block() {
     block.fill(0x17);
     Checker::mark_secret(key);
     Checker::mark_secret(block);
-    auto made = crypto::ciphers::aes256<crypto::backends::ctaes>::make(key);
+    auto made = crypto::ciphers::aes256<crypto::backends::ctaes>::from_key(key);
     bool const ok = made && made->encrypt(block) && made->decrypt(block);
     return check(ok && carries_mark<Checker>(block), "ctaes");
 }
 
-/** Ed25519 on libsodium: make and sign with the seed secret; the kept seed is traced. */
+/**
+ * Ed25519 on libsodium: from_secret and sign, under eddsa and under eddsa_prehashed (Ed25519ph, a
+ * public 64-byte digest), with the seed secret; the kept seed is traced, and so is the secret key
+ * of the X25519 key pair to_x25519() converts it to, whose public key is checked as X25519's.
+ */
 template <class Checker>
 int sodium_ed25519() {
     std::array<std::uint8_t, 32> seed{};
     std::array<std::uint8_t, 64> const message{};
     seed.fill(0x42);
     Checker::mark_secret(seed);
-    auto const pair = crypto::curves::ed25519::basic_keypair<sodium>::make(seed);
+    auto const pair = crypto::curves::ed25519::basic_keypair<sodium>::from_secret(seed);
     auto const signature = pair->sign(crypto::eddsa, message);
+    auto const prehashed_signature =
+        pair->sign(crypto::eddsa_prehashed, crypto::prehashed{message});
     auto const kept = pair->secret();
-    return check(signature.has_value() && carries_mark<Checker>(*signature),
+    auto const converted = pair->to_x25519();
+    auto const converted_secret =
+        converted ? converted->secret()
+                  : boost::system::result<crypto::secret<32>>(converted.error());
+    auto const converted_public =
+        converted ? converted->public_key()
+                  : boost::system::result<crypto::curves::x25519::public_key>(converted.error());
+    bool const converted_public_traced =
+        converted_public.has_value() &&
+        (!Checker::exact_subtraction || carries_mark<Checker>(converted_public->bytes()));
+    return check(signature.has_value() && carries_mark<Checker>(signature->bytes()),
                  "Ed25519 on libsodium") +
+           check(converted_secret.has_value() && carries_mark<Checker>(converted_secret->bytes()),
+                 "Ed25519's to_x25519 on libsodium") +
+           check(converted_public_traced, "Ed25519's to_x25519 public key on libsodium") +
+           check(prehashed_signature.has_value() &&
+                     carries_mark<Checker>(prehashed_signature->bytes()),
+                 "Ed25519ph on libsodium") +
            check(kept.has_value() && carries_mark<Checker>(kept->bytes()),
                  "Ed25519's secret on libsodium");
 }
@@ -228,57 +279,114 @@ int sodium_x25519() {
     namespace x25519 = crypto::curves::x25519;
     std::array<std::uint8_t, 32> peer_secret{};
     peer_secret.fill(0x24);
-    auto const peer = x25519::public_key<sodium>(peer_secret);
+    auto const peer = x25519::basic_keypair<sodium>::from_secret(peer_secret)->public_key();
     std::array<std::uint8_t, 32> secret_key{};
     secret_key.fill(0x42);
     Checker::mark_secret(secret_key);
-    auto const own = x25519::public_key<sodium>(secret_key);
-    auto const shared = x25519::agree<sodium>(secret_key, *peer);
+    auto const own_pair = x25519::basic_keypair<sodium>::from_secret(secret_key);
+    auto const own = own_pair->public_key();
+    auto const shared = own_pair->agree(*peer);
     bool const own_traced =
-        own.has_value() && (!Checker::exact_subtraction || carries_mark<Checker>(*own));
+        own.has_value() && (!Checker::exact_subtraction || carries_mark<Checker>(own->bytes()));
     return check(own_traced, "X25519's public key on libsodium") +
            check(shared.has_value() && carries_mark<Checker>(shared->bytes()),
                  "X25519's agreement on libsodium");
 }
 
 /**
- * A box on libsodium: make with the secret key secret, then seal and open as an AEAD's. The
- * agreement's verdict is libsodium's own branch (sodium_verdicts.supp).
+ * X25519's key pair's wipe on libsodium: a move, a move assignment and the destructor overwrite
+ * the secret key they leave behind with constants, as `secret_wipe` checks of `secret<N>`; the
+ * public key, computed from the secret key, is marked public, as it is published.
+ */
+template <class Checker>
+int sodium_x25519_keypair_wipe() {
+    using keypair = crypto::curves::x25519::basic_keypair<sodium>;
+    using access = crypto::detail::x25519_access;
+    std::array<std::uint8_t, 32> secret_key{};
+    secret_key.fill(0x42);
+    Checker::mark_secret(secret_key);
+    auto made = keypair::from_secret(secret_key);
+    if (!made) {
+        return check(false, "X25519's key pair's wipe on libsodium");
+    }
+    Checker::mark_public(access::public_bytes(*made));
+    alignas(keypair) std::array<std::byte, sizeof(keypair)> storage{};
+    auto* const first = new (storage.data()) keypair(std::move(*made));
+    // Where the secret key lies in the key pair, read alive, for the destructor's check.
+    auto const offset = static_cast<std::size_t>(
+        reinterpret_cast<std::byte const*>(access::secret_bytes(*first).data()) - storage.data());
+    keypair moved(std::move(*first));
+    bool const moved_from_wiped = clear_of_mark<Checker>(access::secret_bytes(*first));
+    auto other = keypair::from_secret(std::array<std::uint8_t, 32>{});
+    if (!other) {
+        return check(false, "X25519's key pair's wipe on libsodium");
+    }
+    keypair assigned(std::move(*other));
+    assigned = std::move(moved);
+    bool const assigned_from_wiped =
+        clear_of_mark<Checker>(access::secret_bytes(moved));  // NOLINT(bugprone-use-after-move)
+    bool const kept = carries_mark<Checker>(access::secret_bytes(assigned));
+    *first = std::move(assigned);
+    first->~keypair();
+    // MemorySanitizer poisons a destroyed object by itself: only a checker that reads it back
+    // checks the destructor's wipe.
+    bool const destroyed_wiped =
+        !Checker::reads_destroyed ||
+        clear_of_mark<Checker>(
+            {reinterpret_cast<std::uint8_t const*>(storage.data()) + offset, 32});
+    return check(moved_from_wiped && assigned_from_wiped && kept && destroyed_wiped,
+                 "X25519's key pair's wipe on libsodium");
+}
+
+/**
+ * A box on libsodium: from_keys with the X25519 key pair of a secret secret key, its public key
+ * marked public, then seal and open as an AEAD's. The agreement's verdict is libsodium's own
+ * branch (sodium_verdicts.supp).
  */
 template <class Checker, class Box>
 int sodium_box(char const* what) {
+    namespace x25519 = crypto::curves::x25519;
     std::array<std::uint8_t, 32> peer_secret{};
     peer_secret.fill(0x24);
-    auto const peer = crypto::curves::x25519::public_key<sodium>(peer_secret);
+    auto const peer = x25519::basic_keypair<sodium>::from_secret(peer_secret)->public_key();
     std::array<std::uint8_t, 32> secret_key{};
-    std::array<std::uint8_t, Box::iv_size> const iv{};
+    std::array<std::uint8_t, Box::nonce_size> const nonce{};
     std::array<std::uint8_t, 64> data{};
     secret_key.fill(0x42);
     data.fill(0x17);
     Checker::mark_secret(secret_key);
     Checker::mark_secret(data);
-    auto made = Box::make(secret_key, *peer);
-    auto tag = made->seal(iv, data);
+    auto const own = x25519::basic_keypair<sodium>::from_secret(secret_key);
+    // The own public key is public, though computed from the secret key: the box reads its
+    // secret key alone.
+    Checker::mark_public(crypto::detail::x25519_access::public_bytes(*own));
+    auto made = Box::from_keys(*own, *peer);
+    auto tag = made->seal(nonce, data);
     int const failures =
         check(tag.has_value() && carries_mark<Checker>(data) && carries_mark<Checker>(*tag), what);
     Checker::mark_secret(*tag);
-    auto const opened = made->open(iv, data, *tag);
+    auto const opened = made->open(nonce, data, *tag);
     bool const opened_verdict = opened.has_value();
     Checker::verdict(opened_verdict);
     return failures + check(opened_verdict, what);
 }
 
 /**
- * The sealed box on libsodium: seal with the message secret, then open with the recipient's
- * secret key and the sealed box secret. The verdict is libsodium's own branches (the agreement's
- * and the tag's, sodium_verdicts.supp), then the engine's, which marks it public.
+ * The sealed box on libsodium: seal with the message secret to the recipient's public key, then
+ * open with the recipient's key pair, its secret key secret and its public key public, and the
+ * sealed box secret. The verdict is libsodium's own branches (the agreement's and the tag's,
+ * sodium_verdicts.supp), then the engine's, which marks it public.
  */
 template <class Checker>
 int sodium_sealed_box() {
-    using crypto::hybrid::sealed_box;
+    using crypto::public_key_encryption::sealed_box;
     std::array<std::uint8_t, 32> secret_key{};
     secret_key.fill(0x42);
-    auto const public_key = crypto::curves::x25519::public_key<sodium>(secret_key);
+    Checker::mark_secret(secret_key);
+    auto const recipient = crypto::curves::x25519::basic_keypair<sodium>::from_secret(secret_key);
+    // The public key, computed from the secret key, is public: it is published.
+    Checker::mark_public(crypto::detail::x25519_access::public_bytes(*recipient));
+    auto const public_key = recipient->public_key();
     std::array<std::uint8_t, 64> message{};
     message.fill(0x17);
     Checker::mark_secret(message);
@@ -286,40 +394,52 @@ int sodium_sealed_box() {
     bool const sealed_ok =
         public_key.has_value() && sealed_box::seal(*public_key, message, sealed).has_value();
     int const failures = check(sealed_ok && carries_mark<Checker>(sealed), "sealed box's seal");
-    Checker::mark_secret(secret_key);
     // The drawn public key, the first 32 bytes, is public: it travels in clear, and libsodium
     // checks its order. The tag and the ciphertext are secret.
     Checker::mark_secret(std::span<std::uint8_t>{sealed}.subspan(32));
     std::array<std::uint8_t, 64> opened{};
-    auto const result = sealed_box::open(*public_key, secret_key, sealed, opened);
+    auto const result = sealed_box::open(*recipient, sealed, opened);
     bool const opened_verdict = result.has_value();
     Checker::verdict(opened_verdict);
     return failures + check(opened_verdict && carries_mark<Checker>(opened), "sealed box's open");
 }
 
-/** kx on libsodium: both key pairs from secret seeds, both sides' session keys. */
+/**
+ * kx on libsodium: both key pairs from secret seeds, their public keys marked public where the
+ * key pairs keep them, both sides' session keys; then a client key pair made by from_keypair
+ * from an X25519 key pair of a secret secret key, and its session keys.
+ */
 template <class Checker>
 int sodium_kx() {
-    using keypair = crypto::curves::x25519::kx_keypair<sodium>;
+    using keypair = crypto::key_exchange::kx_keypair<sodium>;
     std::array<std::uint8_t, 32> client_seed{};
     std::array<std::uint8_t, 32> server_seed{};
     client_seed.fill(0x42);
     server_seed.fill(0x24);
     Checker::mark_secret(client_seed);
     Checker::mark_secret(server_seed);
-    auto const client = keypair::make(client_seed);
-    auto const server = keypair::make(server_seed);
+    auto const client = keypair::derive_from_seed(client_seed);
+    auto const server = keypair::derive_from_seed(server_seed);
+    // The public keys are public: sent to the peer.
+    Checker::mark_public(crypto::detail::x25519_access::public_bytes(client->keypair()));
+    Checker::mark_public(crypto::detail::x25519_access::public_bytes(server->keypair()));
     auto const client_key = *client->public_key();
     auto const server_key = *server->public_key();
-    // The public keys are public: sent to the peer.
-    Checker::mark_public(client_key);
-    Checker::mark_public(server_key);
     auto const client_keys = client->client_session_keys(server_key);
     auto const server_keys = server->server_session_keys(client_key);
+    std::array<std::uint8_t, 32> adopted_secret{};
+    adopted_secret.fill(0x17);
+    Checker::mark_secret(adopted_secret);
+    auto adopted_pair = keypair::keypair_type::from_secret(adopted_secret);
+    Checker::mark_public(crypto::detail::x25519_access::public_bytes(*adopted_pair));
+    auto const adopted = keypair::from_keypair(std::move(*adopted_pair));
+    auto const adopted_keys = adopted->client_session_keys(server_key);
     return check(client_keys.has_value() && server_keys.has_value() &&
                      carries_mark<Checker>(client_keys->receive.bytes()) &&
                      carries_mark<Checker>(server_keys->transmit.bytes()),
-                 "kx on libsodium");
+                 "kx on libsodium") +
+           check(adopted_keys.has_value() && carries_mark<Checker>(adopted_keys->receive.bytes()),
+                 "kx's from_keypair on libsodium");
 }
 
 /** libsecp256k1's key pair, the type every secp256k1 path below makes. */
@@ -331,14 +451,14 @@ boost::system::result<secp256k1_pair> secp256k1_secret_pair(std::uint8_t value) 
     std::array<std::uint8_t, 32> secret_key{};
     secret_key.fill(value);
     Checker::mark_secret(secret_key);
-    return secp256k1_pair::make(secret_key);
+    return secp256k1_pair::from_secret(secret_key);
 }
 
 /** A key pair made from 32 public bytes of `value`: a peer's. */
 inline boost::system::result<secp256k1_pair> secp256k1_public_pair(std::uint8_t value) {
     std::array<std::uint8_t, 32> secret_key{};
     secret_key.fill(value);
-    return secp256k1_pair::make(secret_key);
+    return secp256k1_pair::from_secret(secret_key);
 }
 
 /**
@@ -354,7 +474,7 @@ boost::system::result<crypto::curves::secp256k1::public_key> secp256k1_sent_key(
         sent_key = public_key->compressed();
     }
     Checker::mark_public(sent_key);
-    return crypto::curves::secp256k1::public_key::make<crypto::backends::secp256k1>(sent_key);
+    return crypto::curves::secp256k1::public_key::from_bytes<crypto::backends::secp256k1>(sent_key);
 }
 
 /** The bytes of a caller's workspace, for a checker's primitives. */
@@ -394,10 +514,11 @@ int secp256k1_ecdh() {
 
 /**
  * The key pair's signatures, BIP340 with its auxiliary randomness given and drawn, the
- * recoverable ECDSA and the hedged one of a digest, then its x-only tweak: the key pair's
- * secret, the given auxiliary randomness and the extra entropy secret, the message, the digest
- * and the tweak public (libsecp256k1's `ctime_tests.c` holds the tweak public too). The drawn
- * auxiliary randomness comes from the system's generator, unmarked: its signature is traced
+ * recoverable ECDSA and the hedged one of a digest, Ethereum's recoverable ECDSA of a message
+ * (hashed with Keccak-256, XKCP's, which the programs link), then its x-only tweak: the key
+ * pair's secret, the given auxiliary randomness and the extra entropy secret, the message, the
+ * digest and the tweak public (libsecp256k1's `ctime_tests.c` holds the tweak public too). The
+ * drawn auxiliary randomness comes from the system's generator, unmarked: its signature is traced
  * through the key pair's secret alone. Each signature is traced.
  */
 template <class Checker>
@@ -415,17 +536,20 @@ int secp256k1_signing() {
     auto const schnorr = pair->sign(crypto::schnorr, message_hash, extra_entropy);
     auto const drawn = pair->sign(crypto::schnorr, message_hash);
     auto const recoverable = pair->sign(crypto::ecdsa_sha256_recoverable, digest);
+    auto const ethereum = pair->sign(crypto::ecdsa_keccak256_recoverable, message_hash);
     auto const hedged = pair->sign(crypto::ecdsa_sha256, digest, extra_entropy);
     std::array<std::uint8_t, 32> tweak_bytes{};
     tweak_bytes.fill(0x24);
     auto const tweaked = pair->tweak_xonly(tweak_bytes);
-    return check(schnorr.has_value() && carries_mark<Checker>(*schnorr),
+    return check(schnorr.has_value() && carries_mark<Checker>(schnorr->bytes()),
                  "secp256k1's sign with schnorr") +
-           check(drawn.has_value() && carries_mark<Checker>(*drawn),
+           check(drawn.has_value() && carries_mark<Checker>(drawn->bytes()),
                  "secp256k1's sign with schnorr, its auxiliary randomness drawn") +
-           check(recoverable.has_value() && carries_mark<Checker>(*recoverable),
+           check(recoverable.has_value() && carries_mark<Checker>(recoverable->bytes()),
                  "secp256k1's sign with ecdsa_sha256_recoverable") +
-           check(hedged.has_value() && carries_mark<Checker>(*hedged),
+           check(ethereum.has_value() && carries_mark<Checker>(ethereum->bytes()),
+                 "secp256k1's sign with ecdsa_keccak256_recoverable") +
+           check(hedged.has_value() && carries_mark<Checker>(hedged->bytes()),
                  "secp256k1's hedged sign with ecdsa_sha256") +
            check(tweaked.has_value(), "secp256k1's tweak_xonly");
 }
@@ -442,15 +566,15 @@ int secp256k1_secret_tweaks() {
     tweak_bytes.fill(0x17);
     Checker::mark_secret(secret_key);
     Checker::mark_secret(tweak_bytes);
-    auto const added = secp256k1::seckey_tweak_add<backend>(secret_key, tweak_bytes);
-    auto const multiplied = secp256k1::seckey_tweak_mul<backend>(secret_key, tweak_bytes);
-    auto const negated = secp256k1::seckey_negate<backend>(secret_key);
+    auto const added = secp256k1::secret_key_tweak_add<backend>(secret_key, tweak_bytes);
+    auto const multiplied = secp256k1::secret_key_tweak_mul<backend>(secret_key, tweak_bytes);
+    auto const negated = secp256k1::secret_key_negate<backend>(secret_key);
     return check(added.has_value() && carries_mark<Checker>(added->bytes()),
-                 "secp256k1's seckey_tweak_add") +
+                 "secp256k1's secret_key_tweak_add") +
            check(multiplied.has_value() && carries_mark<Checker>(multiplied->bytes()),
-                 "secp256k1's seckey_tweak_mul") +
+                 "secp256k1's secret_key_tweak_mul") +
            check(negated.has_value() && carries_mark<Checker>(negated->bytes()),
-                 "secp256k1's seckey_negate");
+                 "secp256k1's secret_key_negate");
 }
 
 /**
@@ -535,14 +659,14 @@ int secp256k1_musig() {
     if (!signers_key) {
         return check(false, "secp256k1's key_aggregate");
     }
-    auto own_nonce = musig::nonce_gen(*pair, *signers_key, message);
-    auto other_nonce = musig::nonce_gen(*other, *signers_key, message);
+    auto own_nonce = musig::generate_nonce(*pair, *signers_key, message);
+    auto other_nonce = musig::generate_nonce(*other, *signers_key, message);
     if (!own_nonce || !other_nonce) {
-        return check(false, "secp256k1's nonce_gen");
+        return check(false, "secp256k1's generate_nonce");
     }
     // The secret nonce is made from the secret: traced before it signs.
-    int const failures =
-        check(carries_mark<Checker>(bytes_of(own_nonce->secret_part)), "secp256k1's nonce_gen");
+    int const failures = check(carries_mark<Checker>(bytes_of(own_nonce->secret_part)),
+                               "secp256k1's generate_nonce");
     Checker::mark_public(bytes_of(own_nonce->public_part));
     std::array<musig::public_nonce, 2> const nonces{
         own_nonce->public_part,
@@ -608,10 +732,10 @@ int secp256k1_silent_payments() {
     std::array<secp256k1::public_key, 1> const input_keys{*input_key};
     alignas(std::max_align_t) std::array<std::byte, silent_payments::summary_workspace_size(0, 1)>
         summary_space{};
-    auto const summary =
-        silent_payments::make_prevouts_summary<backend>(outpoint, {}, input_keys, summary_space);
+    auto const summary = silent_payments::make_previous_outputs_summary<backend>(
+        outpoint, {}, input_keys, summary_space);
     if (!summary) {
-        return failures + check(false, "secp256k1's make_prevouts_summary");
+        return failures + check(false, "secp256k1's make_previous_outputs_summary");
     }
     std::array<silent_payments::found_output, 1> found{};
     alignas(std::max_align_t) std::array<std::byte, silent_payments::scan_workspace_size(1)>
@@ -636,14 +760,14 @@ boost::system::result<p256_pair> p256_secret_pair(std::uint8_t value) {
     std::array<std::uint8_t, 32> scalar{};
     scalar.fill(value);
     Checker::mark_secret(scalar);
-    return p256_pair::make(scalar);
+    return p256_pair::from_secret(scalar);
 }
 
 /** A P-256 key pair made from 32 public bytes of `value`: a peer's. */
 inline boost::system::result<p256_pair> p256_public_pair(std::uint8_t value) {
     std::array<std::uint8_t, 32> scalar{};
     scalar.fill(value);
-    return p256_pair::make(scalar);
+    return p256_pair::from_secret(scalar);
 }
 
 /**
@@ -660,14 +784,14 @@ int bearssl_p256_make() {
     bool made = pair.has_value();  // NOLINT(misc-const-correctness)
     Checker::verdict(made);
     if (!made) {
-        return check(false, "P-256's make on BearSSL");
+        return check(false, "P-256's from_secret on BearSSL");
     }
     auto const point = pair->public_key();
     auto const kept = pair->secret();
     bool const point_traced = point.has_value() && (!Checker::exact_subtraction ||
                                                     carries_mark<Checker>(point->uncompressed()));
     return check(point_traced && kept.has_value() && carries_mark<Checker>(kept->bytes()),
-                 "P-256's make on BearSSL");
+                 "P-256's from_secret on BearSSL");
 }
 
 /**
@@ -693,7 +817,7 @@ int bearssl_p256_sign() {
         return check(false, "P-256's sign on BearSSL");
     }
     int const failures =
-        check(carries_mark<Checker>(*signature), "P-256's sign on BearSSL, traced");
+        check(carries_mark<Checker>(signature->bytes()), "P-256's sign on BearSSL, traced");
     auto const low = p256::normalize_low_s(*signature);
     // Not const: the mark changes the object in the checker's shadow, so it is read again.
     // NOLINTNEXTLINE(misc-const-correctness): see above
@@ -815,25 +939,28 @@ int secp256k1_paths() {
 template <class Checker>
 int common_paths() {
     namespace ciphers = crypto::ciphers;
-    return equal_path<Checker>() + all_zero<Checker>() + secret_wipe<Checker>() +
-           ctaes_block<Checker>() +
+    return constant_time_equal_path<Checker>() + all_zero<Checker>() + secret_wipe<Checker>() +
+           erase_secret_path<Checker>() + ctaes_block<Checker>() +
            seal_and_open<Checker, ciphers::chacha20_poly1305<crypto::backends::bearssl>>(
                "BearSSL ChaCha") +
            sodium_ed25519<Checker>() + sodium_x25519<Checker>() +
+           sodium_x25519_keypair_wipe<Checker>() +
            seal_and_open<Checker, ciphers::chacha20_poly1305<sodium>>(
                "ChaCha20-Poly1305 on libsodium") +
            seal_and_open<Checker, ciphers::chacha20_poly1305_original<sodium>>(
                "the original on libsodium") +
            seal_and_open<Checker, ciphers::xchacha20_poly1305<sodium>>(
                "XChaCha20-Poly1305 on libsodium") +
-           seal_and_open<Checker, ciphers::secretbox<sodium>>("secretbox on libsodium") +
-           seal_and_open<Checker, ciphers::secretbox_xchacha20poly1305<sodium>>(
+           seal_and_open<Checker, crypto::secret_key_encryption::secretbox<sodium>>(
+               "secretbox on libsodium") +
+           seal_and_open<Checker,
+                         crypto::secret_key_encryption::secretbox_xchacha20poly1305<sodium>>(
                "its XChaCha20 twin") +
-           sodium_box<Checker,
-                      crypto::hybrid::basic_box<crypto::families::box_xsalsa20poly1305, sodium>>(
+           sodium_box<Checker, crypto::public_key_encryption::basic_box<
+                                   crypto::families::box_xsalsa20poly1305, sodium>>(
                "box on libsodium") +
-           sodium_box<Checker,
-                      crypto::hybrid::basic_box<crypto::families::box_xchacha20poly1305, sodium>>(
+           sodium_box<Checker, crypto::public_key_encryption::basic_box<
+                                   crypto::families::box_xchacha20poly1305, sodium>>(
                "box_xchacha20poly1305 on libsodium") +
            sodium_sealed_box<Checker>() + sodium_kx<Checker>() + secp256k1_paths<Checker>() +
            bearssl_p256_paths<Checker>();

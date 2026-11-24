@@ -18,13 +18,13 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/backends/secp256k1.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/detail/wipe.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <boost/system/result.hpp>
@@ -98,7 +98,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::size_t> encode_spki(
     public_key const& parsed_key, std::span<std::uint8_t> output_bytes,
     point_form encoded_form = point_form::compressed) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     if (output_bytes.size() < max_spki_size) {
@@ -133,7 +133,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> decode_spki(
     std::span<std::uint8_t const> spki_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -145,7 +145,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
                   webcpp::crypto::detail::secp256k1_spki_uncompressed_prefix);
     if ((spki_bytes.size() != spki_compressed_size &&
          spki_bytes.size() != spki_uncompressed_size) ||
-        !equal(spki_bytes.first(expected_prefix.size()), expected_prefix)) {
+        !constant_time_equal(spki_bytes.first(expected_prefix.size()), expected_prefix)) {
         return error::invalid_encoding;
     }
     using access = webcpp::crypto::detail::secp256k1_access;
@@ -171,7 +171,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<std::size_t> encode_pkcs8(
     basic_keypair<Backend> const& key_pair, std::span<std::uint8_t> output_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     using access = webcpp::crypto::detail::secp256k1_access;
@@ -202,32 +202,33 @@ template <class Backend = default_backend_t<families::secp256k1>>
 
 /**
  * The key pair of a PKCS#8 that is exactly what `encode_pkcs8` writes for its secret, made as
- * `basic_keypair::make` makes it.
+ * `basic_keypair::from_secret` makes it.
  *
  * @tparam Backend The backend, `backends::secp256k1`.
  * @param pkcs8_bytes The PKCS#8, exactly: nothing may follow it.
- * @param memory_resource The resource of the key pair's signing context, as `make` takes it.
+ * @param memory_resource The resource of the key pair's signing context, as `from_secret` takes it.
  * @return The key pair; `invalid_encoding` for any other bytes, a secret zero or not below the
  * group order and a public key not the secret's included; `entropy_unavailable` and
- * `backend_failure` as `make` reports them.
+ * `backend_failure` as `from_secret` reports them.
  */
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<basic_keypair<Backend>> decode_pkcs8(
     std::span<std::uint8_t const> pkcs8_bytes,
     std::pmr::memory_resource* memory_resource = std::pmr::get_default_resource()) {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
     constexpr std::size_t prefix_size = webcpp::crypto::detail::secp256k1_pkcs8_prefix.size();
     if (pkcs8_bytes.size() != max_pkcs8_size ||
-        !equal(pkcs8_bytes.first(prefix_size), webcpp::crypto::detail::secp256k1_pkcs8_prefix)) {
+        !constant_time_equal(pkcs8_bytes.first(prefix_size),
+                             webcpp::crypto::detail::secp256k1_pkcs8_prefix)) {
         return error::invalid_encoding;
     }
     webcpp::crypto::detail::secp256k1_secret secret_bytes;
     std::ranges::copy(pkcs8_bytes.subspan(prefix_size, secret_bytes.bytes.size()),
                       secret_bytes.bytes.begin());
-    auto made_pair = basic_keypair<Backend>::make(secret_bytes.bytes, memory_resource);
+    auto made_pair = basic_keypair<Backend>::from_secret(secret_bytes.bytes, memory_resource);
     if (!made_pair) {
         if (made_pair.error() == error::invalid_secret_key) {
             return error::invalid_encoding;
@@ -240,8 +241,8 @@ template <class Backend = default_backend_t<families::secp256k1>>
     // Not const: the branch reads it again after the mark (detail/declassify.hpp's tip); the
     // comparison runs on the secret's bytes, and its verdict is public.
     // NOLINTNEXTLINE(misc-const-correctness): see above
-    bool is_same =
-        encode_pkcs8(*made_pair, encoded_again).has_value() && equal(encoded_again, pkcs8_bytes);
+    bool is_same = encode_pkcs8(*made_pair, encoded_again).has_value() &&
+                   constant_time_equal(encoded_again, pkcs8_bytes);
     WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&is_same, sizeof is_same);
     webcpp::crypto::detail::wipe(encoded_again.data(), encoded_again.size());
     if (!is_same) {

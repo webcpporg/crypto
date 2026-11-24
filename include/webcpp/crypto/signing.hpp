@@ -5,12 +5,15 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 /**
- What every curve's signing shares (design D1 to D3): the scheme tags, `eddsa`, `ecdsa_sha256`,
- `ecdsa_sha256_recoverable` and `schnorr`, and the library's one list of them,
- `detail::all_schemes`; the marker of a digest, `prehashed{digest}`; the
- concepts `can_sign` and `can_verify`, which say which key, scheme and input go together; the
- free synchronous `sign(key_pair, scheme, input)`, the key pair's `sign` (design D9); and the
- catch-alls of `sign` and `verify`, which stop the build with what goes together.
+ What every curve's signing shares (design D1 to D3): the scheme tags, `eddsa`, `eddsa_prehashed`,
+ `ecdsa_sha256`, `ecdsa_sha256_recoverable`, `ecdsa_keccak256_recoverable` and `schnorr`, and the
+ library's one list of them, `detail::all_schemes`; the marker of a digest, `prehashed{digest}`; the
+ concepts `can_sign` and `can_verify`, which say which key, scheme, signature and input go
+ together; `detail::check_signature` and `detail::checked_signature_bytes`, which stop a `verify` or
+ a `recover` given a signature of another curve or scheme, naming the type expected (design R1);
+ and the catch-all of `verify`, which stops the build with what goes together. The free
+ synchronous `sign(key_pair, scheme, input)`, the key pair's `sign` (design D9), is in
+ `keypair.hpp`, constrained by `crypto::signing_keypair`.
 
  A signature's input is a message, any bytes that convert to `std::span<std::uint8_t const>`, of
  any size, empty included, or a digest marked as one, `prehashed{digest}`: no call tells the two
@@ -25,7 +28,7 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/detail/asynchronous.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
+#include <webcpp/crypto/detail/signature.hpp>
 #include <webcpp/hash/algorithms.hpp>  // webcpp::hash::sha2_256, ECDSA's hash of a message
 
 #include <boost/hash2/digest.hpp>
@@ -37,7 +40,6 @@
 #include <cstdint>
 #include <span>
 #include <type_traits>
-#include <utility>
 
 namespace webcpp::crypto {
 
@@ -49,6 +51,17 @@ namespace webcpp::crypto {
 struct eddsa_t {
     /** Makes the tag; explicit, so that only its name makes one. */
     explicit eddsa_t() = default;
+};
+
+/**
+ * The type of @ref eddsa_prehashed, Ed25519ph, Ed25519's signature of a message's SHA-512 (RFC
+ * 8032's prehashed form).
+ *
+ * Its explicit default constructor keeps `{}` from standing for a scheme.
+ */
+struct eddsa_prehashed_t {
+    /** Makes the tag; explicit, so that only its name makes one. */
+    explicit eddsa_prehashed_t() = default;
 };
 
 /**
@@ -73,6 +86,17 @@ struct ecdsa_sha256_recoverable_t {
 };
 
 /**
+ * The type of @ref ecdsa_keccak256_recoverable, Ethereum's recoverable ECDSA over Keccak-256, on
+ * secp256k1.
+ *
+ * Its explicit default constructor keeps `{}` from standing for a scheme.
+ */
+struct ecdsa_keccak256_recoverable_t {
+    /** Makes the tag; explicit, so that only its name makes one. */
+    explicit ecdsa_keccak256_recoverable_t() = default;
+};
+
+/**
  * The type of @ref schnorr, BIP340's Schnorr signatures, on secp256k1.
  *
  * Its explicit default constructor keeps `{}` from standing for a scheme.
@@ -94,9 +118,12 @@ struct scheme_list {};
 
 /**
  * The library's one list of schemes, every scheme tag: a new scheme is one more tag here, and
- * `is_scheme_v` and the key pair contract, `crypto::keypair`, take it from this list.
+ * `is_scheme_v` and the signing key pair concept, `crypto::signing_keypair`, take it from this
+ * list.
  */
-using all_schemes = scheme_list<eddsa_t, ecdsa_sha256_t, ecdsa_sha256_recoverable_t, schnorr_t>;
+using all_schemes =
+    scheme_list<eddsa_t, eddsa_prehashed_t, ecdsa_sha256_t, ecdsa_sha256_recoverable_t,
+                ecdsa_keccak256_recoverable_t, schnorr_t>;
 
 /**
  * Whether `Type` is a member of the list `List`: false for a type that is not a `scheme_list`.
@@ -134,6 +161,17 @@ inline constexpr bool is_scheme_v = in_scheme_list_v<Type, all_schemes>;
 inline constexpr eddsa_t eddsa{};
 
 /**
+ * Ed25519ph, RFC 8032's Ed25519 over a digest: it signs the 64 bytes of a message's SHA-512, given
+ * as `prehashed{digest}`, and never the message itself; its signature is 64 bytes, a
+ * `curves::ed25519::signature` as `eddsa`'s, which it is not interchangeable with: each verifies
+ * under its own scheme alone.
+ *
+ * A message given in pieces is signed by `curves::ed25519::prehashed_signer`, which hashes it. It
+ * runs on a native backend: WebCrypto has no Ed25519ph.
+ */
+inline constexpr eddsa_prehashed_t eddsa_prehashed{};
+
+/**
  * ECDSA over SHA-256: the message is hashed with SHA-256 inside the call, or a 32-byte digest is
  * given as `prehashed{digest}`; its signature is 64 bytes, r and s, with a low s.
  */
@@ -144,6 +182,16 @@ inline constexpr ecdsa_sha256_t ecdsa_sha256{};
  * id, from which `recover` gives the public key.
  */
 inline constexpr ecdsa_sha256_recoverable_t ecdsa_sha256_recoverable{};
+
+/**
+ * Ethereum's recoverable ECDSA, secp256k1's: the message is hashed with Keccak-256 inside the call
+ * (the original padding, never SHA3-256; it needs XKCP, `/third_party//xkcp`), or a 32-byte digest
+ * the program builds is given as `prehashed{digest}`; its signature is 65 bytes, r, s with a low
+ * s and the recovery id, from which `recover` gives the public key.
+ *
+ * Ethereum's `v` and the address are the program's to compute.
+ */
+inline constexpr ecdsa_keccak256_recoverable_t ecdsa_keccak256_recoverable{};
 
 /**
  * BIP340's Schnorr signatures, secp256k1's: it signs the message itself, of any length, and has
@@ -242,15 +290,30 @@ struct scheme_traits;
 /** Ed25519's: a 64-byte signature, and no digest. */
 template <>
 struct scheme_traits<eddsa_t> {
+    /** Whether it takes a message: it does. */
+    static constexpr bool takes_message = true;
     /** The signature's size in bytes. */
     static constexpr std::size_t signature_size = 64;
     /** The digest's size in bytes, 0: the scheme takes none. */
     static constexpr std::size_t digest_size = 0;
 };
 
+/** Ed25519ph's: a 64-byte signature, and SHA-512's 64-byte digest. */
+template <>
+struct scheme_traits<eddsa_prehashed_t> {
+    /** Whether it takes a message: no, its digest alone. */
+    static constexpr bool takes_message = false;
+    /** The signature's size in bytes. */
+    static constexpr std::size_t signature_size = 64;
+    /** The digest's size in bytes, SHA-512's. */
+    static constexpr std::size_t digest_size = 64;
+};
+
 /** ECDSA over SHA-256's: a 64-byte signature, and SHA-256's 32-byte digest. */
 template <>
 struct scheme_traits<ecdsa_sha256_t> {
+    /** Whether it takes a message: it does. */
+    static constexpr bool takes_message = true;
     /** The signature's size in bytes. */
     static constexpr std::size_t signature_size = 64;
     /** The digest's size in bytes, SHA-256's. */
@@ -260,15 +323,30 @@ struct scheme_traits<ecdsa_sha256_t> {
 /** Recoverable ECDSA over SHA-256's: a 65-byte signature, and SHA-256's 32-byte digest. */
 template <>
 struct scheme_traits<ecdsa_sha256_recoverable_t> {
+    /** Whether it takes a message: it does. */
+    static constexpr bool takes_message = true;
     /** The signature's size in bytes, with the recovery id. */
     static constexpr std::size_t signature_size = 65;
     /** The digest's size in bytes, SHA-256's. */
     static constexpr std::size_t digest_size = 32;
 };
 
+/** Ethereum's recoverable ECDSA's: a 65-byte signature, and Keccak-256's 32-byte digest. */
+template <>
+struct scheme_traits<ecdsa_keccak256_recoverable_t> {
+    /** Whether it takes a message: it does. */
+    static constexpr bool takes_message = true;
+    /** The signature's size in bytes, with the recovery id. */
+    static constexpr std::size_t signature_size = 65;
+    /** The digest's size in bytes, Keccak-256's. */
+    static constexpr std::size_t digest_size = 32;
+};
+
 /** BIP340's: a 64-byte signature, and no digest. */
 template <>
 struct scheme_traits<schnorr_t> {
+    /** Whether it takes a message: it does. */
+    static constexpr bool takes_message = true;
     /** The signature's size in bytes. */
     static constexpr std::size_t signature_size = 64;
     /** The digest's size in bytes, 0: the scheme takes none. */
@@ -353,15 +431,34 @@ template <class Backend>
 inline constexpr bool signs_prehashed_v = !asynchronous_backend_v<Backend>;
 
 /**
- * Whether `Input` is a valid input of `Scheme` on `Backend`: a message, on every scheme and
- * backend.
+ * Whether the scheme `Scheme` takes a message, as its `scheme_traits` says (`takes_message`):
+ * every scheme but `eddsa_prehashed`, which takes its digest alone; true for a type with no traits,
+ * such as a test's own scheme.
+ *
+ * @tparam Scheme A scheme tag, or any type.
+ */
+template <class Scheme>
+inline constexpr bool takes_message_v = true;
+
+/**
+ * Whether a scheme with traits takes a message: its `scheme_traits<Scheme>::takes_message`.
+ *
+ * @tparam Scheme A scheme tag with traits.
+ */
+template <class Scheme>
+    requires requires { scheme_traits<Scheme>::takes_message; }
+inline constexpr bool takes_message_v<Scheme> = scheme_traits<Scheme>::takes_message;
+
+/**
+ * Whether `Input` is a valid input of `Scheme` on `Backend`: a message, on every scheme that takes
+ * one and every backend.
  *
  * @tparam Scheme A scheme tag.
  * @tparam Input The input's type, without its reference and qualifiers.
  * @tparam Backend The key's backend, or `void`.
  */
 template <class Scheme, class Input, class Backend>
-inline constexpr bool input_valid_v = is_message_v<Input>;
+inline constexpr bool input_valid_v = is_message_v<Input> && takes_message_v<Scheme>;
 
 /**
  * Whether a marker is a valid input of `Scheme` on `Backend`: when the scheme takes a digest of
@@ -386,15 +483,26 @@ inline constexpr bool input_valid_v<Scheme, prehashed<N>, Backend> =
  */
 template <class Scheme, class Input, class Backend>
 constexpr void check_input() noexcept {
-    if constexpr (!is_prehashed_v<Input>) {
+    if constexpr (!is_prehashed_v<Input> && is_message_v<Input> && !takes_message_v<Scheme>) {
+        static_assert(refused_v<Input>,
+                      "webcpp::crypto: crypto::eddsa_prehashed (RFC 8032's Ed25519ph) signs a "
+                      "digest, the message's SHA-512: crypto::prehashed{digest} of a "
+                      "std::array<std::uint8_t, 64>; sign the message itself with crypto::eddsa, "
+                      "or give it in pieces to curves::ed25519::prehashed_signer.");
+    } else if constexpr (!is_prehashed_v<Input>) {
         static_assert(is_message_v<Input>,
                       "webcpp::crypto: a signature's input is a message (bytes, as "
                       "std::span<std::uint8_t const>) or crypto::prehashed{digest}.");
     } else if constexpr (std::is_same_v<Scheme, eddsa_t>) {
         static_assert(refused_v<Input>,
                       "webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure "
-                      "Ed25519) and takes no digest; Ed25519ph, which hashes the message, is "
-                      "curves::ed25519::ph.");
+                      "Ed25519) and takes no digest; a message's SHA-512 is signed with "
+                      "crypto::eddsa_prehashed (Ed25519ph).");
+    } else if constexpr (decltype(Input::digest)::extent != scheme_traits<Scheme>::digest_size &&
+                         std::is_same_v<Scheme, eddsa_prehashed_t>) {
+        static_assert(refused_v<Input>,
+                      "webcpp::crypto: crypto::eddsa_prehashed takes a 64-byte digest, SHA-512's: "
+                      "crypto::prehashed{digest} of a std::array<std::uint8_t, 64>.");
     } else if constexpr (std::is_same_v<Scheme, schnorr_t>) {
         static_assert(refused_v<Input>,
                       "webcpp::crypto: crypto::schnorr (BIP340) signs a message of any length and "
@@ -404,6 +512,11 @@ constexpr void check_input() noexcept {
         static_assert(refused_v<Input>,
                       "webcpp::crypto: crypto::ecdsa_sha256_recoverable takes a 32-byte digest, "
                       "SHA-256's: crypto::prehashed{digest} of a std::array<std::uint8_t, 32>.");
+    } else if constexpr (decltype(Input::digest)::extent != scheme_traits<Scheme>::digest_size &&
+                         std::is_same_v<Scheme, ecdsa_keccak256_recoverable_t>) {
+        static_assert(refused_v<Input>,
+                      "webcpp::crypto: crypto::ecdsa_keccak256_recoverable takes a 32-byte digest, "
+                      "Keccak-256's: crypto::prehashed{digest} of a std::array<std::uint8_t, 32>.");
     } else if constexpr (decltype(Input::digest)::extent != scheme_traits<Scheme>::digest_size) {
         static_assert(refused_v<Input>,
                       "webcpp::crypto: crypto::ecdsa_sha256 takes a 32-byte digest, SHA-256's: "
@@ -413,6 +526,23 @@ constexpr void check_input() noexcept {
                       "webcpp::crypto: this backend cannot sign or verify a digest (WebCrypto has "
                       "no prehash mode): pass the message.");
     }
+}
+
+/**
+ * Stops the build: Ed25519ph, `eddsa_prehashed`, asked of a backend that completes by itself,
+ * which WebCrypto is and has no Ed25519ph.
+ *
+ * Every function of the scheme, `sign` and `verify`, member and free, and their asynchronous
+ * forms, calls it first after its guard, before any engine is named, so that its text is the
+ * build's one message and is written once.
+ *
+ * @tparam Backend The backend that completes by itself, which makes the refusal dependent.
+ */
+template <class Backend>
+constexpr void refuse_ed25519ph_on_asynchronous_backend() noexcept {
+    static_assert(refused_v<Backend>,
+                  "webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, "
+                  "verify, async_sign and async_verify run on a native backend.");
 }
 
 /**
@@ -446,6 +576,124 @@ template <class Input>
     return digest_bytes;
 }
 
+struct ed25519_signature_tag;
+struct p256_ecdsa_signature_tag;
+struct secp256k1_ecdsa_signature_tag;
+struct secp256k1_recoverable_signature_tag;
+struct secp256k1_schnorr_signature_tag;
+
+/**
+ * The verifier of `curves::ed25519::prehashed_signer`, Ed25519ph's streaming signer, for
+ * `check_signature`: it verifies a message given in pieces, under no scheme tag. Declared only.
+ */
+struct ed25519ph_verifier_t;
+
+/**
+ * Whether `Expected` is the signature type of the tag `Tag` and of the size `Size`.
+ *
+ * @tparam Expected A signature type.
+ * @tparam Tag A signature type's tag.
+ * @tparam Size Its size in bytes.
+ */
+template <class Expected, class Tag, std::size_t Size>
+inline constexpr bool is_signature_of_tag_v = std::is_same_v<Expected, basic_signature<Tag, Size>>;
+
+/**
+ * Whether `Signature` is `Expected`, the signature type `Verifier` takes, and, when it is not,
+ * stops the build with the message that names the type expected and how to make one from bytes:
+ * every `verify` and `recover`, member and free, synchronous and asynchronous, asks it before it
+ * reads the signature, and goes on only when it is true. The text is the verifier's: a static
+ * assertion's message is a literal, so each pair of a signature type and a verifier has its own
+ * branch, and a pair that has none stops the build too, so that a new verifier adds its branch.
+ *
+ * @tparam Expected The signature type of the key and scheme: a `basic_signature`.
+ * @tparam Signature The type given, without its reference and qualifiers.
+ * @tparam Verifier The scheme tag the call verifies or recovers under, or
+ * `ed25519ph_verifier_t` for Ed25519ph's streaming signer, `curves::ed25519::prehashed_signer`.
+ * @return Whether `Signature` is `Expected`; false only in a build that stops.
+ */
+template <class Expected, class Signature, class Verifier>
+[[nodiscard]] constexpr bool check_signature() noexcept {
+    constexpr bool signature_matches = std::is_same_v<Expected, Signature>;
+    constexpr bool ed25519_expected = is_signature_of_tag_v<Expected, ed25519_signature_tag, 64>;
+    if constexpr (ed25519_expected && std::is_same_v<Verifier, ed25519ph_verifier_t>) {
+        static_assert(signature_matches,
+                      "webcpp::crypto: verify: Ed25519ph verifies a curves::ed25519::signature: "
+                      "make one from 64 bytes with curves::ed25519::signature::from_bytes.");
+    } else if constexpr (ed25519_expected && std::is_same_v<Verifier, eddsa_t>) {
+        static_assert(signature_matches,
+                      "webcpp::crypto: verify: an Ed25519 key verifies a "
+                      "curves::ed25519::signature under crypto::eddsa: make one from 64 bytes "
+                      "with curves::ed25519::signature::from_bytes.");
+    } else if constexpr (ed25519_expected && std::is_same_v<Verifier, eddsa_prehashed_t>) {
+        static_assert(signature_matches,
+                      "webcpp::crypto: verify: an Ed25519 key verifies a "
+                      "curves::ed25519::signature under crypto::eddsa_prehashed: make one from 64 "
+                      "bytes with curves::ed25519::signature::from_bytes.");
+    } else if constexpr (is_signature_of_tag_v<Expected, secp256k1_schnorr_signature_tag, 64> &&
+                         std::is_same_v<Verifier, schnorr_t>) {
+        static_assert(signature_matches,
+                      "webcpp::crypto: verify: crypto::schnorr verifies a "
+                      "curves::secp256k1::schnorr_signature: make one from 64 bytes with "
+                      "curves::secp256k1::schnorr_signature::from_bytes.");
+    } else if constexpr (is_signature_of_tag_v<Expected, secp256k1_recoverable_signature_tag, 65> &&
+                         (std::is_same_v<Verifier, ecdsa_sha256_recoverable_t> ||
+                          std::is_same_v<Verifier, ecdsa_keccak256_recoverable_t>)) {
+        static_assert(signature_matches,
+                      "webcpp::crypto: recover takes a curves::secp256k1::recoverable_signature: "
+                      "make one from 65 bytes with "
+                      "curves::secp256k1::recoverable_signature::from_bytes.");
+    } else if constexpr (is_signature_of_tag_v<Expected, p256_ecdsa_signature_tag, 64> &&
+                         std::is_same_v<Verifier, ecdsa_sha256_t>) {
+        static_assert(signature_matches,
+                      "webcpp::crypto: verify: a P-256 key verifies a "
+                      "curves::p256::ecdsa_signature: make one from 64 bytes with "
+                      "curves::p256::ecdsa_signature::from_bytes.");
+    } else if constexpr (is_signature_of_tag_v<Expected, secp256k1_ecdsa_signature_tag, 64> &&
+                         std::is_same_v<Verifier, ecdsa_sha256_t>) {
+        static_assert(signature_matches,
+                      "webcpp::crypto: verify: a secp256k1 key verifies a "
+                      "curves::secp256k1::ecdsa_signature under crypto::ecdsa_sha256: make one "
+                      "from 64 bytes with curves::secp256k1::ecdsa_signature::from_bytes.");
+    } else {
+        static_assert(refused_v<Verifier>,
+                      "webcpp::crypto: check_signature: no verifier takes this signature type "
+                      "under this scheme; a curve or a scheme that adds one adds its branch.");
+    }
+    return signature_matches;
+}
+
+/**
+ * The bytes `checked_signature_bytes` gives where its build stops: zeros, which nothing reads.
+ *
+ * @tparam Size The signature's size in bytes.
+ */
+template <std::size_t Size>
+inline constexpr std::array<std::uint8_t, Size> no_signature_bytes{};
+
+/**
+ * The bytes of the signature a `verify` or a `recover` reads, once `check_signature` has found it
+ * of the type `Verifier` takes: the one place each of them asks, so that a signature of another
+ * type is that one message alone, and nothing after it stops the build again.
+ *
+ * @tparam Expected The signature type of the key and scheme: a `basic_signature`.
+ * @tparam Verifier The scheme tag, or `ed25519ph_verifier_t`, as `check_signature` takes it.
+ * @tparam Signature The type given.
+ * @param signature_value The signature.
+ * @return Its bytes; never reached for another type, whose build stops (zeros, which nothing
+ * reads).
+ */
+template <class Expected, class Verifier, class Signature>
+[[nodiscard]] constexpr std::array<std::uint8_t, Expected::size> const& checked_signature_bytes(
+    Signature const& signature_value) noexcept {
+    if constexpr (check_signature<Expected, Signature, Verifier>()) {
+        return signature_value.bytes();
+    } else {
+        // Never compiled into a program: check_signature stopped the build.
+        return no_signature_bytes<Expected::size>;
+    }
+}
+
 /**
  * Whether a curve gives `crypto::verify` of `Scheme` for the public key `Key`: false here; each
  * curve specialises it for its own keys, and the catch-all `verify` steps aside where it is true.
@@ -474,100 +722,23 @@ concept can_sign =
                           typename detail::key_backend<std::remove_cvref_t<Keypair>>::type>;
 
 /**
- * Whether `crypto::verify` checks a signature of `Scheme` over `Input` against `PublicKey`: when
- * the key's curve has the scheme and the input is a message, or a marker of the scheme's digest
- * size on a backend that verifies one.
+ * Whether `crypto::verify` checks a signature of the type `Signature` and of `Scheme` over `Input`
+ * against `PublicKey`: when the key's curve has the scheme, the signature is the type of the
+ * key's curve and scheme (`curves::p256::ecdsa_signature` for a P-256 key, ...), and the input is
+ * a message, or a marker of the scheme's digest size on a backend that verifies one.
  *
  * @tparam Scheme A scheme tag.
+ * @tparam Signature The signature's type.
  * @tparam Input The input's type: a message, or `prehashed<N>`.
  * @tparam PublicKey The public key's type, a curve's type or bytes.
  */
-template <class Scheme, class Input, class PublicKey>
+template <class Scheme, class Signature, class Input, class PublicKey>
 concept can_verify =
     detail::verifies_with_v<std::remove_cvref_t<PublicKey>, Scheme> &&
+    std::is_same_v<std::remove_cvref_t<Signature>,
+                   detail::signature_of_t<std::remove_cvref_t<PublicKey>, Scheme>> &&
     detail::input_valid_v<Scheme, std::remove_cvref_t<Input>,
                           typename detail::key_backend<std::remove_cvref_t<PublicKey>>::type>;
-
-namespace detail {
-
-/**
- * Whether `key.sign(scheme, input, extra...)` names a member `sign` of `Keypair` that takes these
- * arguments: the key pair's own signing function, which `crypto::sign` calls.
- *
- * @tparam Keypair A key pair's type, or any type.
- * @tparam Scheme A scheme tag, or any type.
- * @tparam Input The input's type.
- * @tparam Extra The types of the arguments after the input, secp256k1's 32 bytes.
- */
-template <class Keypair, class Scheme, class Input, class... Extra>
-concept has_sign_member = requires {
-    std::declval<Keypair const&>().sign(std::declval<Scheme const&>(), std::declval<Input const&>(),
-                                        std::declval<Extra const&>()...);
-};
-
-}  // namespace detail
-
-/**
- * Signs with a key pair, `key_pair.sign(signing_scheme, signing_input, extra_arguments...)`: the
- * free form of the key pair's own `sign`, which it calls, with its results, its errors and its
- * refusals.
- *
- * A scheme the key pair does not have, or an input the scheme does not take, stops the build with
- * the key pair's own message.
- *
- * @tparam Keypair A key pair's type, whose `sign` takes these arguments: Ed25519's, P-256's or
- * secp256k1's.
- * @tparam Scheme A scheme tag.
- * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, or
- * `crypto::prehashed<N>`.
- * @tparam Extra Nothing, or secp256k1's 32 bytes: the hedged ECDSA's extra entropy or BIP340's
- * auxiliary randomness.
- * @param key_pair The key pair.
- * @param signing_scheme The scheme.
- * @param signing_input The message or the marker.
- * @param extra_arguments Nothing, or secp256k1's 32 bytes.
- * @return What `key_pair.sign(signing_scheme, signing_input, extra_arguments...)` returns: the
- * signature, or its error.
- */
-template <class Keypair, class Scheme, class Input, class... Extra>
-    requires detail::has_sign_member<Keypair, Scheme, Input, Extra...>
-[[nodiscard]] auto sign(
-    Keypair const& key_pair, Scheme signing_scheme, Input const& signing_input,
-    Extra const&... extra_arguments) noexcept(noexcept(key_pair.sign(signing_scheme, signing_input,
-                                                                     extra_arguments...)))
-    -> decltype(key_pair.sign(signing_scheme, signing_input, extra_arguments...)) {
-    detail::timing_guard const timing;
-    return key_pair.sign(signing_scheme, signing_input, extra_arguments...);
-}
-
-/**
- * Stops the build: the first argument has no `sign` that takes these arguments, a public key or a
- * key pair given arguments its `sign` does not take.
- *
- * @tparam Keypair The first argument's type.
- * @tparam Scheme A scheme tag.
- * @tparam Input The input's type.
- * @tparam Extra The types of the arguments after the input.
- * @param key_pair The first argument.
- * @param signing_scheme The scheme.
- * @param signing_input The input.
- * @param extra_arguments The arguments after the input.
- * @return Never: the call does not compile.
- */
-template <class Keypair, class Scheme, class Input, class... Extra>
-    requires(detail::is_scheme_v<Scheme> &&
-             !detail::has_sign_member<Keypair, Scheme, Input, Extra...>)
-[[nodiscard]] boost::system::result<void> sign(
-    [[maybe_unused]] Keypair const& key_pair, [[maybe_unused]] Scheme signing_scheme,
-    [[maybe_unused]] Input const& signing_input,
-    [[maybe_unused]] Extra const&... extra_arguments) noexcept {
-    static_assert(detail::refused_v<Keypair>,
-                  "webcpp::crypto: sign: the first argument is a key pair, and the others are "
-                  "its sign's: crypto::sign(key_pair, scheme, input), and on secp256k1 its 32 "
-                  "bytes of extra entropy or auxiliary randomness after the input; a public key "
-                  "verifies, with crypto::verify.");
-    return {};
-}
 
 /**
  * Stops the build: no curve verifies a signature of `Scheme` against this public key.
@@ -580,7 +751,7 @@ template <class Keypair, class Scheme, class Input, class... Extra>
  * @tparam Input The input's type.
  * @tparam PublicKey The public key's type.
  * @param signing_scheme The scheme.
- * @param signature_bytes The signature.
+ * @param signature_value The signature.
  * @param signing_input The message or the marker.
  * @param public_key The public key.
  * @return Never: the call does not compile.
@@ -589,16 +760,17 @@ template <class Scheme, class Signature, class Input, class PublicKey>
     requires(detail::is_scheme_v<Scheme> &&
              !detail::has_verifier_v<Scheme, std::remove_cvref_t<PublicKey>>)
 [[nodiscard]] boost::system::result<void> verify(
-    [[maybe_unused]] Scheme signing_scheme, [[maybe_unused]] Signature const& signature_bytes,
+    [[maybe_unused]] Scheme signing_scheme, [[maybe_unused]] Signature const& signature_value,
     [[maybe_unused]] Input const& signing_input,
     [[maybe_unused]] PublicKey const& public_key) noexcept {
     static_assert(detail::refused_v<Scheme>,
                   "webcpp::crypto: verify: this public key does not go with this scheme: "
-                  "crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a "
+                  "crypto::eddsa and crypto::eddsa_prehashed take a curves::ed25519::public_key, "
+                  "crypto::ecdsa_sha256 a "
                   "curves::p256::basic_public_key or a curves::secp256k1::public_key, "
                   "crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a "
-                  "crypto::ecdsa_sha256_recoverable signature gives its key to "
-                  "curves::secp256k1::recover.");
+                  "crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable "
+                  "signature gives its key to curves::secp256k1::recover.");
     return {};
 }
 

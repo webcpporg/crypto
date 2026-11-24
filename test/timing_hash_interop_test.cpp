@@ -158,18 +158,18 @@ void crypto_inside_hash() {
 // Ed25519ph signs with hash's SHA-512 as its prehash, which is unkeyed (D2): crypto's counter
 // rises, hash's does not.
 void ed25519ph_uses_hash_unkeyed() {
-    using ph = ed25519::ph<webcpp::hash::sha2_512>;
+    using prehashed_signer = ed25519::prehashed_signer<webcpp::hash::sha2_512>;
     // RFC 8032 section 7.1, TEST 1: the secret key (the seed). A local, since a global of this
     // name would be hidden by ed25519.hpp's parameter `seed` (MSVC's C4459, an error at /WX).
     constexpr std::string_view seed =
         "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60";
-    auto const key = ed25519::basic_keypair<webcpp::crypto::backends::sodium>::make(
+    auto const key = ed25519::basic_keypair<webcpp::crypto::backends::sodium>::from_secret(
         webcpp::test::from_hex(seed));
     if (!BOOST_TEST(key.has_value())) {
         return;
     }
     std::array<std::uint8_t, 3> const piece{1, 2, 3};
-    auto signer = ph::begin();
+    auto signer = prehashed_signer::begin();
     if (!BOOST_TEST(signer.has_value()) || !BOOST_TEST(signer->update(piece).has_value())) {
         return;
     }
@@ -203,7 +203,7 @@ void hkdf_beside_crypto() {
         BOOST_TEST(first_is(webcpp::test::hash_timing_first_entry, "webcpp::hash::hkdf"));
         BOOST_TEST_EQ(dit_set(), before);
 
-        auto const key = ed25519::basic_keypair<webcpp::crypto::backends::sodium>::make(okm);
+        auto const key = ed25519::basic_keypair<webcpp::crypto::backends::sodium>::from_secret(okm);
         if (!BOOST_TEST(key.has_value())) {
             continue;
         }

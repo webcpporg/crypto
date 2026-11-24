@@ -4,10 +4,11 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// X25519 against Wycheproof's file (testvectors_v1/x25519_test.json) through curves::x25519::agree
-// on libsodium, every case: each shared secret Wycheproof gives, except the all-zero ones (keys of
-// low order), which libsodium refuses and agree reports as weak_public_key (design D8). A
-// disagreement is reported, never listed away.
+// X25519 against Wycheproof's file (testvectors_v1/x25519_test.json) on typed keys, a key pair
+// made by from_secret agreeing with a public key made by from_bytes, on libsodium, every case:
+// each shared secret Wycheproof gives, except the all-zero ones (keys of low order), which
+// libsodium refuses and agree reports as weak_public_key (design D8). A disagreement is reported,
+// never listed away.
 
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -51,7 +52,13 @@ outcome run_case(json::value const& tested) {
         BOOST_ERROR(((label += ": the verdict ") += verdict).c_str());
         return outcome::unknown;
     }
-    auto const shared = x25519::agree(secret_key, peer_key);
+    auto const key = x25519::keypair::from_secret(secret_key);
+    auto const peer = x25519::public_key::from_bytes(peer_key);
+    if (!key || !peer) {
+        BOOST_ERROR((label += ": a key of Wycheproof's not made").c_str());
+        return outcome::unknown;
+    }
+    auto const shared = key->agree(*peer);
     if (std::ranges::all_of(expected, [](std::uint8_t byte) { return byte == 0; })) {
         if (shared || shared.error() != crypto::error::weak_public_key) {
             BOOST_ERROR((label += ": an all-zero secret not refused as weak_public_key").c_str());

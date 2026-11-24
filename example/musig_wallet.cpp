@@ -10,7 +10,7 @@
 // the parts add up to one BIP 340 signature under the one x-only key, which on the chain looks
 // like any single signer's. The devices' secrets are fixed here, so that the program runs the
 // same each time; a real wallet draws them from crypto's random device. The nonces are fresh
-// in every run, drawn inside nonce_gen; nothing random is printed.
+// in every run, drawn inside generate_nonce; nothing random is printed.
 // tag::program[]
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
@@ -40,8 +40,8 @@ std::array<std::uint8_t, 32> repeated(std::uint8_t value) {
 
 int main() {
     // Each device's key pair; each sends the other its public key.
-    auto const phone = secp256k1::keypair::make(repeated(0x11));
-    auto const laptop = secp256k1::keypair::make(repeated(0x22));
+    auto const phone = secp256k1::keypair::from_secret(repeated(0x11));
+    auto const laptop = secp256k1::keypair::from_secret(repeated(0x22));
     if (!phone || !laptop) {
         return 1;
     }
@@ -66,8 +66,8 @@ int main() {
     auto const message = repeated(0x5a);
 
     // Round one: each device makes a nonce for this signature and sends its public half.
-    auto phone_nonce = musig::nonce_gen(*phone, *wallet_key, message);
-    auto laptop_nonce = musig::nonce_gen(*laptop, *wallet_key, message);
+    auto phone_nonce = musig::generate_nonce(*phone, *wallet_key, message);
+    auto laptop_nonce = musig::generate_nonce(*laptop, *wallet_key, message);
     if (!phone_nonce || !laptop_nonce) {
         return 1;
     }

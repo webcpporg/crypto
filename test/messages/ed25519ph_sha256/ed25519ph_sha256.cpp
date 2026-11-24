@@ -7,12 +7,13 @@
 // Ed25519ph named with SHA-256 stops at its static_assert: RFC 8032 defines it over SHA-512.
 
 // clang-format off
-// expected-error@webcpp/crypto/curves/ed25519.hpp:* {{webcpp::crypto: Ed25519ph is defined over SHA-512 (RFC 8032 section 5.1); name curves::ed25519::ph<webcpp::hash::sha2_512>.}}
+// expected-error@webcpp/crypto/curves/ed25519.hpp:* {{webcpp::crypto: Ed25519ph is defined over SHA-512 (RFC 8032 section 5.1); name curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>.}}
 // clang-format on
 
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/hash/algorithms.hpp>
 
 int main() {
-    return webcpp::crypto::curves::ed25519::ph<webcpp::hash::sha2_256>::begin() ? 0 : 1;
+    return webcpp::crypto::curves::ed25519::prehashed_signer<webcpp::hash::sha2_256>::begin() ? 0
+                                                                                              : 1;
 }

@@ -8,22 +8,23 @@
 # dudect's statistics natively and under wasmtime, as the own lane
 # constant-time, outside the ordinary lanes. Each deterministic check is shown
 # to fail on a planted leak, a branch on a key byte, and dudect to find one, an
-# early exit on the key, natively (dudect_planted). The paths: BearSSL's
-# AES-GCM and ChaCha20-Poly1305 make, seal and open, OpenSSL's make and seal of
+# early exit on the key, natively (dudect_planted). The paths: BearSSL's AES-GCM
+# and ChaCha20-Poly1305 from_key, seal and open, OpenSSL's from_key and seal of
 # both (its open branches on the verdict inside OpenSSL, where webcpp cannot
-# mark it public), ctaes's make, encrypt and decrypt, equal, is_all_zero,
-# secret's wipe, libsodium's Ed25519, X25519, three AEADs, two secret boxes,
-# two boxes, the sealed box and kx (its own branches on a verdict listed in
-# sodium_verdicts.supp), libsecp256k1's own ctime_tests.c, and webcpp's code
-# around libsecp256k1: the key pair's making and secret(), signatures and
-# x-only tweak, ECDH in three forms (agree, agree_hashed and agree_point), the
-# secret key's tweaks, PKCS#8, ElligatorSwift, MuSig2's nonce and partial
-# signature, and silent payments' outputs, label and scan, and BearSSL's
-# P-256: the key pair's making, ECDSA with its low-S normalisation and check,
-# ECDH's x and PKCS#8's decoding. Both checkers run
-# the same paths, paths.hpp, memcheck OpenSSL's besides. BearSSL's own
-# branches on a verdict in its ECDSA signing are listed in
-# bearssl_verdicts.supp, as libsodium's are in sodium_verdicts.supp.
+# mark it public), ctaes's from_key, encrypt and decrypt, constant_time_equal,
+# is_all_zero, erase_secret, secret's wipe, libsodium's Ed25519, X25519 and its
+# key pair's wipe, three AEADs, two secret boxes, two boxes, the sealed box and
+# kx from a seed and from a key pair (its own branches on a verdict
+# listed in sodium_verdicts.supp), libsecp256k1's own ctime_tests.c, and
+# webcpp's code around libsecp256k1: the key pair's making and secret(),
+# signatures and x-only tweak, ECDH in three forms (agree, agree_hashed and
+# agree_point), the secret key's tweaks, PKCS#8, ElligatorSwift, MuSig2's nonce
+# and partial signature, and silent payments' outputs, label and scan, and
+# BearSSL's P-256: the key pair's making, ECDSA with its low-S normalisation and
+# check, ECDH's x and PKCS#8's decoding. Both checkers run the same paths,
+# paths.hpp, memcheck OpenSSL's besides. BearSSL's own branches on a verdict in
+# its ECDSA signing are listed in bearssl_verdicts.supp, as libsodium's are in
+# sodium_verdicts.supp.
 #
 # A later family adds its cases to paths.hpp, which both checkers run, as
 # libsodium's and libsecp256k1's are there: its secrets marked, its verdicts
@@ -67,10 +68,11 @@ rule clang-on-linux ( properties * )
 }
 
 # The libraries the memcheck programs link: BearSSL, OpenSSL, ctaes,
-# libsodium, and libsecp256k1 as secp256k1_ctgrind below builds it.
+# libsodium, libsecp256k1 as secp256k1_ctgrind below builds it, and XKCP, whose
+# Keccak-256 hashes the public message Ethereum's recoverable ECDSA signs.
 CTGRIND = <library>/third_party//bearssl <library>/webcpp/crypto//openssl
     <library>/third_party//ctaes <library>/third_party//sodium
-    <library>secp256k1_ctgrind <variant>release
+    <library>secp256k1_ctgrind <library>/third_party//xkcp <variant>release
     <debug-symbols>on
     <conditional>@linux-only
     <define>WEBCPP_CRYPTO_DETAIL_CT_VALGRIND <webcpp-drive-timeout>300 ;
@@ -86,9 +88,9 @@ webcpp.drive ctgrind_planted_scalar : ctgrind_planted_test.cpp
   : $(CTGRIND) <define>WEBCPP_TEST_CRYPTO_PLANTED_SCALAR_CHECK
   <location-prefix>ctgrind_planted_scalar
   : valgrind.mjs : --expect-leak --in planted_scalar_valid : native ;
-# equal compiles in the user's translation unit, so it is checked at both
-# optimisations of spec section 2.6: ctgrind is <variant>release, which is
-# <optimization>speed in b2, and ctgrind_space the other, a program of its
+# constant_time_equal compiles in the user's translation unit, so it is checked
+# at both optimisations of spec section 2.6: ctgrind is <variant>release, which
+# is <optimization>speed in b2, and ctgrind_space the other, a program of its
 # own. (The genesis's ctgrind_speed would be ctgrind built and run again.)
 webcpp.drive ctgrind_space : ctgrind_test.cpp : $(CTGRIND) <optimization>space
   : valgrind.mjs : : native ;
@@ -194,9 +196,12 @@ lib secp256k1_msan : $(SECP256K1_LIBRARY)
 explicit secp256k1_msan ;
 
 # BearSSL stays on its portable code, whose plain C MemorySanitizer follows
-# exactly; the engine marks the tag's verdict public.
+# exactly; the engine marks the tag's verdict public. XKCP is linked as
+# /third_party//xkcp builds it, not instrumented: it hashes only the public
+# message Ethereum's recoverable ECDSA signs, into a state and a digest that
+# webcpp::hash's keccak_256 initialises before XKCP writes them.
 MSAN = <library>bearssl_msan <library>ctaes_msan <library>sodium_msan
-    <library>secp256k1_msan
+    <library>secp256k1_msan <library>/third_party//xkcp
     <define>WEBCPP_CRYPTO_DETAIL_BEARSSL_PORTABLE <define>WEBCPP_CRYPTO_DETAIL_CT_MSAN
     <cxxflags>$(MSAN_FLAGS) <linkflags>-fsanitize=memory <variant>release
     <debug-symbols>on <conditional>@clang-on-linux ;
@@ -231,19 +236,19 @@ webcpp.run secp256k1_ctime_msan : $(SECP256K1_CTIME)
     <warnings-as-errors>off <cflags>$(MSAN_FLAGS) <linkflags>-fsanitize=memory
     <variant>release <debug-symbols>on <conditional>@clang-on-linux : native ;
 
-# dudect's statistics on BearSSL, ctaes and equal, on libsodium's X25519 and
-# Ed25519, and on libsecp256k1's agree, natively and under wasmtime. The
-# programs never set DIT: they measure what a program gets, the library's own
-# guard, which sets DIT in each call on macOS and Linux on arm64 where the CPU
-# has it, and fail if it is already set outside the calls (dudect.hpp). On a
+# dudect's statistics on BearSSL, ctaes and constant_time_equal, on libsodium's
+# X25519 and Ed25519, and on libsecp256k1's agree, natively and under wasmtime.
+# The programs never set DIT: they measure what a program gets, the library's
+# own guard, which sets DIT in each call on macOS and Linux on arm64 where the
+# CPU has it, and fail if it is already set outside the calls (dudect.hpp). On a
 # runner GitHub hosts, a virtual machine shared with other tenants whose
 # processor changes from run to run, each |t| is printed and the program does
 # not judge it: there it moved with what the measurement cannot control
-# (dudect.hpp, judged), so the CI's dudect_judge.py warns at 10 and measures
-# a case over 10 again in two fresh processes, failing when two of the three
-# are 10 or more. dudect_planted is judged everywhere. Under wasmtime
-# dudect_sodium and dudect_secp256k1 run for minutes, near or past run.sh's
-# default bound of 600 seconds on a loaded machine: the CI gives this lane
+# (dudect.hpp, judged), so the CI's dudect_judge.py warns at 10 and measures a
+# case over 10 again in two fresh processes, failing when two of the three are
+# 10 or more. dudect_planted is judged everywhere. Under wasmtime dudect_sodium
+# and dudect_secp256k1 run for minutes, near or past run.sh's default bound of
+# 600 seconds on a loaded machine: the CI gives this lane
 # WEBCPP_WASIP2_TEST_TIMEOUT=1800, and a local wasip2 run of the lane may need
 # the same variable.
 DUDECT = <variant>release ;

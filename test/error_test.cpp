@@ -24,7 +24,7 @@ namespace crypto = webcpp::crypto;
 int main() {
     using crypto::error;
     BOOST_TEST_EQ(static_cast<int>(error::invalid_key_size), 1);
-    BOOST_TEST_EQ(static_cast<int>(error::invalid_iv_size), 2);
+    BOOST_TEST_EQ(static_cast<int>(error::invalid_nonce_size), 2);
     BOOST_TEST_EQ(static_cast<int>(error::invalid_tag_size), 3);
     BOOST_TEST_EQ(static_cast<int>(error::invalid_input_size), 4);
     BOOST_TEST_EQ(static_cast<int>(error::message_too_long), 5);
@@ -52,6 +52,8 @@ int main() {
     BOOST_TEST(!failed);
     BOOST_TEST(failed.error() == error::invalid_state);
 
+    BOOST_TEST_EQ(crypto::make_error_code(error::invalid_nonce_size).message(),
+                  "the nonce is not of a size the algorithm accepts");
     BOOST_TEST_EQ(crypto::make_error_code(error::authentication_failed).message(),
                   "the authentication tag does not match");
     // The memory option's two errors carry spec section 3.7's texts.

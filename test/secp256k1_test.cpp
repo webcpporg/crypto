@@ -5,13 +5,16 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // secp256k1's key pair, key.sign with crypto::schnorr, crypto::ecdsa_sha256 and
-// crypto::ecdsa_sha256_recoverable, and crypto::verify: signatures that verify and a changed
-// message that does not; Schnorr's auxiliary randomness given and drawn; ECDSA's message hashed
+// crypto::ecdsa_sha256_recoverable, each giving its own type (schnorr_signature, ecdsa_signature,
+// recoverable_signature), and crypto::verify: signatures that verify and a changed message that
+// does not; each type made from bytes received as a std::vector, verified (recovered, for the
+// recoverable one) through the key's verify and crypto::verify, and refused by from_bytes at one
+// byte fewer or more; Schnorr's auxiliary randomness given and drawn; ECDSA's message hashed
 // inside, a sighash signed as libsecp256k1 signs it, hedged signing, low S, the empty message;
 // Schnorr verified against the typed public key and its x-only bytes alike; the secret key given
 // back by secret(), which makes the same key pair again; agree, agree_hashed and agree_point
 // agreeing between two parties, agree_hashed as libsecp256k1's own secp256k1_ecdh; every error of
-// make, a moved-from key pair, and public keys refused in every way they can be wrong.
+// from_secret, a moved-from key pair, and public keys refused in every way they can be wrong.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/signing.hpp>
@@ -22,6 +25,7 @@
 
 #include <boost/core/lightweight_test.hpp>
 #include <boost/system/errc.hpp>
+#include <boost/system/result.hpp>
 
 #include <secp256k1.h>
 #include <secp256k1_ecdh.h>
@@ -39,6 +43,14 @@ namespace crypto = webcpp::crypto;
 namespace secp = webcpp::crypto::curves::secp256k1;
 
 namespace {
+
+// A signature of the type `Signature` from its bytes, as one received is made.
+template <class Signature>
+Signature typed(std::span<std::uint8_t const> signature_bytes) {
+    auto made = Signature::from_bytes(signature_bytes);
+    BOOST_TEST(made.has_value());
+    return made ? *made : Signature{};
+}
 
 // The uncompressed SEC1 form, 04 || x || y, of a key pair's public key, through libsecp256k1.
 std::array<std::uint8_t, 65> uncompressed(secp::keypair const& key) {
@@ -65,7 +77,7 @@ std::array<std::uint8_t, 65> hybrid(std::array<std::uint8_t, 65> key) {
 secp::keypair from_byte(std::uint8_t b) {
     std::array<std::uint8_t, 32> secret{};
     secret.fill(b);
-    return *secp::keypair::make(secret);
+    return *secp::keypair::from_secret(secret);
 }
 
 void schnorr() {
@@ -82,8 +94,9 @@ void schnorr() {
     auto const xonly = public_key->xonly();
     BOOST_TEST(crypto::verify(crypto::schnorr, *signature, message, *public_key).has_value());
     BOOST_TEST(crypto::verify(crypto::schnorr, *signature, message, xonly).has_value());
-    auto flipped = *signature;
-    flipped[0] ^= 1U;
+    auto flipped_bytes = signature->bytes();
+    flipped_bytes[0] ^= 1U;
+    auto const flipped = typed<secp::schnorr_signature>(flipped_bytes);
     BOOST_TEST(crypto::verify(crypto::schnorr, flipped, message, *public_key).error() ==
                crypto::error::invalid_signature);
     BOOST_TEST(crypto::verify(crypto::schnorr, flipped, message, xonly).error() ==
@@ -175,20 +188,21 @@ void ecdsa() {
         crypto::verify(crypto::ecdsa_sha256, *signature, crypto::prehashed{hash}, *public_key)
             .has_value());
     // Low-S: s is at most half the group order, so its first byte is below 0x80.
-    BOOST_TEST((*signature)[32] < 0x80);
+    BOOST_TEST(signature->bytes()[32] < 0x80);
     BOOST_TEST(secp::is_low_s(*signature));
     // The high-S form of the same signature is refused, as libsecp256k1's verify refuses it.
-    auto const high = webcpp::test::negate_s(*signature);
+    auto const high = typed<secp::ecdsa_signature>(webcpp::test::negate_s(signature->bytes()));
     BOOST_TEST(!secp::is_low_s(high));
     BOOST_TEST(
         crypto::verify(crypto::ecdsa_sha256, high, crypto::prehashed{hash}, *public_key).error() ==
         crypto::error::invalid_signature);
     std::array<std::uint8_t, 64> overflow{};
     overflow.fill(0xff);  // r and s not below the order: the compact parser refuses it
-    BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, overflow, crypto::prehashed{hash}, *public_key)
+    BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, typed<secp::ecdsa_signature>(overflow),
+                              crypto::prehashed{hash}, *public_key)
                    .error() == crypto::error::invalid_signature);
     // The uncompressed form parses to the same key, which verifies.
-    auto const full = secp::public_key::make(uncompressed(key));
+    auto const full = secp::public_key::from_bytes(uncompressed(key));
     BOOST_TEST(full.has_value() &&
                crypto::verify(crypto::ecdsa_sha256, *signature, crypto::prehashed{hash}, *full)
                    .has_value());
@@ -199,18 +213,22 @@ void ecdsa() {
 void parse_refusals() {
     auto const key = from_byte(0x24);
     std::array<std::uint8_t, 34> const wrong_size{};
-    BOOST_TEST(secp::public_key::make(wrong_size).error() == crypto::error::invalid_public_key);
+    BOOST_TEST(secp::public_key::from_bytes(wrong_size).error() ==
+               crypto::error::invalid_public_key);
     auto bad_prefix = key.public_key()->compressed();
     bad_prefix[0] = 0x05;
-    BOOST_TEST(secp::public_key::make(bad_prefix).error() == crypto::error::invalid_public_key);
+    BOOST_TEST(secp::public_key::from_bytes(bad_prefix).error() ==
+               crypto::error::invalid_public_key);
     // X9.62's hybrid forms, 06 and 07 with y's parity, are refused although libsecp256k1
     // parses them: of 65 bytes, only 04.
     auto const full = uncompressed(key);
-    BOOST_TEST(secp::public_key::make(full).has_value());
-    BOOST_TEST(secp::public_key::make(hybrid(full)).error() == crypto::error::invalid_public_key);
+    BOOST_TEST(secp::public_key::from_bytes(full).has_value());
+    BOOST_TEST(secp::public_key::from_bytes(hybrid(full)).error() ==
+               crypto::error::invalid_public_key);
     auto wrong_parity = hybrid(full);
     wrong_parity[0] ^= 1U;
-    BOOST_TEST(secp::public_key::make(wrong_parity).error() == crypto::error::invalid_public_key);
+    BOOST_TEST(secp::public_key::from_bytes(wrong_parity).error() ==
+               crypto::error::invalid_public_key);
 }
 
 // A 32-byte message under ecdsa_sha256 is hashed, never read as a digest: its signature is the
@@ -237,8 +255,9 @@ void ecdsa_message_is_hashed() {
             .error() == crypto::error::invalid_signature);
     // The recoverable signature's r and s are the same as ecdsa_sha256's.
     auto const recoverable = key.sign(crypto::ecdsa_sha256_recoverable, message);
-    BOOST_TEST(recoverable.has_value() &&
-               std::ranges::equal(std::span(*recoverable).first<64>(), *of_message));
+    BOOST_TEST(
+        recoverable.has_value() &&
+        std::ranges::equal(std::span(recoverable->bytes()).first<64>(), of_message->bytes()));
 }
 
 // A sighash, a digest the program computed, signed with prehashed under ecdsa_sha256, is the
@@ -268,7 +287,7 @@ void sighash() {
     std::array<std::uint8_t, 64> compact{};
     secp256k1_ecdsa_signature_serialize_compact(context, compact.data(), &reference);
     secp256k1_context_destroy(context);
-    BOOST_TEST(*signature == compact);
+    BOOST_TEST(signature->bytes() == compact);
     BOOST_TEST(
         crypto::verify(crypto::ecdsa_sha256, *signature, crypto::prehashed{digest}, *public_key)
             .has_value());
@@ -293,6 +312,74 @@ void hedged_differs() {
     BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, *hedged, message, *public_key).has_value());
 }
 
+// A signature's bytes as they are received, in a vector.
+template <class Signature>
+std::vector<std::uint8_t> received_bytes(Signature const& signature) {
+    return {signature.bytes().begin(), signature.bytes().end()};
+}
+
+// Bytes of one byte fewer or more than `Signature` holds are no signature: from_bytes refuses them,
+// before any verify or recover.
+template <class Signature>
+void other_sizes_refused(std::vector<std::uint8_t> const& received) {
+    for (std::size_t const size : {Signature::size - 1, Signature::size + 1}) {
+        auto resized = received;
+        resized.resize(size);
+        BOOST_TEST(Signature::from_bytes(resized).error() == crypto::error::invalid_signature);
+    }
+}
+
+// ECDSA's and BIP340's types from 64 bytes received in a vector, each verified through the key's
+// verify and crypto::verify, BIP340's against the x-only key too; 63 and 65 bytes refused.
+void verified_from_vectors() {
+    auto const key = from_byte(0x24);
+    auto const public_key = key.public_key();
+    std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
+    auto const ecdsa_signed = key.sign(crypto::ecdsa_sha256, message);
+    auto const schnorr_signed = key.sign(crypto::schnorr, message);
+    if (!BOOST_TEST(public_key && ecdsa_signed && schnorr_signed)) {
+        return;
+    }
+    auto const ecdsa_bytes = received_bytes(*ecdsa_signed);
+    auto const ecdsa_made = secp::ecdsa_signature::from_bytes(ecdsa_bytes);
+    if (BOOST_TEST(ecdsa_made.has_value())) {
+        BOOST_TEST(public_key->verify(crypto::ecdsa_sha256, *ecdsa_made, message).has_value());
+        BOOST_TEST(
+            crypto::verify(crypto::ecdsa_sha256, *ecdsa_made, message, *public_key).has_value());
+    }
+    other_sizes_refused<secp::ecdsa_signature>(ecdsa_bytes);
+    auto const schnorr_bytes = received_bytes(*schnorr_signed);
+    auto const schnorr_made = secp::schnorr_signature::from_bytes(schnorr_bytes);
+    if (BOOST_TEST(schnorr_made.has_value())) {
+        BOOST_TEST(public_key->verify(crypto::schnorr, *schnorr_made, message).has_value());
+        BOOST_TEST(
+            crypto::verify(crypto::schnorr, *schnorr_made, message, *public_key).has_value());
+        BOOST_TEST(crypto::verify(crypto::schnorr, *schnorr_made, message, public_key->xonly())
+                       .has_value());
+    }
+    other_sizes_refused<secp::schnorr_signature>(schnorr_bytes);
+}
+
+// The recoverable type from 65 bytes received in a vector gives its key to recover; 64 and 66
+// bytes refused.
+void recovered_from_vector() {
+    auto const key = from_byte(0x24);
+    auto const public_key = key.public_key();
+    std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
+    auto const recoverable_signed = key.sign(crypto::ecdsa_sha256_recoverable, message);
+    if (!BOOST_TEST(public_key && recoverable_signed)) {
+        return;
+    }
+    auto const recoverable_bytes = received_bytes(*recoverable_signed);
+    auto const recoverable_made = secp::recoverable_signature::from_bytes(recoverable_bytes);
+    if (BOOST_TEST(recoverable_made.has_value())) {
+        auto const recovered =
+            secp::recover(crypto::ecdsa_sha256_recoverable, *recoverable_made, message);
+        BOOST_TEST(recovered.has_value() && *recovered == *public_key);
+    }
+    other_sizes_refused<secp::recoverable_signature>(recoverable_bytes);
+}
+
 // The pairs that go together, and those that do not.
 static_assert(
     crypto::can_sign<secp::keypair, crypto::ecdsa_sha256_t, std::span<std::uint8_t const>>);
@@ -305,38 +392,67 @@ static_assert(!crypto::can_sign<secp::keypair, crypto::ecdsa_sha256_t, crypto::p
 static_assert(!crypto::can_sign<secp::keypair, crypto::eddsa_t, std::span<std::uint8_t const>>);
 static_assert(
     !crypto::can_sign<secp::public_key, crypto::ecdsa_sha256_t, std::span<std::uint8_t const>>);
-static_assert(
-    crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>, secp::public_key>);
-static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, crypto::prehashed<32>, secp::public_key>);
-static_assert(crypto::can_verify<crypto::schnorr_t, std::span<std::uint8_t const>,
+using message_span = std::span<std::uint8_t const>;
+static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, secp::ecdsa_signature, message_span,
+                                 secp::public_key>);
+static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, secp::ecdsa_signature,
+                                 crypto::prehashed<32>, secp::public_key>);
+static_assert(crypto::can_verify<crypto::schnorr_t, secp::schnorr_signature, message_span,
                                  std::array<std::uint8_t, 32>>);
-static_assert(crypto::can_verify<crypto::schnorr_t, std::span<std::uint8_t const>,
+static_assert(crypto::can_verify<crypto::schnorr_t, secp::schnorr_signature, message_span,
                                  std::span<std::uint8_t const, 32>>);
-static_assert(
-    !crypto::can_verify<crypto::schnorr_t, crypto::prehashed<32>, std::array<std::uint8_t, 32>>);
+static_assert(!crypto::can_verify<crypto::schnorr_t, secp::schnorr_signature, crypto::prehashed<32>,
+                                  std::array<std::uint8_t, 32>>);
 // Bytes of another size, or of a size known only at run time, are no x-only key.
-static_assert(!crypto::can_verify<crypto::schnorr_t, std::span<std::uint8_t const>,
+static_assert(!crypto::can_verify<crypto::schnorr_t, secp::schnorr_signature, message_span,
                                   std::array<std::uint8_t, 33>>);
-static_assert(!crypto::can_verify<crypto::schnorr_t, std::span<std::uint8_t const>,
+static_assert(!crypto::can_verify<crypto::schnorr_t, secp::schnorr_signature, message_span,
                                   std::span<std::uint8_t const>>);
 // Bytes are no secp256k1 ECDSA key: ECDSA never infers its curve from a number of bytes.
-static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>,
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, secp::ecdsa_signature, message_span,
                                   std::array<std::uint8_t, 33>>);
-static_assert(
-    !crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>, secp::keypair>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, secp::ecdsa_signature, message_span,
+                                  secp::keypair>);
 // The typed key verifies Schnorr beside its 32 x-only bytes; a marker is no Schnorr input.
 static_assert(
-    crypto::can_verify<crypto::schnorr_t, std::span<std::uint8_t const>, secp::public_key>);
-static_assert(!crypto::can_verify<crypto::schnorr_t, crypto::prehashed<32>, secp::public_key>);
+    crypto::can_verify<crypto::schnorr_t, secp::schnorr_signature, message_span, secp::public_key>);
+static_assert(!crypto::can_verify<crypto::schnorr_t, secp::schnorr_signature, crypto::prehashed<32>,
+                                  secp::public_key>);
+// Each scheme verifies its own type alone: bytes, and the other scheme's type, are none
+// (design R1), the recoverable one included, which recover takes.
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, secp::schnorr_signature, message_span,
+                                  secp::public_key>);
+static_assert(
+    !crypto::can_verify<crypto::schnorr_t, secp::ecdsa_signature, message_span, secp::public_key>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, secp::recoverable_signature, message_span,
+                                  secp::public_key>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, std::array<std::uint8_t, 64>,
+                                  message_span, secp::public_key>);
+static_assert(!crypto::can_verify<crypto::schnorr_t, std::array<std::uint8_t, 64>, message_span,
+                                  std::array<std::uint8_t, 32>>);
 static_assert(std::is_same_v<decltype(std::declval<secp::keypair const&>().sign(
                                  crypto::ecdsa_sha256_recoverable,
                                  std::declval<std::span<std::uint8_t const>>())),
-                             boost::system::result<std::array<std::uint8_t, 65>>>);
+                             boost::system::result<secp::recoverable_signature>>);
 static_assert(std::is_same_v<decltype(std::declval<secp::keypair const&>().sign(
                                  crypto::schnorr, std::declval<std::span<std::uint8_t const>>())),
-                             boost::system::result<std::array<std::uint8_t, 64>>>);
+                             boost::system::result<secp::schnorr_signature>>);
 static_assert(
-    std::is_same_v<decltype(secp::is_low_s(std::declval<std::array<std::uint8_t, 64>>())), bool>);
+    std::is_same_v<decltype(std::declval<secp::keypair const&>().sign(
+                       crypto::ecdsa_sha256, std::declval<std::span<std::uint8_t const>>())),
+                   boost::system::result<secp::ecdsa_signature>>);
+// The hedged and the explicit-aux forms give the types too.
+static_assert(
+    std::is_same_v<decltype(std::declval<secp::keypair const&>().sign(
+                       crypto::ecdsa_sha256, std::declval<std::span<std::uint8_t const>>(),
+                       std::declval<std::span<std::uint8_t const, 32>>())),
+                   boost::system::result<secp::ecdsa_signature>>);
+static_assert(std::is_same_v<decltype(std::declval<secp::keypair const&>().sign(
+                                 crypto::schnorr, std::declval<std::span<std::uint8_t const>>(),
+                                 std::declval<std::span<std::uint8_t const, 32>>())),
+                             boost::system::result<secp::schnorr_signature>>);
+static_assert(
+    std::is_same_v<decltype(secp::is_low_s(std::declval<secp::ecdsa_signature>())), bool>);
 
 // The three agreements of two key pairs agree; agree is agree_point's x, and agree_hashed is
 // libsecp256k1's own secp256k1_ecdh with its default hash; the peer's uncompressed form makes the
@@ -374,7 +490,7 @@ void agreements() {
                                  nullptr, nullptr),
                   1);
     BOOST_TEST(std::ranges::equal(hashed_a->bytes(), reference));
-    auto const full = secp::public_key::make(uncompressed(b));
+    auto const full = secp::public_key::from_bytes(uncompressed(b));
     if (!BOOST_TEST(full.has_value())) {
         return;
     }
@@ -390,7 +506,7 @@ void secret_round_trip() {
     for (std::size_t i = 0; i < secret_key.size(); ++i) {
         secret_key[i] = static_cast<std::uint8_t>(0x40U + i);
     }
-    auto const key = secp::keypair::make(secret_key);
+    auto const key = secp::keypair::from_secret(secret_key);
     if (!BOOST_TEST(key.has_value())) {
         return;
     }
@@ -399,7 +515,7 @@ void secret_round_trip() {
         return;
     }
     BOOST_TEST(std::ranges::equal(exported->bytes(), secret_key));
-    auto const again = secp::keypair::make(exported->bytes());
+    auto const again = secp::keypair::from_secret(exported->bytes());
     if (!BOOST_TEST(again.has_value())) {
         return;
     }
@@ -427,22 +543,22 @@ void byte_forms() {
     BOOST_TEST(compressed[0] == 0x02 || compressed[0] == 0x03);
     BOOST_TEST(std::ranges::equal(std::span(compressed).subspan<1>(), xonly));
     BOOST_TEST(std::ranges::equal(std::span(full).subspan<1, 32>(), xonly));
-    BOOST_TEST(*secp::public_key::make(compressed) == *public_key);
-    BOOST_TEST(*secp::public_key::make(full) == *public_key);
-    BOOST_TEST(secp::public_key::make(xonly).error() == crypto::error::invalid_public_key);
+    BOOST_TEST(*secp::public_key::from_bytes(compressed) == *public_key);
+    BOOST_TEST(*secp::public_key::from_bytes(full) == *public_key);
+    BOOST_TEST(secp::public_key::from_bytes(xonly).error() == crypto::error::invalid_public_key);
 }
 
 void make_errors() {
     std::array<std::uint8_t, 31> short_secret{};
-    BOOST_TEST(secp::keypair::make(short_secret).error() == crypto::error::invalid_key_size);
+    BOOST_TEST(secp::keypair::from_secret(short_secret).error() == crypto::error::invalid_key_size);
     std::array<std::uint8_t, 32> const zero{};
-    BOOST_TEST(secp::keypair::make(zero).error() == crypto::error::invalid_secret_key);
+    BOOST_TEST(secp::keypair::from_secret(zero).error() == crypto::error::invalid_secret_key);
     std::array<std::uint8_t, 32> const order{
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0xff, 0xff, 0xff, 0xff, 0xfe, 0xba, 0xae, 0xdc, 0xe6, 0xaf, 0x48,
         0xa0, 0x3b, 0xbf, 0xd2, 0x5e, 0x8c, 0xd0, 0x36, 0x41, 0x41,
     };
-    BOOST_TEST(secp::keypair::make(order).error() == crypto::error::invalid_secret_key);
+    BOOST_TEST(secp::keypair::from_secret(order).error() == crypto::error::invalid_secret_key);
     // No generator (an audio worklet) is entropy_unavailable to a key pair's caller (m15).
     namespace errc = boost::system::errc;
     BOOST_TEST(crypto::detail::secp256k1_seed_error(errc::make_error_code(errc::not_supported)) ==
@@ -490,6 +606,8 @@ int main() {
     ecdsa_message_is_hashed();
     sighash();
     hedged_differs();
+    verified_from_vectors();
+    recovered_from_vector();
     agreements();
     secret_round_trip();
     byte_forms();

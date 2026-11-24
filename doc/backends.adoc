@@ -120,34 +120,40 @@ tag secret under Valgrind's memcheck, as
 link:https://github.com/agl/ctgrind[ctgrind] does, and, in a clang build, under
 MemorySanitizer, which only clang has (a gcc build runs memcheck alone): any
 branch or memory index that depends on them fails the run. The lane covers
-`equal`, `is_all_zero` and the wipe of `secret<N>`; BearSSL's AES-GCM and
-ChaCha20-Poly1305 `make`, `seal` and `open`; OpenSSL's `make` and `seal` of
-both; ctaes's AES; libsodium's Ed25519 key pair and signature, X25519's public
-key and agreement, its three ChaCha20-Poly1305 AEADs and two secret boxes,
-`hybrid::box` in both families, the sealed box's `seal` and `open`, and `kx`;
-libsecp256k1's own `ctime_tests.c`; and webcpp's code around libsecp256k1:
-the key pair's making, its BIP 340, recoverable and hedged ECDSA signatures and
-x-only tweak, ECDH in its three forms, the secret key's tweaks and negation,
-PKCS#8's encoding and decoding, ElligatorSwift's `ellswift_create` and
-`ellswift_xdh`, MuSig2's `nonce_gen` and `partial_sign`, and silent payments'
-`create_outputs`, `create_label` and `scan_outputs`, with the wipe of their
-workspaces; and BearSSL's P-256: the key pair's making, `sign` of a digest
-(`crypto::prehashed`), which makes its signature low S without a branch, then
-`normalize_low_s` and `is_low_s` on the fresh signature, `agree` and
-`decode_pkcs8`. Both checkers run the same paths, written once (`paths.hpp`),
-memcheck OpenSSL's besides. Each check is shown to fail on a planted branch on
-a key byte, and on a copy of P-256's range check of a scalar that returns at
-the first byte that differs, and each path's output is checked to carry the mark, so that the
-path is traced, where the checker's shadow keeps it: MemorySanitizer's loses
+`constant_time_equal`, `is_all_zero`, `erase_secret` and the wipe of
+`secret<N>`; BearSSL's AES-GCM and ChaCha20-Poly1305 `from_key`, `seal` and
+`open`; OpenSSL's
+`from_key` and `seal` of both; ctaes's AES; libsodium's Ed25519 key pair and
+signature, X25519's public key, agreement and the key pair's wipe by a move, a
+move assignment and the destructor, its three ChaCha20-Poly1305 AEADs
+and the two secret boxes of `secret_key_encryption`, `public_key_encryption::box`
+in both families, the sealed box's `seal` and `open`, and `kx` from a seed and
+from an X25519 key pair (`from_keypair`); libsecp256k1's own
+`ctime_tests.c`; and
+webcpp's code around libsecp256k1: the key pair's making, its BIP 340,
+recoverable and hedged ECDSA signatures and x-only tweak, ECDH in its three
+forms, the secret key's tweaks and negation, PKCS#8's encoding and decoding,
+ElligatorSwift's `ellswift_create` and `ellswift_xdh`, MuSig2's
+`generate_nonce` and `partial_sign`, and silent payments' `create_outputs`,
+`create_label` and
+`scan_outputs`, with the wipe of their workspaces; and BearSSL's P-256: the key
+pair's making, `sign` of a digest (`crypto::prehashed`), which makes its
+signature low S without a branch, then `normalize_low_s` and `is_low_s` on the
+fresh signature, `agree` and `decode_pkcs8`. Both checkers run the same paths,
+written once (`paths.hpp`), memcheck OpenSSL's besides. Each check is shown to
+fail on a planted branch on a key byte, and on a copy of P-256's range check of
+a scalar that returns at the first byte that differs, and each path's output is
+checked to carry the mark, so that the path is traced, where the checker's
+shadow keeps it: MemorySanitizer's loses
 the mark through a constant-time reduction to one bit, so the result of
 `is_all_zero`, X25519's public key, P-256's public key and `agree` (BearSSL
 selects a window's points with masks of that form) and the bytes a destructor
 wiped are checked by memcheck alone. dudect's statistics
 (link:https://eprint.iacr.org/2016/1123[Reparaz, Balasch and Verbauwhede]) time
 BearSSL's two AEADs' seal and open, BearSSL's P-256 `sign` of a digest and
-`agree` against the key pair's scalar, ctaes, `equal`, libsodium's X25519
-agreement and Ed25519 signing, and libsecp256k1's `agree` natively, on Linux
-and macOS, and under wasmtime.
+`agree` against the key pair's scalar, ctaes, `constant_time_equal`, libsodium's
+X25519 agreement and Ed25519 signing, and libsecp256k1's `agree` natively, on
+Linux and macOS, and under wasmtime.
 dudect's programs set nothing themselves: they measure what a program gets,
 which on 64-bit ARM is the DIT webcpp sets in each call (<<crypto-backends-dit>>).
 Each prints whether the CPU has DIT, and fails where DIT is set on its thread
@@ -236,9 +242,9 @@ instructions Arm lists take a time independent of their data, and Apple
 requires it of constant-time code
 (link:https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms#Enable-DIT-for-constant-time-cryptographic-operations[Apple, enable DIT for constant-time cryptographic operations]).
 None of the C libraries sets it, so webcpp does: every public function that
-runs a backend's cryptographic code, and `equal`, runs its whole body with DIT
-set on 64-bit ARM under macOS, iOS, Linux and Android where the CPU has
-FEAT_DIT (`hw.optional.arm.FEAT_DIT` on Apple's systems, `HWCAP_DIT` on
+runs a backend's cryptographic code, and `constant_time_equal`, runs its whole
+body with DIT set on 64-bit ARM under macOS, iOS, Linux and Android where the
+CPU has FEAT_DIT (`hw.optional.arm.FEAT_DIT` on Apple's systems, `HWCAP_DIT` on
 Linux), and returns with the thread's DIT as it found it: clear when it was
 clear, set when the program set it itself (Apple's
 `timingsafe_enable_if_supported`, from macOS 15.2) or an outer call did. An

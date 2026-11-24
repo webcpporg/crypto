@@ -23,16 +23,18 @@ link:https://csrc.nist.gov/pubs/sp/800/38/d/final[SP 800-38D]), fast where the
 CPU has AES instructions and the one browsers' WebCrypto offers.
 ChaCha20-Poly1305 needs no such instructions to be fast and constant time
 (link:https://www.rfc-editor.org/rfc/rfc8439[RFC 8439]); its XChaCha20 form
-takes a 24-byte nonce that is safe to draw at random for every message, and
-libsodium's secret boxes are the same idea in NaCl's format. The raw AES block
-cipher is a building block, never encryption of data.
+takes a 24-byte nonce that is safe to draw at random for every message. The raw
+AES block cipher is a building block, never encryption of data. NaCl's and
+libsodium's secret boxes, the same idea without associated data, are in
+`secret_key_encryption` (<<crypto-secret-key-encryption>>), with the AEAD
+contract every cipher here satisfies (<<crypto-aead-contract>>).
 
 *Which one.* When in doubt, `xchacha20_poly1305<>`: a random nonce per message
 and nothing to count, the same code and the same bytes on the web and natively.
 AES-GCM when a protocol, a standard or a browser's WebCrypto names it, or to
 read what such a party wrote; RFC 8439's ChaCha20-Poly1305 when a protocol
 names it, TLS 1.3 or WireGuard; a secret box to read or write libsodium's
-`crypto_secretbox`. The table compares them; each row's "choose it when" is
+`crypto_secretbox` (<<crypto-secretbox>>). The table compares them; each row's "choose it when" is
 the rule.
 
 include::generated/namespace-ciphers.adoc[]

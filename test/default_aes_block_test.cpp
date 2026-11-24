@@ -60,7 +60,7 @@ int main() {
         0x8e, 0xa2, 0xb7, 0xca, 0x51, 0x67, 0x45, 0xbf,
         0xea, 0xfc, 0x49, 0x90, 0x4b, 0x49, 0x60, 0x89,
     };
-    auto aes = crypto::ciphers::aes256<>::make(key);
+    auto aes = crypto::ciphers::aes256<>::from_key(key);
     BOOST_TEST(aes.has_value());
     if (aes) {
         std::array<std::uint8_t, 16> block = plain;
@@ -70,7 +70,7 @@ int main() {
         BOOST_TEST(block == plain);
     }
     BOOST_TEST_EQ(crypto::ciphers::aes256<>::backend_type::name, block_expected::name);
-    BOOST_TEST(crypto::ciphers::aes256_gcm::make(key).has_value());
+    BOOST_TEST(crypto::ciphers::aes256_gcm::from_key(key).has_value());
     BOOST_TEST_EQ(crypto::ciphers::aes256_gcm::backend_type::name, gcm_expected::name);
     return webcpp::test::exit_status(boost::report_errors());
 }

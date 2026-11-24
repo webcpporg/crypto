@@ -4,7 +4,7 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// secp256k1's one allocation (spec section 8.5): make allocates the signing context once, in
+// secp256k1's one allocation (spec section 8.5): from_secret allocates the signing context once, in
 // the resource it is given, of libsecp256k1's preallocated size and aligned to max_align_t,
 // and never through operator new nor the C library's allocator where the target lets a
 // program count it; the signatures of every scheme (of a message and of a digest, hedged,
@@ -16,7 +16,8 @@
 // ellswift.hpp, the MuSig2 functions of musig.hpp and the silent payments of
 // silent_payments.hpp allocate nothing, each counted alone
 // (decode_pkcs8's key pair takes its one block from the resource it is given); the destructor
-// gives the block back; a refused make allocates nothing. A control proves the counter moves.
+// gives the block back; a refused from_secret allocates nothing. A control proves the counter
+// moves.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
@@ -119,9 +120,9 @@ void silent_payments_allocate_nothing(secp::keypair const& key, secp::public_key
     }
     alignas(std::max_align_t) std::array<std::byte, sp::summary_workspace_size(0, 1)>
         summary_space{};
-    std::optional<sp::prevouts_summary> summary;
-    none("make_prevouts_summary", [&] {
-        auto r = sp::make_prevouts_summary(outpoint, {}, input_keys, summary_space);
+    std::optional<sp::previous_outputs_summary> summary;
+    none("make_previous_outputs_summary", [&] {
+        auto r = sp::make_previous_outputs_summary(outpoint, {}, input_keys, summary_space);
         if (r) {
             summary.emplace(*r);
         }
@@ -189,12 +190,12 @@ int main() {
     std::array<std::uint8_t, 32> const zero{};
     {
         std::size_t const before = webcpp::test::allocations();
-        // A refused make allocates nothing, in the resource or elsewhere.
-        BOOST_TEST(secp::keypair::make(zero, &resource).error() ==
+        // A refused from_secret allocates nothing, in the resource or elsewhere.
+        BOOST_TEST(secp::keypair::from_secret(zero, &resource).error() ==
                    crypto::error::invalid_secret_key);
         BOOST_TEST_EQ(resource.allocated, 0U);
 
-        auto made = secp::keypair::make(secret, &resource);
+        auto made = secp::keypair::from_secret(secret, &resource);
         BOOST_TEST(made.has_value());
         BOOST_TEST_EQ(resource.allocated, 1U);
         BOOST_TEST_EQ(resource.size, secp256k1_context_preallocated_size(
@@ -220,7 +221,7 @@ int main() {
         auto const recoverable = key.sign(crypto::ecdsa_sha256_recoverable, digest);
         auto const uncompressed = public_key->uncompressed();
         auto const compressed = public_key->compressed();
-        auto const verifier = secp::public_key::make(compressed);
+        auto const verifier = secp::public_key::from_bytes(compressed);
         BOOST_TEST(schnorr && ecdsa && secret_key && shared && shared_x && shared_point);
         BOOST_TEST(drawn && of_message && hedged && recoverable && verifier);
         BOOST_TEST(crypto::verify(crypto::schnorr, *schnorr, message, xonly).has_value());
@@ -250,8 +251,8 @@ int main() {
         none("normalize_low_s", [&] { return secp::normalize_low_s(*ecdsa); });
         none("is_low_s", [&] { return secp::is_low_s(*ecdsa); });
         none("tweak_xonly", [&] { return secp::tweak_xonly(xonly, message); });
-        auto const parsed = secp::public_key::make(uncompressed);
-        none("public_key::make", [&] { return secp::public_key::make(compressed); });
+        auto const parsed = secp::public_key::from_bytes(uncompressed);
+        none("public_key::from_bytes", [&] { return secp::public_key::from_bytes(compressed); });
         none("public_key::compressed", [&] { return parsed->compressed() == compressed; });
         none("public_key::uncompressed", [&] { return parsed->uncompressed() == uncompressed; });
         none("public_key::xonly", [&] { return parsed->xonly() == xonly; });
@@ -261,18 +262,18 @@ int main() {
         none("keypair::tweak_xonly", [&] { return key.tweak_xonly(message); });
 
         // tweak.hpp: the tweaks, the negations and the combination, its workspace on the stack.
-        none("seckey_tweak_add", [&] { return secp::seckey_tweak_add(secret, message); });
-        none("seckey_tweak_mul", [&] { return secp::seckey_tweak_mul(secret, message); });
-        none("seckey_negate", [&] { return secp::seckey_negate(secret); });
-        none("pubkey_tweak_add", [&] { return secp::pubkey_tweak_add(*parsed, message); });
-        none("pubkey_tweak_mul", [&] { return secp::pubkey_tweak_mul(*parsed, message); });
-        none("pubkey_negate", [&] {
-            auto const negated = secp::pubkey_negate(*parsed);
+        none("secret_key_tweak_add", [&] { return secp::secret_key_tweak_add(secret, message); });
+        none("secret_key_tweak_mul", [&] { return secp::secret_key_tweak_mul(secret, message); });
+        none("secret_key_negate", [&] { return secp::secret_key_negate(secret); });
+        none("public_key_tweak_add", [&] { return secp::public_key_tweak_add(*parsed, message); });
+        none("public_key_tweak_mul", [&] { return secp::public_key_tweak_mul(*parsed, message); });
+        none("public_key_negate", [&] {
+            auto const negated = secp::public_key_negate(*parsed);
             return negated && *negated != *parsed;
         });
         alignas(std::max_align_t) std::array<std::byte, secp::combine_workspace_size(2)> space{};
         std::array<secp::public_key, 2> const pair{*parsed, *parsed};
-        none("pubkey_combine", [&] { return secp::pubkey_combine(pair, space); });
+        none("public_key_combine", [&] { return secp::public_key_combine(pair, space); });
 
         // formats.hpp: both SPKIs and the PKCS#8, written and read.
         std::array<std::uint8_t, secp::max_pkcs8_size> encoding{};
@@ -329,8 +330,8 @@ int main() {
         // The tweaks stay in the aggregate key, whose cache the session reads; the signer's key
         // pair signs as it is.
         std::optional<musig::nonce_pair> nonces;
-        none("nonce_gen", [&] {
-            auto r = musig::nonce_gen(key, *signers_key, message);
+        none("generate_nonce", [&] {
+            auto r = musig::generate_nonce(key, *signers_key, message);
             if (r) {
                 nonces.emplace(std::move(*r));
             }

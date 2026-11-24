@@ -19,8 +19,8 @@
 //     -kdfopt salt:"example salt" -kdfopt info:"example chat v1 key" HKDF   (one line)
 // which print the x and the key of p256_ecdh.expected.
 // tag::program[]
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/secret.hpp>
 
 #include <webcpp/hash/hkdf.hpp>
@@ -59,7 +59,7 @@ std::span<std::uint8_t const> bytes_of(std::string_view text) {
 boost::system::result<p256::keypair> from_byte(std::uint8_t fill) {
     std::array<std::uint8_t, p256::secret_key_size> scalar{};
     scalar.fill(fill);
-    return p256::keypair::make(scalar);
+    return p256::keypair::from_secret(scalar);
 }
 
 }  // namespace
@@ -84,7 +84,7 @@ int main() {
     auto const alice_x = alice->agree(*bob_public);
     auto const bob_x = bob->agree(*alice_public);
     // end::agree[]
-    if (!alice_x || !bob_x || !crypto::equal(alice_x->bytes(), bob_x->bytes())) {
+    if (!alice_x || !bob_x || !crypto::constant_time_equal(alice_x->bytes(), bob_x->bytes())) {
         std::printf("failed\n");
         return 1;
     }

@@ -5,13 +5,13 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // An Ed25519 key pair asked to sign with ECDSA over SHA-256, a scheme of P-256 and secp256k1,
-// stops at the scheme's check with the one scheme it has, crypto::eddsa, and with that error
-// alone.
+// stops at the scheme's check with the two schemes it has, crypto::eddsa and
+// crypto::eddsa_prehashed, and with that error alone.
 
 // clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
 // whole text stays on one line.
 // clang-format off
-// expected-error@webcpp/crypto/curves/ed25519.hpp:* {{webcpp::crypto: an Ed25519 key signs with crypto::eddsa.}}
+// expected-error@webcpp/crypto/curves/ed25519.hpp:* {{webcpp::crypto: an Ed25519 key signs with crypto::eddsa or crypto::eddsa_prehashed.}}
 // clang-format on
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/signing.hpp>
@@ -23,6 +23,6 @@ int main() {
     namespace crypto = webcpp::crypto;
     std::array<std::uint8_t, 32> const seed{};
     std::array<std::uint8_t, 3> const message{1, 2, 3};
-    auto const key = crypto::curves::ed25519::keypair::make(seed);
+    auto const key = crypto::curves::ed25519::keypair::from_secret(seed);
     return key && key->sign(crypto::ecdsa_sha256, message) ? 0 : 1;
 }

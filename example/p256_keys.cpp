@@ -44,7 +44,7 @@ int main() {
         0x57, 0x67, 0xb1, 0xd6, 0x93, 0x4e, 0x50, 0xc3, 0xdb, 0x36, 0xe8,
         0x9b, 0x12, 0x7b, 0x8a, 0x62, 0x2b, 0x12, 0x0f, 0x67, 0x21,
     };
-    auto const key = p256::keypair::make(scalar);
+    auto const key = p256::keypair::from_secret(scalar);
     if (!key) {
         std::printf("failed\n");
         return 1;
@@ -61,17 +61,17 @@ int main() {
     std::printf("public key %02x, then x and y\n", exported[0]);
     print("x         ", std::span(exported).subspan(1, p256::coordinate_size));
     print("y         ", std::span(exported).subspan(1 + p256::coordinate_size));
-    auto const reloaded = p256::keypair::make(kept->bytes());
+    auto const reloaded = p256::keypair::from_secret(kept->bytes());
     auto const reloaded_public = reloaded ? reloaded->public_key() : reloaded.error();
     bool const same = reloaded_public && reloaded_public->uncompressed() == exported;
     std::printf("reloaded   %s\n", same ? "same key" : "FAILED");
 
     // A peer's key arrives as bytes: made once into a public_key, which checks the point.
-    auto const peer = p256::public_key::make(exported);
+    auto const peer = p256::public_key::from_bytes(exported);
     std::printf("peer key   %s\n", peer ? "valid" : "refused");
     std::array<std::uint8_t, p256::public_key_size> tampered = exported;
     tampered.back() ^= 0x01U;
-    auto const forged = p256::public_key::make(tampered);
+    auto const forged = p256::public_key::from_bytes(tampered);
     std::string const reason = forged ? std::string() : forged.error().message();
     std::printf("tampered   %s: %s\n", forged ? "valid" : "refused", reason.c_str());
 

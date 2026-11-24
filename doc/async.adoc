@@ -18,8 +18,9 @@ and the answer arrives later. A program written for it, and a program that
 wants one shape for its code on every target, needs the same shape from the
 library.
 
-`<webcpp/crypto/async.hpp>` gives the functions of crypto that WebCrypto has
-an asynchronous form in webcpp::asio's model: each returns at once, and its
+`<webcpp/crypto/async.hpp>` gives the functions of crypto that WebCrypto has,
+and, on a native backend, the seal and open of every AEAD and box, an
+asynchronous form in webcpp::asio's model: each returns at once, and its
 completion arrives later through the event loop, with a
 `boost::system::error_code` and, for an operation that returns a value, the
 value. Each takes any completion token: a callback, `use_awaitable` for
@@ -39,30 +40,39 @@ its own, and the handler would run off the program's loop.
 | Algorithm | Functions | Completion
 
 | AES-GCM (<<crypto-gcm>>)
-| `async_make<Gcm>(executor, key, token)`, `async_seal(executor, aead, iv, additional_data, data, token)`, `async_open(executor, aead, iv, additional_data, data, tag, token)`
-| `void(error_code, Gcm)` for `async_make`, `void(error_code, tag)` for `async_seal`, `void(error_code)` for `async_open`
+| `async_from_key<Gcm>(executor, key, token)`, `secret_key_encryption::aead::async_seal(executor, aead, nonce, associated_data, data, token)`, `secret_key_encryption::aead::async_open(executor, aead, nonce, associated_data, data, tag, token)`
+| `void(error_code, Gcm)` for `async_from_key`, `void(error_code, tag)` for `async_seal`, `void(error_code)` for `async_open`
+
+| ChaCha20-Poly1305 and its forms (<<crypto-chacha>>), on a native backend
+| `async_from_key<C>(executor, key, token)`, `secret_key_encryption::aead::async_seal` and `async_open`, as AES-GCM's
+| as AES-GCM's
+
+| The secret boxes (<<crypto-secretbox>>) and crypto_boxes (<<crypto-box>>), on a native backend
+| `async_from_key<Secretbox>(executor, key, token)` for a secret box (a crypto_box is made by `from_keys`), `secret_key_encryption::async_seal(executor, box, nonce, data, token)`, `secret_key_encryption::async_open(executor, box, nonce, data, tag, token)`
+| `void(error_code, Secretbox)` for `async_from_key`, `void(error_code, tag)` for `async_seal`, `void(error_code)` for `async_open`
 
 | Ed25519 (<<crypto-ed25519>>)
-| `async_make<Keypair>(executor, seed, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, crypto::eddsa, message, token)`, `async_verify(executor, crypto::eddsa, signature, message, public_key, token)`, the policy optional before the token
-| `void(error_code, Keypair)` for `async_make` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`
+| `async_from_secret<Keypair>(executor, seed, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, crypto::eddsa, message, token)`, `async_verify(executor, crypto::eddsa, signature, message, public_key, token)`, the policy optional before the token; on a native backend the same under `crypto::eddsa_prehashed` with `+crypto::prehashed{digest}+`, the message's SHA-512 (<<crypto-ed25519>>), which the browser's backend refuses at compile time
+| `void(error_code, Keypair)` for `async_from_secret` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`
 
 | X25519 (<<crypto-x25519>>)
-| `async_agree(executor, secret_key, peer_public_key, token)`
-| `void(error_code, secret<32>)`
+| `async_from_secret<Keypair>(executor, secret_key, token)`, `async_generate<Keypair>(executor, token)`, `async_agree(executor, key_pair, peer_public_key, token)`, the peer's key a `curves::x25519::public_key`
+| `void(error_code, Keypair)` for `async_from_secret` and `async_generate`, `void(error_code, secret<32>)` for `async_agree`
 
 | P-256 (<<crypto-p256>>)
-| `async_make<Keypair>(executor, scalar, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, crypto::ecdsa_sha256, input, token)`, `async_verify(executor, crypto::ecdsa_sha256, signature, input, public_key, token)`, `async_agree(executor, key_pair, peer_public_key, token)`
-| `void(error_code, Keypair)` for `async_make` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`, `void(error_code, secret<32>)` for `async_agree`
+| `async_from_secret<Keypair>(executor, scalar, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, crypto::ecdsa_sha256, input, token)`, `async_verify(executor, crypto::ecdsa_sha256, signature, input, public_key, token)`, `async_agree(executor, key_pair, peer_public_key, token)`
+| `void(error_code, Keypair)` for `async_from_secret` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`, `void(error_code, secret<32>)` for `async_agree`
 |===
 
-Each function but X25519's `async_agree`, X25519 having no key pair class, has
-its member form, which the free function calls, with the same arguments but
-the object: `Keypair::async_make(executor, bytes, token)`,
+Each function has its member form, which the free function calls, with the
+same arguments but the object: `Keypair::async_from_secret(executor, bytes, token)`,
 `Keypair::async_generate(executor, token)`,
 `key_pair.async_sign(executor, scheme, input, token)`,
 `public_key.async_verify(executor, scheme, signature, input, token)`,
-`key_pair.async_agree(executor, peer, token)` on P-256, and AES-GCM's
-`Gcm::async_make`, `aead.async_seal` and `aead.async_open`. Both forms share
+`key_pair.async_agree(executor, peer, token)` on X25519 and P-256, and every
+AEAD's and secret box's `C::async_from_key`, `aead.async_seal` and
+`aead.async_open`, and a crypto_box's `box.async_seal` and `box.async_open`.
+Both forms share
 one initiation, which runs the synchronous member, so the four forms of an
 operation give the same bytes, errors and refusals
 (<<crypto-curves-four-forms>>). The members are declared in their classes and
@@ -88,10 +98,16 @@ P-256's own types, the key pair and the validated `public_key`, and
 `async_agree` gives the shared point's raw x, as WebCrypto's `deriveBits` does
 (<<crypto-p256-ecdh>>).
 
-The other algorithms of crypto (the ChaCha20-Poly1305 AEADs, the secret boxes,
-secp256k1) are not in WebCrypto, and have no asynchronous function: naming one
-stops the build with a message that names the synchronous function to call, whose text
-and fix are in <<crypto-jamfile-messages>>. Their synchronous functions are as cheap
+The AEADs and boxes WebCrypto lacks (ChaCha20-Poly1305 and its forms, the secret
+boxes, crypto_box) have their asynchronous seal, open and from_key on a native
+backend alone, so that a program sealing in an event loop writes one shape for
+every AEAD. On a backend that completes by itself, as the browser's will
+(<<crypto-async-webcrypto>>), no form of them runs, synchronous or asynchronous:
+only AES-GCM seals and opens there, and any other stops the build with a message
+that says so and names a native backend. The other algorithms of crypto that
+WebCrypto lacks (secp256k1) have no asynchronous function: naming one stops the
+build with a message that names the synchronous function to call. The texts and
+fixes are in <<crypto-jamfile-messages>>. The synchronous functions are as cheap
 as these, and are called inside a handler.
 
 include::generated/backends-async_gcm.adoc[]
@@ -170,7 +186,7 @@ without a value, `async_open` and `async_verify`, completes with the code
 alone.
 
 *What the guards say.* The completion's code is the synchronous function's,
-unchanged: `invalid_key_size`, `invalid_iv_size`, `message_too_long`,
+unchanged: `invalid_key_size`, `invalid_nonce_size`, `message_too_long`,
 `authentication_failed`, `invalid_public_key`, `weak_public_key`,
 `invalid_signature`, `entropy_unavailable`, `backend_failure`
 (<<crypto-errors>>). A refusal is posted like a success, and the data a guard
@@ -180,7 +196,7 @@ refuses is untouched; a failed `async_seal` or `async_open` zeroes it, as
 *Pitfalls.*
 
 * *The object and the spans are the caller's until the completion.* The
-key, the IV, the additional data, the data, the message and the signature are
+key, the nonce, the associated data, the data, the message and the signature are
 read and written by the call, which on a synchronous backend finishes before
 it returns; the browser's backend reads them later. A program written
 for either keeps them alive, and does not touch the data, until the handler
@@ -198,7 +214,7 @@ touches the loop's state from it races with it.
 associated allocator (`bind_allocator`), as every Asio operation does; a
 program that counts or pools its allocations binds its own. webcpp's own code
 calls neither `operator new` nor the C allocator in this family; a backend that allocates at
-`make` (OpenSSL) does so here too, as the synchronous `make` does (see <<crypto-memory>>).
+`from_key` (OpenSSL) does so here too, as the synchronous `from_key` does (see <<crypto-memory>>).
 * *`use_future` without exceptions.* An error completes a future with an
 exception; a program built without exceptions reads errors with a callback or
 `as_tuple`.

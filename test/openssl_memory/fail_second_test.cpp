@@ -4,9 +4,9 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// A failing resource after a good make (spec sections 3.7 and 8.5, crypto-r3-review mode
-// failsecond): the next make's allocation in EVP_CIPHER_CTX_new fails and gives
-// errc::not_enough_memory, a make after it succeeds, and a failing allocation in
+// A failing resource after a good from_key (spec sections 3.7 and 8.5, crypto-r3-review mode
+// failsecond): the next from_key's allocation in EVP_CIPHER_CTX_new fails and gives
+// errc::not_enough_memory, a from_key after it succeeds, and a failing allocation in
 // EVP_EncryptInit_ex gives backend_failure. Before each make the test raises an entry of its
 // own, and after it the thread's queue holds that entry alone. The program ends through the
 // exit check.
@@ -30,7 +30,7 @@ namespace {
 namespace crypto = webcpp::crypto;
 using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::openssl>>;
 
-// A make after the first takes two blocks on OpenSSL 3.5.9 (measured on macOS and Linux,
+// A from_key after the first takes two blocks on OpenSSL 3.5.9 (measured on macOS and Linux,
 // 2026-11-17): EVP_CIPHER_fetch finds the cipher in its cache and allocates nothing, then
 // EVP_CIPHER_CTX_new takes the first block and EVP_EncryptInit_ex the second.
 constexpr std::size_t context_new = 0;
@@ -46,7 +46,7 @@ boost::system::result<aead> make_between_entries(std::array<std::uint8_t, 32> co
     if (failing_after) {
         webcpp::test::the_counting_resource().arm(*failing_after);
     }
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     unsigned long first = 0;
     BOOST_TEST_EQ(webcpp::test::drain(first), 1U);
     BOOST_TEST_EQ(first, ours);

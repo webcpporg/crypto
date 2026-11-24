@@ -45,7 +45,7 @@ int main() {
     for (std::size_t i = 0; i < key.size(); ++i) {
         key[i] = static_cast<std::uint8_t>(i);
     }
-    auto cipher = cipher_type::make(key);
+    auto cipher = cipher_type::from_key(key);
     wipe(std::as_writable_bytes(std::span(key)));
     if (!cipher) {
         return 1;

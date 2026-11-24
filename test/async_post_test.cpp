@@ -24,12 +24,14 @@
 //   plain use_awaitable throws).
 // - post_error_value: an error completes with its code and the empty value (ruling R-A3): a
 //   secret<32> and an array of zeros.
-// - post_gcm: the same cases through AES-GCM's async_make, async_seal and async_open (the
+// - post_gcm: the same cases through AES-GCM's async_from_key, async_seal and async_open (the
 //   functions the family really has, Task 4.A3): never inside the call, the work done when the
 //   call returns, a bound executor, the handler's allocator, every token, an error's empty
 //   value.
 // - post_verify_*: the same cases through Ed25519's async_verify (no value), RFC 8032's test 2,
-//   and, for the value shapes, async_sign (an array) and async_agree (a secret<32>): never
+//   and, for the value shapes, async_sign (an ed25519::signature) and async_agree (a
+//   secret<32>; refused by libsodium for a peer of low order, before it for a moved-from key
+//   pair): never
 //   inside the call, the work done when the call returns, a bound executor, the handler's
 //   allocator, every token, an error's empty value.
 // Each check takes the operation's start as a callable of (executor, token).
@@ -84,6 +86,7 @@ namespace {
 
 using key = crypto::secret<32>;
 using block = std::array<std::uint8_t, 64>;
+using signature_value = crypto::curves::ed25519::signature;
 
 // How many times a test-only operation's synchronous call has run.
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): counted by the calls
@@ -500,53 +503,56 @@ void post_error_value(asio::io_context& context) {
 struct gcm_fixture {
     using gcm = crypto::ciphers::aes256_gcm;
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, 12> iv{};
-    std::array<std::uint8_t, 4> additional_data{1, 2, 3, 4};
+    std::array<std::uint8_t, 12> nonce{};
+    std::array<std::uint8_t, 4> associated_data{1, 2, 3, 4};
     std::array<std::uint8_t, 40> data{};
     std::array<std::uint8_t, 129> long_iv{};
     std::array<std::uint8_t, 16> tag{};
     gcm aead;
 
-    gcm_fixture() : aead(*gcm::make(key)) { data.fill(0x5a); }
+    gcm_fixture() : aead(*gcm::from_key(key)) { data.fill(0x5a); }
 
     auto seal() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_seal(executor, aead, iv, additional_data, data,
-                                      std::forward<decltype(token)>(token));
+            return crypto::secret_key_encryption::aead::async_seal(
+                executor, aead, nonce, associated_data, data, std::forward<decltype(token)>(token));
         };
     }
 
     auto seal_refused() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_seal(executor, aead, long_iv, additional_data, data,
-                                      std::forward<decltype(token)>(token));
+            return crypto::secret_key_encryption::aead::async_seal(
+                executor, aead, long_iv, associated_data, data,
+                std::forward<decltype(token)>(token));
         };
     }
 
     auto open() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_open(executor, aead, iv, additional_data, data, tag,
-                                      std::forward<decltype(token)>(token));
+            return crypto::secret_key_encryption::aead::async_open(
+                executor, aead, nonce, associated_data, data, tag,
+                std::forward<decltype(token)>(token));
         };
     }
 
     auto open_refused() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_open(executor, aead, long_iv, additional_data, data, tag,
-                                      std::forward<decltype(token)>(token));
+            return crypto::secret_key_encryption::aead::async_open(
+                executor, aead, long_iv, associated_data, data, tag,
+                std::forward<decltype(token)>(token));
         };
     }
 
-    auto make() {
+    auto from_key() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_make<gcm>(executor, key, std::forward<decltype(token)>(token));
+            return crypto::async_from_key<gcm>(executor, key, std::forward<decltype(token)>(token));
         };
     }
 
-    auto make_refused() {
+    auto from_key_refused() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_make<gcm>(executor, std::span(key).first(31),
-                                           std::forward<decltype(token)>(token));
+            return crypto::async_from_key<gcm>(executor, std::span(key).first(31),
+                                               std::forward<decltype(token)>(token));
         };
     }
 };
@@ -604,7 +610,7 @@ void post_gcm_inline(asio::io_context& context) {
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST_EQ(refused.calls, 1);
-    BOOST_TEST(refused.code == crypto::error::invalid_iv_size);
+    BOOST_TEST(refused.code == crypto::error::invalid_nonce_size);
     BOOST_TEST(all_bytes(std::get<0>(refused.value), 0));
     BOOST_TEST(fixture.data == plaintext);
 }
@@ -612,13 +618,13 @@ void post_gcm_inline(asio::io_context& context) {
 void post_gcm_bound_executor() {
     gcm_fixture fixture;
     // The open needs a sealed message.
-    auto const sealed = fixture.aead.seal(fixture.iv, fixture.additional_data, fixture.data);
+    auto const sealed = fixture.aead.seal(fixture.nonce, fixture.associated_data, fixture.data);
     if (BOOST_TEST(sealed.has_value())) {
         std::ranges::copy(*sealed, fixture.tag.begin());
     }
     complete_on_bound<>(fixture.open());
     complete_on_bound<gcm_tag>(fixture.seal());
-    complete_on_bound<gcm_fixture::gcm>(fixture.make());
+    complete_on_bound<gcm_fixture::gcm>(fixture.from_key());
 }
 
 void post_gcm_allocator(asio::io_context& context) {
@@ -635,18 +641,18 @@ void post_gcm_allocator(asio::io_context& context) {
     BOOST_TEST_EQ(sealed.news, 0U);
     allocator_call refused;
     start_counted<gcm_tag>(context, fixture.seal_refused(), refused);
-    BOOST_TEST(refused.code == crypto::error::invalid_iv_size);
+    BOOST_TEST(refused.code == crypto::error::invalid_nonce_size);
     BOOST_TEST_EQ(refused.held_at_call, 0);
     BOOST_TEST_GE(refused.taken, 1);
     BOOST_TEST_EQ(refused.news, 0U);
-    // An open (no value) with a refusal, then a make (an object) and its refusal.
+    // An open (no value) with a refusal, then a from_key (an object) and its refusal.
     allocator_call open_refused;
     start_counted<>(context, fixture.open_refused(), open_refused);
-    BOOST_TEST(open_refused.code == crypto::error::invalid_iv_size);
+    BOOST_TEST(open_refused.code == crypto::error::invalid_nonce_size);
     BOOST_TEST_EQ(open_refused.held_at_call, 0);
     BOOST_TEST_GE(open_refused.taken, 1);
     BOOST_TEST_EQ(open_refused.news, 0U);
-    check_allocator_with<gcm_fixture::gcm>(context, fixture.make(), fixture.make_refused(),
+    check_allocator_with<gcm_fixture::gcm>(context, fixture.from_key(), fixture.from_key_refused(),
                                            crypto::error::invalid_key_size);
 }
 
@@ -654,22 +660,23 @@ void post_gcm_allocator(asio::io_context& context) {
 void post_gcm_future_token(asio::io_context& context, gcm_fixture& fixture,
                            std::array<std::uint8_t, 40> const& plaintext) {
     auto const executor = context.get_executor();
-    auto future_tag = crypto::async_seal(executor, fixture.aead, fixture.iv,
-                                         fixture.additional_data, fixture.data, asio::use_future);
+    auto future_tag = crypto::secret_key_encryption::aead::async_seal(
+        executor, fixture.aead, fixture.nonce, fixture.associated_data, fixture.data,
+        asio::use_future);
     context.restart();
     context.run();  // lint-run: the test's event loop
     std::ranges::copy(future_tag.get(), fixture.tag.begin());
     BOOST_TEST(fixture.data != plaintext);
-    auto future_open =
-        crypto::async_open(executor, fixture.aead, fixture.iv, fixture.additional_data,
-                           fixture.data, fixture.tag, asio::use_future);
+    auto future_open = crypto::secret_key_encryption::aead::async_open(
+        executor, fixture.aead, fixture.nonce, fixture.associated_data, fixture.data, fixture.tag,
+        asio::use_future);
     context.restart();
     context.run();  // lint-run: the test's event loop
     future_open.get();
     BOOST_TEST(fixture.data == plaintext);
     auto future_made =
-        crypto::async_make<gcm_fixture::gcm>(executor, fixture.key, asio::use_future);
-    auto future_refused = crypto::async_make<gcm_fixture::gcm>(
+        crypto::async_from_key<gcm_fixture::gcm>(executor, fixture.key, asio::use_future);
+    auto future_refused = crypto::async_from_key<gcm_fixture::gcm>(
         executor, std::span(fixture.key).first(31), asio::use_future);
     context.restart();
     context.run();  // lint-run: the test's event loop
@@ -688,8 +695,9 @@ void post_gcm_deferred_token(asio::io_context& context, gcm_fixture& fixture,
                              std::array<std::uint8_t, 40> const& plaintext) {
     auto const executor = context.get_executor();
     // deferred: the synchronous call runs when the operation is launched, not when it is made.
-    auto operation = crypto::async_seal(executor, fixture.aead, fixture.iv, fixture.additional_data,
-                                        fixture.data, asio::deferred);
+    auto operation = crypto::secret_key_encryption::aead::async_seal(
+        executor, fixture.aead, fixture.nonce, fixture.associated_data, fixture.data,
+        asio::deferred);
     BOOST_TEST(fixture.data == plaintext);
     int deferred_calls = 0;
     std::move(operation)([&](boost::system::error_code code, gcm_tag tag) {
@@ -709,18 +717,19 @@ void post_gcm_tuple_token(asio::io_context& context, gcm_fixture& fixture,
     auto const executor = context.get_executor();
     // as_tuple: the code and the value in one argument; the open, the code alone.
     int tuples = 0;
-    crypto::async_open(executor, fixture.aead, fixture.iv, fixture.additional_data, fixture.data,
-                       fixture.tag, asio::as_tuple([&](std::tuple<boost::system::error_code> done) {
-                           ++tuples;
-                           BOOST_TEST(!std::get<0>(done));
-                       }));
-    crypto::async_seal(executor, fixture.aead, fixture.long_iv, fixture.additional_data,
-                       fixture.data,
-                       asio::as_tuple([&](std::tuple<boost::system::error_code, gcm_tag> done) {
-                           ++tuples;
-                           BOOST_TEST(std::get<0>(done) == crypto::error::invalid_iv_size);
-                           BOOST_TEST(all_bytes(std::get<1>(done), 0));
-                       }));
+    crypto::secret_key_encryption::aead::async_open(
+        executor, fixture.aead, fixture.nonce, fixture.associated_data, fixture.data, fixture.tag,
+        asio::as_tuple([&](std::tuple<boost::system::error_code> done) {
+            ++tuples;
+            BOOST_TEST(!std::get<0>(done));
+        }));
+    crypto::secret_key_encryption::aead::async_seal(
+        executor, fixture.aead, fixture.long_iv, fixture.associated_data, fixture.data,
+        asio::as_tuple([&](std::tuple<boost::system::error_code, gcm_tag> done) {
+            ++tuples;
+            BOOST_TEST(std::get<0>(done) == crypto::error::invalid_nonce_size);
+            BOOST_TEST(all_bytes(std::get<1>(done), 0));
+        }));
     context.restart();
     context.run();  // lint-run: the test's event loop
     BOOST_TEST_EQ(tuples, 2);
@@ -735,19 +744,19 @@ void post_gcm_awaitable_token(asio::io_context& context, gcm_fixture& fixture,
         context,
         [&]() -> asio::awaitable<void> {
             auto const coro = co_await asio::this_coro::executor;
-            auto made_code_result = co_await crypto::async_make<gcm_fixture::gcm>(
+            auto made_code_result = co_await crypto::async_from_key<gcm_fixture::gcm>(
                 coro, std::span(fixture.key).first(31), asio::as_tuple(asio::use_awaitable));
             auto& [made_code, made] = made_code_result;
             BOOST_TEST(made_code == crypto::error::invalid_key_size);
-            BOOST_TEST(made.seal(fixture.iv, {}, fixture.data).error() ==
+            BOOST_TEST(made.seal(fixture.nonce, {}, fixture.data).error() ==
                        crypto::error::invalid_state);
-            auto [seal_code, tag] =
-                co_await crypto::async_seal(coro, fixture.aead, fixture.iv, fixture.additional_data,
-                                            fixture.data, asio::as_tuple(asio::use_awaitable));
+            auto [seal_code, tag] = co_await crypto::secret_key_encryption::aead::async_seal(
+                coro, fixture.aead, fixture.nonce, fixture.associated_data, fixture.data,
+                asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(!seal_code);
             BOOST_TEST(fixture.data != plaintext);
-            auto [open_code] = co_await crypto::async_open(
-                coro, fixture.aead, fixture.iv, fixture.additional_data, fixture.data,
+            auto [open_code] = co_await crypto::secret_key_encryption::aead::async_open(
+                coro, fixture.aead, fixture.nonce, fixture.associated_data, fixture.data,
                 std::span(tag.data(), tag.size()), asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(!open_code);
             BOOST_TEST(fixture.data == plaintext);
@@ -770,6 +779,16 @@ void post_gcm_tokens(asio::io_context& context) {
     post_gcm_awaitable_token(context, fixture, plaintext);
 }
 
+// An X25519 key pair moved from: it holds no key, and every call refuses with invalid_state.
+crypto::curves::x25519::keypair moved_from_x25519() {
+    std::array<std::uint8_t, 32> const secret_key{9};
+    // value(): a key pair not made throws, or ends the program without exceptions.
+    auto made = crypto::curves::x25519::keypair::from_secret(secret_key).value();
+    [[maybe_unused]] auto const taken = std::move(made);
+    // NOLINTNEXTLINE(bugprone-use-after-move): the moved-from key pair is the point
+    return made;
+}
+
 // Ed25519's async_verify, async_sign and X25519's async_agree through the family's real
 // functions, on the default backend. The fixture: RFC 8032's test 2 and RFC 7748's section 6.1.
 struct verify_fixture {
@@ -777,7 +796,7 @@ struct verify_fixture {
         webcpp::test::from_hex("4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb");
     // value(): a key not made throws, or ends the program without exceptions.
     crypto::curves::ed25519::public_key public_key =
-        crypto::curves::ed25519::public_key::make(
+        crypto::curves::ed25519::public_key::from_bytes(
             webcpp::test::from_hex(
                 "3d4017c3e843895a92b70aa74d1b7ebc9c982ccf2ec4968cc0cd55f12af4660c"))
             .value();
@@ -785,23 +804,47 @@ struct verify_fixture {
     // clang-format off
     std::vector<std::uint8_t> signature = webcpp::test::from_hex("92a009a9f0d4cab8720e820b5f642540a2b27b5416503f8fb3762223ebdb69da085ac1e43e15996e458f3613d0f11d8c387b2eaeb4302aeeb00d291612bb0c00");
     // clang-format on
-    std::vector<std::uint8_t> secret_key =
-        webcpp::test::from_hex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a");
-    std::vector<std::uint8_t> peer_key =
-        webcpp::test::from_hex("de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f");
-    crypto::curves::ed25519::keypair key_pair = *crypto::curves::ed25519::keypair::make(seed);
+    // value(): a key pair or a key not made throws, or ends the program without exceptions.
+    crypto::curves::x25519::keypair x25519_key_pair =
+        crypto::curves::x25519::keypair::from_secret(
+            webcpp::test::from_hex(
+                "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"))
+            .value();
+    crypto::curves::x25519::public_key peer_key =
+        crypto::curves::x25519::public_key::from_bytes(
+            webcpp::test::from_hex(
+                "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f"))
+            .value();
+    // A peer key of low order, the all-zero point, whose shared secret agree refuses.
+    crypto::curves::x25519::public_key weak_peer_key =
+        crypto::curves::x25519::public_key::from_bytes(std::array<std::uint8_t, 32>{}).value();
+    // A key pair moved from, which agree refuses before libsodium.
+    crypto::curves::x25519::keypair empty_key_pair = moved_from_x25519();
+    crypto::curves::ed25519::keypair key_pair =
+        *crypto::curves::ed25519::keypair::from_secret(seed);
+
+    // The signature as it is received, made into its type when the operation is made; value(): a
+    // signature not made throws, or ends the program without exceptions.
+    [[nodiscard]] crypto::curves::ed25519::signature typed_signature() const {
+        return crypto::curves::ed25519::signature::from_bytes(signature).value();
+    }
 
     auto verify() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_verify(executor, crypto::eddsa, signature, message, public_key,
-                                        std::forward<decltype(token)>(token));
+            return crypto::async_verify(executor, crypto::eddsa, typed_signature(), message,
+                                        public_key, std::forward<decltype(token)>(token));
         };
     }
 
+    // A signature with a changed byte, which does not verify.
     auto verify_refused() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_verify(executor, crypto::eddsa, std::span(signature).first(63),
-                                        message, public_key, std::forward<decltype(token)>(token));
+            auto changed = typed_signature().bytes();
+            ++changed[3];
+            return crypto::async_verify(
+                executor, crypto::eddsa,
+                crypto::curves::ed25519::signature::from_bytes(changed).value(), message,
+                public_key, std::forward<decltype(token)>(token));
         };
     }
 
@@ -814,14 +857,21 @@ struct verify_fixture {
 
     auto agree() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_agree(executor, secret_key, peer_key,
+            return crypto::async_agree(executor, x25519_key_pair, peer_key,
                                        std::forward<decltype(token)>(token));
         };
     }
 
     auto agree_refused() {
         return [this](auto const& executor, auto&& token) {
-            return crypto::async_agree(executor, std::span(secret_key).first(31), peer_key,
+            return crypto::async_agree(executor, x25519_key_pair, weak_peer_key,
+                                       std::forward<decltype(token)>(token));
+        };
+    }
+
+    auto agree_empty() {
+        return [this](auto const& executor, auto&& token) {
+            return crypto::async_agree(executor, empty_key_pair, peer_key,
                                        std::forward<decltype(token)>(token));
         };
     }
@@ -860,21 +910,24 @@ void post_verify_inline(asio::io_context& context) {
     --fixture.signature[3];
     auto const short_signature = complete_later<>(context, fixture.verify_refused());
     BOOST_TEST(short_signature.code == crypto::error::invalid_signature);
-    // The value shapes: a signature (an array) and a shared secret, and an error's empty value.
-    auto const signed_message = complete_later<block>(context, fixture.sign());
+    // The value shapes: a signature and a shared secret, and an error's empty value.
+    auto const signed_message = complete_later<signature_value>(context, fixture.sign());
     BOOST_TEST(!signed_message.code);
-    BOOST_TEST(std::ranges::equal(std::get<0>(signed_message.value), fixture.signature));
+    BOOST_TEST(std::ranges::equal(std::get<0>(signed_message.value).bytes(), fixture.signature));
     auto const agreed = complete_later<key>(context, fixture.agree());
     BOOST_TEST(!agreed.code);
     auto const agree_refused = complete_later<key>(context, fixture.agree_refused());
-    BOOST_TEST(agree_refused.code == crypto::error::invalid_key_size);
+    BOOST_TEST(agree_refused.code == crypto::error::weak_public_key);
     BOOST_TEST(all_bytes(std::get<0>(agree_refused.value), 0));
+    auto const agree_empty = complete_later<key>(context, fixture.agree_empty());
+    BOOST_TEST(agree_empty.code == crypto::error::invalid_state);
+    BOOST_TEST(all_bytes(std::get<0>(agree_empty.value), 0));
 }
 
 void post_verify_bound_executor() {
     verify_fixture fixture;
     complete_on_bound<>(fixture.verify());
-    complete_on_bound<block>(fixture.sign());
+    complete_on_bound<signature_value>(fixture.sign());
     complete_on_bound<key>(fixture.agree());
 }
 
@@ -896,7 +949,9 @@ void post_verify_allocator(asio::io_context& context) {
     BOOST_TEST_GE(refused.taken, 1);
     BOOST_TEST_EQ(refused.news, 0U);
     check_allocator_with<key>(context, fixture.agree(), fixture.agree_refused(),
-                              crypto::error::invalid_key_size);
+                              crypto::error::weak_public_key);
+    check_allocator_with<key>(context, fixture.agree(), fixture.agree_empty(),
+                              crypto::error::invalid_state);
 }
 
 void post_verify_tokens(asio::io_context& context) {
@@ -921,11 +976,11 @@ void post_verify_tokens(asio::io_context& context) {
 #endif
 
     // deferred: the synchronous call runs when the operation is launched, not when it is made.
-    ++fixture.signature[0];
+    ++fixture.message[0];
     auto operation = fixture.verify()(executor, asio::deferred);
-    --fixture.signature[0];
+    --fixture.message[0];
     int deferred_calls = 0;
-    // The signature is intact again when the operation is launched: the call reads it then.
+    // The message is intact again when the operation is launched: the call reads it then.
     std::move(operation)([&](boost::system::error_code code) {
         ++deferred_calls;
         BOOST_TEST(!code);
@@ -945,7 +1000,7 @@ void post_verify_tokens(asio::io_context& context) {
     fixture.agree_refused()(executor,
                             asio::as_tuple([&](std::tuple<boost::system::error_code, key> done) {
                                 ++tuples;
-                                BOOST_TEST(std::get<0>(done) == crypto::error::invalid_key_size);
+                                BOOST_TEST(std::get<0>(done) == crypto::error::weak_public_key);
                                 BOOST_TEST(all_bytes(std::get<1>(done), 0));
                             }));
     context.restart();
@@ -964,7 +1019,7 @@ void post_verify_tokens(asio::io_context& context) {
             auto [sign_code, signature] =
                 co_await fixture.sign()(coro, asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(!sign_code);
-            BOOST_TEST(std::ranges::equal(signature, fixture.signature));
+            BOOST_TEST(std::ranges::equal(signature.bytes(), fixture.signature));
             auto [refused_code] =
                 co_await fixture.verify_refused()(coro, asio::as_tuple(asio::use_awaitable));
             BOOST_TEST(refused_code == crypto::error::invalid_signature);

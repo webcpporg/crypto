@@ -36,9 +36,7 @@ include::jamfile.adoc[]
 
 include::root.adoc[]
 
-include::entropy.adoc[]
-
-include::equal.adoc[]
+include::protecting_secrets.adoc[]
 
 include::errors.adoc[]
 
@@ -48,9 +46,9 @@ include::aead.adoc[]
 
 include::chacha.adoc[]
 
-include::secretbox.adoc[]
-
 include::block.adoc[]
+
+include::secret_key_encryption.adoc[]
 
 include::curves.adoc[]
 
@@ -60,13 +58,13 @@ include::ed25519.adoc[]
 
 include::x25519.adoc[]
 
-include::kx.adoc[]
-
 include::p256.adoc[]
 
 include::formats.adoc[]
 
-include::hybrid.adoc[]
+include::public_key_encryption.adoc[]
+
+include::kx.adoc[]
 
 include::async.adoc[]
 
@@ -88,10 +86,11 @@ include::testing.adoc[]
 == Reference
 
 Every name crypto declares, in the namespaces `webcpp::crypto`, `backends`,
-`ciphers`, `curves` and `hybrid`, from the Doc Comments of its headers: each
-class, function, type and enumerator with its declaration, what it does, what
-it asks of its caller and how it fails. The other sections teach the library;
-this one is where a name is looked up.
+`ciphers`, `secret_key_encryption`, `curves`, `public_key_encryption` and
+`key_exchange`, from the Doc Comments of its headers: each class, function,
+type and enumerator with its declaration, what it does, what it asks of its
+caller and how it fails. The other sections teach the library; this one is
+where a name is looked up.
 
 include::{reference}[leveloffset=+1]
 

@@ -13,6 +13,6 @@
 
 int main() {
     std::array<std::uint8_t, 32> const key{};
-    auto made = webcpp::crypto::ciphers::chacha20_poly1305<>::make(key);
+    auto made = webcpp::crypto::ciphers::chacha20_poly1305<>::from_key(key);
     return made ? 0 : 1;
 }

@@ -161,11 +161,11 @@ boost::system::result<key> slow(std::uint8_t value) noexcept {
 
 /** Its async_ variant, as every heavy operation declares one (ruling R-A6). */
 template <class WorkExecutor, class CompletionToken>
-auto async_slow(WorkExecutor const& work, std::uint8_t value, CompletionToken&& token) {
+auto async_slow(WorkExecutor const& work, std::uint8_t value, CompletionToken&& completion_token) {
     WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS("async_slow", "slow");
     return crypto::detail::run_on_work(
         work, [value]() noexcept { return slow_guards(value); },
-        [value]() noexcept { return slow(value); }, token);
+        [value]() noexcept { return slow(value); }, completion_token);
 }
 
 /** A value whose destruction the test sees: the sentinel's last owner, empty by default. */
@@ -176,7 +176,7 @@ struct tracked {
 /** A heavy operation whose value is a tracked holding `sentinel`. */
 template <class WorkExecutor, class CompletionToken>
 auto async_tracked(WorkExecutor const& work, std::shared_ptr<int> sentinel,
-                   CompletionToken&& token) {
+                   CompletionToken&& completion_token) {
     WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS("async_tracked", "tracked");
     return crypto::detail::run_on_work(
         work, []() noexcept { return boost::system::result<void>(); },
@@ -184,7 +184,7 @@ auto async_tracked(WorkExecutor const& work, std::shared_ptr<int> sentinel,
             enter_work();
             return boost::system::result<tracked>(tracked{std::move(sentinel)});
         },
-        token);
+        completion_token);
 }
 
 /** Whether every byte of `made` is `value`. */

@@ -20,14 +20,14 @@ shape of the data shows through, the mode called ECB
 AES block cipher with keys of 16, 24 and 32 bytes. They work in place on whole
 blocks: `encrypt` and `decrypt` take a span whose size is a multiple of
 `block_size`, 16, and give `invalid_input_size` for a partial block. Each is
-made with `make(key_bytes)`, which gives `invalid_key_size` for a key of another size;
+made with `from_key(key_bytes)`, which gives `invalid_key_size` for a key of another size;
 an object moved from is wiped and empty, and returns `invalid_state`.
 
 include::generated/backends-aes_block.adoc[]
 
 BearSSL exports AES only inside its modes, with no single-block class, so
 `aes256<backends::bearssl>` is a complete type, which `gcm` needs to name its
-cipher, but its `make` does not compile, and a `static_assert` says which
+cipher, but its `from_key` does not compile, and a `static_assert` says which
 backends to use (<<crypto-jamfile-messages>>). `aes256<>` names the block
 cipher's default, OpenSSL natively and ctaes on WebAssembly
 (<<crypto-backends-defaults>>), and `<webcpp/crypto/ciphers/aes_block.hpp>`

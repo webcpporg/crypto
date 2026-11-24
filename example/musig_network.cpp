@@ -81,8 +81,8 @@ boost::system::result<musig::partial_signature> received_part(
 
 int main() {
     // Each device's key pair; each publishes its public key, which every party reads.
-    auto const phone = secp256k1::keypair::make(repeated(0x11));
-    auto const laptop = secp256k1::keypair::make(repeated(0x22));
+    auto const phone = secp256k1::keypair::from_secret(repeated(0x11));
+    auto const laptop = secp256k1::keypair::from_secret(repeated(0x22));
     if (!phone || !laptop) {
         return 1;
     }
@@ -100,8 +100,8 @@ int main() {
     auto const message = repeated(0x5a);
 
     // Round one, on each device: a nonce for this signature, its public half sent as bytes.
-    auto phone_nonce = musig::nonce_gen(*phone, *wallet_key, message);
-    auto laptop_nonce = musig::nonce_gen(*laptop, *wallet_key, message);
+    auto phone_nonce = musig::generate_nonce(*phone, *wallet_key, message);
+    auto laptop_nonce = musig::generate_nonce(*laptop, *wallet_key, message);
     if (!phone_nonce || !laptop_nonce) {
         return 1;
     }
@@ -182,7 +182,7 @@ int main() {
         return 1;
     }
     std::printf("the aggregate signature verifies as one BIP 340 signature: %zu bytes\n",
-                signature->size());
+                signature->bytes().size());
     return 0;
 }
 

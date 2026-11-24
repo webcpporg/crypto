@@ -28,15 +28,20 @@ rule crypto-run ( name : sources + : requirements * : targets * )
 OPTIMISED = <optimization>speed <toolset>emscripten:<debug-symbols>off ;
 
 webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
-  crypto/equal.hpp crypto/error.hpp crypto/ciphers/aes.hpp crypto/ciphers/gcm.hpp
-  crypto/random_device.hpp crypto/detail/bytes.hpp crypto/detail/declassify.hpp
+  crypto/constant_time_equal.hpp crypto/erase_secret.hpp crypto/error.hpp
+  crypto/ciphers/aes.hpp crypto/ciphers/gcm.hpp crypto/random_device.hpp
+  crypto/detail/bytes.hpp crypto/detail/declassify.hpp
   crypto/detail/engines.hpp crypto/detail/entropy.hpp crypto/detail/limits.hpp
   crypto/detail/windows.hpp crypto/detail/wipe.hpp crypto/secret.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
   crypto/detail/async_access.hpp crypto/detail/timing.hpp crypto/ciphers/aead.hpp
-  crypto/ciphers/chacha20_poly1305.hpp crypto/ciphers/secretbox.hpp crypto/pem.hpp
+  crypto/ciphers/chacha20_poly1305.hpp crypto/pem.hpp
+  crypto/secret_key_encryption/aead.hpp
+  crypto/secret_key_encryption/authenticated_box.hpp
+  crypto/secret_key_encryption/secretbox.hpp
   crypto/detail/p_curves.hpp crypto/signing.hpp crypto/keypair.hpp
-  crypto/make.hpp crypto/detail/asynchronous.hpp ;
+  crypto/factories.hpp crypto/detail/asynchronous.hpp
+  crypto/detail/signature.hpp ;
 # detail/heavy.hpp compiles alone only with webcpp::asio, which it includes
 # where the build has threads; async.hpp, which includes it, only with
 # webcpp::asio on every target.
@@ -70,7 +75,8 @@ webcpp.headers-alone crypto : ../include
 webcpp.headers-alone crypto : ../include
   : crypto/backends/sodium.hpp crypto/curves/ed25519.hpp crypto/curves/x25519.hpp
     crypto/curves/ed25519/formats.hpp crypto/curves/x25519/formats.hpp
-    crypto/curves/x25519/kx.hpp crypto/hybrid/box.hpp crypto/hybrid/sealed_box.hpp
+    crypto/key_exchange/kx.hpp crypto/public_key_encryption/box.hpp
+    crypto/public_key_encryption/sealed_box.hpp
   : <library>/third_party//sodium ;
 # libsecp256k1's headers compile alone only with its library, which defines
 # WEBCPP_CRYPTO_HAS_SECP256K1 (without it, each stops with its message).
@@ -80,6 +86,25 @@ webcpp.headers-alone crypto : ../include
     crypto/curves/secp256k1/ellswift.hpp crypto/curves/secp256k1/musig.hpp
     crypto/curves/secp256k1/silent_payments.hpp
   : <library>/third_party//secp256k1 ;
+
+# No local name in a header hides a program's global: every public header after
+# a global of each one-word name a header's local once had, which MSVC's C4459
+# reports at /W4 /WX (clang and GCC never warn across namespaces).
+crypto-run user_globals : user_globals_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//ctaes
+    <library>/third_party//secp256k1 <library>/third_party//sodium
+    <library>/third_party//xkcp <library>/webcpp/crypto//openssl
+    <library>/webcpp/asio//asio
+  : native ;
+# With OpenSSL's memory functions routed to a memory resource, the adapter's
+# own non-template functions, which only that option compiles.
+crypto-run user_globals_memory_resource : user_globals_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//ctaes
+    <library>/third_party//secp256k1 <library>/third_party//sodium
+    <library>/third_party//xkcp <library>/webcpp/crypto//openssl
+    <library>/webcpp/asio//asio
+    <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE
+  : native ;
 
 # config.hpp defines WEBCPP_CRYPTO_NO_EXCEPTIONS exactly when webcpp has no
 # exceptions, keeps it when a developer defines it, defines it when
@@ -135,14 +160,19 @@ crypto-run heavy : heavy_test.cpp
 crypto-run async_post : async_post_test.cpp
   : <library>/webcpp/asio//asio <library>/webcpp/crypto//gcm-default
     <library>/third_party//sodium ;
-# AES-GCM's asynchronous functions, async_make, async_seal and async_open, on
-# BearSSL (every target) and on OpenSSL (where it is built): the specification's
-# cases, a wrong tag, a long IV, a refused key, a coroutine.
+# AES-GCM's asynchronous functions, async_from_key, async_seal and async_open,
+# on BearSSL (every target) and on OpenSSL (where it is built): the
+# specification's cases, a wrong tag, a long nonce, a refused key, a coroutine.
 crypto-run async_gcm : async_gcm_test.cpp
   : <library>/webcpp/asio//asio <library>/third_party//bearssl ;
 crypto-run async_gcm_openssl : async_gcm_test.cpp
   : <library>/webcpp/asio//asio <library>/webcpp/crypto//openssl
     <define>WEBCPP_TEST_ASYNC_GCM_OPENSSL : native wasip2 wasip3 ;
+# The asynchronous seal, open and from_key of the AEADs and boxes WebCrypto
+# lacks, on libsodium, every target: the synchronous answers, free and member,
+# never inline, a wrong tag, a refused key.
+crypto-run async_aead : async_aead_test.cpp
+  : <library>/third_party//sodium <library>/webcpp/asio//asio ;
 # Ed25519's and X25519's asynchronous functions on libsodium, every target:
 # RFC 8032's and RFC 7748's cases, a changed byte, a generated key pair, a
 # refused seed, a weak peer key, a coroutine.
@@ -155,6 +185,12 @@ crypto-run async_25519 : async_25519_test.cpp
 crypto-run async_p256 : async_p256_test.cpp
   : <library>/webcpp/asio//asio <library>/third_party//bearssl
     <library>/third_party//wycheproof <library>/webcpp//boost_json ;
+# The free async_agree, one template over the key pair, on a stand-in backend
+# that completes by itself, natively: X25519's and P-256's key pairs reach the
+# stand-in's engine, the free form and the member alike, with the caller's key
+# pair and peer, and complete through the executor.
+crypto-run async_agree_engine : async_agree_engine_test.cpp
+  : <library>/webcpp/asio//asio : native ;
 # Without threads (WEBCPP_CRYPTO_NO_THREADS natively; WASI has none), a heavy
 # operation's async_ variant that forgets its refusal stops at
 # detail::run_on_work's stand-in, which names the refusal, and with that
@@ -163,40 +199,64 @@ webcpp.compile-diagnostic heavy_refusal_forgotten : heavy_refusal_forgotten_test
   : <define>WEBCPP_CRYPTO_NO_THREADS : native wasip2 wasip3 : alone ;
 
 crypto-run error : error_test.cpp ;
-crypto-run equal : equal_test.cpp ;
+crypto-run constant_time_equal : constant_time_equal_test.cpp ;
 # signing.hpp's tags and their one list, prehashed, the input checks and the
 # concepts, over stand-in key types; the catch-all verify; sha256_of.
 crypto-run signing : signing_test.cpp ;
-# The key pair contract, crypto::keypair: Ed25519's, P-256's and secp256k1's
-# key pairs meet it, stand-ins that lack a member do not, and over a list with
-# a test-only scheme, a stand-in that declares it and does not sign it fails.
+# The three key pair concepts, keypair, signing_keypair and agreement_keypair:
+# stand-ins that sign, agree, do both, lack a member or sign or agree into
+# another type give each verdict; the four curves' key pairs give D4's table,
+# are made again from their secret() and sign or agree through their concept;
+# over a list with a test-only scheme, a stand-in that declares it and does not
+# sign it is no signing_keypair.
 crypto-run keypair : keypair_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium
+    <library>/third_party//secp256k1 ;
+# The five signature types: each made from bytes of its size alone, given back
+# by bytes(), regular and converting to nothing; detail::signature_of names
+# each for its curve's keys and schemes.
+crypto-run signature_types : signature_types_test.cpp
   : <library>/third_party//bearssl <library>/third_party//sodium
     <library>/third_party//secp256k1 ;
 # Every curve's crypto::verify in one program: a 32-byte key is BIP340's under
 # schnorr and no key under eddsa, which takes Ed25519's typed key, with no
-# ambiguity.
+# ambiguity; every signing_keypair signs through crypto::sign what its public
+# key verifies.
 crypto-run signing_curves : signing_curves_test.cpp
   : <library>/third_party//bearssl <library>/third_party//sodium
     <library>/third_party//secp256k1 ;
 # Each operation's member and free synchronous forms give the same results on
-# every curve, AES-GCM and ChaCha20-Poly1305 (design D9).
+# every curve, AES-GCM, ChaCha20-Poly1305 and XChaCha20-Poly1305 (design D9),
+# the AEADs' free forms secret_key_encryption::aead's (design D11).
 crypto-run synchronous_forms : synchronous_forms_test.cpp
   : <library>/third_party//bearssl <library>/third_party//sodium
     <library>/third_party//secp256k1 ;
+# A cipher's header brings its free forms: with ciphers/chacha20_poly1305.hpp
+# alone, secret_key_encryption::aead::seal and open give the member's results.
+crypto-run aead_header_forms : aead_header_forms_test.cpp
+  : <library>/third_party//sodium ;
+# The AEAD and box concepts, secret_key_encryption::aead::cipher, its
+# refinement streaming_cipher and secret_key_encryption::authenticated_box:
+# stand-ins that lack a member or give another type give each verdict; D5's
+# table on the types' own backends, no type both a cipher and a box; the box
+# forms take no AEAD; each type seals and opens through its concept alone.
+crypto-run aead_concepts : aead_concepts_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium ;
 # The tests' hex readers: hex<N> at compile time, from_hex and to_hex at run
 # time.
 crypto-run hex : hex_test.cpp ;
 # detail::timing_guard sets DIT for its scope where the CPU has it and leaves
-# the thread's state as it found it; its seam fires on every target; equal
-# enters it. timing_threads adds a second thread, natively, with threads.
+# the thread's state as it found it; its seam fires on every target;
+# constant_time_equal enters it. timing_threads adds a second thread, natively,
+# with threads.
 crypto-run timing : timing_test.cpp ;
 crypto-run timing_threads : timing_test.cpp
   : <threading>multi <define>WEBCPP_TEST_TIMING_THREADS : native ;
 # Without the seam, the guard takes no argument, on every target; natively, at
-# release, a program that calls equal reads its own executable and finds
-# neither equal's name nor equal.hpp's path, which a guard's source_location
-# would keep where its constructor is not inlined (clang on arm64).
+# release, a program that calls constant_time_equal reads its own executable and
+# finds neither its name nor constant_time_equal.hpp's path, which a guard's
+# source_location would keep where its constructor is not inlined (clang on
+# arm64).
 crypto-run timing_unseamed : timing_unseamed_test.cpp ;
 webcpp.run timing_unseamed_release : timing_unseamed_test.cpp
   : <variant>release <define>WEBCPP_TEST_TIMING_READ_SELF : native ;
@@ -215,7 +275,7 @@ crypto-run timing_coverage_ctaes : timing_coverage_ctaes_test.cpp
 crypto-run timing_coverage_sodium : timing_coverage_sodium_test.cpp
   : <library>/third_party//sodium <library>/webcpp/asio//asio ;
 crypto-run timing_coverage_secp256k1 : timing_coverage_secp256k1_test.cpp
-  : <library>/third_party//secp256k1 <library>/webcpp/asio//asio ;
+  : <library>/third_party//secp256k1 <library>/third_party//xkcp <library>/webcpp/asio//asio ;
 # The specification's scenarios on libsodium's Ed25519: a thread whose DIT is
 # clear finds it clear after sign, one that set it finds it still set.
 crypto-run timing_sodium : timing_sodium_test.cpp : <library>/third_party//sodium ;
@@ -229,6 +289,10 @@ crypto-run wipe : wipe_test.cpp ;
 # the storage: optimised, with every call inlined (<inlining>full), where a
 # wipe the compiler could drop as a dead store would be dropped.
 crypto-run secret : secret_test.cpp : $(OPTIMISED) <inlining>full ;
+# crypto::erase_secret zeroes the bytes of any contiguous range the program may
+# write, and a buffer erased as its scope ends stays zero: optimised, with every
+# call inlined, as secret's.
+crypto-run erase_secret : erase_secret_test.cpp : $(OPTIMISED) <inlining>full ;
 
 # A destroyed or moved-from key schedule is zero in its storage, read at -O2
 # where a dropped store would show: one program per keyed type, one source.
@@ -248,10 +312,10 @@ crypto-run wipe_objects_sodium : wipe_objects_test.cpp
 # thread and a new one.
 crypto-run counting : counting_test.cpp ;
 
-# A message on OpenSSL allocates nothing after make.
+# A message on OpenSSL allocates nothing after from_key.
 crypto-run allocation_openssl : allocation_openssl_test.cpp
   : <library>/webcpp/crypto//openssl : native wasip2 wasip3 ;
-# A message on BearSSL allocates nothing after make.
+# A message on BearSSL allocates nothing after from_key.
 crypto-run allocation_bearssl : allocation_bearssl_test.cpp
   : <library>/third_party//bearssl ;
 crypto-run bearssl_seeder : bearssl_seeder_test.cpp
@@ -316,6 +380,18 @@ webcpp.compile default_selection_bearssl : default_selection_test.cpp
 # crypto.hpp's branch for libsecp256k1, which headers-alone, without the
 # library, leaves out.
 webcpp.compile crypto_secp256k1 : crypto_secp256k1_test.cpp : <library>/third_party//secp256k1 ;
+# The marks of the constant-time lane's memcheck build (DECLASSIFY), which
+# expand to nothing elsewhere, compiled on every lane against a stand-in for
+# Valgrind's header: a mark that names a stale local stops the build here.
+webcpp.compile declassify_compile : declassify_compile_test.cpp
+  : <library>/third_party//bearssl <library>/third_party//sodium
+    <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_DETAIL_CT_VALGRIND
+    <include>support/valgrind_stub ;
+# secp256k1's header alone with XKCP linked, its Keccak-256 branch included,
+# which the headers-alone entry above, without XKCP, leaves out (a header
+# compiles alone once there).
+webcpp.compile secp256k1_keccak_alone : secp256k1_keccak_alone_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//xkcp ;
 # crypto.hpp with OpenSSL alone linked, where on WASI BearSSL stays the
 # default: the program names OpenSSL in the type.
 crypto-run crypto_openssl_alone : crypto_openssl_alone_test.cpp
@@ -336,6 +412,13 @@ crypto-run secp256k1_ecdh : secp256k1_ecdh_test.cpp
 crypto-run secp256k1_keys : secp256k1_keys_test.cpp : <library>/third_party//secp256k1 ;
 # Recoverable ECDSA signatures, libsecp256k1's edge cases, and hedged ECDSA.
 crypto-run secp256k1_recovery : secp256k1_recovery_test.cpp : <library>/third_party//secp256k1 ;
+# Ethereum's recoverable ECDSA over Keccak-256
+# (crypto::ecdsa_keccak256_recoverable): go-ethereum's recovery vector,
+# web3.js's personal_sign, a message hashed with Keccak-256 (XKCP's) and never
+# SHA3-256, low S, and a signature recovered under the other recoverable scheme
+# giving another key.
+crypto-run secp256k1_ethereum : secp256k1_ethereum_test.cpp
+  : <library>/third_party//secp256k1 <library>/third_party//xkcp ;
 # libsecp256k1's recovery and ElligatorSwift modules called through its C API,
 # which stays reachable beside the wrappers, and compared with them.
 crypto-run secp256k1_c_api : secp256k1_c_api_test.cpp : <library>/third_party//secp256k1 ;
@@ -418,6 +501,24 @@ crypto-run canary_read : canary_read_test.cpp
 crypto-run random_device : random_device_test.cpp ;
 crypto-run random_device_failing : random_device_failing_test.cpp
   : <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
+# On Emscripten under node, a throwing crypto.getRandomValues and no crypto at
+# all, the draw linked from two translation units.
+crypto-run random_device_browser : random_device_browser_test.cpp
+    support/random_device_second_unit.cpp
+  : <library>/third_party//bearssl : emscripten ;
+# On Emscripten under node, libsodium draws through crypto's entropy: with
+# every source throwing, a sealed box reports entropy_unavailable. A program of
+# its own, so that no libsodium call precedes the plant.
+crypto-run sodium_entropy_browser : sodium_entropy_browser_test.cpp
+  : <library>/third_party//sodium : emscripten ;
+# A failed draw outside a call crypto watches ends the program, never handing
+# zeros on.
+webcpp.run-fail sodium_entropy_unwatched : sodium_entropy_unwatched_test.cpp
+  : <library>/third_party//sodium : emscripten ;
+# On Emscripten under node, crypto's entropy as libsodium's generator leaves no
+# copy of a draw in the stack's free part, read at -O2.
+crypto-run sodium_entropy_wipe : sodium_entropy_wipe_test.cpp
+  : <library>/third_party//sodium $(OPTIMISED) : emscripten ;
 webcpp.compile-diagnostic random_device_no_call : random_device_no_call_test.cpp
   : <define>WEBCPP_CRYPTO_NO_EXCEPTIONS : native wasip2 ;
 
@@ -530,7 +631,13 @@ crypto-run ed25519_sodium : ed25519_sodium_test.cpp
 crypto-run ed25519_wycheproof_sodium : ed25519_wycheproof_sodium_test.cpp
   : <library>/third_party//sodium <library>/third_party//wycheproof
     <library>/webcpp//boost_json ;
-crypto-run ed25519ph_sodium : ed25519ph_sodium_test.cpp : <library>/third_party//sodium ;
+# Ed25519ph on libsodium, the scheme crypto::eddsa_prehashed and the streaming
+# signer: RFC 8032 section 7.3's case, the signer equal to the scheme, the two
+# Ed25519 schemes not interchangeable; P-256's and secp256k1's key pairs, which
+# do not sign under the scheme, are linked for can_sign's checks.
+crypto-run ed25519ph_sodium : ed25519ph_sodium_test.cpp
+  : <library>/third_party//sodium <library>/third_party//bearssl
+    <library>/third_party//secp256k1 ;
 # The key pair's secret key and the signer's state are zero once moved from,
 # moved over, ended and destroyed: optimised, every call inlined, as secret's.
 crypto-run ed25519_wipe_sodium : ed25519_wipe_sodium_test.cpp
@@ -557,9 +664,10 @@ crypto-run x25519_sodium : x25519_sodium_test.cpp : <library>/third_party//sodiu
 # X25519's generic layer on a stand-in engine that does not refuse an all-zero
 # shared secret: agree refuses it itself (design D8).
 crypto-run x25519_mock : x25519_mock_test.cpp ;
-# ciphers::aead's and hybrid::basic_box's generic layer on a stand-in engine
+# ciphers::basic_chacha20_poly1305's, secret_key_encryption::basic_secretbox's
+# and public_key_encryption::basic_box's generic layer on a stand-in engine
 # that writes the data before it fails: a failed seal zeroes it, as a failed
-# open does.
+# open does. The box's X25519 key pair is the stand-in's too.
 crypto-run aead_box_mock : aead_box_mock_test.cpp ;
 crypto-run x25519_wycheproof_sodium : x25519_wycheproof_sodium_test.cpp
   : <library>/third_party//sodium <library>/third_party//wycheproof
@@ -595,12 +703,14 @@ crypto-run formats_25519_openssl_oracle : formats_25519_openssl_oracle_test.cpp
 crypto-run formats_25519_webcrypto_oracle : formats_25519_webcrypto_oracle_test.cpp
   : <library>/third_party//sodium <linkflags>-sJSPI : emscripten ;
 
-# crypto_kx on libsodium: libsodium's kx.exp, the client's transmit key the
-# server's receive key and the reverse, a peer of small order refused as weak,
-# the guards and generate() under the planted entropy source. The key pair's
-# secret key, kx.exp's client_sk, is zero once moved from, moved over and
-# destroyed, and the session keys once destroyed: optimised, every call
-# inlined, as Ed25519's.
+# crypto_kx on libsodium, on X25519's typed keys: libsodium's kx.exp, the
+# client's transmit key the server's receive key and the reverse,
+# derive_from_seed against libsodium's crypto_kx_seed_keypair and apart from
+# from_keypair of the same bytes, a peer of small order refused as weak, the
+# guards and generate() under the planted entropy source. The secret key of
+# the X25519 key pair inside, kx.exp's client_sk, is zero once moved from,
+# moved over and destroyed, and the session keys once destroyed: optimised,
+# every call inlined, as Ed25519's.
 crypto-run kx_sodium : kx_sodium_test.cpp
   : <library>/third_party//sodium <define>WEBCPP_CRYPTO_DETAIL_TEST_ENTROPY ;
 crypto-run kx_wipe_sodium : kx_wipe_sodium_test.cpp
@@ -620,11 +730,15 @@ crypto-run chacha_wycheproof_sodium : chacha_wycheproof_sodium_test.cpp
 crypto-run allocation_sodium : allocation_sodium_test.cpp : <library>/third_party//sodium ;
 
 # libsodium's boxes, its default on every target: crypto_secretbox and its
-# XChaCha20 twin, libsodium's cases and every check of support/aead_checks.hpp
-# that applies to a family without additional data; hybrid::box and its
-# XChaCha20 twin, NaCl's case both ways, the same checks through an adapter,
-# make's guards and a peer key of small order; and sealed boxes, opened by
-# their recipient alone and refused, the output zeroed, otherwise.
+# XChaCha20 twin, secret_key_encryption's, libsodium's cases, its detached
+# functions called against seal and the box form secret_key_encryption::seal,
+# a failed open through both, and every check of support/aead_checks.hpp
+# through an adapter without associated data; public_key_encryption::box
+# and its XChaCha20 twin, on X25519's typed keys, NaCl's case both ways, the
+# same checks through an adapter, two parties' messages, a failed open,
+# from_keys' guards, a peer key of small order and the box forms; and sealed
+# boxes, sealed to an X25519 public key, opened by their recipient's key pair
+# alone and refused, the output zeroed, otherwise.
 crypto-run secretbox_sodium : secretbox_sodium_test.cpp : <library>/third_party//sodium ;
 crypto-run box_sodium : box_sodium_test.cpp : <library>/third_party//sodium ;
 

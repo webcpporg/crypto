@@ -7,9 +7,12 @@
 // signing.hpp's vocabulary, over stand-in key types that this test declares: the tags take no
 // `{}`, prehashed deduces its size from a fixed-size digest and converts to and from nothing,
 // can_sign and can_verify accept a message or a marker of the scheme's digest size, and refuse
-// a marker on a backend that completes by itself; the catch-all verify is a candidate only where
+// a marker on a backend that completes by itself; can_verify takes the signature type the key's
+// curve names for the scheme (detail::signature_of) and no other, bytes included; the catch-all
+// verify is a candidate only where
 // no curve declares a verifier; sha256_of gives FIPS 180-2's digest.
 
+#include <webcpp/crypto/detail/signature.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
 
@@ -50,6 +53,20 @@ struct stand_in_async_backend {};
 // A public key a curve gives a verifier of its own, so that the catch-all steps aside.
 struct stand_in_verified_key {};
 
+// The signature of the stand-in public key under ECDSA over SHA-256.
+struct stand_in_signature_tag {
+    [[maybe_unused]] static constexpr bool recoverable = false;
+};
+
+using stand_in_signature = crypto::detail::basic_signature<stand_in_signature_tag, 64>;
+
+// Another curve's signature, of the same size.
+struct other_signature_tag {
+    [[maybe_unused]] static constexpr bool recoverable = false;
+};
+
+using other_signature = crypto::detail::basic_signature<other_signature_tag, 64>;
+
 // An empty struct without an explicit default constructor, to show the check below can pass.
 struct plain_tag {};
 
@@ -62,6 +79,11 @@ inline constexpr bool signs_with_v<stand_in_keypair, ecdsa_sha256_t> = true;
 
 template <>
 inline constexpr bool verifies_with_v<stand_in_public_key, ecdsa_sha256_t> = true;
+
+template <>
+struct signature_of<stand_in_public_key, ecdsa_sha256_t> {
+    using type = stand_in_signature;
+};
 
 template <>
 struct key_backend<stand_in_keypair> {
@@ -111,19 +133,28 @@ constexpr bool none_from_empty_braces(crypto::detail::scheme_list<Schemes...> /*
 static_assert(none_from_empty_braces(crypto::detail::all_schemes{}));
 static_assert(!std::is_constructible_v<crypto::ecdsa_sha256_t, int>);
 static_assert(std::is_same_v<decltype(crypto::eddsa), crypto::eddsa_t const>);
+static_assert(std::is_same_v<decltype(crypto::eddsa_prehashed), crypto::eddsa_prehashed_t const>);
 static_assert(std::is_same_v<decltype(crypto::ecdsa_sha256), crypto::ecdsa_sha256_t const>);
 static_assert(std::is_same_v<decltype(crypto::ecdsa_sha256_recoverable),
                              crypto::ecdsa_sha256_recoverable_t const>);
+static_assert(std::is_same_v<decltype(crypto::ecdsa_keccak256_recoverable),
+                             crypto::ecdsa_keccak256_recoverable_t const>);
 static_assert(std::is_same_v<decltype(crypto::schnorr), crypto::schnorr_t const>);
 
 // The schemes' sizes.
 static_assert(crypto::detail::scheme_traits<crypto::eddsa_t>::signature_size == 64);
 static_assert(crypto::detail::scheme_traits<crypto::eddsa_t>::digest_size == 0);
+static_assert(crypto::detail::scheme_traits<crypto::eddsa_prehashed_t>::signature_size == 64);
+static_assert(crypto::detail::scheme_traits<crypto::eddsa_prehashed_t>::digest_size == 64);
 static_assert(crypto::detail::scheme_traits<crypto::ecdsa_sha256_t>::signature_size == 64);
 static_assert(crypto::detail::scheme_traits<crypto::ecdsa_sha256_t>::digest_size == 32);
 static_assert(crypto::detail::scheme_traits<crypto::ecdsa_sha256_recoverable_t>::signature_size ==
               65);
 static_assert(crypto::detail::scheme_traits<crypto::ecdsa_sha256_recoverable_t>::digest_size == 32);
+static_assert(
+    crypto::detail::scheme_traits<crypto::ecdsa_keccak256_recoverable_t>::signature_size == 65);
+static_assert(crypto::detail::scheme_traits<crypto::ecdsa_keccak256_recoverable_t>::digest_size ==
+              32);
 static_assert(crypto::detail::scheme_traits<crypto::schnorr_t>::signature_size == 64);
 static_assert(crypto::detail::scheme_traits<crypto::schnorr_t>::digest_size == 0);
 
@@ -174,17 +205,29 @@ static_assert(crypto::can_sign<stand_in_async_keypair, crypto::ecdsa_sha256_t, m
 static_assert(
     !crypto::can_sign<stand_in_async_keypair, crypto::ecdsa_sha256_t, crypto::prehashed<32>>);
 
-// can_verify: the same, over the public key.
-static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, message_span, stand_in_public_key>);
+// can_verify: the same, over the public key, with the key's signature type.
+static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, stand_in_signature, message_span,
+                                 stand_in_public_key>);
+static_assert(crypto::can_verify<crypto::ecdsa_sha256_t, stand_in_signature const&,
+                                 crypto::prehashed<32>, stand_in_public_key const&>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, stand_in_signature, crypto::prehashed<48>,
+                                  stand_in_public_key>);
 static_assert(
-    crypto::can_verify<crypto::ecdsa_sha256_t, crypto::prehashed<32>, stand_in_public_key const&>);
-static_assert(
-    !crypto::can_verify<crypto::ecdsa_sha256_t, crypto::prehashed<48>, stand_in_public_key>);
-static_assert(!crypto::can_verify<crypto::schnorr_t, message_span, stand_in_public_key>);
+    !crypto::can_verify<crypto::schnorr_t, stand_in_signature, message_span, stand_in_public_key>);
+// Another type of the same size, and bytes, are no signature of the key's (design R1).
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, other_signature, message_span,
+                                  stand_in_public_key>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, std::array<std::uint8_t, 64>,
+                                  message_span, stand_in_public_key>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, std::span<std::uint8_t const>,
+                                  message_span, stand_in_public_key>);
+// A key whose curve names no signature type verifies nothing.
+static_assert(std::is_void_v<crypto::detail::signature_of_t<stand_in_keypair, crypto::eddsa_t>>);
 
 // The two traits are apart: a key pair does not verify, a public key does not sign.
 static_assert(!crypto::can_sign<stand_in_public_key, crypto::ecdsa_sha256_t, message_span>);
-static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, message_span, stand_in_keypair>);
+static_assert(!crypto::can_verify<crypto::ecdsa_sha256_t, stand_in_signature, message_span,
+                                  stand_in_keypair>);
 
 // The catch-all verify is a candidate where no curve declares a verifier, and steps aside where
 // one does; a requires-expression reads its declaration alone, never its refusal.
@@ -227,10 +270,36 @@ static_assert(catch_all_takes_each(crypto::detail::all_schemes{}));
 static_assert(!catch_all_takes<int>);
 static_assert(!catch_all_takes<crypto::prehashed<32>>);
 static_assert(crypto::detail::is_scheme_v<crypto::ecdsa_sha256_recoverable_t>);
+static_assert(crypto::detail::is_scheme_v<crypto::ecdsa_keccak256_recoverable_t>);
+// Ethereum's scheme takes a message or Keccak-256's 32-byte digest, and no other size.
+static_assert(
+    crypto::detail::input_valid_v<crypto::ecdsa_keccak256_recoverable_t, message_span, void>);
+static_assert(crypto::detail::input_valid_v<crypto::ecdsa_keccak256_recoverable_t,
+                                            crypto::prehashed<32>, void>);
+static_assert(!crypto::detail::input_valid_v<crypto::ecdsa_keccak256_recoverable_t,
+                                             crypto::prehashed<20>, void>);
+// Ed25519ph takes SHA-512's 64-byte digest alone: no message, of any size, and no other digest.
+static_assert(crypto::detail::is_scheme_v<crypto::eddsa_prehashed_t>);
+static_assert(!crypto::detail::takes_message_v<crypto::eddsa_prehashed_t>);
+static_assert(crypto::detail::takes_message_v<crypto::eddsa_t>);
+// The fact lives in the scheme's traits; a type with none, a test's own scheme, takes a message.
+static_assert(!crypto::detail::scheme_traits<crypto::eddsa_prehashed_t>::takes_message);
+static_assert(crypto::detail::scheme_traits<crypto::schnorr_t>::takes_message);
+static_assert(crypto::detail::takes_message_v<plain_tag>);
+static_assert(
+    crypto::detail::input_valid_v<crypto::eddsa_prehashed_t, crypto::prehashed<64>, void>);
+static_assert(!crypto::detail::input_valid_v<crypto::eddsa_prehashed_t, message_span, void>);
+static_assert(
+    !crypto::detail::input_valid_v<crypto::eddsa_prehashed_t, std::array<std::uint8_t, 64>, void>);
+static_assert(
+    !crypto::detail::input_valid_v<crypto::eddsa_prehashed_t, crypto::prehashed<32>, void>);
+static_assert(!crypto::detail::input_valid_v<crypto::eddsa_prehashed_t, crypto::prehashed<64>,
+                                             stand_in_async_backend>);
+static_assert(!crypto::detail::input_valid_v<crypto::eddsa_t, crypto::prehashed<64>, void>);
 static_assert(!crypto::detail::is_scheme_v<crypto::ecdsa_sha256_t const>);
 
 // The library's one list of schemes: is_scheme_v is true of each of its members, each has its
-// traits, and the list is the four tags.
+// traits, and the list is the six tags.
 template <class... Schemes>
 constexpr bool all_are_schemes(crypto::detail::scheme_list<Schemes...> /*list*/) noexcept {
     return (crypto::detail::is_scheme_v<Schemes> && ...) &&
@@ -238,10 +307,12 @@ constexpr bool all_are_schemes(crypto::detail::scheme_list<Schemes...> /*list*/)
 }
 
 static_assert(all_are_schemes(crypto::detail::all_schemes{}));
-static_assert(std::is_same_v<
-              crypto::detail::all_schemes,
-              crypto::detail::scheme_list<crypto::eddsa_t, crypto::ecdsa_sha256_t,
-                                          crypto::ecdsa_sha256_recoverable_t, crypto::schnorr_t>>);
+static_assert(
+    std::is_same_v<
+        crypto::detail::all_schemes,
+        crypto::detail::scheme_list<crypto::eddsa_t, crypto::eddsa_prehashed_t,
+                                    crypto::ecdsa_sha256_t, crypto::ecdsa_sha256_recoverable_t,
+                                    crypto::ecdsa_keccak256_recoverable_t, crypto::schnorr_t>>);
 static_assert(!crypto::detail::is_scheme_v<crypto::detail::all_schemes>);
 static_assert(!crypto::detail::is_scheme_v<crypto::prehashed<32>>);
 static_assert(!crypto::detail::in_scheme_list_v<crypto::eddsa_t, int>);
@@ -277,7 +348,10 @@ void prehashed_views_the_digest() {
     BOOST_TEST_EQ(from_hash2.digest.data(), hashed.data());
     crypto::detail::check_input<crypto::ecdsa_sha256_t, crypto::prehashed<32>, stand_in_backend>();
     crypto::detail::check_input<crypto::ecdsa_sha256_recoverable_t, crypto::prehashed<32>, void>();
+    crypto::detail::check_input<crypto::ecdsa_keccak256_recoverable_t, crypto::prehashed<32>,
+                                void>();
     crypto::detail::check_input<crypto::eddsa_t, digest32, void>();
+    crypto::detail::check_input<crypto::eddsa_prehashed_t, crypto::prehashed<64>, void>();
     crypto::detail::check_input<crypto::schnorr_t, message_span, stand_in_async_backend>();
 }
 

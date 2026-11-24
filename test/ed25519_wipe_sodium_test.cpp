@@ -30,7 +30,7 @@ namespace crypto = webcpp::crypto;
 namespace ed25519 = webcpp::crypto::curves::ed25519;
 
 using ed25519::keypair;
-using signer = ed25519::ph<webcpp::hash::sha2_512>;
+using signer = ed25519::prehashed_signer<webcpp::hash::sha2_512>;
 constexpr std::size_t keypair_state =
     sizeof(crypto::detail::ed25519_state<crypto::families::ed25519, crypto::backends::sodium>);
 constexpr std::size_t signer_state =
@@ -70,7 +70,7 @@ constexpr std::array<std::uint8_t, 32> rfc8032_seed{
 constexpr std::array<std::uint8_t, 3> abc{0x61, 0x62, 0x63};
 
 void key_pairs() {
-    auto made = keypair::make(rfc8032_seed);
+    auto made = keypair::from_secret(rfc8032_seed);
     BOOST_TEST(made.has_value());
     if (!made) {
         return;
@@ -81,7 +81,7 @@ void key_pairs() {
     keypair taken = std::move(*made);
     BOOST_TEST(memory_is_zero(&*made, keypair_state));
 
-    auto other = keypair::make(rfc8032_seed);
+    auto other = keypair::from_secret(rfc8032_seed);
     BOOST_TEST(other.has_value());
     if (other) {
         taken = std::move(*other);
@@ -98,7 +98,7 @@ void key_pairs() {
 }
 
 void signers() {
-    auto const key = keypair::make(rfc8032_seed);
+    auto const key = keypair::from_secret(rfc8032_seed);
     auto begun = signer::begin();
     BOOST_TEST(key.has_value() && begun.has_value());
     if (!key || !begun) {

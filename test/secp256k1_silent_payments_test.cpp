@@ -4,27 +4,27 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// secp256k1's silent payments against BIP 352's vectors, read as libsecp256k1's own test reads
-// them (support/bip352_vectors.h): each case's input keys, smallest outpoint and recipients'
-// keys, already taken out of its transactions and addresses, which is the protocol's part.
-// Sending, the 28 cases: create_outputs with key pairs of the plain and Taproot secret keys and
-// each recipient repeated `count` times; the outputs match one of the case's orders; the three
-// cases with no expected output are refused: no input at all and 2324 recipients on one scan key
-// (more than group_limit) with invalid_input_size, input keys that sum to zero with
-// invalid_secret_key. Receiving, the 29 subtests: make_prevouts_summary (refused where nothing
-// is found: invalid_input_size with no input key, invalid_public_key for keys that sum to
-// infinity), the labels of label_integers with create_label, scan_outputs with a lookup over
-// them; where full_check is set, every found output's key and spend tweak are among the case's,
-// and the BIP 340 signature by keypair::make(seckey_tweak_add(spend secret, spend tweak)) of
+// secp256k1's silent payments against BIP 352's vectors, read as libsecp256k1's own test reads them
+// (support/bip352_vectors.h): each case's input keys, smallest outpoint and recipients' keys,
+// already taken out of its transactions and addresses, which is the protocol's part. Sending, the
+// 28 cases: create_outputs with key pairs of the plain and Taproot secret keys and each recipient
+// repeated `count` times; the outputs match one of the case's orders; the three cases with no
+// expected output are refused: no input at all and 2324 recipients on one scan key (more than
+// group_limit) with invalid_input_size, input keys that sum to zero with invalid_secret_key.
+// Receiving, the 29 subtests: make_previous_outputs_summary (refused where nothing is found:
+// invalid_input_size with no input key, invalid_public_key for keys that sum to infinity), the
+// labels of label_integers with create_label, scan_outputs with a lookup over them; where
+// full_check is set, every found output's key and spend tweak are among the case's, and the BIP 340
+// signature by keypair::from_secret(secret_key_tweak_add(spend secret, spend tweak)) of
 // SHA-256("message") with the auxiliary randomness SHA-256("random auxiliary data") equals the
 // case's; the found count equals the case's; an output found with a label has a label the lookup
-// knows, one found without has none. Then a labelled address round trip, and every refusal:
-// no recipient, no input, outputs not one per recipient, no output key, no input key, a short
-// workspace, `found` shorter than the outputs, an output key that does not parse, a moved-from
-// key pair, a null pointer among the inputs, a labelled spend key at infinity, the group limit
-// counted after a refusal (a sum of zero over two groups, a group over it); inputs of one kind
-// only, the other side an emptied vector whose data() is not null, run without abort. Every
-// workspace is zero afterwards.
+// knows, one found without has none. Then a labelled address round trip, and every refusal: no
+// recipient, no input, outputs not one per recipient, no output key, no input key, a short
+// workspace, `found` shorter than the outputs, an output key that does not parse, a moved-from key
+// pair, a null pointer among the inputs, a labelled spend key at infinity, the group limit counted
+// after a refusal (a sum of zero over two groups, a group over it); inputs of one kind only, the
+// other side an emptied vector whose data() is not null, run without abort. Every workspace is zero
+// afterwards.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
@@ -62,9 +62,9 @@ namespace {
 using scalar = std::array<std::uint8_t, 32>;
 using xonly = std::array<std::uint8_t, 32>;
 
-// The summary is made only by make_prevouts_summary; it is public and copied freely.
-static_assert(!std::is_default_constructible_v<sp::prevouts_summary>);
-static_assert(std::is_copy_constructible_v<sp::prevouts_summary>);
+// The summary is made only by make_previous_outputs_summary; it is public and copied freely.
+static_assert(!std::is_default_constructible_v<sp::previous_outputs_summary>);
+static_assert(std::is_copy_constructible_v<sp::previous_outputs_summary>);
 static_assert(sp::outpoint_size == 36);
 static_assert(sp::group_limit == 2323);
 static_assert(sp::send_workspace_size(2, 1, 3) ==
@@ -128,11 +128,12 @@ static_assert(!sp::label_lookup<converting_lookup>);
 
 // Whether scan_outputs takes `Lookup`.
 template <class Lookup>
-constexpr bool scans_with = requires(secp::keypair const& scan_key, secp::public_key const& spend,
-                                     sp::prevouts_summary const& summary, Lookup const& lookup) {
-    sp::scan_outputs(scan_key, spend, summary, std::span<xonly const>{},
-                     std::span<sp::found_output>{}, secp::workspace{}, lookup);
-};
+constexpr bool scans_with =
+    requires(secp::keypair const& scan_key, secp::public_key const& spend,
+             sp::previous_outputs_summary const& summary, Lookup const& lookup) {
+        sp::scan_outputs(scan_key, spend, summary, std::span<xonly const>{},
+                         std::span<sp::found_output>{}, secp::workspace{}, lookup);
+    };
 static_assert(scans_with<quiet_lookup>);
 static_assert(!scans_with<throwing_lookup>);
 static_assert(!scans_with<tweak_by_value_lookup>);
@@ -148,7 +149,7 @@ bool all_zero(std::span<std::byte const> space) {
 }
 
 secp::keypair keypair_of(std::span<std::uint8_t const, 32> secret_bytes) {
-    auto made = secp::keypair::make(secret_bytes);
+    auto made = secp::keypair::from_secret(secret_bytes);
     if (!BOOST_TEST(made.has_value())) {
         std::exit(boost::report_errors());
     }
@@ -164,7 +165,7 @@ secp::public_key public_of(secp::keypair const& key) {
 }
 
 secp::public_key parsed_key(std::span<std::uint8_t const> encoded) {
-    auto const parsed = secp::public_key::make(encoded);
+    auto const parsed = secp::public_key::from_bytes(encoded);
     if (!BOOST_TEST(parsed.has_value())) {
         std::exit(boost::report_errors());
     }
@@ -364,8 +365,8 @@ struct receive_counts {
 };
 
 // The case's summary, or nothing where the case expects it refused.
-std::optional<sp::prevouts_summary> summary_of(bip352_test_vector const& test,
-                                               bip352_receive_subtest const& subtest) {
+std::optional<sp::previous_outputs_summary> summary_of(bip352_test_vector const& test,
+                                                       bip352_receive_subtest const& subtest) {
     std::vector<xonly> taproot_keys;
     taproot_keys.reserve(test.num_taproot_inputs);
     for (std::size_t i = 0; i < test.num_taproot_inputs; ++i) {
@@ -378,8 +379,8 @@ std::optional<sp::prevouts_summary> summary_of(bip352_test_vector const& test,
     }
     auto summary_space = lent(sp::summary_workspace_size(taproot_keys.size(), plain_keys.size()));
     auto const summary =
-        sp::make_prevouts_summary(std::span<std::uint8_t const, 36>(test.outpoint_smallest),
-                                  taproot_keys, plain_keys, summary_space);
+        sp::make_previous_outputs_summary(std::span<std::uint8_t const, 36>(test.outpoint_smallest),
+                                          taproot_keys, plain_keys, summary_space);
     BOOST_TEST(all_zero(summary_space));
     if (summary) {
         return *summary;
@@ -406,14 +407,14 @@ void check_found(bip352_receive_subtest const& subtest, sp::found_output const& 
     }
     auto const at = static_cast<std::size_t>(listed - expected_keys.begin());
     BOOST_TEST(std::ranges::equal(output.spend_tweak.bytes(), subtest.found_seckey_tweaks[at]));
-    auto const spend_tweaked = secp::seckey_tweak_add(spend_secret, output.spend_tweak);
+    auto const spend_tweaked = secp::secret_key_tweak_add(spend_secret, output.spend_tweak);
     if (!BOOST_TEST(spend_tweaked.has_value())) {
         return;
     }
     auto const spending = keypair_of(spend_tweaked->bytes());
     auto const signature = spending.sign(crypto::schnorr, message, aux);
     if (BOOST_TEST(signature.has_value())) {
-        BOOST_TEST(std::ranges::equal(*signature, subtest.found_signatures[at]));
+        BOOST_TEST(std::ranges::equal(signature->bytes(), subtest.found_signatures[at]));
     }
     auto const output_of_key = spending.public_key();
     if (BOOST_TEST(output_of_key.has_value())) {
@@ -500,7 +501,7 @@ scalar key_bytes(std::uint8_t last) {
 // with the label it was sent to, the scan without them finds nothing, and the spend secret plus
 // the tweak is the output's key.
 void find_labelled(secp::keypair const& scan_key, secp::public_key const& spend_key,
-                   sp::prevouts_summary const& summary, label_cache const& cache,
+                   sp::previous_outputs_summary const& summary, label_cache const& cache,
                    std::span<xonly const> outputs, sp::label const& sent_label) {
     std::vector<sp::found_output> found(1);
     auto scan_space = lent(sp::scan_workspace_size(1));
@@ -511,7 +512,7 @@ void find_labelled(secp::keypair const& scan_key, secp::public_key const& spend_
     }
     BOOST_TEST(found[0].output_key == outputs[0]);
     BOOST_TEST(found[0].label_point == std::optional(sent_label.point));
-    auto const tweaked = secp::seckey_tweak_add(key_bytes(3), found[0].spend_tweak);
+    auto const tweaked = secp::secret_key_tweak_add(key_bytes(3), found[0].spend_tweak);
     if (BOOST_TEST(tweaked.has_value())) {
         auto const output_key = keypair_of(tweaked->bytes()).public_key();
         BOOST_TEST(output_key.has_value() && output_key->xonly() == outputs[0]);
@@ -549,7 +550,8 @@ void labelled_round_trip() {
     BOOST_TEST(all_zero(space));
     std::array<secp::public_key, 1> const sender_keys{public_of(sender)};
     auto summary_space = lent(sp::summary_workspace_size(0, 1));
-    auto const summary = sp::make_prevouts_summary(outpoint, {}, sender_keys, summary_space);
+    auto const summary =
+        sp::make_previous_outputs_summary(outpoint, {}, sender_keys, summary_space);
     if (BOOST_TEST(summary.has_value())) {
         label_cache cache;
         cache.labels = {*change, *other};
@@ -563,7 +565,7 @@ void labelled_round_trip() {
                crypto::error::invalid_point);
     // A label whose point is the spend key negated: the sum is the point at infinity.
     sp::label opposite = *other;
-    opposite.point = secp::pubkey_negate(spend_key).value().compressed();
+    opposite.point = secp::public_key_negate(spend_key).value().compressed();
     BOOST_TEST(sp::create_labeled_spend_key(spend_key, opposite).error() ==
                crypto::error::invalid_public_key);
 }
@@ -654,14 +656,14 @@ void one_kind_of_input(refusal_keys& keys) {
     auto const taproot_key = keys.second.public_key();
     if (BOOST_TEST(taproot_key.has_value())) {
         std::array<xonly, 1> const taproot_keys{taproot_key->xonly()};
-        BOOST_TEST(sp::make_prevouts_summary(keys.outpoint, taproot_keys, emptied_points,
-                                             keys.fresh(sp::summary_workspace_size(1, 0)))
+        BOOST_TEST(sp::make_previous_outputs_summary(keys.outpoint, taproot_keys, emptied_points,
+                                                     keys.fresh(sp::summary_workspace_size(1, 0)))
                        .has_value());
         BOOST_TEST(all_zero(keys.space));
     }
     std::array<secp::public_key, 1> const plain_keys{public_of(keys.sender)};
-    BOOST_TEST(sp::make_prevouts_summary(keys.outpoint, emptied_keys, plain_keys,
-                                         keys.fresh(sp::summary_workspace_size(0, 1)))
+    BOOST_TEST(sp::make_previous_outputs_summary(keys.outpoint, emptied_keys, plain_keys,
+                                                 keys.fresh(sp::summary_workspace_size(0, 1)))
                    .has_value());
     BOOST_TEST(all_zero(keys.space));
 }
@@ -678,24 +680,24 @@ xonly not_a_key() {
 void summary_refusals(refusal_keys& keys) {
     std::array<secp::public_key, 1> const plain_keys{public_of(keys.sender)};
     auto const size = sp::summary_workspace_size(0, 1);
-    BOOST_TEST(sp::make_prevouts_summary(keys.outpoint, {}, {}, keys.fresh(size)).error() ==
+    BOOST_TEST(sp::make_previous_outputs_summary(keys.outpoint, {}, {}, keys.fresh(size)).error() ==
                crypto::error::invalid_input_size);
     BOOST_TEST(all_zero(keys.space));
-    BOOST_TEST(
-        sp::make_prevouts_summary(keys.outpoint, {}, plain_keys, keys.fresh(size).first(size - 1))
-            .error() == crypto::error::invalid_input_size);
+    BOOST_TEST(sp::make_previous_outputs_summary(keys.outpoint, {}, plain_keys,
+                                                 keys.fresh(size).first(size - 1))
+                   .error() == crypto::error::invalid_input_size);
     BOOST_TEST(keys.wiped(size - 1));
     std::array<xonly, 1> const bad_keys{not_a_key()};
-    BOOST_TEST(sp::make_prevouts_summary(keys.outpoint, bad_keys, {},
-                                         keys.fresh(sp::summary_workspace_size(1, 0)))
+    BOOST_TEST(sp::make_previous_outputs_summary(keys.outpoint, bad_keys, {},
+                                                 keys.fresh(sp::summary_workspace_size(1, 0)))
                    .error() == crypto::error::invalid_public_key);
     BOOST_TEST(all_zero(keys.space));
     std::array<secp::public_key, 2> const opposite{
         public_of(keys.sender),
-        secp::pubkey_negate(public_of(keys.sender)).value(),
+        secp::public_key_negate(public_of(keys.sender)).value(),
     };
-    BOOST_TEST(sp::make_prevouts_summary(keys.outpoint, {}, opposite,
-                                         keys.fresh(sp::summary_workspace_size(0, 2)))
+    BOOST_TEST(sp::make_previous_outputs_summary(keys.outpoint, {}, opposite,
+                                                 keys.fresh(sp::summary_workspace_size(0, 2)))
                    .error() == crypto::error::invalid_public_key);
     BOOST_TEST(all_zero(keys.space));
 }
@@ -704,8 +706,8 @@ void summary_refusals(refusal_keys& keys) {
 // that does not parse, a moved-from scan key pair.
 void scan_refusals(refusal_keys& keys) {
     std::array<secp::public_key, 1> const plain_keys{public_of(keys.sender)};
-    auto const summary = sp::make_prevouts_summary(keys.outpoint, {}, plain_keys,
-                                                   keys.fresh(sp::summary_workspace_size(0, 1)));
+    auto const summary = sp::make_previous_outputs_summary(
+        keys.outpoint, {}, plain_keys, keys.fresh(sp::summary_workspace_size(0, 1)));
     if (!BOOST_TEST(summary.has_value())) {
         return;
     }
@@ -738,7 +740,7 @@ void scan_refusals(refusal_keys& keys) {
 // limit), and 2325 recipients whose one group of 2324 starts after another key's recipient are
 // invalid_input_size.
 void group_limits(refusal_keys& keys) {
-    auto const negated = secp::seckey_negate(key_bytes(1));
+    auto const negated = secp::secret_key_negate(key_bytes(1));
     if (!BOOST_TEST(negated.has_value())) {
         return;
     }

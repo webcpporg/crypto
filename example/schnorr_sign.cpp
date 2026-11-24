@@ -55,7 +55,7 @@ bool sign_and_verify(secp256k1::keypair const& key, std::span<std::uint8_t const
         return false;
     }
     print("public key", public_key->xonly());
-    print("signature ", *signature);
+    print("signature ", signature->bytes());
     return crypto::verify(crypto::schnorr, *signature, message, *public_key).has_value();
 }
 
@@ -67,7 +67,7 @@ int main() {
     std::array<std::uint8_t, 32> secret{};
     secret.back() = 3;
     std::array<std::uint8_t, 32> const message{};
-    auto key = secp256k1::keypair::make(secret);
+    auto key = secp256k1::keypair::from_secret(secret);
     wipe(std::as_writable_bytes(std::span(secret)));
     if (!key || !sign_and_verify(*key, message)) {
         return 1;

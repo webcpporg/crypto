@@ -86,7 +86,12 @@ VERDICTS = ('accept', 'reject')
 RUN_RULES = ('crypto-run', 'memory-run', 'webcpp.run', 'webcpp.compile',
              'webcpp.compile-diagnostic', 'webcpp.compile-fail', 'webcpp.link-fail',
              'webcpp.example')
-EXPECTED_ERROR = re.compile(r'expected-error@\S+ \{\{(.*)\}\}')
+# A message test's text: clang's -verify directive, with the count it takes when two calls raise
+# the same text (`expected-error@<file>:* 2 {{text}}`). A directive that ends with `(knock-on)`
+# after its text pins an error clang adds because of another (an undeclared name the first error
+# left, a call it corrected): the test checks it, and the page leaves it out. clang's -verify
+# ignores the words after a directive.
+EXPECTED_ERROR = re.compile(r'expected-error@\S+(?: \d+)? \{\{(.*)\}\}(\s*\(knock-on\))?')
 SOURCE = re.compile(r'\{([a-z0-9-]+)\}')
 # A comparison table's cell that the data writes: {speed:<family>}, the family's throughput from
 # doc/performance.json, or {constant_time:<family>}, its measured constant time from crypto.json.
@@ -206,18 +211,25 @@ def tests(library: Path) -> Dict[str, List[str]]:
     return found
 
 
-def messages(library: Path) -> Dict[str, Tuple[str, List[str]]]:
-    """Each message test's case: the text its source states, and its targets."""
-    found: Dict[str, Tuple[str, List[str]]] = {}
+def messages(library: Path) -> Dict[str, Tuple[List[str], List[str]]]:
+    """Each message test's case: every text its source states, each once, in the source's order
+    (a test that pins several removed names lists them all, the first error first), but a
+    knock-on error's, and its targets."""
+    found: Dict[str, Tuple[List[str], List[str]]] = {}
     for directory in sorted((library / 'test' / 'messages').iterdir()):
         if not directory.is_dir():
             continue
         declared = programs(directory / 'Jamfile')
         for source in sorted(directory.glob('*.cpp')):
+            if source.stem not in declared:
+                continue
+            texts: List[str] = []
             for line in source.read_text(encoding='utf-8').splitlines():
                 text = EXPECTED_ERROR.search(line)
-                if text and source.stem in declared:
-                    found[source.stem] = (text.group(1), declared[source.stem])
+                if text and not text.group(2) and text.group(1) not in texts:
+                    texts.append(text.group(1))
+            if texts:
+                found[source.stem] = (texts, declared[source.stem])
     return found
 
 
@@ -364,7 +376,7 @@ class Matrix:
     """The support of each operation on each backend and target, from the tests' targets."""
 
     def __init__(self, data: Data, declared: Dict[str, List[str]],
-                 refusals: Dict[str, Tuple[str, List[str]]]) -> None:
+                 refusals: Dict[str, Tuple[List[str], List[str]]]) -> None:
         self.data = data
         self.supported: Dict[Tuple[str, str], List[str]] = {}
         self.proofs: Dict[Tuple[str, str], List[str]] = {}
@@ -1373,13 +1385,14 @@ def lane_cell(data: Data, backend: str, target: str) -> str:
 
 def constant_time_page(data: Data) -> str:
     """Constant time per backend: by its library's design, and per target what the lane runs,
-    from the same `lane` entries as the comparison tables."""
+    from the same `lane` entries as the comparison tables, each cell's bars escaped, as a
+    finding's or a note's |t| would otherwise end the cell."""
     rows: List[List[str]] = []
     for backend in libraries(data):
         facts = data['backends'][backend]
         sources = ''.join(f'; {{{source}}}' for source in facts['constant_time_sources'])
-        rows.append([facts['title'], marked(cite(data, facts['constant_time'] + sources))]
-                    + [lane_cell(data, backend, target) for target in data['targets']])
+        rows.append([facts['title'], cell(marked(cite(data, facts['constant_time'] + sources)))]
+                    + [cell(lane_cell(data, backend, target)) for target in data['targets']])
     return table(['Backend', 'By design'] + [f'Measured, {target}' for target in data['targets']],
                  rows) + constant_time_notes(data)
 
@@ -1641,20 +1654,21 @@ def jamfiles_page(data: Data, cases: Dict[str, Tuple[List[str], Outcome]]) -> st
     return case_list(entries)
 
 
-def messages_page(data: Data, refusals: Dict[str, Tuple[str, List[str]]],
+def messages_page(data: Data, refusals: Dict[str, Tuple[List[str], List[str]]],
                   cases: Dict[str, Tuple[List[str], Outcome]], msvc: Dict[str, str]) -> str:
     """Every message: the compiler's, checked by a message test; the build's, from a fixture."""
     fixes: Dict[str, str] = data['fixes']
     rows: List[List[str]] = []
-    for name, (text, targets) in refusals.items():
+    for name, (texts, targets) in refusals.items():
         if name not in fixes:
             raise Fault(f'the message test {name} has no fix in crypto.json')
         # The message as a sentence of code, which breaks between its words as the cell
         # does: one line of hundreds of characters would make the table scroll for all of it.
         # Its fix is the cell's second paragraph, so that the longest name of each does not
-        # widen a column of its own.
+        # widen a column of its own. A test that pins several messages has a paragraph each.
+        messages_text = '\n\n'.join(cell(code(text)) for text in texts)
         rows.append([code(name), ', '.join(targets),
-                     f'{cell(code(text))}\n\nThe fix: {marked(fixes[name])}'])
+                     f'{messages_text}\n\nThe fix: {marked(fixes[name])}'])
     text = ('At compile time, checked word for word by the message tests of `test/messages` '
             'with clang:\n\n')
     text += table(['Case', 'Checked on', 'The message, and its fix'], rows, 'cols="2,1,7",')

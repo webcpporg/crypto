@@ -75,6 +75,50 @@ def test_a_program_inside_an_if_is_a_fault(scratch: Path) -> None:
         raise AssertionError('a program inside an if was read as declared everywhere')
 
 
+def test_a_message_expected_more_than_once_is_read(scratch: Path) -> None:
+    # clang's -verify counts a text that two calls raise: `expected-error@<file>:* 2 {{text}}`.
+    # The case is a message test all the same, whose text the page lists and whose fix it needs.
+    written(scratch, 'test/messages/twice/Jamfile',
+            'webcpp.compile-diagnostic twice : twice.cpp : : native : alone ;\n')
+    written(scratch, 'test/messages/twice/twice.cpp',
+            '// expected-error@webcpp/crypto/signing.hpp:* 2 {{webcpp::crypto: refused.}}\n')
+    found = generate.messages(scratch)
+    assert found == {'twice': (['webcpp::crypto: refused.'], ['native'])}, found
+
+
+def test_a_message_test_s_first_error_is_its_message(scratch: Path) -> None:
+    # A removed name's alias stops the build, and every use of the alias adds clang's own
+    # error after it: the page lists the first, and leaves out the one marked as a knock-on.
+    written(scratch, 'test/messages/alias/Jamfile',
+            'webcpp.compile-diagnostic alias : alias.cpp : : native : alone ;\n')
+    written(scratch, 'test/messages/alias/alias.cpp', (
+        "// expected-error@+1 {{no template named 'old' in namespace 'n'}}\n"
+        'using cipher = n::old<int>;\n'
+        "// expected-error@+1 {{use of undeclared identifier 'cipher'}} (knock-on)\n"
+        'int x = cipher::size;\n'))
+    found = generate.messages(scratch)
+    assert found == {'alias': (["no template named 'old' in namespace 'n'"], ['native'])}, found
+
+
+def test_a_test_of_several_removed_names_lists_each(scratch: Path) -> None:
+    # A test that pins several removed names lists every one, in the source's order, each once.
+    written(scratch, 'test/messages/names/Jamfile',
+            'webcpp.compile-diagnostic names : names.cpp : : native wasip2 : alone ;\n')
+    written(scratch, 'test/messages/names/names.cpp', (
+        "// expected-error@+1 {{no member named 'a' in namespace 'n'}}\n"
+        'using n::a;\n'
+        "// expected-error@+1 {{no member named 'b' in namespace 'n'}}\n"
+        'using n::b;\n'
+        "// expected-error@+1 {{no member named 'a' in namespace 'n'}}\n"
+        'using n::a;\n'))
+    found = generate.messages(scratch)
+    assert found == {'names': (["no member named 'a' in namespace 'n'",
+                                "no member named 'b' in namespace 'n'"],
+                               ['native', 'wasip2'])}, found
+    page = generate.messages_page({'fixes': {'names': 'Name m.'}}, found, {}, {})
+    assert "`+no member named 'a' in namespace 'n'+`\n\n`+no member named 'b'" in page, page
+
+
 def test_the_memory_option_s_tests_are_declared(scratch: Path) -> None:
     # The OpenSSL memory option's programs live in test/openssl_memory, each through its own
     # rule; a name that two Jamfiles declare is a fault, since a table would cite one of them.
@@ -1223,12 +1267,31 @@ def test_the_constant_time_page_fills_each_target_from_the_lane(_: Path) -> None
         backend.update({'library': 'l', 'constant_time': 'by design', 'constant_time_sources': []})
     data['backends']['none'] = {'title': 'no backend', 'library': 'own', 'constant_time': 'yes',
                                 'constant_time_sources': [], 'lane_paths': [
-                                    {'what': '`equal`', 'lane': {'native': ['memcheck']}}]}
+                                    {'what': '`constant_time_equal`',
+                                     'lane': {'native': ['memcheck']}}]}
     page = generate.constant_time_page(data)
     assert ('|libsodium\n|by design\n|memcheck (Linux): ChaCha20-Poly1305; dudect: '
             'ChaCha20-Poly1305\n|dudect: ChaCha20-Poly1305 (measured differently, below)\n'
             '|not measured yet\n|not measured yet\n') in page, page
-    assert '|no backend\n|yes\n|memcheck (Linux): `+equal+`\n|not measured yet\n' in page, page
+    assert ('|no backend\n|yes\n|memcheck (Linux): `+constant_time_equal+`\n'
+            '|not measured yet\n') in page, page
+
+
+def test_the_constant_time_page_escapes_the_bars_of_a_lane_note(_: Path) -> None:
+    data = two_ciphers()
+    for backend in data['backends'].values():
+        backend.update({'library': 'l', 'constant_time': 'by design, |t| below 10',
+                        'constant_time_sources': []})
+    entry = data['families'][0]['backends']['sodium']
+    entry['lane_note'] = {'dudect': 'judged constant time, |t| 1.70'}
+    page = generate.constant_time_page(data)
+    # A bar in a table's cell ends the cell: |t| would split the note over two cells, and
+    # Asciidoctor then drops the incomplete row.
+    assert ('|by design, \\|t\\| below 10\n'
+            '|memcheck (Linux): ChaCha20-Poly1305; dudect: ChaCha20-Poly1305 (judged constant '
+            'time, \\|t\\| 1.70)\n'
+            '|dudect: ChaCha20-Poly1305 (judged constant time, \\|t\\| 1.70; measured '
+            'differently, below)\n') in page, page
 
 
 def test_a_note_on_one_family_of_a_cell_names_that_family(_: Path) -> None:
@@ -1447,6 +1510,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_rule_body_declares_nothing,
     test_a_program_inside_an_if_is_a_fault,
     test_the_memory_option_s_tests_are_declared,
+    test_a_message_expected_more_than_once_is_read,
     test_a_backend_says_why_it_is_missing_elsewhere,
     test_a_reason_elsewhere_is_openssl_s_alone,
     test_an_outcome_reads_each_directive,
@@ -1506,6 +1570,7 @@ CASES: list[Callable[[Path], None]] = [
     test_a_speed_cell_names_each_operation_and_refuses_an_unknown_backend,
     test_a_measured_cell_escapes_the_bars_of_its_finding,
     test_the_constant_time_page_fills_each_target_from_the_lane,
+    test_the_constant_time_page_escapes_the_bars_of_a_lane_note,
     test_a_note_on_one_family_of_a_cell_names_that_family,
     test_a_lane_entry_the_family_does_not_claim_is_a_fault,
     test_a_finding_of_one_checker_marks_that_checker_alone,

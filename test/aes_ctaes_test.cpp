@@ -29,7 +29,7 @@ bool round_trip() {
     // tag::round_trip[]
     std::array<std::uint8_t, 32> key{};
     std::array<std::uint8_t, 16> block{};
-    auto aes = webcpp::crypto::ciphers::aes256<webcpp::crypto::backends::ctaes>::make(key);
+    auto aes = webcpp::crypto::ciphers::aes256<webcpp::crypto::backends::ctaes>::from_key(key);
     // On success, block holds the plaintext again.
     bool const ok = aes && aes->encrypt(block) && aes->decrypt(block);
     // end::round_trip[]

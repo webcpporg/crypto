@@ -1,0 +1,12 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+import webcpp ;
+
+webcpp.compile-fail async_from_secret_secp256k1 : app.cpp
+  : <library>/webcpp/crypto//crypto <library>/webcpp/asio//asio <library>/third_party//sodium
+    <library>/third_party//secp256k1
+  : native ;

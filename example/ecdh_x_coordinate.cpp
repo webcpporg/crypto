@@ -9,8 +9,8 @@
 // conversation key, HKDF-extract with the salt "nip44-v2". The x coordinate is not a key; the
 // derivation that makes one is the protocol's, and belongs to a domain library.
 // tag::program[]
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/secret.hpp>
 
 #include <boost/hash2/sha2.hpp>
@@ -80,7 +80,7 @@ std::array<std::uint8_t, 32> conversation_key(crypto::secret<32> const& shared_x
 boost::system::result<secp256k1::keypair> from_secret(std::uint8_t fill) {
     std::array<std::uint8_t, 32> secret{};
     secret.fill(fill);
-    auto made = secp256k1::keypair::make(secret);
+    auto made = secp256k1::keypair::from_secret(secret);
     // The key pair keeps its own copy, which it wipes; this one goes now.
     wipe(std::as_writable_bytes(std::span(secret)));
     return made;
@@ -105,7 +105,7 @@ int main() {
     // a secret<32> that wipes itself.
     auto const alice_x = alice->agree(*bob_public);
     auto const bob_x = bob->agree(*alice_public);
-    if (!alice_x || !bob_x || !crypto::equal(alice_x->bytes(), bob_x->bytes())) {
+    if (!alice_x || !bob_x || !crypto::constant_time_equal(alice_x->bytes(), bob_x->bytes())) {
         return 1;
     }
     std::printf("shared x coordinates match\n");

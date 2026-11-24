@@ -6,9 +6,9 @@
 
 // secp256k1's MuSig2 against BIP 327's vectors (bip-0327/vectors/*.json). key_sort: sorting the
 // six parsed keys with public_key's order gives sorted_pubkeys. key_agg: the 4 valid cases'
-// x-only keys; its error cases, three keys public_key::make refuses and two tweaks the aggregate
-// key refuses, after which the key is unchanged. nonce_agg: the 2 valid sums (the second at
-// infinity, written as 33 zero bytes) and 3 nonces parse_public_nonce refuses. sign_verify: the
+// x-only keys; its error cases, three keys public_key::from_bytes refuses and two tweaks the
+// aggregate key refuses, after which the key is unchanged. nonce_agg: the 2 valid sums (the second
+// at infinity, written as 33 zero bytes) and 3 nonces parse_public_nonce refuses. sign_verify: the
 // 4 valid cases whose message is 32 bytes verify their partial signature (the empty and the
 // 38-byte message are counted as skipped: libsecp256k1 signs 32-byte messages); the 3
 // verify_fail cases, over the aggregate of their nonces, do not; the verify_error and sign_error
@@ -18,7 +18,7 @@
 // crypto::verify(crypto::schnorr, ...) accepts under the aggregate key, and a partial signature not
 // below the group order is refused. The vectors' secret nonces (sign_verify's and tweak's
 // secnonces, det_sign_vectors.json, nonce_gen_vectors.json) are not reachable through crypto's
-// interface by design: a secret_nonce exists only from nonce_gen, with fresh randomness;
+// interface by design: a secret_nonce exists only from generate_nonce, with fresh randomness;
 // libsecp256k1's own tests run them in the c-suites lane. Round trips: 2-of-2 and 3-of-3 over
 // seeded key pairs and messages, plain and with an x-only tweak, each partial signature verified,
 // the aggregate verified with crypto::verify(crypto::schnorr, ...), and a partial signature changed
@@ -134,7 +134,7 @@ bool all_zero(std::span<std::byte const> space) {
 }
 
 secp::public_key parsed_key(json::value const& v) {
-    auto const parsed = secp::public_key::make(hex(v));
+    auto const parsed = secp::public_key::from_bytes(hex(v));
     if (!BOOST_TEST(parsed.has_value())) {
         std::exit(boost::report_errors());
     }
@@ -243,9 +243,9 @@ void key_agg() {
             // The signer's key does not parse.
             auto const bad =
                 index_at(indices, static_cast<std::size_t>(error.at("signer").as_int64()));
-            refused +=
-                static_cast<int>(BOOST_TEST(secp::public_key::make(hex(keys.at(bad))).error() ==
-                                            crypto::error::invalid_public_key));
+            refused += static_cast<int>(
+                BOOST_TEST(secp::public_key::from_bytes(hex(keys.at(bad))).error() ==
+                           crypto::error::invalid_public_key));
             continue;
         }
         // A tweak not below the group order, or one that gives the point at infinity: refused,
@@ -389,9 +389,9 @@ int sign_verify_errors(json::value const& doc) {
                            crypto::error::invalid_point));
         } else {
             auto const bad = index_at(c.at("key_indices").as_array(), signer);
-            refused +=
-                static_cast<int>(BOOST_TEST(secp::public_key::make(hex(keys.at(bad))).error() ==
-                                            crypto::error::invalid_public_key));
+            refused += static_cast<int>(
+                BOOST_TEST(secp::public_key::from_bytes(hex(keys.at(bad))).error() ==
+                           crypto::error::invalid_public_key));
         }
     }
     return refused;
@@ -416,9 +416,9 @@ int sign_errors(json::value const& doc, int& skipped) {
         } else {
             auto const bad = index_at(c.at("key_indices").as_array(),
                                       static_cast<std::size_t>(error.at("signer").as_int64()));
-            refused +=
-                static_cast<int>(BOOST_TEST(secp::public_key::make(hex(keys.at(bad))).error() ==
-                                            crypto::error::invalid_public_key));
+            refused += static_cast<int>(
+                BOOST_TEST(secp::public_key::from_bytes(hex(keys.at(bad))).error() ==
+                           crypto::error::invalid_public_key));
         }
     }
     return refused;
@@ -509,7 +509,7 @@ void sig_agg() {
         if (!BOOST_TEST(signature.has_value())) {
             continue;
         }
-        BOOST_TEST(std::ranges::equal(*signature, hex(c.at("expected"))));
+        BOOST_TEST(std::ranges::equal(signature->bytes(), hex(c.at("expected"))));
         aggregated_count += static_cast<int>(
             BOOST_TEST(crypto::verify(crypto::schnorr, *signature, message, key.xonly_public_key())
                            .has_value()));
@@ -541,7 +541,7 @@ scalar draw(std::mt19937_64& generator) {
 }
 
 secp::keypair keypair_of(std::span<std::uint8_t const, 32> secret_bytes) {
-    auto made = secp::keypair::make(secret_bytes);
+    auto made = secp::keypair::from_secret(secret_bytes);
     if (!BOOST_TEST(made.has_value())) {
         std::exit(boost::report_errors());
     }
@@ -563,7 +563,7 @@ bool first_round(std::vector<secp::keypair> const& signers, std::vector<std::siz
                  std::vector<musig::secret_nonce>& secrets,
                  std::vector<musig::public_nonce>& publics) {
     for (auto const i : order) {
-        auto made = musig::nonce_gen(signers[i], key, message);
+        auto made = musig::generate_nonce(signers[i], key, message);
         if (!BOOST_TEST(made.has_value())) {
             return false;
         }
@@ -695,8 +695,8 @@ void nonce_rules() {
     auto const key = aggregated(keys);
     auto const message = draw(generator);
 
-    auto alice_nonce = musig::nonce_gen(alice, key, message, message);
-    auto bob_nonce = musig::nonce_gen(bob, key);
+    auto alice_nonce = musig::generate_nonce(alice, key, message, message);
+    auto bob_nonce = musig::generate_nonce(bob, key);
     if (!BOOST_TEST(alice_nonce && bob_nonce)) {
         return;
     }
@@ -723,13 +723,13 @@ void nonce_rules() {
     BOOST_TEST(musig::partial_sign(bob, std::move(nonce), key, signing_session).error() ==
                crypto::error::invalid_state);
 
-    // A moved-from key pair: refused by nonce_gen and by partial_sign.
+    // A moved-from key pair: refused by generate_nonce and by partial_sign.
     auto source = keypair_of(draw(generator));
-    auto fresh = musig::nonce_gen(source, key);
+    auto fresh = musig::generate_nonce(source, key);
     auto const target = std::move(source);
     BOOST_TEST(target.public_key().has_value());
     // NOLINTBEGIN(bugprone-use-after-move): the moved-from pair is what is tested
-    BOOST_TEST(musig::nonce_gen(source, key).error() == crypto::error::invalid_state);
+    BOOST_TEST(musig::generate_nonce(source, key).error() == crypto::error::invalid_state);
     if (BOOST_TEST(fresh.has_value())) {
         BOOST_TEST(musig::partial_sign(source, std::move(fresh->secret_part), key, signing_session)
                        .error() == crypto::error::invalid_state);
@@ -739,11 +739,11 @@ void nonce_rules() {
 
     // A message hash or extra input of 31 bytes.
     std::array<std::uint8_t, 31> const short_input{};
-    BOOST_TEST(musig::nonce_gen(alice, key, short_input).error() ==
+    BOOST_TEST(musig::generate_nonce(alice, key, short_input).error() ==
                crypto::error::invalid_input_size);
-    BOOST_TEST(musig::nonce_gen(alice, key, message, short_input).error() ==
+    BOOST_TEST(musig::generate_nonce(alice, key, message, short_input).error() ==
                crypto::error::invalid_input_size);
-    BOOST_TEST(musig::nonce_gen(alice, key, {}, message).has_value());
+    BOOST_TEST(musig::generate_nonce(alice, key, {}, message).has_value());
 }
 
 // A workspace one byte short, and none: refused, the workspace zero afterwards.
@@ -797,7 +797,7 @@ void refusals() {
         public_of(keypair_of(draw(generator))),
     };
     auto const key = aggregated(keys);
-    auto const nonce = musig::nonce_gen(alice, key);
+    auto const nonce = musig::generate_nonce(alice, key);
     if (!BOOST_TEST(nonce.has_value())) {
         return;
     }

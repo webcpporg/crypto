@@ -92,8 +92,8 @@ std::array<std::uint8_t, 32> with_last_byte(std::array<std::uint8_t, 32> value, 
     return value;
 }
 
-void make_from_rfc6979_scalar() {
-    auto const made = keypair::make(data::rfc6979_scalar);
+void from_secret_of_rfc6979_scalar() {
+    auto const made = keypair::from_secret(data::rfc6979_scalar);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -111,26 +111,26 @@ void scalar_out_of_range() {
     std::array<std::uint8_t, 32> const zero{};
     std::array<std::uint8_t, 32> all_ones{};
     all_ones.fill(0xff);
-    BOOST_TEST(keypair::make(zero).error() == error::invalid_secret_key);
-    BOOST_TEST(keypair::make(data::order).error() == error::invalid_secret_key);
-    BOOST_TEST(keypair::make(with_last_byte(data::order, 0x52)).error() ==
+    BOOST_TEST(keypair::from_secret(zero).error() == error::invalid_secret_key);
+    BOOST_TEST(keypair::from_secret(data::order).error() == error::invalid_secret_key);
+    BOOST_TEST(keypair::from_secret(with_last_byte(data::order, 0x52)).error() ==
                error::invalid_secret_key);
-    BOOST_TEST(keypair::make(all_ones).error() == error::invalid_secret_key);
-    BOOST_TEST(keypair::make(with_last_byte(data::order, 0x50)).has_value());
-    BOOST_TEST(keypair::make(with_last_byte(zero, 0x01)).has_value());
+    BOOST_TEST(keypair::from_secret(all_ones).error() == error::invalid_secret_key);
+    BOOST_TEST(keypair::from_secret(with_last_byte(data::order, 0x50)).has_value());
+    BOOST_TEST(keypair::from_secret(with_last_byte(zero, 0x01)).has_value());
     std::array<std::uint8_t, 33> const long_scalar{};
-    BOOST_TEST(keypair::make(std::span(data::rfc6979_scalar).first(31)).error() ==
+    BOOST_TEST(keypair::from_secret(std::span(data::rfc6979_scalar).first(31)).error() ==
                error::invalid_key_size);
-    BOOST_TEST(keypair::make(long_scalar).error() == error::invalid_key_size);
+    BOOST_TEST(keypair::from_secret(long_scalar).error() == error::invalid_key_size);
 }
 
 void scalar_check_reaches_no_backend() {
     // The control: a valid scalar reaches the engine, so the counter can move.
     engine_calls = 0;
-    BOOST_TEST(keypair::make(data::rfc6979_scalar).has_value());
+    BOOST_TEST(keypair::from_secret(data::rfc6979_scalar).has_value());
     BOOST_TEST_GT(engine_calls, 0U);
     engine_calls = 0;
-    BOOST_TEST(keypair::make(data::order).error() == error::invalid_secret_key);
+    BOOST_TEST(keypair::from_secret(data::order).error() == error::invalid_secret_key);
     BOOST_TEST_EQ(engine_calls, 0U);
 }
 
@@ -148,7 +148,7 @@ void generate_makes_distinct_valid_keys() {
     for (auto const* const pair : {&*first, &*second}) {
         auto const point = pair->public_key();
         if (BOOST_TEST(point.has_value())) {
-            auto const again = public_key::make(point->uncompressed());
+            auto const again = public_key::from_bytes(point->uncompressed());
             if (BOOST_TEST(again.has_value())) {
                 BOOST_TEST(again->uncompressed() == point->uncompressed());
             }
@@ -158,10 +158,10 @@ void generate_makes_distinct_valid_keys() {
 
 void public_key_from_point_and_coordinates() {
     std::span<std::uint8_t const, 65> const point(data::rfc6979_public);
-    auto const from_point = public_key::make(point);
-    auto const from_coordinates =
-        public_key::make(point.subspan<1, p256::coordinate_size>(),
-                         point.subspan<1 + p256::coordinate_size, p256::coordinate_size>());
+    auto const from_point = public_key::from_bytes(point);
+    auto const from_coordinates = public_key::from_coordinates(
+        point.subspan<1, p256::coordinate_size>(),
+        point.subspan<1 + p256::coordinate_size, p256::coordinate_size>());
     if (BOOST_TEST(from_point.has_value()) && BOOST_TEST(from_coordinates.has_value())) {
         BOOST_TEST(from_point->uncompressed() == data::rfc6979_public);
         BOOST_TEST(from_coordinates->uncompressed() == from_point->uncompressed());
@@ -170,7 +170,7 @@ void public_key_from_point_and_coordinates() {
 
 void public_key_refusals() {
     auto const refused = [](std::span<std::uint8_t const> point) {
-        return public_key::make(point).error() == error::invalid_public_key;
+        return public_key::from_bytes(point).error() == error::invalid_public_key;
     };
     std::array<std::uint8_t, 66> longer{};
     std::ranges::copy(data::rfc6979_public, longer.begin());
@@ -204,9 +204,9 @@ void public_key_refusals() {
     // 04 and zeros: (0, 0) is not on the curve, the identity has no affine form.
     zeros[0] = 0x04;
     BOOST_TEST(refused(zeros));
-    // The coordinates' overload refuses as the point's does.
+    // from_coordinates refuses as from_bytes does.
     std::span<std::uint8_t const, 65> const off(off_curve);
-    BOOST_TEST(public_key::make(off.subspan<1, 32>(), off.subspan<33, 32>()).error() ==
+    BOOST_TEST(public_key::from_coordinates(off.subspan<1, 32>(), off.subspan<33, 32>()).error() ==
                error::invalid_public_key);
 }
 
@@ -221,7 +221,7 @@ void backend_choice() {
 }
 
 void moved_from() {
-    auto made = keypair::make(data::rfc6979_scalar);
+    auto made = keypair::from_secret(data::rfc6979_scalar);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -247,7 +247,7 @@ void moved_from() {
         BOOST_TEST(std::ranges::equal(scalar->bytes(), data::rfc6979_scalar));
     }
     // Moved over: the target holds the source's key, and the source is empty.
-    auto other = keypair::make(with_last_byte(std::array<std::uint8_t, 32>{}, 0x01));
+    auto other = keypair::from_secret(with_last_byte(std::array<std::uint8_t, 32>{}, 0x01));
     if (BOOST_TEST(other.has_value())) {
         a = std::move(*other);
         // NOLINTNEXTLINE(bugprone-use-after-move,clang-analyzer-cplusplus.Move): tested
@@ -257,7 +257,7 @@ void moved_from() {
 }
 
 void wipe() {
-    auto made = keypair::make(data::rfc6979_scalar);
+    auto made = keypair::from_secret(data::rfc6979_scalar);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -267,7 +267,7 @@ void wipe() {
     keypair taken = std::move(*made);
     BOOST_TEST(memory_is_zero(&*made, keypair_state));
 
-    auto other = keypair::make(data::rfc6979_scalar);
+    auto other = keypair::from_secret(data::rfc6979_scalar);
     if (BOOST_TEST(other.has_value())) {
         taken = std::move(*other);
         BOOST_TEST(memory_is_zero(&*other, keypair_state));
@@ -316,7 +316,7 @@ void secret_round_trip() {
     if (!BOOST_TEST(exported.has_value())) {
         return;
     }
-    auto const again = keypair::make(exported->bytes());
+    auto const again = keypair::from_secret(exported->bytes());
     if (!BOOST_TEST(again.has_value())) {
         return;
     }
@@ -333,7 +333,7 @@ void secret_round_trip() {
 }  // namespace
 
 int main() {
-    make_from_rfc6979_scalar();
+    from_secret_of_rfc6979_scalar();
     scalar_out_of_range();
     scalar_check_reaches_no_backend();
     generate_makes_distinct_valid_keys();

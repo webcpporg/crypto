@@ -6,16 +6,16 @@
 
 // A failure inside OpenSSL's first initialisation (spec sections 3.7 and 8.5,
 // crypto-r3-review mode failinit), on an OpenSSL built without threads: the first allocation
-// after the install fails, make gives backend_failure, and a make after the resource has
-// stopped failing gives backend_failure again. No entry is raised before the first make, since
+// after the install fails, from_key gives backend_failure, and a from_key after the resource has
+// stopped failing gives backend_failure again. No entry is raised before the first from_key, since
 // raising one would run OpenSSL's initialisation first.
 //
 // What follows is OpenSSL 3.5.9's, measured on macOS and Linux (2026-11-17), and pinned so
 // that a pin move that changes it fails here. The failing allocation is the base
-// initialisation's first lock (crypto/init.c:66, reached from make's ERR_set_mark), so the
+// initialisation's first lock (crypto/init.c:66, reached from from_key's ERR_set_mark), so the
 // base is never initialised:
 // - the error queue's state cannot be made, so no entry can be raised afterwards and the
-//   queue stays empty whatever make does;
+//   queue stays empty whatever from_key does;
 // - OpenSSL never registers its cleanup with atexit, and OPENSSL_cleanup returns at once
 //   (init.c:384), so the blocks the default library context took meanwhile stay live in
 //   the resource until the process ends. The exit check cannot hold here: main returns the
@@ -28,7 +28,7 @@
 // whose state needs the base initialisation that is running: OpenSSL re-enters its own
 // run-once, which aborts on macOS, deadlocks on Linux and spins on Windows. Without threads
 // the lock is allocated with neither (threads_none.c), nothing is raised, and the failure
-// returns. The threaded program pins the documented boundary instead: the first make, with a
+// returns. The threaded program pins the documented boundary instead: the first from_key, with a
 // resource that does not fail, runs OpenSSL's initialisation through the resource, which must
 // therefore serve it; the count is printed. It ends through the exit check.
 
@@ -57,13 +57,14 @@ int main() {
     BOOST_TEST_EQ(resource.allocations(), 0U);
 #ifdef OPENSSL_THREADS
     {
-        auto const first = aead::make(key);
+        auto const first = aead::from_key(key);
         BOOST_TEST(first.has_value());
     }
     std::size_t const taken = resource.allocations();
     BOOST_TEST_NE(taken, 0U);
     webcpp::test::write_out(
-        "OpenSSL is built with threads: the resource is not made to fail; the first make took " +
+        "OpenSSL is built with threads: the resource is not made to fail; the first from_key "
+        "took " +
         std::to_string(taken) + " blocks of it, OpenSSL's initialisation among them\n");
     BOOST_TEST(!resource.foreign_free());
     if (int const errors = boost::report_errors(); errors != 0) {
@@ -77,10 +78,10 @@ int main() {
     // freed after the cleanup, and the live count compared across it is the library's alone.
     {
         resource.arm(0);
-        auto const first = aead::make(key);
+        auto const first = aead::from_key(key);
         BOOST_TEST(first.has_error() && first.error() == crypto::error::backend_failure);
         BOOST_TEST_EQ(webcpp::test::raise_entry(), 0UL);
-        auto const second = aead::make(key);
+        auto const second = aead::from_key(key);
         BOOST_TEST(second.has_error() && second.error() == crypto::error::backend_failure);
     }
 

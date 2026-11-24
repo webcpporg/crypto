@@ -11,7 +11,7 @@
 // clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
 // whole text stays on one line.
 // clang-format off
-// expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: async_verify takes crypto::eddsa with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.}}
+// expected-error@webcpp/crypto/async.hpp:* {{webcpp::crypto: async_verify takes crypto::eddsa or crypto::eddsa_prehashed with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.}}
 // clang-format on
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
@@ -26,7 +26,7 @@
 
 int main() {
     namespace crypto = webcpp::crypto;
-    std::array<std::uint8_t, 64> const signature{};
+    crypto::curves::ed25519::signature const signature{};
     std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
     std::array<std::uint8_t, 32> const key_bytes{};
     webcpp::asio::io_context context;

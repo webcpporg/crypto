@@ -49,20 +49,20 @@ int main() {
 
     bool ok = false;
     std::thread worker([&ok] {
-        // A zero key and IV keep the output stable: a real program draws its key from
-        // random_device and never reuses an IV under it.
+        // A zero key and nonce keep the output stable: a real program draws its key from
+        // random_device and never reuses a nonce under it.
         std::array<std::uint8_t, 32> const key{};
-        std::array<std::uint8_t, 12> const iv{};
+        std::array<std::uint8_t, 12> const nonce{};
         std::array<std::uint8_t, 16> data{};
         {
-            auto aead = crypto::ciphers::aes256_gcm::make(key);
+            auto aead = crypto::ciphers::aes256_gcm::from_key(key);
             if (aead) {
-                auto const tag = aead->seal(iv, {}, data);
-                ok =
-                    tag && aead->open(iv, {}, data, *tag) && data == std::array<std::uint8_t, 16>{};
+                auto const tag = aead->seal(nonce, {}, data);
+                ok = tag && aead->open(nonce, {}, data, *tag) &&
+                     data == std::array<std::uint8_t, 16>{};
             } else {
                 std::string const message = aead.error().message();
-                std::printf("make: %s\n", message.c_str());
+                std::printf("from_key: %s\n", message.c_str());
             }
         }
         // tag::thread[]

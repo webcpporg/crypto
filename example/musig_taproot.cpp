@@ -8,7 +8,7 @@
 // the two signers' aggregate key is the internal key, and the output key on the chain is that
 // key tweaked by its TapTweak tagged hash. The tweak is applied to the aggregate key with
 // tweak_xonly_add before any nonce is made, since the session and the partial signatures need
-// the key as tweaked, and nonce_gen mixes in the key it is given (BIP 327's NonceGen takes it
+// the key as tweaked, and generate_nonce mixes in the key it is given (BIP 327's NonceGen takes it
 // only as an optional input); then the signers run MuSig2's two rounds as before, and the
 // signature verifies under the output key and not under the internal one. The tweak's hash is
 // the protocol's, which a domain library computes; it is shown here with webcpp::hash's SHA-256.
@@ -64,8 +64,8 @@ std::array<std::uint8_t, 32> tagged_hash(std::string_view tag, std::span<std::ui
 
 int main() {
     // Each device's key pair; each sends the other its public key.
-    auto const phone = secp256k1::keypair::make(repeated(0x11));
-    auto const laptop = secp256k1::keypair::make(repeated(0x22));
+    auto const phone = secp256k1::keypair::from_secret(repeated(0x11));
+    auto const laptop = secp256k1::keypair::from_secret(repeated(0x22));
     if (!phone || !laptop) {
         return 1;
     }
@@ -103,8 +103,8 @@ int main() {
     auto const message = repeated(0x5a);
 
     // MuSig2's two rounds under the tweaked key: a nonce each, the session, a part each.
-    auto phone_nonce = musig::nonce_gen(*phone, *wallet_key, message);
-    auto laptop_nonce = musig::nonce_gen(*laptop, *wallet_key, message);
+    auto phone_nonce = musig::generate_nonce(*phone, *wallet_key, message);
+    auto laptop_nonce = musig::generate_nonce(*laptop, *wallet_key, message);
     if (!phone_nonce || !laptop_nonce) {
         return 1;
     }

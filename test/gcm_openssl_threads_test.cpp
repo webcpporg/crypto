@@ -73,28 +73,29 @@ std::size_t on_fresh_thread(Step step) {
 /** The paths that abandon a message, each on a fresh thread: no allocation. */
 void abandon_on_fresh_threads() {
     std::array<std::uint8_t, 32> const key{};
-    std::array<std::uint8_t, 12> const iv{};
-    auto made = aead::make(key);
+    std::array<std::uint8_t, 12> const nonce{};
+    auto made = aead::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    BOOST_TEST_EQ(on_fresh_thread([&] {
-                      BOOST_TEST(made->begin_seal(iv, {}).has_value());
-                      BOOST_TEST(made->begin_seal(iv, {}).error() == crypto::error::invalid_state);
-                  }),
-                  0U);
+    BOOST_TEST_EQ(
+        on_fresh_thread([&] {
+            BOOST_TEST(made->begin_seal(nonce, {}).has_value());
+            BOOST_TEST(made->begin_seal(nonce, {}).error() == crypto::error::invalid_state);
+        }),
+        0U);
     auto const huge = webcpp::test::reserved(static_cast<std::size_t>(aead::max_message_size) + 1);
     if (BOOST_TEST(!huge.empty())) {
         BOOST_TEST_EQ(on_fresh_thread([&] {
-                          BOOST_TEST(made->begin_seal(iv, {}).has_value());
+                          BOOST_TEST(made->begin_seal(nonce, {}).has_value());
                           BOOST_TEST(made->update(huge).error() == crypto::error::message_too_long);
                       }),
                       0U);
     }
     BOOST_TEST_EQ(on_fresh_thread([&] {
-                      BOOST_TEST(made->begin_seal(iv, {}).has_value());
+                      BOOST_TEST(made->begin_seal(nonce, {}).has_value());
                       aead moved = std::move(*made);
-                      BOOST_TEST(moved.begin_seal(iv, {}).has_value());
+                      BOOST_TEST(moved.begin_seal(nonce, {}).has_value());
                       *made = std::move(moved);
                   }),
                   0U);
@@ -119,7 +120,7 @@ void work(std::uint8_t seed, std::latch& start, outcome& out) {
     // GCM test case 13: the zero key, the zero IV, nothing sealed.
     std::array<std::uint8_t, 32> key{};
     std::array<std::uint8_t, 12> const zero_iv{};
-    if (auto zero = aead::make(key)) {
+    if (auto zero = aead::from_key(key)) {
         auto const tag = zero->seal(zero_iv, {}, std::span<std::uint8_t>());
         constexpr std::array<std::uint8_t, 16> case_13{
             0x53, 0x0f, 0x8a, 0xfb, 0xc7, 0x45, 0x36, 0xb9,
@@ -128,18 +129,18 @@ void work(std::uint8_t seed, std::latch& start, outcome& out) {
         out.known_answer = tag && std::equal(tag->begin(), tag->end(), case_13.begin());
     }
     key.fill(seed);
-    auto made = aead::make(key);
+    auto made = aead::from_key(key);
     if (made) {
         ++out.made;
         std::array<std::uint8_t, 1024> plain{};
-        std::array<std::uint8_t, 12> iv{};
+        std::array<std::uint8_t, 12> nonce{};
         for (std::size_t i = 0; i < 1000; ++i) {
             plain.fill(static_cast<std::uint8_t>(i + seed));
-            iv[0] = static_cast<std::uint8_t>(i);
-            iv[1] = static_cast<std::uint8_t>(i >> 8U);
+            nonce[0] = static_cast<std::uint8_t>(i);
+            nonce[1] = static_cast<std::uint8_t>(i >> 8U);
             auto data = plain;
-            auto const tag = made->seal(iv, {}, data);
-            if (tag && data != plain && made->open(iv, {}, data, *tag) && data == plain) {
+            auto const tag = made->seal(nonce, {}, data);
+            if (tag && data != plain && made->open(nonce, {}, data, *tag) && data == plain) {
                 ++out.round_trips;
             }
         }

@@ -37,8 +37,8 @@
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
-#include <webcpp/crypto/ciphers/secretbox.hpp>
 #include <webcpp/crypto/config.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
@@ -47,11 +47,13 @@
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/hybrid/box.hpp>
-#include <webcpp/crypto/hybrid/sealed_box.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
+#include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
 #include <webcpp/crypto/random_device.hpp>
+#include <webcpp/crypto/secret_key_encryption/aead.hpp>
+#include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>

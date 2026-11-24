@@ -19,9 +19,11 @@
 
 #include <boost/core/lightweight_test.hpp>
 #include <boost/json.hpp>
+#include <boost/system/result.hpp>
 
 #include <cstdint>
 #include <iostream>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -34,6 +36,18 @@ namespace {
 
 std::string text_of(json::value const& value) {
     return std::string(std::string_view(value.as_string()));
+}
+
+// A case's signature verified: a signature of another size is no signature, refused by
+// from_bytes before any verify.
+boost::system::result<void> verified_case(std::span<std::uint8_t const> signature_bytes,
+                                          std::span<std::uint8_t const> message,
+                                          ed25519::public_key const& public_key) {
+    auto const made = ed25519::signature::from_bytes(signature_bytes);
+    if (!made) {
+        return made.error();
+    }
+    return crypto::verify(crypto::eddsa, *made, message, public_key);
 }
 
 }  // namespace
@@ -52,8 +66,8 @@ int main() {
     int refused = 0;
     for (auto const& group : document.at("testGroups").as_array()) {
         // Every group's key is 32 bytes: made, whatever its point (design R16).
-        auto const public_key =
-            ed25519::public_key::make(test::from_hex(text_of(group.at("publicKey").at("pk"))));
+        auto const public_key = ed25519::public_key::from_bytes(
+            test::from_hex(text_of(group.at("publicKey").at("pk"))));
         BOOST_TEST(public_key.has_value());
         if (!public_key) {
             continue;
@@ -63,7 +77,7 @@ int main() {
             auto const message = test::from_hex(text_of(tested.at("msg")));
             auto const signature = test::from_hex(text_of(tested.at("sig")));
             auto const verdict = text_of(tested.at("result"));
-            auto const verified = crypto::verify(crypto::eddsa, signature, message, *public_key);
+            auto const verified = verified_case(signature, message, *public_key);
             auto label = "tcId " + std::to_string(tested.at("tcId").to_number<std::int64_t>());
             if (verdict == "valid") {
                 ++accepted;

@@ -5,9 +5,11 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // secp256k1's recoverable ECDSA signatures (crypto::ecdsa_sha256_recoverable) and hedged ECDSA:
-// 64 seeded key pairs and digests, each recovered to its key from the signature and the same
-// input as signing, a digest or a message; libsecp256k1's own recovery edge cases; the refusals
-// of an id above 3, of an r or an s out of range, and of a moved-from key pair; the hedged
+// 64 seeded key pairs and digests, each recovered to its key from the signature, a
+// secp256k1::recoverable_signature, and the same input as signing, a digest or a message;
+// libsecp256k1's own recovery edge cases; the refusals of an id above 3 (from_bytes makes one,
+// recovery_id() gives the raw byte, recover refuses it), of an r or an s out of range, and of a
+// moved-from key pair; the hedged
 // signature, equal to libsecp256k1's own with the same extra entropy and different from the
 // unhedged one.
 
@@ -40,7 +42,22 @@ namespace test = webcpp::test;
 namespace {
 
 using hash_bytes = std::array<std::uint8_t, 32>;
-using recoverable = std::array<std::uint8_t, secp::recoverable_signature_size>;
+using recoverable = secp::recoverable_signature;
+using recoverable_bytes = std::array<std::uint8_t, secp::recoverable_signature_size>;
+
+// The signature of 65 bytes, as one received is made.
+recoverable typed(std::span<std::uint8_t const> signature_bytes) {
+    auto made = recoverable::from_bytes(signature_bytes);
+    BOOST_TEST(made.has_value());
+    return made ? *made : recoverable{};
+}
+
+// The ECDSA signature of a recoverable one's first 64 bytes, r and s.
+secp::ecdsa_signature ecdsa_of(recoverable const& signature) {
+    auto made = secp::ecdsa_signature::from_bytes(std::span(signature.bytes()).first<64>());
+    BOOST_TEST(made.has_value());
+    return made ? *made : secp::ecdsa_signature{};
+}
 
 static_assert(secp::recoverable_signature_size == 65);
 static_assert(std::is_same_v<decltype(secp::recover(crypto::ecdsa_sha256_recoverable,
@@ -48,13 +65,13 @@ static_assert(std::is_same_v<decltype(secp::recover(crypto::ecdsa_sha256_recover
                                                     crypto::prehashed<32>(hash_bytes{}))),
                              boost::system::result<secp::public_key>>);
 
-// A key pair from the generator: a secret make refuses is drawn again.
+// A key pair from the generator: a secret from_secret refuses is drawn again.
 secp::keypair draw(std::mt19937_64& generator, hash_bytes& secret) {
     for (;;) {
         for (auto& octet : secret) {
             octet = static_cast<std::uint8_t>(generator());
         }
-        auto made = secp::keypair::make(secret);
+        auto made = secp::keypair::from_secret(secret);
         if (made) {
             return std::move(*made);
         }
@@ -79,11 +96,14 @@ bool refused_as_signature(boost::system::result<secp::public_key> const& recover
     return recovered.has_error() && recovered.error() == crypto::error::invalid_signature;
 }
 
-// An id of 4, 5 or 255 is refused without reaching libsecp256k1's illegal callback.
+// An id of 4, 5 or 255 is made by from_bytes, which checks the size alone, and recovery_id()
+// gives it as it is; recover refuses it without reaching libsecp256k1's illegal callback.
 void refuses_bad_ids(recoverable const& signature, hash_bytes const& hash) {
     for (std::uint8_t const id : std::to_array<std::uint8_t>({4, 5, 255})) {
-        auto bad_id = signature;
-        bad_id[64] = id;
+        auto bad_bytes = signature.bytes();
+        bad_bytes[64] = id;
+        auto const bad_id = typed(bad_bytes);
+        BOOST_TEST_EQ(bad_id.recovery_id(), id);
         BOOST_TEST(refused_as_signature(
             secp::recover(crypto::ecdsa_sha256_recoverable, bad_id, crypto::prehashed{hash})));
     }
@@ -115,8 +135,8 @@ bool round_trip(std::mt19937_64& generator) {
     if (!BOOST_TEST(signature && plain)) {
         return false;
     }
-    BOOST_TEST((*signature)[64] <= 3);
-    BOOST_TEST(std::ranges::equal(std::span(*signature).first(64), *plain));
+    BOOST_TEST(signature->recovery_id() <= 3);
+    BOOST_TEST(std::ranges::equal(std::span(signature->bytes()).first(64), plain->bytes()));
     auto const recovered =
         secp::recover(crypto::ecdsa_sha256_recoverable, *signature, crypto::prehashed{hash});
     if (BOOST_TEST(recovered.has_value())) {
@@ -130,7 +150,7 @@ bool round_trip(std::mt19937_64& generator) {
 // A message signed with ecdsa_sha256_recoverable is recovered from the same message, and from its
 // SHA-256 marked as a digest; the message's own bytes marked as a digest find another key.
 void message_round_trip() {
-    auto const made = secp::keypair::make(std::array<std::uint8_t, 32>{0x31});
+    auto const made = secp::keypair::from_secret(std::array<std::uint8_t, 32>{0x31});
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -187,21 +207,25 @@ constexpr std::array<std::uint8_t, 64> edge_signature = {
 };
 
 // (r, s) as two small numbers, then the id.
-recoverable small_signature(std::uint8_t r, std::uint8_t s, std::uint8_t id) {
-    recoverable signature{};
+recoverable_bytes small_signature_bytes(std::uint8_t r, std::uint8_t s, std::uint8_t id) {
+    recoverable_bytes signature{};
     signature[31] = r;
     signature[63] = s;
     signature[64] = id;
     return signature;
 }
 
+recoverable small_signature(std::uint8_t r, std::uint8_t s, std::uint8_t id) {
+    return typed(small_signature_bytes(r, s, id));
+}
+
 // The fixed signature recovers a key with id 1 alone.
 void edge_signature_ids() {
     for (std::uint8_t id = 0; id < 4; ++id) {
-        recoverable signature{};
+        recoverable_bytes signature{};
         std::ranges::copy(edge_signature, signature.begin());
         signature[64] = id;
-        auto const recovered = secp::recover(crypto::ecdsa_sha256_recoverable, signature,
+        auto const recovered = secp::recover(crypto::ecdsa_sha256_recoverable, typed(signature),
                                              crypto::prehashed{edge_message});
         if (id == 1) {
             BOOST_TEST(recovered.has_value());
@@ -221,7 +245,7 @@ void small_signatures_recover() {
         if (!BOOST_TEST(recovered.has_value())) {
             continue;
         }
-        BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, std::span(signature).first<64>(),
+        BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, ecdsa_of(signature),
                                   crypto::prehashed{edge_message}, *recovered)
                        .has_value());
     }
@@ -230,7 +254,7 @@ void small_signatures_recover() {
     auto const recovered =
         secp::recover(crypto::ecdsa_sha256_recoverable, one_one, crypto::prehashed{edge_message});
     if (BOOST_TEST(recovered.has_value())) {
-        BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, std::span(one_one).first<64>(),
+        BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, ecdsa_of(one_one),
                                   crypto::prehashed{edge_message}, *recovered)
                        .has_value());
     }
@@ -250,16 +274,16 @@ void out_of_range_signatures() {
 
     auto const order =
         test::from_hex("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141");
-    auto r_is_n = small_signature(0, 4, 0);
+    auto r_is_n = small_signature_bytes(0, 4, 0);
     std::ranges::copy(order, r_is_n.begin());
-    BOOST_TEST(refused_as_signature(recover_edge(r_is_n)));
-    auto s_is_n = small_signature(4, 0, 0);
+    BOOST_TEST(refused_as_signature(recover_edge(typed(r_is_n))));
+    auto s_is_n = small_signature_bytes(4, 0, 0);
     std::ranges::copy(order, s_is_n.begin() + 32);
-    BOOST_TEST(refused_as_signature(recover_edge(s_is_n)));
-    recoverable all_ones{};
+    BOOST_TEST(refused_as_signature(recover_edge(typed(s_is_n))));
+    recoverable_bytes all_ones{};
     all_ones.fill(0xff);
     all_ones[64] = 0;
-    BOOST_TEST(refused_as_signature(recover_edge(all_ones)));
+    BOOST_TEST(refused_as_signature(recover_edge(typed(all_ones))));
 }
 
 void edge_cases() {
@@ -307,10 +331,10 @@ void hedged_round(secp256k1_context const* context, std::mt19937_64& generator) 
     BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, *first, digest, public_key).has_value());
     BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, *second, digest, public_key).has_value());
     BOOST_TEST(crypto::verify(crypto::ecdsa_sha256, *zeroed, digest, public_key).has_value());
-    BOOST_TEST(*first == reference_signature(context, secret, hash, &first_entropy));
-    BOOST_TEST(*second == reference_signature(context, secret, hash, &second_entropy));
-    BOOST_TEST(*zeroed == reference_signature(context, secret, hash, &zero));
-    BOOST_TEST(*plain == reference_signature(context, secret, hash, nullptr));
+    BOOST_TEST(first->bytes() == reference_signature(context, secret, hash, &first_entropy));
+    BOOST_TEST(second->bytes() == reference_signature(context, secret, hash, &second_entropy));
+    BOOST_TEST(zeroed->bytes() == reference_signature(context, secret, hash, &zero));
+    BOOST_TEST(plain->bytes() == reference_signature(context, secret, hash, nullptr));
     // Hedged twice with the same entropy, the signature is the same: the hedging is
     // deterministic given its input.
     BOOST_TEST(key.sign(crypto::ecdsa_sha256, digest, first_entropy).value() == *first);
@@ -335,7 +359,7 @@ void hedged() {
 // A moved-from key pair answers invalid_state from the new members, as from every other.
 // NOLINTBEGIN(bugprone-use-after-move)
 void moved_from() {
-    auto made = secp::keypair::make(std::array<std::uint8_t, 32>{7});
+    auto made = secp::keypair::from_secret(std::array<std::uint8_t, 32>{7});
     if (!BOOST_TEST(made.has_value())) {
         return;
     }

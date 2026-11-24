@@ -20,12 +20,12 @@ int main() {
     namespace musig = webcpp::crypto::curves::secp256k1::musig;
     std::array<std::uint8_t, 32> secret_bytes{};
     secret_bytes.fill(0x11);
-    auto const signer = secp::keypair::make(secret_bytes);
+    auto const signer = secp::keypair::from_secret(secret_bytes);
     auto const signer_key = signer->public_key();
     std::array<secp::public_key, 1> const keys{*signer_key};
     std::vector<std::byte> space(musig::workspace_size(keys.size()));
     auto const key = musig::key_aggregate(keys, space);
-    auto made = musig::nonce_gen(*signer, *key);
+    auto made = musig::generate_nonce(*signer, *key);
     std::array<musig::public_nonce, 1> const nonces{made->public_part};
     auto const sum = musig::nonce_aggregate(nonces, space);
     auto const signing_session = musig::nonce_process(*sum, secret_bytes, *key);

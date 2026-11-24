@@ -12,7 +12,8 @@
 // of what it sealed, a verification of what it signed, both sides of an agreement). An operation
 // the library refuses ends the program: a figure measured on a failure would be a wrong one.
 // `operation` names what is measured, the text crypto.json's family states (bench/collect.py
-// checks that the two agree). A seal repeats under one key and one IV: a measurement, never a use.
+// checks that the two agree). A seal repeats under one key and one nonce: a measurement, never a
+// use.
 
 #ifndef WEBCPP_CRYPTO_BENCH_OPERATIONS_HPP
 #define WEBCPP_CRYPTO_BENCH_OPERATIONS_HPP
@@ -103,7 +104,7 @@ public:
 
     explicit block_encryption(std::uint8_t seed)
         : block_(filled<Cipher::block_size>(static_cast<std::uint8_t>(seed + 1U))),
-          cipher_(take(Cipher::make(filled<Cipher::key_size>(seed)), "make")) {}
+          cipher_(take(Cipher::from_key(filled<Cipher::key_size>(seed)), "from_key")) {}
 
     std::uint8_t run() {
         if (!cipher_.encrypt(block_)) {
@@ -127,28 +128,28 @@ private:
     Cipher cipher_;
 };
 
-// The seal of 16 KiB, in place, without additional data.
+// The seal of 16 KiB, in place, without associated data.
 template <class Aead>
 class aead_seal {
 public:
     static constexpr std::string_view operation = "seal of 16 KiB, 256-bit key";
 
     explicit aead_seal(std::uint8_t seed)
-        : iv_(filled<Aead::iv_size>(static_cast<std::uint8_t>(seed + 2U))),
+        : nonce_(filled<Aead::nonce_size>(static_cast<std::uint8_t>(seed + 2U))),
           data_(filled<message_size>(seed)),
-          aead_(take(Aead::make(filled<Aead::key_size>(seed)), "make")) {}
+          aead_(take(Aead::from_key(filled<Aead::key_size>(seed)), "from_key")) {}
 
-    std::uint8_t run() { return take(aead_.seal(iv_, {}, data_), "seal").data()[0]; }
+    std::uint8_t run() { return take(aead_.seal(nonce_, {}, data_), "seal").data()[0]; }
 
     bool check() {
         auto const plain = data_;
-        auto const tag = take(aead_.seal(iv_, {}, data_), "seal");
+        auto const tag = take(aead_.seal(nonce_, {}, data_), "seal");
         bool const changed = data_ != plain;
-        return changed && aead_.open(iv_, {}, data_, tag).has_value() && data_ == plain;
+        return changed && aead_.open(nonce_, {}, data_, tag).has_value() && data_ == plain;
     }
 
 private:
-    std::array<std::uint8_t, Aead::iv_size> iv_{};
+    std::array<std::uint8_t, Aead::nonce_size> nonce_{};
     std::array<std::uint8_t, message_size> data_{};
     Aead aead_;
 };
@@ -182,11 +183,11 @@ public:
 
     explicit secp256k1(std::uint8_t seed)
         : message_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
-          key_(take(curves::secp256k1::basic_keypair<Backend>::make(
+          key_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")) {}
+                    "from_secret")) {}
 
-    std::uint8_t run() { return take(key_.sign(schnorr, message_, aux_), "sign")[0]; }
+    std::uint8_t run() { return take(key_.sign(schnorr, message_, aux_), "sign").bytes()[0]; }
 
     bool check() {
         auto const signature = take(key_.sign(schnorr, message_, aux_), "sign");
@@ -209,12 +210,12 @@ public:
         "x coordinate of the ECDH shared point with a peer's public key";
 
     explicit secp256k1_ecdh_x(std::uint8_t seed)
-        : key_(take(curves::secp256k1::basic_keypair<Backend>::make(
+        : key_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")),
-          peer_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                    "from_secret")),
+          peer_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                          filled<32>(static_cast<std::uint8_t>(seed + 6U))),
-                     "make")),
+                     "from_secret")),
           peer_public_(take(peer_.public_key(), "public_key")) {}
 
     std::uint8_t run() {
@@ -245,9 +246,9 @@ public:
 
     explicit secp256k1_recover(std::uint8_t seed)
         : hash_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
-          key_(take(curves::secp256k1::basic_keypair<Backend>::make(
+          key_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")),
+                    "from_secret")),
           signature_(take(key_.sign(ecdsa_sha256_recoverable, prehashed{hash_}), "sign")) {}
 
     std::uint8_t run() {
@@ -267,7 +268,7 @@ public:
 private:
     std::array<std::uint8_t, 32> hash_{};
     curves::secp256k1::basic_keypair<Backend> key_;
-    std::array<std::uint8_t, curves::secp256k1::recoverable_signature_size> signature_{};
+    curves::secp256k1::recoverable_signature signature_;
 };
 
 // BIP 324's shared secret of a key pair and a peer, each known by its ElligatorSwift encoding.
@@ -278,12 +279,12 @@ public:
         "BIP 324 shared secret of two ElligatorSwift encodings";
 
     explicit secp256k1_ellswift(std::uint8_t seed)
-        : key_(take(curves::secp256k1::basic_keypair<Backend>::make(
+        : key_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")),
-          peer_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                    "from_secret")),
+          peer_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                          filled<32>(static_cast<std::uint8_t>(seed + 6U))),
-                     "make")),
+                     "from_secret")),
           own_encoding_(
               take(curves::secp256k1::ellswift_create(key_, filled<32>(seed)), "ellswift_create")),
           peer_encoding_(take(curves::secp256k1::ellswift_create(
@@ -327,15 +328,15 @@ public:
 
     explicit secp256k1_musig(std::uint8_t seed)
         : message_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
-          first_(take(curves::secp256k1::basic_keypair<Backend>::make(
+          first_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                           filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                      "make")),
-          second_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                      "from_secret")),
+          second_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                            filled<32>(static_cast<std::uint8_t>(seed + 6U))),
-                       "make")),
+                       "from_secret")),
           signers_key_(aggregate(first_, second_, space_)) {}
 
-    std::uint8_t run() { return sign()[0]; }
+    std::uint8_t run() { return sign().bytes()[0]; }
 
     bool check() {
         return crypto::verify(schnorr, sign(), message_, signers_key_.xonly_public_key())
@@ -355,10 +356,12 @@ private:
         return take(curves::secp256k1::musig::key_aggregate<Backend>(keys, space), "key_aggregate");
     }
 
-    std::array<std::uint8_t, 64> sign() {
+    curves::secp256k1::schnorr_signature sign() {
         namespace musig = curves::secp256k1::musig;
-        auto first_nonce = take(musig::nonce_gen(first_, signers_key_, message_), "nonce_gen");
-        auto second_nonce = take(musig::nonce_gen(second_, signers_key_, message_), "nonce_gen");
+        auto first_nonce =
+            take(musig::generate_nonce(first_, signers_key_, message_), "generate_nonce");
+        auto second_nonce =
+            take(musig::generate_nonce(second_, signers_key_, message_), "generate_nonce");
         std::array<musig::public_nonce, 2> const nonces{first_nonce.public_part,
                                                         second_nonce.public_part};
         auto const nonce_sum = take(musig::nonce_aggregate<Backend>(nonces, space_), "nonce_sum");
@@ -390,15 +393,15 @@ public:
     static constexpr std::string_view operation = "a silent payment output for one recipient";
 
     explicit secp256k1_silent_payments(std::uint8_t seed)
-        : scan_(take(curves::secp256k1::basic_keypair<Backend>::make(
+        : scan_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                          filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                     "make")),
-          spend_key_(public_of(take(curves::secp256k1::basic_keypair<Backend>::make(
+                     "from_secret")),
+          spend_key_(public_of(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                                         filled<32>(static_cast<std::uint8_t>(seed + 6U))),
-                                    "make"))),
-          input_(take(curves::secp256k1::basic_keypair<Backend>::make(
+                                    "from_secret"))),
+          input_(take(curves::secp256k1::basic_keypair<Backend>::from_secret(
                           filled<32>(static_cast<std::uint8_t>(seed + 8U))),
-                      "make")),
+                      "from_secret")),
           outpoint_(filled<curves::secp256k1::silent_payments::outpoint_size>(seed)) {}
 
     std::uint8_t run() { return send()[0]; }
@@ -410,9 +413,9 @@ public:
         alignas(std::max_align_t)
             std::array<std::byte, silent_payments::summary_workspace_size(0, 1)>
                 summary_space{};
-        auto const summary = take(silent_payments::make_prevouts_summary<Backend>(
+        auto const summary = take(silent_payments::make_previous_outputs_summary<Backend>(
                                       outpoint_, {}, input_keys, summary_space),
-                                  "make_prevouts_summary");
+                                  "make_previous_outputs_summary");
         std::array<silent_payments::found_output, 1> found{};
         alignas(std::max_align_t) std::array<std::byte, silent_payments::scan_workspace_size(1)>
             scan_space{};
@@ -458,11 +461,13 @@ public:
 
     explicit p256(std::uint8_t seed)
         : digest_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
-          key_(take(curves::p256::basic_keypair<Backend>::make(
+          key_(take(curves::p256::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")) {}
+                    "from_secret")) {}
 
-    std::uint8_t run() { return take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign")[0]; }
+    std::uint8_t run() {
+        return take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign").bytes()[0];
+    }
 
     bool check() {
         auto const signature = take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign");
@@ -487,20 +492,22 @@ public:
 
     explicit p256_verify_ecdsa(std::uint8_t seed)
         : digest_(filled<32>(static_cast<std::uint8_t>(seed + 3U))),
-          key_(take(curves::p256::basic_keypair<Backend>::make(
+          key_(take(curves::p256::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")),
+                    "from_secret")),
           public_key_(take(key_.public_key(), "public_key")),
           signature_(take(key_.sign(ecdsa_sha256, prehashed{digest_}), "sign")) {}
 
     std::uint8_t run() {
         take(crypto::verify(ecdsa_sha256, signature_, prehashed{digest_}, public_key_), "verify");
-        return signature_[0];
+        return signature_.bytes()[0];
     }
 
     bool check() {
-        auto other = signature_;
-        other[63] ^= 1U;
+        auto other_bytes = signature_.bytes();
+        other_bytes[63] ^= 1U;
+        auto const other =
+            take(curves::p256::ecdsa_signature::from_bytes(other_bytes), "from_bytes");
         return crypto::verify(ecdsa_sha256, signature_, prehashed{digest_}, public_key_)
                    .has_value() &&
                !crypto::verify(ecdsa_sha256, other, prehashed{digest_}, public_key_).has_value();
@@ -510,7 +517,7 @@ private:
     std::array<std::uint8_t, 32> digest_{};
     curves::p256::basic_keypair<Backend> key_;
     curves::p256::basic_public_key<Backend> public_key_;
-    std::array<std::uint8_t, curves::p256::signature_size> signature_{};
+    curves::p256::ecdsa_signature signature_;
 };
 
 // The x coordinate of the ECDH shared point of a P-256 key pair and a peer's public key, agree.
@@ -521,12 +528,12 @@ public:
         "x coordinate of the ECDH shared point with a peer's public key";
 
     explicit p256_ecdh_x(std::uint8_t seed)
-        : key_(take(curves::p256::basic_keypair<Backend>::make(
+        : key_(take(curves::p256::basic_keypair<Backend>::from_secret(
                         filled<32>(static_cast<std::uint8_t>(seed | 1U))),
-                    "make")),
-          peer_(take(curves::p256::basic_keypair<Backend>::make(
+                    "from_secret")),
+          peer_(take(curves::p256::basic_keypair<Backend>::from_secret(
                          filled<32>(static_cast<std::uint8_t>(seed + 6U))),
-                     "make")),
+                     "from_secret")),
           peer_public_(take(peer_.public_key(), "public_key")) {}
 
     std::uint8_t run() {
@@ -555,9 +562,10 @@ public:
 
     explicit ed25519(std::uint8_t seed)
         : message_(filled<32>(static_cast<std::uint8_t>(seed + 4U))),
-          key_(take(curves::ed25519::basic_keypair<Backend>::make(filled<32>(seed)), "make")) {}
+          key_(take(curves::ed25519::basic_keypair<Backend>::from_secret(filled<32>(seed)),
+                    "from_secret")) {}
 
-    std::uint8_t run() { return take(key_.sign(eddsa, message_), "sign")[0]; }
+    std::uint8_t run() { return take(key_.sign(eddsa, message_), "sign").bytes()[0]; }
 
     bool check() {
         auto const signature = take(key_.sign(eddsa, message_), "sign");
@@ -572,35 +580,36 @@ private:
     curves::ed25519::basic_keypair<Backend> key_;
 };
 
-// An X25519 agreement of a secret key with a peer's public key.
+// An X25519 agreement of a key pair with a peer's public key.
 template <class Backend>
 class x25519 {
 public:
     static constexpr std::string_view operation = "agreement of a secret key and a public key";
 
-    explicit x25519(std::uint8_t seed) {
-        secret_.fill(seed);
-        peer_secret_.fill(static_cast<std::uint8_t>(seed + 5U));
-        peer_public_ = take(curves::x25519::public_key<Backend>(peer_secret_), "public_key");
-    }
+    explicit x25519(std::uint8_t seed)
+        : key_(take(curves::x25519::basic_keypair<Backend>::from_secret(filled<32>(seed)),
+                    "from_secret")),
+          peer_key_(take(curves::x25519::basic_keypair<Backend>::from_secret(
+                             filled<32>(static_cast<std::uint8_t>(seed + 5U))),
+                         "from_secret")),
+          peer_public_(take(peer_key_.public_key(), "public_key")) {}
 
     std::uint8_t run() {
-        auto const shared = take(curves::x25519::agree<Backend>(secret_, peer_public_), "agree");
+        auto const shared = take(key_.agree(peer_public_), "agree");
         return shared.bytes()[0];
     }
 
     bool check() {
-        auto const own_public = take(curves::x25519::public_key<Backend>(secret_), "public_key");
-        auto const shared = take(curves::x25519::agree<Backend>(secret_, peer_public_), "agree");
-        auto const peer_shared =
-            take(curves::x25519::agree<Backend>(peer_secret_, own_public), "agree");
+        auto const own_public = take(key_.public_key(), "public_key");
+        auto const shared = take(key_.agree(peer_public_), "agree");
+        auto const peer_shared = take(peer_key_.agree(own_public), "agree");
         return std::ranges::equal(shared.bytes(), peer_shared.bytes());
     }
 
 private:
-    std::array<std::uint8_t, 32> secret_{};
-    std::array<std::uint8_t, 32> peer_secret_{};
-    std::array<std::uint8_t, 32> peer_public_{};
+    curves::x25519::basic_keypair<Backend> key_;
+    curves::x25519::basic_keypair<Backend> peer_key_;
+    curves::x25519::public_key peer_public_;
 };
 
 }  // namespace webcpp::crypto::bench

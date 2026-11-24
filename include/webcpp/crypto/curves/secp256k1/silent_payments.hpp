@@ -128,7 +128,7 @@ struct label {
 
 /**
  * An output the recipient found: its x-only key, the tweak that spends it (added to the
- * spend secret key with `seckey_tweak_add`), and the label it was sent to, if any.
+ * spend secret key with `secret_key_tweak_add`), and the label it was sent to, if any.
  */
 struct found_output {
     /** The output's x-only key. */
@@ -140,15 +140,15 @@ struct found_output {
 };
 
 /**
- * The prevouts' summary a recipient scans with: the sum of the eligible inputs' public keys and
- * the input hash (libsecp256k1's prevouts_summary, 101 bytes), public, copied freely, made only by
- * `make_prevouts_summary`.
+ * The previous outputs' summary a recipient scans with: the sum of the eligible inputs' public
+ * keys and the input hash (libsecp256k1's `secp256k1_silentpayments_prevouts_summary`, 101
+ * bytes), public, copied freely, made only by `make_previous_outputs_summary`.
  */
-class prevouts_summary {
+class previous_outputs_summary {
 private:
     friend struct webcpp::crypto::detail::secp256k1_access;
 
-    prevouts_summary() noexcept = default;
+    previous_outputs_summary() noexcept = default;
 
     secp256k1_silentpayments_prevouts_summary native_value_{};
 };
@@ -205,7 +205,7 @@ struct no_labels {
 }
 
 /**
- * The workspace `make_prevouts_summary` needs, in bytes.
+ * The workspace `make_previous_outputs_summary` needs, in bytes.
  *
  * @param taproot_input_count The number of Taproot inputs' x-only keys.
  * @param plain_input_count The number of other eligible inputs' keys.
@@ -302,7 +302,7 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
     std::span<std::type_identity_t<basic_keypair<Backend>> const* const> taproot_inputs,
     std::span<std::type_identity_t<basic_keypair<Backend>> const* const> plain_inputs,
     std::span<std::array<std::uint8_t, 32>> output_keys, workspace pointer_space) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
                                                          Backend>);
@@ -396,7 +396,7 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
 template <class Backend>
 [[nodiscard]] boost::system::result<label> create_label(basic_keypair<Backend> const& scan_key,
                                                         std::uint32_t label_number) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
                                                          Backend>);
@@ -436,7 +436,7 @@ template <class Backend>
 template <class Backend = default_backend_t<families::secp256k1_silent_payments>>
 [[nodiscard]] boost::system::result<public_key> create_labeled_spend_key(
     public_key const& spend_key, label const& address_label) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
                                                          Backend>);
@@ -458,8 +458,8 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
 }
 
 /**
- * The prevouts' summary (`..._recipient_prevouts_summary_create`) from the eligible inputs'
- * public keys.
+ * The previous outputs' summary (`secp256k1_silentpayments_recipient_prevouts_summary_create`) from
+ * the eligible inputs' public keys.
  *
  * @tparam Backend The backend, `backends::secp256k1`.
  * @param smallest_outpoint The smallest outpoint of all the transaction's inputs, serialised.
@@ -473,11 +473,11 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
  * key does not parse (not a silent payment).
  */
 template <class Backend = default_backend_t<families::secp256k1_silent_payments>>
-[[nodiscard]] boost::system::result<prevouts_summary> make_prevouts_summary(
+[[nodiscard]] boost::system::result<previous_outputs_summary> make_previous_outputs_summary(
     std::span<std::uint8_t const, outpoint_size> smallest_outpoint,
     std::span<std::array<std::uint8_t, 32> const> taproot_input_keys,
     std::span<public_key const> plain_input_keys, workspace pointer_space) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
                                                          Backend>);
@@ -511,7 +511,7 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
     for (std::size_t item_index = 0; item_index < plain_count; ++item_index) {
         plain_pointers[item_index] = &access::point(plain_input_keys[item_index]);
     }
-    auto made_summary = access::make_opaque<prevouts_summary>();
+    auto made_summary = access::make_opaque<previous_outputs_summary>();
     if (secp256k1_silentpayments_recipient_prevouts_summary_create(
             secp256k1_context_static, &access::native(made_summary), smallest_outpoint.data(),
             xonly_pointers, taproot_count, plain_pointers, plain_count) == 0) {
@@ -533,7 +533,7 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
  * @tparam LabelLookup The lookup's type, `no_labels` by default.
  * @param scan_key The scan key pair.
  * @param spend_key The spend key, without a label.
- * @param inputs_summary The transaction's prevouts' summary.
+ * @param inputs_summary The transaction's previous outputs' summary.
  * @param output_keys The transaction's x-only outputs, in their order.
  * @param found_outputs Where the found outputs go, at least as many entries as outputs.
  * @param pointer_space At least `scan_workspace_size(output_keys.size())` bytes; zero when the
@@ -548,11 +548,11 @@ template <class Backend = default_backend_t<families::secp256k1_silent_payments>
 template <class Backend, label_lookup LabelLookup = no_labels>
 [[nodiscard]] boost::system::result<std::size_t> scan_outputs(
     basic_keypair<Backend> const& scan_key, public_key const& spend_key,
-    prevouts_summary const& inputs_summary,
+    previous_outputs_summary const& inputs_summary,
     std::span<std::array<std::uint8_t, 32> const> output_keys,
     std::span<found_output> found_outputs, workspace pointer_space,
     LabelLookup const& label_lookup = {}) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_silent_payments,
                                                          Backend>);

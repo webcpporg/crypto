@@ -1,0 +1,15 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+project : requirements <library>/webcpp/crypto//crypto ;
+
+import webcpp ;
+
+# alone: the two removed calls are the compile's only errors. Native only: on
+# WASI clang offers fopen for open and adds an error, which
+# seal_removed_call_wasi pins.
+webcpp.compile-diagnostic seal_removed_call : seal_removed_call.cpp
+  : : native : alone ;

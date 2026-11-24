@@ -111,14 +111,14 @@ constexpr std::uint8_t stream_byte(std::uint64_t seed, std::uint64_t index) noex
 }
 
 /** The first value of a message's tag, from the key, the IV and the additional data. */
-inline std::uint64_t mac_start(std::uint64_t key, std::span<std::uint8_t const> iv,
-                               std::span<std::uint8_t const> additional_data) noexcept {
-    return absorb(absorb(mix(key ^ 0x6d6163U), iv), additional_data);
+inline std::uint64_t mac_start(std::uint64_t key, std::span<std::uint8_t const> nonce,
+                               std::span<std::uint8_t const> associated_data) noexcept {
+    return absorb(absorb(mix(key ^ 0x6d6163U), nonce), associated_data);
 }
 
 /** The seed of a message's stream, from the key and the IV. */
-inline std::uint64_t stream_start(std::uint64_t key, std::span<std::uint8_t const> iv) noexcept {
-    return absorb(mix(key ^ 0x737472U), iv);
+inline std::uint64_t stream_start(std::uint64_t key, std::span<std::uint8_t const> nonce) noexcept {
+    return absorb(mix(key ^ 0x737472U), nonce);
 }
 
 /** The tag of a message whose ciphertext's `size` bytes were absorbed into `mac`. */
@@ -134,12 +134,12 @@ inline void finish(std::uint64_t mac, std::uint64_t size,
 
 /** The mock's whole seal in one pass, the reference the generic layer's results must match. */
 inline std::array<std::uint8_t, 16> reference_seal(std::span<std::uint8_t const> key,
-                                                   std::span<std::uint8_t const> iv,
-                                                   std::span<std::uint8_t const> additional_data,
+                                                   std::span<std::uint8_t const> nonce,
+                                                   std::span<std::uint8_t const> associated_data,
                                                    std::span<std::uint8_t> data) noexcept {
     auto const k = key_hash(key);
-    auto const seed = stream_start(k, iv);
-    auto mac = mac_start(k, iv, additional_data);
+    auto const seed = stream_start(k, nonce);
+    auto mac = mac_start(k, nonce, associated_data);
     for (std::size_t i = 0; i < data.size(); ++i) {
         data[i] = static_cast<std::uint8_t>(data[i] ^ stream_byte(seed, i));
         mac = mix(mac ^ data[i]);
@@ -162,15 +162,15 @@ public:
         for (std::size_t i = 0; i < gcm_spec_cases.size(); ++i) {
             auto const& spec = gcm_spec_cases[i];
             auto data = from_hex(spec.plaintext);
-            auto const tag = mock_detail::reference_seal(from_hex(spec.key), from_hex(spec.iv),
-                                                         from_hex(spec.additional_data), data);
+            auto const tag = mock_detail::reference_seal(from_hex(spec.key), from_hex(spec.nonce),
+                                                         from_hex(spec.associated_data), data);
             ciphertexts_[i] = to_hex(data);
             tags_[i] = to_hex(tag);
             cases_[i] = {
                 .key = spec.key,
                 .plaintext = spec.plaintext,
-                .additional_data = spec.additional_data,
-                .iv = spec.iv,
+                .associated_data = spec.associated_data,
+                .nonce = spec.nonce,
                 .ciphertext = ciphertexts_[i],
                 .tag = tags_[i],
             };
@@ -291,14 +291,14 @@ struct gcm_engine<test::mock, KeySize> {
 
     // The IV and the additional data are consumed here, whole: nothing of them is kept.
     static boost::system::result<void> start(
-        state& s, bool sealing, std::span<std::uint8_t const> iv,
-        std::span<std::uint8_t const> additional_data) noexcept {
-        breach(!s.live || iv.empty() || iv.size() > 128);
+        state& s, bool sealing, std::span<std::uint8_t const> nonce,
+        std::span<std::uint8_t const> associated_data) noexcept {
+        breach(!s.live || nonce.empty() || nonce.size() > 128);
         if (test::mock_control.start) {
             return test::mock_control.start;
         }
-        s.stream = test::mock_detail::stream_start(s.key, iv);
-        s.mac = test::mock_detail::mac_start(s.key, iv, additional_data);
+        s.stream = test::mock_detail::stream_start(s.key, nonce);
+        s.mac = test::mock_detail::mac_start(s.key, nonce, associated_data);
         s.position = 0;
         s.sealing = sealing;
         s.started = true;

@@ -15,9 +15,21 @@ At compile time, checked word for word by the message tests of `test/messages` w
 
 |`+aead_not_a_family+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original, families::xchacha20_poly1305, families::secretbox_xsalsa20poly1305 or families::secretbox_xchacha20poly1305.+`
+|`+webcpp::crypto: ciphers::basic_chacha20_poly1305 takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original or families::xchacha20_poly1305.+`
 
-The fix: Name one of the three ChaCha20-Poly1305 families or the two secret boxes'; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`.
+The fix: Name one of the three ChaCha20-Poly1305 families; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`, and a secret box `+secret_key_encryption::basic_secretbox+`, as in `+secret_key_encryption::secretbox<>+`.
+
+|`+aead_template_removed+`
+|native, wasip2, wasip3
+|`+no member named 'aead' in namespace 'webcpp::crypto::ciphers'+`
+
+The fix: Name `+ciphers::basic_chacha20_poly1305<Family, Backend>+`, or its aliases `+chacha20_poly1305+`, `+chacha20_poly1305_original+` and `+xchacha20_poly1305+`: the template is named for its algorithm, with no alias.
+
+|`+aead_template_removed_call+`
+|native, wasip2, wasip3
+|`+no template named 'aead' in namespace 'webcpp::crypto::ciphers'+`
+
+The fix: As `+aead_template_removed+`: name `+ciphers::basic_chacha20_poly1305+`.
 
 |`+aes_block_default_not_linked+`
 |native
@@ -43,17 +55,53 @@ The fix: Name `+ciphers::aes256<backends::ctaes>+`, include `+<webcpp/crypto/bac
 
 The fix: Call `+async_agree+` on a backend that completes by itself: its synchronous forms cannot wait for it.
 
+|`+agree_ed25519+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: agree: Ed25519 key pairs sign; they do not agree: convert one with to_x25519() and agree with the X25519 key pair.+`
+
+The fix: Convert the Ed25519 key pair with `+to_x25519()+` and agree with the X25519 key pair it gives, and the peer's key converted with `+public_key.to_x25519()+`: an Ed25519 key pair signs and does not agree.
+
 |`+agree_free_wrong_peer+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: agree: this key pair does not agree with this peer: a P-256 key pair agrees with a curves::p256::basic_public_key of its backend, a secp256k1 key pair with a curves::secp256k1::public_key; an Ed25519 key pair agrees through X25519, its x25519_secret() and curves::x25519::agree.+`
+|`+webcpp::crypto: agree: this key pair does not agree with this peer: an X25519 key pair agrees with a curves::x25519::public_key, a P-256 key pair with a curves::p256::basic_public_key of its backend, a secp256k1 key pair with a curves::secp256k1::public_key.+`
 
-The fix: Give `+agree+` the peer's typed public key of the key pair's own curve and backend: `+curves::p256::basic_public_key<Backend>::make(bytes)+` for P-256, `+curves::secp256k1::public_key::make(bytes)+` for secp256k1.
+The fix: Give `+agree+` the peer's typed public key of the key pair's own curve and backend: `+curves::x25519::public_key::from_bytes(bytes)+` for X25519, `+curves::p256::basic_public_key<Backend>::from_bytes(bytes)+` for P-256, `+curves::secp256k1::public_key::from_bytes(bytes)+` for secp256k1.
 
-|`+async_make_xchacha+`
+|`+async_agree_ed25519+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_make takes AES-GCM or a key pair of an algorithm WebCrypto has (Ed25519, P-256): call the synchronous make for the others.+`
+|`+webcpp::crypto: async_agree: Ed25519 key pairs sign; they do not agree: convert one with to_x25519() and agree with the X25519 key pair.+`
 
-The fix: Call the synchronous `+make+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
+The fix: As `+agree_ed25519+`: give `+async_agree+` the X25519 key pair that the Ed25519 key pair's `+to_x25519()+` gives, and the peer's converted key.
+
+|`+async_agree_secp256k1+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_agree takes a key pair of an algorithm WebCrypto has (X25519, P-256): call the key pair's synchronous agree for the others.+`
+
+The fix: Call the key pair's own `+agree+`: secp256k1 is not in WebCrypto, so only X25519's and P-256's key pairs have `+async_agree+`.
+
+|`+async_agree_wrong_peer+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_agree: this key pair does not agree with this peer: an X25519 key pair agrees with a curves::x25519::public_key, a P-256 key pair with a curves::p256::basic_public_key of its backend.+`
+
+The fix: As `+agree_free_wrong_peer+`: give `+async_agree+` the peer's typed public key of the key pair's own curve and backend, `+curves::x25519::public_key::from_bytes(bytes)+` for X25519, `+curves::p256::basic_public_key<Backend>::from_bytes(bytes)+` for P-256.
+
+|`+async_from_key_secretbox_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: no form of them, synchronous or asynchronous, runs on the browser's backend; name a native backend for them. On the browser's backend only AES-GCM seals and opens.+`
+
+The fix: Name a native backend, such as `+backends::sodium+`, for the secret box's `+async_from_key+`: WebCrypto has no secret box.
+
+|`+async_from_key_xchacha+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: no form of them, synchronous or asynchronous, runs on the browser's backend; name a native backend for them. On the browser's backend only AES-GCM seals and opens.+`
+
+The fix: Name a native backend, such as `+backends::sodium+`, for `+async_from_key+`: WebCrypto has no XChaCha20-Poly1305, so no form of it runs on the browser's backend, where only AES-GCM seals and opens.
+
+|`+async_from_secret_secp256k1+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_from_secret takes a key pair of an algorithm WebCrypto has (Ed25519, X25519, P-256): call the synchronous from_secret for the others.+`
+
+The fix: Call the synchronous `+from_secret+`: secp256k1 is not in WebCrypto, so only Ed25519's, X25519's and P-256's key pairs have `+async_from_secret+`.
 
 |`+async_member_without_async_hpp+`
 |native, wasip2, wasip3
@@ -61,29 +109,75 @@ The fix: Call the synchronous `+make+`: XChaCha20-Poly1305 is not in WebCrypto, 
 
 The fix: Include `+<webcpp/crypto/async.hpp>+`, which defines the asynchronous members, and add `+<library>/webcpp/asio//asio+` to the program's Jamfile.
 
+|`+async_open_box_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: no form of them, synchronous or asynchronous, runs on the browser's backend; name a native backend for them. On the browser's backend only AES-GCM seals and opens.+`
+
+The fix: Name a native backend, such as `+backends::sodium+`, for the crypto_box: WebCrypto has no crypto_box, so no form of it runs on the browser's backend, where only AES-GCM seals and opens.
+
 |`+async_open_xchacha+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_open takes AES-GCM, the AEAD WebCrypto has: call open for the others.+`
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: no form of them, synchronous or asynchronous, runs on the browser's backend; name a native backend for them. On the browser's backend only AES-GCM seals and opens.+`
 
-The fix: Call the AEAD's own `+open+`: only AES-GCM has `+async_open+`.
+The fix: Name a native backend, such as `+backends::sodium+`, for `+async_open+`, or open with AES-GCM on the browser's backend: WebCrypto has no XChaCha20-Poly1305.
+
+|`+async_seal_box_associated_data+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_seal: a secret box or a crypto_box takes no associated data: secret_key_encryption::async_seal(executor, box, nonce, data, token).+`
+
+The fix: Call the box form, `+secret_key_encryption::async_seal(executor, box, nonce, data, token)+`, or the box's own `+async_seal(executor, nonce, data, token)+`: a secret box or a crypto_box takes no associated data.
+
+|`+async_seal_box_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: no form of them, synchronous or asynchronous, runs on the browser's backend; name a native backend for them. On the browser's backend only AES-GCM seals and opens.+`
+
+The fix: Name a native backend, such as `+backends::sodium+`, for the secret box: WebCrypto has no secret box, so no form of it runs on the browser's backend, where only AES-GCM seals and opens.
+
+|`+async_seal_member_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: no form of them, synchronous or asynchronous, runs on the browser's backend; name a native backend for them. On the browser's backend only AES-GCM seals and opens.+`
+
+The fix: As `+async_seal_xchacha+`: name a native backend, such as `+backends::sodium+`, for XChaCha20-Poly1305's `+async_seal+`.
+
+|`+async_seal_removed+`
+|native, wasip2, wasip3
+|`+no member named 'async_seal' in namespace 'webcpp::crypto'; did you mean 'webcpp::crypto::secret_key_encryption::async_seal'?+`
+
+`+no member named 'async_open' in namespace 'webcpp::crypto'; did you mean 'webcpp::crypto::secret_key_encryption::async_open'?+`
+
+The fix: Call crypto::secret_key_encryption::aead::async_seal and async_open. clang's suggestion, `+secret_key_encryption::async_seal+` and `+async_open+`, is the box form, which takes no associated data and is wrong for an AES-GCM or ChaCha20-Poly1305 user.
+
+|`+async_seal_removed_declaration+`
+|native, wasip2, wasip3
+|`+no member named 'async_seal' in namespace 'webcpp::crypto'+`
+
+`+no member named 'async_open' in namespace 'webcpp::crypto'+`
+
+The fix: As `+async_seal_removed+`: call crypto::secret_key_encryption::aead::async_seal and async_open, in <webcpp/crypto/async.hpp>.
 
 |`+async_seal_xchacha+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_seal takes AES-GCM, the AEAD WebCrypto has: call seal for the others.+`
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: no form of them, synchronous or asynchronous, runs on the browser's backend; name a native backend for them. On the browser's backend only AES-GCM seals and opens.+`
 
-The fix: Call the AEAD's own `+seal+`: only AES-GCM has `+async_seal+`.
+The fix: Name a native backend, such as `+backends::sodium+`, for `+async_seal+`, or seal with AES-GCM on the browser's backend: WebCrypto has no XChaCha20-Poly1305.
 
 |`+async_sign_ed25519_prehashed+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure Ed25519) and takes no digest; Ed25519ph, which hashes the message, is curves::ed25519::ph.+`
+|`+webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure Ed25519) and takes no digest; a message's SHA-512 is signed with crypto::eddsa_prehashed (Ed25519ph).+`
 
-The fix: Give `+async_sign+` the message itself with `+crypto::eddsa+`, RFC 8032's pure Ed25519, which takes no digest, as the synchronous `+sign+` does.
+The fix: Give `+async_sign+` the message itself with `+crypto::eddsa+`, RFC 8032's pure Ed25519, which takes no digest, as the synchronous `+sign+` does; a message's SHA-512 is signed with `+crypto::eddsa_prehashed+` (Ed25519ph), on a native backend.
+
+|`+async_sign_eddsa_prehashed_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, async_sign and async_verify run on a native backend.+`
+
+The fix: As `+sign_eddsa_prehashed_asynchronous_backend+`: `+async_sign+` under `+crypto::eddsa_prehashed+` runs on a native backend.
 
 |`+async_sign_p256_eddsa+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_sign: this key pair does not sign with this scheme: an Ed25519 key pair signs with crypto::eddsa, a P-256 key pair with crypto::ecdsa_sha256.+`
+|`+webcpp::crypto: async_sign: this key pair does not sign with this scheme: an Ed25519 key pair signs with crypto::eddsa or crypto::eddsa_prehashed, a P-256 key pair with crypto::ecdsa_sha256.+`
 
-The fix: Give `+async_sign+` the key pair's own scheme: `+crypto::ecdsa_sha256+` for a P-256 key pair, `+crypto::eddsa+` for an Ed25519 key pair.
+The fix: Give `+async_sign+` the key pair's own scheme: `+crypto::ecdsa_sha256+` for a P-256 key pair, `+crypto::eddsa+` or `+crypto::eddsa_prehashed+` for an Ed25519 key pair.
 
 |`+async_sign_secp256k1+`
 |native, wasip2, wasip3
@@ -91,23 +185,41 @@ The fix: Give `+async_sign+` the key pair's own scheme: `+crypto::ecdsa_sha256+`
 
 The fix: Call the key pair's own signing function: secp256k1 is not in WebCrypto, so only Ed25519's and P-256's key pairs have `+async_sign+`.
 
+|`+async_sign_x25519+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: async_sign: X25519 key pairs agree; they do not sign: sign with an Ed25519 key pair, which to_x25519() converts for agreement.+`
+
+The fix: As `+sign_x25519+`: give `+async_sign+` an Ed25519 key pair, which signs; an X25519 key pair agrees, with `+async_agree+`.
+
 |`+async_verify_eddsa_bytes_key+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_verify takes crypto::eddsa with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
+|`+webcpp::crypto: async_verify takes crypto::eddsa or crypto::eddsa_prehashed with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
 
-The fix: Give `+async_verify+` with `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`, as `+crypto::verify+` takes it: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::make(bytes)+`.
+The fix: Give `+async_verify+` with `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`, as `+crypto::verify+` takes it: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::from_bytes(bytes)+`.
+
+|`+async_verify_eddsa_prehashed_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, async_sign and async_verify run on a native backend.+`
+
+The fix: As `+verify_eddsa_prehashed_asynchronous_backend+`: `+async_verify+` under `+crypto::eddsa_prehashed+`, free and member, runs on a native backend.
 
 |`+async_verify_named_backend+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_verify takes crypto::eddsa with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
+|`+webcpp::crypto: async_verify takes crypto::eddsa or crypto::eddsa_prehashed with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
 
 The fix: As `+async_verify_wrong_key+`: naming the backend does not add a scheme; call `+crypto::verify+` for `+crypto::schnorr+` and secp256k1's keys.
 
+|`+async_verify_p256_bytes_signature+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: a P-256 key verifies a curves::p256::ecdsa_signature: make one from 64 bytes with curves::p256::ecdsa_signature::from_bytes.+`
+
+The fix: As `+verify_p256_secp256k1_signature+`: make the 64 bytes received into a `+curves::p256::ecdsa_signature+` with `+from_bytes+`, then give it to `+async_verify+`.
+
 |`+async_verify_wrong_key+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: async_verify takes crypto::eddsa with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
+|`+webcpp::crypto: async_verify takes crypto::eddsa or crypto::eddsa_prehashed with a curves::ed25519::public_key or crypto::ecdsa_sha256 with a curves::p256::basic_public_key, the algorithms WebCrypto has: call crypto::verify for the others.+`
 
-The fix: Call `+crypto::verify+` for a key the asynchronous family lacks (secp256k1's, Schnorr's x-only key): `+async_verify+` has a `+curves::ed25519::public_key+` with `+crypto::eddsa+` and a `+curves::p256::basic_public_key+` with `+crypto::ecdsa_sha256+`.
+The fix: Call `+crypto::verify+` for a key the asynchronous family lacks (secp256k1's, Schnorr's x-only key): `+async_verify+` has a `+curves::ed25519::public_key+` with `+crypto::eddsa+` or `+crypto::eddsa_prehashed+` and a `+curves::p256::basic_public_key+` with `+crypto::ecdsa_sha256+`.
 
 |`+bearssl_not_linked+`
 |native, wasip2
@@ -117,19 +229,31 @@ The fix: Add `+/third_party//bearssl+`.
 
 |`+box_default_not_linked+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//sealed_box-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//sealed_box-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+|`+webcpp::crypto: XSalsa20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+webcpp::crypto: XChaCha20-Poly1305 secret box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//secretbox_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//secretbox_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+webcpp::crypto: X25519-XSalsa20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xsalsa20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xsalsa20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+webcpp::crypto: X25519-XChaCha20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//sealed_box-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//sealed_box-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
 The fix: The secret boxes', the boxes' and the sealed boxes' default is libsodium on every target: add the family's alias, as `+/webcpp/crypto//box_xsalsa20poly1305-default+`, which links `+/third_party//sodium+`.
 
 |`+box_not_a_family+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: hybrid::basic_box takes a box family: families::box_xsalsa20poly1305 or families::box_xchacha20poly1305.+`
+|`+webcpp::crypto: public_key_encryption::basic_box takes a box family: families::box_xsalsa20poly1305 or families::box_xchacha20poly1305.+`
 
-The fix: Name `+families::box_xsalsa20poly1305+` or `+families::box_xchacha20poly1305+`, or use `+hybrid::box+` or `+hybrid::box_xchacha20poly1305+`.
+The fix: Name `+families::box_xsalsa20poly1305+` or `+families::box_xchacha20poly1305+`, or use `+public_key_encryption::box+` or `+public_key_encryption::box_xchacha20poly1305+`.
 
 |`+chacha_default_not_linked+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: XChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//xchacha20_poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//xchacha20_poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+|`+webcpp::crypto: ChaCha20-Poly1305's default backend on this target is libsodium, which is not linked. Add /webcpp/crypto//chacha20_poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//chacha20_poly1305-default ; or name another backend in the type, as in ciphers::chacha20_poly1305<backends::bearssl>. The backends that have it: sodium (native, wasip2, wasip3, emscripten), bearssl (native, wasip2, wasip3, emscripten), openssl (native, wasip2, wasip3). (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+webcpp::crypto: original ChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//chacha20_poly1305_original-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//chacha20_poly1305_original-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
+
+`+webcpp::crypto: XChaCha20-Poly1305's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//xchacha20_poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//xchacha20_poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
 The fix: The ChaCha20-Poly1305 AEADs' default is libsodium on every target: add the family's alias, as `+/webcpp/crypto//chacha20_poly1305-default+`, which links `+/third_party//sodium+`.
 
@@ -189,15 +313,33 @@ The fix: Leave the policy out, as in `+crypto::verify(crypto::eddsa, signature, 
 
 |`+ed25519ph_sha256+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: Ed25519ph is defined over SHA-512 (RFC 8032 section 5.1); name curves::ed25519::ph<webcpp::hash::sha2_512>.+`
+|`+webcpp::crypto: Ed25519ph is defined over SHA-512 (RFC 8032 section 5.1); name curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>.+`
 
-The fix: Name `+curves::ed25519::ph<webcpp::hash::sha2_512>+`: RFC 8032 defines Ed25519ph over SHA-512.
+The fix: Name `+curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>+`: RFC 8032 defines Ed25519ph over SHA-512.
 
 |`+ellswift_other_backend+`
 |native, wasip2
 |`+webcpp::crypto: bearssl has no ElligatorSwift. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
 
 The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::ellswift_decode(encoded_key)+`.
+
+|`+equal_header_removed+`
+|native, wasip2, wasip3
+|`+'webcpp/crypto/equal.hpp' file not found+`
+
+The fix: Include `+<webcpp/crypto/constant_time_equal.hpp>+`, the header of `+constant_time_equal+`; `+equal.hpp+` is gone, with no header left at its path.
+
+|`+equal_removed+`
+|native, wasip2, wasip3
+|`+no member named 'equal' in namespace 'webcpp::crypto'+`
+
+The fix: Call `+crypto::constant_time_equal+`, the same comparison of two spans or two digests in constant time; `+crypto::equal+` is gone, with no alias.
+
+|`+erase_secret_const_range+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: erase_secret zeroes a buffer the program may write, of trivially copyable elements: a std::vector<std::uint8_t>, a std::string, a std::array, a std::span<std::byte>; this range's elements are const or not trivially copyable.+`
+
+The fix: Erase the buffer the secret was written to, through a non-const reference to it (`+std::string&+`, `+std::span<std::byte>+`): a const view cannot be erased. Its elements must be trivially copyable, bytes or integers; a range of `+std::string+` or of another type with its own storage cannot be erased as bytes, so erase each element's buffer instead.
 
 |`+gcm_default_openssl_not_linked+`
 |native
@@ -223,6 +365,28 @@ The fix: Call the synchronous operation the message names, or build with threads
 
 The fix: As `+heavy_without_threads+`.
 
+|`+hybrid_header_removed+`
+|native, wasip2, wasip3
+|`+'webcpp/crypto/hybrid/box.hpp' file not found+`
+
+The fix: Include `+<webcpp/crypto/public_key_encryption/box.hpp>+` for `+box+` and `+box_xchacha20poly1305+`, `+<webcpp/crypto/public_key_encryption/sealed_box.hpp>+` for `+sealed_box+`, `+<webcpp/crypto/key_exchange/kx.hpp>+` for `+kx_keypair+`; the old directory is kept free for post-quantum hybrids.
+
+|`+hybrid_names_removed+`
+|native, wasip2, wasip3
+|`+no member named 'hybrid'+`
+
+`+no member named 'kx_keypair'+`
+
+The fix: Name `+crypto::public_key_encryption::box+`, `+box_xchacha20poly1305+` and `+sealed_box+`, and `+crypto::key_exchange::kx_keypair+` and `+session_keys+`; `+crypto::hybrid+` and the names in `+curves::x25519+` are gone, with no alias.
+
+|`+iv_size_removed+`
+|native, wasip2, wasip3
+|`+no member named 'iv_size' in+`
+
+`+no member named 'invalid_iv_size' in+`
+
+The fix: Name nonce_size, max_nonce_size and error::invalid_nonce_size: crypto spells its names out.
+
 |`+kx_default_not_linked+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: crypto_kx's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//kx-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//kx-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
@@ -235,11 +399,29 @@ The fix: Add `+/webcpp/crypto//kx-default+`, which links `+/third_party//sodium+
 
 The fix: Return `+std::optional<std::span<std::uint8_t const, 32>>+`, a span over a tweak the lookup keeps, such as a map's entry; never the tweak by value.
 
+|`+make_removed+`
+|native, wasip2, wasip3
+|`+no member named 'make' in+`
+
+The fix: Call the factory named by its input, member or free: `+from_secret+` for a key pair, `+from_bytes+` for a public key, `+from_key+` for a cipher (`+crypto::from_secret<K>(bytes)+`, `+K::from_secret(bytes)+`); `+make+` is gone, with no alias.
+
 |`+musig_nonce_copied+`
 |native, wasip2
 |`+call to deleted constructor of+`
 
 The fix: Pass the nonce with std::move, once: a secret nonce signs one message.
+
+|`+musig_nonce_gen_removed+`
+|native, wasip2
+|`+no member named 'nonce_gen' in namespace 'webcpp::crypto::curves::secp256k1::musig'+`
+
+The fix: Call musig::generate_nonce: crypto spells out the names libsecp256k1 abbreviates.
+
+|`+musig_nonce_gen_removed_call+`
+|native, wasip2
+|`+no member named 'nonce_gen' in namespace 'webcpp::crypto::curves::secp256k1::musig'+`
+
+The fix: As `+musig_nonce_gen_removed+`.
 
 |`+musig_other_backend+`
 |native, wasip2
@@ -255,9 +437,9 @@ The fix: On WASI the default is BearSSL: add `+/webcpp/crypto//gcm-default+`, wh
 
 |`+open_asynchronous_backend+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: open on this backend completes asynchronously: call async_open.+`
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: no form of them, synchronous or asynchronous, runs on the browser's backend; name a native backend for them. On the browser's backend only AES-GCM seals and opens.+`
 
-The fix: Call `+async_open+` on a backend that completes by itself: its synchronous forms cannot wait for it.
+The fix: Name a native backend, such as `+backends::sodium+`, for ChaCha20-Poly1305: WebCrypto has no ChaCha20-Poly1305, so neither its `+open+` nor its `+async_open+` completes on the browser's backend; there, use AES-GCM.
 
 |`+openssl_memory_not_linked+`
 |native
@@ -307,17 +489,85 @@ The fix: Leave the backend out, as in `+curves::p256::keypair+`, or name `+backe
 
 The fix: Add `+/webcpp/crypto//pem-default+`, which links `+/third_party//sodium+` on every target.
 
+|`+ph_removed+`
+|native, wasip2, wasip3
+|`+no member named 'ph' in namespace+`
+
+The fix: Name Ed25519ph's streaming signer `+curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>+`, the same `+begin+`, `+update+`, `+sign+` and `+verify+`; `+curves::ed25519::ph+` is gone, with no alias.
+
 |`+prehashed_dynamic+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: crypto::prehashed takes a digest of a fixed size: a std::array<std::uint8_t, N> or a std::span<std::uint8_t const, N>.+`
 
 The fix: Give `+crypto::prehashed+` a digest of a fixed size: a `+std::array<std::uint8_t, 32>+`, a `+std::span<std::uint8_t const, 32>+` or a `+boost::hash2::digest<32>+`.
 
+|`+prevouts_summary_removed+`
+|native, wasip2
+|`+no member named 'prevouts_summary' in namespace 'webcpp::crypto::curves::secp256k1::silent_payments'+`
+
+`+no member named 'make_prevouts_summary' in namespace 'webcpp::crypto::curves::secp256k1::silent_payments'+`
+
+The fix: Name silent_payments::previous_outputs_summary and make_previous_outputs_summary: crypto spells out libsecp256k1's prevouts.
+
+|`+prevouts_summary_removed_call+`
+|native, wasip2
+|`+no member named 'make_prevouts_summary' in namespace 'webcpp::crypto::curves::secp256k1::silent_payments'+`
+
+The fix: As `+prevouts_summary_removed+`.
+
+|`+recover_ecdsa_signature+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: recover takes a curves::secp256k1::recoverable_signature: make one from 65 bytes with curves::secp256k1::recoverable_signature::from_bytes.+`
+
+The fix: Give `+recover+` a `+curves::secp256k1::recoverable_signature+`, which `+sign(crypto::ecdsa_sha256_recoverable, input)+` gives, or made from 65 bytes with `+from_bytes+`; an ECDSA signature without its recovery id verifies with `+crypto::verify+` and the signer's public key.
+
 |`+seal_asynchronous_backend+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: seal on this backend completes asynchronously: call async_seal.+`
 
 The fix: Call `+async_seal+` on a backend that completes by itself: its synchronous forms cannot wait for it.
+
+|`+seal_box_associated_data+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: seal: a secret box or a crypto_box takes no associated data: secret_key_encryption::seal(box, nonce, data).+`
+
+The fix: Call the box form, `+secret_key_encryption::seal(box, nonce, data)+` or the box's own `+seal(nonce, data)+`: a secret box or a crypto_box takes no associated data; authenticate it with an AEAD, as `+ciphers::xchacha20_poly1305<>+`.
+
+|`+seal_box_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: no form of them, synchronous or asynchronous, runs on the browser's backend; name a native backend for them. On the browser's backend only AES-GCM seals and opens.+`
+
+The fix: Name a native backend, such as `+backends::sodium+`, for the crypto_box: WebCrypto has no crypto_box, so neither its `+seal+` nor its `+async_seal+` completes on the browser's backend.
+
+|`+seal_removed+`
+|native, wasip2, wasip3
+|`+no member named 'seal' in namespace 'webcpp::crypto'+`
+
+`+no member named 'open' in namespace 'webcpp::crypto'+`
+
+The fix: Call crypto::secret_key_encryption::aead::seal and open, in <webcpp/crypto/secret_key_encryption/aead.hpp>, which every AEAD's header includes.
+
+|`+seal_removed_call+`
+|native
+|`+no member named 'seal' in namespace 'webcpp::crypto'+`
+
+`+no member named 'open' in namespace 'webcpp::crypto'+`
+
+The fix: As `+seal_removed+`: call crypto::secret_key_encryption::aead::seal and open, which the cipher's header brings.
+
+|`+seal_removed_call_wasi+`
+|wasip2, wasip3
+|`+no member named 'seal' in namespace 'webcpp::crypto'+`
+
+`+no member named 'open' in namespace 'webcpp::crypto'; did you mean 'fopen'?+`
+
+The fix: As `+seal_removed_call+`: call crypto::secret_key_encryption::aead::seal and open; clang's offer of the C library's fopen is not the AEAD's open.
+
+|`+seal_secretbox_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, secret box or crypto_box: no form of them, synchronous or asynchronous, runs on the browser's backend; name a native backend for them. On the browser's backend only AES-GCM seals and opens.+`
+
+The fix: Name a native backend, such as `+backends::sodium+`, for the secret box: WebCrypto has no secret box, so neither its `+seal+` nor its `+async_seal+` completes on the browser's backend; there, use AES-GCM.
 
 |`+secp256k1_not_linked+`
 |native, wasip2
@@ -331,11 +581,75 @@ The fix: Add `+/third_party//secp256k1+`.
 
 The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::keypair+`.
 
+|`+secp256k1_tweak_names_removed+`
+|native, wasip2
+|`+no member named 'pubkey_tweak_add' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'pubkey_tweak_mul' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'pubkey_negate' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'pubkey_combine' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'seckey_tweak_add' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'seckey_tweak_mul' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'seckey_negate' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+The fix: Call public_key_tweak_add, public_key_tweak_mul, public_key_negate, public_key_combine, secret_key_tweak_add, secret_key_tweak_mul and secret_key_negate: crypto spells out the names libsecp256k1 abbreviates.
+
+|`+secp256k1_tweak_names_removed_call+`
+|native, wasip2
+|`+no member named 'pubkey_tweak_add' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'pubkey_tweak_mul' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'pubkey_negate' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'pubkey_combine' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'seckey_tweak_add' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'seckey_tweak_mul' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+`+no member named 'seckey_negate' in namespace 'webcpp::crypto::curves::secp256k1'+`
+
+The fix: As `+secp256k1_tweak_names_removed+`.
+
 |`+secret_of_no_bytes+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: a secret of no bytes holds nothing.+`
 
 The fix: Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
+
+|`+secretbox_header_removed+`
+|native, wasip2, wasip3
+|`+'webcpp/crypto/ciphers/secretbox.hpp' file not found+`
+
+The fix: Include `+<webcpp/crypto/secret_key_encryption/secretbox.hpp>+`, the secret boxes' header; `+ciphers/secretbox.hpp+` is gone, with no header left at its path.
+
+|`+secretbox_not_a_family+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: secret_key_encryption::basic_secretbox takes a secret box family: families::secretbox_xsalsa20poly1305 or families::secretbox_xchacha20poly1305.+`
+
+The fix: Name `+families::secretbox_xsalsa20poly1305+` or `+families::secretbox_xchacha20poly1305+`, or use `+secret_key_encryption::secretbox<>+` or `+secret_key_encryption::secretbox_xchacha20poly1305<>+`; an AEAD is `+ciphers::basic_chacha20_poly1305+`, as in `+ciphers::xchacha20_poly1305<>+`.
+
+|`+secretbox_removed+`
+|native, wasip2, wasip3
+|`+no member named 'secretbox' in namespace 'webcpp::crypto::ciphers'+`
+
+`+no member named 'secretbox_xchacha20poly1305' in namespace 'webcpp::crypto::ciphers'+`
+
+The fix: Name `+crypto::secret_key_encryption::secretbox+` and `+secretbox_xchacha20poly1305+`, the secret boxes' namespace; `+ciphers::secretbox+` is gone, with no alias.
+
+|`+secretbox_removed_call+`
+|native, wasip2, wasip3
+|`+no template named 'secretbox' in namespace 'webcpp::crypto::ciphers'; did you mean 'webcpp::crypto::secret_key_encryption::secretbox'?+`
+
+`+no template named 'secretbox_xchacha20poly1305' in namespace 'webcpp::crypto::ciphers'; did you mean 'webcpp::crypto::secret_key_encryption::secretbox_xchacha20poly1305'?+`
+
+The fix: As `+secretbox_removed+`: name `+crypto::secret_key_encryption::secretbox<>+` and `+secretbox_xchacha20poly1305<>+`, the names clang offers.
 
 |`+sign_asynchronous_backend+`
 |native, wasip2, wasip3
@@ -345,21 +659,45 @@ The fix: Call `+async_sign+` on a backend that completes by itself: its synchron
 
 |`+sign_ed25519_ecdsa+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: an Ed25519 key signs with crypto::eddsa.+`
+|`+webcpp::crypto: an Ed25519 key signs with crypto::eddsa or crypto::eddsa_prehashed.+`
 
-The fix: Sign with `+crypto::eddsa+`, Ed25519's scheme; `+crypto::ecdsa_sha256+` is P-256's and secp256k1's.
+The fix: Sign with `+crypto::eddsa+` or `+crypto::eddsa_prehashed+`, Ed25519's schemes; `+crypto::ecdsa_sha256+` is P-256's and secp256k1's.
+
+|`+sign_ed25519_keccak+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: an Ed25519 key signs with crypto::eddsa or crypto::eddsa_prehashed.+`
+
+The fix: Sign with `+crypto::eddsa+` or `+crypto::eddsa_prehashed+`, Ed25519's schemes; Ethereum's `+crypto::ecdsa_keccak256_recoverable+` is secp256k1's.
 
 |`+sign_ed25519_prehashed+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure Ed25519) and takes no digest; Ed25519ph, which hashes the message, is curves::ed25519::ph.+`
+|`+webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure Ed25519) and takes no digest; a message's SHA-512 is signed with crypto::eddsa_prehashed (Ed25519ph).+`
 
-The fix: Sign the message itself with `+crypto::eddsa+`, RFC 8032's pure Ed25519, which takes no digest; to sign a message given in pieces, use Ed25519ph, `+curves::ed25519::ph<webcpp::hash::sha2_512>+`.
+The fix: Sign the message itself with `+crypto::eddsa+`, RFC 8032's pure Ed25519, which takes no digest; to sign a message's SHA-512, use Ed25519ph, `+crypto::eddsa_prehashed+`, or for a message given in pieces `+curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>+`.
+
+|`+sign_eddsa_prehashed_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, async_sign and async_verify run on a native backend.+`
+
+The fix: Sign under `+crypto::eddsa_prehashed+` with a key pair of a native backend: WebCrypto has no Ed25519ph; on the browser's backend, sign the message with `+crypto::eddsa+`.
+
+|`+sign_eddsa_prehashed_digest_32+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto::eddsa_prehashed takes a 64-byte digest, SHA-512's: crypto::prehashed{digest} of a std::array<std::uint8_t, 64>.+`
+
+The fix: Give `+crypto::eddsa_prehashed+` SHA-512's 64-byte digest, `+crypto::prehashed{digest}+` of a `+std::array<std::uint8_t, 64>+`: RFC 8032 defines Ed25519ph over SHA-512.
+
+|`+sign_eddsa_prehashed_message+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto::eddsa_prehashed (RFC 8032's Ed25519ph) signs a digest, the message's SHA-512: crypto::prehashed{digest} of a std::array<std::uint8_t, 64>; sign the message itself with crypto::eddsa, or give it in pieces to curves::ed25519::prehashed_signer.+`
+
+The fix: Give `+crypto::eddsa_prehashed+` the message's SHA-512 marked as a digest, `+crypto::prehashed{digest}+` of a `+std::array<std::uint8_t, 64>+`; sign the message itself with `+crypto::eddsa+`, or give it in pieces to `+curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>+`.
 
 |`+sign_free_ed25519_ecdsa+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: an Ed25519 key signs with crypto::eddsa.+`
+|`+webcpp::crypto: an Ed25519 key signs with crypto::eddsa or crypto::eddsa_prehashed.+`
 
-The fix: As `+sign_ed25519_ecdsa+`: `+crypto::sign+` calls the key pair's own `+sign+`, so sign with `+crypto::eddsa+`, Ed25519's scheme.
+The fix: As `+sign_ed25519_ecdsa+`: `+crypto::sign+` calls the key pair's own `+sign+`, so sign with `+crypto::eddsa+` or `+crypto::eddsa_prehashed+`, Ed25519's schemes.
 
 |`+sign_free_public_key+`
 |native, wasip2, wasip3
@@ -367,11 +705,29 @@ The fix: As `+sign_ed25519_ecdsa+`: `+crypto::sign+` calls the key pair's own `+
 
 The fix: Give `+crypto::sign+` the key pair, whose public key verifies: `+crypto::sign(key_pair, scheme, input)+`, then `+crypto::verify(scheme, signature, input, public_key)+` or `+public_key.verify(scheme, signature, input)+`.
 
+|`+sign_keccak_digest_20+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto::ecdsa_keccak256_recoverable takes a 32-byte digest, Keccak-256's: crypto::prehashed{digest} of a std::array<std::uint8_t, 32>.+`
+
+The fix: As `+sign_p256_digest_48+`: give `+crypto::ecdsa_keccak256_recoverable+` Keccak-256's 32-byte digest, or the message itself, which it hashes with Keccak-256.
+
+|`+sign_keccak_without_xkcp+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto::ecdsa_keccak256_recoverable hashes a message with webcpp::hash's keccak_256, which needs XKCP: add /third_party//xkcp to the program's Jamfile, or sign crypto::prehashed{digest}.+`
+
+The fix: Add `+/third_party//xkcp+` to the program's Jamfile, whose Keccak-256 hashes the message, or build the 32-byte digest elsewhere and sign `+crypto::prehashed{digest}+`, which needs no XKCP.
+
 |`+sign_p256_digest_48+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: crypto::ecdsa_sha256 takes a 32-byte digest, SHA-256's: crypto::prehashed{digest} of a std::array<std::uint8_t, 32>.+`
 
 The fix: Give `+crypto::ecdsa_sha256+` SHA-256's 32-byte digest, `+crypto::prehashed{digest}+` of a `+std::array<std::uint8_t, 32>+`, or the message itself, which it hashes.
+
+|`+sign_p256_keccak+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: a P-256 key signs with crypto::ecdsa_sha256.+`
+
+The fix: Sign with `+crypto::ecdsa_sha256+`, P-256's scheme; Ethereum's `+crypto::ecdsa_keccak256_recoverable+` is secp256k1's.
 
 |`+sign_p256_schnorr+`
 |native, wasip2, wasip3
@@ -387,15 +743,15 @@ The fix: Sign the message itself with `+crypto::schnorr+`, BIP340's, which has n
 
 |`+sign_secp256k1_eddsa+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, crypto::ecdsa_sha256_recoverable or crypto::schnorr.+`
+|`+webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, crypto::ecdsa_sha256_recoverable, crypto::ecdsa_keccak256_recoverable or crypto::schnorr.+`
 
-The fix: Sign with `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+` or `+crypto::schnorr+`, secp256k1's schemes; `+crypto::eddsa+` is Ed25519's.
+The fix: Sign with `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+`, `+crypto::ecdsa_keccak256_recoverable+` or `+crypto::schnorr+`, secp256k1's schemes; `+crypto::eddsa+` is Ed25519's.
 
 |`+sign_secp256k1_not_a_scheme+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, crypto::ecdsa_sha256_recoverable or crypto::schnorr.+`
+|`+webcpp::crypto: a secp256k1 key signs with crypto::ecdsa_sha256, crypto::ecdsa_sha256_recoverable, crypto::ecdsa_keccak256_recoverable or crypto::schnorr.+`
 
-The fix: Name the scheme with its tag: `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+` or `+crypto::schnorr+`.
+The fix: Name the scheme with its tag: `+crypto::ecdsa_sha256+`, `+crypto::ecdsa_sha256_recoverable+`, `+crypto::ecdsa_keccak256_recoverable+` or `+crypto::schnorr+`.
 
 |`+sign_secp256k1_recoverable_digest_48+`
 |native, wasip2, wasip3
@@ -403,11 +759,17 @@ The fix: Name the scheme with its tag: `+crypto::ecdsa_sha256+`, `+crypto::ecdsa
 
 The fix: As `+sign_p256_digest_48+`: give `+crypto::ecdsa_sha256_recoverable+` SHA-256's 32-byte digest, or the message itself, which it hashes.
 
+|`+sign_x25519+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: sign: X25519 key pairs agree; they do not sign: sign with an Ed25519 key pair, which to_x25519() converts for agreement.+`
+
+The fix: Sign with an Ed25519 key pair, a `+crypto::signing_keypair+`: an X25519 key pair agrees and does not sign. One Ed25519 key pair can do both: `+to_x25519()+` gives the X25519 key pair that agrees.
+
 |`+silent_payments_other_backend+`
 |native, wasip2
 |`+webcpp::crypto: bearssl has no BIP 352 silent payments. The backends that have it: secp256k1 (native, wasip2, wasip3, emscripten).+`
 
-The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::silent_payments::make_prevouts_summary(...)+`.
+The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::silent_payments::make_previous_outputs_summary(...)+`.
 
 |`+sodium_not_linked+`
 |native, wasip2, wasip3
@@ -423,15 +785,33 @@ The fix: Call `+async_verify+` on a backend that completes by itself: its synchr
 
 |`+verify_ecdsa_bytes_key+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa and crypto::eddsa_prehashed take a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
-The fix: Give `+crypto::ecdsa_sha256+` the public key as a typed object, `+curves::secp256k1::public_key::make(bytes)+` or `+curves::p256::public_key::make(bytes)+`: bytes never choose the curve.
+The fix: Give `+crypto::ecdsa_sha256+` the public key as a typed object, `+curves::secp256k1::public_key::from_bytes(bytes)+` or `+curves::p256::public_key::from_bytes(bytes)+`: bytes never choose the curve.
+
+|`+verify_ed25519_bytes_signature+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: an Ed25519 key verifies a curves::ed25519::signature under crypto::eddsa: make one from 64 bytes with curves::ed25519::signature::from_bytes.+`
+
+The fix: Make the 64 bytes received into a `+curves::ed25519::signature+` with `+curves::ed25519::signature::from_bytes+`, which checks their size, and verify that.
 
 |`+verify_eddsa_bytes_key+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa and crypto::eddsa_prehashed take a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
-The fix: Give `+crypto::eddsa+` the public key as a `+curves::ed25519::public_key+`: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::make(bytes)+` for a key received as bytes.
+The fix: Give `+crypto::eddsa+` (or `+crypto::eddsa_prehashed+`) the public key as a `+curves::ed25519::public_key+`: `+key_pair.public_key()+`, or `+curves::ed25519::public_key::from_bytes(bytes)+` for a key received as bytes.
+
+|`+verify_eddsa_prehashed_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: WebCrypto has no Ed25519ph: crypto::eddsa_prehashed's sign, verify, async_sign and async_verify run on a native backend.+`
+
+The fix: Verify under `+crypto::eddsa_prehashed+` on a native backend, `+crypto::verify+` and the key's `+verify+` alike: WebCrypto has no Ed25519ph; on the browser's backend, verify a signature of the message with `+crypto::eddsa+`.
+
+|`+verify_eddsa_prehashed_message+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: crypto::eddsa_prehashed (RFC 8032's Ed25519ph) signs a digest, the message's SHA-512: crypto::prehashed{digest} of a std::array<std::uint8_t, 64>; sign the message itself with crypto::eddsa, or give it in pieces to curves::ed25519::prehashed_signer.+`
+
+The fix: As `+sign_eddsa_prehashed_message+`: verify under `+crypto::eddsa_prehashed+` the marker of the message's SHA-512, or the message itself under `+crypto::eddsa+`.
 
 |`+verify_free_asynchronous_backend+`
 |native, wasip2, wasip3
@@ -441,21 +821,27 @@ The fix: As `+verify_asynchronous_backend+`.
 
 |`+verify_free_secp256k1_recoverable+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa and crypto::eddsa_prehashed take a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
 The fix: As `+verify_member_secp256k1_recoverable+`: give a recoverable signature to `+curves::secp256k1::recover+`, which gives the signer's key; `+crypto::verify+` takes `+crypto::ecdsa_sha256+` and `+crypto::schnorr+` with a secp256k1 key.
 
+|`+verify_keccak_recoverable+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa and crypto::eddsa_prehashed take a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable signature gives its key to curves::secp256k1::recover.+`
+
+The fix: Give the signature to `+curves::secp256k1::recover(crypto::ecdsa_keccak256_recoverable, signature, input)+`, which gives the signer's key, and compare that key, or its address, with the one expected: Ethereum's recoverable ECDSA has no `+verify+`.
+
 |`+verify_member_ed25519_ecdsa+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: an Ed25519 public key verifies crypto::eddsa.+`
+|`+webcpp::crypto: an Ed25519 public key verifies crypto::eddsa or crypto::eddsa_prehashed.+`
 
-The fix: Verify with `+crypto::eddsa+`, Ed25519's scheme; `+crypto::ecdsa_sha256+` is P-256's and secp256k1's, whose keys are `+curves::p256::basic_public_key+` and `+curves::secp256k1::public_key+`.
+The fix: Verify with `+crypto::eddsa+` or `+crypto::eddsa_prehashed+`, Ed25519's schemes; `+crypto::ecdsa_sha256+` is P-256's and secp256k1's, whose keys are `+curves::p256::basic_public_key+` and `+curves::secp256k1::public_key+`.
 
 |`+verify_member_eddsa_prehashed+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure Ed25519) and takes no digest; Ed25519ph, which hashes the message, is curves::ed25519::ph.+`
+|`+webcpp::crypto: crypto::eddsa signs the message itself (RFC 8032's pure Ed25519) and takes no digest; a message's SHA-512 is signed with crypto::eddsa_prehashed (Ed25519ph).+`
 
-The fix: Verify the message itself with `+crypto::eddsa+`, RFC 8032's pure Ed25519, which takes no digest, as `+crypto::verify+` does; a message given in pieces is Ed25519ph's, `+curves::ed25519::ph<webcpp::hash::sha2_512>+`.
+The fix: Verify the message itself with `+crypto::eddsa+`, RFC 8032's pure Ed25519, which takes no digest, as `+crypto::verify+` does; a signature of a message's SHA-512 is Ed25519ph's, verified with `+crypto::eddsa_prehashed+`, or for a message given in pieces with `+curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>+`.
 
 |`+verify_member_p256_eddsa+`
 |native, wasip2, wasip3
@@ -465,20 +851,66 @@ The fix: Verify with `+crypto::ecdsa_sha256+`, P-256's scheme; `+crypto::eddsa+`
 
 |`+verify_member_secp256k1_recoverable+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: a secp256k1 public key verifies crypto::ecdsa_sha256 or crypto::schnorr; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.+`
+|`+webcpp::crypto: a secp256k1 public key verifies crypto::ecdsa_sha256 or crypto::schnorr; a crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable signature gives its key to curves::secp256k1::recover.+`
 
 The fix: Give a recoverable signature to `+curves::secp256k1::recover(crypto::ecdsa_sha256_recoverable, signature, input)+`, which gives the signer's key; a public key verifies `+crypto::ecdsa_sha256+` and `+crypto::schnorr+`.
+
+|`+verify_p256_secp256k1_signature+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: a P-256 key verifies a curves::p256::ecdsa_signature: make one from 64 bytes with curves::p256::ecdsa_signature::from_bytes.+`
+
+The fix: Give a P-256 key a `+curves::p256::ecdsa_signature+`, made from the 64 bytes received with `+curves::p256::ecdsa_signature::from_bytes+`; a secp256k1 signature verifies with a `+curves::secp256k1::public_key+`.
+
+|`+verify_schnorr_as_ecdsa+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: verify: a secp256k1 key verifies a curves::secp256k1::ecdsa_signature under crypto::ecdsa_sha256: make one from 64 bytes with curves::secp256k1::ecdsa_signature::from_bytes.+`
+
+The fix: Verify a BIP340 signature with `+crypto::schnorr+`, its scheme; `+crypto::ecdsa_sha256+` takes a `+curves::secp256k1::ecdsa_signature+`, which `+sign(crypto::ecdsa_sha256, input)+` gives.
+
+|`+wipe_removed+`
+|native, wasip2, wasip3
+|`+no type named 'wipe' in namespace 'webcpp::crypto'+`
+
+The fix: Call `+crypto::erase_secret+`, which zeroes a contiguous range the program owns (a `+std::string&+`, a `+std::span<std::byte>+`) with stores the optimiser keeps; `+crypto::wipe+` is gone, with no alias.
+
+|`+x25519_asynchronous_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: from_secret on this backend completes asynchronously: call async_from_secret.+`
+
+`+webcpp::crypto: generate on this backend completes asynchronously: call async_generate.+`
+
+`+webcpp::crypto: agree on this backend completes asynchronously: call async_agree.+`
+
+The fix: Call `+async_from_secret+`, `+async_generate+` or `+async_agree+` on a backend that completes by itself: an X25519 key pair's synchronous forms cannot wait for it.
+
+|`+x25519_constructions_other_backend+`
+|native, wasip2, wasip3
+|`+webcpp::crypto: key_exchange::kx_keypair holds an X25519 key pair of its own backend, which has no X25519.+`
+
+`+webcpp::crypto: public_key_encryption::basic_box takes an X25519 key pair of its own backend, which has no X25519.+`
+
+`+webcpp::crypto: public_key_encryption::basic_sealed_box takes an X25519 key pair of its own backend, which has no X25519.+`
+
+The fix: Name a backend that has X25519 as well, as libsodium, the default of crypto_kx, the boxes and the sealed box on every target: each takes an X25519 key pair of its own backend.
 
 |`+x25519_default_not_linked+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: X25519's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//x25519-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//x25519-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
 The fix: Add `+/webcpp/crypto//x25519-default+`, which links `+/third_party//sodium+` on every target.
+
+|`+x25519_free_functions_removed+`
+|native, wasip2, wasip3
+|`+no member named 'agree' in namespace 'webcpp::crypto::curves::x25519'+`
+
+`+no matching conversion for functional-style cast+`
+
+The fix: Make the key pair with `+curves::x25519::keypair::from_secret(secret)+`, then call its `+public_key()+`, and its `+agree+` with the peer's `+curves::x25519::public_key+` from `+from_bytes+`; the free functions over bytes are gone, with no alias. The `+x25519::public_key(secret)+` half pins clang's generic "no matching conversion for functional-style cast", since `+public_key+` now names the type.
 |===
 
 At build and link time, from the fixtures of the user's Jamfiles, each built on a scratch superproject: the texts the build's output contains, per target and linker, as each fixture checks them.
 
-`+aead_not_a_family_on_emscripten+`:: A program for Emscripten that gives `+ciphers::aead+` AES-GCM's family, which `+ciphers::gcm+` serves instead. The fix: As `+aead_not_a_family+`.
+`+aead_not_a_family_on_emscripten+`:: A program for Emscripten that gives `+ciphers::basic_chacha20_poly1305+` AES-GCM's family, which `+ciphers::gcm+` serves instead. The fix: As `+aead_not_a_family+`.
 +
 Its Jamfile:
 +
@@ -490,7 +922,7 @@ include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/aead_not_a_family_on_
 On each target, the build's output contains:
 +
 * emscripten:
-** `+webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original, families::xchacha20_poly1305, families::secretbox_xsalsa20poly1305 or families::secretbox_xchacha20poly1305.+`
+** `+webcpp::crypto: ciphers::basic_chacha20_poly1305 takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original or families::xchacha20_poly1305.+`
 
 `+aes_block_default_not_linked_on_emscripten+`:: A program for Emscripten that calls the AES block cipher on its default, ctaes, and links none. The fix: Add `+/webcpp/crypto//aes_block-default+`, which links `+/third_party//ctaes+` there, to the program's sources.
 +
@@ -524,7 +956,7 @@ On each target, the build's output contains:
 ** `+webcpp::crypto: X25519-XChaCha20-Poly1305 box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//box_xchacha20poly1305-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//box_xchacha20poly1305-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 ** `+webcpp::crypto: X25519-XSalsa20-Poly1305 sealed box's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//sealed_box-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//sealed_box-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
-`+box_not_a_family_on_emscripten+`:: A program for Emscripten that gives `+hybrid::basic_box+` a type that is no box family. The fix: As `+box_not_a_family+`.
+`+box_not_a_family_on_emscripten+`:: A program for Emscripten that gives `+public_key_encryption::basic_box+` a type that is no box family. The fix: As `+box_not_a_family+`.
 +
 Its Jamfile:
 +
@@ -536,7 +968,7 @@ include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/box_not_a_family_on_e
 On each target, the build's output contains:
 +
 * emscripten:
-** `+webcpp::crypto: hybrid::basic_box takes a box family: families::box_xsalsa20poly1305 or families::box_xchacha20poly1305.+`
+** `+webcpp::crypto: public_key_encryption::basic_box takes a box family: families::box_xsalsa20poly1305 or families::box_xchacha20poly1305.+`
 
 `+canary_ctaes_missing+`:: ctaes's headers used without its library. The fix: Link `+/third_party//ctaes+`.
 +
@@ -904,7 +1336,7 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: Ed25519's only verification policy is curves::ed25519::strict.+`
 
-`+ed25519ph_sha256_on_emscripten+`:: A program for Emscripten that names SHA-256 in Ed25519ph's type, which RFC 8032 defines over SHA-512. The fix: As `+ed25519ph_sha256+`.
+`+ed25519ph_sha256_on_emscripten+`:: A program for Emscripten that names SHA-256 in Ed25519ph's streaming signer, `+curves::ed25519::prehashed_signer+`, which RFC 8032 defines over SHA-512. The fix: As `+ed25519ph_sha256+`.
 +
 Its Jamfile:
 +
@@ -916,7 +1348,7 @@ include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/ed25519ph_sha256_on_e
 On each target, the build's output contains:
 +
 * emscripten:
-** `+webcpp::crypto: Ed25519ph is defined over SHA-512 (RFC 8032 section 5.1); name curves::ed25519::ph<webcpp::hash::sha2_512>.+`
+** `+webcpp::crypto: Ed25519ph is defined over SHA-512 (RFC 8032 section 5.1); name curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>.+`
 
 `+has_openssl_on_emscripten+`:: OpenSSL declared linked, without b2, in a build for Emscripten. The fix: Replace `+/webcpp/crypto//openssl+` with `+/third_party//bearssl+`.
 +
@@ -960,13 +1392,13 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: crypto_kx's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//kx-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//kx-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
-`+memory_missing_definition_install+`:: The memory option set in the program's project, the install called, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
+`+memory_missing_definition_from_key+`:: The memory option set in the program's project, a `+from_key+` on OpenSSL, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
 +
 Its Jamfile:
 +
 [listing]
 ----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_missing_definition_install/Jamfile[tag=jamfile]
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_missing_definition_from_key/Jamfile[tag=jamfile]
 ----
 +
 On each target, the build's output contains:
@@ -977,13 +1409,13 @@ On each target, the build's output contains:
 * native, Linux:
 ** `pass:[undefined reference to &#96;webcpp::crypto::openssl_memory_resource()']`
 
-`+memory_missing_definition_make+`:: The memory option set in the program's project, a `+make+` on OpenSSL, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
+`+memory_missing_definition_install+`:: The memory option set in the program's project, the install called, and `+openssl_memory_resource()+` not defined. The fix: Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
 +
 Its Jamfile:
 +
 [listing]
 ----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_missing_definition_make/Jamfile[tag=jamfile]
+include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/memory_missing_definition_install/Jamfile[tag=jamfile]
 ----
 +
 On each target, the build's output contains:
@@ -1106,7 +1538,7 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: the backend libsodium is used and not linked. In the program's Jamfile, add /third_party//sodium beside /webcpp/crypto//crypto, as in: exe app : app.cpp /webcpp/crypto//crypto /third_party//sodium ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
-`+x25519_default_not_linked_on_emscripten+`:: A program for Emscripten that agrees an X25519 shared secret on its default, libsodium, and links none. The fix: As `+x25519_default_not_linked+`.
+`+x25519_default_not_linked_on_emscripten+`:: A program for Emscripten that makes an X25519 key pair and agrees a shared secret on its default, libsodium, and links none. The fix: As `+x25519_default_not_linked+`.
 +
 Its Jamfile:
 +
@@ -1128,7 +1560,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+aead_not_a_family+`
 |the compile
-|Name one of the three ChaCha20-Poly1305 families or the two secret boxes'; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`.
+|Name one of the three ChaCha20-Poly1305 families; AES-GCM is `+ciphers::gcm+`, as in `+aes256_gcm+`, and a secret box `+secret_key_encryption::basic_secretbox+`, as in `+secret_key_encryption::secretbox<>+`.
 
 |`+aes_block_default_not_linked+`
 |the compile
@@ -1138,17 +1570,21 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Name `+ciphers::aes256<backends::ctaes>+`, include `+<webcpp/crypto/backends/ctaes.hpp>+` and add `+/third_party//ctaes+`.
 
-|`+async_make_xchacha+`
+|`+async_from_key_xchacha+`
 |the compile
-|Call the synchronous `+make+`: XChaCha20-Poly1305 is not in WebCrypto, so it has no asynchronous form.
+|Name a native backend, such as `+backends::sodium+`, for `+async_from_key+`: WebCrypto has no XChaCha20-Poly1305, so no form of it runs on the browser's backend, where only AES-GCM seals and opens.
+
+|`+async_from_secret_secp256k1+`
+|the compile
+|Call the synchronous `+from_secret+`: secp256k1 is not in WebCrypto, so only Ed25519's, X25519's and P-256's key pairs have `+async_from_secret+`.
 
 |`+async_open_xchacha+`
 |the compile
-|Call the AEAD's own `+open+`: only AES-GCM has `+async_open+`.
+|Name a native backend, such as `+backends::sodium+`, for `+async_open+`, or open with AES-GCM on the browser's backend: WebCrypto has no XChaCha20-Poly1305.
 
 |`+async_seal_xchacha+`
 |the compile
-|Call the AEAD's own `+seal+`: only AES-GCM has `+async_seal+`.
+|Name a native backend, such as `+backends::sodium+`, for `+async_seal+`, or seal with AES-GCM on the browser's backend: WebCrypto has no XChaCha20-Poly1305.
 
 |`+async_sign_secp256k1+`
 |the compile
@@ -1164,7 +1600,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+box_not_a_family+`
 |the compile
-|Name `+families::box_xsalsa20poly1305+` or `+families::box_xchacha20poly1305+`, or use `+hybrid::box+` or `+hybrid::box_xchacha20poly1305+`.
+|Name `+families::box_xsalsa20poly1305+` or `+families::box_xchacha20poly1305+`, or use `+public_key_encryption::box+` or `+public_key_encryption::box_xchacha20poly1305+`.
 
 |`+canary_ctaes_missing+`
 |the link
@@ -1244,7 +1680,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+ed25519ph_sha256+`
 |the compile
-|Name `+curves::ed25519::ph<webcpp::hash::sha2_512>+`: RFC 8032 defines Ed25519ph over SHA-512.
+|Name `+curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>+`: RFC 8032 defines Ed25519ph over SHA-512.
 
 |`+ellswift_other_backend+`
 |the compile
@@ -1270,11 +1706,11 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Return `+std::optional<std::span<std::uint8_t const, 32>>+`, a span over a tweak the lookup keeps, such as a map's entry; never the tweak by value.
 
-|`+memory_missing_definition_install+`
+|`+memory_missing_definition_from_key+`
 |the link
 |Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
 
-|`+memory_missing_definition_make+`
+|`+memory_missing_definition_install+`
 |the link
 |Define `+std::pmr::memory_resource& webcpp::crypto::openssl_memory_resource() noexcept+` once in the program, returning a resource that is never destroyed.
 
@@ -1326,9 +1762,17 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
 
+|`+sign_eddsa_prehashed_message+`
+|the compile
+|Give `+crypto::eddsa_prehashed+` the message's SHA-512 marked as a digest, `+crypto::prehashed{digest}+` of a `+std::array<std::uint8_t, 64>+`; sign the message itself with `+crypto::eddsa+`, or give it in pieces to `+curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>+`.
+
+|`+sign_keccak_without_xkcp+`
+|the compile
+|Add `+/third_party//xkcp+` to the program's Jamfile, whose Keccak-256 hashes the message, or build the 32-byte digest elsewhere and sign `+crypto::prehashed{digest}+`, which needs no XKCP.
+
 |`+silent_payments_other_backend+`
 |the compile
-|Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::silent_payments::make_prevouts_summary(...)+`.
+|Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::silent_payments::make_previous_outputs_summary(...)+`.
 
 |`+sodium_not_linked+`
 |the compile

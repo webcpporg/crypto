@@ -6,7 +6,7 @@
 
 // A chat app, in the browser and natively alike, encrypts each message of a conversation under
 // the conversation's key with XChaCha20-Poly1305, a fresh 24-byte nonce drawn at random per
-// message and the conversation's id as additional data; a message changed on the way, or moved
+// message and the conversation's id as associated data; a message changed on the way, or moved
 // to another conversation, does not open. Prints what the recipient reads.
 // tag::program[]
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
@@ -29,7 +29,7 @@ namespace {
 
 // A message as it travels: the nonce, the tag and the ciphertext, all public.
 struct sealed_message {
-    std::array<std::uint8_t, xchacha::iv_size> nonce{};
+    std::array<std::uint8_t, xchacha::nonce_size> nonce{};
     xchacha::result_type tag{};
     std::vector<std::uint8_t> ciphertext;
 };
@@ -77,7 +77,7 @@ int main() {
     if (!device.fill(key.writable())) {
         return 1;
     }
-    auto cipher = xchacha::make(key.bytes());
+    auto cipher = xchacha::from_key(key.bytes());
     if (!cipher) {
         return 1;
     }

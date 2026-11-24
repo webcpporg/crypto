@@ -7,11 +7,11 @@
 // detail::timing_guard in a program's build, without the seam: its constructor takes no argument,
 // a std::source_location least of all, on every target, so that no guarded function's name or
 // header's path can reach a program. Built with WEBCPP_TEST_TIMING_READ_SELF (natively, at
-// release), the program reads its own executable and finds neither the name of equal, which it
-// calls, nor the path of equal.hpp, where its guards are declared.
+// release), the program reads its own executable and finds neither the name of constant_time_equal,
+// which it calls, nor the path of constant_time_equal.hpp, where its guards are declared.
 
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -41,18 +41,19 @@ static_assert(!std::is_constructible_v<detail::timing_guard, std::source_locatio
 static_assert(std::is_nothrow_default_constructible_v<detail::timing_guard>,
               "without the seam, timing_guard is constructed from nothing, and never throws");
 
-// equal, both overloads, runs and answers as it does with the seam. Each call is outside
-// BOOST_TEST, whose message would put the call's text, equal's name among it, in the program.
-void equal_runs() {
+// constant_time_equal, both overloads, runs and answers as it does with the seam. Each call is
+// outside BOOST_TEST, whose message would put the call's text, constant_time_equal's name among
+// it, in the program.
+void constant_time_equal_runs() {
     std::array<std::uint8_t, 4> const first{1, 2, 3, 4};
     std::array<std::uint8_t, 4> const second{1, 2, 3, 5};
-    bool const same = webcpp::crypto::equal(std::span<std::uint8_t const>(first),
-                                            std::span<std::uint8_t const>(first));
-    bool const different = webcpp::crypto::equal(std::span<std::uint8_t const>(first),
-                                                 std::span<std::uint8_t const>(second));
+    bool const same = webcpp::crypto::constant_time_equal(std::span<std::uint8_t const>(first),
+                                                          std::span<std::uint8_t const>(first));
+    bool const different = webcpp::crypto::constant_time_equal(
+        std::span<std::uint8_t const>(first), std::span<std::uint8_t const>(second));
     boost::hash2::digest<4> digest;
     std::ranges::copy(first, digest.begin());
-    bool const same_digest = webcpp::crypto::equal(digest, digest);
+    bool const same_digest = webcpp::crypto::constant_time_equal(digest, digest);
     BOOST_TEST(same);
     BOOST_TEST(!different);
     BOOST_TEST(same_digest);
@@ -65,8 +66,8 @@ void equal_runs() {
  * pointer, which keeps it in the program whole: a search for a constant could otherwise compile
  * to comparisons with no copy of the text.
  */
-constexpr std::string_view masked_name_text = "webcpp::crypto::equal#";
-constexpr std::string_view masked_path_text = "equal.hp#";
+constexpr std::string_view masked_name_text = "webcpp::crypto::constant_time_equal#";
+constexpr std::string_view masked_path_text = "constant_time_equal.hp#";
 
 /**
  * A text of the program's, read where the compiler cannot see it.
@@ -106,7 +107,7 @@ bool holds(std::vector<char> const& bytes, std::string_view text) {
 }
 
 // The executable holds the masked texts, which shows the search reads it whole, and neither
-// equal's name, as clang, GCC and MSVC begin function_name(), nor its header's path.
+// constant_time_equal's name, as clang, GCC and MSVC begin function_name(), nor its header's path.
 void executable_holds_no_location(char const* executable) {
     std::ifstream file(executable, std::ios::binary);
     if (!BOOST_TEST(file.is_open())) {
@@ -127,7 +128,7 @@ void executable_holds_no_location(char const* executable) {
 
 // NOLINTNEXTLINE(misc-const-correctness): main's arguments have the type the standard gives them
 int main([[maybe_unused]] int argc, [[maybe_unused]] char** argv) {
-    equal_runs();
+    constant_time_equal_runs();
 #ifdef WEBCPP_TEST_TIMING_READ_SELF
     if (BOOST_TEST(argc > 0)) {
         executable_holds_no_location(argv[0]);

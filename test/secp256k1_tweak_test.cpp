@@ -48,28 +48,29 @@ using scalar = std::array<std::uint8_t, 32>;
 constexpr std::string_view order_hex =
     "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141";
 
-static_assert(std::is_same_v<decltype(secp::seckey_tweak_add(std::declval<scalar const&>(),
-                                                             std::declval<scalar const&>())),
+static_assert(std::is_same_v<decltype(secp::secret_key_tweak_add(std::declval<scalar const&>(),
+                                                                 std::declval<scalar const&>())),
                              boost::system::result<crypto::secret<32>>>);
-static_assert(std::is_same_v<decltype(secp::seckey_tweak_mul(std::declval<scalar const&>(),
-                                                             std::declval<scalar const&>())),
+static_assert(std::is_same_v<decltype(secp::secret_key_tweak_mul(std::declval<scalar const&>(),
+                                                                 std::declval<scalar const&>())),
                              boost::system::result<crypto::secret<32>>>);
-static_assert(std::is_same_v<decltype(secp::seckey_negate(std::declval<scalar const&>())),
+static_assert(std::is_same_v<decltype(secp::secret_key_negate(std::declval<scalar const&>())),
                              boost::system::result<crypto::secret<32>>>);
 static_assert(
-    std::is_same_v<decltype(secp::pubkey_tweak_add(std::declval<secp::public_key const&>(),
-                                                   std::declval<scalar const&>())),
+    std::is_same_v<decltype(secp::public_key_tweak_add(std::declval<secp::public_key const&>(),
+                                                       std::declval<scalar const&>())),
                    boost::system::result<secp::public_key>>);
 static_assert(
-    std::is_same_v<decltype(secp::pubkey_tweak_mul(std::declval<secp::public_key const&>(),
-                                                   std::declval<scalar const&>())),
+    std::is_same_v<decltype(secp::public_key_tweak_mul(std::declval<secp::public_key const&>(),
+                                                       std::declval<scalar const&>())),
                    boost::system::result<secp::public_key>>);
-static_assert(std::is_same_v<decltype(secp::pubkey_negate(std::declval<secp::public_key const&>())),
-                             boost::system::result<secp::public_key>>);
+static_assert(
+    std::is_same_v<decltype(secp::public_key_negate(std::declval<secp::public_key const&>())),
+                   boost::system::result<secp::public_key>>);
 static_assert(std::is_same_v<secp::workspace, std::span<std::byte>>);
 static_assert(secp::combine_workspace_size(2) ==
               (2 * sizeof(secp256k1_pubkey const*)) + alignof(std::max_align_t));
-static_assert(noexcept(secp::pubkey_negate(std::declval<secp::public_key const&>())));
+static_assert(noexcept(secp::public_key_negate(std::declval<secp::public_key const&>())));
 
 scalar to_scalar(std::span<std::uint8_t const> bytes) {
     scalar out{};
@@ -115,7 +116,7 @@ scalar draw(std::mt19937_64& generator) {
 
 // P(x): the public key of the secret x, through a key pair.
 secp::public_key public_of(std::span<std::uint8_t const, 32> secret_bytes) {
-    auto const key = secp::keypair::make(secret_bytes);
+    auto const key = secp::keypair::from_secret(secret_bytes);
     if (!BOOST_TEST(key.has_value())) {
         std::exit(boost::report_errors());
     }
@@ -194,14 +195,14 @@ void keys_against_c_api(secp::public_key const& p_d, secp::public_key const& p_t
 void identity_round(scalar const& d, scalar const& t, secp::workspace space) {
     auto const p_d = public_of(d);
     auto const p_t = public_of(t);
-    auto const sum = secp::seckey_tweak_add(d, t);
-    auto const product = secp::seckey_tweak_mul(d, t);
-    auto const negated = secp::seckey_negate(d);
-    auto const p_sum = secp::pubkey_tweak_add(p_d, t);
-    auto const p_product = secp::pubkey_tweak_mul(p_d, t);
-    auto const p_negated = secp::pubkey_negate(p_d);
+    auto const sum = secp::secret_key_tweak_add(d, t);
+    auto const product = secp::secret_key_tweak_mul(d, t);
+    auto const negated = secp::secret_key_negate(d);
+    auto const p_sum = secp::public_key_tweak_add(p_d, t);
+    auto const p_product = secp::public_key_tweak_mul(p_d, t);
+    auto const p_negated = secp::public_key_negate(p_d);
     std::array<secp::public_key, 2> const pair{p_d, p_t};
-    auto const combined = secp::pubkey_combine(pair, space);
+    auto const combined = secp::public_key_combine(pair, space);
     BOOST_TEST(all_zero(space));
     if (!BOOST_TEST(sum && product && negated && p_sum && p_product && p_negated && combined)) {
         return;
@@ -210,11 +211,11 @@ void identity_round(scalar const& d, scalar const& t, secp::workspace space) {
     BOOST_TEST(*p_product == public_of(product->bytes()));
     BOOST_TEST(*p_negated == public_of(negated->bytes()));
     BOOST_TEST(*p_negated != p_d);
-    auto const p_twice = secp::pubkey_negate(*p_negated);
+    auto const p_twice = secp::public_key_negate(*p_negated);
     BOOST_TEST(p_twice.has_value() && *p_twice == p_d);
     BOOST_TEST(*combined == *p_sum);
     // -(-d) holds d's bytes; each step bound to a name (secret's views are lvalue-only).
-    auto const twice = secp::seckey_negate(negated->bytes());
+    auto const twice = secp::secret_key_negate(negated->bytes());
     BOOST_TEST(twice && std::ranges::equal(twice->bytes(), d));
 
     secrets_against_c_api(d, t, *sum, *product, *negated);
@@ -248,12 +249,12 @@ void combinations() {
                                                  secrets[i].data()) == 1);
     }
     std::vector<std::byte> space(secp::combine_workspace_size(keys.size()));
-    auto const combined = secp::pubkey_combine(keys, space);
+    auto const combined = secp::public_key_combine(keys, space);
     BOOST_TEST(combined && *combined == public_of(total));
     BOOST_TEST(all_zero(space));
 
     alignas(std::max_align_t) std::array<std::byte, secp::combine_workspace_size(1)> one{};
-    auto const alone = secp::pubkey_combine(std::span(keys).first(1), one);
+    auto const alone = secp::public_key_combine(std::span(keys).first(1), one);
     BOOST_TEST(alone && *alone == keys[0]);
     BOOST_TEST(all_zero(one));
 }
@@ -288,7 +289,7 @@ void off_alignment() {
             buffer{};
         buffer.fill(guard);
         auto const space = std::span(buffer).subspan(offset, space_size);
-        auto const combined = secp::pubkey_combine(keys, space);
+        auto const combined = secp::public_key_combine(keys, space);
         BOOST_TEST(combined && *combined == expected);
         BOOST_TEST(all_zero(space));
         auto const is_guard = [](std::byte b) { return b == guard; };
@@ -299,7 +300,7 @@ void off_alignment() {
 
 // 1 + 1 is 2, whose public key is 2G.
 void known_answer() {
-    auto const two = secp::seckey_tweak_add(small(1), small(1));
+    auto const two = secp::secret_key_tweak_add(small(1), small(1));
     if (!BOOST_TEST(two.has_value())) {
         return;
     }
@@ -307,7 +308,7 @@ void known_answer() {
     auto const key = public_of(two->bytes());
     BOOST_TEST_EQ(test::to_hex(key.compressed()),
                   "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5");
-    auto const added = secp::pubkey_tweak_add(public_of(small(1)), small(1));
+    auto const added = secp::public_key_tweak_add(public_of(small(1)), small(1));
     BOOST_TEST(added && *added == key);
 }
 
@@ -328,58 +329,59 @@ void refusals() {
     auto const n_minus_d = order_minus(d);
 
     // A tweak equal to the group order.
-    refused("seckey_tweak_add(d, n)", secp::seckey_tweak_add(d, n),
+    refused("secret_key_tweak_add(d, n)", secp::secret_key_tweak_add(d, n),
             crypto::error::invalid_secret_key);
-    refused("seckey_tweak_mul(d, n)", secp::seckey_tweak_mul(d, n),
+    refused("secret_key_tweak_mul(d, n)", secp::secret_key_tweak_mul(d, n),
             crypto::error::invalid_secret_key);
-    refused("pubkey_tweak_add(P, n)", secp::pubkey_tweak_add(p_d, n),
+    refused("public_key_tweak_add(P, n)", secp::public_key_tweak_add(p_d, n),
             crypto::error::invalid_secret_key);
-    refused("pubkey_tweak_mul(P, n)", secp::pubkey_tweak_mul(p_d, n),
+    refused("public_key_tweak_mul(P, n)", secp::public_key_tweak_mul(p_d, n),
             crypto::error::invalid_secret_key);
     // A sum that is zero, and a product by zero.
-    refused("seckey_tweak_add(d, n - d)", secp::seckey_tweak_add(d, n_minus_d),
+    refused("secret_key_tweak_add(d, n - d)", secp::secret_key_tweak_add(d, n_minus_d),
             crypto::error::invalid_secret_key);
-    refused("pubkey_tweak_add(P(d), n - d)", secp::pubkey_tweak_add(p_d, n_minus_d),
+    refused("public_key_tweak_add(P(d), n - d)", secp::public_key_tweak_add(p_d, n_minus_d),
             crypto::error::invalid_secret_key);
-    refused("seckey_tweak_mul(d, 0)", secp::seckey_tweak_mul(d, zero),
+    refused("secret_key_tweak_mul(d, 0)", secp::secret_key_tweak_mul(d, zero),
             crypto::error::invalid_secret_key);
-    refused("pubkey_tweak_mul(P, 0)", secp::pubkey_tweak_mul(p_d, zero),
+    refused("public_key_tweak_mul(P, 0)", secp::public_key_tweak_mul(p_d, zero),
             crypto::error::invalid_secret_key);
     // A zero and an order-sized secret.
     for (auto const& bad : {zero, n}) {
-        refused("seckey_tweak_add(bad, t)", secp::seckey_tweak_add(bad, small(1)),
+        refused("secret_key_tweak_add(bad, t)", secp::secret_key_tweak_add(bad, small(1)),
                 crypto::error::invalid_secret_key);
-        refused("seckey_tweak_mul(bad, t)", secp::seckey_tweak_mul(bad, small(1)),
+        refused("secret_key_tweak_mul(bad, t)", secp::secret_key_tweak_mul(bad, small(1)),
                 crypto::error::invalid_secret_key);
-        refused("seckey_negate(bad)", secp::seckey_negate(bad), crypto::error::invalid_secret_key);
+        refused("secret_key_negate(bad)", secp::secret_key_negate(bad),
+                crypto::error::invalid_secret_key);
     }
     // A zero tweak adds nothing: d + 0 is d.
-    auto const same = secp::seckey_tweak_add(d, zero);
+    auto const same = secp::secret_key_tweak_add(d, zero);
     BOOST_TEST(same && std::ranges::equal(same->bytes(), d));
 
     // P + (-P) is the point at infinity.
     alignas(std::max_align_t) std::array<std::byte, secp::combine_workspace_size(2)> space{};
-    auto const p_opposite = secp::pubkey_negate(p_d);
+    auto const p_opposite = secp::public_key_negate(p_d);
     if (!BOOST_TEST(p_opposite.has_value())) {
         return;
     }
     std::array<secp::public_key, 2> const opposite{p_d, *p_opposite};
-    refused("pubkey_combine(P, -P)", secp::pubkey_combine(opposite, space),
+    refused("public_key_combine(P, -P)", secp::public_key_combine(opposite, space),
             crypto::error::invalid_public_key);
     BOOST_TEST(all_zero(space));
     // No keys, and a workspace one byte short: refused, and the workspace, lent full of
     // non-zero bytes, is zero afterwards all the same.
     std::ranges::fill(space, std::byte{0xa5});
-    refused("pubkey_combine({})", secp::pubkey_combine({}, space),
+    refused("public_key_combine({})", secp::public_key_combine({}, space),
             crypto::error::invalid_input_size);
     BOOST_TEST(all_zero(space));
     std::ranges::fill(space, std::byte{0xa5});
     std::array<secp::public_key, 2> const pair{p_d, public_of(small(7))};
-    refused("pubkey_combine(short)",
-            secp::pubkey_combine(pair, std::span(space).first(space.size() - 1)),
+    refused("public_key_combine(short)",
+            secp::public_key_combine(pair, std::span(space).first(space.size() - 1)),
             crypto::error::invalid_input_size);
     BOOST_TEST(all_zero(std::span(space).first(space.size() - 1)));
-    refused("pubkey_combine(no workspace)", secp::pubkey_combine(pair, {}),
+    refused("public_key_combine(no workspace)", secp::public_key_combine(pair, {}),
             crypto::error::invalid_input_size);
 }
 

@@ -34,6 +34,7 @@
 #include <sodium/crypto_secretbox.h>
 #include <sodium/crypto_secretbox_xchacha20poly1305.h>
 #include <boost/hash2/digest.hpp>
+#include <boost/system/error_code.hpp>
 #include <boost/system/result.hpp>
 
 #include <algorithm>
@@ -41,6 +42,17 @@
 #include <cstdint>
 #include <span>
 #include <string_view>
+
+#ifdef __EMSCRIPTEN__  // crypto's entropy, libsodium's generator there
+#include <webcpp/crypto/detail/entropy.hpp>
+
+#include <sodium/randombytes.h>
+
+#include <atomic>
+#include <bit>
+#include <cstddef>
+#include <mutex>
+#endif
 
 /** The canary's name, which every libsodium function of webcpp::crypto reads. */
 #define WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY \
@@ -58,7 +70,16 @@ extern "C" constinit const char WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY;
 
 namespace webcpp::crypto::backends {
 
-/** The backend libsodium (design D7). */
+/**
+ * The backend libsodium (design D7).
+ *
+ * On Emscripten libsodium draws from crypto's entropy, `crypto.getRandomValues`. Until crypto
+ * has initialised libsodium, every function on libsodium first draws a few bytes from it, and
+ * returns `entropy_unavailable` when the draw fails, or `errc::not_supported` where there is no
+ * generator at all, libsodium then left uninitialised for the next call; a function that draws
+ * nothing (a signature, a key pair from its secret) then runs whatever the generator does. A sealed
+ * box returns the same errors whenever its ephemeral key cannot be drawn.
+ */
 struct sodium {
     /** The backend's name, which the examples print. */
     static constexpr std::string_view name = "sodium";
@@ -68,17 +89,206 @@ struct sodium {
 
 namespace webcpp::crypto::detail {
 
+#ifdef __EMSCRIPTEN__
+// On Emscripten libsodium draws through its own JavaScript (randombytes.c): its stir, which
+// sodium_init runs, throws "No secure random number generator found" when
+// crypto.getRandomValues and node's randomBytes throw, and the throw unwinds through
+// WebAssembly. crypto installs its own implementation instead, before the first sodium_init,
+// which reads crypto's entropy (detail/entropy.hpp). Its buf returns void, so a failed draw is
+// reported through the watch's state.
+
+/** The state of the watches of one thread. */
+struct sodium_draw_state {
+    /** How many calls crypto observes are running: the depth of the watches. */
+    int watched_depth = 0;
+    /**
+     * The error of a draw that failed inside the innermost watch that is running, or none:
+     * `entropy_unavailable`, or `errc::not_supported` where there is no generator at all.
+     */
+    boost::system::error_code draw_error{};
+};
+
+/**
+ * The state of this thread's watches, constant-initialised.
+ *
+ * @return This thread's state.
+ */
+[[nodiscard]] inline sodium_draw_state& sodium_draws() noexcept {
+    thread_local sodium_draw_state thread_state;
+    return thread_state;
+}
+
+/**
+ * Watches the libsodium draws of one call crypto makes: while it lives, a failed draw is recorded
+ * rather than fatal. A watch inside another keeps the outer one's failure.
+ */
+class sodium_draw_watch {
+public:
+    /** Starts watching, with no failure seen yet. */
+    sodium_draw_watch() noexcept : state_(&sodium_draws()), outer_error_(state_->draw_error) {
+        ++state_->watched_depth;
+        state_->draw_error = {};
+    }
+
+    sodium_draw_watch(sodium_draw_watch const&) = delete;
+    sodium_draw_watch& operator=(sodium_draw_watch const&) = delete;
+    sodium_draw_watch(sodium_draw_watch&&) = delete;
+    sodium_draw_watch& operator=(sodium_draw_watch&&) = delete;
+
+    /** Stops watching; an outer watch still sees its own failure, and this one's. */
+    ~sodium_draw_watch() {
+        --state_->watched_depth;
+        if (outer_error_) {
+            state_->draw_error = outer_error_;
+        }
+    }
+
+    /**
+     * The error of a draw that failed since the watch started.
+     *
+     * @return The source's error, or none.
+     */
+    [[nodiscard]] boost::system::error_code draw_error() const noexcept {
+        return state_->draw_error;
+    }
+
+private:
+    sodium_draw_state* state_;
+    boost::system::error_code outer_error_;
+};
+
+/**
+ * Fills `output_data` from crypto's entropy: libsodium's `randombytes_buf`. When the draw fails
+ * the bytes are zeroed; inside a watched call the failure is recorded for its caller, outside one
+ * no caller could see it, so it ends the program through `sodium_misuse`, libsodium's own
+ * reaction to a draw that cannot be made, rather than hand zeros on.
+ *
+ * @param output_data Where to write.
+ * @param byte_count How many bytes.
+ */
+inline void sodium_entropy_buf(void* const output_data, std::size_t const byte_count) noexcept {
+    auto const drawn = fill_from_system({static_cast<std::uint8_t*>(output_data), byte_count});
+    if (!drawn) {
+        sodium_draw_state& thread_state = sodium_draws();
+        if (thread_state.watched_depth == 0) {
+            sodium_misuse();
+        }
+        thread_state.draw_error = drawn.error();
+    }
+}
+
+/**
+ * libsodium's `randombytes_random`, which draws 4 bytes through @ref sodium_entropy_buf; their
+ * copy on the stack is wiped before it returns.
+ *
+ * @return The bytes, read in the machine's order.
+ */
+inline std::uint32_t sodium_entropy_random() noexcept {
+    std::array<std::uint8_t, sizeof(std::uint32_t)> drawn_bytes{};
+    sodium_entropy_buf(drawn_bytes.data(), drawn_bytes.size());
+    auto const drawn_value = std::bit_cast<std::uint32_t>(drawn_bytes);
+    wipe_object(drawn_bytes);
+    return drawn_value;
+}
+
+/** Does nothing: crypto's entropy has no state to stir. libsodium's `randombytes_stir`. */
+inline void sodium_entropy_stir() noexcept {}
+
+/**
+ * The implementation's name, libsodium's `randombytes_implementation_name`.
+ *
+ * @return "webcpp-crypto".
+ */
+inline char const* sodium_entropy_name() noexcept {
+    return "webcpp-crypto";
+}
+
+/**
+ * crypto's entropy as libsodium's generator. `uniform` and `close` are null: libsodium derives
+ * `randombytes_uniform` from `random`, and there is nothing to close.
+ *
+ * Tip: no call crypto watches reaches `randombytes_uniform` (crypto_box_seal and sodium_init
+ * draw through `buf` alone). libsodium's derived `uniform` draws until a value is not below
+ * 2^32 mod its bound, so inside a watch, where a failed draw returns 0, it would loop for as long
+ * as draws fail; outside one, the first failed draw ends the program before it loops.
+ */
+inline randombytes_implementation const sodium_entropy{
+    .implementation_name = &sodium_entropy_name,
+    .random = &sodium_entropy_random,
+    .stir = &sodium_entropy_stir,
+    .uniform = nullptr,
+    .buf = &sodium_entropy_buf,
+    .close = nullptr,
+};
+#else
+/**
+ * Off Emscripten libsodium draws from the system's generator itself, which ends the program when
+ * it cannot: a watch sees no failure. No thread-local state either, whose first access on a
+ * thread allocates on some platforms (macOS).
+ */
+class sodium_draw_watch {
+public:
+    /**
+     * The error of a draw that failed since the watch started.
+     *
+     * @return None.
+     */
+    [[nodiscard]] boost::system::error_code draw_error() const noexcept { return draw_error_; }
+
+private:
+    boost::system::error_code draw_error_{};
+};
+#endif
+
 /**
  Reads libsodium's canary and initialises libsodium, which every engine calls first.
  `sodium_init` is idempotent and takes libsodium's own lock; its state is libsodium's.
 
- @return Nothing; `backend_failure` when `sodium_init` returns -1.
+ On Emscripten, it first installs crypto's entropy as libsodium's generator, once. Then, until
+ crypto has seen `sodium_init` succeed, it probes crypto's entropy with a small draw and, when
+ the probe fails, returns its error without calling `sodium_init`: libsodium stays uninitialised
+ and the next call tries again, so that libsodium never keeps a zero canary for the program's own
+ `sodium_malloc` allocations (`sodium_init` draws that canary). In the narrow case where the probe
+ succeeds and the canary's draw then fails, the watch around `sodium_init` returns that draw's
+ error; libsodium is then initialised with a zero canary.
+
+ @return Nothing; `backend_failure` when `sodium_init` returns -1; on Emscripten,
+ `entropy_unavailable`, or `errc::not_supported` where there is no generator, when the probe or
+ `sodium_init`'s draw failed.
 */
 [[nodiscard]] inline boost::system::result<void> sodium_ready() noexcept {
     read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+#ifdef __EMSCRIPTEN__
+    // Before the first sodium_init, whose stir would otherwise run libsodium's JavaScript; a
+    // once_flag is constant-initialised, and a second thread waits until the first has set it.
+    // Inside noexcept: libc++'s call_once throws only what its callable throws (it reports no
+    // error of its own lock), and the callable, a C function that stores a pointer, throws
+    // nothing.
+    static std::once_flag installed_once;
+    std::call_once(installed_once,
+                   [] { static_cast<void>(randombytes_set_implementation(&sodium_entropy)); });
+    // Whether crypto has seen sodium_init succeed, after which no probe is needed: a call that
+    // draws nothing (a signature, a key pair from its secret) then runs whatever the source does.
+    static std::atomic<bool> initialised_seen{false};
+    if (!initialised_seen.load(std::memory_order_acquire)) {
+        std::array<std::uint8_t, 4> probe_bytes{};
+        auto const probed = fill_from_system(probe_bytes);
+        wipe_object(probe_bytes);
+        if (!probed) {
+            return probed.error();
+        }
+    }
+#endif
+    sodium_draw_watch const init_draws;
     if (sodium_init() < 0) {
         return error::backend_failure;
     }
+    if (auto const init_error = init_draws.draw_error()) {
+        return init_error;
+    }
+#ifdef __EMSCRIPTEN__
+    initialised_seen.store(true, std::memory_order_release);
+#endif
     return {};
 }
 
@@ -87,15 +297,15 @@ namespace webcpp::crypto::detail {
  match or an all-zero shared secret, which webcpp reports and so branches on, here, where it is
  marked public for the constant-time checks (`WEBCPP_CRYPTO_DETAIL_DECLASSIFY`).
 
- @param returned What the function returned: 0, or -1 when it refused.
+ @param returned_code What the function returned: 0, or -1 when it refused.
  @return Whether it refused.
 */
-[[nodiscard]] inline bool sodium_refused(int returned) noexcept {
+[[nodiscard]] inline bool sodium_refused(int returned_code) noexcept {
     // Not const: the comparison reads it again after the mark (detail/declassify.hpp's tip).
     // NOLINTNEXTLINE(misc-const-correctness): see above
-    int verdict = returned;
-    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&verdict, sizeof verdict);
-    return verdict != 0;
+    int call_verdict = returned_code;
+    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&call_verdict, sizeof call_verdict);
+    return call_verdict != 0;
 }
 
 /** libsodium's detached functions of an AEAD family, which differ only by name. */
@@ -106,32 +316,32 @@ struct sodium_aead_calls;
 template <>
 struct sodium_aead_calls<families::chacha20_poly1305> {
     /** Encrypts and computes the tag apart. */
-    static constexpr auto encrypt = &crypto_aead_chacha20poly1305_ietf_encrypt_detached;
+    static constexpr auto encrypt_call = &crypto_aead_chacha20poly1305_ietf_encrypt_detached;
     /** Checks the tag apart, then decrypts. */
-    static constexpr auto decrypt = &crypto_aead_chacha20poly1305_ietf_decrypt_detached;
+    static constexpr auto decrypt_call = &crypto_aead_chacha20poly1305_ietf_decrypt_detached;
 };
 
 /** The original ChaCha20-Poly1305: libsodium's functions without a suffix. */
 template <>
 struct sodium_aead_calls<families::chacha20_poly1305_original> {
     /** Encrypts and computes the tag apart. */
-    static constexpr auto encrypt = &crypto_aead_chacha20poly1305_encrypt_detached;
+    static constexpr auto encrypt_call = &crypto_aead_chacha20poly1305_encrypt_detached;
     /** Checks the tag apart, then decrypts. */
-    static constexpr auto decrypt = &crypto_aead_chacha20poly1305_decrypt_detached;
+    static constexpr auto decrypt_call = &crypto_aead_chacha20poly1305_decrypt_detached;
 };
 
 /** XChaCha20-Poly1305: libsodium's `xchacha20poly1305_ietf` functions. */
 template <>
 struct sodium_aead_calls<families::xchacha20_poly1305> {
     /** Encrypts and computes the tag apart. */
-    static constexpr auto encrypt = &crypto_aead_xchacha20poly1305_ietf_encrypt_detached;
+    static constexpr auto encrypt_call = &crypto_aead_xchacha20poly1305_ietf_encrypt_detached;
     /** Checks the tag apart, then decrypts. */
-    static constexpr auto decrypt = &crypto_aead_xchacha20poly1305_ietf_decrypt_detached;
+    static constexpr auto decrypt_call = &crypto_aead_xchacha20poly1305_ietf_decrypt_detached;
 };
 
 /** An AEAD's state on libsodium: the key, in the object, since libsodium takes it per call. */
 template <class Family>
-    requires requires { sodium_aead_calls<Family>::encrypt; }
+    requires requires { sodium_aead_calls<Family>::encrypt_call; }
 struct aead_state<Family, backends::sodium> {
     /** The key. */
     std::array<unsigned char, 32> key{};
@@ -143,7 +353,7 @@ struct aead_state<Family, backends::sodium> {
  * does not match; `aead` zeroes it too.
  */
 template <class Family>
-    requires requires { sodium_aead_calls<Family>::encrypt; }
+    requires requires { sodium_aead_calls<Family>::encrypt_call; }
 struct aead_engine<Family, backends::sodium> {
     /** The state. */
     using state = aead_state<Family, backends::sodium>;
@@ -153,70 +363,73 @@ struct aead_engine<Family, backends::sodium> {
     /**
      * Initialises libsodium and keeps the key.
      *
-     * @param s The state.
-     * @param key The key, 32 bytes (`aead` has checked its size).
+     * @param engine_state The state.
+     * @param key_bytes The key, 32 bytes (`aead` has checked its size).
      * @return Nothing; `backend_failure` when libsodium cannot start.
      */
     [[nodiscard]] static boost::system::result<void> init(
-        state& s, std::span<std::uint8_t const> key) noexcept {
-        auto const ready = sodium_ready();
-        if (!ready) {
-            return ready;
+        state& engine_state, std::span<std::uint8_t const> key_bytes) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
         }
-        std::ranges::copy(key, s.key.begin());
+        std::ranges::copy(key_bytes, engine_state.key.begin());
         return {};
     }
 
     /**
-     * Encrypts `data` in place and writes the tag; libsodium reads the nonce and the
-     * additional data before it writes a byte of the ciphertext.
+     * Encrypts `data_bytes` in place and writes the tag; libsodium reads the nonce and the
+     * associated data before it writes a byte of the ciphertext.
      *
      * @return Nothing; `backend_failure` when libsodium fails.
      */
     [[nodiscard]] static boost::system::result<void> seal(
-        state& s, std::span<std::uint8_t const> iv, std::span<std::uint8_t const> additional_data,
-        std::span<std::uint8_t> data, boost::hash2::digest<16>& tag) noexcept {
+        state& engine_state, std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data, std::span<std::uint8_t> data_bytes,
+        boost::hash2::digest<16>& tag_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
         unsigned long long tag_length = 0;
         // libsodium encrypts in place when the output is the input (its documented contract);
         // an empty span's null data() is never read or written, since every stream of
         // ChaCha20 returns at once on no byte.
-        if (calls::encrypt(data.data(), tag.data(), &tag_length, data.data(), data.size(),
-                           additional_data.data(), additional_data.size(), nullptr, iv.data(),
-                           s.key.data()) != 0) {
+        if (calls::encrypt_call(data_bytes.data(), tag_bytes.data(), &tag_length, data_bytes.data(),
+                                data_bytes.size(), associated_data.data(), associated_data.size(),
+                                nullptr, nonce_bytes.data(), engine_state.key.data()) != 0) {
             return error::backend_failure;
         }
         return {};
     }
 
     /**
-     * Checks the tag, then decrypts `data` in place.
+     * Checks the tag, then decrypts `data_bytes` in place.
      *
      * @return Nothing; `authentication_failed` when the tag does not match.
      */
     [[nodiscard]] static boost::system::result<void> open(
-        state& s, std::span<std::uint8_t const> iv, std::span<std::uint8_t const> additional_data,
-        std::span<std::uint8_t> data, std::array<std::uint8_t, 16> const& tag) noexcept {
+        state& engine_state, std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data, std::span<std::uint8_t> data_bytes,
+        std::array<std::uint8_t, 16> const& tag_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
         // An empty span's null data() makes libsodium check the tag alone: its detached
         // decryptions return the verdict when the output is null, before clearing or decrypting
         // it.
-        if (sodium_refused(calls::decrypt(data.data(), nullptr, data.data(), data.size(),
-                                          tag.data(), additional_data.data(),
-                                          additional_data.size(), iv.data(), s.key.data()))) {
+        if (sodium_refused(calls::decrypt_call(data_bytes.data(), nullptr, data_bytes.data(),
+                                               data_bytes.size(), tag_bytes.data(),
+                                               associated_data.data(), associated_data.size(),
+                                               nonce_bytes.data(), engine_state.key.data()))) {
             return error::authentication_failed;
         }
         return {};
     }
 
     /** Moves the key; the source is wiped. */
-    static void move(state& to, state& from) noexcept {
-        to.key = from.key;
-        wipe_object(from.key);
+    static void move(state& target_state, state& source_state) noexcept {
+        target_state.key = source_state.key;
+        wipe_object(source_state.key);
     }
 
     /** Wipes the key. */
-    static void reset(state& s) noexcept { wipe_object(s.key); }
+    static void reset(state& engine_state) noexcept { wipe_object(engine_state.key); }
 };
 
 /** libsodium's detached functions of a secret box family, which differ only by name. */
@@ -227,41 +440,43 @@ struct sodium_secretbox_calls;
 template <>
 struct sodium_secretbox_calls<families::secretbox_xsalsa20poly1305> {
     /** Encrypts and computes the tag apart. */
-    static constexpr auto encrypt = &crypto_secretbox_detached;
+    static constexpr auto encrypt_call = &crypto_secretbox_detached;
     /** Checks the tag apart, then decrypts. */
-    static constexpr auto decrypt = &crypto_secretbox_open_detached;
+    static constexpr auto decrypt_call = &crypto_secretbox_open_detached;
 };
 
 /** `crypto_secretbox_xchacha20poly1305`. */
 template <>
 struct sodium_secretbox_calls<families::secretbox_xchacha20poly1305> {
     /** Encrypts and computes the tag apart. */
-    static constexpr auto encrypt = &crypto_secretbox_xchacha20poly1305_detached;
+    static constexpr auto encrypt_call = &crypto_secretbox_xchacha20poly1305_detached;
     /** Checks the tag apart, then decrypts. */
-    static constexpr auto decrypt = &crypto_secretbox_xchacha20poly1305_open_detached;
+    static constexpr auto decrypt_call = &crypto_secretbox_xchacha20poly1305_open_detached;
 };
 
 /**
- * Seals `data` in place with a secret box's detached function under a 32-byte key. libsodium
+ * Seals `data_bytes` in place with a secret box's detached function under a 32-byte key. libsodium
  * reads the nonce again after it writes the first bytes of the ciphertext, so a nonce that
- * lies in `data` is copied first; an empty span's null data() is never read or written.
+ * lies in `data_bytes` is copied first; an empty span's null data() is never read or written.
  *
  * @return Nothing; `backend_failure` when libsodium fails.
  */
 template <class Encrypt>
 [[nodiscard]] boost::system::result<void> sodium_secretbox_seal(
-    Encrypt encrypt, std::span<unsigned char const, 32> key, std::span<std::uint8_t const, 24> iv,
-    std::span<std::uint8_t> data, boost::hash2::digest<16>& tag) noexcept {
-    std::array<unsigned char, 24> nonce{};
-    std::ranges::copy(iv, nonce.begin());
-    if (encrypt(data.data(), tag.data(), data.data(), data.size(), nonce.data(), key.data()) != 0) {
+    Encrypt encrypt_call, std::span<unsigned char const, 32> key_bytes,
+    std::span<std::uint8_t const, 24> nonce_bytes, std::span<std::uint8_t> data_bytes,
+    boost::hash2::digest<16>& tag_bytes) noexcept {
+    std::array<unsigned char, 24> nonce_copy{};
+    std::ranges::copy(nonce_bytes, nonce_copy.begin());
+    if (encrypt_call(data_bytes.data(), tag_bytes.data(), data_bytes.data(), data_bytes.size(),
+                     nonce_copy.data(), key_bytes.data()) != 0) {
         return error::backend_failure;
     }
     return {};
 }
 
 /**
- * Checks the tag, then decrypts `data` in place, with a secret box's detached function; the
+ * Checks the tag, then decrypts `data_bytes` in place, with a secret box's detached function; the
  * nonce is copied first, as `sodium_secretbox_seal` says. An empty span's null data() makes
  * libsodium check the tag alone.
  *
@@ -269,12 +484,13 @@ template <class Encrypt>
  */
 template <class Decrypt>
 [[nodiscard]] boost::system::result<void> sodium_secretbox_open(
-    Decrypt decrypt, std::span<unsigned char const, 32> key, std::span<std::uint8_t const, 24> iv,
-    std::span<std::uint8_t> data, std::array<std::uint8_t, 16> const& tag) noexcept {
-    std::array<unsigned char, 24> nonce{};
-    std::ranges::copy(iv, nonce.begin());
-    if (sodium_refused(
-            decrypt(data.data(), data.data(), tag.data(), data.size(), nonce.data(), key.data()))) {
+    Decrypt decrypt_call, std::span<unsigned char const, 32> key_bytes,
+    std::span<std::uint8_t const, 24> nonce_bytes, std::span<std::uint8_t> data_bytes,
+    std::array<std::uint8_t, 16> const& tag_bytes) noexcept {
+    std::array<unsigned char, 24> nonce_copy{};
+    std::ranges::copy(nonce_bytes, nonce_copy.begin());
+    if (sodium_refused(decrypt_call(data_bytes.data(), data_bytes.data(), tag_bytes.data(),
+                                    data_bytes.size(), nonce_copy.data(), key_bytes.data()))) {
         return error::authentication_failed;
     }
     return {};
@@ -282,22 +498,22 @@ template <class Decrypt>
 
 /** A secret box's state on libsodium: the key, in the object, since libsodium takes it per call. */
 template <class Family>
-    requires requires { sodium_secretbox_calls<Family>::encrypt; }
-struct aead_state<Family, backends::sodium> {
+    requires requires { sodium_secretbox_calls<Family>::encrypt_call; }
+struct secretbox_state<Family, backends::sodium> {
     /** The key. */
     std::array<unsigned char, 32> key{};
 };
 
 /**
- * A secret box on libsodium, `crypto_secretbox` and its XChaCha20 twin, as an `aead` without
- * additional data (`aead` has refused a non-empty one). libsodium's detached decryption checks
- * the tag before it writes a byte; `aead` zeroes the data when it does not match.
+ * A secret box on libsodium, `crypto_secretbox` and its XChaCha20 twin, without associated data.
+ * libsodium's detached decryption checks the tag before it writes a byte; `basic_secretbox`
+ * zeroes the data when it does not match.
  */
 template <class Family>
-    requires requires { sodium_secretbox_calls<Family>::encrypt; }
-struct aead_engine<Family, backends::sodium> {
+    requires requires { sodium_secretbox_calls<Family>::encrypt_call; }
+struct secretbox_engine<Family, backends::sodium> {
     /** The state. */
-    using state = aead_state<Family, backends::sodium>;
+    using state = secretbox_state<Family, backends::sodium>;
     /** libsodium's functions of the family. */
     using calls = sodium_secretbox_calls<Family>;
 
@@ -307,51 +523,52 @@ struct aead_engine<Family, backends::sodium> {
      * @return Nothing; `backend_failure` when libsodium cannot start.
      */
     [[nodiscard]] static boost::system::result<void> init(
-        state& s, std::span<std::uint8_t const> key) noexcept {
-        auto const ready = sodium_ready();
-        if (!ready) {
-            return ready;
+        state& engine_state, std::span<std::uint8_t const> key_bytes) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
         }
-        std::ranges::copy(key, s.key.begin());
+        std::ranges::copy(key_bytes, engine_state.key.begin());
         return {};
     }
 
     /**
-     * Encrypts `data` in place and writes the tag.
+     * Encrypts `data_bytes` in place and writes the tag.
      *
      * @return Nothing; `backend_failure` when libsodium fails.
      */
     [[nodiscard]] static boost::system::result<void> seal(
-        state& s, std::span<std::uint8_t const> iv,
-        std::span<std::uint8_t const> /*additional_data*/, std::span<std::uint8_t> data,
-        boost::hash2::digest<16>& tag) noexcept {
+        state& engine_state, std::span<std::uint8_t const, 24> nonce_bytes,
+        std::span<std::uint8_t> data_bytes, boost::hash2::digest<16>& tag_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        return sodium_secretbox_seal(calls::encrypt, std::span<unsigned char const, 32>(s.key),
-                                     iv.first<24>(), data, tag);
+        return sodium_secretbox_seal(calls::encrypt_call,
+                                     std::span<unsigned char const, 32>(engine_state.key),
+                                     nonce_bytes, data_bytes, tag_bytes);
     }
 
     /**
-     * Checks the tag, then decrypts `data` in place.
+     * Checks the tag, then decrypts `data_bytes` in place.
      *
      * @return Nothing; `authentication_failed` when the tag does not match.
      */
     [[nodiscard]] static boost::system::result<void> open(
-        state& s, std::span<std::uint8_t const> iv,
-        std::span<std::uint8_t const> /*additional_data*/, std::span<std::uint8_t> data,
-        std::array<std::uint8_t, 16> const& tag) noexcept {
+        state& engine_state, std::span<std::uint8_t const, 24> nonce_bytes,
+        std::span<std::uint8_t> data_bytes,
+        std::array<std::uint8_t, 16> const& tag_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        return sodium_secretbox_open(calls::decrypt, std::span<unsigned char const, 32>(s.key),
-                                     iv.first<24>(), data, tag);
+        return sodium_secretbox_open(calls::decrypt_call,
+                                     std::span<unsigned char const, 32>(engine_state.key),
+                                     nonce_bytes, data_bytes, tag_bytes);
     }
 
     /** Moves the key; the source is wiped. */
-    static void move(state& to, state& from) noexcept {
-        to.key = from.key;
-        wipe_object(from.key);
+    static void move(state& target_state, state& source_state) noexcept {
+        target_state.key = source_state.key;
+        wipe_object(source_state.key);
     }
 
     /** Wipes the key. */
-    static void reset(state& s) noexcept { wipe_object(s.key); }
+    static void reset(state& engine_state) noexcept { wipe_object(engine_state.key); }
 };
 
 }  // namespace webcpp::crypto::detail
@@ -362,7 +579,9 @@ struct aead_engine<Family, backends::sodium> {
 // Ed25519 and Ed25519ph on libsodium, for a program that includes curves/ed25519.hpp, before
 // this header or after it: outside the guard above, so that curves/ed25519.hpp, which includes
 // this header last, gets them either way; a program that does not include it pays nothing.
-#if defined(WEBCPP_CRYPTO_CURVES_ED25519_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+// curves/ed25519.hpp defines WEBCPP_CRYPTO_DETAIL_ED25519_DECLARED once its declarations are,
+// since it includes curves/x25519.hpp, which may include this header, before them.
+#if defined(WEBCPP_CRYPTO_DETAIL_ED25519_DECLARED) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
     !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_ED25519)
 /** Defined once libsodium's Ed25519 engines are. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_ED25519
@@ -374,6 +593,30 @@ struct aead_engine<Family, backends::sodium> {
 #include <array>
 #include <cstdint>
 #include <span>
+
+// libsodium's internal Ed25519, which its Ed25519ph calls with `prehashed` 1 once its own SHA-512
+// state is final (crypto_sign/ed25519/sign_ed25519.c's crypto_sign_ed25519ph_final_create and
+// _final_verify): declared with the signatures libsodium's private
+// crypto_sign/ed25519/ref10/sign_ed25519_ref10.h gives them, since its public API cannot sign a
+// digest the program already has (design D9, ruling P27). They link because webcpp builds libsodium
+// from its sources, a static library, on every target; a libsodium that renamed them, or a prebuilt
+// one that hid them, fails at the link, and RFC 8032's Ed25519ph vectors
+// (test/ed25519ph_sodium_test.cpp) check what they compute.
+extern "C" {
+// libsodium's own names, which it reserves for itself and which no C++ name of webcpp's style
+// spells:
+// NOLINTBEGIN(bugprone-reserved-identifier,readability-identifier-naming)
+int _crypto_sign_ed25519_detached(unsigned char* signature_bytes,
+                                  unsigned long long* signature_size,
+                                  unsigned char const* message_bytes,
+                                  unsigned long long message_size, unsigned char const* secret_key,
+                                  int prehashed_flag);
+int _crypto_sign_ed25519_verify_detached(unsigned char const* signature_bytes,
+                                         unsigned char const* message_bytes,
+                                         unsigned long long message_size,
+                                         unsigned char const* public_key, int prehashed_flag);
+// NOLINTEND(bugprone-reserved-identifier,readability-identifier-naming)
+}
 
 namespace webcpp::crypto::detail {
 
@@ -395,30 +638,33 @@ struct ed25519_engine<families::ed25519, backends::sodium> {
      *
      * @return Nothing; `backend_failure`.
      */
-    [[nodiscard]] static boost::system::result<void> make(
-        state& keyed, std::span<std::uint8_t const, 32> seed) noexcept {
-        auto const ready = sodium_ready();
-        if (!ready) {
-            return ready;
+    [[nodiscard]] static boost::system::result<void> seed_keypair(
+        state& keyed_state, std::span<std::uint8_t const, 32> seed_bytes) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
         }
         std::array<unsigned char, crypto_sign_ed25519_PUBLICKEYBYTES> public_key{};
-        if (crypto_sign_ed25519_seed_keypair(public_key.data(), keyed.secret_key.data(),
-                                             seed.data()) != 0) {
+        if (crypto_sign_ed25519_seed_keypair(public_key.data(), keyed_state.secret_key.data(),
+                                             seed_bytes.data()) != 0) {
             return error::backend_failure;
         }
         return {};
     }
 
     /** The public key, the secret key's second half. */
-    static void public_key(state const& keyed, std::span<std::uint8_t, 32> out) noexcept {
+    static void public_key(state const& keyed_state,
+                           std::span<std::uint8_t, 32> output_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        static_cast<void>(crypto_sign_ed25519_sk_to_pk(out.data(), keyed.secret_key.data()));
+        static_cast<void>(
+            crypto_sign_ed25519_sk_to_pk(output_bytes.data(), keyed_state.secret_key.data()));
     }
 
     /** The seed, the secret key's first half, `crypto_sign_ed25519_sk_to_seed`. */
-    static void seed(state const& keyed, std::span<std::uint8_t, 32> out) noexcept {
+    static void seed(state const& keyed_state, std::span<std::uint8_t, 32> output_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        static_cast<void>(crypto_sign_ed25519_sk_to_seed(out.data(), keyed.secret_key.data()));
+        static_cast<void>(
+            crypto_sign_ed25519_sk_to_seed(output_bytes.data(), keyed_state.secret_key.data()));
     }
 
     /**
@@ -427,11 +673,12 @@ struct ed25519_engine<families::ed25519, backends::sodium> {
      * @return Nothing; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> sign(
-        state const& keyed, std::span<std::uint8_t const> message,
-        std::span<std::uint8_t, 64> out) noexcept {
+        state const& keyed_state, std::span<std::uint8_t const> message_bytes,
+        std::span<std::uint8_t, 64> output_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        if (crypto_sign_ed25519_detached(out.data(), nullptr, message.data(), message.size(),
-                                         keyed.secret_key.data()) != 0) {
+        if (crypto_sign_ed25519_detached(output_bytes.data(), nullptr, message_bytes.data(),
+                                         message_bytes.size(),
+                                         keyed_state.secret_key.data()) != 0) {
             return error::backend_failure;
         }
         return {};
@@ -443,14 +690,14 @@ struct ed25519_engine<families::ed25519, backends::sodium> {
      * @return Nothing; `invalid_signature`; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> verify(
-        std::span<std::uint8_t const, 32> public_key, std::span<std::uint8_t const> message,
-        std::span<std::uint8_t const, 64> signature) noexcept {
-        auto const ready = sodium_ready();
-        if (!ready) {
-            return ready;
+        std::span<std::uint8_t const, 32> public_key, std::span<std::uint8_t const> message_bytes,
+        std::span<std::uint8_t const, 64> signature_bytes) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
         }
-        if (crypto_sign_ed25519_verify_detached(signature.data(), message.data(), message.size(),
-                                                public_key.data()) != 0) {
+        if (crypto_sign_ed25519_verify_detached(signature_bytes.data(), message_bytes.data(),
+                                                message_bytes.size(), public_key.data()) != 0) {
             return error::invalid_signature;
         }
         return {};
@@ -462,9 +709,10 @@ struct ed25519_engine<families::ed25519, backends::sodium> {
      * @return Nothing; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> x25519_secret(
-        state const& keyed, std::span<std::uint8_t, 32> out) noexcept {
+        state const& keyed_state, std::span<std::uint8_t, 32> output_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        if (crypto_sign_ed25519_sk_to_curve25519(out.data(), keyed.secret_key.data()) != 0) {
+        if (crypto_sign_ed25519_sk_to_curve25519(output_bytes.data(),
+                                                 keyed_state.secret_key.data()) != 0) {
             return error::backend_failure;
         }
         return {};
@@ -477,19 +725,20 @@ struct ed25519_engine<families::ed25519, backends::sodium> {
      * @return Nothing; `invalid_public_key`; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> to_x25519_public(
-        std::span<std::uint8_t const, 32> public_key, std::span<std::uint8_t, 32> out) noexcept {
-        auto const ready = sodium_ready();
-        if (!ready) {
-            return ready;
+        std::span<std::uint8_t const, 32> public_key,
+        std::span<std::uint8_t, 32> output_bytes) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
         }
-        if (crypto_sign_ed25519_pk_to_curve25519(out.data(), public_key.data()) != 0) {
+        if (crypto_sign_ed25519_pk_to_curve25519(output_bytes.data(), public_key.data()) != 0) {
             return error::invalid_public_key;
         }
         return {};
     }
 
     /** Wipes the secret key. */
-    static void reset(state& keyed) noexcept { wipe_object(keyed.secret_key); }
+    static void reset(state& keyed_state) noexcept { wipe_object(keyed_state.secret_key); }
 };
 
 /** What an Ed25519ph signer stores on libsodium: the message's SHA-512 state. */
@@ -499,7 +748,10 @@ struct ed25519ph_state<tags::ed25519ph, backends::sodium> {
     crypto_sign_ed25519ph_state hashing{};
 };
 
-/** Ed25519ph on libsodium, `crypto_sign_ed25519ph_*`. */
+/**
+ * Ed25519ph on libsodium: a message given in pieces through `crypto_sign_ed25519ph_*`, and a
+ * digest the program has through the internal Ed25519 those functions end in.
+ */
 template <>
 struct ed25519ph_engine<tags::ed25519ph, backends::sodium> {
     /** The signer's state. */
@@ -510,21 +762,22 @@ struct ed25519ph_engine<tags::ed25519ph, backends::sodium> {
      *
      * @return Nothing; `backend_failure`.
      */
-    [[nodiscard]] static boost::system::result<void> begin(state& begun) noexcept {
-        auto const ready = sodium_ready();
-        if (!ready) {
-            return ready;
+    [[nodiscard]] static boost::system::result<void> begin(state& begun_state) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
         }
-        if (crypto_sign_ed25519ph_init(&begun.hashing) != 0) {
+        if (crypto_sign_ed25519ph_init(&begun_state.hashing) != 0) {
             return error::backend_failure;
         }
         return {};
     }
 
     /** Adds a piece, `crypto_sign_ed25519ph_update`, which cannot fail. */
-    static void update(state& begun, std::span<std::uint8_t const> piece) noexcept {
+    static void update(state& begun_state, std::span<std::uint8_t const> piece_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        static_cast<void>(crypto_sign_ed25519ph_update(&begun.hashing, piece.data(), piece.size()));
+        static_cast<void>(crypto_sign_ed25519ph_update(&begun_state.hashing, piece_bytes.data(),
+                                                       piece_bytes.size()));
     }
 
     /**
@@ -533,11 +786,11 @@ struct ed25519ph_engine<tags::ed25519ph, backends::sodium> {
      * @return Nothing; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> sign(
-        state& begun, ed25519_state<families::ed25519, backends::sodium> const& keyed,
-        std::span<std::uint8_t, 64> out) noexcept {
+        state& begun_state, ed25519_state<families::ed25519, backends::sodium> const& keyed_state,
+        std::span<std::uint8_t, 64> output_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        if (crypto_sign_ed25519ph_final_create(&begun.hashing, out.data(), nullptr,
-                                               keyed.secret_key.data()) != 0) {
+        if (crypto_sign_ed25519ph_final_create(&begun_state.hashing, output_bytes.data(), nullptr,
+                                               keyed_state.secret_key.data()) != 0) {
             return error::backend_failure;
         }
         return {};
@@ -549,18 +802,64 @@ struct ed25519ph_engine<tags::ed25519ph, backends::sodium> {
      * @return Nothing; `invalid_signature`.
      */
     [[nodiscard]] static boost::system::result<void> verify(
-        state& begun, std::span<std::uint8_t const, 32> public_key,
-        std::span<std::uint8_t const, 64> signature) noexcept {
+        state& begun_state, std::span<std::uint8_t const, 32> public_key,
+        std::span<std::uint8_t const, 64> signature_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        if (crypto_sign_ed25519ph_final_verify(&begun.hashing, signature.data(),
+        if (crypto_sign_ed25519ph_final_verify(&begun_state.hashing, signature_bytes.data(),
                                                public_key.data()) != 0) {
             return error::invalid_signature;
         }
         return {};
     }
 
+    /**
+     * Signs a message's SHA-512, Ed25519ph's digest, with a key pair: libsodium's internal
+     * `_crypto_sign_ed25519_detached` with `prehashed` 1, the call
+     * `crypto_sign_ed25519ph_final_create` makes with its state's digest (ruling P27; RFC 8032's
+     * Ed25519ph vectors guard this dependency on libsodium's internals).
+     *
+     * @return Nothing; `backend_failure`.
+     */
+    [[nodiscard]] static boost::system::result<void> sign_digest(
+        ed25519_state<families::ed25519, backends::sodium> const& keyed_state,
+        std::span<std::uint8_t const, 64> digest_bytes,
+        std::span<std::uint8_t, 64> output_bytes) noexcept {
+        read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
+        // libsodium's internal function (ruling P27); the RFC 8032 Ed25519ph vectors guard it.
+        if (_crypto_sign_ed25519_detached(output_bytes.data(), nullptr, digest_bytes.data(),
+                                          digest_bytes.size(), keyed_state.secret_key.data(),
+                                          1) != 0) {
+            return error::backend_failure;
+        }
+        return {};
+    }
+
+    /**
+     * Verifies Ed25519ph's signature of a message's SHA-512, strictly: libsodium's internal
+     * `_crypto_sign_ed25519_verify_detached` with `prehashed` 1, the call
+     * `crypto_sign_ed25519ph_final_verify` makes with its state's digest (ruling P27; RFC 8032's
+     * Ed25519ph vectors guard this dependency on libsodium's internals).
+     *
+     * @return Nothing; `invalid_signature`; `backend_failure`.
+     */
+    [[nodiscard]] static boost::system::result<void> verify_digest(
+        std::span<std::uint8_t const, 32> public_key,
+        std::span<std::uint8_t const, 64> digest_bytes,
+        std::span<std::uint8_t const, 64> signature_bytes) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
+        }
+        // libsodium's internal function (ruling P27); the RFC 8032 Ed25519ph vectors guard it.
+        if (_crypto_sign_ed25519_verify_detached(signature_bytes.data(), digest_bytes.data(),
+                                                 digest_bytes.size(), public_key.data(), 1) != 0) {
+            return error::invalid_signature;
+        }
+        return {};
+    }
+
     /** Wipes the message's state. */
-    static void reset(state& begun) noexcept { wipe_object(begun.hashing); }
+    static void reset(state& begun_state) noexcept { wipe_object(begun_state.hashing); }
 };
 
 }  // namespace webcpp::crypto::detail
@@ -590,12 +889,13 @@ struct x25519_engine<families::x25519, backends::sodium> {
      * @return Nothing; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> base(
-        std::span<std::uint8_t const, 32> secret_key, std::span<std::uint8_t, 32> out) noexcept {
-        auto const ready = sodium_ready();
-        if (!ready) {
-            return ready;
+        std::span<std::uint8_t const, 32> secret_key,
+        std::span<std::uint8_t, 32> output_bytes) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
         }
-        if (crypto_scalarmult_curve25519_base(out.data(), secret_key.data()) != 0) {
+        if (crypto_scalarmult_curve25519_base(output_bytes.data(), secret_key.data()) != 0) {
             return error::backend_failure;
         }
         return {};
@@ -610,12 +910,12 @@ struct x25519_engine<families::x25519, backends::sodium> {
     [[nodiscard]] static boost::system::result<void> agree(
         std::span<std::uint8_t const, 32> secret_key,
         std::span<std::uint8_t const, 32> peer_public_key,
-        std::span<std::uint8_t, 32> out) noexcept {
-        auto const ready = sodium_ready();
-        if (!ready) {
-            return ready;
+        std::span<std::uint8_t, 32> output_bytes) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
         }
-        if (sodium_refused(crypto_scalarmult_curve25519(out.data(), secret_key.data(),
+        if (sodium_refused(crypto_scalarmult_curve25519(output_bytes.data(), secret_key.data(),
                                                         peer_public_key.data()))) {
             return error::weak_public_key;
         }
@@ -627,9 +927,10 @@ struct x25519_engine<families::x25519, backends::sodium> {
 
 #endif  // X25519 on libsodium
 
-// The boxes on libsodium, for a program that includes hybrid/box.hpp, before this header or
-// after it, as Ed25519's above.
-#if defined(WEBCPP_CRYPTO_HYBRID_BOX_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+// The boxes on libsodium, for a program that includes public_key_encryption/box.hpp, before this
+// header or after it: box.hpp defines WEBCPP_CRYPTO_DETAIL_BOX_DECLARED once its declarations
+// are, since it includes curves/x25519.hpp, which may include this header, before them.
+#if defined(WEBCPP_CRYPTO_DETAIL_BOX_DECLARED) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
     !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_BOX)
 /** Defined once libsodium's box engines are. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_BOX
@@ -653,27 +954,28 @@ struct sodium_box_calls;
 template <>
 struct sodium_box_calls<families::box_xsalsa20poly1305> {
     /** Agrees the key. */
-    static constexpr auto beforenm = &crypto_box_beforenm;
+    static constexpr auto beforenm_call = &crypto_box_beforenm;
     /** Encrypts and computes the tag apart. */
-    static constexpr auto encrypt = &crypto_box_detached_afternm;
+    static constexpr auto encrypt_call = &crypto_box_detached_afternm;
     /** Checks the tag apart, then decrypts. */
-    static constexpr auto decrypt = &crypto_box_open_detached_afternm;
+    static constexpr auto decrypt_call = &crypto_box_open_detached_afternm;
 };
 
 /** `crypto_box_curve25519xchacha20poly1305`, X25519-XChaCha20-Poly1305. */
 template <>
 struct sodium_box_calls<families::box_xchacha20poly1305> {
     /** Agrees the key. */
-    static constexpr auto beforenm = &crypto_box_curve25519xchacha20poly1305_beforenm;
+    static constexpr auto beforenm_call = &crypto_box_curve25519xchacha20poly1305_beforenm;
     /** Encrypts and computes the tag apart. */
-    static constexpr auto encrypt = &crypto_box_curve25519xchacha20poly1305_detached_afternm;
+    static constexpr auto encrypt_call = &crypto_box_curve25519xchacha20poly1305_detached_afternm;
     /** Checks the tag apart, then decrypts. */
-    static constexpr auto decrypt = &crypto_box_curve25519xchacha20poly1305_open_detached_afternm;
+    static constexpr auto decrypt_call =
+        &crypto_box_curve25519xchacha20poly1305_open_detached_afternm;
 };
 
 /** What a box stores on libsodium: the key `beforenm` agreed. */
 template <class Family>
-    requires requires { sodium_box_calls<Family>::beforenm; }
+    requires requires { sodium_box_calls<Family>::beforenm_call; }
 struct box_state<Family, backends::sodium> {
     /** The agreed key. */
     std::array<unsigned char, 32> key{};
@@ -681,7 +983,7 @@ struct box_state<Family, backends::sodium> {
 
 /** A box on libsodium: `beforenm` once, then the `afternm` functions per message. */
 template <class Family>
-    requires requires { sodium_box_calls<Family>::beforenm; }
+    requires requires { sodium_box_calls<Family>::beforenm_call; }
 struct box_engine<Family, backends::sodium> {
     /** The state. */
     using state = box_state<Family, backends::sodium>;
@@ -695,64 +997,67 @@ struct box_engine<Family, backends::sodium> {
      * @return Nothing; `weak_public_key`; `backend_failure` when libsodium cannot start.
      */
     [[nodiscard]] static boost::system::result<void> init(
-        state& s, std::span<std::uint8_t const, 32> secret_key,
+        state& engine_state, std::span<std::uint8_t const, 32> secret_key,
         std::span<std::uint8_t const, 32> peer_public_key) noexcept {
-        auto const ready = sodium_ready();
-        if (!ready) {
-            return ready;
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
         }
-        if (sodium_refused(
-                calls::beforenm(s.key.data(), peer_public_key.data(), secret_key.data()))) {
-            wipe_object(s.key);
+        if (sodium_refused(calls::beforenm_call(engine_state.key.data(), peer_public_key.data(),
+                                                secret_key.data()))) {
+            wipe_object(engine_state.key);
             return error::weak_public_key;
         }
         return {};
     }
 
     /**
-     * Encrypts `data` in place and writes the tag.
+     * Encrypts `data_bytes` in place and writes the tag.
      *
      * @return Nothing; `backend_failure` when libsodium fails.
      */
-    [[nodiscard]] static boost::system::result<void> seal(state& s,
-                                                          std::span<std::uint8_t const, 24> iv,
-                                                          std::span<std::uint8_t> data,
-                                                          boost::hash2::digest<16>& tag) noexcept {
+    [[nodiscard]] static boost::system::result<void> seal(
+        state& engine_state, std::span<std::uint8_t const, 24> nonce_bytes,
+        std::span<std::uint8_t> data_bytes, boost::hash2::digest<16>& tag_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        return sodium_secretbox_seal(calls::encrypt, std::span<unsigned char const, 32>(s.key), iv,
-                                     data, tag);
+        return sodium_secretbox_seal(calls::encrypt_call,
+                                     std::span<unsigned char const, 32>(engine_state.key),
+                                     nonce_bytes, data_bytes, tag_bytes);
     }
 
     /**
-     * Checks the tag, then decrypts `data` in place.
+     * Checks the tag, then decrypts `data_bytes` in place.
      *
      * @return Nothing; `authentication_failed` when the tag does not match.
      */
     [[nodiscard]] static boost::system::result<void> open(
-        state& s, std::span<std::uint8_t const, 24> iv, std::span<std::uint8_t> data,
-        std::array<std::uint8_t, 16> const& tag) noexcept {
+        state& engine_state, std::span<std::uint8_t const, 24> nonce_bytes,
+        std::span<std::uint8_t> data_bytes,
+        std::array<std::uint8_t, 16> const& tag_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        return sodium_secretbox_open(calls::decrypt, std::span<unsigned char const, 32>(s.key), iv,
-                                     data, tag);
+        return sodium_secretbox_open(calls::decrypt_call,
+                                     std::span<unsigned char const, 32>(engine_state.key),
+                                     nonce_bytes, data_bytes, tag_bytes);
     }
 
     /** Moves the key; the source is wiped. */
-    static void move(state& to, state& from) noexcept {
-        to.key = from.key;
-        wipe_object(from.key);
+    static void move(state& target_state, state& source_state) noexcept {
+        target_state.key = source_state.key;
+        wipe_object(source_state.key);
     }
 
     /** Wipes the key. */
-    static void reset(state& s) noexcept { wipe_object(s.key); }
+    static void reset(state& engine_state) noexcept { wipe_object(engine_state.key); }
 };
 
 }  // namespace webcpp::crypto::detail
 
 #endif  // the boxes on libsodium
 
-// Sealed boxes on libsodium, for a program that includes hybrid/sealed_box.hpp, before this
-// header or after it, as Ed25519's above.
-#if defined(WEBCPP_CRYPTO_HYBRID_SEALED_BOX_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+// Sealed boxes on libsodium, for a program that includes public_key_encryption/sealed_box.hpp,
+// before this header or after it, as the boxes above: sealed_box.hpp defines
+// WEBCPP_CRYPTO_DETAIL_SEALED_BOX_DECLARED once its declarations are.
+#if defined(WEBCPP_CRYPTO_DETAIL_SEALED_BOX_DECLARED) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
     !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_SEALED_BOX)
 /** Defined once libsodium's sealed box engine is. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_SEALED_BOX
@@ -768,41 +1073,50 @@ namespace webcpp::crypto::detail {
 template <>
 struct sealed_box_engine<families::sealed_box, backends::sodium> {
     /**
-     * Seals `message` into `out` (`basic_sealed_box` has checked the sizes): libsodium draws
-     * the key pair from its own generator and wipes its secret key.
+     * Seals `message_bytes` into `output_bytes` (`basic_sealed_box` has checked the sizes):
+     * libsodium draws the key pair from its generator, crypto's entropy on Emscripten, and wipes
+     * its secret key. When that draw failed, `output_bytes` is zeroed.
      *
      * @return Nothing; `weak_public_key` for a recipient key of small order, which libsodium's
-     * box refuses; `backend_failure` when libsodium cannot start.
+     * box refuses; `entropy_unavailable`, or `errc::not_supported` where there is no generator,
+     * when the draw failed; `backend_failure` when libsodium cannot start.
      */
     [[nodiscard]] static boost::system::result<void> seal(
         std::span<std::uint8_t const, 32> recipient_public_key,
-        std::span<std::uint8_t const> message, std::span<std::uint8_t> out) noexcept {
-        auto const ready = sodium_ready();
-        if (!ready) {
-            return ready;
+        std::span<std::uint8_t const> message_bytes,
+        std::span<std::uint8_t> output_bytes) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
         }
-        if (crypto_box_seal(out.data(), message.data(), message.size(),
-                            recipient_public_key.data()) != 0) {
+        sodium_draw_watch const seal_draws;
+        int const seal_code = crypto_box_seal(output_bytes.data(), message_bytes.data(),
+                                              message_bytes.size(), recipient_public_key.data());
+        if (auto const draw_error = seal_draws.draw_error()) {
+            wipe(output_bytes.data(), output_bytes.size());
+            return draw_error;
+        }
+        if (seal_code != 0) {
             return error::weak_public_key;
         }
         return {};
     }
 
     /**
-     * Opens `sealed` into `out` (`basic_sealed_box` has checked the sizes).
+     * Opens `sealed_bytes` into `output_bytes` (`basic_sealed_box` has checked the sizes).
      *
      * @return Nothing; `authentication_failed`; `backend_failure` when libsodium cannot start.
      */
     [[nodiscard]] static boost::system::result<void> open(
         std::span<std::uint8_t const, 32> recipient_public_key,
         std::span<std::uint8_t const, 32> recipient_secret_key,
-        std::span<std::uint8_t const> sealed, std::span<std::uint8_t> out) noexcept {
-        auto const ready = sodium_ready();
-        if (!ready) {
-            return ready;
+        std::span<std::uint8_t const> sealed_bytes, std::span<std::uint8_t> output_bytes) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
         }
-        if (sodium_refused(crypto_box_seal_open(out.data(), sealed.data(), sealed.size(),
-                                                recipient_public_key.data(),
+        if (sodium_refused(crypto_box_seal_open(output_bytes.data(), sealed_bytes.data(),
+                                                sealed_bytes.size(), recipient_public_key.data(),
                                                 recipient_secret_key.data()))) {
             return error::authentication_failed;
         }
@@ -824,7 +1138,7 @@ struct sealed_box_engine<families::sealed_box, backends::sodium> {
 /** Defined once libsodium's RFC 8410 layouts are. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_RFC8410
 
-#include <webcpp/crypto/equal.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 
 #include <algorithm>
 #include <array>
@@ -836,43 +1150,44 @@ namespace webcpp::crypto::detail {
 
 /**
  * RFC 8410's fixed layouts on libsodium: a prefix, then 32 key bytes. A decoding is accepted
- * only where its prefix is the one encoding the key gives, compared with `equal`, and its size
- * the one size (the callers check it), which is design D30's re-encoding test for a fixed layout.
+ * only where its prefix is the one encoding the key gives, compared with `constant_time_equal`, and
+ * its size the one size (the callers check it), which is design D30's re-encoding test for a fixed
+ * layout.
  */
 struct sodium_rfc8410 {
     /**
      * Writes the prefix, then the key.
      *
-     * @param prefix The format's prefix.
-     * @param key 32 bytes.
-     * @param out The prefix's size and 32 bytes.
+     * @param prefix_bytes The format's prefix.
+     * @param key_bytes 32 bytes.
+     * @param output_bytes The prefix's size and 32 bytes.
      */
     template <std::size_t PrefixSize>
-    static void encode(std::array<std::uint8_t, PrefixSize> const& prefix,
-                       std::span<std::uint8_t const, 32> key,
-                       std::span<std::uint8_t, PrefixSize + 32> out) noexcept {
+    static void encode(std::array<std::uint8_t, PrefixSize> const& prefix_bytes,
+                       std::span<std::uint8_t const, 32> key_bytes,
+                       std::span<std::uint8_t, PrefixSize + 32> output_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        std::ranges::copy(key, std::ranges::copy(prefix, out.begin()).out);
+        std::ranges::copy(key_bytes, std::ranges::copy(prefix_bytes, output_bytes.begin()).out);
     }
 
     /**
      * Copies the key out of an encoding whose prefix is the format's.
      *
-     * @param prefix The format's prefix.
-     * @param der The prefix's size and 32 bytes.
-     * @param key 32 bytes, written only when the prefix is the format's.
+     * @param prefix_bytes The format's prefix.
+     * @param der_bytes The prefix's size and 32 bytes.
+     * @param key_bytes 32 bytes, written only when the prefix is the format's.
      * @return Nothing; `invalid_encoding`.
      */
     template <std::size_t PrefixSize>
     [[nodiscard]] static boost::system::result<void> decode(
-        std::array<std::uint8_t, PrefixSize> const& prefix,
-        std::span<std::uint8_t const, PrefixSize + 32> der,
-        std::span<std::uint8_t, 32> key) noexcept {
+        std::array<std::uint8_t, PrefixSize> const& prefix_bytes,
+        std::span<std::uint8_t const, PrefixSize + 32> der_bytes,
+        std::span<std::uint8_t, 32> key_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        if (!equal(der.template first<PrefixSize>(), prefix)) {
+        if (!constant_time_equal(der_bytes.template first<PrefixSize>(), prefix_bytes)) {
             return error::invalid_encoding;
         }
-        std::ranges::copy(der.template last<32>(), key.begin());
+        std::ranges::copy(der_bytes.template last<32>(), key_bytes.begin());
         return {};
     }
 };
@@ -893,8 +1208,8 @@ template <>
 struct ed25519_formats_engine<families::ed25519, backends::sodium> {
     /** Writes the SPKI. */
     static void encode_spki(std::span<std::uint8_t const, 32> public_key,
-                            std::span<std::uint8_t, 44> out) noexcept {
-        sodium_rfc8410::encode(ed25519_spki_prefix, public_key, out);
+                            std::span<std::uint8_t, 44> output_bytes) noexcept {
+        sodium_rfc8410::encode(ed25519_spki_prefix, public_key, output_bytes);
     }
 
     /**
@@ -903,15 +1218,17 @@ struct ed25519_formats_engine<families::ed25519, backends::sodium> {
      * @return Nothing; `invalid_encoding`.
      */
     [[nodiscard]] static boost::system::result<void> decode_spki(
-        std::span<std::uint8_t const, 44> spki, std::span<std::uint8_t, 32> public_key) noexcept {
-        return sodium_rfc8410::decode(ed25519_spki_prefix, spki, public_key);
+        std::span<std::uint8_t const, 44> spki_bytes,
+        std::span<std::uint8_t, 32> public_key) noexcept {
+        return sodium_rfc8410::decode(ed25519_spki_prefix, spki_bytes, public_key);
     }
 
     /** Writes the PKCS#8 of the seed, the first half of libsodium's secret key. */
-    static void encode_pkcs8(ed25519_state<families::ed25519, backends::sodium> const& keyed,
-                             std::span<std::uint8_t, 48> out) noexcept {
+    static void encode_pkcs8(ed25519_state<families::ed25519, backends::sodium> const& keyed_state,
+                             std::span<std::uint8_t, 48> output_bytes) noexcept {
         sodium_rfc8410::encode(ed25519_pkcs8_prefix,
-                               std::span<std::uint8_t const>(keyed.secret_key).first<32>(), out);
+                               std::span<std::uint8_t const>(keyed_state.secret_key).first<32>(),
+                               output_bytes);
     }
 
     /**
@@ -920,8 +1237,9 @@ struct ed25519_formats_engine<families::ed25519, backends::sodium> {
      * @return Nothing; `invalid_encoding`.
      */
     [[nodiscard]] static boost::system::result<void> decode_pkcs8(
-        std::span<std::uint8_t const, 48> pkcs8, std::span<std::uint8_t, 32> seed) noexcept {
-        return sodium_rfc8410::decode(ed25519_pkcs8_prefix, pkcs8, seed);
+        std::span<std::uint8_t const, 48> pkcs8_bytes,
+        std::span<std::uint8_t, 32> seed_bytes) noexcept {
+        return sodium_rfc8410::decode(ed25519_pkcs8_prefix, pkcs8_bytes, seed_bytes);
     }
 };
 
@@ -941,8 +1259,8 @@ template <>
 struct x25519_formats_engine<families::x25519, backends::sodium> {
     /** Writes the SPKI. */
     static void encode_spki(std::span<std::uint8_t const, 32> public_key,
-                            std::span<std::uint8_t, 44> out) noexcept {
-        sodium_rfc8410::encode(x25519_spki_prefix, public_key, out);
+                            std::span<std::uint8_t, 44> output_bytes) noexcept {
+        sodium_rfc8410::encode(x25519_spki_prefix, public_key, output_bytes);
     }
 
     /**
@@ -951,14 +1269,15 @@ struct x25519_formats_engine<families::x25519, backends::sodium> {
      * @return Nothing; `invalid_encoding`.
      */
     [[nodiscard]] static boost::system::result<void> decode_spki(
-        std::span<std::uint8_t const, 44> spki, std::span<std::uint8_t, 32> public_key) noexcept {
-        return sodium_rfc8410::decode(x25519_spki_prefix, spki, public_key);
+        std::span<std::uint8_t const, 44> spki_bytes,
+        std::span<std::uint8_t, 32> public_key) noexcept {
+        return sodium_rfc8410::decode(x25519_spki_prefix, spki_bytes, public_key);
     }
 
     /** Writes the PKCS#8 of a secret key. */
     static void encode_pkcs8(std::span<std::uint8_t const, 32> secret_key,
-                             std::span<std::uint8_t, 48> out) noexcept {
-        sodium_rfc8410::encode(x25519_pkcs8_prefix, secret_key, out);
+                             std::span<std::uint8_t, 48> output_bytes) noexcept {
+        sodium_rfc8410::encode(x25519_pkcs8_prefix, secret_key, output_bytes);
     }
 
     /**
@@ -967,8 +1286,9 @@ struct x25519_formats_engine<families::x25519, backends::sodium> {
      * @return Nothing; `invalid_encoding`.
      */
     [[nodiscard]] static boost::system::result<void> decode_pkcs8(
-        std::span<std::uint8_t const, 48> pkcs8, std::span<std::uint8_t, 32> secret_key) noexcept {
-        return sodium_rfc8410::decode(x25519_pkcs8_prefix, pkcs8, secret_key);
+        std::span<std::uint8_t const, 48> pkcs8_bytes,
+        std::span<std::uint8_t, 32> secret_key) noexcept {
+        return sodium_rfc8410::decode(x25519_pkcs8_prefix, pkcs8_bytes, secret_key);
     }
 };
 
@@ -1013,48 +1333,54 @@ struct pem_engine<families::pem, backends::sodium> {
     /**
      * The base64 of at most 48 bytes, with padding.
      *
-     * @param bytes 1 to 48 bytes.
-     * @param out Exactly the base64's characters, four per three bytes begun.
+     * @param input_bytes 1 to 48 bytes.
+     * @param output_characters Exactly the base64's characters, four per three bytes begun.
      */
-    static void encode(std::span<std::uint8_t const> bytes, std::span<char> out) noexcept {
+    static void encode(std::span<std::uint8_t const> input_bytes,
+                       std::span<char> output_characters) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        // libsodium ends the text with a NUL, which out does not hold.
+        // libsodium ends the text with a NUL, which `output_characters` does not hold.
         // NOLINTNEXTLINE(readability-math-missing-parentheses,bugprone-signed-bitwise): its macro
-        std::array<char, sodium_base64_ENCODED_LEN(48, sodium_base64_VARIANT_ORIGINAL)> text{};
-        static_cast<void>(sodium_bin2base64(text.data(), text.size(), bytes.data(), bytes.size(),
+        std::array<char, sodium_base64_ENCODED_LEN(48, sodium_base64_VARIANT_ORIGINAL)>
+            base64_text{};
+        static_cast<void>(sodium_bin2base64(base64_text.data(), base64_text.size(),
+                                            input_bytes.data(), input_bytes.size(),
                                             sodium_base64_VARIANT_ORIGINAL));
-        std::ranges::copy(std::span<char const>(text).first(out.size()), out.begin());
-        wipe_object(text);
+        std::ranges::copy(std::span<char const>(base64_text).first(output_characters.size()),
+                          output_characters.begin());
+        wipe_object(base64_text);
     }
 
     /**
      * The bytes of at most 64 characters of base64 with padding.
      *
-     * @param text 1 to 64 characters.
-     * @param out 48 bytes, of which the decoded are written.
+     * @param base64_text 1 to 64 characters.
+     * @param output_bytes 48 bytes, of which the decoded are written.
      * @return The bytes' count; `invalid_encoding` for a character outside the alphabet, padding
      * missing or misplaced, or characters left over.
      */
     [[nodiscard]] static boost::system::result<std::size_t> decode(
-        std::string_view text, std::span<std::uint8_t, 48> out) noexcept {
+        std::string_view base64_text, std::span<std::uint8_t, 48> output_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        std::size_t written = 0;
-        char const* end = nullptr;
-        if (sodium_base642bin(out.data(), out.size(), text.data(), text.size(), nullptr, &written,
-                              &end, sodium_base64_VARIANT_ORIGINAL) != 0 ||
-            end != text.data() + text.size()) {
+        std::size_t written_count = 0;
+        char const* parse_end = nullptr;
+        if (sodium_base642bin(output_bytes.data(), output_bytes.size(), base64_text.data(),
+                              base64_text.size(), nullptr, &written_count, &parse_end,
+                              sodium_base64_VARIANT_ORIGINAL) != 0 ||
+            parse_end != base64_text.data() + base64_text.size()) {
             return error::invalid_encoding;
         }
-        return written;
+        return written_count;
     }
 };
 
 }  // namespace webcpp::crypto::detail
 
 #endif  // PEM on libsodium
-// crypto_kx on libsodium, for a program that includes curves/x25519/kx.hpp, before this header or
-// after it, as Ed25519's above.
-#if defined(WEBCPP_CRYPTO_CURVES_X25519_KX_HPP) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
+// crypto_kx on libsodium, for a program that includes key_exchange/kx.hpp, before this header or
+// after it, as the boxes above: kx.hpp defines WEBCPP_CRYPTO_DETAIL_KX_DECLARED once its
+// declarations are.
+#if defined(WEBCPP_CRYPTO_DETAIL_KX_DECLARED) && defined(WEBCPP_CRYPTO_HAS_SODIUM) && \
     !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_KX)
 /** Defined once libsodium's crypto_kx engine is. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_KX
@@ -1063,50 +1389,40 @@ struct pem_engine<families::pem, backends::sodium> {
 
 #include <sodium/crypto_kx.h>
 
-#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <span>
 
 namespace webcpp::crypto::detail {
 
-/** What a crypto_kx key pair stores on libsodium. */
-template <>
-struct kx_state<families::kx, backends::sodium> {
-    /** libsodium's secret key, first, where the wipe test reads it. */
-    std::array<unsigned char, crypto_kx_SECRETKEYBYTES> secret_key{};
-    /** The public key. */
-    std::array<unsigned char, crypto_kx_PUBLICKEYBYTES> public_key{};
-};
-
-/** crypto_kx on libsodium, `crypto_kx_*`. */
+/**
+ * crypto_kx on libsodium, `crypto_kx_*`, over the bytes of the X25519 key pair that
+ * `key_exchange::kx_keypair` holds.
+ */
 template <>
 struct kx_engine<families::kx, backends::sodium> {
-    /** The key pair's state. */
-    using state = kx_state<families::kx, backends::sodium>;
-
     /**
-     * Makes the key pair of a seed, `crypto_kx_seed_keypair`.
+     * The secret key of a seed, `crypto_kx_seed_keypair`: BLAKE2b-256 of the seed. The public
+     * key libsodium computes beside it is wiped: the X25519 key pair made from the secret
+     * computes it again.
      *
      * @return Nothing; `backend_failure`.
      */
-    [[nodiscard]] static boost::system::result<void> make(
-        state& keyed, std::span<std::uint8_t const, crypto_kx_SEEDBYTES> seed) noexcept {
-        auto const ready = sodium_ready();
-        if (!ready) {
-            return ready;
+    [[nodiscard]] static boost::system::result<void> seed_keypair(
+        std::span<std::uint8_t const, crypto_kx_SEEDBYTES> seed_bytes,
+        std::span<std::uint8_t, crypto_kx_SECRETKEYBYTES> secret_key) noexcept {
+        auto const library_ready = sodium_ready();
+        if (!library_ready) {
+            return library_ready;
         }
-        if (crypto_kx_seed_keypair(keyed.public_key.data(), keyed.secret_key.data(), seed.data()) !=
-            0) {
+        std::array<unsigned char, crypto_kx_PUBLICKEYBYTES> public_key{};
+        int const seed_result =
+            crypto_kx_seed_keypair(public_key.data(), secret_key.data(), seed_bytes.data());
+        wipe_object(public_key);
+        if (seed_result != 0) {
             return error::backend_failure;
         }
         return {};
-    }
-
-    /** The public key. */
-    static void public_key(state const& keyed,
-                           std::span<std::uint8_t, crypto_kx_PUBLICKEYBYTES> out) noexcept {
-        std::ranges::copy(keyed.public_key, out.begin());
     }
 
     /**
@@ -1116,13 +1432,15 @@ struct kx_engine<families::kx, backends::sodium> {
      * @return Nothing; `weak_public_key`.
      */
     [[nodiscard]] static boost::system::result<void> client(
-        state const& keyed, std::span<std::uint8_t const, crypto_kx_PUBLICKEYBYTES> server_key,
-        std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> receive,
-        std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> transmit) noexcept {
+        std::span<std::uint8_t const, crypto_kx_SECRETKEYBYTES> secret_key,
+        std::span<std::uint8_t const, crypto_kx_PUBLICKEYBYTES> public_key,
+        std::span<std::uint8_t const, crypto_kx_PUBLICKEYBYTES> server_key,
+        std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> receive_key,
+        std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> transmit_key) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        if (sodium_refused(crypto_kx_client_session_keys(
-                receive.data(), transmit.data(), keyed.public_key.data(), keyed.secret_key.data(),
-                server_key.data()))) {
+        if (sodium_refused(crypto_kx_client_session_keys(receive_key.data(), transmit_key.data(),
+                                                         public_key.data(), secret_key.data(),
+                                                         server_key.data()))) {
             return error::weak_public_key;
         }
         return {};
@@ -1135,20 +1453,19 @@ struct kx_engine<families::kx, backends::sodium> {
      * @return Nothing; `weak_public_key`.
      */
     [[nodiscard]] static boost::system::result<void> server(
-        state const& keyed, std::span<std::uint8_t const, crypto_kx_PUBLICKEYBYTES> client_key,
-        std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> receive,
-        std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> transmit) noexcept {
+        std::span<std::uint8_t const, crypto_kx_SECRETKEYBYTES> secret_key,
+        std::span<std::uint8_t const, crypto_kx_PUBLICKEYBYTES> public_key,
+        std::span<std::uint8_t const, crypto_kx_PUBLICKEYBYTES> client_key,
+        std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> receive_key,
+        std::span<std::uint8_t, crypto_kx_SESSIONKEYBYTES> transmit_key) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        if (sodium_refused(crypto_kx_server_session_keys(
-                receive.data(), transmit.data(), keyed.public_key.data(), keyed.secret_key.data(),
-                client_key.data()))) {
+        if (sodium_refused(crypto_kx_server_session_keys(receive_key.data(), transmit_key.data(),
+                                                         public_key.data(), secret_key.data(),
+                                                         client_key.data()))) {
             return error::weak_public_key;
         }
         return {};
     }
-
-    /** Wipes the key pair. */
-    static void reset(state& keyed) noexcept { wipe_object(keyed); }
 };
 
 }  // namespace webcpp::crypto::detail

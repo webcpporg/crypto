@@ -12,7 +12,7 @@
 // tag::program[]
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
-#include <webcpp/crypto/make.hpp>
+#include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/signing.hpp>
 
 #include <webcpp/asio/io_context.hpp>
@@ -67,18 +67,18 @@ int main() {
     };
     auto const message = bytes_of("sample");
 
-    // tag::make[]
+    // tag::from_secret[]
     // The member and its free form make the same key pair from the same scalar.
-    auto const key = p256::keypair::make(scalar);
-    auto const same_key = crypto::make<p256::keypair>(scalar);
-    // end::make[]
+    auto const key = p256::keypair::from_secret(scalar);
+    auto const same_key = crypto::from_secret<p256::keypair>(scalar);
+    // end::from_secret[]
     auto const public_key = key ? key->public_key() : key.error();
     auto const same_public_key = same_key ? same_key->public_key() : same_key.error();
     if (!public_key || !same_public_key) {
         std::printf("failed\n");
         return 1;
     }
-    report("make: free = member", public_key->uncompressed() == same_public_key->uncompressed());
+    report("from_secret: free", public_key->uncompressed() == same_public_key->uncompressed());
 
     // tag::sign[]
     // Synchronous: the member, and its free form, which calls it.
@@ -89,16 +89,16 @@ int main() {
     // member when it is initiated and completes through the loop, never inside the call.
     asio::io_context loop;
     auto const executor = loop.get_executor();
-    std::array<std::uint8_t, 64> async_signature{};
-    std::array<std::uint8_t, 64> free_async_signature{};
+    p256::ecdsa_signature async_signature;
+    p256::ecdsa_signature free_async_signature;
     key->async_sign(executor, crypto::ecdsa_sha256, message,
-                    [&](boost::system::error_code code, std::array<std::uint8_t, 64> made) {
+                    [&](boost::system::error_code code, p256::ecdsa_signature made) {
                         if (!code) {
                             async_signature = made;
                         }
                     });
     crypto::async_sign(executor, *key, crypto::ecdsa_sha256, message,
-                       [&](boost::system::error_code code, std::array<std::uint8_t, 64> made) {
+                       [&](boost::system::error_code code, p256::ecdsa_signature made) {
                            if (!code) {
                                free_async_signature = made;
                            }
@@ -109,7 +109,7 @@ int main() {
         std::printf("failed\n");
         return 1;
     }
-    print("signature", *signature);
+    print("signature", signature->bytes());
     report("sign: free", *free_signature == *signature);
     report("sign: async member", async_signature == *signature);
     report("sign: async free", free_async_signature == *signature);

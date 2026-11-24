@@ -222,7 +222,7 @@ private:
         return this == &other;
     }
 
-    // 16 MiB. On OpenSSL 3.5.9 (measured on macOS, 2026-11-17) everything_test's first make
+    // 16 MiB. On OpenSSL 3.5.9 (measured on macOS, 2026-11-17) everything_test's first from_key
     // takes 5,027 blocks, 4,441 still live after it; the whole test asks for 5,042 blocks and
     // 388,040 bytes, at most 349,350 of them live at once. A buffer that runs out makes
     // null_memory_resource() throw std::bad_alloc. With exceptions, the adapter catches it

@@ -4,13 +4,14 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Alice and Bob of RFC 7748 section 6.1 agree a shared secret from each other's public keys;
-// then two Ed25519 key pairs, made from RFC 8032's seeds, agree one through their X25519 forms;
-// and a peer key of low order is refused. Prints each public key and the shared secrets in hex.
+// Alice and Bob of RFC 7748 section 6.1, each an X25519 key pair made from a secret key, agree a
+// shared secret from each other's public keys; then two Ed25519 key pairs, made from RFC 8032's
+// seeds, agree one through their X25519 forms; and a peer key of low order is refused. Prints
+// each public key and the shared secrets in hex.
 // tag::program[]
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <array>
@@ -33,7 +34,7 @@ void print(char const* name, std::span<std::uint8_t const> bytes) {
     std::printf("\n");
 }
 
-// X25519: each side sends its public key and keeps its secret key.
+// X25519: each side sends its public key and keeps its key pair.
 bool alice_and_bob() {
     // RFC 7748 section 6.1's secret keys: published, never real keys; a program draws its own
     // 32 bytes with random_device.
@@ -47,22 +48,27 @@ bool alice_and_bob() {
         0x8b, 0x83, 0x80, 0x0e, 0xe6, 0x6f, 0x3b, 0xb1, 0x29, 0x26, 0x18,
         0xb6, 0xfd, 0x1c, 0x2f, 0x8b, 0x27, 0xff, 0x88, 0xe0, 0xeb,
     };
-    auto const alice_public = x25519::public_key(alice_secret);
-    auto const bob_public = x25519::public_key(bob_secret);
+    auto const alice = x25519::keypair::from_secret(alice_secret);
+    auto const bob = x25519::keypair::from_secret(bob_secret);
+    if (!alice || !bob) {
+        return false;
+    }
+    auto const alice_public = alice->public_key();
+    auto const bob_public = bob->public_key();
     if (!alice_public || !bob_public) {
         return false;
     }
-    print("alice public", *alice_public);
-    print("bob public  ", *bob_public);
-    auto const alice_shared = x25519::agree(alice_secret, *bob_public);
-    auto const bob_shared = x25519::agree(bob_secret, *alice_public);
+    print("alice public", alice_public->bytes());
+    print("bob public  ", bob_public->bytes());
+    auto const alice_shared = alice->agree(*bob_public);
+    auto const bob_shared = bob->agree(*alice_public);
     if (!alice_shared || !bob_shared) {
         return false;
     }
     // Printed here only because RFC 7748 publishes it; a program never prints a shared secret,
     // and derives its keys from it with a KDF.
     print("shared      ", alice_shared->bytes());
-    return crypto::equal(alice_shared->bytes(), bob_shared->bytes());
+    return crypto::constant_time_equal(alice_shared->bytes(), bob_shared->bytes());
 }
 
 // The same agreement from Ed25519 key pairs: one seed for signatures and key agreement.
@@ -77,36 +83,43 @@ bool from_ed25519() {
         0x46, 0xec, 0x11, 0x4e, 0x0f, 0x5b, 0x8a, 0x31, 0x9f, 0x35, 0xab,
         0xa6, 0x24, 0xda, 0x8c, 0xf6, 0xed, 0x4f, 0xb8, 0xa6, 0xfb,
     };
-    auto const first = ed25519::keypair::make(first_seed);
-    auto const second = ed25519::keypair::make(second_seed);
+    auto const first = ed25519::keypair::from_secret(first_seed);
+    auto const second = ed25519::keypair::from_secret(second_seed);
     if (!first || !second) {
         return false;
     }
-    auto const first_secret = first->x25519_secret();
-    auto const second_secret = second->x25519_secret();
+    // Each side converts its own key pair to X25519's.
+    auto const first_x25519 = first->to_x25519();
+    auto const second_x25519 = second->to_x25519();
     auto const first_signing = first->public_key();
     auto const second_signing = second->public_key();
-    if (!first_secret || !second_secret || !first_signing || !second_signing) {
+    if (!first_x25519 || !second_x25519 || !first_signing || !second_signing) {
         return false;
     }
     // Each side knows the other by its Ed25519 public key, and converts it.
-    auto const first_peer = ed25519::to_x25519_public(*second_signing);
-    auto const second_peer = ed25519::to_x25519_public(*first_signing);
+    auto const first_peer = second_signing->to_x25519();
+    auto const second_peer = first_signing->to_x25519();
     if (!first_peer || !second_peer) {
         return false;
     }
-    print("converted   ", *second_peer);
-    auto const first_shared = x25519::agree(first_secret->bytes(), *first_peer);
-    auto const second_shared = x25519::agree(second_secret->bytes(), *second_peer);
+    print("converted   ", second_peer->bytes());
+    auto const first_shared = first_x25519->agree(*first_peer);
+    auto const second_shared = second_x25519->agree(*second_peer);
     return first_shared && second_shared &&
-           crypto::equal(first_shared->bytes(), second_shared->bytes());
+           crypto::constant_time_equal(first_shared->bytes(), second_shared->bytes());
 }
 
 // A peer key of low order gives an all-zero secret, which agree refuses.
 bool low_order_refused() {
     std::array<std::uint8_t, 32> const secret_key{1};
     std::array<std::uint8_t, 32> const zero_point{};
-    auto const shared = x25519::agree(secret_key, zero_point);
+    auto const key = x25519::keypair::from_secret(secret_key);
+    // Made, since its size is right: agree judges the point.
+    auto const peer = x25519::public_key::from_bytes(zero_point);
+    if (!key || !peer) {
+        return false;
+    }
+    auto const shared = key->agree(*peer);
     if (!shared && shared.error() == crypto::error::weak_public_key) {
         std::printf("low order    refused: weak_public_key\n");
         return true;

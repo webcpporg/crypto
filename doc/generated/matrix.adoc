@@ -16,35 +16,45 @@
 |native, wasip2, wasip3, emscripten
 |`+random_device+`
 
-|`+async_make+`, `+async_seal+`, `+async_open+`
+|`+async_from_key+`, `+secret_key_encryption::aead::async_seal+`, `+secret_key_encryption::aead::async_open+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
 |`+async_gcm+`
 
-|`+async_make+`, `+async_seal+`, `+async_open+`
+|`+async_from_key+`, `+secret_key_encryption::aead::async_seal+`, `+secret_key_encryption::aead::async_open+`
 |OpenSSL
 |native, wasip2, wasip3; not on emscripten: `+/webcpp/crypto//openssl+` stops the build there
 |`+async_gcm_openssl+`
 
-|`+async_make+`, `+async_generate+`, `+async_sign+`, `+async_verify+`
+|`+async_from_key+`, `+secret_key_encryption::aead::async_seal+`, `+secret_key_encryption::aead::async_open+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+async_aead+`
+
+|`+async_from_secret+`, `+async_generate+`, `+async_sign+`, `+async_verify+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+async_25519+`, `+async_post+`
 
-|`+async_agree+`
+|`+async_from_secret+`, `+async_generate+`, `+async_agree+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+async_25519+`
 
-|`+async_make+`, `+async_generate+`, `+async_sign+`, `+async_verify+`, `+async_agree+`
+|`+async_from_secret+`, `+async_generate+`, `+async_sign+`, `+async_verify+`, `+async_agree+`
 |BearSSL
 |native, wasip2, wasip3, emscripten
 |`+async_p256+`
 
-|`+equal+`
+|`+constant_time_equal+`
 |no backend
 |native, wasip2, wasip3, emscripten
-|`+equal+`
+|`+constant_time_equal+`
+
+|`+erase_secret+`
+|no backend
+|native, wasip2, wasip3, emscripten
+|`+erase_secret+`
 
 |`+error+`
 |no backend
@@ -131,25 +141,25 @@
 |native, wasip2, wasip3, emscripten
 |`+ed25519_sodium+`, `+ed25519_wycheproof_sodium+`, `+ed25519_speccheck+`, `+oracle_25519+`
 
-|`+curves::ed25519::ph+`
+|`+curves::ed25519::prehashed_signer+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+ed25519ph_sodium+`
 
-|`+curves::ed25519::to_x25519_public+`
+|`+crypto::to_x25519+`
 |libsodium
 |native, wasip2, wasip3, emscripten
-|`+x25519_sodium+`
+|`+ed25519_sodium+`, `+x25519_sodium+`
+
+|`+curves::x25519::keypair+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+x25519_sodium+`, `+x25519_wycheproof_sodium+`, `+oracle_25519+`
 
 |`+curves::x25519::public_key+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+x25519_sodium+`, `+oracle_25519+`
-
-|`+curves::x25519::agree+`
-|libsodium
-|native, wasip2, wasip3, emscripten
-|`+x25519_sodium+`, `+x25519_wycheproof_sodium+`, `+oracle_25519+`
 
 |`+curves::ed25519::encode_spki+`, `+decode_spki+`, `+encode_pkcs8+`, `+decode_pkcs8+`
 |libsodium
@@ -166,7 +176,7 @@
 |native, wasip2, wasip3, emscripten
 |`+formats_25519_sodium+`, `+formats_25519_openssl_oracle+`, `+allocation_sodium+`, `+p256_formats_bearssl+`
 
-|`+curves::x25519::kx_keypair+`
+|`+key_exchange::kx_keypair+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+kx_sodium+`, `+kx_wipe_sodium+`, `+allocation_sodium+`
@@ -201,27 +211,27 @@
 |native, wasip2, wasip3, emscripten
 |`+xchacha_sodium+`, `+chacha_wycheproof_sodium+`, `+allocation_sodium+`
 
-|`+ciphers::secretbox+`
+|`+secret_key_encryption::secretbox+`
 |libsodium
 |native, wasip2, wasip3, emscripten
-|`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`
+|`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`, `+aead_concepts+`
 
-|`+ciphers::secretbox_xchacha20poly1305+`
+|`+secret_key_encryption::secretbox_xchacha20poly1305+`
 |libsodium
 |native, wasip2, wasip3, emscripten
-|`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`
+|`+secretbox_sodium+`, `+box_sodium+`, `+allocation_sodium+`, `+aead_concepts+`
 
-|`+hybrid::box+`
-|libsodium
-|native, wasip2, wasip3, emscripten
-|`+box_sodium+`, `+allocation_sodium+`
-
-|`+hybrid::box_xchacha20poly1305+`
+|`+public_key_encryption::box+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+box_sodium+`, `+allocation_sodium+`
 
-|`+hybrid::sealed_box+`
+|`+public_key_encryption::box_xchacha20poly1305+`
+|libsodium
+|native, wasip2, wasip3, emscripten
+|`+box_sodium+`, `+allocation_sodium+`
+
+|`+public_key_encryption::sealed_box+`
 |libsodium
 |native, wasip2, wasip3, emscripten
 |`+box_sodium+`, `+allocation_sodium+`
@@ -236,7 +246,7 @@
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_keys+`
 
-|`+curves::secp256k1::seckey_tweak_add+`, `+seckey_tweak_mul+`, `+seckey_negate+`, `+pubkey_tweak_add+`, `+pubkey_tweak_mul+`, `+pubkey_negate+`, `+pubkey_combine+`
+|`+curves::secp256k1::secret_key_tweak_add+`, `+secret_key_tweak_mul+`, `+secret_key_negate+`, `+public_key_tweak_add+`, `+public_key_tweak_mul+`, `+public_key_negate+`, `+public_key_combine+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_tweak+`
@@ -251,12 +261,12 @@
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_ellswift+`
 
-|`+curves::secp256k1::musig::aggregate_key+`, `+key_aggregate+`, `+nonce_gen+`, `+nonce_aggregate+`, `+nonce_process+`, `+partial_sign+`, `+partial_signature_verify+`, `+partial_signature_aggregate+`, `+parse_public_nonce+`, `+serialize_public_nonce+`, `+parse_aggregate_nonce+`, `+serialize_aggregate_nonce+`, `+parse_partial_signature+`, `+serialize_partial_signature+`
+|`+curves::secp256k1::musig::aggregate_key+`, `+key_aggregate+`, `+generate_nonce+`, `+nonce_aggregate+`, `+nonce_process+`, `+partial_sign+`, `+partial_signature_verify+`, `+partial_signature_aggregate+`, `+parse_public_nonce+`, `+serialize_public_nonce+`, `+parse_aggregate_nonce+`, `+serialize_aggregate_nonce+`, `+parse_partial_signature+`, `+serialize_partial_signature+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_musig+`, `+secp256k1_musig_entropy+`
 
-|`+curves::secp256k1::silent_payments::create_outputs+`, `+create_label+`, `+create_labeled_spend_key+`, `+make_prevouts_summary+`, `+scan_outputs+`, `+send_workspace_size+`, `+summary_workspace_size+`, `+scan_workspace_size+`
+|`+curves::secp256k1::silent_payments::create_outputs+`, `+create_label+`, `+create_labeled_spend_key+`, `+make_previous_outputs_summary+`, `+scan_outputs+`, `+send_workspace_size+`, `+summary_workspace_size+`, `+scan_workspace_size+`
 |libsecp256k1
 |native, wasip2, wasip3, emscripten
 |`+secp256k1_silent_payments+`
@@ -324,31 +334,37 @@ The same, by target: the backends each operation runs on.
 |the system's generator
 |the system's generator
 
-|`+async_make+`, `+async_seal+`, `+async_open+`
-|BearSSL, OpenSSL
-|BearSSL, OpenSSL
-|BearSSL, OpenSSL
-|BearSSL
+|`+async_from_key+`, `+secret_key_encryption::aead::async_seal+`, `+secret_key_encryption::aead::async_open+`
+|BearSSL, OpenSSL, libsodium
+|BearSSL, OpenSSL, libsodium
+|BearSSL, OpenSSL, libsodium
+|BearSSL, libsodium
 
-|`+async_make+`, `+async_generate+`, `+async_sign+`, `+async_verify+`
-|libsodium
-|libsodium
-|libsodium
-|libsodium
-
-|`+async_agree+`
+|`+async_from_secret+`, `+async_generate+`, `+async_sign+`, `+async_verify+`
 |libsodium
 |libsodium
 |libsodium
 |libsodium
 
-|`+async_make+`, `+async_generate+`, `+async_sign+`, `+async_verify+`, `+async_agree+`
+|`+async_from_secret+`, `+async_generate+`, `+async_agree+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+async_from_secret+`, `+async_generate+`, `+async_sign+`, `+async_verify+`, `+async_agree+`
 |BearSSL
 |BearSSL
 |BearSSL
 |BearSSL
 
-|`+equal+`
+|`+constant_time_equal+`
+|no backend
+|no backend
+|no backend
+|no backend
+
+|`+erase_secret+`
 |no backend
 |no backend
 |no backend
@@ -420,25 +436,25 @@ The same, by target: the backends each operation runs on.
 |libsodium
 |libsodium
 
-|`+curves::ed25519::ph+`
+|`+curves::ed25519::prehashed_signer+`
 |libsodium
 |libsodium
 |libsodium
 |libsodium
 
-|`+curves::ed25519::to_x25519_public+`
+|`+crypto::to_x25519+`
+|libsodium
+|libsodium
+|libsodium
+|libsodium
+
+|`+curves::x25519::keypair+`
 |libsodium
 |libsodium
 |libsodium
 |libsodium
 
 |`+curves::x25519::public_key+`
-|libsodium
-|libsodium
-|libsodium
-|libsodium
-
-|`+curves::x25519::agree+`
 |libsodium
 |libsodium
 |libsodium
@@ -462,7 +478,7 @@ The same, by target: the backends each operation runs on.
 |libsodium
 |libsodium
 
-|`+curves::x25519::kx_keypair+`
+|`+key_exchange::kx_keypair+`
 |libsodium
 |libsodium
 |libsodium
@@ -486,31 +502,31 @@ The same, by target: the backends each operation runs on.
 |libsodium
 |libsodium
 
-|`+ciphers::secretbox+`
+|`+secret_key_encryption::secretbox+`
 |libsodium
 |libsodium
 |libsodium
 |libsodium
 
-|`+ciphers::secretbox_xchacha20poly1305+`
+|`+secret_key_encryption::secretbox_xchacha20poly1305+`
 |libsodium
 |libsodium
 |libsodium
 |libsodium
 
-|`+hybrid::box+`
+|`+public_key_encryption::box+`
 |libsodium
 |libsodium
 |libsodium
 |libsodium
 
-|`+hybrid::box_xchacha20poly1305+`
+|`+public_key_encryption::box_xchacha20poly1305+`
 |libsodium
 |libsodium
 |libsodium
 |libsodium
 
-|`+hybrid::sealed_box+`
+|`+public_key_encryption::sealed_box+`
 |libsodium
 |libsodium
 |libsodium
@@ -528,7 +544,7 @@ The same, by target: the backends each operation runs on.
 |libsecp256k1
 |libsecp256k1
 
-|`+curves::secp256k1::seckey_tweak_add+`, `+seckey_tweak_mul+`, `+seckey_negate+`, `+pubkey_tweak_add+`, `+pubkey_tweak_mul+`, `+pubkey_negate+`, `+pubkey_combine+`
+|`+curves::secp256k1::secret_key_tweak_add+`, `+secret_key_tweak_mul+`, `+secret_key_negate+`, `+public_key_tweak_add+`, `+public_key_tweak_mul+`, `+public_key_negate+`, `+public_key_combine+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
@@ -546,13 +562,13 @@ The same, by target: the backends each operation runs on.
 |libsecp256k1
 |libsecp256k1
 
-|`+curves::secp256k1::musig::aggregate_key+`, `+key_aggregate+`, `+nonce_gen+`, `+nonce_aggregate+`, `+nonce_process+`, `+partial_sign+`, `+partial_signature_verify+`, `+partial_signature_aggregate+`, `+parse_public_nonce+`, `+serialize_public_nonce+`, `+parse_aggregate_nonce+`, `+serialize_aggregate_nonce+`, `+parse_partial_signature+`, `+serialize_partial_signature+`
+|`+curves::secp256k1::musig::aggregate_key+`, `+key_aggregate+`, `+generate_nonce+`, `+nonce_aggregate+`, `+nonce_process+`, `+partial_sign+`, `+partial_signature_verify+`, `+partial_signature_aggregate+`, `+parse_public_nonce+`, `+serialize_public_nonce+`, `+parse_aggregate_nonce+`, `+serialize_aggregate_nonce+`, `+parse_partial_signature+`, `+serialize_partial_signature+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1
 
-|`+curves::secp256k1::silent_payments::create_outputs+`, `+create_label+`, `+create_labeled_spend_key+`, `+make_prevouts_summary+`, `+scan_outputs+`, `+send_workspace_size+`, `+summary_workspace_size+`, `+scan_workspace_size+`
+|`+curves::secp256k1::silent_payments::create_outputs+`, `+create_label+`, `+create_labeled_spend_key+`, `+make_previous_outputs_summary+`, `+scan_outputs+`, `+send_workspace_size+`, `+summary_workspace_size+`, `+scan_workspace_size+`
 |libsecp256k1
 |libsecp256k1
 |libsecp256k1

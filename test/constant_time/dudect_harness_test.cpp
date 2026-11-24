@@ -103,24 +103,24 @@ void choose_control() {
 void select_case() {
     std::string program = "dudect_x";
     std::string flag = "--case";
-    std::string equal = "equal";
+    std::string compared = "constant_time_equal";
     std::string unknown = "unknown";
     std::array<char*, 1> alone{program.data()};
-    auto const every = test::select_case(1, alone.data(), {"seal", "equal"});
+    auto const every = test::select_case(1, alone.data(), {"seal", "constant_time_equal"});
     BOOST_TEST(every.has_value());
     BOOST_TEST(every && every->runs("seal"));
-    BOOST_TEST(every && every->runs("equal"));
+    BOOST_TEST(every && every->runs("constant_time_equal"));
 
-    std::array<char*, 3> one{program.data(), flag.data(), equal.data()};
-    auto const only = test::select_case(3, one.data(), {"seal", "equal"});
+    std::array<char*, 3> one{program.data(), flag.data(), compared.data()};
+    auto const only = test::select_case(3, one.data(), {"seal", "constant_time_equal"});
     BOOST_TEST(only.has_value());
-    BOOST_TEST(only && only->runs("equal"));
+    BOOST_TEST(only && only->runs("constant_time_equal"));
     BOOST_TEST(only && !only->runs("seal"));
 
     std::array<char*, 3> wrong{program.data(), flag.data(), unknown.data()};
-    BOOST_TEST(!test::select_case(3, wrong.data(), {"seal", "equal"}).has_value());
+    BOOST_TEST(!test::select_case(3, wrong.data(), {"seal", "constant_time_equal"}).has_value());
     std::array<char*, 2> missing{program.data(), flag.data()};
-    BOOST_TEST(!test::select_case(2, missing.data(), {"seal", "equal"}).has_value());
+    BOOST_TEST(!test::select_case(2, missing.data(), {"seal", "constant_time_equal"}).has_value());
 }
 
 /** Every decision reads |t| as printed: 9.996 prints 10.00, with its evidence, and fails. */

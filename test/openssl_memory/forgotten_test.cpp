@@ -5,7 +5,7 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // A forgotten install is an error value (spec section 8.5): built with the option and
-// without the install, make gives memory_functions_not_installed with section 3.7's
+// without the install, from_key gives memory_functions_not_installed with section 3.7's
 // message, and OpenSSL has allocated nothing, since the guard comes before the error queue's
 // mark: its defaults are still replaceable, CRYPTO_set_mem_functions returning 1. The
 // program then makes and seals through the adapter, and ends through the exit check.
@@ -30,7 +30,7 @@ int main() {
     webcpp::test::say_whether_c_is_counted();
     auto& resource = webcpp::test::the_counting_resource();
     std::array<std::uint8_t, 32> const key{};
-    auto const forgotten = aead::make(key);
+    auto const forgotten = aead::from_key(key);
     // On success error() is the empty code, which fails both checks below.
     BOOST_TEST(forgotten.error() == crypto::error::memory_functions_not_installed);
     BOOST_TEST_EQ(forgotten.error().message(),
@@ -43,11 +43,11 @@ int main() {
                                  &webcpp_crypto_openssl_free),
         1);
     {
-        auto made = aead::make(key);
+        auto made = aead::from_key(key);
         BOOST_TEST(made.has_value());
-        std::array<std::uint8_t, 12> const iv{};
+        std::array<std::uint8_t, 12> const nonce{};
         std::array<std::uint8_t, 64> data{};
-        BOOST_TEST(made.has_value() && made->seal(iv, {}, data).has_value());
+        BOOST_TEST(made.has_value() && made->seal(nonce, {}, data).has_value());
     }
     BOOST_TEST(!resource.foreign_free());
     if (int const errors = boost::report_errors(); errors != 0) {

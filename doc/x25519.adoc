@@ -22,28 +22,55 @@ link:https://www.rfc-editor.org/rfc/rfc8731[RFC 8731];
 link:https://www.wireguard.com/protocol/[WireGuard];
 link:https://signal.org/docs/specifications/x3dh/[X3DH]).
 
-`public_key(secret_key)` gives the public key of any 32 bytes, which a program
-draws with `random_device`; `agree(secret_key, peer_public_key)` gives the
-shared secret, a `secret<32>` that wipes itself. A peer's public key of low
-order makes the shared secret all zero, whatever the secret key: `agree`
-refuses it with `weak_public_key`, so that an attacker who sends such a key
-cannot make both sides use a secret it knows (design D8). Every case of
-Wycheproof's X25519 file gives its shared secret, and its 31 all-zero cases
-give `weak_public_key` (`x25519_wycheproof_sodium`).
+A key pair, `keypair`, is made from its 32-byte secret key by
+`keypair::from_secret(secret_bytes)`, any 32 bytes, or drawn from
+`random_device` by `keypair::generate()`; its public key, computed once when it
+is made, is `public_key()`, a `curves::x25519::public_key`, whose `bytes()` a
+program sends, and `secret()` gives the secret key back, to keep. A peer's key
+arrives as bytes and is made by `public_key::from_bytes(bytes)`, which checks
+their size alone. `key_pair.agree(peer_key)` gives the shared secret, a
+`secret<32>` that wipes itself. A moved-from key pair refuses every call with
+`invalid_state`. A peer's public key of low order makes the shared secret all
+zero, whatever the secret key: `agree` refuses it with `weak_public_key`, so
+that an attacker who sends such a key cannot make both sides use a secret it
+knows (design D8). Every case of Wycheproof's X25519 file gives its shared
+secret, and its 31 all-zero cases give `weak_public_key`
+(`x25519_wycheproof_sodium`).
+
+The keys are typed: a key pair is a `keypair`, a public key a
+`curves::x25519::public_key`, and no operation takes either as bytes, so that a
+peer's key is never mistaken for the program's own secret, nor an Ed25519 key's
+bytes for an X25519 key. Each operation has the four forms of every key pair
+(<<crypto-curves-four-forms>>): the members above; their free forms
+`crypto::from_secret<keypair>(secret_bytes)`, `crypto::generate<keypair>()`
+and `crypto::agree(key_pair, peer_key)`; and, X25519 being in WebCrypto, their
+asynchronous forms, `keypair::async_from_secret`, `keypair::async_generate`
+and `key_pair.async_agree`, and the free `crypto::async_from_secret`,
+`crypto::async_generate` and `crypto::async_agree`, in
+`<webcpp/crypto/async.hpp>` (<<crypto-async>>). A public key is made by
+`public_key::from_bytes` or `crypto::from_bytes<public_key>`, synchronously
+alone, as every public key is. The key pair is a `crypto::agreement_keypair`
+and not a `crypto::signing_keypair`: X25519 agrees and does not sign
+(<<crypto-curves-keypair>>).
+
+include::generated/backends-x25519_keypair.adoc[]
 
 include::generated/backends-x25519_public_key.adoc[]
 
-include::generated/backends-x25519_agree.adoc[]
-
-*From Ed25519.* A program that already holds an Ed25519 key pair (<<crypto-ed25519>>)
-agrees with the same seed: `keypair::x25519_secret()` is its X25519 secret key,
-and `curves::ed25519::to_x25519_public(public_key)` converts a peer's Ed25519
-public key to its X25519 public key, the birational map between the two forms
-of the curve. The conversion refuses with `invalid_public_key` a key of small
-order, off the curve or outside the main subgroup, as libsodium does
+*From Ed25519.* A program that already holds an Ed25519 key pair
+(<<crypto-ed25519>>) agrees with the same seed: its `to_x25519()` gives its
+X25519 key pair, of the same backend, and a peer's Ed25519 public key's
+`to_x25519()` gives that peer's X25519 public key, the birational map between
+the two forms of the curve; the free `crypto::to_x25519(value)` calls either.
+The converted key pair's public key is its Ed25519 public key's conversion. The
+conversion of a public key refuses with `invalid_public_key` a key of small
+order, not canonical, off the curve or outside the main subgroup, as libsodium
+does
 (link:https://doc.libsodium.org/advanced/ed25519-curve25519[libsodium's documentation]).
+Both are synchronous on every backend: WebCrypto converts nothing between the
+two.
 
-include::generated/backends-ed25519_to_x25519_public.adoc[]
+include::generated/backends-ed25519_to_x25519.adoc[]
 
 *Example.* RFC 7748's Alice and Bob, then two Ed25519 key pairs that agree
 through their X25519 forms, then a peer key of low order refused:

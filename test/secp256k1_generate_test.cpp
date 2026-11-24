@@ -91,7 +91,7 @@ void generate_redraws() {
     expected_secret.fill(0x01);
     script = {0x07};
     calls = 0;
-    auto const expected = secp::keypair::make(expected_secret);
+    auto const expected = secp::keypair::from_secret(expected_secret);
     if (BOOST_TEST(generated.has_value()) && BOOST_TEST(expected.has_value())) {
         BOOST_TEST(generated->public_key()->xonly() == expected->public_key()->xonly());
     }
@@ -106,7 +106,7 @@ void generate_zero_redraws() {
     expected_secret.fill(0x01);
     script = {0x07};
     calls = 0;
-    auto const expected = secp::keypair::make(expected_secret);
+    auto const expected = secp::keypair::from_secret(expected_secret);
     if (BOOST_TEST(generated.has_value()) && BOOST_TEST(expected.has_value())) {
         BOOST_TEST(generated->public_key()->xonly() == expected->public_key()->xonly());
     }
@@ -151,7 +151,7 @@ void schnorr_draws_from_the_source() {
     secret.fill(0x42);
     script = {0x07};  // the context's seed
     calls = 0;
-    auto key = secp::keypair::make(secret);
+    auto key = secp::keypair::from_secret(secret);
     if (!BOOST_TEST(key.has_value())) {
         return;
     }

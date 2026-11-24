@@ -49,9 +49,9 @@ inline void expect_empty_musig_signer(webcpp::crypto::curves::secp256k1::keypair
     if (!BOOST_TEST(signers_key.has_value())) {
         return;
     }
-    BOOST_TEST(secp::musig::nonce_gen(key, *signers_key).error() ==
+    BOOST_TEST(secp::musig::generate_nonce(key, *signers_key).error() ==
                webcpp::crypto::error::invalid_state);
-    auto made = secp::musig::nonce_gen(live, *signers_key);
+    auto made = secp::musig::generate_nonce(live, *signers_key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
@@ -99,7 +99,7 @@ inline void expect_empty_silent_payments(webcpp::crypto::curves::secp256k1::keyp
     BOOST_TEST(sp::create_label(key, 0).error() == webcpp::crypto::error::invalid_state);
     std::array<secp::public_key, 1> const input_keys{*live_key};
     std::array<std::byte, sp::summary_workspace_size(0, 1)> summary_space{};
-    auto const summary = sp::make_prevouts_summary(outpoint, {}, input_keys, summary_space);
+    auto const summary = sp::make_previous_outputs_summary(outpoint, {}, input_keys, summary_space);
     if (!BOOST_TEST(summary.has_value())) {
         return;
     }
@@ -116,10 +116,11 @@ inline void expect_empty_silent_payments(webcpp::crypto::curves::secp256k1::keyp
  * @param key The pair, which the tweak is asked of (it stays empty).
  */
 inline void expect_empty_keypair(webcpp::crypto::curves::secp256k1::keypair& key) {
-    auto const live = webcpp::crypto::curves::secp256k1::keypair::make(std::array<std::uint8_t, 32>{
-        1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
-        17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
-    });
+    auto const live =
+        webcpp::crypto::curves::secp256k1::keypair::from_secret(std::array<std::uint8_t, 32>{
+            1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15, 16,
+            17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+        });
     std::array<std::uint8_t, 32> const message{};
     std::array<std::uint8_t, 32> const aux{};
     std::array<std::uint8_t, 32> const tweak{};
@@ -135,6 +136,9 @@ inline void expect_empty_keypair(webcpp::crypto::curves::secp256k1::keypair& key
                webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.sign(webcpp::crypto::ecdsa_sha256_recoverable, message).error() ==
                webcpp::crypto::error::invalid_state);
+    BOOST_TEST(
+        key.sign(webcpp::crypto::ecdsa_keccak256_recoverable, webcpp::crypto::prehashed{message})
+            .error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(key.tweak_xonly(tweak).error() == webcpp::crypto::error::invalid_state);
     BOOST_TEST(webcpp::crypto::curves::secp256k1::ellswift_create(key, aux).error() ==
                webcpp::crypto::error::invalid_state);

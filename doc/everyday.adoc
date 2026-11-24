@@ -26,8 +26,9 @@ and the recipient are never online together.
 encrypted once under a key drawn for that file alone, and that file key is
 encrypted to each recipient's X25519 public key, with a key pair drawn for
 the purpose, so that the recipient's secret key alone recovers it. webcpp's
-primitives do the same in libsodium's formats: the file in a secret box
-(<<crypto-secretbox>>) under a fresh 32-byte key, and the key in a sealed box
+primitives do the same in libsodium's formats: the file in a secret box,
+`secret_key_encryption::secretbox<>` (<<crypto-secretbox>>), under a fresh
+32-byte key, and the key in a sealed box
 to the recipient (<<crypto-sealed-box>>). Each file has its own key, so a
 leaked key opens one file; the tag of each box makes any change to the upload
 fail to open, never decrypt to something else. age's own steps, its header,
@@ -63,7 +64,7 @@ back on an unencrypted copy. A sealed box says nothing of who sent it: an app
 where the sender matters signs the upload (<<crypto-ed25519>>) or uses a box
 between the two key pairs (<<crypto-box>>). A large file cut into
 separate boxes is safe only when each chunk's tag also covers its number and a
-flag marking the last chunk, in the additional data or in a nonce built from
+flag marking the last chunk, in the associated data or in a nonce built from
 them, and a reader refuses chunks out of order and a stream that ends without
 the last flag: otherwise whoever holds the ciphertext reorders, drops, repeats
 or truncates chunks and each one still opens. The
@@ -82,8 +83,8 @@ when the token comes back, so that a leaked database hands out no live session
 or reset link (OWASP asks that reset tokens be stored securely,
 link:https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html[Forgot
 Password Cheat Sheet]); a random token of 32 bytes needs no slow password hash.
-`equal` is for a token or a MAC checked against one value the program already
-knows. <<crypto-entropy>> shows the program, `reset_token`.
+`constant_time_equal` is for a token or a MAC checked against one value the
+program already knows. <<crypto-entropy>> shows the program, `reset_token`.
 A password itself is never encrypted: it is hashed with a slow password hash,
 Argon2id or scrypt, which
 link:{webcpp-libs}/hash/{webcpp-page}#hash-password-hashing[webcpp::hash's password hashing] gives, not
@@ -94,14 +95,15 @@ crypto.
 
 A payment provider or a source-code host signs each call to a program's
 webhook with an HMAC under a shared secret. The program recomputes it with
-Boost.Hash2 and compares with `equal`, never `==`: <<crypto-equal>>.
+Boost.Hash2 and compares with `constant_time_equal`, never `==`:
+<<crypto-constant-time-equal>>.
 
 [#crypto-everyday-storage]
 === A database field, a cookie, a file
 
 Data stored where someone else may read it, a database, a cookie, a cloud
 bucket, is sealed with AES-GCM, with what it belongs to (the user's id, the
-cookie's name, the file's path) as additional data, so that it cannot be moved
+cookie's name, the file's path) as associated data, so that it cannot be moved
 to another place: <<crypto-gcm>>. A large file is sealed in records:
 <<crypto-gcm-incremental>>.
 

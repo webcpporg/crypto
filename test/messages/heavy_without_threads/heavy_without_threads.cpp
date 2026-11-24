@@ -10,12 +10,13 @@
 // operation declares its variant. The refusal is the first error (heavy_without_threads_first
 // pins the order); detail::run_on_work's stand-in adds its own after it, which defers to an error
 // above that names the synchronous call. The test is alone: these two errors are the compile's
-// only ones. The refusal's directive comes last, as the message the page shows
-// (doc/tables/generate.py reads a test's last directive).
+// only ones. The page shows the refusal alone (doc/tables/generate.py lists a test's directives
+// in source order and skips one marked knock-on): its directive comes first, and the stand-in's
+// is marked knock-on, since the wildcards let -verify match them in any order.
 
 // clang-format off
-// expected-error@webcpp/crypto/detail/heavy.hpp:* {{webcpp::crypto: a heavy operation's async_ variant needs a build with threads; if no error above names the synchronous call, this variant lacks WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS.}}
 // expected-error@*:* {{webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.}}
+// expected-error@webcpp/crypto/detail/heavy.hpp:* {{webcpp::crypto: a heavy operation's async_ variant needs a build with threads; if no error above names the synchronous call, this variant lacks WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS.}} (knock-on)
 // clang-format on
 
 #include <webcpp/crypto/detail/heavy.hpp>
@@ -31,11 +32,11 @@ boost::system::result<int> slow(int value) noexcept {
 
 /** Its async_ variant, as every heavy operation declares one. */
 template <class Executor, class CompletionToken>
-auto async_slow(Executor const& work, int value, CompletionToken&& token) {
+auto async_slow(Executor const& work, int value, CompletionToken&& completion_token) {
     WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS("async_slow", "slow");
     return webcpp::crypto::detail::run_on_work(
         work, []() noexcept { return boost::system::result<void>(); },
-        [value]() noexcept { return slow(value); }, token);
+        [value]() noexcept { return slow(value); }, completion_token);
 }
 
 /** An executor and a completion token, which a build without threads never uses. */

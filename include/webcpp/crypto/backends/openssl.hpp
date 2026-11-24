@@ -8,7 +8,7 @@
  The backend OpenSSL: OpenSSL 3.5.9 built from `third_party/libs/openssl` by
  `/webcpp/crypto//openssl`, static, on native, wasip2 and wasip3; never on Emscripten. It
  serves `ciphers::aes128/192/256<backends::openssl>`, `ciphers::gcm<...<backends::openssl>>` and
- `ciphers::chacha20_poly1305<backends::openssl>`. Its `make` allocates through OpenSSL's own
+ `ciphers::chacha20_poly1305<backends::openssl>`. Its `from_key` allocates through OpenSSL's own
  functions, unless a native program sets `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, which sends every
  allocation of OpenSSL's to `openssl_memory_resource()`. On MSVC, wasip2 and wasip3 OpenSSL is
  compiled without assembly: table-driven AES and 4-bit GHASH, no AES-NI, not constant time.
@@ -82,12 +82,12 @@ namespace webcpp::crypto {
  * two threads at once: OpenSSL frees through it after `main` returns.
  *
  * It must serve OpenSSL's initialisation, which the first use of OpenSSL in the process runs,
- * usually the first `make`: on an OpenSSL built with threads, which MSVC always builds, a
+ * usually the first `from_key`: on an OpenSSL built with threads, which MSVC always builds, a
  * resource that fails during OpenSSL's base initialisation makes OpenSSL re-enter it, and that
  * call never returns: the process aborts on macOS, deadlocks on Linux and spins on Windows. Only on
- * an OpenSSL built without threads does it return, and every `make` then gives `backend_failure`.
- * On Windows a thread that used OpenSSL keeps its blocks in the resource until the process ends
- * unless it calls `OPENSSL_thread_stop()` before it ends.
+ * an OpenSSL built without threads does it return, and every `from_key` then gives
+ * `backend_failure`. On Windows a thread that used OpenSSL keeps its blocks in the resource until
+ * the process ends unless it calls `OPENSSL_thread_stop()` before it ends.
  *
  * A resource that cannot allocate fails as the standard has `do_allocate` fail, by throwing,
  * never by returning null: libc++ and libstdc++ declare `allocate` never to return null, so an
@@ -115,32 +115,32 @@ inline constexpr std::size_t openssl_block_alignment =
 
 // The adapter: three C functions given to OpenSSL, with C linkage since OpenSSL calls
 // them as C, inline with external linkage so that every file of the program sees one
-// function, which the install and make recognise by its address.
+// function, which the install and from_key recognise by its address.
 extern "C" {
 
 /**
  * OpenSSL's `malloc` under the option: a block of the program's resource, after a header
  * that holds its size.
  *
- * @param size The bytes OpenSSL asks for; 0, or a size whose header overflows, gives null.
+ * @param byte_count The bytes OpenSSL asks for; 0, or a size whose header overflows, gives null.
  * @return The block, or null, which OpenSSL takes as a failure: for those sizes, and with
  * exceptions for a resource that throws.
  */
-inline void* webcpp_crypto_openssl_malloc(std::size_t size, char const* /*file*/,
+inline void* webcpp_crypto_openssl_malloc(std::size_t byte_count, char const* /*file*/,
                                           int /*line*/) noexcept {
-    constexpr std::size_t header = webcpp::crypto::detail::openssl_block_alignment;
+    constexpr std::size_t header_size = webcpp::crypto::detail::openssl_block_alignment;
     // NOLINTNEXTLINE(readability-redundant-parentheses)
-    if (size == 0 || size > (std::numeric_limits<std::size_t>::max)() - header) {
+    if (byte_count == 0 || byte_count > (std::numeric_limits<std::size_t>::max)() - header_size) {
         return nullptr;
     }
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
     try {
 #endif
         // Never null: a resource fails by throwing (openssl_memory_resource()).
-        void* const block =
-            webcpp::crypto::openssl_memory_resource().allocate(header + size, header);
-        std::memcpy(block, &size, sizeof size);
-        return static_cast<unsigned char*>(block) + header;
+        void* const raw_block = webcpp::crypto::openssl_memory_resource().allocate(
+            header_size + byte_count, header_size);
+        std::memcpy(raw_block, &byte_count, sizeof byte_count);
+        return static_cast<unsigned char*>(raw_block) + header_size;
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
     } catch (...) {  // OpenSSL is C: no exception may cross it
         return nullptr;
@@ -151,20 +151,22 @@ inline void* webcpp_crypto_openssl_malloc(std::size_t size, char const* /*file*/
 /**
  * OpenSSL's `free` under the option: the block back to the program's resource.
  *
- * @param address A block of the adapter's, or null.
+ * @param block_address A block of the adapter's, or null.
  */
-inline void webcpp_crypto_openssl_free(void* address, char const* /*file*/, int /*line*/) noexcept {
-    if (address == nullptr) {
+inline void webcpp_crypto_openssl_free(void* block_address, char const* /*file*/,
+                                       int /*line*/) noexcept {
+    if (block_address == nullptr) {
         return;
     }
-    constexpr std::size_t header = webcpp::crypto::detail::openssl_block_alignment;
-    auto* const block = static_cast<unsigned char*>(address) - header;
-    std::size_t size = 0;
-    std::memcpy(&size, block, sizeof size);
+    constexpr std::size_t header_size = webcpp::crypto::detail::openssl_block_alignment;
+    auto* const raw_block = static_cast<unsigned char*>(block_address) - header_size;
+    std::size_t byte_count = 0;
+    std::memcpy(&byte_count, raw_block, sizeof byte_count);
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
     try {
 #endif
-        webcpp::crypto::openssl_memory_resource().deallocate(block, header + size, header);
+        webcpp::crypto::openssl_memory_resource().deallocate(raw_block, header_size + byte_count,
+                                                             header_size);
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
         // NOLINTNEXTLINE(bugprone-empty-catch): no exception may cross OpenSSL
     } catch (...) {
@@ -176,29 +178,30 @@ inline void webcpp_crypto_openssl_free(void* address, char const* /*file*/, int 
  * OpenSSL's `realloc` under the option, as C's: null is `malloc`, 0 frees and gives null,
  * and a failure gives null and leaves the old block valid.
  *
- * @param address The block, or null.
- * @param size The new size.
+ * @param block_address The block, or null.
+ * @param byte_count The new size.
  * @return The new block, or null.
  */
-inline void* webcpp_crypto_openssl_realloc(void* address, std::size_t size, char const* file,
-                                           int line) noexcept {
-    if (address == nullptr) {
-        return webcpp_crypto_openssl_malloc(size, file, line);
+inline void* webcpp_crypto_openssl_realloc(void* block_address, std::size_t byte_count,
+                                           char const* source_file, int source_line) noexcept {
+    if (block_address == nullptr) {
+        return webcpp_crypto_openssl_malloc(byte_count, source_file, source_line);
     }
-    if (size == 0) {
-        webcpp_crypto_openssl_free(address, file, line);
+    if (byte_count == 0) {
+        webcpp_crypto_openssl_free(block_address, source_file, source_line);
         return nullptr;
     }
-    void* const moved = webcpp_crypto_openssl_malloc(size, file, line);
-    if (moved == nullptr) {
+    void* const moved_block = webcpp_crypto_openssl_malloc(byte_count, source_file, source_line);
+    if (moved_block == nullptr) {
         return nullptr;
     }
-    constexpr std::size_t header = webcpp::crypto::detail::openssl_block_alignment;
-    std::size_t old = 0;
-    std::memcpy(&old, static_cast<unsigned char*>(address) - header, sizeof old);
-    std::memcpy(moved, address, (std::min)(old, size));
-    webcpp_crypto_openssl_free(address, file, line);
-    return moved;
+    constexpr std::size_t header_size = webcpp::crypto::detail::openssl_block_alignment;
+    std::size_t old_size = 0;
+    std::memcpy(&old_size, static_cast<unsigned char*>(block_address) - header_size,
+                sizeof old_size);
+    std::memcpy(moved_block, block_address, (std::min)(old_size, byte_count));
+    webcpp_crypto_openssl_free(block_address, source_file, source_line);
+    return moved_block;
 }
 
 }  // extern "C"
@@ -207,12 +210,13 @@ namespace webcpp::crypto::detail {
 
 /** Whether OpenSSL's functions are the adapter's: three loads, no call into OpenSSL's heap. */
 inline bool openssl_adapter_installed() noexcept {
-    CRYPTO_malloc_fn m = nullptr;
-    CRYPTO_realloc_fn r = nullptr;
-    CRYPTO_free_fn f = nullptr;
-    CRYPTO_get_mem_functions(&m, &r, &f);
-    return m == &webcpp_crypto_openssl_malloc && r == &webcpp_crypto_openssl_realloc &&
-           f == &webcpp_crypto_openssl_free;
+    CRYPTO_malloc_fn malloc_function = nullptr;
+    CRYPTO_realloc_fn realloc_function = nullptr;
+    CRYPTO_free_fn free_function = nullptr;
+    CRYPTO_get_mem_functions(&malloc_function, &realloc_function, &free_function);
+    return malloc_function == &webcpp_crypto_openssl_malloc &&
+           realloc_function == &webcpp_crypto_openssl_realloc &&
+           free_function == &webcpp_crypto_openssl_free;
 }
 
 /**
@@ -221,11 +225,12 @@ inline bool openssl_adapter_installed() noexcept {
  * webcpp never builds, is refused by this comparison.
  */
 inline bool openssl_defaults_installed() noexcept {
-    CRYPTO_malloc_fn m = nullptr;
-    CRYPTO_realloc_fn r = nullptr;
-    CRYPTO_free_fn f = nullptr;
-    CRYPTO_get_mem_functions(&m, &r, &f);
-    return m == &CRYPTO_malloc && r == &CRYPTO_realloc && f == &CRYPTO_free;
+    CRYPTO_malloc_fn malloc_function = nullptr;
+    CRYPTO_realloc_fn realloc_function = nullptr;
+    CRYPTO_free_fn free_function = nullptr;
+    CRYPTO_get_mem_functions(&malloc_function, &realloc_function, &free_function);
+    return malloc_function == &CRYPTO_malloc && realloc_function == &CRYPTO_realloc &&
+           free_function == &CRYPTO_free;
 }
 
 }  // namespace webcpp::crypto::detail
@@ -241,7 +246,7 @@ inline bool openssl_defaults_installed() noexcept {
 namespace webcpp::crypto::detail {
 
 /**
- * The check every OpenSSL `make` runs first, before any call into OpenSSL that allocates:
+ * The check every OpenSSL `from_key` runs first, before any call into OpenSSL that allocates:
  * with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`, `memory_functions_not_installed` unless the
  * adapter is installed; without it, nothing.
  *
@@ -271,10 +276,10 @@ struct openssl {
      * OpenSSL's in the process goes to `openssl_memory_resource()`.
      *
      * Called as the first statement of `main`, before any thread starts and anything uses
-     * OpenSSL. The first use of OpenSSL after it, usually the first `make`, runs OpenSSL's
+     * OpenSSL. The first use of OpenSSL after it, usually the first `from_key`, runs OpenSSL's
      * initialisation through the resource: on an OpenSSL built with threads (MSVC's only build)
      * a failure during its base initialisation makes that call never return; on one built
-     * without threads every `make` then gives `backend_failure`.
+     * without threads every `from_key` then gives `backend_failure`.
      *
      * @return Nothing, also when the adapter is installed already;
      * `memory_functions_refused` when another party installed its own functions, or OpenSSL
@@ -348,8 +353,8 @@ inline boost::system::error_code openssl_context(EVP_CIPHER_CTX*& made_context,
                                                  char const* cipher_name,
                                                  std::span<std::uint8_t const> key_bytes,
                                                  bool is_encrypting, bool use_padding) noexcept {
-    if (auto const guard = openssl_memory_guard(); !guard) {
-        return guard.error();
+    if (auto const memory_guard = openssl_memory_guard(); !memory_guard) {
+        return memory_guard.error();
     }
     ERR_set_mark();
     EVP_CIPHER* const fetched_cipher = EVP_CIPHER_fetch(nullptr, cipher_name, nullptr);
@@ -435,27 +440,27 @@ struct gcm_engine<backends::openssl, KeySize> {
 
     // Each message re-initialises the context with a null key, which keeps the expanded one,
     // and switches its direction.
-    /** Starts a message: its direction, its IV and its additional data. */
+    /** Starts a message: its direction, its nonce and its associated data. */
     [[nodiscard]] static boost::system::result<void> start(
-        state& engine_state, bool is_sealing, std::span<std::uint8_t const> iv_bytes,
-        std::span<std::uint8_t const> additional_data_bytes) noexcept {
+        state& engine_state, bool is_sealing, std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes) noexcept {
         int const cipher_direction = is_sealing ? 1 : 0;
         if (EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, nullptr,
                               cipher_direction) != 1 ||
             EVP_CIPHER_CTX_ctrl(engine_state.context, EVP_CTRL_GCM_SET_IVLEN,
-                                static_cast<int>(iv_bytes.size()), nullptr) != 1 ||
-            EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, iv_bytes.data(),
+                                static_cast<int>(nonce_bytes.size()), nullptr) != 1 ||
+            EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, nonce_bytes.data(),
                               cipher_direction) != 1) {
             return openssl_failed();
         }
         // A null output makes EVP_CipherUpdate take additional data; none is fed as no call.
-        for (std::size_t piece_start = 0; piece_start < additional_data_bytes.size();
+        for (std::size_t piece_start = 0; piece_start < associated_data_bytes.size();
              piece_start += openssl_piece) {
             std::size_t const piece_size =
-                (std::min)(openssl_piece, additional_data_bytes.size() - piece_start);
+                (std::min)(openssl_piece, associated_data_bytes.size() - piece_start);
             int written_count = 0;
             if (EVP_CipherUpdate(engine_state.context, nullptr, &written_count,
-                                 additional_data_bytes.data() + piece_start,
+                                 associated_data_bytes.data() + piece_start,
                                  static_cast<int>(piece_size)) != 1) {
                 return openssl_failed();
             }
@@ -519,13 +524,13 @@ struct gcm_engine<backends::openssl, KeySize> {
     // every failure of a message does (openssl_failed).
     /** Ends a message without its tag, leaving nothing of it in the context. */
     static void abandon(state& engine_state) noexcept {
-        std::array<std::uint8_t, 12> const zero_iv_bytes{};
+        std::array<std::uint8_t, 12> const zero_nonce_bytes{};
         std::array<std::uint8_t, 1> padding_byte{};
         int written_count = 0;
         if (EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, nullptr, 1) != 1 ||
             EVP_CIPHER_CTX_ctrl(engine_state.context, EVP_CTRL_GCM_SET_IVLEN, 12, nullptr) != 1 ||
-            EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr, zero_iv_bytes.data(),
-                              1) != 1 ||
+            EVP_CipherInit_ex(engine_state.context, nullptr, nullptr, nullptr,
+                              zero_nonce_bytes.data(), 1) != 1 ||
             EVP_CipherUpdate(engine_state.context, padding_byte.data(), &written_count,
                              padding_byte.data(), 1) != 1) {
             ERR_clear_error();  // as openssl_failed does for every failure of a message
@@ -598,26 +603,27 @@ struct aead_engine<families::chacha20_poly1305, backends::openssl> {
      * Encrypts `data_bytes` in place and gives the tag.
      *
      * @param engine_state A keyed state.
-     * @param iv_bytes 12 bytes.
-     * @param additional_data_bytes Authenticated, not encrypted.
+     * @param nonce_bytes 12 bytes.
+     * @param associated_data_bytes Authenticated, not encrypted.
      * @param data_bytes The message.
      * @param tag_bytes The tag.
      * @return Nothing; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> seal(
-        state& engine_state, std::span<std::uint8_t const> iv_bytes,
-        std::span<std::uint8_t const> additional_data_bytes, std::span<std::uint8_t> data_bytes,
+        state& engine_state, std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
         boost::hash2::digest<16>& tag_bytes) noexcept {
-        sequence::state view{engine_state.context};
-        auto const started = sequence::start(view, true, iv_bytes, additional_data_bytes);
-        if (!started) {
-            return started;
+        sequence::state sequence_view{engine_state.context};
+        auto const start_result =
+            sequence::start(sequence_view, true, nonce_bytes, associated_data_bytes);
+        if (!start_result) {
+            return start_result;
         }
-        auto const ran = sequence::run(view, data_bytes);
-        if (!ran) {
-            return ran;
+        auto const run_result = sequence::run(sequence_view, data_bytes);
+        if (!run_result) {
+            return run_result;
         }
-        return sequence::tag(view, tag_bytes);
+        return sequence::tag(sequence_view, tag_bytes);
     }
 
     /**
@@ -625,28 +631,29 @@ struct aead_engine<families::chacha20_poly1305, backends::openssl> {
      * match.
      *
      * @param engine_state A keyed state.
-     * @param iv_bytes 12 bytes.
-     * @param additional_data_bytes The additional data of the seal.
+     * @param nonce_bytes 12 bytes.
+     * @param associated_data_bytes The associated data of the seal.
      * @param data_bytes The ciphertext.
      * @param tag_bytes The expected tag.
      * @return Nothing; `authentication_failed`; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<void> open(
-        state& engine_state, std::span<std::uint8_t const> iv_bytes,
-        std::span<std::uint8_t const> additional_data_bytes, std::span<std::uint8_t> data_bytes,
+        state& engine_state, std::span<std::uint8_t const> nonce_bytes,
+        std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
         std::array<std::uint8_t, 16> const& tag_bytes) noexcept {
-        sequence::state view{engine_state.context};
-        auto const started = sequence::start(view, false, iv_bytes, additional_data_bytes);
-        if (!started) {
-            return started;
+        sequence::state sequence_view{engine_state.context};
+        auto const start_result =
+            sequence::start(sequence_view, false, nonce_bytes, associated_data_bytes);
+        if (!start_result) {
+            return start_result;
         }
-        auto const ran = sequence::run(view, data_bytes);
-        if (!ran) {
-            return ran;
+        auto const run_result = sequence::run(sequence_view, data_bytes);
+        if (!run_result) {
+            return run_result;
         }
         // GCM's check sets the 16-byte tag before the final, without which the provider would
         // compare 0 bytes (see the class's comment).
-        return sequence::check(view, tag_bytes);
+        return sequence::check(sequence_view, tag_bytes);
     }
 
     /** Moves the context, leaving the source empty. */

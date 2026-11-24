@@ -52,10 +52,10 @@ std::span<std::uint8_t> read_piece(std::istream& file, std::vector<std::uint8_t>
 // Seals a copy of `plain` in pieces into `file`, and returns the tag, which is stored beside the
 // file.
 boost::system::result<aead_type::result_type> seal_file(aead_type& aead,
-                                                        std::span<std::uint8_t const> iv,
+                                                        std::span<std::uint8_t const> nonce,
                                                         std::vector<std::uint8_t> plain,
                                                         std::ostream& file) {
-    if (auto const begun = aead.begin_seal(iv, {}); !begun) {
+    if (auto const begun = aead.begin_seal(nonce, {}); !begun) {
         return begun.error();
     }
     for (std::size_t at = 0; at < plain.size(); at += file_piece_size) {
@@ -73,12 +73,12 @@ boost::system::result<aead_type::result_type> seal_file(aead_type& aead,
 // tag::open[]
 // Opens the file in two passes, writing its plaintext to `plain`. The file must hold the same
 // bytes in both: a program reads a file of its own disk that no one else writes meanwhile.
-boost::system::result<void> open_file(aead_type& aead, std::span<std::uint8_t const> iv,
+boost::system::result<void> open_file(aead_type& aead, std::span<std::uint8_t const> nonce,
                                       std::span<std::uint8_t const> tag, std::istream& file,
                                       std::ostream& plain) {
     std::vector<std::uint8_t> piece(file_piece_size);
     // The first pass reads every piece, and writes none.
-    if (auto const begun = aead.begin_open(iv, {}); !begun) {
+    if (auto const begun = aead.begin_open(nonce, {}); !begun) {
         return begun.error();
     }
     std::size_t authenticated = 0;
@@ -118,11 +118,11 @@ boost::system::result<void> open_file(aead_type& aead, std::span<std::uint8_t co
 
 int main() {
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, 12> iv{};
-    if (!crypto::random_device().fill(key) || !crypto::random_device().fill(iv)) {
+    std::array<std::uint8_t, 12> nonce{};
+    if (!crypto::random_device().fill(key) || !crypto::random_device().fill(nonce)) {
         return 1;
     }
-    auto aead = aead_type::make(key);
+    auto aead = aead_type::from_key(key);
     wipe(std::as_writable_bytes(std::span(key)));
     if (!aead) {
         return 1;
@@ -133,13 +133,13 @@ int main() {
     }
 
     std::stringstream file;  // a std::fstream of the program's own disk
-    auto const tag = seal_file(*aead, iv, original, file);
+    auto const tag = seal_file(*aead, nonce, original, file);
     if (!tag) {
         return 1;
     }
     file.seekg(0);
     std::stringstream plain;  // another file of the program's own disk
-    if (!open_file(*aead, iv, std::span(tag->data(), tag->size()), file, plain)) {
+    if (!open_file(*aead, nonce, std::span(tag->data(), tag->size()), file, plain)) {
         return 1;
     }
     auto const text = plain.str();

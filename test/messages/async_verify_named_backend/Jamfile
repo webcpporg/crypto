@@ -11,5 +11,5 @@ import webcpp ;
 # alone: the refusal is the compile's only error, so a regression that puts
 # another error before or after it fails the test.
 webcpp.compile-diagnostic async_verify_named_backend : async_verify_named_backend.cpp
-  : <library>/webcpp/asio//asio <library>/third_party//sodium
+  : <library>/webcpp/asio//asio <library>/third_party//sodium <library>/third_party//secp256k1
   : native wasip2 wasip3 : alone ;

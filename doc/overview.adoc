@@ -33,7 +33,9 @@ the scheme named at every call and a digest given only as
 has the member and its free form, and, where WebCrypto has the algorithm,
 their asynchronous forms, with one implementation
 (<<crypto-curves-four-forms>>).
-* *A constant-time `equal`* for tags and MACs, Boost.Hash2's included.
+* *`constant_time_equal`* for tags and MACs, Boost.Hash2's included, and
+*`erase_secret`*, which zeroes a buffer of the program's with stores the
+optimiser keeps.
 * *The AES block cipher,* a building block for the rare case that needs one.
 
 The algorithms are not webcpp's. Each runs on a backend, a C library that
@@ -68,19 +70,34 @@ Nostr rule) belongs to a domain library, which <<crypto-wallets>> shows how to
 build. Its names are grouped by kind, one chapter each, and the headers mirror
 the namespaces as `<webcpp/crypto/<group>/<name>.hpp>`:
 
-* `webcpp::crypto`: `random_device`, `equal`, `error` and the configuration;
-the signatures' schemes, `prehashed`, `sign` and `verify`
-(`<webcpp/crypto/signing.hpp>`), the key pair contract and `agree`
-(`<webcpp/crypto/keypair.hpp>`), `make` and `generate`
-(`<webcpp/crypto/make.hpp>`), and the asynchronous family
-(`<webcpp/crypto/async.hpp>`; <<crypto-root>>, <<crypto-curves-four-forms>>,
-<<crypto-async>>);
-* `webcpp::crypto::ciphers`: `aes128`, `aes192`, `aes256`, `gcm`, `aes128_gcm`
-and `aes256_gcm` (<<crypto-ciphers>>);
+* `webcpp::crypto`: `random_device`, `constant_time_equal`, `erase_secret`,
+`secret<N>`, `error` and the configuration (<<crypto-protecting-secrets>>); the
+signatures' schemes, `prehashed` and `verify` (`<webcpp/crypto/signing.hpp>`),
+the key pair concepts, `sign` and `agree` (`<webcpp/crypto/keypair.hpp>`), the
+factories `from_secret`, `from_bytes`, `from_key` and `generate`
+(`<webcpp/crypto/factories.hpp>`), `supports_v`, whether a backend has an
+algorithm on the target (`<webcpp/crypto/supports.hpp>`; <<crypto-backends>>),
+and the asynchronous family (`<webcpp/crypto/async.hpp>`; <<crypto-root>>,
+<<crypto-curves-four-forms>>, <<crypto-async>>);
+* `webcpp::crypto::pem`: `armour`, `unarmour`, `armoured_size` and the labels,
+a key's DER as PEM text (`<webcpp/crypto/pem.hpp>`; <<crypto-key-formats>>);
+* `webcpp::crypto::ciphers`: `aes128`, `aes192`, `aes256`, `gcm`, `aes128_gcm`,
+`aes256_gcm`, `chacha20_poly1305`, `chacha20_poly1305_original` and
+`xchacha20_poly1305` (<<crypto-ciphers>>);
+* `webcpp::crypto::secret_key_encryption`: `secretbox`,
+`secretbox_xchacha20poly1305`, the box forms and `aead`, the AEAD contract
+(<<crypto-secret-key-encryption>>);
 * `webcpp::crypto::curves::secp256k1`: key pairs, signatures, ECDH, the
 encodings and the x-only tweak on secp256k1 (<<crypto-curves>>);
+* `webcpp::crypto::curves::ed25519` and `curves::x25519`: Ed25519's key pairs
+and signatures, X25519's key pairs and agreement, and the conversion between
+them (<<crypto-ed25519>>, <<crypto-x25519>>);
 * `webcpp::crypto::curves::p256`: key pairs, ECDSA, ECDH and the encodings on
 P-256 (<<crypto-p256>>);
+* `webcpp::crypto::public_key_encryption`: `box`, `box_xchacha20poly1305` and
+`sealed_box` (<<crypto-public-key-encryption>>);
+* `webcpp::crypto::key_exchange`: `kx_keypair`, libsodium's `crypto_kx`
+(<<crypto-key-exchange>>);
 * `webcpp::crypto::backends`: the backends (<<crypto-backends>>).
 
 `<webcpp/crypto.hpp>` includes every header whose backend the program links.
@@ -93,5 +110,6 @@ Hashing and HMAC are Boost.Hash2's: SHA-1, SHA-2, SHA-3, RIPEMD, BLAKE2 and
 examples use Hash2 wherever a hash is needed: a key derived with HKDF
 (link:https://www.rfc-editor.org/rfc/rfc5869[RFC 5869]) is written on Hash2's
 `hmac` in a few lines (<<crypto-p2p-session>>). What crypto adds for Hash2's
-users is `equal`: the `operator==` of Hash2's digests is `memcmp`, which is not
-constant time, so a MAC is never checked with it (<<crypto-equal>>).
+users is `constant_time_equal`: the `operator==` of Hash2's digests is `memcmp`,
+which is not constant time, so a MAC is never checked with it
+(<<crypto-constant-time-equal>>).

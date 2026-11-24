@@ -10,8 +10,9 @@
  SEC 1's uncompressed point;
  ECDSA over SHA-256 with RFC 6979's nonce, `key.sign(crypto::ecdsa_sha256, input)` and
  `crypto::verify(crypto::ecdsa_sha256, signature, input, public_key)`, the input a message, hashed
- inside, or `crypto::prehashed{digest}`: signing gives low S, verification accepts high and low S;
- the signature's raw and DER forms, and low S as two functions, `normalize_low_s` and `is_low_s`;
+ inside, or `crypto::prehashed{digest}`, the signature a `curves::p256::ecdsa_signature`: signing
+ gives low S, verification accepts high and low S; the signature's DER form, and low S as two
+ functions, `normalize_low_s` and `is_low_s`;
  ECDH's `agree`, the shared point's raw x coordinate, as WebCrypto's `deriveBits` gives it.
 
  The family's default backend, BearSSL on every target, is included when the program links it;
@@ -29,6 +30,7 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
+#include <webcpp/crypto/detail/signature.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/keypair.hpp>
@@ -65,39 +67,41 @@ inline constexpr std::size_t max_der_size = 72;
 
 namespace webcpp::crypto::detail {
 
+/** The tag of `curves::p256::ecdsa_signature`. */
+struct p256_ecdsa_signature_tag {
+    /** No recovery id. */
+    static constexpr bool recoverable = false;
+};
+
 /**
  * Verifies an ECDSA signature over SHA-256 with a P-256 point on `Backend`: the work of
  * `basic_public_key::verify` and of `crypto::verify` of `ecdsa_sha256`, which hold the guard.
  *
  * @tparam Backend The key's backend.
  * @tparam Input A message or `crypto::prehashed<32>`; anything else stops the build.
- * @param signature_bytes 64 bytes, r then s; its size is checked first.
+ * @param signature_bytes The signature's 64 bytes, r then s.
  * @param signing_input The signed message, hashed with SHA-256 here, or the marker of its digest.
  * @param point_bytes The public key's point, validated when the key was made.
- * @return Nothing; `invalid_signature` for a signature of another size, and for one out of range
- * or that does not verify.
+ * @return Nothing; `invalid_signature` for a signature out of range or that does not verify.
  */
 template <class Backend, class Input>
 [[nodiscard]] boost::system::result<void> p256_verify(
-    std::span<std::uint8_t const> signature_bytes, Input const& signing_input,
+    std::span<std::uint8_t const, curves::p256::signature_size> signature_bytes,
+    Input const& signing_input,
     std::span<std::uint8_t const, curves::p256::public_key_size> point_bytes) noexcept {
     check_input<ecdsa_sha256_t, Input, Backend>();
     if constexpr (input_valid_v<ecdsa_sha256_t, Input, Backend>) {
         using engine = p_curve_engine<families::p256, Backend>;
-        if (signature_bytes.size() != curves::p256::signature_size) {
-            return error::invalid_signature;
-        }
-        auto const fixed_signature = signature_bytes.first<curves::p256::signature_size>();
         std::array<std::uint8_t, curves::p256::digest_size> digest_bytes{};
         if constexpr (is_prehashed_v<Input>) {
             std::ranges::copy(signing_input.digest, digest_bytes.begin());
         } else {
             digest_bytes = sha256_of(message_bytes(signing_input));
         }
-        if (!p_curve_signature_in_range<families::p256>(fixed_signature)) {
+        if (!p_curve_signature_in_range<families::p256>(signature_bytes)) {
             return error::invalid_signature;
         }
-        if (!engine::verify(point_bytes, digest_bytes, fixed_signature)) {
+        if (!engine::verify(point_bytes, digest_bytes, signature_bytes)) {
             return error::invalid_signature;
         }
         return {};
@@ -110,6 +114,16 @@ template <class Backend, class Input>
 }  // namespace webcpp::crypto::detail
 
 namespace webcpp::crypto::curves::p256 {
+
+/**
+ * A P-256 ECDSA signature, 64 bytes, r then s: what `sign(crypto::ecdsa_sha256, ...)` gives and
+ * `crypto::verify(crypto::ecdsa_sha256, ...)` takes.
+ *
+ * Each of r and s is 32 bytes big-endian (IEEE P1363, WebCrypto's form). `from_bytes` checks the
+ * size alone; whether r and s are in range, and s low, is verification's and `normalize_low_s`'s
+ * judgment.
+ */
+using ecdsa_signature = detail::basic_signature<detail::p256_ecdsa_signature_tag, signature_size>;
 
 /**
  * A P-256 public key, validated: a point on the curve, its coordinates below p, never the
@@ -147,9 +161,9 @@ public:
      * @return The public key; `invalid_public_key` for another size, another first byte (the
      * compressed form included), a coordinate not below p or a point off the curve.
      */
-    [[nodiscard]] static boost::system::result<basic_public_key> make(
+    [[nodiscard]] static boost::system::result<basic_public_key> from_bytes(
         std::span<std::uint8_t const> uncompressed_point) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         if (uncompressed_point.size() != public_key_size || uncompressed_point[0] != 0x04) {
             return error::invalid_public_key;
         }
@@ -164,10 +178,10 @@ public:
      * @return The public key; `invalid_public_key` for a coordinate not below p or a point off
      * the curve.
      */
-    [[nodiscard]] static boost::system::result<basic_public_key> make(
+    [[nodiscard]] static boost::system::result<basic_public_key> from_coordinates(
         std::span<std::uint8_t const, coordinate_size> x_coordinate,
         std::span<std::uint8_t const, coordinate_size> y_coordinate) noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         std::array<std::uint8_t, public_key_size> point_bytes{0x04};
         std::ranges::copy(x_coordinate, point_bytes.begin() + 1);
         std::ranges::copy(y_coordinate, point_bytes.begin() + 1 + coordinate_size);
@@ -185,28 +199,30 @@ public:
 
     /**
      * Verifies an ECDSA signature over SHA-256 with this key:
-     * `crypto::verify(crypto::ecdsa_sha256, signature_bytes, signing_input, key)`, of which it is
+     * `crypto::verify(crypto::ecdsa_sha256, signature_value, signing_input, key)`, of which it is
      * the member form, with the same work, results and refusals.
      *
      * A high S and a low S are both accepted, as FIPS 186-5 and WebCrypto accept them; a protocol
      * that requires low S checks `curves::p256::is_low_s` too.
      *
      * @tparam Scheme `crypto::ecdsa_sha256_t`; another scheme stops the build.
+     * @tparam Signature `curves::p256::ecdsa_signature`; another type, bytes included, stops the
+     * build.
      * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
      * empty included, or `crypto::prehashed<32>`; anything else stops the build.
      * @param signing_scheme `crypto::ecdsa_sha256`.
-     * @param signature_bytes 64 bytes, r then s (IEEE P1363, WebCrypto's form), as any bytes: a
-     * span, a `std::array`, a `std::vector`.
+     * @param signature_value The signature, r then s (IEEE P1363, WebCrypto's form); bytes from a
+     * peer are made into one by `curves::p256::ecdsa_signature::from_bytes`.
      * @param signing_input The signed message, hashed with SHA-256 inside the call; or
      * `crypto::prehashed{digest}`, its 32-byte SHA-256 digest.
-     * @return Nothing; `invalid_signature` for a signature of another size, an r or an s that is 0
-     * or not below n, and a signature that does not verify.
+     * @return Nothing; `invalid_signature` for an r or an s that is 0 or not below n, and a
+     * signature that does not verify.
      */
-    template <class Scheme, class Input>
+    template <class Scheme, class Signature, class Input>
     [[nodiscard]] boost::system::result<void> verify([[maybe_unused]] Scheme signing_scheme,
-                                                     std::span<std::uint8_t const> signature_bytes,
+                                                     Signature const& signature_value,
                                                      Input const& signing_input) const noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(std::is_same_v<Scheme, ecdsa_sha256_t>,
                       "webcpp::crypto: a P-256 public key verifies crypto::ecdsa_sha256.");
         static_assert(!detail::asynchronous_backend_v<Backend>,
@@ -214,7 +230,9 @@ public:
                       "async_verify.");
         if constexpr (std::is_same_v<Scheme, ecdsa_sha256_t> &&
                       !detail::asynchronous_backend_v<Backend>) {
-            return detail::p256_verify<Backend>(signature_bytes, signing_input, point_);
+            return detail::p256_verify<Backend>(
+                detail::checked_signature_bytes<ecdsa_signature, ecdsa_sha256_t>(signature_value),
+                signing_input, point_);
         } else {
             // Never compiled into a program: an assertion above stopped the build.
             return error::invalid_signature;
@@ -223,12 +241,11 @@ public:
 
     /**
      * Verifies an ECDSA signature over SHA-256 with this key, asynchronously: `verify` run when the
-     * operation is initiated, its result posted to `completion_executor`; the member form of
-     * `crypto::async_verify(completion_executor, crypto::ecdsa_sha256, signature_bytes,
-     * signing_input, key, completion_token)`, which calls it.
+     * operation is initiated, its result posted to `completion_executor`; the member form of the
+     * free `crypto::async_verify`, with the same arguments and this key, which calls it.
      *
-     * The key and the bytes the signature and the input view are the caller's until the
-     * completion.
+     * The key and the bytes the input views are the caller's until the completion; the signature
+     * is copied.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
@@ -236,22 +253,23 @@ public:
      *
      * @tparam Executor The executor's type, an Asio executor (an `io_context`'s or a strand's).
      * @tparam Scheme `crypto::ecdsa_sha256_t`; another scheme stops the build.
+     * @tparam Signature `curves::p256::ecdsa_signature`; another type, bytes included, stops the
+     * build.
      * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
      * empty included, or `crypto::prehashed<32>`; anything else stops the build.
      * @tparam CompletionToken Any completion token for the signature `completion_token` states.
      * @param completion_executor The executor the completion is posted to.
      * @param signing_scheme `crypto::ecdsa_sha256`.
-     * @param signature_bytes 64 bytes, r then s (IEEE P1363, WebCrypto's form).
+     * @param signature_value The signature, r then s (IEEE P1363, WebCrypto's form).
      * @param signing_input The signed message, or `crypto::prehashed{digest}`, its 32-byte SHA-256
      * digest.
      * @param completion_token The completion token, of signature `void(boost::system::error_code)`:
-     * `invalid_signature` for a signature of another size, an r or an s that is 0 or not below n,
-     * and one that does not verify.
+     * `invalid_signature` for an r or an s that is 0 or not below n, and one that does not verify.
      * @return What the completion token's `async_result` gives.
      */
-    template <class Executor, class Scheme, class Input, class CompletionToken>
+    template <class Executor, class Scheme, class Signature, class Input, class CompletionToken>
     auto async_verify(Executor const& completion_executor, Scheme signing_scheme,
-                      std::span<std::uint8_t const> signature_bytes, Input const& signing_input,
+                      Signature const& signature_value, Input const& signing_input,
                       CompletionToken&& completion_token) const;
 
     /**
@@ -266,7 +284,7 @@ private:
     basic_public_key() noexcept = default;
 
     // The backend's check of a point whose size and first byte are checked, and the key made of
-    // it: the work of both make, which hold their own guards.
+    // it: the work of `from_bytes` and `from_coordinates`, which hold their own guards.
     [[nodiscard]] static boost::system::result<basic_public_key> checked(
         std::span<std::uint8_t const, public_key_size> point_bytes) noexcept {
         if (!engine::valid_point(point_bytes)) {
@@ -307,7 +325,7 @@ public:
     using backend_type = Backend;
     /** The public key's type, which `crypto::verify` and `agree` take. */
     using public_key_type = basic_public_key<Backend>;
-    /** The size of the secret scalar, which `make` takes and `secret()` gives. */
+    /** The size of the secret scalar, which `from_secret` takes and `secret()` gives. */
     static constexpr std::size_t secret_key_size = p256::secret_key_size;
     /** The size of the public key, SEC 1's uncompressed point. */
     static constexpr std::size_t public_key_size = p256::public_key_size;
@@ -319,12 +337,12 @@ public:
      * @return The key pair; `invalid_key_size`; `invalid_secret_key` for a scalar 0 or not below
      * n, refused before the backend; `backend_failure`.
      */
-    [[nodiscard]] static boost::system::result<basic_keypair> make(
+    [[nodiscard]] static boost::system::result<basic_keypair> from_secret(
         std::span<std::uint8_t const> secret_scalar) noexcept {
-        detail::timing_guard const timing;
-        static_assert(
-            !detail::asynchronous_backend_v<Backend>,
-            "webcpp::crypto: make on this backend completes asynchronously: call async_make.");
+        detail::timing_guard const timing_scope;
+        static_assert(!detail::asynchronous_backend_v<Backend>,
+                      "webcpp::crypto: from_secret on this backend completes asynchronously: call "
+                      "async_from_secret.");
         if constexpr (detail::asynchronous_backend_v<Backend>) {
             // Never compiled into a program: the assertion above stopped the build.
             return error::backend_failure;
@@ -337,7 +355,7 @@ public:
                 return error::invalid_secret_key;
             }
             basic_keypair made_pair;
-            auto const engine_keyed = engine::make(made_pair.state_, scalar_bytes);
+            auto const engine_keyed = engine::import_secret(made_pair.state_, scalar_bytes);
             if (!engine_keyed) {
                 return engine_keyed.error();
             }
@@ -354,7 +372,7 @@ public:
      * none; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<basic_keypair> generate() noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(!detail::asynchronous_backend_v<Backend>,
                       "webcpp::crypto: generate on this backend completes asynchronously: call "
                       "async_generate.");
@@ -371,15 +389,14 @@ public:
                     return error::entropy_unavailable;
                 }
             } while (!detail::p_curve_scalar_valid(scalar_bytes.bytes(), traits::order));
-            return make(scalar_bytes.bytes());
+            return from_secret(scalar_bytes.bytes());
         }
     }
 
     /**
-     * Makes a key pair from its secret scalar, asynchronously: `make` run when the operation is
-     * initiated, its result posted to `completion_executor`; the member form of
-     * `crypto::async_make<basic_keypair>(completion_executor, secret_scalar, completion_token)`,
-     * which calls it.
+     * Makes a key pair from its secret scalar, asynchronously: `from_secret` run when the operation
+     * is initiated, its result posted to `completion_executor`; the member form of the free
+     * `crypto::async_from_secret<basic_keypair>`, with the same arguments, which calls it.
      *
      * Declared here and defined in `<webcpp/crypto/async.hpp>`, which a program includes to call
      * it, with `<library>/webcpp/asio//asio` in its Jamfile; without it, the call is the compiler's
@@ -396,9 +413,9 @@ public:
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class CompletionToken>
-    static auto async_make(Executor const& completion_executor,
-                           std::span<std::uint8_t const> secret_scalar,
-                           CompletionToken&& completion_token);
+    static auto async_from_secret(Executor const& completion_executor,
+                                  std::span<std::uint8_t const> secret_scalar,
+                                  CompletionToken&& completion_token);
 
     /**
      * Makes a key pair from a fresh scalar, asynchronously: `generate` run when the operation is
@@ -472,7 +489,8 @@ public:
     }
 
     /**
-     * The secret scalar, for a program that keeps the key pair and makes it again with `make`.
+     * The secret scalar, for a program that keeps the key pair and makes it again with
+     * `from_secret`.
      *
      * @return 32 secret bytes, big-endian; `invalid_state` moved from.
      */
@@ -497,13 +515,13 @@ public:
      * @param signing_input The message, hashed with SHA-256 inside the call, as WebCrypto's ECDSA
      * with SHA-256 hashes it; or `crypto::prehashed{digest}`, its 32-byte SHA-256 digest, signed as
      * given.
-     * @return 64 bytes, r then s (IEEE P1363, WebCrypto's form); `invalid_state` moved from;
-     * `backend_failure`, which a valid key pair cannot cause.
+     * @return The signature, `curves::p256::ecdsa_signature`, r then s (IEEE P1363, WebCrypto's
+     * form); `invalid_state` moved from; `backend_failure`, which a valid key pair cannot cause.
      */
     template <class Scheme, class Input>
-    [[nodiscard]] boost::system::result<std::array<std::uint8_t, signature_size>> sign(
+    [[nodiscard]] boost::system::result<detail::signature_of_t<basic_keypair, Scheme>> sign(
         [[maybe_unused]] Scheme signing_scheme, Input const& signing_input) const noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(std::is_same_v<Scheme, ecdsa_sha256_t>,
                       "webcpp::crypto: a P-256 key signs with crypto::ecdsa_sha256.");
         static_assert(!detail::asynchronous_backend_v<Backend>,
@@ -530,9 +548,8 @@ public:
 
     /**
      * Signs with ECDSA over SHA-256, asynchronously: `sign` run when the operation is initiated,
-     * its result posted to `completion_executor`; the member form of
-     * `crypto::async_sign(completion_executor, key_pair, signing_scheme, signing_input,
-     * completion_token)`, which calls it.
+     * its result posted to `completion_executor`; the member form of the free `crypto::async_sign`,
+     * with the same arguments and this key pair, which calls it.
      *
      * The scheme and the input are checked as `crypto::can_sign` checks them, before anything
      * else. The key pair and the bytes the input views are the caller's until the completion.
@@ -550,8 +567,8 @@ public:
      * @param signing_scheme `crypto::ecdsa_sha256`.
      * @param signing_input The message, hashed with SHA-256, or `crypto::prehashed{digest}`.
      * @param completion_token The completion token, of signature
-     * `void(boost::system::error_code, std::array<std::uint8_t, 64>)`: r then s, S low; on an error
-     * 64 zeros (`invalid_state`, `backend_failure`).
+     * `void(boost::system::error_code, curves::p256::ecdsa_signature)`: r then s, S low; on an
+     * error the signature of zeros (`invalid_state`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
     template <class Executor, class Scheme, class Input, class CompletionToken>
@@ -571,7 +588,7 @@ public:
      */
     [[nodiscard]] boost::system::result<crypto::secret<coordinate_size>> agree(
         basic_public_key<Backend> const& peer_key) const noexcept {
-        detail::timing_guard const timing;
+        detail::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<Backend>,
             "webcpp::crypto: agree on this backend completes asynchronously: call async_agree.");
@@ -624,7 +641,7 @@ private:
     // constant time: n - s is computed always and selected with a mask, with no branch on s and
     // nothing declassified, so that the signature stays as secret to a constant-time checker as
     // the engine made it.
-    [[nodiscard]] boost::system::result<std::array<std::uint8_t, signature_size>> signed_digest(
+    [[nodiscard]] boost::system::result<ecdsa_signature> signed_digest(
         std::span<std::uint8_t const, digest_size> digest_bytes) const noexcept {
         if (!keyed_) {
             return error::invalid_state;
@@ -645,7 +662,7 @@ private:
             s_byte = static_cast<std::uint8_t>(
                 kept_byte ^ (high_mask & (kept_byte ^ unsigned{negated_s[byte_index]})));
         }
-        return signature_bytes;
+        return detail::signature_access::of<ecdsa_signature>(signature_bytes);
     }
 
     state_type state_{};
@@ -660,29 +677,29 @@ using keypair = basic_keypair<>;
  * and OpenSSL carry.
  *
  * @tparam Backend The backend that encodes; by default the family's.
- * @param signature_bytes 64 bytes, r then s.
- * @param output_bytes At least `max_der_size` bytes, whatever this signature's length; nothing is
+ * @param signature_value The signature.
+ * @param der_output At least `max_der_size` bytes, whatever this signature's length; nothing is
  * written on an error.
  * @return The number of bytes written, 8 to `max_der_size`; `invalid_input_size` when
- * `output_bytes` is shorter than `max_der_size`; `invalid_signature` when r or s is 0 or not below
+ * `der_output` is shorter than `max_der_size`; `invalid_signature` when r or s is 0 or not below
  * n.
  */
 template <class Backend = default_backend_t<families::p256>>
 [[nodiscard]] boost::system::result<std::size_t> to_der(
-    std::span<std::uint8_t const, signature_size> signature_bytes,
-    std::span<std::uint8_t> output_bytes) noexcept {
-    detail::timing_guard const timing;
+    ecdsa_signature const& signature_value, std::span<std::uint8_t> der_output) noexcept {
+    detail::timing_guard const timing_scope;
     using engine = detail::p_curve_engine<families::p256, Backend>;
-    if (output_bytes.size() < max_der_size) {
+    if (der_output.size() < max_der_size) {
         return error::invalid_input_size;
     }
+    std::span<std::uint8_t const, signature_size> const signature_bytes(signature_value.bytes());
     if (!detail::p_curve_signature_in_range<families::p256>(signature_bytes)) {
         return error::invalid_signature;
     }
     std::array<std::uint8_t, max_der_size> der_bytes{};
     std::size_t const der_length = engine::to_der(signature_bytes, der_bytes);
     std::ranges::copy(std::span<std::uint8_t const>(der_bytes).first(der_length),
-                      output_bytes.begin());
+                      der_output.begin());
     return der_length;
 }
 
@@ -691,14 +708,14 @@ template <class Backend = default_backend_t<families::p256>>
  *
  * @tparam Backend The backend that decodes; by default the family's.
  * @param der_signature The encoding, exactly: nothing may follow it.
- * @return 64 bytes, r then s; `invalid_signature` for anything that is not strict DER (a needless
- * zero byte, a long length where a short one holds it, a negative integer, bytes after it,
- * nothing), and for an r or an s that is 0 or not below n.
+ * @return The signature, r then s; `invalid_signature` for anything that is not strict DER (a
+ * needless zero byte, a long length where a short one holds it, a negative integer, bytes after
+ * it, nothing), and for an r or an s that is 0 or not below n.
  */
 template <class Backend = default_backend_t<families::p256>>
-[[nodiscard]] boost::system::result<std::array<std::uint8_t, signature_size>> from_der(
+[[nodiscard]] boost::system::result<ecdsa_signature> from_der(
     std::span<std::uint8_t const> der_signature) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     using engine = detail::p_curve_engine<families::p256, Backend>;
     if (der_signature.empty()) {
         return error::invalid_signature;
@@ -708,7 +725,7 @@ template <class Backend = default_backend_t<families::p256>>
         !detail::p_curve_signature_in_range<families::p256>(signature_bytes)) {
         return error::invalid_signature;
     }
-    return signature_bytes;
+    return detail::signature_access::of<ecdsa_signature>(signature_bytes);
 }
 
 /**
@@ -719,23 +736,23 @@ template <class Backend = default_backend_t<families::p256>>
  * signature made elsewhere, such as WebCrypto's, whose S may be high. Arithmetic on public bytes,
  * with no backend.
  *
- * @param signature_bytes 64 bytes, r then s.
- * @return 64 bytes, r then s, with s at most (n - 1) / 2; `invalid_signature` when r or s is 0 or
- * not below n.
+ * @param signature_value The signature.
+ * @return The signature with s at most (n - 1) / 2; `invalid_signature` when r or s is 0 or not
+ * below n.
  */
-[[nodiscard]] inline boost::system::result<std::array<std::uint8_t, signature_size>>
-normalize_low_s(std::span<std::uint8_t const, signature_size> signature_bytes) noexcept {
+[[nodiscard]] inline boost::system::result<ecdsa_signature> normalize_low_s(
+    ecdsa_signature const& signature_value) noexcept {
+    std::span<std::uint8_t const, signature_size> const signature_bytes(signature_value.bytes());
     if (!detail::p_curve_signature_in_range<families::p256>(signature_bytes)) {
         return error::invalid_signature;
     }
-    std::array<std::uint8_t, signature_size> normalized_signature{};
-    std::ranges::copy(signature_bytes, normalized_signature.begin());
+    std::array<std::uint8_t, signature_size> normalized_signature = signature_value.bytes();
     auto const s_value = signature_bytes.last<coordinate_size>();
     if (!detail::p_curve_low_s<families::p256>(s_value)) {
         detail::p_curve_negate_scalar<families::p256>(
             s_value, std::span(normalized_signature).last<coordinate_size>());
     }
-    return normalized_signature;
+    return detail::signature_access::of<ecdsa_signature>(normalized_signature);
 }
 
 /**
@@ -744,11 +761,11 @@ normalize_low_s(std::span<std::uint8_t const, signature_size> signature_bytes) n
  *
  * Arithmetic on public bytes, with no backend; it does not verify the signature.
  *
- * @param signature_bytes 64 bytes, r then s.
+ * @param signature_value The signature.
  * @return True exactly when 0 < r < n and 0 < s <= (n - 1) / 2.
  */
-[[nodiscard]] inline bool is_low_s(
-    std::span<std::uint8_t const, signature_size> signature_bytes) noexcept {
+[[nodiscard]] inline bool is_low_s(ecdsa_signature const& signature_value) noexcept {
+    std::span<std::uint8_t const, signature_size> const signature_bytes(signature_value.bytes());
     return detail::p_curve_signature_in_range<families::p256>(signature_bytes) &&
            detail::p_curve_low_s<families::p256>(signature_bytes.last<coordinate_size>());
 }
@@ -766,31 +783,36 @@ namespace webcpp::crypto {
  *
  * @tparam Backend The key's backend, which verifies: deduced from the key, or named first, as on
  * every curve, when it is the key's (another backend matches no overload).
+ * @tparam Signature `curves::p256::ecdsa_signature`; another type, a signature of another curve
+ * or bytes, stops the build.
  * @tparam Input A message, bytes that convert to `std::span<std::uint8_t const>`, of any size,
  * empty included, or `crypto::prehashed<32>`; anything else stops the build.
  * @param signing_scheme `crypto::ecdsa_sha256`.
- * @param signature_bytes 64 bytes, r then s (IEEE P1363, WebCrypto's form), as any bytes;
- * `curves::p256::from_der` reads DER.
+ * @param signature_value The signature, r then s (IEEE P1363, WebCrypto's form); bytes from a
+ * peer are made into one by `curves::p256::ecdsa_signature::from_bytes`, and DER by
+ * `curves::p256::from_der`.
  * @param signing_input The signed message, hashed with SHA-256 inside the call; or
  * `crypto::prehashed{digest}`, its 32-byte SHA-256 digest.
  * @param public_key The signer's public key.
- * @return Nothing; `invalid_signature` for a signature of another size, an r or an s that is 0 or
- * not below n, refused before the backend, and a signature that does not verify. A digest whose
- * value modulo n is 0 (32 zero bytes, or n itself), which no SHA-256 of a message gives in
- * practice, is refused too: BearSSL's verification refuses a zero multiplier.
+ * @return Nothing; `invalid_signature` for an r or an s that is 0 or not below n, refused before
+ * the backend, and a signature that does not verify. A digest whose value modulo n is 0 (32 zero
+ * bytes, or n itself), which no SHA-256 of a message gives in practice, is refused too: BearSSL's
+ * verification refuses a zero multiplier.
  */
-template <class Backend, class Input>
+template <class Backend, class Signature, class Input>
 [[nodiscard]] boost::system::result<void> verify(
-    [[maybe_unused]] ecdsa_sha256_t signing_scheme, std::span<std::uint8_t const> signature_bytes,
+    [[maybe_unused]] ecdsa_sha256_t signing_scheme, Signature const& signature_value,
     Input const& signing_input,
     curves::p256::basic_public_key<Backend> const& public_key) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     static_assert(!detail::asynchronous_backend_v<Backend>,
                   "webcpp::crypto: verify on this backend completes asynchronously: call "
                   "async_verify.");
     if constexpr (!detail::asynchronous_backend_v<Backend>) {
-        return detail::p256_verify<Backend>(signature_bytes, signing_input,
-                                            detail::p_curve_access::point(public_key));
+        return detail::p256_verify<Backend>(
+            detail::checked_signature_bytes<curves::p256::ecdsa_signature, ecdsa_sha256_t>(
+                signature_value),
+            signing_input, detail::p_curve_access::point(public_key));
     } else {
         // Never compiled into a program: the assertion above stopped the build.
         return error::invalid_signature;
@@ -817,6 +839,28 @@ inline constexpr bool signs_with_v<curves::p256::basic_keypair<Backend>, ecdsa_s
 template <class Backend>
 inline constexpr bool verifies_with_v<curves::p256::basic_public_key<Backend>, ecdsa_sha256_t> =
     true;
+
+/**
+ * A P-256 key pair's signature under ECDSA over SHA-256, `curves::p256::ecdsa_signature`.
+ *
+ * @tparam Backend The key's backend.
+ */
+template <class Backend>
+struct signature_of<curves::p256::basic_keypair<Backend>, ecdsa_sha256_t> {
+    /** The signature type. */
+    using type = curves::p256::ecdsa_signature;
+};
+
+/**
+ * A P-256 public key's signature under ECDSA over SHA-256, `curves::p256::ecdsa_signature`.
+ *
+ * @tparam Backend The key's backend.
+ */
+template <class Backend>
+struct signature_of<curves::p256::basic_public_key<Backend>, ecdsa_sha256_t> {
+    /** The signature type. */
+    using type = curves::p256::ecdsa_signature;
+};
 
 /**
  * A P-256 key pair's backend.
@@ -862,7 +906,8 @@ struct p_curve_engine<families::p256, Backend> {
 
     /** Never called; fails closed. */
     template <class... Arguments>
-    [[nodiscard]] static boost::system::result<void> make(Arguments&&... /*arguments*/) noexcept {
+    [[nodiscard]] static boost::system::result<void> import_secret(
+        Arguments&&... /*arguments*/) noexcept {
         return error::backend_failure;
     }
 
@@ -922,11 +967,19 @@ struct p_curve_engine<families::p256, Backend> {
 #if defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_P256_BEARSSL) && defined(WEBCPP_CRYPTO_HAS_BEARSSL)
 #include <webcpp/crypto/backends/bearssl.hpp>
 
-// The key pair contract (design D8), on the family's default backend.
+// The key pair concepts (design D4), on the family's default backend: it signs and agrees.
 static_assert(
     ::webcpp::crypto::keypair<
         ::webcpp::crypto::curves::p256::basic_keypair<::webcpp::crypto::backends::bearssl>>,
     "webcpp::crypto: P-256's key pair meets crypto::keypair.");
+static_assert(
+    ::webcpp::crypto::signing_keypair<
+        ::webcpp::crypto::curves::p256::basic_keypair<::webcpp::crypto::backends::bearssl>>,
+    "webcpp::crypto: P-256's key pair meets crypto::signing_keypair.");
+static_assert(
+    ::webcpp::crypto::agreement_keypair<
+        ::webcpp::crypto::curves::p256::basic_keypair<::webcpp::crypto::backends::bearssl>>,
+    "webcpp::crypto: P-256's key pair meets crypto::agreement_keypair.");
 #endif
 
 #endif  // WEBCPP_CRYPTO_CURVES_P256_HPP

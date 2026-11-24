@@ -1,0 +1,15 @@
+# Copyright (c) 2026 WebCpp.org
+#
+# Distributed under the Boost Software License, Version 1.0. (See
+# accompanying file LICENSE_1_0.txt or copy at
+# https://www.boost.org/LICENSE_1_0.txt)
+
+project : requirements <library>/webcpp/crypto//crypto ;
+
+import webcpp ;
+
+# alone: the two removed names are the compile's only errors, clang's offer of
+# secret_key_encryption's names included; libsodium is linked, so the corrected
+# type adds no refusal.
+webcpp.compile-diagnostic secretbox_removed_call : secretbox_removed_call.cpp
+  : <library>/third_party//sodium : native wasip2 wasip3 : alone ;

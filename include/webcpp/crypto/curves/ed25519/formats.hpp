@@ -123,8 +123,8 @@ template <class Backend = default_backend_t<families::ed25519>>
  * The public key of an SPKI, refused unless it is exactly RFC 8410's form: the 12 bytes of
  * Ed25519's prefix, then the key, and nothing after.
  *
- * The key's point is not checked here, as `public_key::make` does not check it: `crypto::verify`
- * refuses a key that is not one.
+ * The key's point is not checked here, as `public_key::from_bytes` does not check it:
+ * `crypto::verify` refuses a key that is not one.
  *
  * @tparam Backend The backend; by default the family's.
  * @param spki_bytes The DER.
@@ -133,7 +133,7 @@ template <class Backend = default_backend_t<families::ed25519>>
 template <class Backend = default_backend_t<families::ed25519>>
 [[nodiscard]] boost::system::result<public_key> decode_spki(
     std::span<std::uint8_t const> spki_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     if (spki_bytes.size() != max_spki_size) {
         return error::invalid_encoding;
     }
@@ -144,7 +144,7 @@ template <class Backend = default_backend_t<families::ed25519>>
     if (!decoded_key) {
         return decoded_key.error();
     }
-    return public_key::make(key_bytes);
+    return public_key::from_bytes(key_bytes);
 }
 
 /**
@@ -186,7 +186,7 @@ template <class Backend = default_backend_t<families::ed25519>>
 template <class Backend = default_backend_t<families::ed25519>>
 [[nodiscard]] boost::system::result<basic_keypair<Backend>> decode_pkcs8(
     std::span<std::uint8_t const> pkcs8_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     if (pkcs8_bytes.size() != max_pkcs8_size) {
         return error::invalid_encoding;
     }
@@ -197,7 +197,7 @@ template <class Backend = default_backend_t<families::ed25519>>
     if (!decoded_key) {
         return decoded_key.error();
     }
-    return basic_keypair<Backend>::make(seed_secret.bytes());
+    return basic_keypair<Backend>::from_secret(seed_secret.bytes());
 }
 
 }  // namespace webcpp::crypto::curves::ed25519

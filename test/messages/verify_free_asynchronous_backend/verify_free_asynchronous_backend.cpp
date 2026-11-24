@@ -35,7 +35,7 @@ namespace {
 /** Verifies with a key of the stand-in's. */
 bool verified(webcpp::crypto::curves::p256::basic_public_key<stand_in_browser> const& public_key) {
     namespace crypto = webcpp::crypto;
-    std::array<std::uint8_t, 64> const signature{};
+    crypto::curves::p256::ecdsa_signature const signature{};
     std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
     return crypto::verify(crypto::ecdsa_sha256, signature, message, public_key).has_value();
 }

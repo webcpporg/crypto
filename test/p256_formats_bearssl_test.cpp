@@ -190,7 +190,7 @@ bytes pkcs8(keypair const& pair) {
 }
 
 keypair rfc6979_pair() {
-    auto made = keypair::make(data::rfc6979_scalar);
+    auto made = keypair::from_secret(data::rfc6979_scalar);
     if (!BOOST_TEST(made.has_value())) {
         std::exit(boost::report_errors());
     }
@@ -520,7 +520,7 @@ struct counts {
     int valid_agreed = 0;
     /** Invalid cases refused by decode_spki. */
     int invalid_refused_decoding = 0;
-    /** Invalid cases refused after it, by keypair::make or agree. */
+    /** Invalid cases refused after it, by keypair::from_secret or agree. */
     int invalid_refused_after = 0;
     /** Acceptable cases whose x agreed. */
     int acceptable_agreed = 0;
@@ -558,13 +558,13 @@ void report(json::value const& t, std::string_view what) {
 }
 
 // The case's ECDH with a key decoded from its SPKI, or the error of the step that refused it:
-// keypair::make or agree (decode_spki's refusal is the caller's).
+// keypair::from_secret or agree (decode_spki's refusal is the caller's).
 boost::system::result<crypto::secret<32>> derive(json::value const& t, public_key const& peer) {
     auto const scalar = scalar_bytes(test::from_hex(str(t.at("private"))));
     if (scalar.empty()) {
         return error::invalid_secret_key;
     }
-    auto const pair = keypair::make(scalar);
+    auto const pair = keypair::from_secret(scalar);
     if (!pair) {
         return pair.error();
     }

@@ -66,12 +66,12 @@ int main() {
     {
         using aead = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::openssl>>;
         std::array<std::uint8_t, 32> const key{};
-        auto made = aead::make(key);
+        auto made = aead::from_key(key);
         BOOST_TEST(made.has_value());
         if (made.has_value()) {
-            std::array<std::uint8_t, 12> const iv{};
+            std::array<std::uint8_t, 12> const nonce{};
             std::array<std::uint8_t, 64> data{};
-            BOOST_TEST(made->seal(iv, {}, data).has_value());
+            BOOST_TEST(made->seal(nonce, {}, data).has_value());
         }
     }
     BOOST_TEST_NE(webcpp::test::the_counting_resource().allocations(), 0U);

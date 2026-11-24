@@ -111,7 +111,7 @@ template <class Backend = default_backend_t<families::x25519>>
 template <class Backend = default_backend_t<families::x25519>>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> decode_spki(
     std::span<std::uint8_t const> spki_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     if (spki_bytes.size() != max_spki_size) {
         return error::invalid_encoding;
     }
@@ -163,7 +163,7 @@ template <class Backend = default_backend_t<families::x25519>>
 template <class Backend = default_backend_t<families::x25519>>
 [[nodiscard]] boost::system::result<secret<32>> decode_pkcs8(
     std::span<std::uint8_t const> pkcs8_bytes) noexcept {
-    detail::timing_guard const timing;
+    detail::timing_guard const timing_scope;
     if (pkcs8_bytes.size() != max_pkcs8_size) {
         return error::invalid_encoding;
     }

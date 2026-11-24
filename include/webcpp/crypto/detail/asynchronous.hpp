@@ -16,13 +16,37 @@ namespace webcpp::crypto::detail {
  * `backends::browser` alone will, through `async.hpp`'s `async_engine`.
  *
  * Every synchronous form of an operation on such a backend stops the build with a message that
- * names its `async_` form (design D9); the AEAD headers and the curves' read it here, with no
- * other dependency.
+ * names its `async_` form (design D9), but for the constructions WebCrypto lacks, which name a
+ * native backend (`refuse_aead_on_asynchronous_backend`); the AEAD headers and the curves' read
+ * it here, with no other dependency.
  *
  * @tparam Backend A backend.
  */
 template <class Backend>
 inline constexpr bool asynchronous_backend_v = false;
+
+/**
+ * Stops the build: a construction WebCrypto lacks (ChaCha20-Poly1305 and its forms, the secret
+ * boxes, crypto_box), asked of a backend that completes by itself (design D6, the controller's
+ * ruling "D6 text for constructions WebCrypto lacks, sync and async alike").
+ *
+ * Every form of such a construction on such a backend, synchronous or asynchronous, member or
+ * free, calls it first after its guard, before any member of the type or its engine is named
+ * (ruling P12), so that its text is the build's one message, is written once, and points to a
+ * native backend: no form of these constructions, synchronous or asynchronous, completes there,
+ * and its text says so. AES-GCM, which WebCrypto has, keeps its own refusal, which names its
+ * `async_` form.
+ *
+ * @tparam Backend The backend, whose `asynchronous_backend_v` is true.
+ */
+template <class Backend>
+constexpr void refuse_aead_on_asynchronous_backend() noexcept {
+    static_assert(!asynchronous_backend_v<Backend>,
+                  "webcpp::crypto: WebCrypto has no ChaCha20-Poly1305, XChaCha20-Poly1305, "
+                  "secret box or crypto_box: no form of them, synchronous or asynchronous, runs on "
+                  "the browser's backend; name a native backend for them. On the browser's backend "
+                  "only AES-GCM seals and opens.");
+}
 
 }  // namespace webcpp::crypto::detail
 

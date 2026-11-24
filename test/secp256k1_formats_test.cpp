@@ -156,14 +156,14 @@ bytes pkcs8_of(std::uint8_t version, bytes const& curve, ec_private_key const& k
     return der(0x30, cat({der(0x02, {version}), algorithm(curve), der(0x04, encoded(key))}));
 }
 
-// A key pair from the generator: a secret make refuses is drawn again.
+// A key pair from the generator: a secret from_secret refuses is drawn again.
 std::pair<secp::keypair, bytes> draw(std::mt19937_64& generator) {
     for (;;) {
         bytes secret(32);
         for (auto& octet : secret) {
             octet = static_cast<std::uint8_t>(generator());
         }
-        auto made = secp::keypair::make(secret);
+        auto made = secp::keypair::from_secret(secret);
         if (made) {
             return {std::move(*made), secret};
         }

@@ -9,11 +9,11 @@
 // detail::run_on_work's stand-in, whose text defers to "an error above". The test is alone: the
 // refusal and clang's fatal "too many errors emitted" are the compile's only errors, so a
 // regression that puts the stand-in, or any other error, first fails it. -verify cannot order
-// its directives; the limit does. The refusal's directive comes last, as the message the page
-// shows (doc/tables/generate.py reads a test's last directive).
+// its directives; the limit does. The page shows the refusal alone (doc/tables/generate.py lists
+// a test's directives in source order and skips one marked knock-on, as clang's limit error is).
 
 // clang-format off
-// expected-error@*:* {{too many errors emitted, stopping now}}
+// expected-error@*:* {{too many errors emitted, stopping now}} (knock-on)
 // expected-error@*:* {{webcpp::crypto: async_slow runs on another thread and needs a build with threads (natively without WEBCPP_CRYPTO_NO_THREADS; on Emscripten -pthread). Without threads, call slow.}}
 // clang-format on
 
@@ -30,11 +30,11 @@ boost::system::result<int> slow(int value) noexcept {
 
 /** Its async_ variant, as every heavy operation declares one. */
 template <class Executor, class CompletionToken>
-auto async_slow(Executor const& work, int value, CompletionToken&& token) {
+auto async_slow(Executor const& work, int value, CompletionToken&& completion_token) {
     WEBCPP_CRYPTO_DETAIL_REQUIRE_THREADS("async_slow", "slow");
     return webcpp::crypto::detail::run_on_work(
         work, []() noexcept { return boost::system::result<void>(); },
-        [value]() noexcept { return slow(value); }, token);
+        [value]() noexcept { return slow(value); }, completion_token);
 }
 
 /** An executor and a completion token, which a build without threads never uses. */

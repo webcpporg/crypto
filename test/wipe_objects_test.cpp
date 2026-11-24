@@ -36,8 +36,8 @@
 #elif defined(WEBCPP_TEST_WIPE_SODIUM)
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
-#include <webcpp/crypto/ciphers/secretbox.hpp>
-#include <webcpp/crypto/hybrid/box.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
+#include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #else
 #error "name a backend: WEBCPP_TEST_WIPE_BEARSSL, _CTAES, _SECP256K1, _OPENSSL or _SODIUM"
 #endif
@@ -117,32 +117,39 @@ constexpr std::array<std::uint8_t, 32> rfc7748_peer_key{
     0x3f, 0x83, 0x43, 0xc8, 0x5b, 0x78, 0x67, 0x4d, 0xad, 0xfc, 0x7e, 0x14, 0x6f, 0x88, 0x2b, 0x4f,
 };
 
-// A keyed object of the type under test, from a key of non-zero bytes; a box's from that secret
-// key and a peer's public key.
+// A keyed object of the type under test, from a key of non-zero bytes (a cipher's key, or a key
+// pair's secret); a box's from the X25519 key pair of that secret key and a peer's public key.
 template <class T>
 T keyed(std::uint8_t first) {
     std::array<std::uint8_t, 32> key{};
     for (std::size_t i = 0; i < key.size(); ++i) {
         key[i] = static_cast<std::uint8_t>(first + i);
     }
-    if constexpr (requires { T::make(key, rfc7748_peer_key); }) {
-        auto made = T::make(key, rfc7748_peer_key);
+    if constexpr (requires { typename T::keypair_type; }) {
+        auto const own = T::keypair_type::from_secret(key);
+        auto const peer = T::public_key_type::from_bytes(rfc7748_peer_key);
+        webcpp::test::require(own.has_value() && peer.has_value());
+        auto made = T::from_keys(*own, *peer);
+        webcpp::test::require(made.has_value());
+        return std::move(*made);
+    } else if constexpr (requires { T::from_key(key); }) {
+        auto made = T::from_key(key);
         webcpp::test::require(made.has_value());
         return std::move(*made);
     } else {
-        auto made = T::make(key);
+        auto made = T::from_secret(key);
         webcpp::test::require(made.has_value());
         return std::move(*made);
     }
 }
 
-// The three ways a keyed object stops holding its key; `make` makes one from a first byte.
+// The three ways a keyed object stops holding its key; `make_keyed` makes one from a first byte.
 template <class T>
-void check_wiped(region where, T (*make)(std::uint8_t) = &keyed<T>) {
+void check_wiped(region where, T (*make_keyed)(std::uint8_t) = &keyed<T>) {
     {
         // The destructor.
         slot<T> storage;
-        placed<T> object(storage, make(1));
+        placed<T> object(storage, make_keyed(1));
         BOOST_TEST(any_set(storage, where));
         object.destroy();
         BOOST_TEST(!any_set(storage, where));
@@ -152,7 +159,7 @@ void check_wiped(region where, T (*make)(std::uint8_t) = &keyed<T>) {
         // none.
         slot<T> from_storage;
         slot<T> to_storage;
-        placed<T> from(from_storage, make(1));
+        placed<T> from(from_storage, make_keyed(1));
         BOOST_TEST(any_set(from_storage, where));
         placed<T> to(to_storage, std::move(*from));
         BOOST_TEST(!any_set(from_storage, where));
@@ -167,8 +174,8 @@ void check_wiped(region where, T (*make)(std::uint8_t) = &keyed<T>) {
         // gives up first.
         slot<T> from_storage;
         slot<T> to_storage;
-        placed<T> from(from_storage, make(1));
-        placed<T> to(to_storage, make(100));
+        placed<T> from(from_storage, make_keyed(1));
+        placed<T> to(to_storage, make_keyed(100));
         BOOST_TEST(any_set(from_storage, where));
         BOOST_TEST(any_set(to_storage, where));
         *to = std::move(*from);
@@ -182,11 +189,18 @@ void check_wiped(region where, T (*make)(std::uint8_t) = &keyed<T>) {
 }
 
 #ifdef WEBCPP_TEST_WIPE_SODIUM
-// The key libsodium's AEAD or secret box of the family Family keeps in the object, first.
+// The key libsodium's AEAD of the family Family keeps in the object, first.
 template <class Family>
 constexpr region aead_key{
     .offset = 0,
     .size = sizeof(crypto::detail::aead_state<Family, crypto::backends::sodium>),
+};
+
+// The key libsodium's secret box of the family Family keeps in the object, first.
+template <class Family>
+constexpr region secretbox_key{
+    .offset = 0,
+    .size = sizeof(crypto::detail::secretbox_state<Family, crypto::backends::sodium>),
 };
 
 // The key libsodium's box of the family Family agreed and keeps in the object, first.
@@ -208,7 +222,7 @@ crypto::curves::secp256k1::musig::secret_nonce nonce_of(std::uint8_t first) {
     std::array<std::byte, secp::musig::workspace_size(1)> space{};
     auto const key = secp::musig::key_aggregate(keys, space);
     webcpp::test::require(key.has_value());
-    auto made = secp::musig::nonce_gen(signer, *key);
+    auto made = secp::musig::generate_nonce(signer, *key);
     webcpp::test::require(made.has_value());
     return std::move(made->secret_part);
 }
@@ -270,12 +284,13 @@ int main() {
         aead_key<families::chacha20_poly1305_original>);
     check_wiped<crypto::ciphers::xchacha20_poly1305<sodium>>(
         aead_key<families::xchacha20_poly1305>);
-    check_wiped<crypto::ciphers::secretbox<sodium>>(aead_key<families::secretbox_xsalsa20poly1305>);
-    check_wiped<crypto::ciphers::secretbox_xchacha20poly1305<sodium>>(
-        aead_key<families::secretbox_xchacha20poly1305>);
-    check_wiped<crypto::hybrid::basic_box<families::box_xsalsa20poly1305, sodium>>(
+    check_wiped<crypto::secret_key_encryption::secretbox<sodium>>(
+        secretbox_key<families::secretbox_xsalsa20poly1305>);
+    check_wiped<crypto::secret_key_encryption::secretbox_xchacha20poly1305<sodium>>(
+        secretbox_key<families::secretbox_xchacha20poly1305>);
+    check_wiped<crypto::public_key_encryption::basic_box<families::box_xsalsa20poly1305, sodium>>(
         box_key<families::box_xsalsa20poly1305>);
-    check_wiped<crypto::hybrid::basic_box<families::box_xchacha20poly1305, sodium>>(
+    check_wiped<crypto::public_key_encryption::basic_box<families::box_xchacha20poly1305, sodium>>(
         box_key<families::box_xchacha20poly1305>);
 #endif
     return webcpp::test::exit_status(boost::report_errors());

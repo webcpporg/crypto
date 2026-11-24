@@ -35,8 +35,11 @@ namespace webcpp::crypto {
 enum class error : int {
     /** A key of another size than the algorithm's `key_size`, or a secret key not of 32 bytes. */
     invalid_key_size = 1,
-    /** A GCM IV that is empty or longer than 128 bytes. */
-    invalid_iv_size = 2,
+    /**
+     * A nonce of a size the algorithm does not accept: a GCM nonce that is empty or longer than
+     * 128 bytes, another AEAD's or a box's nonce of another size than its own.
+     */
+    invalid_nonce_size = 2,
     /** A tag given to `open` or `verify` that is not of 16 bytes. */
     invalid_tag_size = 3,
     /**
@@ -45,15 +48,18 @@ enum class error : int {
      * open's `decrypt` past the authenticated length and `end_open` short of it.
      */
     invalid_input_size = 4,
-    /** A message or additional data longer than the algorithm allows. */
+    /** A message or associated data longer than the algorithm allows. */
     message_too_long = 5,
-    /** The tag does not match: the message or its additional data changed, or the key differs. */
+    /** The tag does not match: the message or its associated data changed, or the key differs. */
     authentication_failed = 6,
     /** An object moved from, or the incremental seal or open called out of order. */
     invalid_state = 7,
     /**
      * The system's or the browser's generator failed, or secp256k1's `generate` drew four times
      * and none was a secret key.
+     *
+     * On Emscripten, any function on libsodium may return it while libsodium is not yet
+     * initialised (`backends::sodium`).
      */
     entropy_unavailable = 8,
     /** A secret scalar, a secret key or a tweak, that is zero or not below the group order. */
@@ -79,7 +85,7 @@ enum class error : int {
      */
     memory_functions_refused = 13,
     /**
-     * OpenSSL's memory functions are not webcpp::crypto's, so a `make` of the OpenSSL backend
+     * OpenSSL's memory functions are not webcpp::crypto's, so a `from_key` of the OpenSSL backend
      * refuses to run, with `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE`.
      */
     memory_functions_not_installed = 14,
@@ -106,7 +112,7 @@ namespace detail {
 inline const char* message_of(int error_value) noexcept {
     switch (static_cast<error>(error_value)) {
         case error::invalid_key_size: return "the key is not of the algorithm's size";
-        case error::invalid_iv_size: return "the IV is not of a size the algorithm accepts";
+        case error::invalid_nonce_size: return "the nonce is not of a size the algorithm accepts";
         case error::invalid_tag_size: return "the tag is not of 16 bytes";
         case error::invalid_input_size: return "the buffer is not of a size the function accepts";
         case error::message_too_long: return "the message is longer than the algorithm allows";

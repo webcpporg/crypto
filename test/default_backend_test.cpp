@@ -88,7 +88,7 @@ static_assert(crypto::detail::supported<families::pem, families::pem,
 // crypto_kx: libsodium, the only backend, on every target.
 static_assert(std::is_same_v<crypto::default_backend_t<families::kx>, backends::sodium>);
 #ifndef WEBCPP_CRYPTO_DETAIL_DEFAULT_KX_SODIUM
-#error "curves/x25519/kx.hpp is told to include another header than libsodium's"
+#error "key_exchange/kx.hpp is told to include another header than libsodium's"
 #endif
 static_assert(
     crypto::detail::supported<families::kx, families::kx, crypto::default_backend_t<families::kx>>);
@@ -138,7 +138,7 @@ static_assert(
     !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_BOX_XSALSA20POLY1305_SODIUM) ||        \
     !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_BOX_XCHACHA20POLY1305_SODIUM) ||       \
     !defined(WEBCPP_CRYPTO_DETAIL_DEFAULT_SEALED_BOX_SODIUM)
-#error "secretbox.hpp, box.hpp and sealed_box.hpp are not told to include libsodium's header"
+#error "secret_key_encryption/secretbox.hpp and the boxes are not told to include sodium.hpp"
 #endif
 
 // P-256: BearSSL, the one backend of the P-curves, on every target.

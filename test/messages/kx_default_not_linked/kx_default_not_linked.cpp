@@ -11,15 +11,15 @@
 // clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
 // whole text stays on one line.
 // clang-format off
-// expected-error@webcpp/crypto/curves/x25519/kx.hpp:* {{webcpp::crypto: crypto_kx's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//kx-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//kx-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)}}
+// expected-error@webcpp/crypto/key_exchange/kx.hpp:* {{webcpp::crypto: crypto_kx's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//kx-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//kx-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)}}
 // clang-format on
 
-#include <webcpp/crypto/curves/x25519/kx.hpp>
+#include <webcpp/crypto/key_exchange/kx.hpp>
 
 #include <array>
 #include <cstdint>
 
 int main() {
     std::array<std::uint8_t, 32> const seed{};
-    return webcpp::crypto::curves::x25519::kx_keypair<>::make(seed) ? 0 : 1;
+    return webcpp::crypto::key_exchange::kx_keypair<>::derive_from_seed(seed) ? 0 : 1;
 }

@@ -168,7 +168,7 @@ scalar_bytes drawn_scalar(std::mt19937_64& rng) {
         for (auto& b : scalar) {
             b = static_cast<std::uint8_t>(rng() & 0xffU);
         }
-        if (p256::keypair::make(scalar)) {
+        if (p256::keypair::from_secret(scalar)) {
             return scalar;
         }
     }
@@ -253,15 +253,15 @@ void judge(our_case const& ours, oracle_answer const& answer, p256::public_key c
            std::size_t index, tally& found) {
     bool const ran = answer.ran == 0;
     found.check(ran && answer.verified == 1, "WebCrypto verifies ours", index);
+    // WebCrypto's signature as it arrives, 64 bytes, made into the type.
+    auto const theirs = p256::ecdsa_signature::from_bytes(answer.signature);
     bool const we_verify =
-        ran &&
-        crypto::verify(crypto::ecdsa_sha256, answer.signature, ours.message, public_key)
-            .has_value() &&
-        crypto::verify(crypto::ecdsa_sha256, answer.signature, crypto::prehashed{ours.digest},
-                       public_key)
+        ran && theirs.has_value() &&
+        crypto::verify(crypto::ecdsa_sha256, *theirs, ours.message, public_key).has_value() &&
+        crypto::verify(crypto::ecdsa_sha256, *theirs, crypto::prehashed{ours.digest}, public_key)
             .has_value();
     found.check(we_verify, "we verify WebCrypto's", index);
-    if (ran && p256::is_low_s(answer.signature)) {
+    if (ran && theirs.has_value() && p256::is_low_s(*theirs)) {
         ++found.low_s;
     }
     found.check(ran && bytes_of(answer.shared) == ours.shared_x, "ECDH", index);
@@ -287,8 +287,8 @@ void one_case(std::mt19937_64& rng, std::size_t index, tally& found) {
     our_case ours;
     // The first message is empty; the others cross SHA-256's block of 64 bytes.
     ours.message = index == 0 ? bytes{} : random_bytes(rng, 1, 300);
-    auto const pair = p256::keypair::make(scalar);
-    auto const peer = p256::keypair::make(peer_scalar);
+    auto const pair = p256::keypair::from_secret(scalar);
+    auto const peer = p256::keypair::from_secret(peer_scalar);
     auto const public_key = pair ? pair->public_key() : webcpp::crypto::error::backend_failure;
     auto const peer_public_key = peer ? peer->public_key() : webcpp::crypto::error::backend_failure;
     if (!BOOST_TEST(public_key.has_value()) || !BOOST_TEST(peer_public_key.has_value())) {
@@ -305,7 +305,7 @@ void one_case(std::mt19937_64& rng, std::size_t index, tally& found) {
     BOOST_TEST(p256::is_low_s(*signature));
     BOOST_TEST(
         crypto::verify(crypto::ecdsa_sha256, *signature, ours.message, *public_key).has_value());
-    ours.signature = *signature;
+    ours.signature = signature->bytes();
     if (corrupted && index == corrupted_signature) {
         ours.signature[5] ^= 0x01U;
     }

@@ -34,12 +34,12 @@ int main() {
     namespace sp = webcpp::crypto::curves::secp256k1::silent_payments;
     std::array<std::uint8_t, 32> secret_bytes{};
     secret_bytes.fill(0x11);
-    auto const scan_key = secp::keypair::make(secret_bytes);
+    auto const scan_key = secp::keypair::from_secret(secret_bytes);
     auto const spend_key = scan_key->public_key();
     std::array<secp::public_key, 1> const inputs{*spend_key};
     std::array<std::uint8_t, sp::outpoint_size> const outpoint{};
     std::vector<std::byte> space(sp::summary_workspace_size(0, 1));
-    auto const summary = sp::make_prevouts_summary(outpoint, {}, inputs, space);
+    auto const summary = sp::make_previous_outputs_summary(outpoint, {}, inputs, space);
     std::array<std::array<std::uint8_t, 32>, 1> const outputs{};
     std::vector<sp::found_output> found(1);
     std::vector<std::byte> scan_space(sp::scan_workspace_size(1));

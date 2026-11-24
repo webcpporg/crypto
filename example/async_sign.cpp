@@ -59,11 +59,11 @@ asio::awaitable<bool> sign_and_verify() {
     auto const executor = co_await asio::this_coro::executor;
     auto const use = asio::as_tuple(asio::use_awaitable);
 
-    auto made_result = co_await crypto::async_make<ed25519::keypair>(executor, seed, use);
+    auto made_result = co_await crypto::async_from_secret<ed25519::keypair>(executor, seed, use);
 
     auto& [made, key] = made_result;
     if (made) {
-        std::printf("make: %s\n", made.message().c_str());
+        std::printf("from_secret: %s\n", made.message().c_str());
         co_return false;
     }
     auto const public_key = key.public_key();
@@ -79,7 +79,7 @@ asio::awaitable<bool> sign_and_verify() {
         co_return false;
     }
     print("public key", public_key->bytes());
-    print("signature ", signature);
+    print("signature ", signature.bytes());
     // The verifier holds the public key, the message and the signature; nothing secret.
     auto [verified] = co_await crypto::async_verify(executor, crypto::eddsa, signature, message,
                                                     *public_key, use);

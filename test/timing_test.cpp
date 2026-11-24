@@ -7,16 +7,18 @@
 // detail::timing_guard, with no backend: its seam fires once per guard on every target and names
 // the function that holds the guard, which require_enters reads in the spellings of clang, GCC
 // and MSVC; where the CPU has DIT, a guard sets it for its scope and clears it after when it was
-// clear, leaves it set when it was set, and nests; equal enters its own guard. Built with
-// WEBCPP_TEST_TIMING_THREADS (timing_threads, native, with threads), a guard on one thread leaves
-// another's DIT clear. P-256's normalize_low_s and is_low_s, which call no backend, enter no
-// guard: this program links none, and curves/p256.hpp needs none to declare them.
+// clear, leaves it set when it was set, and nests; constant_time_equal enters its own guard. Built
+// with WEBCPP_TEST_TIMING_THREADS (timing_threads, native, with threads), a guard on one thread
+// leaves another's DIT clear. P-256's normalize_low_s and is_low_s, which call no backend, enter no
+// guard: this program links none, and curves/p256.hpp needs none to declare them; nor does
+// erase_secret, which only stores zeroes.
 
 #include "support/timing_seam.hpp"
 
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/detail/timing.hpp>
-#include <webcpp/crypto/equal.hpp>
+#include <webcpp/crypto/erase_secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/p256_data.hpp"
@@ -129,8 +131,8 @@ void names_function_spellings() {
     // A name in the return type or a parameter type is not the function's own.
     BOOST_TEST(!names("int ns::other(ns::pem::armour<int>, int) [with B = int]", "pem::armour"));
     BOOST_TEST(!names("int ns::other(ns::pem::armour(int)) [with B = int]", "pem::armour"));
-    BOOST_TEST(!names("ns::pem::armour<int> ns::make(int) [B = int]", "pem::armour"));
-    BOOST_TEST(!names("struct ns::pem::armour<int> __cdecl ns::make<int>(int)", "pem::armour"));
+    BOOST_TEST(!names("ns::pem::armour<int> ns::from_key(int) [B = int]", "pem::armour"));
+    BOOST_TEST(!names("struct ns::pem::armour<int> __cdecl ns::from_key<int>(int)", "pem::armour"));
     BOOST_TEST(!names("ns::algorithm<ns::pem::armour<int>>::seal(int)", "pem::armour"));
     BOOST_TEST(names("ns::pem::armour<int> ns::pem::armour(ns::pem::armour<int>)", "pem::armour"));
     // A function named without a scope never matches.
@@ -144,18 +146,76 @@ void names_function_spellings() {
     BOOST_TEST(!names("auto __cdecl ns::f::<lambda_1>::operator ()(void) const", "ns::f"));
 }
 
+// GCC writes a trailing requires-clause after the parameter list, before the template arguments:
+// its parentheses are not the function's own.
+void names_function_requires_clause() {
+    constexpr std::string_view entered =
+        "auto ns::to_x25519(const Value&) requires requires(const Value& v) {v->to_x25519();} "
+        "[with Value = ns::pk]";
+    BOOST_TEST(
+        webcpp::test::names_function(entered, webcpp::test::function_named("ns::to_x25519")));
+    BOOST_TEST(
+        !webcpp::test::names_function(entered, webcpp::test::function_named("pk::to_x25519")));
+}
+
+// A check names every component it writes, each compared: the free AEAD form,
+// secret_key_encryption::aead::seal, is not the member of the class template
+// ciphers::basic_chacha20_poly1305, and a label names the class by its own name.
+void names_function_qualifiers() {
+    auto const names = [](std::string_view entered, std::string_view spelled) {
+        return webcpp::test::names_function(entered, webcpp::test::function_named(spelled));
+    };
+    constexpr std::string_view member =
+        "boost::system::result<digest<16>> webcpp::crypto::ciphers::basic_chacha20_poly1305<F, "
+        "B>::seal(std::span<const "
+        "unsigned char>, std::span<const unsigned char>, std::span<unsigned char>) [F = f, B = b]";
+    constexpr std::string_view free_form =
+        "boost::system::result<typename Cipher::result_type> "
+        "webcpp::crypto::secret_key_encryption::aead::seal(Cipher &, std::span<const unsigned "
+        "char>, std::span<const unsigned char>, std::span<unsigned char>) [Cipher = c]";
+    BOOST_TEST(!names(member, "secret_key_encryption::aead::seal"));
+    BOOST_TEST(names(member, "ciphers::basic_chacha20_poly1305::seal"));
+    BOOST_TEST(names(member, "basic_chacha20_poly1305::seal"));
+    BOOST_TEST(!names(member, "aead::seal"));
+    BOOST_TEST(names(free_form, "secret_key_encryption::aead::seal"));
+    BOOST_TEST(!names(free_form, "ciphers::basic_chacha20_poly1305::seal"));
+    BOOST_TEST(names(free_form, "crypto::secret_key_encryption::aead::seal"));
+    BOOST_TEST(!names(free_form, "other::secret_key_encryption::aead::seal"));
+    // MSVC writes the class template's arguments, which each component skips.
+    BOOST_TEST(
+        !names("class boost::system::result<void> __cdecl "
+               "webcpp::crypto::ciphers::basic_chacha20_poly1305<struct "
+               "f,struct b>::open(class std::span<unsigned char const ,-1>)",
+               "secret_key_encryption::aead::open"));
+    BOOST_TEST(
+        names("class boost::system::result<void> __cdecl "
+              "webcpp::crypto::ciphers::basic_chacha20_poly1305<struct "
+              "f,struct b>::open(class std::span<unsigned char const ,-1>)",
+              "ciphers::basic_chacha20_poly1305::open"));
+}
+
+// A label that starts with `::` writes no component before the identifier: its scope is empty, as
+// a label without `::`, and it names no function.
+void names_function_leading_separator() {
+    webcpp::test::named_function const named = webcpp::test::function_named("::seal");
+    BOOST_TEST(named.identifier == "seal");
+    BOOST_TEST(named.scope.empty());
+    BOOST_TEST(named.qualifiers.empty());
+    BOOST_TEST(!webcpp::test::names_function("void webcpp::crypto::seal(int)", named));
+}
+
 // MSVC writes the exception specification of a function that may throw after its parameters,
-// clang and GCC none: crypto::make and crypto::generate of secp256k1's key pair, whose memory
-// resource may throw, are read as their own in either spelling.
+// clang and GCC none: crypto::from_secret and crypto::generate of secp256k1's key pair, whose
+// memory resource may throw, are read as their own in either spelling.
 void names_function_exception_specifications() {
     auto const names = [](std::string_view entered, std::string_view spelled) {
         return webcpp::test::names_function(entered, webcpp::test::function_named(spelled));
     };
     BOOST_TEST(
         names("class ns::result<class ns::kp<struct ns::b>> __cdecl "
-              "ns::crypto::make<class ns::kp<struct ns::b>,const class std::array<unsigned "
+              "ns::crypto::from_secret<class ns::kp<struct ns::b>,const class std::array<unsigned "
               "char,32>&>(const class std::array<unsigned char,32> &) noexcept(false)",
-              "crypto::make"));
+              "crypto::from_secret"));
     BOOST_TEST(
         names("class ns::result<class ns::kp<struct ns::b>> __cdecl "
               "ns::crypto::generate<class ns::kp<struct ns::b>,>(void) noexcept(false)",
@@ -163,8 +223,8 @@ void names_function_exception_specifications() {
     BOOST_TEST(names("int __cdecl ns::pem::armour<struct ns::b>(int) noexcept", "pem::armour"));
     BOOST_TEST(names("int __cdecl ns::pk::compare(int) const noexcept(true)", "pk::compare(int"));
     // The specification is not a parameter list: its words never name the function.
-    BOOST_TEST(
-        !names("int __cdecl ns::crypto::make<int>(int) noexcept(false)", "crypto::make(false"));
+    BOOST_TEST(!names("int __cdecl ns::crypto::from_secret<int>(int) noexcept(false)",
+                      "crypto::from_secret(false"));
     BOOST_TEST(!names("int __cdecl ns::other(int) noexcept(ns::pem::armour(int))", "pem::armour"));
 }
 
@@ -206,21 +266,23 @@ void nested_guards() {
     BOOST_TEST(!detail::dit_is_set());
 }
 
-// Both overloads of equal enter a guard, and leave DIT as they found it.
-void equal_enters() {
+// Both overloads of constant_time_equal enter a guard, and leave DIT as they found it.
+void constant_time_equal_enters() {
     force_dit(false);
     std::array<std::uint8_t, 16> const first{};
     std::array<std::uint8_t, 16> const second{};
-    webcpp::test::require_enters("equal(span, span)", "crypto::equal(span", [&first, &second] {
-        BOOST_TEST(webcpp::crypto::equal(std::span<std::uint8_t const>(first),
-                                         std::span<std::uint8_t const>(second)));
-    });
+    webcpp::test::require_enters(
+        "constant_time_equal(span, span)", "crypto::constant_time_equal(span", [&first, &second] {
+            BOOST_TEST(webcpp::crypto::constant_time_equal(std::span<std::uint8_t const>(first),
+                                                           std::span<std::uint8_t const>(second)));
+        });
     boost::hash2::digest<16> const first_digest{};
     boost::hash2::digest<16> const second_digest{};
-    webcpp::test::require_enters("equal(digest, digest)", "crypto::equal(digest",
-                                 [&first_digest, &second_digest] {
-                                     BOOST_TEST(webcpp::crypto::equal(first_digest, second_digest));
-                                 });
+    webcpp::test::require_enters(
+        "constant_time_equal(digest, digest)", "crypto::constant_time_equal(digest",
+        [&first_digest, &second_digest] {
+            BOOST_TEST(webcpp::crypto::constant_time_equal(first_digest, second_digest));
+        });
     BOOST_TEST(!detail::dit_is_set());
 }
 
@@ -228,12 +290,27 @@ void equal_enters() {
 void p256_low_s_unguarded() {
     namespace p256 = webcpp::crypto::curves::p256;
     namespace data = webcpp::test::p256;
-    webcpp::test::uncovered("p256::normalize_low_s", [] {
-        auto const normalized = p256::normalize_low_s(data::rfc6979_sample);
-        BOOST_TEST(normalized.has_value() && *normalized == data::rfc6979_sample_low_s);
+    auto const sample = p256::ecdsa_signature::from_bytes(data::rfc6979_sample);
+    auto const test = p256::ecdsa_signature::from_bytes(data::rfc6979_test);
+    if (!BOOST_TEST(sample.has_value()) || !BOOST_TEST(test.has_value())) {
+        return;
+    }
+    webcpp::test::uncovered("p256::normalize_low_s", [&sample] {
+        auto const normalized = p256::normalize_low_s(*sample);
+        BOOST_TEST(normalized.has_value() && normalized->bytes() == data::rfc6979_sample_low_s);
     });
-    webcpp::test::uncovered("p256::is_low_s",
-                            [] { BOOST_TEST(p256::is_low_s(data::rfc6979_test)); });
+    webcpp::test::uncovered("p256::is_low_s", [&test] { BOOST_TEST(p256::is_low_s(*test)); });
+}
+
+// erase_secret calls no backend: it stores zeroes through detail::wipe, and holds no guard.
+void erase_secret_unguarded() {
+    webcpp::test::uncovered("erase_secret", [] {
+        std::array<std::uint8_t, 16> const zero{};
+        std::array<std::uint8_t, 16> password{};
+        password.fill(0x5a);
+        webcpp::crypto::erase_secret(password);
+        BOOST_TEST(password == zero);
+    });
 }
 
 #ifdef WEBCPP_TEST_TIMING_THREADS
@@ -265,12 +342,16 @@ int main() {
     seam_fires();
     seam_names_function();
     names_function_spellings();
+    names_function_requires_clause();
+    names_function_qualifiers();
+    names_function_leading_separator();
     names_function_exception_specifications();
     guard_sets_and_clears();
     guard_leaves_set_bit();
     nested_guards();
-    equal_enters();
+    constant_time_equal_enters();
     p256_low_s_unguarded();
+    erase_secret_unguarded();
 #ifdef WEBCPP_TEST_TIMING_THREADS
     other_thread_untouched();
 #endif

@@ -6,11 +6,11 @@
 
 // dudect's statistics (spec section 8.3): BearSSL's AES-GCM and ChaCha20-Poly1305 seal's time
 // against its key, open's against its tag (the failure's zeroing included), ctaes's block
-// encryption's against its key, equal's against its second argument, and P-256's ECDSA signing
-// and ECDH's x against the key pair's scalar (one fixed scalar, against random ones; the digest
-// and the peer's public key fixed), each key pair made before its measurement, unmeasured;
-// natively and under wasmtime, where the engine's compiler decides whether BearSSL's 64-bit
-// multiplication stays constant time. ChaCha20-Poly1305's open is measured once more as the
+// encryption's against its key, constant_time_equal's against its second argument, and P-256's
+// ECDSA signing and ECDH's x against the key pair's scalar (one fixed scalar, against random ones;
+// the digest and the peer's public key fixed), each key pair made before its measurement,
+// unmeasured; natively and under wasmtime, where the engine's compiler decides whether BearSSL's
+// 64-bit multiplication stays constant time. ChaCha20-Poly1305's open is measured once more as the
 // program's A/A control (chacha_open_aa), both classes the same nearly right tag, prepared by
 // the same instructions. `--case <name>` measures one case alone.
 
@@ -21,8 +21,8 @@
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/signing.hpp>
 
 #include <algorithm>
@@ -61,7 +61,7 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
                   char const* open_label, char const* control, char const* control_label) {
     std::array<std::uint8_t, 32> const zero_key{};
     std::array<std::uint8_t, 32> key{};
-    std::array<std::uint8_t, Aead::iv_size> const iv{};
+    std::array<std::uint8_t, Aead::nonce_size> const nonce{};
     std::array<std::uint8_t, 64> data{};
     std::optional<Aead> made;
 
@@ -70,9 +70,9 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
             count,
             [&](int which, auto& generator) {
                 test::choose(which, generator, zero_key, key);
-                made.emplace(*Aead::make(key));
+                made.emplace(*Aead::from_key(key));
             },
-            [&] { static_cast<void>(made->seal(iv, {}, data)); });
+            [&] { static_cast<void>(made->seal(nonce, {}, data)); });
         results.record(seal_name, seal_label, seal, true,
                        {{"data", data.data()}, {"key", key.data()}, {"object", &*made}});
     }
@@ -83,10 +83,10 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
         return;
     }
     key.fill(0x42);
-    made.emplace(*Aead::make(key));
+    made.emplace(*Aead::from_key(key));
     std::array<std::uint8_t, 64> const plaintext{};
     std::array<std::uint8_t, 64> ciphertext = plaintext;
-    auto const right = *made->seal(iv, {}, ciphertext);
+    auto const right = *made->seal(nonce, {}, ciphertext);
     std::array<std::uint8_t, 16> nearly_right{};
     std::copy(right.data(), right.data() + right.size(), nearly_right.begin());
     nearly_right[15] ^= 1U;
@@ -101,7 +101,7 @@ void measure_aead(test::case_results& results, test::case_selection const& selec
                     tag[15] ^= 1U;  // a random tag equal to the right one, which never happens
                 }
             },
-            [&] { static_cast<void>(made->open(iv, {}, data, tag)); });
+            [&] { static_cast<void>(made->open(nonce, {}, data, tag)); });
     };
     if (open) {
         results.record(open_name, open_label, measure_open.template operator()<false>(), true,
@@ -139,7 +139,7 @@ bool measure_p256(test::case_results& results, test::case_selection const& selec
     digest.fill(0x17);
     std::array<std::uint8_t, 32> peer_scalar{};
     peer_scalar.fill(0x24);
-    auto const peer = keypair::make(peer_scalar);
+    auto const peer = keypair::from_secret(peer_scalar);
     auto const peer_key = peer ? peer->public_key() : peer.error();
     if (!peer_key) {
         std::printf("the peer's key pair was refused\n");
@@ -149,9 +149,9 @@ bool measure_p256(test::case_results& results, test::case_selection const& selec
     auto const prepare = [&](int which, auto& generator) {
         test::choose(which, generator, fixed, scalar);
         // A random scalar is 0 or not below n only with probability about 2^-32.
-        auto made = keypair::make(scalar);
+        auto made = keypair::from_secret(scalar);
         if (!made) {
-            made = keypair::make(fixed);
+            made = keypair::from_secret(fixed);
         }
         pair.emplace(std::move(*made));
     };
@@ -183,7 +183,7 @@ int main(int argc, char** argv) {
                                                  "chacha_seal",
                                                  "chacha_open",
                                                  "ctaes_encrypt",
-                                                 "equal",
+                                                 "constant_time_equal",
                                                  "chacha_open_aa",
                                                  "p256_sign",
                                                  "p256_ecdh_x",
@@ -213,7 +213,7 @@ int main(int argc, char** argv) {
             count,
             [&](int which, auto& generator) {
                 test::choose(which, generator, zero_key, key);
-                block_made.emplace(*block_cipher::make(key));
+                block_made.emplace(*block_cipher::from_key(key));
                 block.fill(0);
             },
             [&] { static_cast<void>(block_made->encrypt(block)); });
@@ -221,15 +221,16 @@ int main(int argc, char** argv) {
                        {{"block", block.data()}, {"key", key.data()}, {"object", &*block_made}});
     }
 
-    if (selection->runs("equal")) {
+    if (selection->runs("constant_time_equal")) {
         std::array<std::uint8_t, 16> const a{};
         std::array<std::uint8_t, 16> b{};
         bool volatile sink = false;  // keeps the comparison from being optimised away
         // The classes differ only in the second argument: equal to the first, against random.
-        auto const equal_t = test::twice(
+        auto const compared_t = test::twice(
             count, [&](int which, auto& generator) { test::choose(which, generator, a, b); },
-            [&] { sink = crypto::equal(a, b); });
-        results.record("equal", "equal", equal_t, true, {{"a", a.data()}, {"b", b.data()}});
+            [&] { sink = crypto::constant_time_equal(a, b); });
+        results.record("constant_time_equal", "constant_time_equal", compared_t, true,
+                       {{"a", a.data()}, {"b", b.data()}});
     }
 
     if (!measure_p256(results, *selection)) {

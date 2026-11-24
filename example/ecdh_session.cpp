@@ -9,8 +9,8 @@
 // it to this application with a context string.
 // tag::program[]
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
 #include <webcpp/crypto/secret.hpp>
@@ -120,7 +120,7 @@ boost::system::result<secp256k1::keypair> generate_key() {
         if (!filled) {
             return filled.error();
         }
-        auto key = secp256k1::keypair::make(secret);
+        auto key = secp256k1::keypair::from_secret(secret);
         if (key || key.error() != crypto::error::invalid_secret_key) {
             // The key pair keeps its own copy, which it wipes; this one goes now.
             wipe(std::as_writable_bytes(std::span(secret)));
@@ -134,7 +134,7 @@ boost::system::result<secp256k1::keypair> generate_key() {
 boost::system::result<crypto::ciphers::aes256_gcm> session_cipher(
     crypto::secret<32> const& shared) {
     auto key = hkdf_sha256<32>(shared.bytes(), {}, bytes_of("example chat v1 session key"));
-    auto cipher = crypto::ciphers::aes256_gcm::make(key);
+    auto cipher = crypto::ciphers::aes256_gcm::from_key(key);
     // The cipher keeps its own copy of the key, which it wipes; this one goes now.
     wipe(std::as_writable_bytes(std::span(key)));
     return cipher;
@@ -148,7 +148,7 @@ bool hkdf_is_correct() {
     auto const info = from_hex<10>("f0f1f2f3f4f5f6f7f8f9");
     auto const expected = from_hex<42>(
         "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865");
-    return crypto::equal(hkdf_sha256<42>(input, salt, info), expected);
+    return crypto::constant_time_equal(hkdf_sha256<42>(input, salt, info), expected);
 }
 
 }  // namespace
@@ -179,7 +179,7 @@ int main() {
         auto const alice_shared = alice->agree_hashed(*bob_public);
         auto const bob_shared = bob->agree_hashed(*alice_public);
         if (!alice_shared || !bob_shared ||
-            !crypto::equal(alice_shared->bytes(), bob_shared->bytes())) {
+            !crypto::constant_time_equal(alice_shared->bytes(), bob_shared->bytes())) {
             return 1;
         }
         std::printf("shared secrets match\n");
@@ -193,15 +193,15 @@ int main() {
     }
     // end::agree[]
 
-    std::array<std::uint8_t, 12> iv{};
-    if (!crypto::random_device().fill(iv)) {
+    std::array<std::uint8_t, 12> nonce{};
+    if (!crypto::random_device().fill(nonce)) {
         return 1;
     }
     std::string_view const text = "hello bob";
     std::array<std::uint8_t, 9> message{};
     std::ranges::copy(text, message.begin());
-    auto const tag = alice_cipher->seal(iv, {}, message);
-    if (!tag || !bob_cipher->open(iv, {}, message, std::span<std::uint8_t const>(*tag))) {
+    auto const tag = alice_cipher->seal(nonce, {}, message);
+    if (!tag || !bob_cipher->open(nonce, {}, message, std::span<std::uint8_t const>(*tag))) {
         return 1;
     }
     std::printf("bob read: %.*s\n", static_cast<int>(message.size()),

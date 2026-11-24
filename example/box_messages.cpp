@@ -5,15 +5,14 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // Two people who know each other's X25519 public keys exchange messages in libsodium's box:
-// each makes a box from the own secret key and the other's public key, agreeing one key for the
+// each makes a box from the own key pair and the other's public key, agreeing one key for the
 // pair, then seals each message with a nonce drawn at random. What one seals the other opens; a
 // stranger's box, from another key pair, does not. Prints what each reads.
 // tag::program[]
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/hybrid/box.hpp>
+#include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/random_device.hpp>
-#include <webcpp/crypto/secret.hpp>
 
 #include <array>
 #include <cstdint>
@@ -21,35 +20,35 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace crypto = webcpp::crypto;
-using crypto::hybrid::box;
+using crypto::public_key_encryption::box;
 
 namespace {
 
-// A person's X25519 key pair: the secret key stays, the public key is published.
+// A person's X25519 key pair: the secret key stays in it, the public key is published.
 struct person {
-    crypto::secret<32> secret_key;
-    std::array<std::uint8_t, 32> public_key{};
+    crypto::curves::x25519::keypair key_pair;
+    crypto::curves::x25519::public_key public_key;
 
-    static std::optional<person> make(crypto::random_device& device) {
-        person made;
-        if (!device.fill(made.secret_key.writable())) {
+    static std::optional<person> generate() {
+        auto key_pair = crypto::curves::x25519::keypair::generate();
+        if (!key_pair) {
             return std::nullopt;
         }
-        auto const public_key = crypto::curves::x25519::public_key(made.secret_key.bytes());
+        auto const public_key = key_pair->public_key();
         if (!public_key) {
             return std::nullopt;
         }
-        made.public_key = *public_key;
-        return made;
+        return person{.key_pair = std::move(*key_pair), .public_key = *public_key};
     }
 };
 
 // A message as it travels: the nonce, the tag and the ciphertext.
 struct sealed_message {
-    std::array<std::uint8_t, box::iv_size> nonce{};
+    std::array<std::uint8_t, box::nonce_size> nonce{};
     box::result_type tag{};
     std::vector<std::uint8_t> ciphertext;
 };
@@ -85,18 +84,18 @@ void read(char const* who, box& recipient, sealed_message message) {
 
 int main() {
     crypto::random_device device;
-    auto alice = person::make(device);
-    auto bob = person::make(device);
-    auto mallory = person::make(device);
+    auto const alice = person::generate();
+    auto const bob = person::generate();
+    auto const mallory = person::generate();
     if (!alice || !bob || !mallory) {
         return 1;
     }
     // tag::boxes[]
-    // Each side's box: the own secret key and the other's public key give the same key.
-    auto alice_box = box::make(alice->secret_key.bytes(), bob->public_key);
-    auto bob_box = box::make(bob->secret_key.bytes(), alice->public_key);
+    // Each side's box: the own key pair and the other's public key give the same key.
+    auto alice_box = box::from_keys(alice->key_pair, bob->public_key);
+    auto bob_box = box::from_keys(bob->key_pair, alice->public_key);
     // end::boxes[]
-    auto mallory_box = box::make(mallory->secret_key.bytes(), alice->public_key);
+    auto mallory_box = box::from_keys(mallory->key_pair, alice->public_key);
     if (!alice_box || !bob_box || !mallory_box) {
         return 1;
     }

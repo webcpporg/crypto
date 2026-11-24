@@ -27,9 +27,9 @@
 // agree, and passes when n is 600 and OpenSSL's error queue is empty at the end.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/test/exit_status.hpp>
@@ -120,7 +120,7 @@ scalar_bytes drawn_scalar(std::mt19937_64& generator) {
         for (auto& b : scalar) {
             b = static_cast<std::uint8_t>(generator() & 0xffU);
         }
-        if (p256::keypair::make(scalar)) {
+        if (p256::keypair::from_secret(scalar)) {
             return scalar;
         }
     }
@@ -313,7 +313,7 @@ bytes bytes_of(std::array<std::uint8_t, N> const& array) {
 bool signature_case(std::mt19937_64& generator, std::size_t index) {
     auto const scalar = drawn_scalar(generator);
     auto const digest = drawn_digest(generator);
-    auto const pair = p256::keypair::make(scalar);
+    auto const pair = p256::keypair::from_secret(scalar);
     auto const public_key = pair ? pair->public_key() : webcpp::crypto::error::backend_failure;
     auto const ours =
         pair ? pair->sign(webcpp::crypto::ecdsa_sha256, webcpp::crypto::prehashed{digest})
@@ -353,8 +353,8 @@ bool signature_case(std::mt19937_64& generator, std::size_t index) {
 bool ecdh_case(std::mt19937_64& generator, std::size_t index) {
     auto const scalar = drawn_scalar(generator);
     auto const peer_scalar = drawn_scalar(generator);
-    auto const pair = p256::keypair::make(scalar);
-    auto const peer = p256::keypair::make(peer_scalar);
+    auto const pair = p256::keypair::from_secret(scalar);
+    auto const peer = p256::keypair::from_secret(peer_scalar);
     auto const peer_public_key = peer ? peer->public_key() : webcpp::crypto::error::backend_failure;
     auto const shared = pair && peer_public_key ? pair->agree(*peer_public_key)
                                                 : webcpp::crypto::error::backend_failure;
@@ -377,7 +377,7 @@ bool ecdh_case(std::mt19937_64& generator, std::size_t index) {
 /** One formats case: true when OpenSSL agrees with it. */
 bool formats_case(std::mt19937_64& generator, std::size_t index) {
     auto const scalar = drawn_scalar(generator);
-    auto const pair = p256::keypair::make(scalar);
+    auto const pair = p256::keypair::from_secret(scalar);
     auto const public_key = pair ? pair->public_key() : webcpp::crypto::error::backend_failure;
     pkey_ptr const key = openssl_key(scalar);
     if (!BOOST_TEST(public_key.has_value()) || !BOOST_TEST(key)) {
@@ -412,7 +412,7 @@ bool formats_case(std::mt19937_64& generator, std::size_t index) {
     bool const openssl_reads_ours =
         BOOST_TEST(from_spki && EVP_PKEY_eq(from_spki.get(), key.get()) == 1) &&
         BOOST_TEST(from_pkcs8 && EVP_PKEY_eq(from_pkcs8.get(), key.get()) == 1) &&
-        BOOST_TEST(webcpp::crypto::equal(loaded_scalar.bytes(), scalar));
+        BOOST_TEST(webcpp::crypto::constant_time_equal(loaded_scalar.bytes(), scalar));
     bool const agrees = spki_round_trip && pkcs8_round_trip && openssl_reads_ours;
     if (!agrees) {
         static_cast<void>(std::fprintf(stderr, "formats case %zu: OpenSSL disagrees: scalar %s\n",

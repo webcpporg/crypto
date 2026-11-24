@@ -9,7 +9,8 @@
 // public key is the one made from either of its forms; every
 // length but 33 and 65, every prefix but 02, 03 and 04 (X9.62's hybrid 06 and 07 with a valid
 // point, which libsecp256k1 alone takes, among them), an x not below the field's prime and an
-// x with no y are invalid_public_key to public_key::make; keys order as their compressed bytes.
+// x with no y are invalid_public_key to public_key::from_bytes; keys order as their compressed
+// bytes.
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
@@ -50,9 +51,9 @@ static_assert(std::is_same_v<decltype(std::declval<secp::public_key const&>().un
                              std::array<std::uint8_t, 65>>);
 static_assert(std::is_same_v<decltype(std::declval<secp::public_key const&>().xonly()),
                              std::array<std::uint8_t, 32>>);
-static_assert(
-    std::is_same_v<decltype(secp::public_key::make(std::declval<std::span<std::uint8_t const>>())),
-                   boost::system::result<secp::public_key>>);
+static_assert(std::is_same_v<
+              decltype(secp::public_key::from_bytes(std::declval<std::span<std::uint8_t const>>())),
+              boost::system::result<secp::public_key>>);
 static_assert(std::is_same_v<decltype(std::declval<secp::keypair const&>().public_key()),
                              boost::system::result<secp::public_key>>);
 
@@ -71,7 +72,7 @@ std::array<std::uint8_t, 32> small_secret(std::uint8_t k) {
 }
 
 void refused(std::string const& label, std::span<std::uint8_t const> encoded) {
-    auto const parsed = secp::public_key::make(encoded);
+    auto const parsed = secp::public_key::from_bytes(encoded);
     if (!BOOST_TEST(parsed.has_error()) ||
         !BOOST_TEST(parsed.error() == crypto::error::invalid_public_key)) {
         BOOST_ERROR(label.c_str());
@@ -82,13 +83,13 @@ void refused(std::string const& label, std::span<std::uint8_t const> encoded) {
 // them back, and comes back to them through the uncompressed form.
 void generator_multiple(std::size_t i) {
     auto const expected = test::from_hex(multiples[i]);
-    auto const key = secp::keypair::make(small_secret(static_cast<std::uint8_t>(i + 1)));
+    auto const key = secp::keypair::from_secret(small_secret(static_cast<std::uint8_t>(i + 1)));
     if (!BOOST_TEST(key.has_value())) {
         return;
     }
     auto const from_pair = key->public_key();
     BOOST_TEST(from_pair && std::ranges::equal(from_pair->compressed(), expected));
-    auto const parsed = secp::public_key::make(expected);
+    auto const parsed = secp::public_key::from_bytes(expected);
     if (!BOOST_TEST(parsed.has_value())) {
         return;
     }
@@ -100,7 +101,7 @@ void generator_multiple(std::size_t i) {
     BOOST_TEST(std::ranges::equal(std::span(uncompressed).subspan(1, 32),
                                   std::span(expected).subspan(1, 32)));
     BOOST_TEST(std::ranges::equal(parsed->xonly(), std::span(expected).subspan(1, 32)));
-    auto const again = secp::public_key::make(uncompressed);
+    auto const again = secp::public_key::from_bytes(uncompressed);
     if (BOOST_TEST(again.has_value())) {
         BOOST_TEST(*again == *parsed);
         BOOST_TEST(std::ranges::equal(again->compressed(), expected));
@@ -118,7 +119,7 @@ void generator_multiples() {
 // A key pair's public key is the one made from its uncompressed form and from its compressed one.
 void keypair_forms() {
     for (std::uint8_t k = 1; k <= 16; ++k) {
-        auto const key = secp::keypair::make(small_secret(k));
+        auto const key = secp::keypair::from_secret(small_secret(k));
         if (!BOOST_TEST(key.has_value())) {
             continue;
         }
@@ -129,8 +130,8 @@ void keypair_forms() {
         auto const compressed = public_key->compressed();
         auto const uncompressed = public_key->uncompressed();
         BOOST_TEST_EQ(uncompressed[0], 0x04);
-        auto const from_compressed = secp::public_key::make(compressed);
-        auto const from_uncompressed = secp::public_key::make(uncompressed);
+        auto const from_compressed = secp::public_key::from_bytes(compressed);
+        auto const from_uncompressed = secp::public_key::from_bytes(uncompressed);
         if (BOOST_TEST(from_compressed && from_uncompressed)) {
             BOOST_TEST(*from_compressed == *from_uncompressed);
             BOOST_TEST(*from_compressed == *public_key);
@@ -226,7 +227,7 @@ void refusals() {
 // A key equals its re-parsed copy.
 void reparsed_copies(std::vector<secp::public_key> const& keys) {
     for (auto const& key : keys) {
-        auto const copy = secp::public_key::make(key.compressed());
+        auto const copy = secp::public_key::from_bytes(key.compressed());
         if (BOOST_TEST(copy.has_value())) {
             BOOST_TEST(*copy == key);
             BOOST_TEST((*copy <=> key) == std::strong_ordering::equal);
@@ -236,7 +237,7 @@ void reparsed_copies(std::vector<secp::public_key> const& keys) {
 
 // A key's two forms order alike: the order reads the point, not the bytes it came from.
 void forms_order_alike(std::vector<secp::public_key> const& keys) {
-    auto const long_one = secp::public_key::make(keys[0].uncompressed());
+    auto const long_one = secp::public_key::from_bytes(keys[0].uncompressed());
     if (BOOST_TEST(long_one.has_value())) {
         BOOST_TEST(*long_one < keys[1]);
         BOOST_TEST(*long_one == keys[0]);
@@ -247,7 +248,7 @@ void forms_order_alike(std::vector<secp::public_key> const& keys) {
 void ordering() {
     std::vector<secp::public_key> keys;
     for (auto const hex : multiples) {
-        auto const parsed = secp::public_key::make(test::from_hex(hex));
+        auto const parsed = secp::public_key::from_bytes(test::from_hex(hex));
         if (!BOOST_TEST(parsed.has_value())) {
             return;
         }

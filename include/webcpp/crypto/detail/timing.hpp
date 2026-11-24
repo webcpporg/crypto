@@ -64,10 +64,10 @@ inline constexpr std::uint64_t dit_bit = std::uint64_t{1} << 24U;
  * turning DIT off. The `isb` here, after both writes, is not that barrier: which barrier each
  * write needs is measured in the final measurement pass of the change data-independent-timing.
  *
- * @param value `dit_bit` to set DIT, 0 to clear it.
+ * @param dit_value `dit_bit` to set DIT, 0 to clear it.
  */
-inline void write_dit(std::uint64_t value) noexcept {
-    __asm__ volatile("msr s3_3_c4_c2_5, %0\n\tisb" : : "r"(value) : "memory");
+inline void write_dit(std::uint64_t dit_value) noexcept {
+    __asm__ volatile("msr s3_3_c4_c2_5, %0\n\tisb" : : "r"(dit_value) : "memory");
 }
 #endif
 
@@ -83,10 +83,11 @@ inline void write_dit(std::uint64_t value) noexcept {
 [[nodiscard]] inline bool cpu_has_dit() noexcept {
 #if defined(WEBCPP_CRYPTO_DETAIL_TIMING_COVERED) && defined(__APPLE__)
     static bool const has_dit = [] {
-        int feature = 0;
-        std::size_t size = sizeof feature;
-        return sysctlbyname("hw.optional.arm.FEAT_DIT", &feature, &size, nullptr, 0) == 0 &&
-               feature != 0;
+        int dit_feature = 0;
+        std::size_t byte_count = sizeof dit_feature;
+        return sysctlbyname("hw.optional.arm.FEAT_DIT", &dit_feature, &byte_count, nullptr, 0) ==
+                   0 &&
+               dit_feature != 0;
     }();
     return has_dit;
 #elif defined(WEBCPP_CRYPTO_DETAIL_TIMING_COVERED)
@@ -109,9 +110,9 @@ inline void write_dit(std::uint64_t value) noexcept {
     if (!cpu_has_dit()) {
         return false;
     }
-    std::uint64_t state = 0;
-    __asm__ volatile("mrs %0, s3_3_c4_c2_5" : "=r"(state) : : "memory");
-    return (state & dit_bit) != 0;
+    std::uint64_t saved_state = 0;
+    __asm__ volatile("mrs %0, s3_3_c4_c2_5" : "=r"(saved_state) : : "memory");
+    return (saved_state & dit_bit) != 0;
 #else
     return false;
 #endif
@@ -135,10 +136,11 @@ public:
     /**
      * Runs the seam, then sets DIT where the CPU has it and it is clear: a test's build alone.
      *
-     * @param where Where the guard is declared, the default: the seam's argument alone.
+     * @param guard_location Where the guard is declared, the default: the seam's argument alone.
      */
-    explicit timing_guard(std::source_location where = std::source_location::current()) noexcept {
-        WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED(where);
+    explicit timing_guard(
+        std::source_location guard_location = std::source_location::current()) noexcept {
+        WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED(guard_location);
         enter();
     }
 #else

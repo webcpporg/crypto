@@ -85,9 +85,13 @@ bool x25519_to_pem() {
         0x72, 0x51, 0xb2, 0x66, 0x45, 0xdf, 0x4c, 0x2f, 0x87, 0xeb, 0xc0,
         0x99, 0x2a, 0xb1, 0x77, 0xfb, 0xa5, 0x1d, 0xb9, 0x2c, 0x2a,
     };
-    auto const public_key = x25519::public_key(alice_secret);
+    auto const alice = x25519::keypair::from_secret(alice_secret);
+    if (!alice) {
+        return false;
+    }
+    auto const public_key = alice->public_key();
     std::array<std::uint8_t, x25519::max_spki_size> spki{};
-    return public_key && x25519::encode_spki(*public_key, spki) && print_public_pem(spki);
+    return public_key && x25519::encode_spki(public_key->bytes(), spki) && print_public_pem(spki);
 }
 
 // Version 2 decodes from PEM, then the PKCS#8 is refused: strict decoding takes one form.

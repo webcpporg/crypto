@@ -55,7 +55,7 @@ int main() {
         0x57, 0x67, 0xb1, 0xd6, 0x93, 0x4e, 0x50, 0xc3, 0xdb, 0x36, 0xe8,
         0x9b, 0x12, 0x7b, 0x8a, 0x62, 0x2b, 0x12, 0x0f, 0x67, 0x21,
     };
-    auto const key = p256::keypair::make(scalar);
+    auto const key = p256::keypair::from_secret(scalar);
     auto const public_key = key ? key->public_key() : key.error();
     if (!public_key) {
         std::printf("failed\n");
@@ -70,7 +70,7 @@ int main() {
         std::printf("failed\n");
         return 1;
     }
-    print("signature ", *signature);
+    print("signature ", signature->bytes());
     // Always low S: the RFC's own S is high, and sign gives n - s.
     std::printf("low S      %s\n", p256::is_low_s(*signature) ? "yes" : "no");
 

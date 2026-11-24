@@ -158,38 +158,40 @@ bool ed25519_case(std::mt19937_64& rng, std::size_t index) {
     auto const key_seed = random_array<32>(rng);
     // The first message is empty; the others cross SHA-512's block of 128 bytes.
     bytes const message = index == 0 ? bytes{} : random_bytes(rng, 1, 300);
-    auto const pair = ed25519::keypair::make(key_seed);
+    auto const pair = ed25519::keypair::from_secret(key_seed);
     BOOST_TEST(pair.has_value());
     if (!pair) {
         return false;
     }
     auto const public_key = pair->public_key();
-    auto signature = pair->sign(crypto::eddsa, message);
+    auto const signed_message = pair->sign(crypto::eddsa, message);
     BOOST_TEST(public_key.has_value());
-    BOOST_TEST(signature.has_value());
-    if (!public_key || !signature) {
+    BOOST_TEST(signed_message.has_value());
+    if (!public_key || !signed_message) {
         return false;
     }
-    BOOST_TEST(crypto::verify(crypto::eddsa, *signature, message, *public_key).has_value());
+    BOOST_TEST(crypto::verify(crypto::eddsa, *signed_message, message, *public_key).has_value());
+    // The signature's bytes, as WebCrypto is given them.
+    auto signature = signed_message->bytes();
     if (corrupted && index == corrupted_ed25519) {
-        (*signature)[5] ^= 0x01U;
+        signature[5] ^= 0x01U;
     }
     std::array<std::uint8_t, 32> oracle_public_key{};
     std::array<std::uint8_t, 64> oracle_signature{};
     int verified = 0;
     auto const public_key_bytes = public_key->bytes();
     int const ran = subtle_ed25519(key_seed.data(), public_key_bytes.data(), message.data(),
-                                   message.size(), signature->data(), oracle_public_key.data(),
+                                   message.size(), signature.data(), oracle_public_key.data(),
                                    oracle_signature.data(), &verified);
     BOOST_TEST_EQ(ran, 0);
     bool const agrees = ran == 0 && verified == 1 && oracle_public_key == public_key_bytes &&
-                        oracle_signature == *signature;
+                        oracle_signature == signature;
     if (!agrees) {
         std::printf(
             "Ed25519 case %zu: WebCrypto disagrees (verified %d, public key %s, "
             "signature %s)\n",
             index, verified, oracle_public_key == public_key_bytes ? "equal" : "differs",
-            oracle_signature == *signature ? "equal" : "differs");
+            oracle_signature == signature ? "equal" : "differs");
     }
     return agrees;
 }
@@ -198,15 +200,22 @@ bool ed25519_case(std::mt19937_64& rng, std::size_t index) {
 bool x25519_case(std::mt19937_64& rng, std::size_t index) {
     auto const secret_key = random_array<32>(rng);
     auto const peer_secret_key = random_array<32>(rng);
-    auto const public_key = x25519::public_key(secret_key);
-    auto const peer_public_key = x25519::public_key(peer_secret_key);
+    auto const key_pair = x25519::keypair::from_secret(secret_key);
+    auto const peer_pair = x25519::keypair::from_secret(peer_secret_key);
+    BOOST_TEST(key_pair.has_value());
+    BOOST_TEST(peer_pair.has_value());
+    if (!key_pair || !peer_pair) {
+        return false;
+    }
+    auto const public_key = key_pair->public_key();
+    auto const peer_public_key = peer_pair->public_key();
     BOOST_TEST(public_key.has_value());
     BOOST_TEST(peer_public_key.has_value());
     if (!public_key || !peer_public_key) {
         return false;
     }
-    auto const shared = x25519::agree(secret_key, *peer_public_key);
-    auto const peer_shared = x25519::agree(peer_secret_key, *public_key);
+    auto const shared = key_pair->agree(*peer_public_key);
+    auto const peer_shared = peer_pair->agree(*public_key);
     BOOST_TEST(shared.has_value());
     BOOST_TEST(peer_shared.has_value());
     if (!shared || !peer_shared) {
@@ -221,15 +230,15 @@ bool x25519_case(std::mt19937_64& rng, std::size_t index) {
     }
     std::array<std::uint8_t, 32> oracle_public_key{};
     std::array<std::uint8_t, 32> oracle_shared{};
-    int const ran = subtle_x25519(secret_key.data(), peer_public_key->data(),
+    int const ran = subtle_x25519(secret_key.data(), peer_public_key->bytes().data(),
                                   oracle_public_key.data(), oracle_shared.data());
     BOOST_TEST_EQ(ran, 0);
-    bool const agrees = ran == 0 && oracle_public_key == *public_key &&
+    bool const agrees = ran == 0 && oracle_public_key == public_key->bytes() &&
                         bytes(oracle_shared.begin(), oracle_shared.end()) == expected;
     if (!agrees) {
         std::printf(
             "X25519 case %zu: WebCrypto disagrees (public key %s, shared secret %s)\n", index,
-            oracle_public_key == *public_key ? "equal" : "differs",
+            oracle_public_key == public_key->bytes() ? "equal" : "differs",
             bytes(oracle_shared.begin(), oracle_shared.end()) == expected ? "equal" : "differs");
     }
     return agrees;

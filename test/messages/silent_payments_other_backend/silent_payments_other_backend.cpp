@@ -20,6 +20,6 @@ int main() {
     namespace sp = webcpp::crypto::curves::secp256k1::silent_payments;
     std::array<std::uint8_t, sp::outpoint_size> const outpoint{};
     auto const summary =
-        sp::make_prevouts_summary<webcpp::crypto::backends::bearssl>(outpoint, {}, {}, {});
+        sp::make_previous_outputs_summary<webcpp::crypto::backends::bearssl>(outpoint, {}, {}, {});
     return summary ? 0 : 1;
 }

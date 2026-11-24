@@ -10,9 +10,9 @@
 // encodings. The secrets and the randomness are fixed here, so that the program runs the same
 // each time; a real program draws all four from random_device. Nothing random is printed.
 // tag::program[]
+#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
-#include <webcpp/crypto/equal.hpp>
 #include <webcpp/crypto/error.hpp>
 
 #include <array>
@@ -34,8 +34,8 @@ std::array<std::uint8_t, 32> repeated(std::uint8_t value) {
 
 int main() {
     // Each peer's key pair and the randomness of its encoding (random_device in a real program).
-    auto const initiator = secp256k1::keypair::make(repeated(0x11));
-    auto const responder = secp256k1::keypair::make(repeated(0x22));
+    auto const initiator = secp256k1::keypair::from_secret(repeated(0x11));
+    auto const responder = secp256k1::keypair::from_secret(repeated(0x22));
     if (!initiator || !responder) {
         return 1;
     }
@@ -64,7 +64,7 @@ int main() {
     auto const responder_secret = secp256k1::ellswift_xdh(
         *responder, *initiator_message, *responder_message, secp256k1::ellswift_party::responder);
     if (!initiator_secret || !responder_secret ||
-        !crypto::equal(initiator_secret->bytes(), responder_secret->bytes())) {
+        !crypto::constant_time_equal(initiator_secret->bytes(), responder_secret->bytes())) {
         return 1;
     }
     std::printf("initiator and responder agree\n");

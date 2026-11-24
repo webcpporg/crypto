@@ -96,7 +96,7 @@ bool store_and_read(secp256k1::keypair const& key_pair) {
 int main() {
     std::array<std::uint8_t, 32> secret_key{};
     secret_key.fill(0x11);
-    auto const key_pair = secp256k1::keypair::make(secret_key);
+    auto const key_pair = secp256k1::keypair::from_secret(secret_key);
     if (!key_pair || !store_and_read(*key_pair)) {
         std::printf("failed\n");
         return 1;

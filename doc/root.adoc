@@ -8,17 +8,23 @@
 == The root utilities: `webcpp::crypto`
 
 The namespace `webcpp::crypto` holds what every other chapter relies on: where
-secrets come from (`random_device`), how a secret is checked (`equal`) and how
-a failure is told apart (`error`), none of which needs a backend; and how a
-key's standard form becomes text and back (`pem`, on libsodium;
-<<crypto-key-formats>>). It also declares, for a native program on OpenSSL that
-turns the memory option on, the resource every allocation of OpenSSL's goes to
-(`openssl_memory_resource`, <<crypto-memory-openssl>>). And it holds what every
-curve's signatures share: the schemes, the `prehashed` marker, `crypto::sign`
-and `crypto::verify` (`<webcpp/crypto/signing.hpp>`), and the key pair
-contract, the concept `crypto::keypair`, with `crypto::agree`
-(`<webcpp/crypto/keypair.hpp>`; <<crypto-curves-signatures>>); and the free
-forms that make an object by its type, `crypto::make` and `crypto::generate`
-(`<webcpp/crypto/make.hpp>`; <<crypto-curves-four-forms>>).
+secrets come from (`random_device`), how a secret is checked
+(`constant_time_equal`), erased from a buffer of the program's
+(`erase_secret`) and held so that it wipes itself (`secret<N>`), the four
+utilities of <<crypto-protecting-secrets>>, and how a failure is told apart
+(`error`), none of which needs a backend; and how a key's standard form
+becomes text and back (`pem`, on libsodium; <<crypto-key-formats>>). It also
+declares, for a native program on OpenSSL that turns the memory option on, the
+resource every allocation of OpenSSL's goes to (`openssl_memory_resource`,
+<<crypto-memory-openssl>>). And it holds what every curve's signatures share:
+the schemes, the `prehashed` marker and `crypto::verify`
+(`<webcpp/crypto/signing.hpp>`; <<crypto-curves-signatures>>); the key pair
+concepts, `crypto::keypair`, `crypto::signing_keypair` and
+`crypto::agreement_keypair`, with `crypto::sign` and `crypto::agree`
+(`<webcpp/crypto/keypair.hpp>`; <<crypto-curves-keypair>>); and the free forms
+that make an object by its type, each named by its input,
+`crypto::from_secret`, `crypto::from_bytes`, `crypto::from_key` and
+`crypto::generate` (`<webcpp/crypto/factories.hpp>`;
+<<crypto-curves-factories>>).
 
 include::generated/namespace-root.adoc[]

@@ -4,11 +4,12 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// ciphers::aead given a family that is no AEAD's, AES-GCM's, stops with the families it
-// takes, and with that error alone.
+// ciphers::basic_chacha20_poly1305 given a family that is no AEAD's, AES-GCM's, stops with the
+// families it takes, the three ChaCha20-Poly1305 AEADs (a secret box, which takes no associated
+// data, is secret_key_encryption::basic_secretbox), and with that error alone.
 
 // clang-format off
-// expected-error@webcpp/crypto/ciphers/aead.hpp:* {{webcpp::crypto: ciphers::aead takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original, families::xchacha20_poly1305, families::secretbox_xsalsa20poly1305 or families::secretbox_xchacha20poly1305.}}
+// expected-error@webcpp/crypto/ciphers/aead.hpp:* {{webcpp::crypto: ciphers::basic_chacha20_poly1305 takes an AEAD family: families::chacha20_poly1305, families::chacha20_poly1305_original or families::xchacha20_poly1305.}}
 // clang-format on
 #include <webcpp/crypto/ciphers/aead.hpp>
 
@@ -17,7 +18,8 @@
 
 int main() {
     namespace crypto = webcpp::crypto;
-    using aead = crypto::ciphers::aead<crypto::families::gcm, crypto::backends::sodium>;
+    using cipher =
+        crypto::ciphers::basic_chacha20_poly1305<crypto::families::gcm, crypto::backends::sodium>;
     std::array<std::uint8_t, 32> const key{};
-    return aead::make(key) ? 0 : 1;
+    return cipher::from_key(key) ? 0 : 1;
 }

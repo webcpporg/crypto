@@ -11,7 +11,7 @@
 // clang's -verify reads a directive from one comment line: wrapped, it checks nothing, so each
 // whole text stays on one line.
 // clang-format off
-// expected-error@webcpp/crypto/signing.hpp:* {{webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa takes a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable signature gives its key to curves::secp256k1::recover.}}
+// expected-error@webcpp/crypto/signing.hpp:* {{webcpp::crypto: verify: this public key does not go with this scheme: crypto::eddsa and crypto::eddsa_prehashed take a curves::ed25519::public_key, crypto::ecdsa_sha256 a curves::p256::basic_public_key or a curves::secp256k1::public_key, crypto::schnorr a curves::secp256k1::public_key or a 32-byte x-only key; a crypto::ecdsa_sha256_recoverable or a crypto::ecdsa_keccak256_recoverable signature gives its key to curves::secp256k1::recover.}}
 // clang-format on
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/signing.hpp>
@@ -21,7 +21,7 @@
 
 int main() {
     namespace crypto = webcpp::crypto;
-    std::array<std::uint8_t, 64> const signature{};
+    crypto::curves::secp256k1::ecdsa_signature const signature{};
     std::array<std::uint8_t, 5> const message{'h', 'e', 'l', 'l', 'o'};
     return crypto::verify(crypto::ecdsa_sha256, signature, message, std::array<std::uint8_t, 33>{})
                ? 0

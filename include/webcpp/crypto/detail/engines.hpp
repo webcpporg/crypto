@@ -41,17 +41,35 @@ struct gcm_state;
 /** The work of GCM on a backend (see @ref block_state). */
 template <class Backend, std::size_t KeySize>
 struct gcm_engine;
-/** What a `ciphers::aead` of the family `Family` stores (see @ref block_state). */
+/**
+ * What a `ciphers::basic_chacha20_poly1305` of the family `Family` stores (see @ref block_state).
+ */
 template <class Family, class Backend>
 struct aead_state;
 /**
- * The work of a `ciphers::aead` of the family `Family` on a backend, whose specialisation
- * provides `init(state&, key)`, `seal(state&, iv, additional_data, data, tag&)`,
- * `open(state&, iv, additional_data, data, tag const&)`, `move(to, from)` and `reset(state&)`
+ * The work of a `ciphers::basic_chacha20_poly1305` of the family `Family` on a backend, whose
+ * specialisation provides `init(state&, key)`, `seal(state&, nonce, associated_data, data, tag&)`,
+ * `open(state&, nonce, associated_data, data, tag const&)`, `move(to, from)` and `reset(state&)`
  * (see @ref block_state).
  */
 template <class Family, class Backend>
 struct aead_engine;
+
+/**
+ * What a `secret_key_encryption::basic_secretbox` of the family `Family` stores (see
+ * @ref block_state).
+ */
+template <class Family, class Backend>
+struct secretbox_state;
+
+/**
+ * The work of a `secret_key_encryption::basic_secretbox` of the family `Family` on a backend,
+ * whose specialisation provides `init(state&, key)`, `seal(state&, nonce, data, tag&)`,
+ * `open(state&, nonce, data, tag const&)`, `move(to, from)` and `reset(state&)`, with no
+ * associated data (see @ref block_state).
+ */
+template <class Family, class Backend>
+struct secretbox_engine;
 
 /**
  * Reads a backend's canary with a volatile load, which no linker can drop: a program built

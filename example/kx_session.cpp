@@ -10,9 +10,10 @@
 // of low order is refused. Prints the public keys and the client's session keys in hex.
 // tag::program[]
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
-#include <webcpp/crypto/curves/x25519/kx.hpp>
-#include <webcpp/crypto/equal.hpp>
+#include <webcpp/crypto/constant_time_equal.hpp>
+#include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/crypto/key_exchange/kx.hpp>
 
 #include <array>
 #include <cstddef>
@@ -21,7 +22,7 @@
 #include <span>
 
 namespace crypto = webcpp::crypto;
-namespace x25519 = webcpp::crypto::curves::x25519;
+namespace key_exchange = webcpp::crypto::key_exchange;
 
 namespace {
 
@@ -36,9 +37,9 @@ void print(char const* name, std::span<std::uint8_t const> bytes) {
 
 // The client sends "hello" to the server, sealed with the client's transmit key and opened with
 // the server's receive key, the same key.
-bool message(x25519::session_keys const& client, x25519::session_keys const& server) {
-    auto sealer = crypto::ciphers::chacha20_poly1305<>::make(client.transmit.bytes());
-    auto opener = crypto::ciphers::chacha20_poly1305<>::make(server.receive.bytes());
+bool message(key_exchange::session_keys const& client, key_exchange::session_keys const& server) {
+    auto sealer = crypto::ciphers::chacha20_poly1305<>::from_key(client.transmit.bytes());
+    auto opener = crypto::ciphers::chacha20_poly1305<>::from_key(server.receive.bytes());
     if (!sealer || !opener) {
         return false;
     }
@@ -67,8 +68,8 @@ bool client_and_server() {
     }
     std::array<std::uint8_t, 32> server_seed = client_seed;
     server_seed[0] = 1;
-    auto const client = x25519::kx_keypair<>::make(client_seed);
-    auto const server = x25519::kx_keypair<>::make(server_seed);
+    auto const client = key_exchange::kx_keypair<>::derive_from_seed(client_seed);
+    auto const server = key_exchange::kx_keypair<>::derive_from_seed(server_seed);
     if (!client || !server) {
         return false;
     }
@@ -78,8 +79,8 @@ bool client_and_server() {
     if (!client_public || !server_public) {
         return false;
     }
-    print("client public", *client_public);
-    print("server public", *server_public);
+    print("client public", client_public->bytes());
+    print("server public", server_public->bytes());
     auto const client_keys = client->client_session_keys(*server_public);
     auto const server_keys = server->server_session_keys(*client_public);
     if (!client_keys || !server_keys) {
@@ -88,19 +89,22 @@ bool client_and_server() {
     // Printed here only because libsodium's test publishes them; a program never prints a key.
     print("client rx    ", client_keys->receive.bytes());
     print("client tx    ", client_keys->transmit.bytes());
-    return crypto::equal(client_keys->transmit.bytes(), server_keys->receive.bytes()) &&
-           crypto::equal(client_keys->receive.bytes(), server_keys->transmit.bytes()) &&
+    return crypto::constant_time_equal(client_keys->transmit.bytes(),
+                                       server_keys->receive.bytes()) &&
+           crypto::constant_time_equal(client_keys->receive.bytes(),
+                                       server_keys->transmit.bytes()) &&
            message(*client_keys, *server_keys);
 }
 
 // A peer key of low order gives an all-zero X25519 secret, which crypto_kx refuses.
 bool low_order_refused() {
-    auto const key = x25519::kx_keypair<>::make(std::array<std::uint8_t, 32>{});
-    std::array<std::uint8_t, 32> const zero_point{};
-    if (!key) {
+    auto const key = key_exchange::kx_keypair<>::derive_from_seed(std::array<std::uint8_t, 32>{});
+    auto const zero_point =
+        crypto::curves::x25519::public_key::from_bytes(std::array<std::uint8_t, 32>{});
+    if (!key || !zero_point) {
         return false;
     }
-    auto const keys = key->server_session_keys(zero_point);
+    auto const keys = key->server_session_keys(*zero_point);
     if (!keys && keys.error() == crypto::error::weak_public_key) {
         std::printf("low order     refused: weak_public_key\n");
         return true;

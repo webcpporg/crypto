@@ -56,7 +56,7 @@ boost::system::result<secp256k1::keypair> generate_key() {
         if (!filled) {
             return filled.error();
         }
-        auto key = secp256k1::keypair::make(secret);
+        auto key = secp256k1::keypair::from_secret(secret);
         // Not every 32 bytes are a key (zero, or too large), which is astronomically rare:
         // draw again. Any other error is real.
         if (key || key.error() != crypto::error::invalid_secret_key) {

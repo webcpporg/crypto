@@ -120,12 +120,15 @@ tag secret under Valgrind's memcheck, as
 link:https://github.com/agl/ctgrind[ctgrind] does, and, in a clang build, under
 MemorySanitizer, which only clang has (a gcc build runs memcheck alone): any
 branch or memory index that depends on them fails the run. The lane covers
-`constant_time_equal`, `is_all_zero` and the wipe of `secret<N>`; BearSSL's
-AES-GCM and ChaCha20-Poly1305 `from_key`, `seal` and `open`; OpenSSL's
+`constant_time_equal`, `is_all_zero`, `erase_secret` and the wipe of
+`secret<N>`; BearSSL's AES-GCM and ChaCha20-Poly1305 `from_key`, `seal` and
+`open`; OpenSSL's
 `from_key` and `seal` of both; ctaes's AES; libsodium's Ed25519 key pair and
-signature, X25519's public key and agreement, its three ChaCha20-Poly1305 AEADs
+signature, X25519's public key, agreement and the key pair's wipe by a move, a
+move assignment and the destructor, its three ChaCha20-Poly1305 AEADs
 and the two secret boxes of `secret_key_encryption`, `public_key_encryption::box`
-in both families, the sealed box's `seal` and `open`, and `kx`; libsecp256k1's own
+in both families, the sealed box's `seal` and `open`, and `kx` from a seed and
+from an X25519 key pair (`from_keypair`); libsecp256k1's own
 `ctime_tests.c`; and
 webcpp's code around libsecp256k1: the key pair's making, its BIP 340,
 recoverable and hedged ECDSA signatures and x-only tweak, ECDH in its three

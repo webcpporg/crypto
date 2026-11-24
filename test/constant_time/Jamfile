@@ -12,8 +12,9 @@
 # and ChaCha20-Poly1305 from_key, seal and open, OpenSSL's from_key and seal of
 # both (its open branches on the verdict inside OpenSSL, where webcpp cannot
 # mark it public), ctaes's from_key, encrypt and decrypt, constant_time_equal,
-# is_all_zero, secret's wipe, libsodium's Ed25519, X25519, three AEADs, two
-# secret boxes, two boxes, the sealed box and kx (its own branches on a verdict
+# is_all_zero, erase_secret, secret's wipe, libsodium's Ed25519, X25519 and its
+# key pair's wipe, three AEADs, two secret boxes, two boxes, the sealed box and
+# kx from a seed and from a key pair (its own branches on a verdict
 # listed in sodium_verdicts.supp), libsecp256k1's own ctime_tests.c, and
 # webcpp's code around libsecp256k1: the key pair's making and secret(),
 # signatures and x-only tweak, ECDH in three forms (agree, agree_hashed and

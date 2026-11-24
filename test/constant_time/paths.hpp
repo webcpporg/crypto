@@ -46,6 +46,7 @@
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/detail/bytes.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
+#include <webcpp/crypto/erase_secret.hpp>
 #include <webcpp/crypto/key_exchange/kx.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
@@ -157,6 +158,16 @@ int secret_wipe() {
             {reinterpret_cast<std::uint8_t const*>(storage.data()), storage.size()});
     return check(moved_from_wiped && assigned_from_wiped && kept && destroyed_wiped,
                  "secret's wipe");
+}
+
+/** erase_secret: it overwrites a secret buffer with constants, without a branch on its bytes. */
+template <class Checker>
+int erase_secret_path() {
+    std::array<std::uint8_t, 32> buffer{};
+    buffer.fill(0x42);
+    Checker::mark_secret(buffer);
+    crypto::erase_secret(buffer);
+    return check(clear_of_mark<Checker>(buffer), "erase_secret");
 }
 
 /**
@@ -283,6 +294,51 @@ int sodium_x25519() {
 }
 
 /**
+ * X25519's key pair's wipe on libsodium: a move, a move assignment and the destructor overwrite
+ * the secret key they leave behind with constants, as `secret_wipe` checks of `secret<N>`; the
+ * public key, computed from the secret key, is marked public, as it is published.
+ */
+template <class Checker>
+int sodium_x25519_keypair_wipe() {
+    using keypair = crypto::curves::x25519::basic_keypair<sodium>;
+    using access = crypto::detail::x25519_access;
+    std::array<std::uint8_t, 32> secret_key{};
+    secret_key.fill(0x42);
+    Checker::mark_secret(secret_key);
+    auto made = keypair::from_secret(secret_key);
+    if (!made) {
+        return check(false, "X25519's key pair's wipe on libsodium");
+    }
+    Checker::mark_public(access::public_bytes(*made));
+    alignas(keypair) std::array<std::byte, sizeof(keypair)> storage{};
+    auto* const first = new (storage.data()) keypair(std::move(*made));
+    // Where the secret key lies in the key pair, read alive, for the destructor's check.
+    auto const offset = static_cast<std::size_t>(
+        reinterpret_cast<std::byte const*>(access::secret_bytes(*first).data()) - storage.data());
+    keypair moved(std::move(*first));
+    bool const moved_from_wiped = clear_of_mark<Checker>(access::secret_bytes(*first));
+    auto other = keypair::from_secret(std::array<std::uint8_t, 32>{});
+    if (!other) {
+        return check(false, "X25519's key pair's wipe on libsodium");
+    }
+    keypair assigned(std::move(*other));
+    assigned = std::move(moved);
+    bool const assigned_from_wiped =
+        clear_of_mark<Checker>(access::secret_bytes(moved));  // NOLINT(bugprone-use-after-move)
+    bool const kept = carries_mark<Checker>(access::secret_bytes(assigned));
+    *first = std::move(assigned);
+    first->~keypair();
+    // MemorySanitizer poisons a destroyed object by itself: only a checker that reads it back
+    // checks the destructor's wipe.
+    bool const destroyed_wiped =
+        !Checker::reads_destroyed ||
+        clear_of_mark<Checker>(
+            {reinterpret_cast<std::uint8_t const*>(storage.data()) + offset, 32});
+    return check(moved_from_wiped && assigned_from_wiped && kept && destroyed_wiped,
+                 "X25519's key pair's wipe on libsodium");
+}
+
+/**
  * A box on libsodium: from_keys with the X25519 key pair of a secret secret key, its public key
  * marked public, then seal and open as an AEAD's. The agreement's verdict is libsodium's own
  * branch (sodium_verdicts.supp).
@@ -350,7 +406,8 @@ int sodium_sealed_box() {
 
 /**
  * kx on libsodium: both key pairs from secret seeds, their public keys marked public where the
- * key pairs keep them, both sides' session keys.
+ * key pairs keep them, both sides' session keys; then a client key pair made by from_keypair
+ * from an X25519 key pair of a secret secret key, and its session keys.
  */
 template <class Checker>
 int sodium_kx() {
@@ -370,10 +427,19 @@ int sodium_kx() {
     auto const server_key = *server->public_key();
     auto const client_keys = client->client_session_keys(server_key);
     auto const server_keys = server->server_session_keys(client_key);
+    std::array<std::uint8_t, 32> adopted_secret{};
+    adopted_secret.fill(0x17);
+    Checker::mark_secret(adopted_secret);
+    auto adopted_pair = keypair::keypair_type::from_secret(adopted_secret);
+    Checker::mark_public(crypto::detail::x25519_access::public_bytes(*adopted_pair));
+    auto const adopted = keypair::from_keypair(std::move(*adopted_pair));
+    auto const adopted_keys = adopted->client_session_keys(server_key);
     return check(client_keys.has_value() && server_keys.has_value() &&
                      carries_mark<Checker>(client_keys->receive.bytes()) &&
                      carries_mark<Checker>(server_keys->transmit.bytes()),
-                 "kx on libsodium");
+                 "kx on libsodium") +
+           check(adopted_keys.has_value() && carries_mark<Checker>(adopted_keys->receive.bytes()),
+                 "kx's from_keypair on libsodium");
 }
 
 /** libsecp256k1's key pair, the type every secp256k1 path below makes. */
@@ -874,10 +940,11 @@ template <class Checker>
 int common_paths() {
     namespace ciphers = crypto::ciphers;
     return constant_time_equal_path<Checker>() + all_zero<Checker>() + secret_wipe<Checker>() +
-           ctaes_block<Checker>() +
+           erase_secret_path<Checker>() + ctaes_block<Checker>() +
            seal_and_open<Checker, ciphers::chacha20_poly1305<crypto::backends::bearssl>>(
                "BearSSL ChaCha") +
            sodium_ed25519<Checker>() + sodium_x25519<Checker>() +
+           sodium_x25519_keypair_wipe<Checker>() +
            seal_and_open<Checker, ciphers::chacha20_poly1305<sodium>>(
                "ChaCha20-Poly1305 on libsodium") +
            seal_and_open<Checker, ciphers::chacha20_poly1305_original<sodium>>(

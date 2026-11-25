@@ -423,8 +423,8 @@ def render_timing(data, timing, titles, backends):
         "guard, which on 64-bit ARM under macOS, iOS, Linux, Android and Windows, where the",
         "CPU has FEAT_DIT, sets DIT (data-independent timing) for the call and restores the",
         "thread's state after it (<<crypto-backends-dit>>): one `mrs`, and where DIT was clear,",
-        "two `msr` each followed by an `isb`. Elsewhere (x86, WebAssembly) it executes no",
-        "instruction.",
+        "two `msr` each followed by an `isb`. Elsewhere (x86, WebAssembly, ARM64EC) it",
+        "executes no instruction.",
         "",
     ]
     if timing is None:

@@ -15,8 +15,8 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
 #include <webcpp/crypto/random_device.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
+#include <webcpp/secure/secret.hpp>
 
 #include <array>
 #include <cstddef>
@@ -27,6 +27,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 using crypto::public_key_encryption::sealed_box;
 using crypto::secret_key_encryption::secretbox;
 
@@ -46,7 +47,7 @@ struct upload {
 bool share(crypto::random_device& device,
            crypto::curves::x25519::public_key const& recipient_public_key,
            std::string_view contents, upload& out) {
-    crypto::secret<32> file_key;
+    secure::secret<32> file_key;
     if (!device.fill(file_key.writable()) || !device.fill(out.nonce)) {
         return false;
     }
@@ -68,7 +69,7 @@ bool share(crypto::random_device& device,
 // tag::receive[]
 // The recipient: the file key out of the sealed box, then the file out of the secret box.
 void receive(char const* who, crypto::curves::x25519::keypair const& key_pair, upload received) {
-    crypto::secret<32> file_key;
+    secure::secret<32> file_key;
     auto const key_opened = sealed_box::open(key_pair, received.sealed_key, file_key.writable());
     if (!key_opened) {
         std::string const reason = key_opened.error().message();

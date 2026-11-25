@@ -28,14 +28,14 @@
 #include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/bytes.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
-#include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: random_device draws generate()'s secret
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/declassify.hpp>
+#include <webcpp/secure/secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -82,10 +82,10 @@ struct x25519_operations {
      * @return 32 secret bytes; `weak_public_key` for a peer key of low order, whose shared secret
      * is all zero; `backend_failure`.
      */
-    [[nodiscard]] static boost::system::result<secret<32>> agree(
+    [[nodiscard]] static boost::system::result<secure::secret<32>> agree(
         std::span<std::uint8_t const, 32> secret_key,
         std::span<std::uint8_t const, 32> peer_public_key) noexcept {
-        secret<32> shared_bytes;
+        secure::secret<32> shared_bytes;
         auto const engine_done =
             engine::agree(secret_key, peer_public_key, shared_bytes.writable());
         if (!engine_done) {
@@ -94,10 +94,10 @@ struct x25519_operations {
         // Every backend gives the same answer: libsodium refuses an all-zero result itself,
         // and the others are checked here, in constant time (design D8). Whether it is all zero
         // is public, since it is reported: marked so for the constant-time checks, and not const,
-        // so that the branch reads it again after the mark (detail/declassify.hpp's tip).
+        // so that the branch reads it again after the mark (secure::declassify's tip).
         // NOLINTNEXTLINE(misc-const-correctness): see above
         bool all_zero = is_all_zero(shared_bytes.bytes());
-        WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&all_zero, sizeof all_zero);
+        secure::declassify(all_zero);
         if (all_zero) {
             return error::weak_public_key;
         }
@@ -210,7 +210,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<basic_keypair> from_secret(
         std::span<std::uint8_t const> secret_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         static_assert(!detail::asynchronous_backend_v<Backend>,
                       "webcpp::crypto: from_secret on this backend completes asynchronously: call "
                       "async_from_secret.");
@@ -240,7 +240,7 @@ public:
      * none; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<basic_keypair> generate() noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         static_assert(!detail::asynchronous_backend_v<Backend>,
                       "webcpp::crypto: generate on this backend completes asynchronously: call "
                       "async_generate.");
@@ -248,7 +248,7 @@ public:
             // Never compiled into a program: the assertion above stopped the build.
             return error::backend_failure;
         } else {
-            crypto::secret<secret_key_size> drawn_secret;
+            secure::secret<secret_key_size> drawn_secret;
             auto const entropy_drawn =
                 random_device().fill(drawn_secret.writable());  // lint-world: the secret key
             if (!entropy_drawn) {
@@ -357,11 +357,11 @@ public:
      *
      * @return 32 secret bytes; `invalid_state` moved from.
      */
-    [[nodiscard]] boost::system::result<crypto::secret<secret_key_size>> secret() const noexcept {
+    [[nodiscard]] boost::system::result<secure::secret<secret_key_size>> secret() const noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
-        crypto::secret<secret_key_size> secret_copy;
+        secure::secret<secret_key_size> secret_copy;
         std::ranges::copy(secret_value_.bytes(), secret_copy.writable().begin());
         return secret_copy;
     }
@@ -377,9 +377,9 @@ public:
      * @return 32 secret bytes; `invalid_state` moved from; `weak_public_key` for a peer key of low
      * order, whose shared secret is all zero; `backend_failure`.
      */
-    [[nodiscard]] boost::system::result<crypto::secret<32>> agree(
+    [[nodiscard]] boost::system::result<secure::secret<32>> agree(
         public_key_type const& peer_key) const noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<Backend>,
             "webcpp::crypto: agree on this backend completes asynchronously: call async_agree.");
@@ -411,7 +411,7 @@ public:
      * @param completion_executor The executor the completion is posted to.
      * @param peer_key The peer's public key.
      * @param completion_token The completion token, of signature
-     * `void(boost::system::error_code, crypto::secret<32>)`: the shared secret; on an error a
+     * `void(boost::system::error_code, secure::secret<32>)`: the shared secret; on an error a
      * secret of zeros (`invalid_state`, `weak_public_key`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
@@ -422,7 +422,7 @@ public:
 private:
     basic_keypair() noexcept = default;
 
-    crypto::secret<secret_key_size> secret_value_;
+    secure::secret<secret_key_size> secret_value_;
     std::array<std::uint8_t, public_key_type::public_key_size> public_bytes_{};
     bool keyed_ = false;
 };

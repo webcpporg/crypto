@@ -7,7 +7,7 @@
 /**
  secp256k1's ElligatorSwift on libsecp256k1: a public key written as 64 bytes that cannot be
  told from random ones, read back from any 64 bytes, made from a key pair's secret, and the
- x-only key exchange of two such encodings, hashed as BIP 324 hashes it into a `secret<32>`.
+ x-only key exchange of two such encodings, hashed as BIP 324 hashes it into a `secure::secret<32>`.
 
  @see "ElligatorSwift: keys that look like noise", in the guide's secp256k1 chapter.
 */
@@ -20,9 +20,9 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -74,7 +74,7 @@ enum class ellswift_party {
 template <class Backend = default_backend_t<families::secp256k1_ellswift>>
 [[nodiscard]] std::array<std::uint8_t, ellswift_size> ellswift_encode(
     public_key const& parsed_key, std::span<std::uint8_t const, 32> randomness_bytes) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -97,7 +97,7 @@ template <class Backend = default_backend_t<families::secp256k1_ellswift>>
 template <class Backend = default_backend_t<families::secp256k1_ellswift>>
 [[nodiscard]] public_key ellswift_decode(
     std::span<std::uint8_t const, ellswift_size> encoded_key) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -124,7 +124,7 @@ template <class Backend>
 [[nodiscard]] boost::system::result<std::array<std::uint8_t, ellswift_size>> ellswift_create(
     basic_keypair<Backend> const& key_pair,
     std::span<std::uint8_t const, 32> randomness_bytes) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -161,12 +161,12 @@ template <class Backend>
  * @return 32 secret bytes; `invalid_state` moved from; `backend_failure`.
  */
 template <class Backend>
-[[nodiscard]] boost::system::result<secret<32>> ellswift_xdh(
+[[nodiscard]] boost::system::result<secure::secret<32>> ellswift_xdh(
     basic_keypair<Backend> const& key_pair,
     std::span<std::uint8_t const, ellswift_size> initiator_encoding,
     std::span<std::uint8_t const, ellswift_size> responder_encoding,
     ellswift_party our_party) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     static_assert(
         webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1_ellswift, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
@@ -177,7 +177,7 @@ template <class Backend>
     webcpp::crypto::detail::secp256k1_secret native_secret;
     secp256k1_keypair_sec(access::context(key_pair), native_secret.bytes.data(),
                           &access::pair(key_pair));
-    secret<32> shared_secret;
+    secure::secret<32> shared_secret;
     // The secret is valid and BIP 324's hash never fails: libsecp256k1 returns 1.
     if (!webcpp::crypto::detail::secp256k1_accepted(secp256k1_ellswift_xdh(
             access::context(key_pair), shared_secret.writable().data(), initiator_encoding.data(),

@@ -35,7 +35,7 @@
 
 #include <webcpp/crypto/detail/heavy.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/counting.hpp"
@@ -80,10 +80,11 @@
 
 namespace asio = webcpp::asio;
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 
 namespace {
 
-using key = crypto::secret<32>;
+using key = secure::secret<32>;
 
 // The caller's thread, set by main before any work, and where the work of async_slow ran. Global:
 // the work is a function of its own, which the test does not reach otherwise.

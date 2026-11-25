@@ -10,8 +10,8 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/detail/windows.hpp>
-#include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <boost/system/errc.hpp>
 #include <boost/system/result.hpp>
@@ -146,7 +146,7 @@ inline constexpr std::size_t entropy_piece = 256;
             (std::min)(output_bytes.size() - filled_count, entropy_piece);
         auto const read_result = read_entropy(output_bytes.data() + filled_count, piece_size);
         if (!read_result) {
-            wipe(output_bytes.data(), output_bytes.size());
+            secure::erase_secret(output_bytes);
             return read_result.error();
         }
     }

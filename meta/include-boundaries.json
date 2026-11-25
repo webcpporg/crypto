@@ -5,20 +5,17 @@
                 "include/webcpp/crypto/ciphers/aes.hpp",
                 "include/webcpp/crypto/ciphers/gcm.hpp",
                 "include/webcpp/crypto/config.hpp",
-                "include/webcpp/crypto/constant_time_equal.hpp",
                 "include/webcpp/crypto/detail/*.hpp",
-                "include/webcpp/crypto/erase_secret.hpp",
                 "include/webcpp/crypto/error.hpp",
                 "include/webcpp/crypto/factories.hpp",
                 "include/webcpp/crypto/keypair.hpp",
                 "include/webcpp/crypto/random_device.hpp",
-                "include/webcpp/crypto/secret.hpp",
                 "include/webcpp/crypto/secret_key_encryption/aead.hpp",
                 "include/webcpp/crypto/secret_key_encryption/authenticated_box.hpp",
                 "include/webcpp/crypto/signing.hpp"
             ],
             "must-not-include": ["bearssl", "openssl/", "ctaes", "secp256k1", "webcpp/crypto/backends/"],
-            "why": "a program that only draws random bytes or compares tags names no backend library (spec section 2.2), nor does the signing vocabulary every curve shares, nor the key pair concepts with their free sign and agree, nor the self-wiping secret<N> they give, nor the free factories (from_secret, from_bytes, from_key, generate) every AEAD's header includes, nor the AEAD and box contracts with their free seal and open, which every AEAD's and box's header includes; the detail headers these include, and secret.hpp, are in the boundary too, since the rule is not transitive"
+            "why": "a program that only draws random bytes names no backend library (spec section 2.2), nor does the signing vocabulary every curve shares, nor the key pair concepts with their free sign and agree, which give webcpp::secure's self-wiping secret<N>, nor the free factories (from_secret, from_bytes, from_key, generate) every AEAD's header includes, nor the AEAD and box contracts with their free seal and open, which every AEAD's and box's header includes; the detail headers these include are in the boundary too, since the rule is not transitive"
         }
     ]
 }

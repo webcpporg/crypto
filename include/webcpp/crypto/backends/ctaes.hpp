@@ -23,7 +23,7 @@
 
 #include <webcpp/crypto/detail/canary.h>
 #include <webcpp/crypto/detail/engines.hpp>
-#include <webcpp/crypto/detail/wipe.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -191,11 +191,13 @@ struct block_engine<backends::ctaes, KeySize> {
     /** Copies the schedule and wipes the source. */
     static void move(state& target_state, state& source_state) noexcept {
         target_state = source_state;
-        wipe_object(source_state);
+        secure::erase_secret(std::span(&source_state, 1));
     }
 
     /** Wipes the schedule. */
-    static void reset(state& engine_state) noexcept { wipe_object(engine_state); }
+    static void reset(state& engine_state) noexcept {
+        secure::erase_secret(std::span(&engine_state, 1));
+    }
 };
 
 /** ctaes exports no GCM, and webcpp builds none on another library's AES. */

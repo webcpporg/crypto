@@ -9,10 +9,10 @@
 // the first thing an attacker looks for, so the copies are wiped as soon as they are not needed.
 // tag::program[]
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
 
 #include <boost/system/result.hpp>
 

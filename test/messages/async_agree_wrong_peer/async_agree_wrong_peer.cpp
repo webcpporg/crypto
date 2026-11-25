@@ -16,7 +16,7 @@
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
 
 #include <webcpp/asio/io_context.hpp>
 
@@ -27,6 +27,7 @@
 
 int main() {
     namespace crypto = webcpp::crypto;
+    namespace secure = webcpp::secure;
     std::array<std::uint8_t, 32> scalar{};
     scalar.back() = 1;
     auto const key = crypto::curves::p256::keypair::from_secret(scalar);
@@ -36,6 +37,6 @@ int main() {
     std::array<std::uint8_t, 65> const peer{0x04};
     webcpp::asio::io_context context;
     crypto::async_agree(context.get_executor(), *key, peer,
-                        [](boost::system::error_code, crypto::secret<32>) {});
+                        [](boost::system::error_code, secure::secret<32>) {});
     return 0;
 }

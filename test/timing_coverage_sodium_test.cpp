@@ -4,13 +4,13 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Every public function that runs libsodium's code enters its own detail::timing_guard and leaves
-// the thread's DIT as it found it, on every target, also where DIT does not apply, each with valid
-// input and with input refused before the backend (support/timing_coverage.hpp). One section per
-// part of the library: the ciphers, the boxes, PEM and the curves.
-// A check fails, naming itself, when its call enters no guard or when the first guard it enters is
-// not the one of the function it names (support/timing_seam.hpp), so that a function that forgot
-// its own guard fails although it calls another guarded function.
+// Every public function that runs libsodium's code enters its own webcpp::secure::timing_guard and
+// leaves the thread's DIT as it found it, on every target, also where DIT does not apply, each with
+// valid input and with input refused before the backend (support/timing_coverage.hpp). One section
+// per part of the library: the ciphers, the boxes, PEM and the curves. A check fails, naming
+// itself, when its call enters no guard or when the first guard it enters is not the one of the
+// function it names (support/timing_seam.hpp), so that a function that forgot its own guard fails
+// although it calls another guarded function.
 //
 // What it covers, by family; a family libsodium gains adds its line and its checks:
 // - ChaCha20-Poly1305, its original form and XChaCha20-Poly1305, aead: from_key, seal, open; the
@@ -85,6 +85,7 @@
 namespace {
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 using crypto::backends::sodium;
 using webcpp::test::covered;
 

@@ -27,11 +27,11 @@
 // agree, and passes when n is 600 and OpenSSL's error queue is empty at the end.
 
 #include <webcpp/crypto/backends/bearssl.hpp>
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -289,8 +289,8 @@ pkey_ptr openssl_read_pkcs8(std::span<std::uint8_t const> pkcs8) {
  * public components alone, so the scalar a PKCS#8 loads is compared on its own. OpenSSL's copy is
  * a BIGNUM freed with BN_clear_free.
  */
-webcpp::crypto::secret<p256::secret_key_size> openssl_scalar(EVP_PKEY const* key) {
-    webcpp::crypto::secret<p256::secret_key_size> scalar;
+webcpp::secure::secret<p256::secret_key_size> openssl_scalar(EVP_PKEY const* key) {
+    webcpp::secure::secret<p256::secret_key_size> scalar;
     BIGNUM* number = nullptr;
     if (EVP_PKEY_get_bn_param(key, OSSL_PKEY_PARAM_PRIV_KEY, &number) != 1) {
         return scalar;
@@ -408,11 +408,11 @@ bool formats_case(std::mt19937_64& generator, std::size_t index) {
     pkey_ptr const from_spki = openssl_read_spki(spki);
     pkey_ptr const from_pkcs8 = openssl_read_pkcs8(pkcs8);
     auto const loaded_scalar = from_pkcs8 ? openssl_scalar(from_pkcs8.get())
-                                          : webcpp::crypto::secret<p256::secret_key_size>{};
+                                          : webcpp::secure::secret<p256::secret_key_size>{};
     bool const openssl_reads_ours =
         BOOST_TEST(from_spki && EVP_PKEY_eq(from_spki.get(), key.get()) == 1) &&
         BOOST_TEST(from_pkcs8 && EVP_PKEY_eq(from_pkcs8.get(), key.get()) == 1) &&
-        BOOST_TEST(webcpp::crypto::constant_time_equal(loaded_scalar.bytes(), scalar));
+        BOOST_TEST(webcpp::secure::constant_time_equal(loaded_scalar.bytes(), scalar));
     bool const agrees = spki_round_trip && pkcs8_round_trip && openssl_reads_ours;
     if (!agrees) {
         static_cast<void>(std::fprintf(stderr, "formats case %zu: OpenSSL disagrees: scalar %s\n",

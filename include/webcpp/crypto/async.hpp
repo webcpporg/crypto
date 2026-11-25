@@ -10,9 +10,9 @@
  `async_initiate`, so that one call works with a callback, `use_awaitable`, Cobalt's `use_op`,
  `deferred`, `as_tuple`, `use_future` and every other completion token. An operation that returns
  a value completes with `void(boost::system::error_code, T)`, the value second, and on an error
- the empty object a move leaves (a `secret<N>`, a signature or an array of zeros, a `gcm` or a key
- pair without a key, whose every member refuses with `invalid_state`); one without a value completes
- with `void(boost::system::error_code)`.
+ the empty object a move leaves (a `secure::secret<N>`, a signature or an array of zeros, a `gcm` or
+ a key pair without a key, whose every member refuses with `invalid_state`); one without a value
+ completes with `void(boost::system::error_code)`.
 
  - The cheap functions exist on every target, for the algorithms the browser's WebCrypto has,
    and, on a native backend, for every AEAD and box (design D6). Each takes the executor its
@@ -115,14 +115,14 @@
 #include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/heavy.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/secret_key_encryption/aead.hpp>
 #include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
 #include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <webcpp/asio/append.hpp>
 #include <webcpp/asio/async_result.hpp>
@@ -177,8 +177,8 @@ namespace detail {
  * (a key pair, a public key, an AEAD), which, with the bytes the views hold, are the caller's
  * until the completion, as the public functions say.
  * The signatures of the completions are the public functions'. The function's guard
- * (`detail::timing_guard`) is held by the public function (the member, and the free function that
- * calls it) before it calls the engine.
+ * (`webcpp::secure::timing_guard`, secure's guard) is held by the public function (the member, and
+ * the free function that calls it) before it calls the engine.
  *
  * @tparam Backend `backends::browser`.
  */
@@ -625,7 +625,7 @@ template <class Keypair, class Executor, class CompletionToken>
 auto async_from_secret(Executor const& completion_executor,
                        std::span<std::uint8_t const> secret_bytes,
                        CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (!detail::is_webcrypto_keypair_v<Keypair>) {
         static_assert(detail::refused_v<Keypair>,
                       "webcpp::crypto: async_from_secret takes a key pair of an algorithm "
@@ -663,7 +663,7 @@ auto async_from_secret(Executor const& completion_executor,
 template <class Cipher, class Executor, class CompletionToken>
 auto async_from_key(Executor const& completion_executor, std::span<std::uint8_t const> key_bytes,
                     CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (!secret_key_encryption::aead::cipher<Cipher> && !detail::is_secretbox_v<Cipher>) {
         static_assert(detail::refused_v<Cipher>,
                       "webcpp::crypto: async_from_key takes an AEAD (a "
@@ -700,7 +700,7 @@ auto async_from_key(Executor const& completion_executor, std::span<std::uint8_t 
  */
 template <class Keypair = curves::ed25519::keypair, class Executor, class CompletionToken>
 auto async_generate(Executor const& completion_executor, CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (!detail::is_webcrypto_keypair_v<Keypair>) {
         static_assert(detail::refused_v<Keypair>,
                       "webcpp::crypto: async_generate takes a key pair of an algorithm WebCrypto "
@@ -744,7 +744,7 @@ auto async_seal(Executor const& completion_executor, Cipher& aead_cipher,
                 std::span<std::uint8_t const> nonce_bytes,
                 std::span<std::uint8_t const> associated_data_bytes,
                 std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::refuses_async_aead_v<Cipher>) {
         detail::refuse_aead_on_asynchronous_backend<
             typename std::remove_cvref_t<Cipher>::backend_type>();
@@ -784,7 +784,7 @@ auto async_open(Executor const& completion_executor, Cipher& aead_cipher,
                 std::span<std::uint8_t const> associated_data_bytes,
                 std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
                 CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::refuses_async_aead_v<Cipher>) {
         detail::refuse_aead_on_asynchronous_backend<
             typename std::remove_cvref_t<Cipher>::backend_type>();
@@ -870,7 +870,7 @@ template <class Executor, authenticated_box Box, class CompletionToken>
 auto async_seal(Executor const& completion_executor, Box& keyed_box,
                 std::span<std::uint8_t const> nonce_bytes, std::span<std::uint8_t> data_bytes,
                 CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::refuses_async_aead_v<Box>) {
         detail::refuse_aead_on_asynchronous_backend<
             typename std::remove_cvref_t<Box>::backend_type>();
@@ -907,7 +907,7 @@ template <class Executor, authenticated_box Box, class CompletionToken>
 auto async_open(Executor const& completion_executor, Box& keyed_box,
                 std::span<std::uint8_t const> nonce_bytes, std::span<std::uint8_t> data_bytes,
                 std::span<std::uint8_t const> tag_bytes, CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::refuses_async_aead_v<Box>) {
         detail::refuse_aead_on_asynchronous_backend<
             typename std::remove_cvref_t<Box>::backend_type>();
@@ -965,7 +965,7 @@ template <class Keypair, class Executor, class Scheme, class Input, class Comple
     requires signing_keypair<Keypair>
 auto async_sign(Executor const& completion_executor, Keypair const& key_pair, Scheme signing_scheme,
                 Input const& signing_input, CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::ed25519ph_on_browser_v<Keypair, Scheme>) {
         detail::refuse_ed25519ph_on_asynchronous_backend<
             typename detail::key_backend<Keypair>::type>();
@@ -1038,7 +1038,7 @@ auto async_verify(Executor const& completion_executor, eddsa_t signing_scheme,
                   Signature const& signature_value, Input const& message_bytes,
                   curves::ed25519::public_key const& public_key,
                   CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return public_key.template async_verify<Backend>(
         completion_executor, signing_scheme, signature_value, message_bytes,
         std::forward<CompletionToken>(completion_token));
@@ -1074,7 +1074,7 @@ auto async_verify(Executor const& completion_executor, eddsa_t signing_scheme,
                   curves::ed25519::public_key const& public_key,
                   curves::ed25519::strict_t verification_policy,
                   CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return public_key.template async_verify<Backend>(
         completion_executor, signing_scheme, signature_value, message_bytes, verification_policy,
         std::forward<CompletionToken>(completion_token));
@@ -1117,7 +1117,7 @@ auto async_verify(Executor const& completion_executor, eddsa_prehashed_t signing
                   Signature const& signature_value, Input const& digest_input,
                   curves::ed25519::public_key const& public_key,
                   CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
     } else {
@@ -1157,7 +1157,7 @@ auto async_verify(Executor const& completion_executor, eddsa_prehashed_t signing
                   curves::ed25519::public_key const& public_key,
                   curves::ed25519::strict_t verification_policy,
                   CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
     } else {
@@ -1208,7 +1208,7 @@ auto async_verify(Executor const& completion_executor, ecdsa_sha256_t signing_sc
                   Signature const& signature_value, Input const& signing_input,
                   curves::p256::basic_public_key<Backend> const& public_key,
                   CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return public_key.async_verify(completion_executor, signing_scheme, signature_value,
                                    signing_input, std::forward<CompletionToken>(completion_token));
 }
@@ -1274,7 +1274,7 @@ void async_verify([[maybe_unused]] Executor const& completion_executor,
  * `curves::x25519::public_key`, or a `curves::p256::basic_public_key` of the key pair's backend,
  * validated when it was made.
  * @param completion_token The completion token, of signature
- * `void(boost::system::error_code, secret<32>)`: the shared secret, or P-256's shared x,
+ * `void(boost::system::error_code, secure::secret<32>)`: the shared secret, or P-256's shared x,
  * big-endian; on an error a secret of zeros (`invalid_state` for an empty key pair,
  * `weak_public_key` on X25519, `backend_failure`).
  * @return What the completion token's `async_result` gives.
@@ -1283,7 +1283,7 @@ template <class Keypair, class Executor, class PublicKey, class CompletionToken>
     requires detail::agrees_with_peer<Keypair, PublicKey>
 auto async_agree(Executor const& completion_executor, Keypair const& key_pair,
                  PublicKey const& peer_public_key, CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (!detail::is_x25519_keypair_v<Keypair> && !detail::is_p256_keypair_v<Keypair>) {
         detail::refuse_async_agree_keypair<Keypair>();
     } else {
@@ -1338,7 +1338,7 @@ template <class Executor, class CompletionToken>
 auto ciphers::gcm<Cipher>::async_from_key(Executor const& completion_executor,
                                           std::span<std::uint8_t const> key_bytes,
                                           CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return detail::initiate_from_key<gcm>(completion_executor, key_bytes,
                                           std::forward<CompletionToken>(completion_token));
 }
@@ -1350,7 +1350,7 @@ auto ciphers::gcm<Cipher>::async_seal(Executor const& completion_executor,
                                       std::span<std::uint8_t const> associated_data_bytes,
                                       std::span<std::uint8_t> data_bytes,
                                       CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<backend>) {
         return detail::async_engine<backend>::seal(completion_executor, *this, nonce_bytes,
                                                    associated_data_bytes, data_bytes,
@@ -1372,7 +1372,7 @@ auto ciphers::gcm<Cipher>::async_open(Executor const& completion_executor,
                                       std::span<std::uint8_t> data_bytes,
                                       std::span<std::uint8_t const> tag_bytes,
                                       CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<backend>) {
         return detail::async_engine<backend>::open(completion_executor, *this, nonce_bytes,
                                                    associated_data_bytes, data_bytes, tag_bytes,
@@ -1391,7 +1391,7 @@ template <class Executor, class CompletionToken>
 auto ciphers::basic_chacha20_poly1305<Family, Backend>::async_from_key(
     Executor const& completion_executor, std::span<std::uint8_t const> key_bytes,
     CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
@@ -1407,7 +1407,7 @@ auto ciphers::basic_chacha20_poly1305<Family, Backend>::async_seal(
     Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
     std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
     CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
@@ -1425,7 +1425,7 @@ auto ciphers::basic_chacha20_poly1305<Family, Backend>::async_open(
     Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
     std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
     std::span<std::uint8_t const> tag_bytes, CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
@@ -1442,7 +1442,7 @@ template <class Executor, class CompletionToken>
 auto secret_key_encryption::basic_secretbox<Family, Backend>::async_from_key(
     Executor const& completion_executor, std::span<std::uint8_t const> key_bytes,
     CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
@@ -1457,7 +1457,7 @@ template <class Executor, class CompletionToken>
 auto secret_key_encryption::basic_secretbox<Family, Backend>::async_seal(
     Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
     std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
@@ -1473,7 +1473,7 @@ auto secret_key_encryption::basic_secretbox<Family, Backend>::async_open(
     Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
     std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
     CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
@@ -1489,7 +1489,7 @@ template <class Executor, class CompletionToken>
 auto public_key_encryption::basic_box<Family, Backend>::async_seal(
     Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
     std::span<std::uint8_t> data_bytes, CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
@@ -1505,7 +1505,7 @@ auto public_key_encryption::basic_box<Family, Backend>::async_open(
     Executor const& completion_executor, std::span<std::uint8_t const> nonce_bytes,
     std::span<std::uint8_t> data_bytes, std::span<std::uint8_t const> tag_bytes,
     CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         detail::refuse_aead_on_asynchronous_backend<Backend>();
     } else {
@@ -1521,7 +1521,7 @@ template <class Executor, class CompletionToken>
 auto curves::ed25519::basic_keypair<Backend>::async_from_secret(
     Executor const& completion_executor, std::span<std::uint8_t const> seed_bytes,
     CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return detail::initiate_from_secret<basic_keypair>(
         completion_executor, seed_bytes, std::forward<CompletionToken>(completion_token));
 }
@@ -1530,7 +1530,7 @@ template <class Backend>
 template <class Executor, class CompletionToken>
 auto curves::ed25519::basic_keypair<Backend>::async_generate(Executor const& completion_executor,
                                                              CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return detail::initiate_generate<basic_keypair>(
         completion_executor, std::forward<CompletionToken>(completion_token));
 }
@@ -1541,7 +1541,7 @@ auto curves::ed25519::basic_keypair<Backend>::async_sign(Executor const& complet
                                                          Scheme signing_scheme,
                                                          Input const& message_input,
                                                          CompletionToken&& completion_token) const {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::ed25519ph_on_browser_v<basic_keypair, Scheme>) {
         detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
     } else {
@@ -1557,7 +1557,7 @@ auto curves::ed25519::public_key::async_verify(Executor const& completion_execut
                                                Signature const& signature_value,
                                                Input const& message_input,
                                                CompletionToken&& completion_token) const {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (std::is_same_v<Scheme, eddsa_prehashed_t> &&
                   detail::asynchronous_backend_v<Backend>) {
         detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
@@ -1575,7 +1575,7 @@ auto curves::ed25519::public_key::async_verify(Executor const& completion_execut
                                                Signature const& signature_value,
                                                Input const& message_input, strict_t verify_policy,
                                                CompletionToken&& completion_token) const {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (std::is_same_v<Scheme, eddsa_prehashed_t> &&
                   detail::asynchronous_backend_v<Backend>) {
         detail::refuse_ed25519ph_on_asynchronous_backend<Backend>();
@@ -1591,7 +1591,7 @@ template <class Executor, class CompletionToken>
 auto curves::x25519::basic_keypair<Backend>::async_from_secret(
     Executor const& completion_executor, std::span<std::uint8_t const> secret_bytes,
     CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return detail::initiate_from_secret<basic_keypair>(
         completion_executor, secret_bytes, std::forward<CompletionToken>(completion_token));
 }
@@ -1600,7 +1600,7 @@ template <class Backend>
 template <class Executor, class CompletionToken>
 auto curves::x25519::basic_keypair<Backend>::async_generate(Executor const& completion_executor,
                                                             CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return detail::initiate_generate<basic_keypair>(
         completion_executor, std::forward<CompletionToken>(completion_token));
 }
@@ -1611,7 +1611,7 @@ template <class Executor, class CompletionToken>
 auto curves::x25519::basic_keypair<Backend>::async_agree(Executor const& completion_executor,
                                                          public_key_type const& peer_key,
                                                          CompletionToken&& completion_token) const {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         return detail::async_engine<Backend>::agree(
             completion_executor, *this, peer_key, std::forward<CompletionToken>(completion_token));
@@ -1626,7 +1626,7 @@ template <class Executor, class CompletionToken>
 auto curves::p256::basic_keypair<Backend>::async_from_secret(
     Executor const& completion_executor, std::span<std::uint8_t const> secret_scalar,
     CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return detail::initiate_from_secret<basic_keypair>(
         completion_executor, secret_scalar, std::forward<CompletionToken>(completion_token));
 }
@@ -1635,7 +1635,7 @@ template <class Backend>
 template <class Executor, class CompletionToken>
 auto curves::p256::basic_keypair<Backend>::async_generate(Executor const& completion_executor,
                                                           CompletionToken&& completion_token) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return detail::initiate_generate<basic_keypair>(
         completion_executor, std::forward<CompletionToken>(completion_token));
 }
@@ -1646,7 +1646,7 @@ auto curves::p256::basic_keypair<Backend>::async_sign(Executor const& completion
                                                       Scheme signing_scheme,
                                                       Input const& signing_input,
                                                       CompletionToken&& completion_token) const {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return detail::initiate_sign(completion_executor, *this, signing_scheme, signing_input,
                                  std::forward<CompletionToken>(completion_token));
 }
@@ -1656,7 +1656,7 @@ template <class Executor, class CompletionToken>
 auto curves::p256::basic_keypair<Backend>::async_agree(Executor const& completion_executor,
                                                        basic_public_key<Backend> const& peer_key,
                                                        CompletionToken&& completion_token) const {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (detail::asynchronous_backend_v<Backend>) {
         return detail::async_engine<Backend>::agree(
             completion_executor, *this, peer_key, std::forward<CompletionToken>(completion_token));
@@ -1672,7 +1672,7 @@ auto curves::p256::basic_public_key<Backend>::async_verify(
     Executor const& completion_executor, [[maybe_unused]] Scheme signing_scheme,
     Signature const& signature_value, Input const& signing_input,
     CompletionToken&& completion_token) const {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if constexpr (!std::is_same_v<Scheme, ecdsa_sha256_t>) {
         static_assert(detail::refused_v<Scheme>,
                       "webcpp::crypto: a P-256 public key verifies crypto::ecdsa_sha256.");

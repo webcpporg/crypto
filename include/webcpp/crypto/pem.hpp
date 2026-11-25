@@ -24,13 +24,13 @@
 
 #include <webcpp/crypto/config.hpp>
 
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
-#include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/erase_secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -122,9 +122,9 @@ inline constexpr std::size_t pem_line_characters = 64;
     std::ranges::transform(second_line, second_bytes.begin(), [](char pem_character) {
         return static_cast<std::uint8_t>(pem_character);
     });
-    bool const bytes_equal = constant_time_equal(first_bytes, second_bytes);
-    wipe_object(first_bytes);
-    wipe_object(second_bytes);
+    bool const bytes_equal = secure::constant_time_equal(first_bytes, second_bytes);
+    secure::erase_secret(first_bytes);
+    secure::erase_secret(second_bytes);
     return bytes_equal;
 }
 
@@ -187,7 +187,7 @@ struct algorithm {
     [[nodiscard]] static boost::system::result<std::size_t> armour(
         std::string_view pem_label, std::span<std::uint8_t const> der_bytes,
         std::span<char> output_characters) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (!detail::pem_label_allowed(pem_label)) {
             return error::invalid_encoding;
         }
@@ -240,7 +240,7 @@ struct algorithm {
     [[nodiscard]] static boost::system::result<std::size_t> unarmour(
         std::string_view pem_label, std::string_view pem_text,
         std::span<std::uint8_t> output_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (!detail::pem_label_allowed(pem_label)) {
             return error::invalid_encoding;
         }
@@ -289,7 +289,7 @@ struct algorithm {
                                std::span(reencoded_line).first(character_count));
                 bool const line_equal = detail::pem_same_line(
                     line_text, std::span(reencoded_line).first(character_count));
-                detail::wipe_object(reencoded_line);
+                secure::erase_secret(reencoded_line);
                 byte_count += decoded_count;
                 return line_equal;
             },
@@ -318,8 +318,8 @@ struct algorithm {
         // The lines decoded once decode again: a backend that disagrees with itself fails, and
         // the bytes it wrote, a private key's in a PKCS#8, are wiped.
         if (!lines_accepted) {
-            detail::wipe(output_bytes.data(),
-                         static_cast<std::size_t>(write_position - output_bytes.begin()));
+            secure::erase_secret(output_bytes.first(
+                static_cast<std::size_t>(write_position - output_bytes.begin())));
             return error::backend_failure;
         }
         return byte_count;
@@ -360,7 +360,7 @@ private:
             lines_accepted =
                 visit_line(detail::pem_part(body_text, line_start, line_end - line_start),
                            line_end + 1 == body_text.size(), std::span(line_bytes));
-            detail::wipe_object(line_bytes);
+            secure::erase_secret(line_bytes);
             line_start = line_end + 1;
         }
     }
@@ -379,7 +379,7 @@ template <class Backend = default_backend_t<families::pem>>
 [[nodiscard]] boost::system::result<std::size_t> armour(
     std::string_view pem_label, std::span<std::uint8_t const> der_bytes,
     std::span<char> output_characters) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return algorithm<Backend>::armour(pem_label, der_bytes, output_characters);
 }
 
@@ -396,7 +396,7 @@ template <class Backend = default_backend_t<families::pem>>
 [[nodiscard]] boost::system::result<std::size_t> unarmour(
     std::string_view pem_label, std::string_view pem_text,
     std::span<std::uint8_t> output_bytes) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return algorithm<Backend>::unarmour(pem_label, pem_text, output_bytes);
 }
 

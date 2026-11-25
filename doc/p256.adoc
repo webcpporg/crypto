@@ -65,7 +65,7 @@ and refuses a scalar of another size with `invalid_key_size` and a scalar 0,
 n or above with `invalid_secret_key`: that check runs in webcpp, in time
 independent of the scalar, before BearSSL sees it. `keypair::generate()` draws
 the scalar from `random_device`. `secret()` gives the scalar back as a
-`secret<32>`, which wipes itself, and `from_secret` of it gives the same key pair: the
+`secure::secret<32>`, which wipes itself, and `from_secret` of it gives the same key pair: the
 way a program stores a key pair and loads it again. The key pair computes its
 public point once, when it is made, wipes the scalar when it is moved from and
 destroyed, and answers `invalid_state` moved from. It is a
@@ -148,14 +148,14 @@ include::{examples}/p256_keys.expected[]
 
 *Pitfalls.*
 
-* A scalar stored outside a `secret<32>` outlives the key pair: the key pair
-and the `secret<32>` that `secret()` returns wipe their bytes, but a copy in a string, a log or
+* A scalar stored outside a `secure::secret<32>` outlives the key pair: the key pair
+and the `secure::secret<32>` that `secret()` returns wipe their bytes, but a copy in a string, a log or
 a file stays where it was written. What webcpp wipes is what it owns: BearSSL's
 own signing keeps the scalar, the nonce and the state that derives the nonce in
 its stack frame and returns without zeroing them
 (link:https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ecdsa_i31_sign_raw.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l45[BearSSL's
 ecdsa_i31_sign_raw.c, lines 45 to 51 and 115 to 135]), where a later call
-overwrites them; nothing in webcpp can reach that frame. Keep the scalar in the `secret<32>` until it
+overwrites them; nothing in webcpp can reach that frame. Keep the scalar in the `secure::secret<32>` until it
 is encrypted or written to the key store, and never print it.
 * A peer's key is made into a `public_key` once, where it arrives, and kept:
 made again for every message, it costs a point check each time, and code that
@@ -293,7 +293,7 @@ Diffie-Hellman, ECDH (link:https://www.secg.org/sec1-v2.pdf[SEC 1, section
 3.3.1]). Each side multiplies the other's public point by its own scalar, and
 both arrive at the same point, d~A~ times d~B~ times the generator.
 `keypair::agree(peer)` returns that point's x coordinate, 32 bytes big-endian,
-as a `secret<32>`, which wipes itself:
+as a `secure::secret<32>`, which wipes itself:
 
 [source,cpp]
 ----
@@ -317,7 +317,7 @@ its scale manager generates an ECDH P-256 key pair
 (link:https://github.com/dmotz/trystero/blob/8d3f57ef42c3d622840eec479784c99deeeb2d05/packages/core/src/scale/manager.ts#L306[packages/core/src/scale/manager.ts,
 line 306]). The peer's key is a `public_key`, validated when it was made, so
 `agree` never sees a point off the curve; it refuses a moved-from key pair
-with `invalid_state`. The `secret<32>` and webcpp's own copy of the point are
+with `invalid_state`. The `secure::secret<32>` and webcpp's own copy of the point are
 wiped, but BearSSL's multiplication leaves the values it computes from the
 scalar in its stack frame, as its signing does (<<crypto-p256-keys>>, its
 pitfalls;
@@ -441,7 +441,7 @@ program that writes or reads PEM links `/webcpp/crypto//pem-default` beside
 include::generated/backends-p256_formats.adoc[]
 
 *Example.* RFC 6979's key: its public key written as PEM SPKI, printed and read
-back; its key pair written as PEM PKCS#8, kept in a `secret<N>` and never
+back; its key pair written as PEM PKCS#8, kept in a `secure::secret<N>` and never
 printed, and read back:
 
 [source,cpp]
@@ -481,5 +481,5 @@ that is not its scalar's, and a program that shows or checks that key, rather
 than the one the scalar gives, trusts the wrong key. `decode_pkcs8` refuses
 such a file.
 * The PKCS#8, as DER or as PEM, is the secret key in clear: base64 is an
-encoding, not encryption. Keep it in a `secret<N>`, as the example does, and
+encoding, not encryption. Keep it in a `secure::secret<N>`, as the example does, and
 seal it before it is written anywhere (<<crypto-wallets>>).

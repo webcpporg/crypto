@@ -8,9 +8,9 @@
 // tweak is a tagged hash of the internal key, and the output key commits to it. The same tweak
 // applied to the key pair lets the owner sign for the output key, so spending needs no script.
 // tag::program[]
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
 
 #include <boost/hash2/sha2.hpp>
 
@@ -23,6 +23,7 @@
 #include <string_view>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
@@ -96,7 +97,7 @@ int main() {
         return 1;
     }
     auto const tweaked_public = key->public_key();
-    if (!tweaked_public || !crypto::constant_time_equal(tweaked_public->xonly(), output->key)) {
+    if (!tweaked_public || !secure::constant_time_equal(tweaked_public->xonly(), output->key)) {
         return 1;
     }
     std::printf("key pair tweaked: same output key\n");

@@ -35,11 +35,11 @@
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/limits.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
-#include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/factories.hpp>  // crypto::from_key, which serves its from_key (design R23)
 #include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
+#include <webcpp/secure/erase_secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
@@ -249,7 +249,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<basic_secretbox> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if constexpr (detail::asynchronous_backend_v<Backend>) {
             // WebCrypto has no such construction: the refusal names a native backend (design D6).
             detail::refuse_aead_on_asynchronous_backend<Backend>();
@@ -350,7 +350,7 @@ public:
      */
     [[nodiscard]] boost::system::result<result_type> seal(
         std::span<std::uint8_t const> nonce_bytes, std::span<std::uint8_t> data_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if constexpr (detail::asynchronous_backend_v<Backend>) {
             // WebCrypto has no such construction: the refusal names a native backend (design D6).
             detail::refuse_aead_on_asynchronous_backend<Backend>();
@@ -364,7 +364,7 @@ public:
             auto const seal_result =
                 engine::seal(state_, nonce_bytes.first<nonce_size>(), data_bytes, tag_bytes);
             if (!seal_result) {
-                detail::wipe(data_bytes.data(), data_bytes.size());
+                secure::erase_secret(data_bytes);
                 return seal_result.error();
             }
             return tag_bytes;
@@ -415,7 +415,7 @@ public:
     [[nodiscard]] boost::system::result<void> open(
         std::span<std::uint8_t const> nonce_bytes, std::span<std::uint8_t> data_bytes,
         std::span<std::uint8_t const> tag_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if constexpr (detail::asynchronous_backend_v<Backend>) {
             // WebCrypto has no such construction: the refusal names a native backend (design D6).
             detail::refuse_aead_on_asynchronous_backend<Backend>();
@@ -432,7 +432,7 @@ public:
             auto const open_result =
                 engine::open(state_, nonce_bytes.first<nonce_size>(), data_bytes, expected_tag);
             if (!open_result) {
-                detail::wipe(data_bytes.data(), data_bytes.size());
+                secure::erase_secret(data_bytes);
                 return open_result.error();
             }
             return {};

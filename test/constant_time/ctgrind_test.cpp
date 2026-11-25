@@ -94,7 +94,7 @@ int bearssl_seal_and_open() {
         crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>::from_key(key);
     auto tag = made->seal(nonce, {}, data);
     VALGRIND_MAKE_MEM_UNDEFINED(tag->data(), tag->size());
-    // The verdict is declassified inside the engine (WEBCPP_CRYPTO_DETAIL_DECLASSIFY).
+    // The verdict is declassified inside the engine (secure::declassify).
     auto const opened = made->open(nonce, {}, data, *tag);
     // And only because of that mark is the verdict defined: checked, since an optimiser may
     // turn the engine's branch on it into a select, which memcheck does not report.

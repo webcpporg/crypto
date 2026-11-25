@@ -5,8 +5,10 @@ target [webcpp](https://github.com/webcpporg/webcpp) has: native (Linux, macOS, 
 MSVC), wasip2, wasip3 and Emscripten.
 
 - `webcpp::crypto`: a `random_device` that reads the operating system's or the browser's
-  generator, `constant_time_equal` for tags and MACs, `erase_secret`, which zeroes a buffer of
-  the program's with stores the optimiser keeps, and `error`, every failure's value.
+  generator, and `error`, every failure's value. The constant-time comparison
+  (`constant_time_equal`), the erasure of a buffer (`erase_secret`) and the self-wiping
+  `secret<N>` crypto returns are [webcpp::secure](https://github.com/webcpporg/secure)'s, which
+  crypto depends on.
 - `webcpp::crypto::ciphers`: AES-GCM (`gcm`, `aes128_gcm`, `aes256_gcm`) with keys of 16, 24 and
   32 bytes, the AES block cipher (`aes128`, `aes192`, `aes256`) and the ChaCha20-Poly1305 AEADs.
 - `webcpp::crypto::secret_key_encryption`: NaCl's and libsodium's secret boxes (`secretbox`,

@@ -4,10 +4,11 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// A program that names a secret of no bytes stops where it names it. On MSVC the compile fails; the
-// text is checked on clang, in test/messages/secret_of_no_bytes.
-#include <webcpp/crypto/secret.hpp>
+// A program that names a secret of no bytes, webcpp::secure's secret<N> that crypto's key
+// pairs return, stops where it names it. On MSVC the compile fails; the text is checked on clang,
+// in libs/secure/test/messages/secret_of_no_bytes.
+#include <webcpp/secure/secret.hpp>
 
 int main() {
-    return static_cast<int>(webcpp::crypto::secret<0>::size_bytes);
+    return static_cast<int>(webcpp::secure::secret<0>::size_bytes);
 }

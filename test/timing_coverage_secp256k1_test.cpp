@@ -4,8 +4,8 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Every public function that runs libsecp256k1's code enters its own detail::timing_guard and
-// leaves the thread's DIT as it found it, on every target, also where DIT does not apply, each
+// Every public function that runs libsecp256k1's code enters its own webcpp::secure::timing_guard
+// and leaves the thread's DIT as it found it, on every target, also where DIT does not apply, each
 // with valid input and, where it has one, with input refused before the backend
 // (support/timing_coverage.hpp). One section per header. With exceptions, a memory resource that
 // throws in basic_keypair::from_secret and decode_pkcs8 unwinds through the guard, which leaves DIT
@@ -44,7 +44,7 @@
 // - BIP 352 silent payments, a payment created and scanned: create_label,
 //   create_labeled_spend_key, create_outputs, make_previous_outputs_summary, scan_outputs.
 
-#include "support/timing_seam.hpp"
+#include "support/timing_dit.hpp"
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
@@ -52,10 +52,10 @@
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/timing_coverage.hpp"
@@ -82,6 +82,7 @@
 namespace {
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace secp = crypto::curves::secp256k1;
 namespace musig = secp::musig;
 namespace sp = secp::silent_payments;
@@ -1054,19 +1055,7 @@ void cover_tweaks() {
 // ---------------------------------------------------------------------------------------------
 
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
-/**
- * Sets the thread's DIT, or clears it, where the CPU has it; nothing elsewhere.
- *
- * @param set Whether to set it.
- */
-void force_dit([[maybe_unused]] bool set) {
-#ifdef WEBCPP_CRYPTO_DETAIL_TIMING_COVERED
-    if (!crypto::detail::cpu_has_dit()) {
-        return;
-    }
-    crypto::detail::write_dit(set ? crypto::detail::dit_bit : 0);
-#endif
-}
+using webcpp::test::force_dit;
 
 /** A memory resource whose every allocation throws `std::bad_alloc`. */
 class throwing_resource final : public std::pmr::memory_resource {
@@ -1125,13 +1114,13 @@ void throwing_resource_restores_state() {
         covered("secp256k1::basic_keypair::from_secret with a throwing resource" + from +
                     " on secp256k1",
                 [&] { BOOST_TEST(throws_bad_alloc(from_secret)); });
-        BOOST_TEST_EQ(crypto::detail::dit_is_set(), set && crypto::detail::cpu_has_dit());
+        BOOST_TEST_EQ(secure::dit_is_set(), set && secure::cpu_has_dit());
         covered("secp256k1::decode_pkcs8 with a throwing resource" + from + " on secp256k1",
                 [&] { BOOST_TEST(throws_bad_alloc(decode)); });
-        BOOST_TEST_EQ(crypto::detail::dit_is_set(), set && crypto::detail::cpu_has_dit());
+        BOOST_TEST_EQ(secure::dit_is_set(), set && secure::cpu_has_dit());
     }
     force_dit(false);
-    BOOST_TEST(!crypto::detail::dit_is_set());
+    BOOST_TEST(!secure::dit_is_set());
 }
 #endif
 

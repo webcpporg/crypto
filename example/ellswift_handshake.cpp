@@ -10,16 +10,17 @@
 // encodings. The secrets and the randomness are fixed here, so that the program runs the same
 // each time; a real program draws all four from random_device. Nothing random is printed.
 // tag::program[]
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
 
 #include <array>
 #include <cstdint>
 #include <cstdio>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
@@ -64,7 +65,7 @@ int main() {
     auto const responder_secret = secp256k1::ellswift_xdh(
         *responder, *initiator_message, *responder_message, secp256k1::ellswift_party::responder);
     if (!initiator_secret || !responder_secret ||
-        !crypto::constant_time_equal(initiator_secret->bytes(), responder_secret->bytes())) {
+        !secure::constant_time_equal(initiator_secret->bytes(), responder_secret->bytes())) {
         return 1;
     }
     std::printf("initiator and responder agree\n");

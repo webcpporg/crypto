@@ -15,7 +15,7 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -38,6 +38,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace secp = webcpp::crypto::curves::secp256k1;
 namespace test = webcpp::test;
 
@@ -50,12 +51,12 @@ constexpr std::string_view order_hex =
 
 static_assert(std::is_same_v<decltype(secp::secret_key_tweak_add(std::declval<scalar const&>(),
                                                                  std::declval<scalar const&>())),
-                             boost::system::result<crypto::secret<32>>>);
+                             boost::system::result<secure::secret<32>>>);
 static_assert(std::is_same_v<decltype(secp::secret_key_tweak_mul(std::declval<scalar const&>(),
                                                                  std::declval<scalar const&>())),
-                             boost::system::result<crypto::secret<32>>>);
+                             boost::system::result<secure::secret<32>>>);
 static_assert(std::is_same_v<decltype(secp::secret_key_negate(std::declval<scalar const&>())),
-                             boost::system::result<crypto::secret<32>>>);
+                             boost::system::result<secure::secret<32>>>);
 static_assert(
     std::is_same_v<decltype(secp::public_key_tweak_add(std::declval<secp::public_key const&>(),
                                                        std::declval<scalar const&>())),
@@ -150,8 +151,8 @@ bool all_zero(std::span<std::byte const> bytes) {
 }
 
 // The secret results of one round against libsecp256k1's C API, called directly on copies of d.
-void secrets_against_c_api(scalar const& d, scalar const& t, crypto::secret<32> const& sum,
-                           crypto::secret<32> const& product, crypto::secret<32> const& negated) {
+void secrets_against_c_api(scalar const& d, scalar const& t, secure::secret<32> const& sum,
+                           secure::secret<32> const& product, secure::secret<32> const& negated) {
     scalar c_sum = d;
     scalar c_product = d;
     scalar c_negated = d;

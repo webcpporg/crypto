@@ -152,7 +152,7 @@ keys, while fresh pairs wiped after the session give *forward secrecy*
 (link:https://en.wikipedia.org/wiki/Forward_secrecy[Wikipedia]); a long-lived
 key signs the fresh public keys instead. `agree_hashed` returns
 libsecp256k1's hashed form, the SHA-256 of the compressed shared point, as a
-`secret<32>` that wipes itself: both sides must use the same form, and a
+`secure::secret<32>` that wipes itself: both sides must use the same form, and a
 protocol that takes the raw x coordinate, such as Nostr's NIP-44, needs
 `agree` (<<crypto-secp256k1-ecdh>>).
 
@@ -169,7 +169,7 @@ ECDH, and both find the same shared point. Nostr's encrypted payloads take its
 x coordinate unhashed, and derive from it a conversation key, HKDF-extract
 with the salt `nip44-v2`, then a key for each message
 (link:https://github.com/nostr-protocol/nips/blob/master/44.md[NIP-44]).
-`agree` gives the x coordinate as a `secret<32>`
+`agree` gives the x coordinate as a `secure::secret<32>`
 (<<crypto-secp256k1-ecdh>>); the conversation key and everything after it,
 the message keys, the padding and the payload's format, are NIP-44's, which a
 domain library built on crypto and hash, such as a future webcpp::nostr,

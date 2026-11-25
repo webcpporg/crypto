@@ -23,10 +23,10 @@
 
 #include <webcpp/crypto/detail/canary.h>
 #include <webcpp/crypto/detail/capabilities.hpp>
-#include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
-#include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/secure/declassify.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <sodium/core.h>  // through /third_party//sodium, as webcpp::hash's header does
 #include <sodium/crypto_aead_chacha20poly1305.h>
@@ -187,7 +187,7 @@ inline std::uint32_t sodium_entropy_random() noexcept {
     std::array<std::uint8_t, sizeof(std::uint32_t)> drawn_bytes{};
     sodium_entropy_buf(drawn_bytes.data(), drawn_bytes.size());
     auto const drawn_value = std::bit_cast<std::uint32_t>(drawn_bytes);
-    wipe_object(drawn_bytes);
+    secure::erase_secret(drawn_bytes);
     return drawn_value;
 }
 
@@ -273,7 +273,7 @@ private:
     if (!initialised_seen.load(std::memory_order_acquire)) {
         std::array<std::uint8_t, 4> probe_bytes{};
         auto const probed = fill_from_system(probe_bytes);
-        wipe_object(probe_bytes);
+        secure::erase_secret(probe_bytes);
         if (!probed) {
             return probed.error();
         }
@@ -295,16 +295,16 @@ private:
 /**
  Whether a libsodium function that checks a secret refused: its verdict, a tag that does not
  match or an all-zero shared secret, which webcpp reports and so branches on, here, where it is
- marked public for the constant-time checks (`WEBCPP_CRYPTO_DETAIL_DECLASSIFY`).
+ marked public for the constant-time checks (`secure::declassify`).
 
  @param returned_code What the function returned: 0, or -1 when it refused.
  @return Whether it refused.
 */
 [[nodiscard]] inline bool sodium_refused(int returned_code) noexcept {
-    // Not const: the comparison reads it again after the mark (detail/declassify.hpp's tip).
+    // Not const: the comparison reads it again after the mark (secure::declassify's tip).
     // NOLINTNEXTLINE(misc-const-correctness): see above
     int call_verdict = returned_code;
-    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&call_verdict, sizeof call_verdict);
+    secure::declassify(call_verdict);
     return call_verdict != 0;
 }
 
@@ -425,11 +425,11 @@ struct aead_engine<Family, backends::sodium> {
     /** Moves the key; the source is wiped. */
     static void move(state& target_state, state& source_state) noexcept {
         target_state.key = source_state.key;
-        wipe_object(source_state.key);
+        secure::erase_secret(source_state.key);
     }
 
     /** Wipes the key. */
-    static void reset(state& engine_state) noexcept { wipe_object(engine_state.key); }
+    static void reset(state& engine_state) noexcept { secure::erase_secret(engine_state.key); }
 };
 
 /** libsodium's detached functions of a secret box family, which differ only by name. */
@@ -564,11 +564,11 @@ struct secretbox_engine<Family, backends::sodium> {
     /** Moves the key; the source is wiped. */
     static void move(state& target_state, state& source_state) noexcept {
         target_state.key = source_state.key;
-        wipe_object(source_state.key);
+        secure::erase_secret(source_state.key);
     }
 
     /** Wipes the key. */
-    static void reset(state& engine_state) noexcept { wipe_object(engine_state.key); }
+    static void reset(state& engine_state) noexcept { secure::erase_secret(engine_state.key); }
 };
 
 }  // namespace webcpp::crypto::detail
@@ -585,8 +585,6 @@ struct secretbox_engine<Family, backends::sodium> {
     !defined(WEBCPP_CRYPTO_BACKENDS_SODIUM_ED25519)
 /** Defined once libsodium's Ed25519 engines are. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_ED25519
-
-#include <webcpp/crypto/detail/wipe.hpp>
 
 #include <sodium/crypto_sign_ed25519.h>
 
@@ -738,7 +736,7 @@ struct ed25519_engine<families::ed25519, backends::sodium> {
     }
 
     /** Wipes the secret key. */
-    static void reset(state& keyed_state) noexcept { wipe_object(keyed_state.secret_key); }
+    static void reset(state& keyed_state) noexcept { secure::erase_secret(keyed_state.secret_key); }
 };
 
 /** What an Ed25519ph signer stores on libsodium: the message's SHA-512 state. */
@@ -859,7 +857,9 @@ struct ed25519ph_engine<tags::ed25519ph, backends::sodium> {
     }
 
     /** Wipes the message's state. */
-    static void reset(state& begun_state) noexcept { wipe_object(begun_state.hashing); }
+    static void reset(state& begun_state) noexcept {
+        secure::erase_secret(std::span(&begun_state.hashing, 1));
+    }
 };
 
 }  // namespace webcpp::crypto::detail
@@ -935,8 +935,6 @@ struct x25519_engine<families::x25519, backends::sodium> {
 /** Defined once libsodium's box engines are. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_BOX
 
-#include <webcpp/crypto/detail/wipe.hpp>
-
 #include <sodium/crypto_box.h>
 #include <sodium/crypto_box_curve25519xchacha20poly1305.h>
 
@@ -1005,7 +1003,7 @@ struct box_engine<Family, backends::sodium> {
         }
         if (sodium_refused(calls::beforenm_call(engine_state.key.data(), peer_public_key.data(),
                                                 secret_key.data()))) {
-            wipe_object(engine_state.key);
+            secure::erase_secret(engine_state.key);
             return error::weak_public_key;
         }
         return {};
@@ -1043,11 +1041,11 @@ struct box_engine<Family, backends::sodium> {
     /** Moves the key; the source is wiped. */
     static void move(state& target_state, state& source_state) noexcept {
         target_state.key = source_state.key;
-        wipe_object(source_state.key);
+        secure::erase_secret(source_state.key);
     }
 
     /** Wipes the key. */
-    static void reset(state& engine_state) noexcept { wipe_object(engine_state.key); }
+    static void reset(state& engine_state) noexcept { secure::erase_secret(engine_state.key); }
 };
 
 }  // namespace webcpp::crypto::detail
@@ -1093,7 +1091,7 @@ struct sealed_box_engine<families::sealed_box, backends::sodium> {
         int const seal_code = crypto_box_seal(output_bytes.data(), message_bytes.data(),
                                               message_bytes.size(), recipient_public_key.data());
         if (auto const draw_error = seal_draws.draw_error()) {
-            wipe(output_bytes.data(), output_bytes.size());
+            secure::erase_secret(output_bytes);
             return draw_error;
         }
         if (seal_code != 0) {
@@ -1138,7 +1136,7 @@ struct sealed_box_engine<families::sealed_box, backends::sodium> {
 /** Defined once libsodium's RFC 8410 layouts are. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_RFC8410
 
-#include <webcpp/crypto/constant_time_equal.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
 
 #include <algorithm>
 #include <array>
@@ -1184,7 +1182,7 @@ struct sodium_rfc8410 {
         std::span<std::uint8_t const, PrefixSize + 32> der_bytes,
         std::span<std::uint8_t, 32> key_bytes) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_SODIUM_CANARY);
-        if (!constant_time_equal(der_bytes.template first<PrefixSize>(), prefix_bytes)) {
+        if (!secure::constant_time_equal(der_bytes.template first<PrefixSize>(), prefix_bytes)) {
             return error::invalid_encoding;
         }
         std::ranges::copy(der_bytes.template last<32>(), key_bytes.begin());
@@ -1303,8 +1301,6 @@ struct x25519_formats_engine<families::x25519, backends::sodium> {
 /** Defined once libsodium's PEM engine is. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_PEM
 
-#include <webcpp/crypto/detail/wipe.hpp>
-
 #include <sodium/utils.h>
 
 #include <algorithm>
@@ -1348,7 +1344,7 @@ struct pem_engine<families::pem, backends::sodium> {
                                             sodium_base64_VARIANT_ORIGINAL));
         std::ranges::copy(std::span<char const>(base64_text).first(output_characters.size()),
                           output_characters.begin());
-        wipe_object(base64_text);
+        secure::erase_secret(base64_text);
     }
 
     /**
@@ -1385,8 +1381,6 @@ struct pem_engine<families::pem, backends::sodium> {
 /** Defined once libsodium's crypto_kx engine is. */
 #define WEBCPP_CRYPTO_BACKENDS_SODIUM_KX
 
-#include <webcpp/crypto/detail/wipe.hpp>
-
 #include <sodium/crypto_kx.h>
 
 #include <array>
@@ -1418,7 +1412,7 @@ struct kx_engine<families::kx, backends::sodium> {
         std::array<unsigned char, crypto_kx_PUBLICKEYBYTES> public_key{};
         int const seed_result =
             crypto_kx_seed_keypair(public_key.data(), secret_key.data(), seed_bytes.data());
-        wipe_object(public_key);
+        secure::erase_secret(public_key);
         if (seed_result != 0) {
             return error::backend_failure;
         }

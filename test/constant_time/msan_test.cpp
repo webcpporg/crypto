@@ -91,7 +91,7 @@ int bearssl_gcm() {
         crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>::from_key(key);
     auto tag = made->seal(nonce, {}, data);
     __msan_poison(tag->data(), tag->size());
-    // The verdict is declassified inside the engine (WEBCPP_CRYPTO_DETAIL_DECLASSIFY).
+    // The verdict is declassified inside the engine (secure::declassify).
     auto const opened = made->open(nonce, {}, data, *tag);
     // And the verdict is checked initialised here, the twin of ctgrind_test.cpp's check: an
     // optimiser may turn the engine's branch on it into a select, and neither the select nor

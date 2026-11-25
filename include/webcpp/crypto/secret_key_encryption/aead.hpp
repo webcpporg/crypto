@@ -25,7 +25,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
-#include <webcpp/crypto/detail/timing.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -144,7 +144,7 @@ template <cipher Cipher>
     std::span<std::uint8_t> data_bytes) noexcept(noexcept(keyed_cipher.seal(nonce_bytes,
                                                                             associated_data_bytes,
                                                                             data_bytes))) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return keyed_cipher.seal(nonce_bytes, associated_data_bytes, data_bytes);
 }
 
@@ -170,7 +170,7 @@ template <cipher Cipher>
     std::span<std::uint8_t const>
         tag_bytes) noexcept(noexcept(keyed_cipher.open(nonce_bytes, associated_data_bytes,
                                                        data_bytes, tag_bytes))) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return keyed_cipher.open(nonce_bytes, associated_data_bytes, data_bytes, tag_bytes);
 }
 

@@ -21,7 +21,7 @@
 // backend and XKCP linked (secp256k1's Keccak-256 path), its AST dumped (clang -Xclang
 // -ast-dump), each ParmVarDecl, VarDecl and BindingDecl inside a function of include/ whose name
 // matches ^[a-z][a-z0-9]*$; again with WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE,
-// WEBCPP_CRYPTO_DETAIL_TIMING_COVERED and WEBCPP_CRYPTO_DETAIL_TIMING_ENTERED, and without
+// WEBCPP_SECURE_TIMING_COVERED and WEBCPP_SECURE_TIMING_ENTERED, and without
 // threads, for the code only they compile. The namespace-scope constants (`eddsa`, `schnorr`,
 // `strict`, the generated tables' `supported` and `linked`) and the static data members (each
 // backend's `name`, `overhead`) are not locals, and are left out: C4459 applies to neither;

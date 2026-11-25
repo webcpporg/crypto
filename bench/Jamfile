@@ -40,7 +40,7 @@ webcpp.run throughput_check : throughput.cpp : $(.requirements) ;
 exe throughput : throughput.cpp : $(.requirements) <variant>release ;
 explicit throughput ;
 
-# The guard's cost needs no backend: detail/timing.hpp alone.
+# The guard's cost needs no backend: <webcpp/secure/timing_guard.hpp> alone.
 webcpp.run timing_check : timing.cpp ;
 
 # The same program at variant=release, the one collect.py --timing measures,

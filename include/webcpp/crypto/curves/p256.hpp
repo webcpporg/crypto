@@ -31,12 +31,12 @@
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
 #include <webcpp/crypto/detail/signature.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: random_device draws generate()'s scalar
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -163,7 +163,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<basic_public_key> from_bytes(
         std::span<std::uint8_t const> uncompressed_point) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (uncompressed_point.size() != public_key_size || uncompressed_point[0] != 0x04) {
             return error::invalid_public_key;
         }
@@ -181,7 +181,7 @@ public:
     [[nodiscard]] static boost::system::result<basic_public_key> from_coordinates(
         std::span<std::uint8_t const, coordinate_size> x_coordinate,
         std::span<std::uint8_t const, coordinate_size> y_coordinate) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         std::array<std::uint8_t, public_key_size> point_bytes{0x04};
         std::ranges::copy(x_coordinate, point_bytes.begin() + 1);
         std::ranges::copy(y_coordinate, point_bytes.begin() + 1 + coordinate_size);
@@ -222,7 +222,7 @@ public:
     [[nodiscard]] boost::system::result<void> verify([[maybe_unused]] Scheme signing_scheme,
                                                      Signature const& signature_value,
                                                      Input const& signing_input) const noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         static_assert(std::is_same_v<Scheme, ecdsa_sha256_t>,
                       "webcpp::crypto: a P-256 public key verifies crypto::ecdsa_sha256.");
         static_assert(!detail::asynchronous_backend_v<Backend>,
@@ -339,7 +339,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<basic_keypair> from_secret(
         std::span<std::uint8_t const> secret_scalar) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         static_assert(!detail::asynchronous_backend_v<Backend>,
                       "webcpp::crypto: from_secret on this backend completes asynchronously: call "
                       "async_from_secret.");
@@ -372,7 +372,7 @@ public:
      * none; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<basic_keypair> generate() noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         static_assert(!detail::asynchronous_backend_v<Backend>,
                       "webcpp::crypto: generate on this backend completes asynchronously: call "
                       "async_generate.");
@@ -380,7 +380,7 @@ public:
             // Never compiled into a program: the assertion above stopped the build.
             return error::backend_failure;
         } else {
-            crypto::secret<secret_key_size> scalar_bytes;
+            secure::secret<secret_key_size> scalar_bytes;
             random_device random_source;  // lint-world: the scalar
             do {
                 if (!random_source.fill(scalar_bytes.writable())) {
@@ -494,11 +494,11 @@ public:
      *
      * @return 32 secret bytes, big-endian; `invalid_state` moved from.
      */
-    [[nodiscard]] boost::system::result<crypto::secret<secret_key_size>> secret() const noexcept {
+    [[nodiscard]] boost::system::result<secure::secret<secret_key_size>> secret() const noexcept {
         if (!keyed_) {
             return error::invalid_state;
         }
-        crypto::secret<secret_key_size> scalar_bytes;
+        secure::secret<secret_key_size> scalar_bytes;
         engine::scalar(state_, scalar_bytes.writable());
         return scalar_bytes;
     }
@@ -521,7 +521,7 @@ public:
     template <class Scheme, class Input>
     [[nodiscard]] boost::system::result<detail::signature_of_t<basic_keypair, Scheme>> sign(
         [[maybe_unused]] Scheme signing_scheme, Input const& signing_input) const noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         static_assert(std::is_same_v<Scheme, ecdsa_sha256_t>,
                       "webcpp::crypto: a P-256 key signs with crypto::ecdsa_sha256.");
         static_assert(!detail::asynchronous_backend_v<Backend>,
@@ -586,9 +586,9 @@ public:
      * @return 32 secret bytes, big-endian; `invalid_state` moved from; `backend_failure`, which a
      * valid key pair and a valid public key cannot cause.
      */
-    [[nodiscard]] boost::system::result<crypto::secret<coordinate_size>> agree(
+    [[nodiscard]] boost::system::result<secure::secret<coordinate_size>> agree(
         basic_public_key<Backend> const& peer_key) const noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<Backend>,
             "webcpp::crypto: agree on this backend completes asynchronously: call async_agree.");
@@ -599,7 +599,7 @@ public:
             if (!keyed_) {
                 return error::invalid_state;
             }
-            crypto::secret<coordinate_size> shared_bytes;
+            secure::secret<coordinate_size> shared_bytes;
             auto const derive_result = engine::ecdh_x(
                 state_, detail::p_curve_access::point(peer_key), shared_bytes.writable());
             if (!derive_result) {
@@ -626,7 +626,7 @@ public:
      * @param completion_executor The executor the completion is posted to.
      * @param peer_key The peer's public key, validated when it was made.
      * @param completion_token The completion token, of signature
-     * `void(boost::system::error_code, crypto::secret<32>)`: the shared x, big-endian; on an error
+     * `void(boost::system::error_code, secure::secret<32>)`: the shared x, big-endian; on an error
      * a secret of zeros (`invalid_state`, `backend_failure`).
      * @return What the completion token's `async_result` gives.
      */
@@ -687,7 +687,7 @@ using keypair = basic_keypair<>;
 template <class Backend = default_backend_t<families::p256>>
 [[nodiscard]] boost::system::result<std::size_t> to_der(
     ecdsa_signature const& signature_value, std::span<std::uint8_t> der_output) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     using engine = detail::p_curve_engine<families::p256, Backend>;
     if (der_output.size() < max_der_size) {
         return error::invalid_input_size;
@@ -715,7 +715,7 @@ template <class Backend = default_backend_t<families::p256>>
 template <class Backend = default_backend_t<families::p256>>
 [[nodiscard]] boost::system::result<ecdsa_signature> from_der(
     std::span<std::uint8_t const> der_signature) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     using engine = detail::p_curve_engine<families::p256, Backend>;
     if (der_signature.empty()) {
         return error::invalid_signature;
@@ -804,7 +804,7 @@ template <class Backend, class Signature, class Input>
     [[maybe_unused]] ecdsa_sha256_t signing_scheme, Signature const& signature_value,
     Input const& signing_input,
     curves::p256::basic_public_key<Backend> const& public_key) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     static_assert(!detail::asynchronous_backend_v<Backend>,
                   "webcpp::crypto: verify on this backend completes asynchronously: call "
                   "async_verify.");

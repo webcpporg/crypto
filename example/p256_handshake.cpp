@@ -13,10 +13,10 @@
 // a real program draws its key pairs with keypair::generate(). What is signed, when, and the
 // low-S rule are a protocol's: this one is an example, not webcpp::trystero's.
 // tag::program[]
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/secret.hpp>
 
 #include <webcpp/hash/digest.hpp>
 #include <webcpp/hash/hkdf.hpp>
@@ -33,6 +33,7 @@
 #include <utility>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace p256 = webcpp::crypto::curves::p256;
 
 namespace {
@@ -191,7 +192,7 @@ struct peer {
     // tag::session[]
     // The session key: ECDH's x of the two session key pairs, through HKDF-SHA-256 with the
     // transcript's digest as the salt, so that the key is bound to this handshake.
-    [[nodiscard]] boost::system::result<crypto::secret<32>> session_key(
+    [[nodiscard]] boost::system::result<secure::secret<32>> session_key(
         hello const& other, std::span<std::uint8_t const, p256::digest_size> digest) const {
         auto const other_key = p256::public_key::from_bytes(other.session);
         if (!other_key) {
@@ -201,7 +202,7 @@ struct peer {
         if (!x) {
             return x.error();
         }
-        crypto::secret<32> key;
+        secure::secret<32> key;
         auto const derived = webcpp::hash::hkdf<webcpp::hash::hmac_sha2_256>(
             key.writable(), digest, x->bytes(), bytes_of("example handshake v1 session key"));
         if (!derived) {
@@ -284,7 +285,7 @@ int main() {
     auto const alice_key = alice->session_key(*bob_hello, *digest);
     auto const bob_key = bob->session_key(*alice_hello, *digest);
     if (!alice_key || !bob_key ||
-        !crypto::constant_time_equal(alice_key->bytes(), bob_key->bytes())) {
+        !secure::constant_time_equal(alice_key->bytes(), bob_key->bytes())) {
         std::printf("failed\n");
         return 1;
     }

@@ -13,7 +13,7 @@
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -114,11 +114,11 @@ void types() {
     auto const key = from_byte(0x11);
     auto const peer = *key.public_key();
     static_assert(std::is_same_v<decltype(key.agree(peer)),
-                                 boost::system::result<webcpp::crypto::secret<32>>>);
+                                 boost::system::result<webcpp::secure::secret<32>>>);
     static_assert(std::is_same_v<decltype(key.agree_hashed(peer)),
-                                 boost::system::result<webcpp::crypto::secret<32>>>);
+                                 boost::system::result<webcpp::secure::secret<32>>>);
     static_assert(std::is_same_v<decltype(key.agree_point(peer)),
-                                 boost::system::result<webcpp::crypto::secret<65>>>);
+                                 boost::system::result<webcpp::secure::secret<65>>>);
 }
 
 // 32 pairs of key pairs from a seeded generator: both sides of each agree in every form, the

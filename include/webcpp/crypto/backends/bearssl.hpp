@@ -25,13 +25,13 @@
 #else
 
 #include <webcpp/crypto/detail/canary.h>
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
-#include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
-#include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/declassify.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <bearssl.h>
 #include <boost/hash2/digest.hpp>
@@ -220,7 +220,7 @@ struct gcm_engine<backends::bearssl, KeySize> {
         // client request, whose memory clobber reaches a mutable object only.
         // NOLINTNEXTLINE(misc-const-correctness): see above
         std::uint32_t tag_matches = br_gcm_check_tag(&engine_state.context, tag_bytes.data());
-        WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&tag_matches, sizeof tag_matches);
+        secure::declassify(tag_matches);
         if (tag_matches != 1) {
             return error::authentication_failed;
         }
@@ -250,7 +250,7 @@ struct gcm_engine<backends::bearssl, KeySize> {
      */
     static void abandon(state& engine_state) noexcept {
         read_canary(WEBCPP_CRYPTO_DETAIL_BEARSSL_CANARY);
-        wipe_object(engine_state.context);
+        secure::erase_secret(std::span(&engine_state.context, 1));
         br_gcm_init(&engine_state.context, &engine_state.keys.vtable, bearssl_ghash());
         engine_state.sealing = false;
     }
@@ -260,7 +260,9 @@ struct gcm_engine<backends::bearssl, KeySize> {
      *
      * @param engine_state Any state.
      */
-    static void reset(state& engine_state) noexcept { wipe_object(engine_state); }
+    static void reset(state& engine_state) noexcept {
+        secure::erase_secret(std::span(&engine_state, 1));
+    }
 };
 
 /**
@@ -376,9 +378,9 @@ struct aead_engine<families::chacha20_poly1305, backends::bearssl> {
         // Not const: the branch below must read the variable again after the declassifying
         // client request, whose memory clobber reaches a mutable object only.
         // NOLINTNEXTLINE(misc-const-correctness): see above
-        bool tag_matches = constant_time_equal(computed_tag, tag_bytes);
-        WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&tag_matches, sizeof tag_matches);
-        wipe(computed_tag.data(), computed_tag.size());
+        bool tag_matches = secure::constant_time_equal(computed_tag, tag_bytes);
+        secure::declassify(tag_matches);
+        secure::erase_secret(computed_tag);
         if (!tag_matches) {
             return error::authentication_failed;
         }
@@ -393,7 +395,7 @@ struct aead_engine<families::chacha20_poly1305, backends::bearssl> {
      */
     static void move(state& target_state, state& source_state) noexcept {
         target_state.key = source_state.key;
-        wipe_object(source_state.key);
+        secure::erase_secret(source_state.key);
     }
 
     /**
@@ -401,7 +403,7 @@ struct aead_engine<families::chacha20_poly1305, backends::bearssl> {
      *
      * @param engine_state Any state.
      */
-    static void reset(state& engine_state) noexcept { wipe_object(engine_state.key); }
+    static void reset(state& engine_state) noexcept { secure::erase_secret(engine_state.key); }
 };
 
 /**
@@ -516,7 +518,7 @@ struct p_curve_engine<families::p256, backends::bearssl> {
      * @param keyed_state A keyed state.
      * @param peer_key The peer's uncompressed point, valid (its public key was made by BearSSL's
      * decoding).
-     * @param output_bytes 32 bytes, a `secret<32>`'s.
+     * @param output_bytes 32 bytes, a `secure::secret<32>`'s.
      * @return Nothing; `backend_failure`, which a valid point and a scalar in range cannot cause.
      */
     [[nodiscard]] static boost::system::result<void> ecdh_x(
@@ -531,21 +533,21 @@ struct p_curve_engine<families::p256, backends::bearssl> {
         // scalar's range and whether the product is the point at infinity, so a constant-time
         // checker holds it secret; on br_ec_p256_m31, the decoding alone. Whether a valid point
         // and a valid scalar multiply is public.
-        // Not const: the branch reads it again after the mark (detail/declassify.hpp's tip).
+        // Not const: the branch reads it again after the mark (secure::declassify's tip).
         // NOLINTNEXTLINE(misc-const-correctness): see above
         std::uint32_t multiplied_flag =
             bearssl_p256()->mul(shared_point.data(), shared_point.size(), keyed_state.scalar.data(),
                                 keyed_state.scalar.size(), BR_EC_secp256r1);
-        WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&multiplied_flag, sizeof multiplied_flag);
+        secure::declassify(multiplied_flag);
         if (multiplied_flag != 1) {
-            wipe_object(shared_point);
+            secure::erase_secret(shared_point);
             return error::backend_failure;  // a validated point and a scalar in range never fail
         }
         std::size_t x_size = 0;
         std::size_t const x_offset = bearssl_p256()->xoff(BR_EC_secp256r1, &x_size);
         std::ranges::copy(std::span<std::uint8_t const>(shared_point).subspan(x_offset, x_size),
                           output_bytes.begin());
-        wipe_object(shared_point);
+        secure::erase_secret(shared_point);
         return {};
     }
 
@@ -656,7 +658,7 @@ struct p_curve_engine<families::p256, backends::bearssl> {
      * Copies the secret scalar; no BearSSL call.
      *
      * @param keyed_state A keyed state.
-     * @param output_bytes 32 bytes, a `secret<32>`'s.
+     * @param output_bytes 32 bytes, a `secure::secret<32>`'s.
      */
     static void scalar(state const& keyed_state,
                        std::span<std::uint8_t, 32> output_bytes) noexcept {
@@ -669,8 +671,8 @@ struct p_curve_engine<families::p256, backends::bearssl> {
      * @param keyed_state Any state.
      */
     static void reset(state& keyed_state) noexcept {
-        wipe_object(keyed_state.scalar);
-        wipe_object(keyed_state.point);
+        secure::erase_secret(keyed_state.scalar);
+        secure::erase_secret(keyed_state.point);
     }
 };
 

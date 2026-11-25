@@ -46,16 +46,6 @@
 |native, wasip2, wasip3, emscripten
 |`+async_p256+`
 
-|`+constant_time_equal+`
-|no backend
-|native, wasip2, wasip3, emscripten
-|`+constant_time_equal+`
-
-|`+erase_secret+`
-|no backend
-|native, wasip2, wasip3, emscripten
-|`+erase_secret+`
-
 |`+error+`
 |no backend
 |native, wasip2, wasip3, emscripten
@@ -357,18 +347,6 @@ The same, by target: the backends each operation runs on.
 |BearSSL
 |BearSSL
 |BearSSL
-
-|`+constant_time_equal+`
-|no backend
-|no backend
-|no backend
-|no backend
-
-|`+erase_secret+`
-|no backend
-|no backend
-|no backend
-|no backend
 
 |`+error+`
 |no backend

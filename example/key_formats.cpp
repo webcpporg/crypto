@@ -15,8 +15,8 @@
 #include <webcpp/crypto/curves/x25519/formats.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/pem.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/secret.hpp>
 
 #include <array>
 #include <cstdint>
@@ -25,6 +25,7 @@
 #include <string_view>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace ed25519 = webcpp::crypto::curves::ed25519;
 namespace x25519 = webcpp::crypto::curves::x25519;
 namespace pem = webcpp::crypto::pem;
@@ -59,7 +60,7 @@ bool print_public_pem(std::array<std::uint8_t, 44> const& spki) {
 // An Ed25519 key pair from PEM, its public key back to PEM, and a signature.
 bool ed25519_from_pem() {
     // The PKCS#8 holds the seed: a secret<N>, which wipes itself.
-    crypto::secret<ed25519::max_pkcs8_size> pkcs8;
+    secure::secret<ed25519::max_pkcs8_size> pkcs8;
     auto const read = pem::unarmour(pem::private_key_label, private_pem, pkcs8.writable());
     if (!read) {
         return false;
@@ -96,7 +97,7 @@ bool x25519_to_pem() {
 
 // Version 2 decodes from PEM, then the PKCS#8 is refused: strict decoding takes one form.
 bool version2_refused() {
-    crypto::secret<128> der;
+    secure::secret<128> der;
     auto const read = pem::unarmour(pem::private_key_label, version2_pem, der.writable());
     if (!read) {
         return false;

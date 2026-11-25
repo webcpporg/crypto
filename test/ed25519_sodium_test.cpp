@@ -25,8 +25,8 @@
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/keypair.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -50,6 +50,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace ed25519 = webcpp::crypto::curves::ed25519;
 namespace test = webcpp::test;
 
@@ -300,7 +301,7 @@ void secret_round_trip() {
         }
         auto const exported = key->secret();
         static_assert(std::is_same_v<std::remove_cvref_t<decltype(*exported)>,
-                                     crypto::secret<ed25519::keypair::secret_key_size>>);
+                                     secure::secret<ed25519::keypair::secret_key_size>>);
         BOOST_TEST(exported && std::ranges::equal(exported->bytes(), seed));
         if (!exported) {
             continue;

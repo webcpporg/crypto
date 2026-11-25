@@ -41,7 +41,7 @@
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/counting.hpp"
@@ -81,10 +81,11 @@
 
 namespace asio = webcpp::asio;
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 
 namespace {
 
-using key = crypto::secret<32>;
+using key = secure::secret<32>;
 using block = std::array<std::uint8_t, 64>;
 using signature_value = crypto::curves::ed25519::signature;
 

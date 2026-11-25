@@ -34,11 +34,11 @@ namespace webcpp::crypto::detail {
 /**
  * The empty objects of the asynchronous family's error completions (ruling R-A3): an operation
  * that completes with `void(error_code, T)` gives, on an error, the object a move leaves (a
- * `secret<N>` or an array of zeros, a `gcm` or a key pair without a key), whose every member
- * refuses with `invalid_state` where it has members.
+ * `secure::secret<N>` or an array of zeros, a `gcm` or a key pair without a key), whose every
+ * member refuses with `invalid_state` where it has members.
  *
  * Each such type whose default constructor is private befriends this class; a type whose
- * default constructor is public (`secret<N>`, `std::array`) needs no friendship.
+ * default constructor is public (`secure::secret<N>`, `std::array`) needs no friendship.
  */
 struct async_access {
     /**

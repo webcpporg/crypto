@@ -24,8 +24,8 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -200,7 +200,7 @@ public:
      */
     [[nodiscard]] boost::system::result<void> encrypt(
         std::span<std::uint8_t> block_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -219,7 +219,7 @@ public:
      */
     [[nodiscard]] boost::system::result<void> decrypt(
         std::span<std::uint8_t> block_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -281,7 +281,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<aes128> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         return detail::basic_aes<16, Backend>::template keyed_as<aes128>(key_bytes);
     }
 
@@ -307,7 +307,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<aes192> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         return detail::basic_aes<24, Backend>::template keyed_as<aes192>(key_bytes);
     }
 
@@ -333,7 +333,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<aes256> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         return detail::basic_aes<32, Backend>::template keyed_as<aes256>(key_bytes);
     }
 

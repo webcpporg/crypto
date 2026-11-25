@@ -35,10 +35,10 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: random_device draws generate()'s seed
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -74,9 +74,9 @@ namespace webcpp::crypto::key_exchange {
 /** The session keys of one side: what it receives with and what it transmits with. */
 struct session_keys {
     /** The key this side decrypts what the peer sends with: the peer's `transmit`. */
-    secret<32> receive;
+    secure::secret<32> receive;
     /** The key this side encrypts what it sends with: the peer's `receive`. */
-    secret<32> transmit;
+    secure::secret<32> transmit;
 };
 
 /**
@@ -138,7 +138,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<kx_keypair> from_keypair(
         keypair_type key_pair) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (!access::keyed(key_pair)) {
             return error::invalid_state;
         }
@@ -154,7 +154,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<kx_keypair> derive_from_seed(
         std::span<std::uint8_t const> seed_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (seed_bytes.size() != seed_size) {
             return error::invalid_key_size;
         }
@@ -163,7 +163,7 @@ public:
             // that its own refusal adds no second error (never compiled into a program).
             return engine::seed_keypair(seed_bytes).error();
         } else {
-            secret<keypair_type::secret_key_size> derived_secret;
+            secure::secret<keypair_type::secret_key_size> derived_secret;
             auto const engine_derived = engine::seed_keypair(seed_bytes.template first<seed_size>(),
                                                              derived_secret.writable());
             if (!engine_derived) {
@@ -184,8 +184,8 @@ public:
      * none; `backend_failure`.
      */
     [[nodiscard]] static boost::system::result<kx_keypair> generate() noexcept {
-        detail::timing_guard const timing_scope;
-        secret<seed_size> seed_secret;
+        secure::timing_guard const timing_scope;
+        secure::secret<seed_size> seed_secret;
         auto const entropy_drawn =
             random_device().fill(seed_secret.writable());  // lint-world: the seed
         if (!entropy_drawn) {
@@ -223,7 +223,7 @@ public:
      */
     [[nodiscard]] boost::system::result<session_keys> client_session_keys(
         public_key_type const& server_public_key) const noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         return session<true>(server_public_key);
     }
 
@@ -236,7 +236,7 @@ public:
      */
     [[nodiscard]] boost::system::result<session_keys> server_session_keys(
         public_key_type const& client_public_key) const noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         return session<false>(client_public_key);
     }
 

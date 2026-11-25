@@ -29,7 +29,7 @@ is made, is `public_key()`, a `curves::x25519::public_key`, whose `bytes()` a
 program sends, and `secret()` gives the secret key back, to keep. A peer's key
 arrives as bytes and is made by `public_key::from_bytes(bytes)`, which checks
 their size alone. `key_pair.agree(peer_key)` gives the shared secret, a
-`secret<32>` that wipes itself. A moved-from key pair refuses every call with
+`secure::secret<32>` that wipes itself. A moved-from key pair refuses every call with
 `invalid_state`. A peer's public key of low order makes the shared secret all
 zero, whatever the secret key: `agree` refuses it with `weak_public_key`, so
 that an attacker who sends such a key cannot make both sides use a secret it
@@ -102,10 +102,9 @@ a secret of its own choosing.
 timing), libsodium's `agree` takes a time that depends on the secret key when
 DIT is clear: about one nanosecond less for the all-zero key, enough for dudect
 to tell it apart (<<crypto-backends-constant-time>>). libsodium does not set
-DIT; webcpp sets it around every call on 64-bit ARM under macOS, iOS, Linux and
-Android where the CPU has it, and restores the thread's state after it, so a
-program does nothing there; on Windows on ARM64 it sets nothing
-(<<crypto-backends-dit>>).
+DIT; webcpp sets it around every call on 64-bit ARM under macOS, iOS, Linux,
+Android and Windows where the CPU has it, and restores the thread's state after
+it, so a program does nothing there (<<crypto-backends-dit>>).
 * On WebAssembly, timing is an open finding: under wasmtime, on wasip2, dudect
 times `agree` against its secret key above the lane's threshold, where every
 native build passes (with the DIT webcpp sets on 64-bit ARM). The cause is

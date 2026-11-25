@@ -503,12 +503,12 @@ libsodium's x86-64 assembly (design D7): Ed25519 signature, libsodium with HAVE_
 [#crypto-performance-timing]
 ==== The timing guard's cost
 
-Every public operation runs inside `detail::timing_guard`, which on 64-bit ARM under
-macOS, iOS, Linux and Android, where the CPU has FEAT_DIT, sets DIT (data-independent
-timing) for the call and restores the thread's state after it
-(<<crypto-backends-dit>>): one `mrs`, and where DIT was clear, two `msr`
-each followed by an `isb`. Elsewhere (x86, WebAssembly, Windows on ARM64) it executes
-no instruction.
+Every public operation runs inside `webcpp::secure::timing_guard`, webcpp::secure's
+guard, which on 64-bit ARM under macOS, iOS, Linux, Android and Windows, where the
+CPU has FEAT_DIT, sets DIT (data-independent timing) for the call and restores the
+thread's state after it (<<crypto-backends-dit>>): one `mrs`, and where DIT was clear,
+two `msr` each followed by an `isb`. Elsewhere (x86, WebAssembly) it executes no
+instruction.
 
 Measured natively on 2026-11-21 on Apple M5 Max
 (arm64), Darwin 27.0.0, built with variant=release

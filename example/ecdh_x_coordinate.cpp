@@ -9,9 +9,9 @@
 // conversation key, HKDF-extract with the salt "nip44-v2". The x coordinate is not a key; the
 // derivation that makes one is the protocol's, and belongs to a domain library.
 // tag::program[]
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/secret.hpp>
 
 #include <boost/hash2/sha2.hpp>
 #include <boost/system/result.hpp>
@@ -26,6 +26,7 @@
 #include <type_traits>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 namespace hash2 = boost::hash2;
 
@@ -64,10 +65,10 @@ void print_hex(char const* label, std::span<std::uint8_t const> bytes) {
 // NIP-44's conversation key: HKDF-extract (RFC 5869), an HMAC-SHA-256 keyed with the salt
 // "nip44-v2" over the shared x coordinate. A NIP-44 library computes it; the message keys,
 // the padding and the payload's format that follow are the protocol's too.
-std::array<std::uint8_t, 32> conversation_key(crypto::secret<32> const& shared_x) {
+std::array<std::uint8_t, 32> conversation_key(secure::secret<32> const& shared_x) {
     auto const salt = bytes_of("nip44-v2");
     hash2::hmac_sha2_256 extract(salt.data(), salt.size());
-    extract.update(shared_x.bytes().data(), crypto::secret<32>::size());
+    extract.update(shared_x.bytes().data(), secure::secret<32>::size());
     auto digest = extract.result();
     wipe_object(extract);
     std::array<std::uint8_t, 32> key{};
@@ -105,7 +106,7 @@ int main() {
     // a secret<32> that wipes itself.
     auto const alice_x = alice->agree(*bob_public);
     auto const bob_x = bob->agree(*alice_public);
-    if (!alice_x || !bob_x || !crypto::constant_time_equal(alice_x->bytes(), bob_x->bytes())) {
+    if (!alice_x || !bob_x || !secure::constant_time_equal(alice_x->bytes(), bob_x->bytes())) {
         return 1;
     }
     std::printf("shared x coordinates match\n");

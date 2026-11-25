@@ -21,7 +21,7 @@
 |a key pair that holds an X25519 key pair, taken as is, derived from a 32-byte seed or drawn, and the peer's X25519 public key
 
 |Output
-|two 32-byte `secret<32>` per side, the client's `transmit` the server's `receive`
+|two 32-byte `secure::secret<32>` per side, the client's `transmit` the server's `receive`
 
 |Standards and sources
 |link:https://doc.libsodium.org/key_exchange[libsodium's documentation, key exchange]

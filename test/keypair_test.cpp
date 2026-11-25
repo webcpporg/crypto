@@ -21,15 +21,15 @@
 
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/backends/sodium.hpp>
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/detail/signature.hpp>
 #include <webcpp/crypto/keypair.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -43,6 +43,7 @@
 #include <type_traits>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 
 namespace {
 
@@ -60,7 +61,7 @@ struct complete_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<complete_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
@@ -73,8 +74,8 @@ struct agreeing_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<agreeing_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<48>> agree(
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<48>> agree(
         stand_in_public_key const&) const noexcept;
 };
 
@@ -86,10 +87,10 @@ struct signing_and_agreeing_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<signing_and_agreeing_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> agree(
+    [[nodiscard]] boost::system::result<secure::secret<32>> agree(
         stand_in_public_key const&) const noexcept;
 };
 
@@ -101,7 +102,7 @@ struct byte_sign_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<byte_sign_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 64>> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
@@ -114,7 +115,7 @@ struct byte_agree_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<byte_agree_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> agree(
         stand_in_public_key const&) const noexcept;
 };
@@ -127,8 +128,8 @@ struct byte_peer_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<byte_peer_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> agree(
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> agree(
         std::span<std::uint8_t const, 32>) const noexcept;
 };
 
@@ -152,7 +153,7 @@ struct wrong_secret_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<wrong_secret_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<64>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<64>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
@@ -165,7 +166,7 @@ struct byte_public_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<byte_public_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<std::array<std::uint8_t, 32>> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
@@ -177,7 +178,7 @@ struct no_generate_keypair {
     static boost::system::result<no_generate_keypair> from_secret(
         std::span<std::uint8_t const>) noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
@@ -190,7 +191,7 @@ struct no_scheme_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<no_scheme_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
@@ -203,7 +204,7 @@ struct unsigned_scheme_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<unsigned_scheme_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
@@ -214,10 +215,10 @@ struct no_from_secret_keypair {
     [[maybe_unused]] static constexpr std::size_t secret_key_size = 32;
     static boost::system::result<no_from_secret_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> agree(
+    [[nodiscard]] boost::system::result<secure::secret<32>> agree(
         stand_in_public_key const&) const noexcept;
 };
 
@@ -228,7 +229,7 @@ struct no_public_key_type_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<no_public_key_type_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
@@ -241,7 +242,7 @@ struct wrong_generate_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<int> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
@@ -253,7 +254,7 @@ struct wrong_from_secret_keypair {
     static wrong_from_secret_keypair from_secret(std::span<std::uint8_t const>) noexcept;
     static boost::system::result<wrong_from_secret_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
@@ -271,7 +272,7 @@ struct unsigned_test_scheme_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<unsigned_test_scheme_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
 };
@@ -284,7 +285,7 @@ struct test_scheme_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<test_scheme_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         crypto::ecdsa_sha256_t, std::span<std::uint8_t const>) const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
@@ -299,7 +300,7 @@ struct only_test_scheme_keypair {
         std::span<std::uint8_t const>) noexcept;
     static boost::system::result<only_test_scheme_keypair> generate() noexcept;
     [[nodiscard]] boost::system::result<stand_in_public_key> public_key() const noexcept;
-    [[nodiscard]] boost::system::result<crypto::secret<32>> secret() const noexcept;
+    [[nodiscard]] boost::system::result<secure::secret<32>> secret() const noexcept;
     [[nodiscard]] boost::system::result<stand_in_signature> sign(
         test_scheme_t, std::span<std::uint8_t const>) const noexcept;
 };
@@ -441,9 +442,9 @@ static_assert(!crypto::keypair<int>);
 static_assert(!crypto::signing_keypair<int>);
 static_assert(!crypto::agreement_keypair<int>);
 // What a secret result is: result<secret<N>> alone.
-static_assert(crypto::detail::is_secret_result_v<boost::system::result<crypto::secret<32>>>);
-static_assert(crypto::detail::is_secret_result_v<boost::system::result<crypto::secret<48>>>);
-static_assert(!crypto::detail::is_secret_result_v<crypto::secret<32>>);
+static_assert(crypto::detail::is_secret_result_v<boost::system::result<secure::secret<32>>>);
+static_assert(crypto::detail::is_secret_result_v<boost::system::result<secure::secret<48>>>);
+static_assert(!crypto::detail::is_secret_result_v<secure::secret<32>>);
 static_assert(
     !crypto::detail::is_secret_result_v<boost::system::result<std::array<std::uint8_t, 32>>>);
 static_assert(!crypto::detail::is_secret_result_v<boost::system::result<void>>);
@@ -600,7 +601,7 @@ void agreement_round_trip() {
     auto const alice_shared = crypto::agree(*alice, *bob->public_key());
     auto const bob_shared = bob->agree(*alice->public_key());
     BOOST_TEST(alice_shared.has_value() && bob_shared.has_value());
-    BOOST_TEST(crypto::constant_time_equal(alice_shared->bytes(), bob_shared->bytes()));
+    BOOST_TEST(secure::constant_time_equal(alice_shared->bytes(), bob_shared->bytes()));
 }
 
 }  // namespace

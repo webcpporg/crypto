@@ -25,11 +25,11 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/detail/limits.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
-#include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/factories.hpp>  // crypto::from_key, which serves its from_key (design R23)
 #include <webcpp/crypto/secret_key_encryption/aead.hpp>  // its free seal and open (design D11)
+#include <webcpp/secure/erase_secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/result.hpp>
@@ -169,7 +169,7 @@ public:
      */
     [[nodiscard]] static boost::system::result<gcm> from_key(
         std::span<std::uint8_t const> key_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         static_assert(!detail::asynchronous_backend_v<backend>,
                       "webcpp::crypto: from_key on this backend completes asynchronously: call "
                       "async_from_key.");
@@ -223,7 +223,7 @@ public:
      * @param moved_source The source, empty afterwards.
      */
     gcm(gcm&& moved_source) noexcept : keyed_(std::exchange(moved_source.keyed_, false)) {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (keyed_) {
             moved_source.abandon_message();
             engine::move(state_, moved_source.state_);
@@ -239,7 +239,7 @@ public:
      * @return This object.
      */
     gcm& operator=(gcm&& moved_source) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (this != &moved_source) {
             engine::reset(state_);
             keyed_ = std::exchange(moved_source.keyed_, false);
@@ -280,7 +280,7 @@ public:
         std::span<std::uint8_t const> nonce_bytes,
         std::span<std::uint8_t const> associated_data_bytes,
         std::span<std::uint8_t> data_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<backend>,
             "webcpp::crypto: seal on this backend completes asynchronously: call async_seal.");
@@ -301,7 +301,7 @@ public:
             if (!tag_result) {
                 // A message without a tag is not to be sent: data is zeroed, and nothing of the
                 // failed message stays in the context, as after an incremental one.
-                detail::wipe(data_bytes.data(), data_bytes.size());
+                secure::erase_secret(data_bytes);
                 engine::abandon(state_);
                 return tag_result.error();
             }
@@ -357,7 +357,7 @@ public:
         std::span<std::uint8_t const> nonce_bytes,
         std::span<std::uint8_t const> associated_data_bytes, std::span<std::uint8_t> data_bytes,
         std::span<std::uint8_t const> tag_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         static_assert(
             !detail::asynchronous_backend_v<backend>,
             "webcpp::crypto: open on this backend completes asynchronously: call async_open.");
@@ -379,7 +379,7 @@ public:
             auto const tag_check_result =
                 open_result ? engine::check(state_, expected_tag) : open_result;
             if (!tag_check_result) {
-                detail::wipe(data_bytes.data(), data_bytes.size());
+                secure::erase_secret(data_bytes);
                 engine::abandon(state_);
                 return tag_check_result.error();
             }
@@ -432,7 +432,7 @@ public:
     [[nodiscard]] boost::system::result<void> begin_seal(
         std::span<std::uint8_t const> nonce_bytes,
         std::span<std::uint8_t const> associated_data_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -466,7 +466,7 @@ public:
      * `backend_failure`, which ends it.
      */
     [[nodiscard]] boost::system::result<void> update(std::span<std::uint8_t> data_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         auto const phase_result = require_phase(phase::sealing);
         if (!phase_result) {
             return phase_result.error();
@@ -477,7 +477,7 @@ public:
         }
         auto const run_result = engine::run(state_, data_bytes);
         if (!run_result) {
-            detail::wipe(data_bytes.data(), data_bytes.size());
+            secure::erase_secret(data_bytes);
             abandon();
             return run_result.error();
         }
@@ -492,7 +492,7 @@ public:
      * `backend_failure`, which ends the seal too.
      */
     [[nodiscard]] boost::system::result<result_type> result() noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         auto const phase_result = require_phase(phase::sealing);
         if (!phase_result) {
             return phase_result.error();
@@ -523,7 +523,7 @@ public:
     [[nodiscard]] boost::system::result<void> begin_open(
         std::span<std::uint8_t const> nonce_bytes,
         std::span<std::uint8_t const> associated_data_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (!keyed_) {
             return error::invalid_state;
         }
@@ -563,7 +563,7 @@ public:
      */
     [[nodiscard]] boost::system::result<void> authenticate(
         std::span<std::uint8_t const> ciphertext_piece) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         auto const phase_result = require_phase(phase::authenticating);
         if (!phase_result) {
             return phase_result.error();
@@ -579,7 +579,7 @@ public:
                 (std::min)(scratch_size, ciphertext_piece.size() - piece_start);
             std::copy_n(ciphertext_piece.data() + piece_start, block_size, scratch_bytes.data());
             auto const run_result = engine::run(state_, std::span(scratch_bytes).first(block_size));
-            detail::wipe(scratch_bytes.data(), block_size);
+            secure::erase_secret(std::span(scratch_bytes).first(block_size));
             if (!run_result) {
                 abandon();
                 return run_result.error();
@@ -600,7 +600,7 @@ public:
      */
     [[nodiscard]] boost::system::result<void> verify(
         std::span<std::uint8_t const> tag_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         auto const phase_result = require_phase(phase::authenticating);
         if (!phase_result) {
             return phase_result.error();
@@ -643,7 +643,7 @@ public:
      * the message; `backend_failure`, which ends it.
      */
     [[nodiscard]] boost::system::result<void> decrypt(std::span<std::uint8_t> data_piece) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         auto const phase_result = require_phase(phase::decrypting);
         if (!phase_result) {
             return phase_result.error();
@@ -654,7 +654,7 @@ public:
         }
         auto const run_result = engine::run(state_, data_piece);
         if (!run_result) {
-            detail::wipe(data_piece.data(), data_piece.size());
+            secure::erase_secret(data_piece);
             abandon();
             return run_result.error();
         }
@@ -670,7 +670,7 @@ public:
      * which ends the message too.
      */
     [[nodiscard]] boost::system::result<void> end_open() noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         auto const phase_result = require_phase(phase::decrypting);
         if (!phase_result) {
             return phase_result.error();
@@ -750,7 +750,7 @@ private:
     // No message is in progress; the kept nonce is wiped and the counters zeroed.
     void end_message() noexcept {
         phase_ = phase::none;
-        detail::wipe(nonce_.data(), nonce_.size());
+        secure::erase_secret(nonce_);
         nonce_size_ = 0;
         message_bytes_ = 0;
         decrypted_bytes_ = 0;

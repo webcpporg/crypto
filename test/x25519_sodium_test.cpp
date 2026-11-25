@@ -49,6 +49,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace x25519 = webcpp::crypto::curves::x25519;
 namespace ed25519 = webcpp::crypto::curves::ed25519;
 namespace test = webcpp::test;
@@ -56,7 +57,7 @@ namespace test = webcpp::test;
 namespace {
 
 /** The bytes of a secret, as a vector a test compares. */
-std::vector<std::uint8_t> bytes_of(crypto::secret<32> const& shared) {
+std::vector<std::uint8_t> bytes_of(secure::secret<32> const& shared) {
     auto const view = shared.bytes();
     return {view.begin(), view.end()};
 }

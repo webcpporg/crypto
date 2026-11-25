@@ -30,6 +30,7 @@
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 namespace {
 
@@ -39,27 +40,46 @@ constexpr std::array<std::uint8_t, 4> random_pattern{0xd2, 0x49, 0xb6, 0x0f};
 // The positive control's pattern, which a call leaves on the stack unwiped.
 constexpr std::array<std::uint8_t, 4> control_pattern{0x83, 0x1e, 0xf4, 0x6a};
 
-// Runs `call` in a frame of its own under 1 KiB of the stack, and returns what it returns.
+// Runs `call` in a frame of its own under 1 KiB of the stack, and returns what it returns. Every
+// byte of the padding is a volatile store, and one is read again after the call, so that the frame
+// holds the whole KiB while the call runs at every optimisation level: an initialiser is no
+// volatile access, and with only its first byte written, an optimised build shrank the padding
+// to 16 bytes (Emscripten at release, 2026-11-25), which left the call's frame where the scan's
+// own calls write.
 template <class Call>
 __attribute__((noinline)) bool under_padding(Call call) {
     std::array<std::uint8_t volatile, 1024> padding{};
-    padding[0] = 1;
-    return call();
+    for (auto& padding_byte : padding) {
+        padding_byte = 1;
+    }
+    bool const result = call();
+    return result && padding[padding.size() - 1] == 1;
 }
+
+// clang-format off: JavaScript, which clang-format would break
+// Fills `bytes` from crypto.getRandomValues, as a draw of libsodium's on Emscripten does.
+void draw_into(std::span<std::uint8_t> bytes) {
+    EM_ASM({ globalThis.crypto.getRandomValues(HEAPU8.subarray($0, $0 + $1)); },
+           bytes.data(), bytes.size());
+}
+
+// clang-format on
 
 // The calls that draw, never inlined.
 __attribute__((noinline)) bool first_sodium_call() {
     return webcpp::crypto::detail::sodium_ready().has_value();
 }
 
-// The positive control: writes the control pattern into its frame and returns without wiping,
-// so that the scan must find it; were the stack's layout to change so that the scan no longer
-// reaches a dead frame under the padding, this fails instead of the checks passing vacuously.
+// The positive control: draws the control pattern from the planted generator into a buffer of its
+// frame, as a draw does, and returns without wiping, so that the scan must find it; were the
+// stack's layout to change so that the scan no longer reaches a dead frame under the padding, this
+// fails instead of the checks passing vacuously. The buffer's address goes to JavaScript, as a
+// draw's does, so that it is 4 bytes in a row in the module's memory: bytes the function stored
+// one by one, whose address never left it, an optimised build kept apart and in reverse order
+// (Emscripten at release, 2026-11-25), where the scan for the pattern did not find them.
 __attribute__((noinline)) bool leaves_pattern() {
-    std::array<std::uint8_t volatile, 4> left_bytes{};
-    for (std::size_t index = 0; index < left_bytes.size(); ++index) {
-        left_bytes[index] = control_pattern[index];
-    }
+    std::array<std::uint8_t, 4> left_bytes{};
+    draw_into(left_bytes);
     return left_bytes[0] == control_pattern[0];
 }
 
@@ -93,12 +113,14 @@ bool pattern_below_stack_pointer(std::array<std::uint8_t, 4> const& pattern) {
         return 0;
     }, pattern.data(), emscripten_stack_get_end(), emscripten_stack_get_current()) == 1;
 }
+
 // clang-format on
 
 }  // namespace
 
 int main() {
     // The scan finds a draw's copy that a call leaves behind.
+    plant_pattern(control_pattern);
     bool const control_written = under_padding(leaves_pattern);
     BOOST_TEST(pattern_below_stack_pointer(control_pattern));
     BOOST_TEST(control_written);

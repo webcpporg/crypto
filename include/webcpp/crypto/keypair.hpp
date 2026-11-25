@@ -12,7 +12,7 @@
    curve declares, at least one, of the library's one list of schemes, `detail::all_schemes` in
    `signing.hpp`, each into the scheme's signature type: Ed25519's, P-256's and secp256k1's;
  - `crypto::agreement_keypair`, a key pair that agrees, `agree(peer)` with its own public key
-   type, giving a `secret<N>`: X25519's, P-256's and secp256k1's.
+   type, giving a `secure::secret<N>`: X25519's, P-256's and secp256k1's.
 
  Each curve's header checks its own key pair's row with `static_assert`s where its default backend
  is linked.
@@ -31,10 +31,10 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/detail/signature.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/factories.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -51,8 +51,8 @@ namespace webcpp::crypto {
  * - `Keypair::from_secret(secret_bytes)` and `Keypair::generate()` give `result<Keypair>`;
  * - `key.public_key()` gives `result<typename Keypair::public_key_type>`, the curve's typed public
  *   key;
- * - `key.secret()` gives `result<secret<Keypair::secret_key_size>>`, the bytes `from_secret`
- *   takes back.
+ * - `key.secret()` gives `result<secure::secret<Keypair::secret_key_size>>`, the bytes
+ * `from_secret` takes back.
  *
  * What it does is the refinements': `signing_keypair` signs, `agreement_keypair` agrees.
  *
@@ -70,7 +70,7 @@ concept keypair = requires {
     } -> std::same_as<boost::system::result<typename Keypair::public_key_type>>;
     {
         std::declval<Keypair const&>().secret()
-    } -> std::same_as<boost::system::result<secret<Keypair::secret_key_size>>>;
+    } -> std::same_as<boost::system::result<secure::secret<Keypair::secret_key_size>>>;
 };
 
 namespace detail {
@@ -169,7 +169,8 @@ concept signing_keypair_over =
     keypair<Keypair> && signs_some_scheme_v<Keypair, List> && signs_every_declared_v<Keypair, List>;
 
 /**
- * Whether `Type` is the result of an agreement, `result<secret<N>>`: false for any other type.
+ * Whether `Type` is the result of an agreement, `result<secure::secret<N>>`: false for any other
+ * type.
  *
  * @tparam Type Any type.
  */
@@ -177,12 +178,12 @@ template <class Type>
 inline constexpr bool is_secret_result_v = false;
 
 /**
- * Whether `result<secret<N>>` is the result of an agreement: it is.
+ * Whether `result<secure::secret<N>>` is the result of an agreement: it is.
  *
  * @tparam N The shared secret's size in bytes.
  */
 template <std::size_t N>
-inline constexpr bool is_secret_result_v<boost::system::result<secret<N>>> = true;
+inline constexpr bool is_secret_result_v<boost::system::result<secure::secret<N>>> = true;
 
 /**
  * Whether `key.sign(scheme, input, extra...)` names a member `sign` of `Keypair` that takes these
@@ -231,7 +232,8 @@ concept signing_keypair = detail::signing_keypair_over<Keypair, detail::all_sche
 
 /**
  * Whether `Keypair` is a key pair that agrees (design D4): a `keypair` whose `key.agree(peer)`,
- * `peer` its own `typename Keypair::public_key_type`, gives `result<secret<N>>`, the shared secret.
+ * `peer` its own `typename Keypair::public_key_type`, gives `result<secure::secret<N>>`, the shared
+ * secret.
  *
  * X25519's, P-256's and secp256k1's key pairs are; Ed25519's is not: it signs, and `to_x25519()`
  * converts it to an X25519 key pair, which agrees.
@@ -273,7 +275,7 @@ template <class Keypair, class Scheme, class Input, class... Extra>
     Extra const&... extra_arguments) noexcept(noexcept(key_pair.sign(signing_scheme, signing_input,
                                                                      extra_arguments...)))
     -> decltype(key_pair.sign(signing_scheme, signing_input, extra_arguments...)) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return key_pair.sign(signing_scheme, signing_input, extra_arguments...);
 }
 
@@ -332,7 +334,7 @@ template <class Keypair, class PublicKey>
 [[nodiscard]] auto agree(Keypair const& key_pair,
                          PublicKey const& peer_key) noexcept(noexcept(key_pair.agree(peer_key)))
     -> decltype(key_pair.agree(peer_key)) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return key_pair.agree(peer_key);
 }
 

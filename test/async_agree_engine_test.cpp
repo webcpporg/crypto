@@ -18,7 +18,7 @@
 #include <webcpp/crypto/detail/async_access.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
 #include <webcpp/crypto/keypair.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <webcpp/asio/io_context.hpp>
@@ -33,6 +33,7 @@
 #include <utility>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace asio = webcpp::asio;
 
 namespace {
@@ -82,8 +83,8 @@ struct async_engine<stand_in_browser> {
         seen().key_pair = &key_pair;
         seen().peer_key = &peer_key;
         return complete_by_post(completion_executor, completion_token,
-                                []() noexcept -> boost::system::result<secret<32>> {
-                                    secret<32> agreed;
+                                []() noexcept -> boost::system::result<secure::secret<32>> {
+                                    secure::secret<32> agreed;
                                     agreed.writable()[0] = agreed_byte;
                                     agreed.writable()[31] = agreed_byte;
                                     return agreed;
@@ -114,7 +115,7 @@ void completes_through_engine(asio::io_context& context, Keypair const& key_pair
     bool after_return = false;
     boost::system::error_code completion_code;
     std::array<std::uint8_t, 32> agreed_bytes{};
-    start(context.get_executor(), [&](boost::system::error_code code, crypto::secret<32> agreed) {
+    start(context.get_executor(), [&](boost::system::error_code code, secure::secret<32> agreed) {
         ++completions;
         after_return = returned;
         completion_code = code;

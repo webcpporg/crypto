@@ -275,6 +275,12 @@ The fix: Name a backend that has ChaCha20-Poly1305, as in `+chacha20_poly1305<ba
 
 The fix: Name a backend of `+webcpp::crypto::backends+` that has the family, as `+backends::bearssl+`, or leave the backend out for the family's default: `+chacha20_poly1305<>+`.
 
+|`+constant_time_equal_moved+`
+|native, wasip2, wasip3
+|`+no member named 'constant_time_equal' in namespace 'webcpp::crypto'+`
+
+The fix: Call `+webcpp::secure::constant_time_equal+`, from `+<webcpp/secure/constant_time_equal.hpp>+`, the same comparison in constant time; `+crypto::constant_time_equal+` moved to webcpp::secure, with no alias.
+
 |`+ctaes_not_linked+`
 |native, wasip2, wasip3
 |`+webcpp::crypto: the backend ctaes is used and not linked. In the program's Jamfile, add /third_party//ctaes beside /webcpp/crypto//crypto. (without b2: define WEBCPP_CRYPTO_HAS_CTAES=1 and link ctaes.c with webcpp's src/canary_ctaes.c)+`
@@ -327,19 +333,19 @@ The fix: Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp2
 |native, wasip2, wasip3
 |`+'webcpp/crypto/equal.hpp' file not found+`
 
-The fix: Include `+<webcpp/crypto/constant_time_equal.hpp>+`, the header of `+constant_time_equal+`; `+equal.hpp+` is gone, with no header left at its path.
+The fix: Include `+<webcpp/secure/constant_time_equal.hpp>+`, the header of `+secure::constant_time_equal+`; `+equal.hpp+` is gone, with no header left at its path.
 
 |`+equal_removed+`
 |native, wasip2, wasip3
 |`+no member named 'equal' in namespace 'webcpp::crypto'+`
 
-The fix: Call `+crypto::constant_time_equal+`, the same comparison of two spans or two digests in constant time; `+crypto::equal+` is gone, with no alias.
+The fix: Call `+webcpp::secure::constant_time_equal+`, the same comparison of two byte sequences in constant time; `+crypto::equal+` is gone, with no alias.
 
-|`+erase_secret_const_range+`
+|`+erase_secret_moved+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: erase_secret zeroes a buffer the program may write, of trivially copyable elements: a std::vector<std::uint8_t>, a std::string, a std::array, a std::span<std::byte>; this range's elements are const or not trivially copyable.+`
+|`+no type named 'erase_secret' in namespace 'webcpp::crypto'+`
 
-The fix: Erase the buffer the secret was written to, through a non-const reference to it (`+std::string&+`, `+std::span<std::byte>+`): a const view cannot be erased. Its elements must be trivially copyable, bytes or integers; a range of `+std::string+` or of another type with its own storage cannot be erased as bytes, so erase each element's buffer instead.
+The fix: Call `+webcpp::secure::erase_secret+`, from `+<webcpp/secure/erase_secret.hpp>+`, the same erasure; `+crypto::erase_secret+` moved to webcpp::secure, with no alias.
 
 |`+gcm_default_openssl_not_linked+`
 |native
@@ -617,11 +623,11 @@ The fix: Call public_key_tweak_add, public_key_tweak_mul, public_key_negate, pub
 
 The fix: As `+secp256k1_tweak_names_removed+`.
 
-|`+secret_of_no_bytes+`
+|`+secret_moved+`
 |native, wasip2, wasip3
-|`+webcpp::crypto: a secret of no bytes holds nothing.+`
+|`+no template named 'secret' in namespace 'webcpp::crypto'+`
 
-The fix: Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
+The fix: Name `+webcpp::secure::secret<N>+`, from `+<webcpp/secure/secret.hpp>+`, the type every secret crypto returns; `+crypto::secret+` moved to webcpp::secure, with no alias.
 
 |`+secretbox_header_removed+`
 |native, wasip2, wasip3
@@ -871,7 +877,7 @@ The fix: Verify a BIP340 signature with `+crypto::schnorr+`, its scheme; `+crypt
 |native, wasip2, wasip3
 |`+no type named 'wipe' in namespace 'webcpp::crypto'+`
 
-The fix: Call `+crypto::erase_secret+`, which zeroes a contiguous range the program owns (a `+std::string&+`, a `+std::span<std::byte>+`) with stores the optimiser keeps; `+crypto::wipe+` is gone, with no alias.
+The fix: Call `+webcpp::secure::erase_secret+`, which zeroes a contiguous range the program owns (a `+std::string&+`, a `+std::span<std::byte>+`) with stores the optimiser keeps; `+crypto::wipe+` is gone, with no alias.
 
 |`+x25519_asynchronous_backend+`
 |native, wasip2, wasip3
@@ -1510,20 +1516,6 @@ On each target, the build's output contains:
 * emscripten:
 ** `+webcpp::crypto: PEM's default backend on this target is libsodium, which is not linked, and the one backend that has it there. Add /webcpp/crypto//pem-default, the default's library on every target, to the program's Jamfile, as in: exe app : app.cpp /webcpp/crypto//crypto /webcpp/crypto//pem-default ; (without b2: define WEBCPP_CRYPTO_HAS_SODIUM=1 and link libsodium built with webcpp's src/canary_sodium.c)+`
 
-`+secret_of_no_bytes_on_emscripten+`:: A program for Emscripten that names `+secret<0>+`. The fix: As `+secret_of_no_bytes+`.
-+
-Its Jamfile:
-+
-[listing]
-----
-include::{webcpp-root}/tools/test/fixtures/crypto_jamfiles/secret_of_no_bytes_on_emscripten/Jamfile[tag=jamfile]
-----
-+
-On each target, the build's output contains:
-+
-* emscripten:
-** `+webcpp::crypto: a secret of no bytes holds nothing.+`
-
 `+sodium_not_linked_on_emscripten+`:: A program for Emscripten that names libsodium and links none. The fix: Add `+/third_party//sodium+` to the program's sources.
 +
 Its Jamfile:
@@ -1760,7 +1752,7 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 
 |`+secret_of_no_bytes+`
 |the compile
-|Give `+secret+` the number of bytes it holds, at least one, as in `+secret<32>+`.
+|Give `+secure::secret+` the number of bytes it holds, at least one, as in `+secure::secret<32>+` (webcpp::secure's type, which crypto's key pairs return; the text is checked in libs/secure/test/messages/secret_of_no_bytes).
 
 |`+sign_eddsa_prehashed_message+`
 |the compile

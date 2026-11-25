@@ -47,13 +47,14 @@ family, backend or target the page does not know), and a program's line that is 
 script reads (an older bench/timing.cpp's, without the fastest and slowest runs, among them), are
 refused with a message naming what is wrong, before the page is written.
 
-The timing guard's cost (detail::timing_guard, which every public operation holds and which sets
-64-bit ARM's DIT where the CPU has it) is `timing --measure`'s one line: whether the guard sets DIT
-on this machine, and the nanoseconds a guard adds to a call entered from a thread whose DIT is
-clear and from one where it is already set, each the median of five runs of 10^7 guards minus an
-empty loop's, with the fastest and slowest run. The data keeps it under "timing_guard" with the
-date, the machine and the load; the page renders it as a paragraph and a two-row table under the
-throughput. Every date is UTC's, as the constant-time lane's are.
+The timing guard's cost (webcpp::secure::timing_guard, secure's guard, which every public
+operation holds and which sets 64-bit ARM's DIT where the CPU has it) is `timing --measure`'s one
+line: whether the guard sets DIT on this machine, and the nanoseconds a guard adds to a call
+entered from a thread whose DIT is clear and from one where it is already set, each the median of
+five runs of 10^7 guards minus an empty loop's, with the fastest and slowest run. The data keeps
+it under "timing_guard" with the date, the machine and the load; the page renders it as a
+paragraph and a two-row table under the throughput. Every date is UTC's, as the constant-time
+lane's are.
 
 libsodium's x86-64 assembly (HAVE_AMD64_ASM, design D7) is recorded beside the table as not
 measured yet, with its reason, until an x86-64 machine runs a scratch build of it by hand.
@@ -350,7 +351,8 @@ def measure_timing(exe):
     loads.append(os.getloadavg())
     result = program_line("native", [exe, "--measure"], output, TIMING_LINE_SHAPE)
     return {
-        "measurement": "the nanoseconds detail::timing_guard adds to a call, bench/timing.cpp",
+        "measurement": "the nanoseconds webcpp::secure::timing_guard adds to a call, "
+                       "bench/timing.cpp",
         "date": utc_today(),
         "machine": machine(),
         "load_average_before_after": [list(loads[0]), list(loads[1])],
@@ -417,12 +419,12 @@ def render_timing(data, timing, titles, backends):
         "[#crypto-performance-timing]",
         "==== The timing guard's cost",
         "",
-        "Every public operation runs inside `detail::timing_guard`, which on 64-bit ARM under",
-        "macOS, iOS, Linux and Android, where the CPU has FEAT_DIT, sets DIT (data-independent",
-        "timing) for the call and restores the thread's state after it",
-        "(<<crypto-backends-dit>>): one `mrs`, and where DIT was clear, two `msr`",
-        "each followed by an `isb`. Elsewhere (x86, WebAssembly, Windows on ARM64) it executes",
-        "no instruction.",
+        "Every public operation runs inside `webcpp::secure::timing_guard`, webcpp::secure's",
+        "guard, which on 64-bit ARM under macOS, iOS, Linux, Android and Windows, where the",
+        "CPU has FEAT_DIT, sets DIT (data-independent timing) for the call and restores the",
+        "thread's state after it (<<crypto-backends-dit>>): one `mrs`, and where DIT was clear,",
+        "two `msr` each followed by an `isb`. Elsewhere (x86, WebAssembly) it executes no",
+        "instruction.",
         "",
     ]
     if timing is None:

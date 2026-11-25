@@ -30,21 +30,21 @@
 #include <webcpp/crypto/ciphers/aes_block.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
-#include <webcpp/crypto/erase_secret.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/pem.hpp>
 #include <webcpp/crypto/random_device.hpp>  // lint-world: the system's entropy, a purpose of crypto
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/secret_key_encryption/aead.hpp>
 #include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
 #include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/crypto/supports.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/erase_secret.hpp>
+#include <webcpp/secure/secret.hpp>
 
 #ifdef WEBCPP_CRYPTO_HAS_BEARSSL
 #include <webcpp/crypto/backends/bearssl.hpp>

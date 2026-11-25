@@ -9,7 +9,7 @@
 
 [cols="2h,5,5,5,5,5,5,5,5,5,5",options="header"]
 |===
-|Name |`random_device` |`constant_time_equal` |`erase_secret` |`secret<N>` |`error` |`pem` |`openssl_memory_resource` |Signatures |The key pair concepts |Making by type
+|Name |`random_device` |`secure::constant_time_equal` |`secure::erase_secret` |`secure::secret<N>` |`error` |`pem` |`openssl_memory_resource` |Signatures |The key pair concepts |Making by type
 
 |Names
 |
@@ -37,9 +37,9 @@
 
 |Header
 |`<webcpp/crypto/random_device.hpp>`
-|`<webcpp/crypto/constant_time_equal.hpp>`
-|`<webcpp/crypto/erase_secret.hpp>`
-|`<webcpp/crypto/secret.hpp>`
+|`<webcpp/secure/constant_time_equal.hpp>`
+|`<webcpp/secure/erase_secret.hpp>`
+|`<webcpp/secure/secret.hpp>`
 |`<webcpp/crypto/error.hpp>`
 |`<webcpp/crypto/pem.hpp>`
 |`<webcpp/crypto/backends/openssl.hpp>`

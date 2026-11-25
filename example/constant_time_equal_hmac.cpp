@@ -4,11 +4,11 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Checks an HMAC-SHA-256 tag from Boost.Hash2 with webcpp::crypto::constant_time_equal, the
+// Checks an HMAC-SHA-256 tag from Boost.Hash2 with webcpp::secure::constant_time_equal, the
 // constant-time comparison. Comparing tags with == or memcmp stops at the first difference, and
 // that timing lets an attacker guess a valid tag one byte at a time.
 // tag::program[]
-#include <webcpp/crypto/constant_time_equal.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
 
 #include <boost/hash2/hmac.hpp>
 #include <boost/hash2/sha2.hpp>
@@ -19,7 +19,7 @@
 #include <span>
 #include <string_view>
 
-namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace hash2 = boost::hash2;
 
 int main() {
@@ -37,7 +37,7 @@ int main() {
     hash2::hmac_sha2_256 mac(key.data(), key.size());
     mac.update(data.data(), data.size());
     auto const computed = mac.result();
-    bool const valid = crypto::constant_time_equal(
+    bool const valid = secure::constant_time_equal(
         std::span<std::uint8_t const>(computed.data(), computed.size()), sent_tag);
     // end::check[]
     if (!valid) {
@@ -48,7 +48,7 @@ int main() {
     // A tag with one changed byte must be refused.
     auto altered = sent_tag;
     altered[31] ^= 1U;
-    if (crypto::constant_time_equal(std::span<std::uint8_t const>(computed.data(), computed.size()),
+    if (secure::constant_time_equal(std::span<std::uint8_t const>(computed.data(), computed.size()),
                                     altered)) {
         return 1;
     }

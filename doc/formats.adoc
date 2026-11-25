@@ -56,7 +56,7 @@ WebCrypto's `exportKey("pkcs8")`, are refused; `pem` armours both
 `decode_spki(spki)`, `encode_pkcs8(keypair, out)` and `decode_pkcs8(pkcs8)`,
 which makes the key pair at once; `<webcpp/crypto/curves/x25519/formats.hpp>`
 gives the same four in `webcpp::crypto::curves::x25519`, where a PKCS#8
-holds a 32-byte secret key and `decode_pkcs8` gives it as a `secret<32>`, which
+holds a 32-byte secret key and `decode_pkcs8` gives it as a `secure::secret<32>`, which
 wipes itself. `max_spki_size` and `max_pkcs8_size`, 44 and 48, size the
 caller's buffers. `<webcpp/crypto/pem.hpp>` gives, in `webcpp::crypto::pem`,
 `armour(label, der, out)` and `unarmour(label, text, out)`, with the labels
@@ -104,7 +104,7 @@ include::{examples}/key_formats.expected[]
 
 *Pitfalls.*
 
-* A PKCS#8, as DER or as PEM, is the secret key: kept in a `secret<N>`, as the
+* A PKCS#8, as DER or as PEM, is the secret key: kept in a `secure::secret<N>`, as the
 example does, it is wiped when it goes; written to a file or a database, it is
 sealed first, as any secret at rest (<<crypto-wallets>>).
 * `decode_spki` checks the form, not the key: `crypto::verify` with

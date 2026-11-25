@@ -71,7 +71,7 @@ test::t_statistic measure_agree(bool judged_case, std::array<std::uint8_t, 32>& 
             // inside the library's own guard, as a public operation's code would, so that DIT is
             // set over them where the CPU has it and the lane shows it does not hide a leak of
             // that size; the agreement's own guard then finds DIT set and leaves it so.
-            webcpp::crypto::detail::timing_guard const timing;
+            webcpp::secure::timing_guard const timing;
             for (int scan = 0; scan < 4; ++scan) {
                 for (auto const& byte : secret_key) {
                     if (*static_cast<std::uint8_t const volatile*>(&byte) != 0) {

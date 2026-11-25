@@ -18,7 +18,7 @@
 #include <webcpp/crypto/curves/p256/formats.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/pem.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -54,6 +54,7 @@
 namespace {
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace pem = webcpp::crypto::pem;
 namespace p256 = webcpp::crypto::curves::p256;
 namespace data = webcpp::test::p256;
@@ -559,7 +560,7 @@ void report(json::value const& t, std::string_view what) {
 
 // The case's ECDH with a key decoded from its SPKI, or the error of the step that refused it:
 // keypair::from_secret or agree (decode_spki's refusal is the caller's).
-boost::system::result<crypto::secret<32>> derive(json::value const& t, public_key const& peer) {
+boost::system::result<secure::secret<32>> derive(json::value const& t, public_key const& peer) {
     auto const scalar = scalar_bytes(test::from_hex(str(t.at("private"))));
     if (scalar.empty()) {
         return error::invalid_secret_key;

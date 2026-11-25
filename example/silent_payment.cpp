@@ -17,7 +17,7 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
 
 #include <algorithm>
 #include <array>
@@ -63,7 +63,7 @@ int main() {
     // their two public keys.
     auto const scan_pair = secp256k1::keypair::from_secret(repeated(0x51));
     // The spend secret is kept, in a secret<32> that wipes itself, to spend what is found.
-    webcpp::crypto::secret<32> spend_secret;
+    webcpp::secure::secret<32> spend_secret;
     std::ranges::fill(spend_secret.writable(), std::uint8_t{0x52});
     auto const spend_pair = secp256k1::keypair::from_secret(spend_secret.bytes());
     auto const donor = secp256k1::keypair::from_secret(repeated(0x53));

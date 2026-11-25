@@ -28,13 +28,13 @@ rule crypto-run ( name : sources + : requirements * : targets * )
 OPTIMISED = <optimization>speed <toolset>emscripten:<debug-symbols>off ;
 
 webcpp.headers-alone crypto : ../include : crypto.hpp crypto/config.hpp
-  crypto/constant_time_equal.hpp crypto/erase_secret.hpp crypto/error.hpp
+  crypto/error.hpp
   crypto/ciphers/aes.hpp crypto/ciphers/gcm.hpp crypto/random_device.hpp
-  crypto/detail/bytes.hpp crypto/detail/declassify.hpp
+  crypto/detail/bytes.hpp
   crypto/detail/engines.hpp crypto/detail/entropy.hpp crypto/detail/limits.hpp
-  crypto/detail/windows.hpp crypto/detail/wipe.hpp crypto/secret.hpp
+  crypto/detail/windows.hpp
   crypto/supports.hpp crypto/detail/capabilities.hpp crypto/detail/defaults.hpp
-  crypto/detail/async_access.hpp crypto/detail/timing.hpp crypto/ciphers/aead.hpp
+  crypto/detail/async_access.hpp crypto/ciphers/aead.hpp
   crypto/ciphers/chacha20_poly1305.hpp crypto/pem.hpp
   crypto/secret_key_encryption/aead.hpp
   crypto/secret_key_encryption/authenticated_box.hpp
@@ -199,7 +199,6 @@ webcpp.compile-diagnostic heavy_refusal_forgotten : heavy_refusal_forgotten_test
   : <define>WEBCPP_CRYPTO_NO_THREADS : native wasip2 wasip3 : alone ;
 
 crypto-run error : error_test.cpp ;
-crypto-run constant_time_equal : constant_time_equal_test.cpp ;
 # signing.hpp's tags and their one list, prehashed, the input checks and the
 # concepts, over stand-in key types; the catch-all verify; sha256_of.
 crypto-run signing : signing_test.cpp ;
@@ -245,18 +244,19 @@ crypto-run aead_concepts : aead_concepts_test.cpp
 # The tests' hex readers: hex<N> at compile time, from_hex and to_hex at run
 # time.
 crypto-run hex : hex_test.cpp ;
-# detail::timing_guard sets DIT for its scope where the CPU has it and leaves
-# the thread's state as it found it; its seam fires on every target;
-# constant_time_equal enters it. timing_threads adds a second thread, natively,
-# with threads.
+# webcpp::secure::timing_guard, secure's guard, which crypto's public
+# operations hold, sets DIT for its scope where the CPU has it and leaves the
+# thread's state as it found it; its seam fires on every target, and crypto's
+# seam support counts crypto's own guards by their file. timing_threads adds a
+# second thread, natively, with threads.
 crypto-run timing : timing_test.cpp ;
 crypto-run timing_threads : timing_test.cpp
   : <threading>multi <define>WEBCPP_TEST_TIMING_THREADS : native ;
-# Without the seam, the guard takes no argument, on every target; natively, at
-# release, a program that calls constant_time_equal reads its own executable and
-# finds neither its name nor constant_time_equal.hpp's path, which a guard's
-# source_location would keep where its constructor is not inlined (clang on
-# arm64).
+# Without the seam, the guard takes no source_location, on every target;
+# natively, at release, a program that calls basic_chacha20_poly1305's seal on
+# a stand-in backend reads its own executable and finds neither its name nor
+# aead.hpp's path, which a guard's source_location would keep where its
+# constructor is not inlined (clang on arm64).
 crypto-run timing_unseamed : timing_unseamed_test.cpp ;
 webcpp.run timing_unseamed_release : timing_unseamed_test.cpp
   : <variant>release <define>WEBCPP_TEST_TIMING_READ_SELF : native ;
@@ -279,17 +279,14 @@ crypto-run timing_coverage_secp256k1 : timing_coverage_secp256k1_test.cpp
 # The specification's scenarios on libsodium's Ed25519: a thread whose DIT is
 # clear finds it clear after sign, one that set it finds it still set.
 crypto-run timing_sodium : timing_sodium_test.cpp : <library>/third_party//sodium ;
+# A keyed call of hash inside a guarded call of crypto: one guard each, in that
+# order, through secure's one guard and seam; crypto's coverage counts its own
+# alone; Ed25519ph's unkeyed prehash enters crypto's guard alone.
+crypto-run timing_nested_hash : timing_nested_hash_test.cpp : <library>/third_party//sodium ;
 # <webcpp/crypto.hpp> alone, with no backend linked, compiles, links and runs.
 crypto-run convenience_header : convenience_header_test.cpp ;
-crypto-run wipe : wipe_test.cpp ;
-# secret<N> is not copyable, moves wipe the source, and the destructor wipes
-# the storage: optimised, with every call inlined (<inlining>full), where a
-# wipe the compiler could drop as a dead store would be dropped.
-crypto-run secret : secret_test.cpp : $(OPTIMISED) <inlining>full ;
-# crypto::erase_secret zeroes the bytes of any contiguous range the program may
-# write, and a buffer erased as its scope ends stays zero: optimised, with every
-# call inlined, as secret's.
-crypto-run erase_secret : erase_secret_test.cpp : $(OPTIMISED) <inlining>full ;
+# detail::exceeds compares in 64 bits on every target.
+crypto-run limits : limits_test.cpp ;
 
 # A destroyed or moved-from key schedule is zero in its storage, read at -O2
 # where a dropped store would show: one program per keyed type, one source.
@@ -377,13 +374,6 @@ webcpp.compile default_selection_bearssl : default_selection_test.cpp
 # crypto.hpp's branch for libsecp256k1, which headers-alone, without the
 # library, leaves out.
 webcpp.compile crypto_secp256k1 : crypto_secp256k1_test.cpp : <library>/third_party//secp256k1 ;
-# The marks of the constant-time lane's memcheck build (DECLASSIFY), which
-# expand to nothing elsewhere, compiled on every lane against a stand-in for
-# Valgrind's header: a mark that names a stale local stops the build here.
-webcpp.compile declassify_compile : declassify_compile_test.cpp
-  : <library>/third_party//bearssl <library>/third_party//sodium
-    <library>/third_party//secp256k1 <define>WEBCPP_CRYPTO_DETAIL_CT_VALGRIND
-    <include>support/valgrind_stub ;
 # secp256k1's header alone with XKCP linked, its Keccak-256 branch included,
 # which the headers-alone entry above, without XKCP, leaves out (a header
 # compiles alone once there).

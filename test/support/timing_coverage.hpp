@@ -4,13 +4,15 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// The coverage of detail::timing_guard by the families every backend shares: each public function
-// of the AES block cipher, gcm and ciphers::basic_chacha20_poly1305, and the free
+// The coverage of webcpp::secure::timing_guard by the families every backend shares: each public
+// function of the AES block cipher, gcm and ciphers::basic_chacha20_poly1305, and the free
 // crypto::from_key, secret_key_encryption::aead::seal and secret_key_encryption::aead::open that
 // call theirs, called once with valid input and once with input refused before the backend is
 // reached, must enter a guard and leave the thread's DIT as it found it. Each backend's
 // timing_coverage_<backend>_test.cpp calls these on the algorithms it builds; a test includes
-// support/timing_seam.hpp before any crypto header, then this one.
+// support/timing_seam.hpp before any webcpp header, then this one. covered and uncovered count
+// crypto's own guards, timing_entries (support/timing_seam.hpp), so that a guard of hash's or of
+// secure's a call enters inside crypto's is not taken for crypto's.
 
 #ifndef WEBCPP_TEST_CRYPTO_SUPPORT_TIMING_COVERAGE_HPP
 #define WEBCPP_TEST_CRYPTO_SUPPORT_TIMING_COVERAGE_HPP
@@ -23,10 +25,10 @@
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/keypair.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <webcpp/asio/io_context.hpp>
 
@@ -44,9 +46,9 @@
 namespace webcpp::test {
 
 /**
- * Runs `call` and reports an error when it entered no detail::timing_guard, when the first guard
- * it entered is not the one of `function` (support/timing_seam.hpp), or when it left the thread's
- * DIT other than it found it.
+ * Runs `call` and reports an error when it entered no webcpp::secure::timing_guard, when the first
+ * guard it entered is not the one of `function` (support/timing_seam.hpp), or when it left the
+ * thread's DIT other than it found it.
  *
  * @param name What the call is, `<family>::<function>[ how] on <backend>`, as an error names it.
  * @param function The function whose guard the call must enter first, `<scope>::<identifier>`,
@@ -55,9 +57,9 @@ namespace webcpp::test {
  */
 template <class Call>
 void covered(std::string const& name, std::string const& function, Call&& call) {
-    bool const before = webcpp::crypto::detail::dit_is_set();
+    bool const before = webcpp::secure::dit_is_set();
     require_enters(name, function, std::forward<Call>(call));
-    if (webcpp::crypto::detail::dit_is_set() != before) {
+    if (webcpp::secure::dit_is_set() != before) {
         std::string const message = name + " left DIT other than it found it";
         BOOST_ERROR(message.c_str());
     }

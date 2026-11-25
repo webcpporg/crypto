@@ -46,8 +46,8 @@
 
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
-#include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/errc.hpp>
@@ -536,7 +536,7 @@ struct gcm_engine<backends::openssl, KeySize> {
             ERR_clear_error();  // as openssl_failed does for every failure of a message
         }
         // The byte holds a keystream byte of the key's: wiped as key material is.
-        wipe(padding_byte.data(), padding_byte.size());
+        secure::erase_secret(padding_byte);
     }
 
     /** Moves the context, leaving the source empty. */
@@ -545,12 +545,12 @@ struct gcm_engine<backends::openssl, KeySize> {
     }
 
     // EVP_CIPHER_CTX_free cleanses the expanded key before it frees. The pointer is then
-    // zeroed by wipe_object: a plain store of null is dead at the end of an object's life, and
-    // any optimiser may drop it (GCC 15 at -O3 does).
+    // zeroed by secure::erase_secret: a plain store of null is dead at the end of an object's
+    // life, and any optimiser may drop it (GCC 15 at -O3 does).
     /** Frees the context. */
     static void reset(state& engine_state) noexcept {
         EVP_CIPHER_CTX_free(engine_state.context);
-        wipe_object(engine_state);
+        secure::erase_secret(std::span(&engine_state, 1));
     }
 };
 
@@ -662,11 +662,11 @@ struct aead_engine<families::chacha20_poly1305, backends::openssl> {
     }
 
     // EVP_CIPHER_CTX_free cleanses the key before it frees. The pointer is then zeroed by
-    // wipe_object, as GCM's is.
+    // secure::erase_secret, as GCM's is.
     /** Frees the context. */
     static void reset(state& engine_state) noexcept {
         EVP_CIPHER_CTX_free(engine_state.context);
-        wipe_object(engine_state);
+        secure::erase_secret(std::span(&engine_state, 1));
     }
 };
 
@@ -725,11 +725,11 @@ struct block_engine<backends::openssl, KeySize> {
         target_state.decrypting = std::exchange(source_state.decrypting, nullptr);
     }
 
-    /** Frees both contexts, then zeroes the pointers by wipe_object, as GCM's are. */
+    /** Frees both contexts, then zeroes the pointers by secure::erase_secret, as GCM's are. */
     static void reset(state& engine_state) noexcept {
         EVP_CIPHER_CTX_free(engine_state.encrypting);
         EVP_CIPHER_CTX_free(engine_state.decrypting);
-        wipe_object(engine_state);
+        secure::erase_secret(std::span(&engine_state, 1));
     }
 };
 

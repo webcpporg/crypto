@@ -8,5 +8,7 @@ project : requirements <library>/webcpp/crypto//crypto ;
 
 import webcpp ;
 
-webcpp.compile-diagnostic secret_of_no_bytes : secret_of_no_bytes.cpp
-  : : native wasip2 wasip3 ;
+# alone: the moved name is the compile's only error, so a regression that puts
+# another error before or after it fails the test.
+webcpp.compile-diagnostic erase_secret_moved : erase_secret_moved.cpp
+  : : native wasip2 wasip3 : alone ;

@@ -30,7 +30,7 @@ given back by `keypair()`); they send each other their public keys, each an
 the 32 bytes received); the client calls
 `client_session_keys(server_public_key)` and the server
 `server_session_keys(client_public_key)`. Each gets a `session_keys`, a
-`receive` and a `transmit` key, both `secret<32>` that wipe themselves; the
+`receive` and a `transmit` key, both `secure::secret<32>` that wipe themselves; the
 client's `transmit` is the server's `receive` and the reverse, so that a
 message each side sends has a key of its own
 (link:https://doc.libsodium.org/key_exchange[libsodium's documentation, key exchange]).

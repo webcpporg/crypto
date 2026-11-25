@@ -102,7 +102,9 @@ static_assert(std::is_nothrow_default_constructible_v<webcpp::secure::timing_gua
               "without the seam, timing_guard is constructed from nothing, and never throws");
 
 // seal, on the stand-in, runs and answers as it does with the seam. Each call is outside
-// BOOST_TEST, whose message would put the call's text in the program.
+// BOOST_TEST, whose message would put the call's text in the program, and reaches the cipher by
+// unsafe_value: result's operator-> holds its own name, the cipher's type in it, on MSVC
+// (BOOST_CURRENT_LOCATION's __builtin_FUNCSIG in value), which is no guard's.
 void seal_runs() {
     std::array<std::uint8_t, cipher::key_size> const key{};
     auto made = cipher::from_key(key);
@@ -112,7 +114,7 @@ void seal_runs() {
     }
     std::array<std::uint8_t, cipher::nonce_size> const nonce{};
     std::array<std::uint8_t, 4> data{1, 2, 3, 4};
-    bool const sealed = made->seal(nonce, {}, data).has_value();
+    bool const sealed = made.unsafe_value().seal(nonce, {}, data).has_value();
     BOOST_TEST(sealed);
     BOOST_TEST_EQ(data[0], 0xfe);
 }

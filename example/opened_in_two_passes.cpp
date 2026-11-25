@@ -12,6 +12,7 @@
 // tag::program[]
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/random_device.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -27,21 +28,13 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 using aead_type = crypto::ciphers::aes256_gcm;
 
 namespace {
 
 constexpr std::size_t file_size = std::size_t{1} << 20U;        // 1 MiB
 constexpr std::size_t file_piece_size = std::size_t{1} << 16U;  // 64 KiB
-
-// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
-// store: crypto wipes its own copies of keys this way, and the program wipes its own.
-void wipe(std::span<std::byte> secret) {
-    std::byte volatile* const bytes = secret.data();
-    for (std::size_t i = 0; i < secret.size(); ++i) {
-        bytes[i] = std::byte{0};
-    }
-}
 
 // Reads the next piece of the file into `piece`: the bytes read, 0 at its end.
 std::span<std::uint8_t> read_piece(std::istream& file, std::vector<std::uint8_t>& piece) {
@@ -123,7 +116,7 @@ int main() {
         return 1;
     }
     auto aead = aead_type::from_key(key);
-    wipe(std::as_writable_bytes(std::span(key)));
+    secure::erase_secret(key);
     if (!aead) {
         return 1;
     }

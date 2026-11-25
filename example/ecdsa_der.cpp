@@ -12,6 +12,7 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <boost/hash2/sha2.hpp>
 
@@ -24,18 +25,10 @@
 #include <string_view>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
-
-// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
-// store: crypto wipes its own copies of keys this way, and the program wipes its own.
-void wipe(std::span<std::byte> secret) {
-    std::byte volatile* const bytes = secret.data();
-    for (std::size_t i = 0; i < secret.size(); ++i) {
-        bytes[i] = std::byte{0};
-    }
-}
 
 // Prints bytes in hex after a name, 32 bytes (64 digits) to a line, the lines after the first
 // indented under the first, so that a long value stays readable on a narrow page.
@@ -85,7 +78,7 @@ int main() {
     std::array<std::uint8_t, 32> secret{};
     secret.fill(0x11);
     auto key = secp256k1::keypair::from_secret(secret);
-    wipe(std::as_writable_bytes(std::span(secret)));
+    secure::erase_secret(secret);
     if (!key) {
         return 1;
     }

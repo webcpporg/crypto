@@ -14,6 +14,7 @@
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -28,18 +29,10 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 using aead_type = crypto::ciphers::aes256_gcm;
 
 namespace {
-
-// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
-// store: crypto wipes its own copies of keys this way, and the program wipes its own.
-void wipe(std::span<std::byte> secret) {
-    std::byte volatile* const bytes = secret.data();
-    for (std::size_t i = 0; i < secret.size(); ++i) {
-        bytes[i] = std::byte{0};
-    }
-}
 
 // A record sealed alone: its bytes and its tag.
 struct record {
@@ -97,7 +90,7 @@ bool incremental() {
         return false;
     }
     auto aead = aead_type::from_key(key);
-    wipe(std::as_writable_bytes(std::span(key)));
+    secure::erase_secret(key);
     if (!aead) {
         return false;
     }
@@ -144,7 +137,7 @@ bool records() {
         return false;
     }
     auto aead = aead_type::from_key(key);
-    wipe(std::as_writable_bytes(std::span(key)));
+    secure::erase_secret(key);
     if (!aead) {
         return false;
     }

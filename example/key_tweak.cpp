@@ -17,33 +17,22 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <boost/hash2/sha2.hpp>
 
 #include <algorithm>
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <span>
-#include <type_traits>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 namespace hash2 = boost::hash2;
 
 namespace {
-
-// Overwrites an object's bytes through a volatile pointer, which the optimiser cannot drop as a
-// dead store: crypto wipes its own copies of keys this way, and the program wipes its own.
-template <class T>
-void wipe(T& object) {
-    static_assert(std::is_trivially_destructible_v<T>, "an object whose bytes are all its state");
-    auto* const data = reinterpret_cast<unsigned char volatile*>(&object);
-    for (std::size_t i = 0; i < sizeof(T); ++i) {
-        data[i] = 0;
-    }
-}
 
 // 32 secret bytes the program holds, wiped when the scope ends, on every path, an early return's
 // included.
@@ -54,7 +43,7 @@ struct wiped_bytes {
     wiped_bytes(wiped_bytes const&) = delete;
     wiped_bytes& operator=(wiped_bytes const&) = delete;
 
-    ~wiped_bytes() { wipe(bytes); }
+    ~wiped_bytes() { secure::erase_secret(bytes); }
 };
 
 // The tweak of payment `number`: HMAC-SHA-256 under the chain code of the compressed public key
@@ -75,8 +64,8 @@ void payment_tweak(std::span<std::uint8_t const, 32> chain_code,
     mac.update(index.data(), index.size());
     auto digest = mac.result();
     std::copy_n(digest.data(), tweak.bytes.size(), tweak.bytes.begin());
-    wipe(digest);
-    wipe(mac);
+    secure::erase_secret(digest);
+    secure::erase_secret(std::span(&mac, 1));
 }
 
 }  // namespace

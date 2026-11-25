@@ -13,6 +13,7 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
 #include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 #include <webcpp/secure/secret.hpp>
 
 #include <boost/hash2/sha2.hpp>
@@ -26,7 +27,6 @@
 #include <optional>
 #include <span>
 #include <string_view>
-#include <type_traits>
 #include <utility>
 
 namespace crypto = webcpp::crypto;
@@ -35,23 +35,6 @@ namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 namespace hash2 = boost::hash2;
 
 namespace {
-
-// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
-// store: crypto wipes its own copies of keys this way, and the program wipes its own.
-void wipe(std::span<std::byte> secret) {
-    std::byte volatile* const bytes = secret.data();
-    for (std::size_t i = 0; i < secret.size(); ++i) {
-        bytes[i] = std::byte{0};
-    }
-}
-
-// Wipes an object of key-derived state, such as an HMAC whose inner and outer states hold the
-// key: its bytes are all it is, so overwriting them leaves nothing of the key.
-template <class T>
-void wipe_object(T& object) {
-    static_assert(std::is_trivially_copyable_v<T>);
-    wipe(std::as_writable_bytes(std::span(&object, 1)));
-}
 
 std::span<std::uint8_t const> bytes_of(std::string_view text) {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -84,7 +67,7 @@ std::array<std::uint8_t, Length> hkdf_sha256(std::span<std::uint8_t const> input
     hash2::hmac_sha2_256 extract(salt.data(), salt.size());
     extract.update(input.data(), input.size());
     auto prk = extract.result();
-    wipe_object(extract);
+    secure::erase_secret(std::span(&extract, 1));
 
     std::array<std::uint8_t, Length> out{};
     std::array<std::uint8_t, 32> previous{};
@@ -96,9 +79,9 @@ std::array<std::uint8_t, Length> hkdf_sha256(std::span<std::uint8_t const> input
         expand.update(info.data(), info.size());
         expand.update(&counter, 1);
         auto block = expand.result();
-        wipe_object(expand);
+        secure::erase_secret(std::span(&expand, 1));
         std::copy_n(block.data(), block.size(), previous.begin());
-        wipe(std::as_writable_bytes(std::span(block)));
+        secure::erase_secret(block);
         previous_size = previous.size();
         std::size_t const taken = std::min(previous.size(), Length - offset);
         std::copy_n(previous.begin(), taken, out.begin() + static_cast<std::ptrdiff_t>(offset));
@@ -106,8 +89,8 @@ std::array<std::uint8_t, Length> hkdf_sha256(std::span<std::uint8_t const> input
     }
     // The pseudorandom key and the last block are as secret as the input, and so are the HMACs
     // keyed with them, wiped above: wipe them.
-    wipe(std::as_writable_bytes(std::span(prk)));
-    wipe(std::as_writable_bytes(std::span(previous)));
+    secure::erase_secret(prk);
+    secure::erase_secret(previous);
     return out;
 }
 
@@ -124,7 +107,7 @@ boost::system::result<secp256k1::keypair> generate_key() {
         auto key = secp256k1::keypair::from_secret(secret);
         if (key || key.error() != crypto::error::invalid_secret_key) {
             // The key pair keeps its own copy, which it wipes; this one goes now.
-            wipe(std::as_writable_bytes(std::span(secret)));
+            secure::erase_secret(secret);
             return key;
         }
     }
@@ -137,7 +120,7 @@ boost::system::result<crypto::ciphers::aes256_gcm> session_cipher(
     auto key = hkdf_sha256<32>(shared.bytes(), {}, bytes_of("example chat v1 session key"));
     auto cipher = crypto::ciphers::aes256_gcm::from_key(key);
     // The cipher keeps its own copy of the key, which it wipes; this one goes now.
-    wipe(std::as_writable_bytes(std::span(key)));
+    secure::erase_secret(key);
     return cipher;
 }
 

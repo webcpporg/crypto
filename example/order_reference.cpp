@@ -10,6 +10,7 @@
 // tag::program[]
 #include <webcpp/crypto/backends/ctaes.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <algorithm>
 #include <array>
@@ -19,18 +20,10 @@
 #include <span>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 using cipher_type = crypto::ciphers::aes256<crypto::backends::ctaes>;
 
 namespace {
-
-// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
-// store: crypto wipes its own copies of keys this way, and the program wipes its own.
-void wipe(std::span<std::byte> secret) {
-    std::byte volatile* const bytes = secret.data();
-    for (std::size_t i = 0; i < secret.size(); ++i) {
-        bytes[i] = std::byte{0};
-    }
-}
 
 bool padding_is_zero(std::span<std::uint8_t const, 16> block) {
     return std::ranges::all_of(block.last<8>(), [](std::uint8_t b) { return b == 0; });
@@ -46,7 +39,7 @@ int main() {
         key[i] = static_cast<std::uint8_t>(i);
     }
     auto cipher = cipher_type::from_key(key);
-    wipe(std::as_writable_bytes(std::span(key)));
+    secure::erase_secret(key);
     if (!cipher) {
         return 1;
     }

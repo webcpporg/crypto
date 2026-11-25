@@ -52,7 +52,7 @@ namespace webcpp::crypto {
  * - `key.public_key()` gives `result<typename Keypair::public_key_type>`, the curve's typed public
  *   key;
  * - `key.secret()` gives `result<secure::secret<Keypair::secret_key_size>>`, the bytes
- * `from_secret` takes back.
+ *   `from_secret` takes back.
  *
  * What it does is the refinements': `signing_keypair` signs, `agreement_keypair` agrees.
  *

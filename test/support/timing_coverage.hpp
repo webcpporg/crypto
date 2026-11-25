@@ -46,9 +46,9 @@
 namespace webcpp::test {
 
 /**
- * Runs `call` and reports an error when it entered no webcpp::secure::timing_guard, when the first
- * guard it entered is not the one of `function` (support/timing_seam.hpp), or when it left the
- * thread's DIT other than it found it.
+ * Runs `call` and reports an error when it entered no webcpp::secure::timing_guard of crypto's,
+ * when the first guard it entered is not the one of `function` (support/timing_seam.hpp), or when
+ * it left the thread's DIT other than it found it.
  *
  * @param name What the call is, `<family>::<function>[ how] on <backend>`, as an error names it.
  * @param function The function whose guard the call must enter first, `<scope>::<identifier>`,

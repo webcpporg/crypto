@@ -114,7 +114,8 @@ void seal_runs() {
     }
     std::array<std::uint8_t, cipher::nonce_size> const nonce{};
     std::array<std::uint8_t, 4> data{1, 2, 3, 4};
-    bool const sealed = made.unsafe_value().seal(nonce, {}, data).has_value();
+    cipher& made_cipher = made.unsafe_value();
+    bool const sealed = made_cipher.seal(nonce, {}, data).has_value();
     BOOST_TEST(sealed);
     BOOST_TEST_EQ(data[0], 0xfe);
 }

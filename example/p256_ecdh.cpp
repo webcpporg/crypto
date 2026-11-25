@@ -34,7 +34,6 @@
 #include <span>
 #include <string_view>
 
-namespace crypto = webcpp::crypto;
 namespace secure = webcpp::secure;
 namespace p256 = webcpp::crypto::curves::p256;
 

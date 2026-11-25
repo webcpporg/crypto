@@ -27,7 +27,6 @@
 namespace {
 
 namespace crypto = webcpp::crypto;
-namespace secure = webcpp::secure;
 using crypto::backends::ctaes;
 
 // The ciphers: the AES block cipher.

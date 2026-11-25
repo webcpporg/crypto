@@ -1,3 +1,9 @@
+// Copyright (c) 2026 WebCpp.org
+//
+// Distributed under the Boost Software License, Version 1.0. (See
+// accompanying file LICENSE_1_0.txt or copy at
+// https://www.boost.org/LICENSE_1_0.txt)
+
 // webcpp::secure::timing_guard, the guard crypto's public operations hold, in a program's build,
 // without the seam: its constructor takes no source_location, on every target, so that no guarded
 // function's name or header's path can reach a program. Built with WEBCPP_TEST_TIMING_READ_SELF

@@ -82,7 +82,6 @@
 namespace {
 
 namespace crypto = webcpp::crypto;
-namespace secure = webcpp::secure;
 namespace secp = crypto::curves::secp256k1;
 namespace musig = secp::musig;
 namespace sp = secp::silent_payments;
@@ -1114,13 +1113,13 @@ void throwing_resource_restores_state() {
         covered("secp256k1::basic_keypair::from_secret with a throwing resource" + from +
                     " on secp256k1",
                 [&] { BOOST_TEST(throws_bad_alloc(from_secret)); });
-        BOOST_TEST_EQ(secure::dit_is_set(), set && secure::cpu_has_dit());
+        BOOST_TEST_EQ(webcpp::secure::dit_is_set(), set && webcpp::secure::cpu_has_dit());
         covered("secp256k1::decode_pkcs8 with a throwing resource" + from + " on secp256k1",
                 [&] { BOOST_TEST(throws_bad_alloc(decode)); });
-        BOOST_TEST_EQ(secure::dit_is_set(), set && secure::cpu_has_dit());
+        BOOST_TEST_EQ(webcpp::secure::dit_is_set(), set && webcpp::secure::cpu_has_dit());
     }
     force_dit(false);
-    BOOST_TEST(!secure::dit_is_set());
+    BOOST_TEST(!webcpp::secure::dit_is_set());
 }
 #endif
 

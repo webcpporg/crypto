@@ -65,7 +65,6 @@
 namespace {
 
 namespace crypto = webcpp::crypto;
-namespace secure = webcpp::secure;
 using crypto::backends::bearssl;
 
 // The ciphers: AES-GCM and ChaCha20-Poly1305.

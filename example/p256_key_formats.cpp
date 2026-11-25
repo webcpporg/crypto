@@ -22,7 +22,6 @@
 #include <span>
 #include <string_view>
 
-namespace crypto = webcpp::crypto;
 namespace secure = webcpp::secure;
 namespace pem = webcpp::crypto::pem;
 namespace p256 = webcpp::crypto::curves::p256;

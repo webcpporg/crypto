@@ -85,7 +85,6 @@
 namespace {
 
 namespace crypto = webcpp::crypto;
-namespace secure = webcpp::secure;
 using crypto::backends::sodium;
 using webcpp::test::covered;
 

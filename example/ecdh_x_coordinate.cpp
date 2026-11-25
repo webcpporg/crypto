@@ -25,7 +25,6 @@
 #include <string_view>
 #include <type_traits>
 
-namespace crypto = webcpp::crypto;
 namespace secure = webcpp::secure;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 namespace hash2 = boost::hash2;

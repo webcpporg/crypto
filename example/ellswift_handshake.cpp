@@ -19,7 +19,6 @@
 #include <cstdint>
 #include <cstdio>
 
-namespace crypto = webcpp::crypto;
 namespace secure = webcpp::secure;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 

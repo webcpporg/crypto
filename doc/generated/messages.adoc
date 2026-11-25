@@ -1750,10 +1750,6 @@ On MSVC, each case of `test/msvc` is proven to stop the build, at compile or at 
 |the compile
 |Name `+backends::secp256k1+`, or leave the backend out: `+curves::secp256k1::keypair+`.
 
-|`+secret_of_no_bytes+`
-|the compile
-|Give `+secure::secret+` the number of bytes it holds, at least one, as in `+secure::secret<32>+` (webcpp::secure's type, which crypto's key pairs return; the text is checked in libs/secure/test/messages/secret_of_no_bytes).
-
 |`+sign_eddsa_prehashed_message+`
 |the compile
 |Give `+crypto::eddsa_prehashed+` the message's SHA-512 marked as a digest, `+crypto::prehashed{digest}+` of a `+std::array<std::uint8_t, 64>+`; sign the message itself with `+crypto::eddsa+`, or give it in pieces to `+curves::ed25519::prehashed_signer<webcpp::hash::sha2_512>+`.

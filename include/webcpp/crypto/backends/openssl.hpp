@@ -48,6 +48,7 @@
 #include <webcpp/crypto/detail/engines.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/secure/erase_secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/hash2/digest.hpp>
 #include <boost/system/errc.hpp>
@@ -92,7 +93,8 @@ namespace webcpp::crypto {
  * A resource that cannot allocate fails as the standard has `do_allocate` fail, by throwing,
  * never by returning null: libc++ and libstdc++ declare `allocate` never to return null, so an
  * optimiser removes any check of its result. With exceptions the adapter gives OpenSSL null for
- * what it throws; without them such a resource ends the process, as `std::pmr`'s own do.
+ * what it throws, with the thread's DIT set again where it was set (Windows on ARM64 clears it
+ * after a catch); without them such a resource ends the process, as `std::pmr`'s own do.
  *
  * @return The program's resource.
  * @see "OpenSSL's allocations in your own memory resource", in the guide.
@@ -102,6 +104,20 @@ std::pmr::memory_resource& openssl_memory_resource() noexcept;
 }  // namespace webcpp::crypto
 
 namespace webcpp::crypto::detail {
+
+/**
+ * Whether the adapter keeps DIT set across a catch of its own: true where the thread's DIT is set,
+ * an outer guard's (OpenSSL runs inside a guarded call of crypto's) or the program's. Windows on
+ * ARM64 clears DIT when it resumes the thread after a catch, and OpenSSL goes on after the
+ * adapter's null or its swallowed `deallocate` with no guard of its own: the adapter's guard,
+ * engaged only then, finds DIT set and sets it again at its end, so that OpenSSL continues with
+ * DIT as the enclosing guard wants. It never sets DIT where it was clear.
+ *
+ * @return The guard's `guard_engaged`.
+ */
+inline bool openssl_adapter_keeps_dit() noexcept {
+    return secure::dit_is_set();
+}
 
 /**
  * The alignment of the adapter's blocks, and the size of the header before each that
@@ -134,6 +150,9 @@ inline void* webcpp_crypto_openssl_malloc(std::size_t byte_count, char const* /*
         return nullptr;
     }
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+    // Sets DIT again after the catch where it was set (openssl_adapter_keeps_dit).
+    webcpp::secure::timing_guard const keep_dit{
+        webcpp::crypto::detail::openssl_adapter_keeps_dit()};
     try {
 #endif
         // Never null: a resource fails by throwing (openssl_memory_resource()).
@@ -163,6 +182,9 @@ inline void webcpp_crypto_openssl_free(void* block_address, char const* /*file*/
     std::size_t byte_count = 0;
     std::memcpy(&byte_count, raw_block, sizeof byte_count);
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
+    // Sets DIT again after the catch where it was set (openssl_adapter_keeps_dit).
+    webcpp::secure::timing_guard const keep_dit{
+        webcpp::crypto::detail::openssl_adapter_keeps_dit()};
     try {
 #endif
         webcpp::crypto::openssl_memory_resource().deallocate(raw_block, header_size + byte_count,

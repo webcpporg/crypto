@@ -9,8 +9,8 @@
 // upstream is null_memory_resource(), so that the resource itself never calls the C
 // library; its table of the blocks it gave, which finds a free of another's block; and the
 // exit check: main returns 3, and when OpenSSL's cleanup has given every block back after
-// main, the resource writes its line and ends the process with 0. Its destructor, which
-// must never run, writes a line and ends it with 4 (C7); a table with no free slot left
+// main, the resource writes its line and ends the process with 0. Its destructor is
+// private, so that no program can make one it would destroy (C7); a table with no free slot left
 // writes a line and ends it with 6; an armed failure without exceptions writes a line and
 // ends it with 7, since a resource never returns null (doc/memory.adoc). The C library's
 // counter is the interposer's (interpose_*.cpp, picked by the Jamfile per target-os).
@@ -88,15 +88,6 @@ public:
     counting_resource& operator=(counting_resource&&) = delete;
 
     /**
-     * Never runs: the resource lives in static storage and is never destroyed. If it ran, it
-     * writes its line and ends the process with 4, which fails the test.
-     */
-    ~counting_resource() override {
-        write_out("the resource was destroyed\n");
-        end(4);
-    }
-
-    /**
      * Ends the process with status, now. OpenSSL is linked static (R5): its cleanup runs from
      * the program's own exit handlers, never under a DLL's loader lock.
      */
@@ -128,6 +119,13 @@ public:
     void main_returned() noexcept { main_returned_.store(true); }
 
 private:
+    // Private: the one resource lives in static storage, made by placement in
+    // the_counting_resource() and never destroyed, since OpenSSL gives its blocks back after main,
+    // from the exit handlers; so a counting_resource of automatic or static storage, or a delete
+    // of one, does not compile. (A destructor that ended the process instead is one MSVC warns
+    // never returns, C4722.)
+    ~counting_resource() override = default;
+
     // An open-addressing table of the blocks given (linear probing): one slot always stays
     // free, so that a search for a block not in it ends. 65,536 slots: the most blocks live at
     // once in everything_test on OpenSSL 3.5.9 is 4,452 (measured on macOS, 2026-11-17).

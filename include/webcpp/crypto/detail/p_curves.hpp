@@ -10,7 +10,7 @@
 #include <webcpp/crypto/config.hpp>
 
 #include <webcpp/crypto/detail/capabilities.hpp>
-#include <webcpp/crypto/detail/declassify.hpp>
+#include <webcpp/secure/declassify.hpp>
 
 #include <array>
 #include <cstddef>
@@ -83,7 +83,7 @@ template <std::size_t N>
     // client request, whose memory clobber reaches a mutable object only.
     // NOLINTNEXTLINE(misc-const-correctness): see above
     unsigned scalar_verdict = borrow_bit & ((nonzero_bits + 0xffU) >> 8U);
-    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&scalar_verdict, sizeof scalar_verdict);
+    secure::declassify(scalar_verdict);
     return scalar_verdict != 0;
 }
 
@@ -134,7 +134,7 @@ template <class Curve>
     // client request, whose memory clobber reaches a mutable object only.
     // NOLINTNEXTLINE(misc-const-correctness): see above
     unsigned high_borrow = borrow_bit;
-    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&high_borrow, sizeof high_borrow);
+    secure::declassify(high_borrow);
     return high_borrow == 0;
 }
 

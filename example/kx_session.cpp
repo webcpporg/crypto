@@ -10,10 +10,10 @@
 // of low order is refused. Prints the public keys and the client's session keys in hex.
 // tag::program[]
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/key_exchange/kx.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
 
 #include <array>
 #include <cstddef>
@@ -22,6 +22,7 @@
 #include <span>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace key_exchange = webcpp::crypto::key_exchange;
 
 namespace {
@@ -89,9 +90,9 @@ bool client_and_server() {
     // Printed here only because libsodium's test publishes them; a program never prints a key.
     print("client rx    ", client_keys->receive.bytes());
     print("client tx    ", client_keys->transmit.bytes());
-    return crypto::constant_time_equal(client_keys->transmit.bytes(),
+    return secure::constant_time_equal(client_keys->transmit.bytes(),
                                        server_keys->receive.bytes()) &&
-           crypto::constant_time_equal(client_keys->receive.bytes(),
+           secure::constant_time_equal(client_keys->receive.bytes(),
                                        server_keys->transmit.bytes()) &&
            message(*client_keys, *server_keys);
 }

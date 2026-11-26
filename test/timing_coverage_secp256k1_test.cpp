@@ -4,19 +4,21 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// Every public function that runs libsecp256k1's code enters its own detail::timing_guard and
-// leaves the thread's DIT as it found it, on every target, also where DIT does not apply, each
+// Every public function that runs libsecp256k1's code enters its own webcpp::secure::timing_guard
+// and leaves the thread's DIT as it found it, on every target, also where DIT does not apply, each
 // with valid input and, where it has one, with input refused before the backend
 // (support/timing_coverage.hpp). One section per header. With exceptions, a memory resource that
 // throws in basic_keypair::from_secret and decode_pkcs8 unwinds through the guard, which leaves DIT
-// clear from clear and set from set. A check fails, naming itself, when its call enters no guard or
-// when the first guard it enters is not the one of the function it names (support/timing_seam.hpp),
-// so that a function that forgot its own guard fails although it calls another guarded function.
-// The key pair's sign overloads share one name: the hedged one and the one with Schnorr's
-// randomness given are named with a parameter word, sign(ecdsa_sha256_t and sign(schnorr_t, which
-// clang and GCC print only for those overloads (the generic one prints its parameter as Scheme);
-// MSVC prints the generic one's Scheme as the tag it was given, so there those words match the
-// generic one too, and the check only proves that a guard of some sign was entered first.
+// clear from clear and set from set during the unwinding; after the catch DIT is what the system
+// leaves (Windows on ARM64 clears it on resuming after any catch). A check fails, naming itself,
+// when its call enters no guard or when the first guard it enters is not the one of the function it
+// names (support/timing_seam.hpp), so that a function that forgot its own guard fails although it
+// calls another guarded function. The key pair's sign overloads share one name: the hedged one and
+// the one with Schnorr's randomness given are named with a parameter word, sign(ecdsa_sha256_t and
+// sign(schnorr_t, which clang and GCC print only for those overloads (the generic one prints its
+// parameter as Scheme); MSVC prints the generic one's Scheme as the tag it was given, so there
+// those words match the generic one too, and the check only proves that a guard of some sign was
+// entered first.
 //
 // What it covers, by family; a family libsecp256k1 gains adds its line and its checks:
 // - secp256k1, curves/secp256k1.hpp: public_key's from_bytes, compressed, uncompressed, xonly,
@@ -44,7 +46,7 @@
 // - BIP 352 silent payments, a payment created and scanned: create_label,
 //   create_labeled_spend_key, create_outputs, make_previous_outputs_summary, scan_outputs.
 
-#include "support/timing_seam.hpp"
+#include "support/timing_dit.hpp"
 
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
@@ -52,10 +54,10 @@
 #include <webcpp/crypto/curves/secp256k1/musig.hpp>
 #include <webcpp/crypto/curves/secp256k1/silent_payments.hpp>
 #include <webcpp/crypto/curves/secp256k1/tweak.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/keypair.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/timing_coverage.hpp"
@@ -1054,19 +1056,7 @@ void cover_tweaks() {
 // ---------------------------------------------------------------------------------------------
 
 #ifndef WEBCPP_CRYPTO_NO_EXCEPTIONS
-/**
- * Sets the thread's DIT, or clears it, where the CPU has it; nothing elsewhere.
- *
- * @param set Whether to set it.
- */
-void force_dit([[maybe_unused]] bool set) {
-#ifdef WEBCPP_CRYPTO_DETAIL_TIMING_COVERED
-    if (!crypto::detail::cpu_has_dit()) {
-        return;
-    }
-    crypto::detail::write_dit(set ? crypto::detail::dit_bit : 0);
-#endif
-}
+using webcpp::test::force_dit;
 
 /** A memory resource whose every allocation throws `std::bad_alloc`. */
 class throwing_resource final : public std::pmr::memory_resource {
@@ -1083,26 +1073,68 @@ private:
     }
 };
 
+/** Throws `std::bad_alloc` through no guard. */
+void throw_bad_alloc() {
+    throw std::bad_alloc();
+}
+
+/** Records the thread's DIT when it is destroyed: during the unwinding, after the call's guards. */
+class dit_recorder {
+public:
+    explicit dit_recorder(bool& seen) noexcept : seen_(&seen) {}
+
+    dit_recorder(dit_recorder const&) = delete;
+    dit_recorder& operator=(dit_recorder const&) = delete;
+    dit_recorder(dit_recorder&&) = delete;
+    dit_recorder& operator=(dit_recorder&&) = delete;
+
+    ~dit_recorder() { *seen_ = webcpp::secure::dit_is_set(); }
+
+private:
+    bool* seen_;
+};
+
 /**
  * Runs `call`, which allocates from a throwing_resource, and reports whether `std::bad_alloc`
- * reached it.
+ * reached it. During the unwinding, after the call's guards, DIT must be as before the call. After
+ * the catch it must be what a throw and a catch that cross no guard leave: as before, except on
+ * Windows on ARM64, which clears DIT whenever it resumes a thread after a catch (secure's guard
+ * page), whatever a guard did. A program that wants DIT after a catch there sets it again; so does
+ * this function, with the state the unwinding left, so that `covered` judges the call's guards.
  *
  * @param call The call.
  * @return Whether the call threw `std::bad_alloc`.
  */
 template <class Call>
 bool throws_bad_alloc(Call const& call) {
+    bool const before = webcpp::secure::dit_is_set();
+    bool unguarded_threw = false;
     try {
+        throw_bad_alloc();
+    } catch (std::bad_alloc const&) {
+        unguarded_threw = true;
+    }
+    bool const unguarded = webcpp::secure::dit_is_set();
+    BOOST_TEST(unguarded_threw);
+    force_dit(before);
+    bool during_unwinding = !before;
+    bool threw = false;
+    try {
+        dit_recorder const recorder{during_unwinding};
         call();
     } catch (std::bad_alloc const&) {
-        return true;
+        threw = true;
     }
-    return false;
+    BOOST_TEST_EQ(during_unwinding, before);
+    BOOST_TEST_EQ(webcpp::secure::dit_is_set(), unguarded);
+    force_dit(during_unwinding);
+    return threw;
 }
 
 /**
  * An exception from the memory resource unwinds through basic_keypair::from_secret's guard and
- * through decode_pkcs8's: DIT is clear after it from clear, and still set from set (ruling R6).
+ * through decode_pkcs8's: the guards leave DIT clear from clear and set from set (ruling R6), as
+ * throws_bad_alloc checks during the unwinding; after the catch, what the system leaves.
  */
 void throwing_resource_restores_state() {
     throwing_resource resource;
@@ -1125,13 +1157,13 @@ void throwing_resource_restores_state() {
         covered("secp256k1::basic_keypair::from_secret with a throwing resource" + from +
                     " on secp256k1",
                 [&] { BOOST_TEST(throws_bad_alloc(from_secret)); });
-        BOOST_TEST_EQ(crypto::detail::dit_is_set(), set && crypto::detail::cpu_has_dit());
+        BOOST_TEST_EQ(webcpp::secure::dit_is_set(), set && webcpp::secure::cpu_has_dit());
         covered("secp256k1::decode_pkcs8 with a throwing resource" + from + " on secp256k1",
                 [&] { BOOST_TEST(throws_bad_alloc(decode)); });
-        BOOST_TEST_EQ(crypto::detail::dit_is_set(), set && crypto::detail::cpu_has_dit());
+        BOOST_TEST_EQ(webcpp::secure::dit_is_set(), set && webcpp::secure::cpu_has_dit());
     }
     force_dit(false);
-    BOOST_TEST(!crypto::detail::dit_is_set());
+    BOOST_TEST(!webcpp::secure::dit_is_set());
 }
 #endif
 

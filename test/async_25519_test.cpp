@@ -51,9 +51,9 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/keypair.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/algorithms.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -83,6 +83,7 @@
 
 namespace asio = webcpp::asio;
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace ed25519 = webcpp::crypto::curves::ed25519;
 namespace x25519 = webcpp::crypto::curves::x25519;
 namespace test = webcpp::test;
@@ -367,10 +368,10 @@ void check_async_agree(asio::io_context& context, Keypair const& key_pair,
                        x25519::public_key const& peer, std::span<std::uint8_t const> expected,
                        boost::system::error_code expected_code) {
     auto const member =
-        complete<crypto::secret<32>>(context, [&](auto const& executor, auto&& token) {
+        complete<secure::secret<32>>(context, [&](auto const& executor, auto&& token) {
             return key_pair.async_agree(executor, peer, std::forward<decltype(token)>(token));
         });
-    auto const free = complete<crypto::secret<32>>(context, [&](auto const& executor,
+    auto const free = complete<secure::secret<32>>(context, [&](auto const& executor,
                                                                 auto&& token) {
         return crypto::async_agree(executor, key_pair, peer, std::forward<decltype(token)>(token));
     });
@@ -470,7 +471,7 @@ void async_rfc7748(asio::io_context& context) {
     BOOST_TEST(synchronous.has_value() && std::ranges::equal(synchronous->bytes(), shared));
     // The key pair's type named, libsodium's: the one async_agree's first template argument.
     auto const named =
-        complete<crypto::secret<32>>(context, [&](auto const& executor, auto&& token) {
+        complete<secure::secret<32>>(context, [&](auto const& executor, auto&& token) {
             return crypto::async_agree<x25519_keypair>(executor, bob, alice_public,
                                                        std::forward<decltype(token)>(token));
         });
@@ -501,7 +502,7 @@ void async_destroyed(asio::io_context& context) {
                                signature = done;
                            });
         crypto::async_agree(context.get_executor(), *alice, *peer,
-                            [&](boost::system::error_code code, crypto::secret<32> done) {
+                            [&](boost::system::error_code code, secure::secret<32> done) {
                                 agree_code = code;
                                 std::ranges::copy(done.bytes(), shared.begin());
                             });

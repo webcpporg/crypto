@@ -30,9 +30,9 @@
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
 #include <webcpp/crypto/detail/engines.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
-#include <webcpp/crypto/detail/wipe.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/secure/erase_secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -111,7 +111,7 @@ struct basic_sealed_box {
     [[nodiscard]] static boost::system::result<void> seal(
         public_key_type const& recipient_public_key, std::span<std::uint8_t const> message_bytes,
         std::span<std::uint8_t> output_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (output_bytes.size() < overhead ||
             output_bytes.size() - overhead != message_bytes.size()) {
             return error::invalid_input_size;
@@ -120,7 +120,7 @@ struct basic_sealed_box {
             engine::seal(std::span<std::uint8_t const, key_size>(recipient_public_key.bytes()),
                          message_bytes, output_bytes);
         if (!seal_result) {
-            detail::wipe(output_bytes.data(), output_bytes.size());
+            secure::erase_secret(output_bytes);
             return seal_result.error();
         }
         return {};
@@ -146,7 +146,7 @@ struct basic_sealed_box {
     [[nodiscard]] static boost::system::result<void> open(
         keypair_type const& recipient_keypair, std::span<std::uint8_t const> sealed_bytes,
         std::span<std::uint8_t> output_bytes) noexcept {
-        detail::timing_guard const timing_scope;
+        secure::timing_guard const timing_scope;
         if (sealed_bytes.size() < overhead ||
             output_bytes.size() != sealed_bytes.size() - overhead) {
             return error::invalid_input_size;
@@ -158,7 +158,7 @@ struct basic_sealed_box {
             detail::x25519_access::public_bytes(recipient_keypair),
             detail::x25519_access::secret_bytes(recipient_keypair), sealed_bytes, output_bytes);
         if (!open_result) {
-            detail::wipe(output_bytes.data(), output_bytes.size());
+            secure::erase_secret(output_bytes);
             return open_result.error();
         }
         return {};

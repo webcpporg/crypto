@@ -13,7 +13,7 @@
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
 #include <webcpp/crypto/pem.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
 
 #include <array>
 #include <cstddef>
@@ -22,7 +22,7 @@
 #include <span>
 #include <string_view>
 
-namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace pem = webcpp::crypto::pem;
 namespace p256 = webcpp::crypto::curves::p256;
 
@@ -57,14 +57,14 @@ bool public_key_to_pem(p256::public_key const& key) {
 // secret<N>, which wipes itself, the text as its bytes' characters. Read back, it is a key pair
 // of the same public key.
 bool key_pair_to_pem(p256::keypair const& key_pair) {
-    crypto::secret<p256::max_pkcs8_size> pkcs8;
+    secure::secret<p256::max_pkcs8_size> pkcs8;
     auto const size = p256::encode_pkcs8(key_pair, pkcs8.writable());
     if (!size) {
         return false;
     }
     constexpr std::size_t file_size =
         pem::armoured_size(pem::private_key_label.size(), p256::max_pkcs8_size);
-    crypto::secret<file_size> file;
+    secure::secret<file_size> file;
     std::span<char> const text(reinterpret_cast<char*>(file.writable().data()), file_size);
     auto const written = pem::armour(pem::private_key_label, pkcs8.bytes().first(*size), text);
     if (!written) {
@@ -72,7 +72,7 @@ bool key_pair_to_pem(p256::keypair const& key_pair) {
     }
     std::printf("PKCS#8: %zu bytes, %zu characters of PEM, kept secret\n", *size, *written);
 
-    crypto::secret<p256::max_pkcs8_size> read;
+    secure::secret<p256::max_pkcs8_size> read;
     auto const read_size = pem::unarmour(pem::private_key_label,
                                          std::string_view(text.data(), *written), read.writable());
     if (!read_size) {

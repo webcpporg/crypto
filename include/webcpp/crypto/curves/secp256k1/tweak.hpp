@@ -7,7 +7,7 @@
 /**
  secp256k1's tweaks, negation and combination of secret and public keys on libsecp256k1: a
  secret key plus or times a tweak, the same on its public key, the negation of either, and the
- sum of public keys. Each tweaked or negated secret key is a `secret<32>`.
+ sum of public keys. Each tweaked or negated secret key is a `secure::secret<32>`.
 
  @see "Tweaks, negation and combination", in the guide's secp256k1 chapter.
 */
@@ -20,9 +20,9 @@
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -51,7 +51,7 @@ using secp256k1_pubkey_tweak = int (*)(secp256k1_context const*, secp256k1_pubke
  * @return The secret; `invalid_secret_key` for a secret key zero or not below the group order,
  * then for a tweak not below it or a result of zero.
  */
-[[nodiscard]] inline boost::system::result<secret<32>> secp256k1_tweaked_secret(
+[[nodiscard]] inline boost::system::result<secure::secret<32>> secp256k1_tweaked_secret(
     std::span<std::uint8_t const, 32> secret_key, unsigned char const* tweak_bytes,
     secp256k1_seckey_tweak tweak_function) noexcept {
     // The key is checked first, so that a refusal names the input that was wrong.
@@ -68,7 +68,7 @@ using secp256k1_pubkey_tweak = int (*)(secp256k1_context const*, secp256k1_pubke
     if (!secp256k1_accepted(tweak_status)) {
         return error::invalid_secret_key;
     }
-    secret<32> tweaked_secret;
+    secure::secret<32> tweaked_secret;
     std::ranges::copy(working_copy.bytes, tweaked_secret.writable().begin());
     return tweaked_secret;
 }
@@ -117,10 +117,10 @@ namespace webcpp::crypto::curves::secp256k1 {
  * group order, a tweak not below it, or a sum of zero.
  */
 template <class Backend = default_backend_t<families::secp256k1>>
-[[nodiscard]] boost::system::result<secret<32>> secret_key_tweak_add(
+[[nodiscard]] boost::system::result<secure::secret<32>> secret_key_tweak_add(
     std::span<std::uint8_t const, 32> secret_key,
     std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -138,10 +138,10 @@ template <class Backend = default_backend_t<families::secp256k1>>
  * group order, or a tweak that is zero or not below it.
  */
 template <class Backend = default_backend_t<families::secp256k1>>
-[[nodiscard]] boost::system::result<secret<32>> secret_key_tweak_mul(
+[[nodiscard]] boost::system::result<secure::secret<32>> secret_key_tweak_mul(
     std::span<std::uint8_t const, 32> secret_key,
     std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -158,9 +158,9 @@ template <class Backend = default_backend_t<families::secp256k1>>
  * group order.
  */
 template <class Backend = default_backend_t<families::secp256k1>>
-[[nodiscard]] boost::system::result<secret<32>> secret_key_negate(
+[[nodiscard]] boost::system::result<secure::secret<32>> secret_key_negate(
     std::span<std::uint8_t const, 32> secret_key) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -179,7 +179,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> public_key_tweak_add(
     public_key const& parsed_key, std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -199,7 +199,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> public_key_tweak_mul(
     public_key const& parsed_key, std::span<std::uint8_t const, 32> tweak_bytes) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -218,7 +218,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> public_key_negate(
     public_key const& parsed_key) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     secp256k1_selftest();
@@ -250,7 +250,7 @@ template <class Backend = default_backend_t<families::secp256k1>>
 template <class Backend = default_backend_t<families::secp256k1>>
 [[nodiscard]] boost::system::result<public_key> public_key_combine(
     std::span<public_key const> parsed_keys, workspace pointer_space) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     static_assert(webcpp::crypto::detail::secp256k1_refuses_others<families::secp256k1, Backend>);
     webcpp::crypto::detail::read_canary(WEBCPP_CRYPTO_DETAIL_SECP256K1_CANARY);
     // The carver first: it wipes the workspace on every return, a refusal's included.

@@ -19,11 +19,14 @@ project /webcpp/crypto ;
 
 # Header-only, on webcpp's configuration, with webcpp::hash's header-only
 # alias, whose algorithms name a signature's prehash (Ed25519ph's SHA-512;
-# design D1). random_device reads Windows' generator through bcrypt
+# design D1), and webcpp::secure's, whose timing guard, erase_secret,
+# constant_time_equal, secret<N> and declassify crypto's code holds and
+# returns. random_device reads Windows' generator through bcrypt
 # (BCryptGenRandom), a system library.
 # tag::crypto[]
 alias crypto : : : : <include>include <library>/boost//headers
   <library>/webcpp/config//config <library>/webcpp/hash//hash
+  <library>/webcpp/secure//secure
   <target-os>windows:<find-shared-library>bcrypt ;
 # end::crypto[]
 

@@ -4,16 +4,16 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// detail::timing_guard around a public operation, on a stand-in backend that records whether DIT
-// was set when it ran: the backend runs with DIT set where the CPU has it, and the thread finds
-// DIT clear again after the call; a call refused before the backend is reached (a key of the
-// wrong size) still enters the guard and leaves DIT as it found it.
+// webcpp::secure::timing_guard around a public operation, on a stand-in backend that records
+// whether DIT was set when it ran: the backend runs with DIT set where the CPU has it, and the
+// thread finds DIT clear again after the call; a call refused before the backend is reached (a key
+// of the wrong size) still enters the guard and leaves DIT as it found it.
 
 #include "support/timing_seam.hpp"
 
 #include <webcpp/crypto/ciphers/aead.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>
@@ -55,7 +55,7 @@ struct aead_engine<families::chacha20_poly1305, test::timing_stand_in> {
         std::span<std::uint8_t const> /*nonce_bytes*/,
         std::span<std::uint8_t const> /*associated_data_bytes*/, std::span<std::uint8_t> /*data*/,
         boost::hash2::digest<16>& /*tag*/) noexcept {
-        test::dit_during_seal = dit_is_set();
+        test::dit_during_seal = secure::dit_is_set();
         return {};
     }
 
@@ -83,38 +83,39 @@ struct aead_engine<families::chacha20_poly1305, test::timing_stand_in> {
 namespace {
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 using cipher = crypto::ciphers::basic_chacha20_poly1305<crypto::families::chacha20_poly1305,
                                                         webcpp::test::timing_stand_in>;
 
 // From clear: the backend's seal runs with DIT set where the CPU has it, and DIT is clear after.
 void backend_runs_with_dit() {
-    BOOST_TEST(!crypto::detail::dit_is_set());
+    BOOST_TEST(!secure::dit_is_set());
     std::array<std::uint8_t, cipher::key_size> const key{};
     auto made = cipher::from_key(key);
     if (!BOOST_TEST(made.has_value())) {
         return;
     }
-    BOOST_TEST(!crypto::detail::dit_is_set());
+    BOOST_TEST(!secure::dit_is_set());
     std::array<std::uint8_t, cipher::nonce_size> const nonce{};
     std::array<std::uint8_t, 8> data{};
-    webcpp::test::dit_during_seal = !crypto::detail::cpu_has_dit();
+    webcpp::test::dit_during_seal = !secure::cpu_has_dit();
     webcpp::test::require_enters("basic_chacha20_poly1305::seal", [&made, &nonce, &data] {
         BOOST_TEST(made->seal(nonce, {}, data).has_value());
     });
-    BOOST_TEST_EQ(webcpp::test::dit_during_seal, crypto::detail::cpu_has_dit());
-    BOOST_TEST(!crypto::detail::dit_is_set());
+    BOOST_TEST_EQ(webcpp::test::dit_during_seal, secure::cpu_has_dit());
+    BOOST_TEST(!secure::dit_is_set());
 }
 
 // A key of 31 bytes is refused before the backend is reached; the guard is entered all the same
 // and DIT is clear after.
 void early_error_restores_state() {
-    BOOST_TEST(!crypto::detail::dit_is_set());
+    BOOST_TEST(!secure::dit_is_set());
     std::array<std::uint8_t, cipher::key_size - 1> const short_key{};
     webcpp::test::require_enters(
         "basic_chacha20_poly1305::from_key with a 31-byte key", [&short_key] {
             BOOST_TEST(cipher::from_key(short_key).error() == crypto::error::invalid_key_size);
         });
-    BOOST_TEST(!crypto::detail::dit_is_set());
+    BOOST_TEST(!secure::dit_is_set());
 }
 
 }  // namespace

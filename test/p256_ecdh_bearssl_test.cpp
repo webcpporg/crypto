@@ -15,7 +15,7 @@
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -42,6 +42,7 @@
 namespace {
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace p256 = webcpp::crypto::curves::p256;
 namespace data = webcpp::test::p256;
 namespace test = webcpp::test;
@@ -139,7 +140,7 @@ void types() {
     }
     // The output is a secret<32>, which wipes itself.
     static_assert(std::is_same_v<decltype(a->agree(*peer)),
-                                 boost::system::result<webcpp::crypto::secret<32>>>);
+                                 boost::system::result<webcpp::secure::secret<32>>>);
 }
 
 // 100 pairs of key pairs drawn from the seed: each side's x is the other's.
@@ -283,7 +284,7 @@ std::vector<std::uint8_t> scalar_bytes(std::vector<std::uint8_t> const& integer)
 
 // The case's own ECDH, or the error of the step that refused it: keypair::from_secret,
 // public_key::from_bytes or agree.
-boost::system::result<crypto::secret<32>> derive(std::vector<std::uint8_t> const& integer,
+boost::system::result<secure::secret<32>> derive(std::vector<std::uint8_t> const& integer,
                                                  std::vector<std::uint8_t> const& point) {
     auto const padded = scalar_bytes(integer);
     if (padded.empty()) {

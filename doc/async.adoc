@@ -57,11 +57,11 @@ its own, and the handler would run off the program's loop.
 
 | X25519 (<<crypto-x25519>>)
 | `async_from_secret<Keypair>(executor, secret_key, token)`, `async_generate<Keypair>(executor, token)`, `async_agree(executor, key_pair, peer_public_key, token)`, the peer's key a `curves::x25519::public_key`
-| `void(error_code, Keypair)` for `async_from_secret` and `async_generate`, `void(error_code, secret<32>)` for `async_agree`
+| `void(error_code, Keypair)` for `async_from_secret` and `async_generate`, `void(error_code, secure::secret<32>)` for `async_agree`
 
 | P-256 (<<crypto-p256>>)
 | `async_from_secret<Keypair>(executor, scalar, token)`, `async_generate<Keypair>(executor, token)`, `async_sign(executor, key_pair, crypto::ecdsa_sha256, input, token)`, `async_verify(executor, crypto::ecdsa_sha256, signature, input, public_key, token)`, `async_agree(executor, key_pair, peer_public_key, token)`
-| `void(error_code, Keypair)` for `async_from_secret` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`, `void(error_code, secret<32>)` for `async_agree`
+| `void(error_code, Keypair)` for `async_from_secret` and `async_generate`, `void(error_code, signature)` for `async_sign`, `void(error_code)` for `async_verify`, `void(error_code, secure::secret<32>)` for `async_agree`
 |===
 
 Each function has its member form, which the free function calls, with the
@@ -178,7 +178,7 @@ include::{examples}/async_sign.expected[]
 
 *The completion's value on an error.* A value that is a keyed object or a
 secret has no meaning when the call failed, and the completion gives the
-empty object a move leaves: a `gcm` or a key pair without a key, a `secret<32>`
+empty object a move leaves: a `gcm` or a key pair without a key, a `secure::secret<32>`
 or a signature of zeros, a tag of zeros. A program that reads the object by
 mistake gets `invalid_state` from every member of a `gcm` or a key pair, and
 zeros from a secret, never a key. Check the error code first. An operation
@@ -279,7 +279,7 @@ executor: a handler not bound to the loop's completes on the pool, and so
 waits for one of its threads.
 * After the work starts, it is not interrupted. A `terminal` or `partial`
 cancellation lets it run to its end, destroys its value (which wipes a
-`secret<N>` or a key pair) and completes with `operation_aborted`. A `total`
+`secure::secret<N>` or a key pair) and completes with `operation_aborted`. A `total`
 one is then ignored, since the value's destruction is a side effect already
 under way.
 * The signal is emitted on the handler's executor, as Asio's slots require:

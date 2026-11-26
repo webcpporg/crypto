@@ -12,7 +12,7 @@
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
 
 #include <array>
 #include <cstdint>
@@ -23,6 +23,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 using xchacha = crypto::ciphers::xchacha20_poly1305<>;
 
 namespace {
@@ -73,7 +74,7 @@ int main() {
     crypto::random_device device;
     // The conversation's key: in a real app, agreed with the contact (curves::x25519) or
     // derived from a key the app already keeps; here, drawn once.
-    crypto::secret<32> key;
+    secure::secret<32> key;
     if (!device.fill(key.writable())) {
         return 1;
     }

@@ -1517,8 +1517,8 @@
   },
   "provisional": true,
   "timing_guard": {
-    "measurement": "the nanoseconds detail::timing_guard adds to a call, bench/timing.cpp",
-    "date": "2026-11-21",
+    "measurement": "the nanoseconds webcpp::secure::timing_guard adds to a call, bench/timing.cpp",
+    "date": "2026-11-26",
     "machine": {
       "cpu": "Apple M5 Max",
       "architecture": "arm64",
@@ -1530,14 +1530,14 @@
     },
     "load_average_before_after": [
       [
-        83.2802734375,
-        54.90771484375,
-        128.51513671875
+        1.9169921875,
+        2.66796875,
+        3.16845703125
       ],
       [
-        87.021484375,
-        56.154296875,
-        128.5234375
+        1.9169921875,
+        2.66796875,
+        3.16845703125
       ]
     ],
     "build": "variant=release",
@@ -1546,12 +1546,11 @@
     "iterations": 10000000,
     "runs": 5,
     "dit": true,
-    "clear_ns": 77.594,
-    "clear_fastest_ns": 64.399,
-    "clear_slowest_ns": 88.056,
-    "set_ns": 1.798,
-    "set_fastest_ns": 0.771,
-    "set_slowest_ns": 3.25,
-    "provisional": true
+    "clear_ns": 37.031,
+    "clear_fastest_ns": 36.984,
+    "clear_slowest_ns": 38.492,
+    "set_ns": 1.193,
+    "set_fastest_ns": 1.192,
+    "set_slowest_ns": 1.212
   }
 }

@@ -54,6 +54,11 @@ webcpp.run fail_init : fail_init_test.cpp
 # failure is not run there, since OpenSSL re-enters its own initialisation.
 memory-run fail_init_threads : fail_init_test.cpp : $(.counter) <threading>multi ;
 
+# DIT after the adapter's catches: set again where it was set, clear left
+# clear; with exceptions only, since a resource fails by throwing.
+webcpp.run timing_adapter : timing_adapter_test.cpp
+  : <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;
+
 # The header alone, with the option: its branch compiles with nothing before it.
 webcpp.compile header_alone : header_alone_test.cpp
   : <define>WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE ;

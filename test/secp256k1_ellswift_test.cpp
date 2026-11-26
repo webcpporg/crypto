@@ -17,11 +17,11 @@
 // a swapped party does not. A moved-from key pair: invalid_state from ellswift_create and
 // ellswift_xdh.
 
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/curves/secp256k1/ellswift.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -49,6 +49,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace secp = webcpp::crypto::curves::secp256k1;
 namespace test = webcpp::test;
 
@@ -72,7 +73,7 @@ static_assert(
     std::is_same_v<decltype(secp::ellswift_xdh(
                        std::declval<secp::keypair const&>(), std::declval<encoding const&>(),
                        std::declval<encoding const&>(), secp::ellswift_party::initiator)),
-                   boost::system::result<crypto::secret<32>>>);
+                   boost::system::result<secure::secret<32>>>);
 static_assert(noexcept(secp::ellswift_decode(std::declval<encoding const&>())));
 
 std::vector<std::string> split(std::string const& line) {
@@ -251,13 +252,13 @@ void seeded_round(std::mt19937_64& generator) {
     if (!BOOST_TEST(initiator_secret && responder_secret && swapped)) {
         return;
     }
-    BOOST_TEST(crypto::constant_time_equal(initiator_secret->bytes(), responder_secret->bytes()));
-    BOOST_TEST(!crypto::constant_time_equal(initiator_secret->bytes(), swapped->bytes()));
+    BOOST_TEST(secure::constant_time_equal(initiator_secret->bytes(), responder_secret->bytes()));
+    BOOST_TEST(!secure::constant_time_equal(initiator_secret->bytes(), swapped->bytes()));
     // Any encoding of the same key gives the same point, but the hash binds the bytes sent.
     auto const other_encoding = secp::ellswift_xdh(
         responder_key, *created_again, *responder_created, secp::ellswift_party::responder);
     BOOST_TEST(other_encoding &&
-               !crypto::constant_time_equal(initiator_secret->bytes(), other_encoding->bytes()));
+               !secure::constant_time_equal(initiator_secret->bytes(), other_encoding->bytes()));
 }
 
 void seeded() {

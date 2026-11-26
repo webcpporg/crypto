@@ -14,11 +14,11 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <boost/system/result.hpp>
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <span>
@@ -26,18 +26,10 @@
 #include <string_view>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
-
-// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
-// store: crypto wipes its own copies of keys this way, and the program wipes its own.
-void wipe(std::span<std::byte> secret) {
-    std::byte volatile* const bytes = secret.data();
-    for (std::size_t i = 0; i < secret.size(); ++i) {
-        bytes[i] = std::byte{0};
-    }
-}
 
 // A text's bytes, the message. crypto::ecdsa_sha256_recoverable hashes it with SHA-256 inside;
 // Ethereum's own message hash is EIP-191's (a prefix, then Keccak-256), which a domain library
@@ -58,7 +50,7 @@ boost::system::result<secp256k1::keypair> generate_key() {
         auto key = secp256k1::keypair::from_secret(secret);
         if (key || key.error() != crypto::error::invalid_secret_key) {
             // The key pair keeps its own copy, which it wipes; this one goes now.
-            wipe(std::as_writable_bytes(std::span(secret)));
+            secure::erase_secret(secret);
             return key;
         }
     }

@@ -10,10 +10,10 @@
 // tag::program[]
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/random_device.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <algorithm>
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <span>
@@ -22,18 +22,10 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 using aead_type = crypto::ciphers::aes256_gcm;
 
 namespace {
-
-// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
-// store: crypto wipes its own copies of keys this way, and the program wipes its own.
-void wipe(std::span<std::byte> secret) {
-    std::byte volatile* const bytes = secret.data();
-    for (std::size_t i = 0; i < secret.size(); ++i) {
-        bytes[i] = std::byte{0};
-    }
-}
 
 // What the database holds: the nonce and the tag are not secret, only the key is.
 struct row {
@@ -59,7 +51,7 @@ int main() {
     }
     auto aead = aead_type::from_key(storage_key);
     // The object keeps its own key schedule, which it wipes; this copy goes now.
-    wipe(std::as_writable_bytes(std::span(storage_key)));
+    secure::erase_secret(storage_key);
     if (!aead) {
         return 1;
     }
@@ -88,7 +80,7 @@ int main() {
     std::printf("opened for user-42: %.*s\n", static_cast<int>(plain.size()),
                 reinterpret_cast<char const*>(plain.data()));
     // The decrypted token is a secret: once used, wipe it.
-    wipe(std::as_writable_bytes(std::span(plain)));
+    secure::erase_secret(plain);
     // end::open[]
 
     // The same row copied to user 43's record does not open.

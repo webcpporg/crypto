@@ -80,7 +80,7 @@ A native program that sends OpenSSL's allocations to its own resource
 `WEBCPP_CRYPTO_OPENSSL_MEMORY_RESOURCE` and `/webcpp/crypto//openssl`
 together, in the requirements of its project, not of one target. Every target
 of the program then gets both: its own libraries, and a tool that only calls
-`random_device` or `constant_time_equal`, which would otherwise have the define
+`random_device` or `secure::constant_time_equal`, which would otherwise have the define
 without OpenSSL. The fixture `memory_option` builds and runs this Jamfile
 natively:
 

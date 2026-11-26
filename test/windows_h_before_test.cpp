@@ -38,7 +38,6 @@
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
 #include <webcpp/crypto/config.hpp>
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
@@ -54,6 +53,7 @@
 #include <webcpp/crypto/secret_key_encryption/aead.hpp>
 #include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
 #include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include <boost/core/lightweight_test.hpp>

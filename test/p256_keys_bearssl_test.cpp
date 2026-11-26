@@ -30,9 +30,9 @@ std::size_t engine_calls = 0;
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/keypair.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/crypto/supports.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/p256_data.hpp"
@@ -50,6 +50,7 @@ std::size_t engine_calls = 0;
 namespace {
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace p256 = webcpp::crypto::curves::p256;
 namespace data = webcpp::test::p256;
 
@@ -299,7 +300,7 @@ void traits() {
                   p256::public_key_size == 65 && p256::digest_size == 32 &&
                   p256::signature_size == 64 && p256::max_der_size == 72);
     static_assert(std::is_same_v<decltype(std::declval<keypair const&>().secret()),
-                                 boost::system::result<crypto::secret<32>>>);
+                                 boost::system::result<secure::secret<32>>>);
     static_assert(crypto::keypair<keypair>);
     static_assert(std::is_same_v<keypair::public_key_type, public_key>);
     static_assert(keypair::secret_key_size == 32);

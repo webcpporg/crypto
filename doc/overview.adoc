@@ -33,9 +33,10 @@ the scheme named at every call and a digest given only as
 has the member and its free form, and, where WebCrypto has the algorithm,
 their asynchronous forms, with one implementation
 (<<crypto-curves-four-forms>>).
-* *`constant_time_equal`* for tags and MACs, Boost.Hash2's included, and
-*`erase_secret`*, which zeroes a buffer of the program's with stores the
-optimiser keeps.
+* *`secure::constant_time_equal`* for tags and MACs, Boost.Hash2's included, and
+*`secure::erase_secret`*, which zeroes a buffer of the program's with stores the
+optimiser keeps: webcpp::secure's, which crypto depends on, as is the
+self-wiping `secure::secret<N>` every secret crypto returns is.
 * *The AES block cipher,* a building block for the rare case that needs one.
 
 The algorithms are not webcpp's. Each runs on a backend, a C library that
@@ -70,8 +71,9 @@ Nostr rule) belongs to a domain library, which <<crypto-wallets>> shows how to
 build. Its names are grouped by kind, one chapter each, and the headers mirror
 the namespaces as `<webcpp/crypto/<group>/<name>.hpp>`:
 
-* `webcpp::crypto`: `random_device`, `constant_time_equal`, `erase_secret`,
-`secret<N>`, `error` and the configuration (<<crypto-protecting-secrets>>); the
+* `webcpp::crypto`: `random_device`, `error` and the configuration
+(<<crypto-protecting-secrets>>, which also shows webcpp::secure's
+`secure::constant_time_equal`, `secure::erase_secret` and `secure::secret<N>`); the
 signatures' schemes, `prehashed` and `verify` (`<webcpp/crypto/signing.hpp>`),
 the key pair concepts, `sign` and `agree` (`<webcpp/crypto/keypair.hpp>`), the
 factories `from_secret`, `from_bytes`, `from_key` and `generate`
@@ -109,7 +111,7 @@ Hashing and HMAC are Boost.Hash2's: SHA-1, SHA-2, SHA-3, RIPEMD, BLAKE2 and
 `boost::hash2::hmac<H>`. crypto offers no second interface for them, and its
 examples use Hash2 wherever a hash is needed: a key derived with HKDF
 (link:https://www.rfc-editor.org/rfc/rfc5869[RFC 5869]) is written on Hash2's
-`hmac` in a few lines (<<crypto-p2p-session>>). What crypto adds for Hash2's
-users is `constant_time_equal`: the `operator==` of Hash2's digests is `memcmp`,
-which is not constant time, so a MAC is never checked with it
-(<<crypto-constant-time-equal>>).
+`hmac` in a few lines (<<crypto-p2p-session>>). What Hash2's users need beside
+it is webcpp::secure's `secure::constant_time_equal`, which crypto depends on:
+the `operator==` of Hash2's digests is `memcmp`, which is not constant time, so
+a MAC is never checked with it (<<crypto-constant-time-equal>>).

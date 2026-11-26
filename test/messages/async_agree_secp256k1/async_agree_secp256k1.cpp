@@ -15,7 +15,7 @@
 // clang-format on
 #include <webcpp/crypto/async.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
 
 #include <webcpp/asio/io_context.hpp>
 
@@ -26,6 +26,7 @@
 
 int main() {
     namespace crypto = webcpp::crypto;
+    namespace secure = webcpp::secure;
     std::array<std::uint8_t, 32> const seed{1};
     auto const key = crypto::curves::secp256k1::keypair::from_secret(seed);
     if (!key) {
@@ -41,6 +42,6 @@ int main() {
     }
     webcpp::asio::io_context context;
     crypto::async_agree(context.get_executor(), *key, *peer,
-                        [](boost::system::error_code, crypto::secret<32>) {});
+                        [](boost::system::error_code, secure::secret<32>) {});
     return 0;
 }

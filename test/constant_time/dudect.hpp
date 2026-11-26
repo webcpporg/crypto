@@ -9,7 +9,7 @@
 #ifndef WEBCPP_TEST_CRYPTO_DUDECT_HPP
 #define WEBCPP_TEST_CRYPTO_DUDECT_HPP
 
-#include <webcpp/crypto/detail/timing.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <algorithm>
 #include <array>
@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <cstring>
 #include <initializer_list>
+#include <iostream>
 #include <optional>
 #include <random>
 #include <string>
@@ -61,7 +62,8 @@ inline void serialise() noexcept {
 /**
  * Prints, in one line, what the program finds of 64-bit ARM's DIT (Data Independent Timing) bit,
  * PSTATE.DIT, and whether the measurements may go on. The harness never sets DIT: the library sets
- * it in each public call (detail::timing_guard), and the lane measures that, what a program gets.
+ * it in each public call (webcpp::secure::timing_guard, secure's guard), and the lane measures
+ * that, what a program gets.
  * Where the CPU has DIT, it must be clear on this thread outside the library's calls, or the
  * timings would be those of a DIT the program set itself, not the library's. Without DIT,
  * X25519's agreement on libsodium with an all-zero secret key ran about one nanosecond faster in
@@ -70,16 +72,16 @@ inline void serialise() noexcept {
  * alone, 1.8 to 2.8 (2026-11-20).
  * @return false where the CPU has DIT and it is already set on this thread, so that the program
  * fails rather than measure it; true otherwise: where the CPU has DIT and it is clear, where the
- * CPU has none, and where the library's guard does not apply (not macOS or Linux on arm64: x86,
- * WebAssembly, where the engine decides, and Windows on ARM64).
+ * CPU has none, and where the library's guard does not apply (not arm64 under macOS, Linux or
+ * Windows: x86 and WebAssembly, where the engine decides).
  */
 inline bool report_data_independent_timing() noexcept {
-#ifdef WEBCPP_CRYPTO_DETAIL_TIMING_COVERED
-    if (!crypto::detail::cpu_has_dit()) {
+#ifdef WEBCPP_SECURE_TIMING_COVERED
+    if (!secure::cpu_has_dit()) {
         std::printf("DIT (data-independent timing): not on this CPU\n");
         return true;
     }
-    bool const set = crypto::detail::dit_is_set();
+    bool const set = secure::dit_is_set();
     std::printf(
         "DIT (data-independent timing): the CPU has it; the library sets it in each call, the "
         "harness does not (%s)\n",
@@ -88,7 +90,8 @@ inline bool report_data_independent_timing() noexcept {
     return !set;
 #else
     std::printf(
-        "DIT (data-independent timing): not applicable here (not macOS or Linux on arm64)\n");
+        "DIT (data-independent timing): not applicable here (not arm64 under macOS, Linux or "
+        "Windows)\n");
     return true;
 #endif
 }
@@ -364,16 +367,17 @@ inline std::string case_lines(char const* name, t_statistic const& result, bool 
 }
 
 /**
- * Prints a case's lines (`case_lines`) to stdout, and flushes them.
+ * Prints a case's lines (`case_lines`) to `out`, stdout by default, and flushes them.
  * @param name The case's name, as `--case` takes it.
  * @param result Its statistic.
  * @param judged_case Whether its |t| counts in the program's verdict.
  * @param buffers The buffers it measures: its input, its output and its object.
+ * @param out Where: `std::cout`, the program's stdout, whose other lines (`std::printf`) it keeps
+ * in order, since the standard streams are synchronised with C's; a test's string stream.
  */
 inline void report_case(char const* name, t_statistic const& result, bool judged_case,
-                        std::initializer_list<address> buffers) {
-    static_cast<void>(std::fputs(case_lines(name, result, judged_case, buffers).c_str(), stdout));
-    static_cast<void>(std::fflush(stdout));
+                        std::initializer_list<address> buffers, std::ostream& out = std::cout) {
+    out << case_lines(name, result, judged_case, buffers) << std::flush;
 }
 
 /**

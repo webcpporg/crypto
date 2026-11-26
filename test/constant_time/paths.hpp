@@ -33,7 +33,6 @@
 #include <webcpp/crypto/backends/sodium.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/curves/p256/formats.hpp>
@@ -46,14 +45,15 @@
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/detail/bytes.hpp>
 #include <webcpp/crypto/detail/p_curves.hpp>
-#include <webcpp/crypto/erase_secret.hpp>
 #include <webcpp/crypto/key_exchange/kx.hpp>
 #include <webcpp/crypto/public_key_encryption/box.hpp>
 #include <webcpp/crypto/public_key_encryption/sealed_box.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/secret_key_encryption/authenticated_box.hpp>
 #include <webcpp/crypto/secret_key_encryption/secretbox.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/erase_secret.hpp>
+#include <webcpp/secure/secret.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -70,6 +70,7 @@
 namespace webcpp::test::constant_time {
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 using crypto::backends::sodium;
 
 /** The bytes of an object, for a checker's primitives. */
@@ -108,7 +109,7 @@ int constant_time_equal_path() {
     Checker::mark_secret(a);
     Checker::mark_secret(b);
     // Not const: the mark changes the object in the checker's shadow, so it is read again.
-    bool same = crypto::constant_time_equal(a, b);  // NOLINT(misc-const-correctness)
+    bool same = secure::constant_time_equal(a, b);  // NOLINT(misc-const-correctness)
     Checker::mark_public(bytes_of(same));
     return check(same, "constant_time_equal");
 }
@@ -136,7 +137,7 @@ int all_zero() {
  */
 template <class Checker>
 int secret_wipe() {
-    using secret = crypto::secret<32>;
+    using secret = secure::secret<32>;
     alignas(secret) std::array<std::byte, sizeof(secret)> storage{};
     auto* const first = new (storage.data()) secret;
     std::ranges::fill(first->writable(), std::uint8_t{0x42});
@@ -166,7 +167,7 @@ int erase_secret_path() {
     std::array<std::uint8_t, 32> buffer{};
     buffer.fill(0x42);
     Checker::mark_secret(buffer);
-    crypto::erase_secret(buffer);
+    secure::erase_secret(buffer);
     return check(clear_of_mark<Checker>(buffer), "erase_secret");
 }
 
@@ -248,7 +249,7 @@ int sodium_ed25519() {
     auto const converted = pair->to_x25519();
     auto const converted_secret =
         converted ? converted->secret()
-                  : boost::system::result<crypto::secret<32>>(converted.error());
+                  : boost::system::result<secure::secret<32>>(converted.error());
     auto const converted_public =
         converted ? converted->public_key()
                   : boost::system::result<crypto::curves::x25519::public_key>(converted.error());

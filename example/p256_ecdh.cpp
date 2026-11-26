@@ -19,9 +19,9 @@
 //     -kdfopt salt:"example salt" -kdfopt info:"example chat v1 key" HKDF   (one line)
 // which print the x and the key of p256_ecdh.expected.
 // tag::program[]
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/secret.hpp>
 
 #include <webcpp/hash/hkdf.hpp>
 
@@ -34,7 +34,7 @@
 #include <span>
 #include <string_view>
 
-namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace p256 = webcpp::crypto::curves::p256;
 
 namespace {
@@ -84,7 +84,7 @@ int main() {
     auto const alice_x = alice->agree(*bob_public);
     auto const bob_x = bob->agree(*alice_public);
     // end::agree[]
-    if (!alice_x || !bob_x || !crypto::constant_time_equal(alice_x->bytes(), bob_x->bytes())) {
+    if (!alice_x || !bob_x || !secure::constant_time_equal(alice_x->bytes(), bob_x->bytes())) {
         std::printf("failed\n");
         return 1;
     }
@@ -94,7 +94,7 @@ int main() {
 
     // tag::derive[]
     // The x is hashed into the key: HKDF-SHA-256 (RFC 5869) with the protocol's salt and info.
-    crypto::secret<32> key;
+    secure::secret<32> key;
     auto const derived = webcpp::hash::hkdf<webcpp::hash::hmac_sha2_256>(
         key.writable(), bytes_of("example salt"), alice_x->bytes(),
         bytes_of("example chat v1 key"));

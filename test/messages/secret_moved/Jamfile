@@ -8,7 +8,7 @@ project : requirements <library>/webcpp/crypto//crypto ;
 
 import webcpp ;
 
-# alone: the refusal is the compile's only error, so a regression that puts
+# alone: the moved name is the compile's only error, so a regression that puts
 # another error before or after it fails the test.
-webcpp.compile-diagnostic erase_secret_const_range : erase_secret_const_range.cpp
+webcpp.compile-diagnostic secret_moved : secret_moved.cpp
   : : native wasip2 wasip3 : alone ;

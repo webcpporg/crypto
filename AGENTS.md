@@ -12,6 +12,9 @@ specific to crypto.
 - **webcpp's own library** (`"port-of": null`) over C backends: BearSSL, OpenSSL, ctaes,
   libsecp256k1 and libsodium (the superproject's `/third_party//sodium`, shared with
   webcpp::hash). The algorithms are the backends'; crypto is the interface shaped as Boost.Hash2's.
+  crypto depends on config, hash and secure: the timing guard, `erase_secret`,
+  `constant_time_equal`, `secret<N>` and `declassify` are webcpp::secure's, with no copy and no
+  alias in crypto.
 - **No oracle.** No original runs beside crypto: the evidence is the published vectors (the GCM
   specification's cases, Wycheproof, FIPS 197, RFC 8439 and RFC 8032, BIP340 and BIP341), the
   backends' own suites in the lane `c-suites`, and the agreement tests, which compare two backends
@@ -43,11 +46,20 @@ specific to crypto.
   `aead_engine`, `secretbox_state`, `secretbox_engine`), the two of `detail/p_curves.hpp` per
   P-curve (`p_curve_state`, `p_curve_engine`) and, for the other curves, `public_key_encryption`
   and `key_exchange`, the functions of its own header.
-- A new public function that calls a backend holds `detail::timing_guard` as its
-  first statement (it sets arm64's DIT for the call, `detail/timing.hpp`) and joins the coverage
+- A new public function that calls a backend holds `secure::timing_guard` as its first statement
+  (`secure::timing_guard const timing_scope;`, webcpp::secure's,
+  `<webcpp/secure/timing_guard.hpp>`, which sets arm64's DIT for the call) and joins the coverage
   test of its backend, `test/timing_coverage_<backend>_test.cpp`, which checks through the seam
-  that each call entered its own guard. A function that only copies or encodes bytes, with no
-  backend call, holds none.
+  that each call entered its own guard. The seam support (`test/support/timing_seam.hpp`) counts
+  crypto's own guards by their file, under `include/webcpp/crypto/`, in `timing_entries`, and
+  every guard, hash's and secure's included, in `timing_all_entries`. A function that only copies
+  or encodes bytes, with no backend call, holds none.
+- Every wipe of a key, a state or a failed output is `secure::erase_secret` over a span
+  (`<webcpp/secure/erase_secret.hpp>`; an object that is not an array as
+  `std::span(&object, 1)`); a verdict webcpp branches on is marked with `secure::declassify(x)`,
+  which the constant-time lane's `WEBCPP_SECURE_CT_VALGRIND` and `WEBCPP_SECURE_CT_MSAN` turn into
+  the checker's mark; a returned secret is a `secure::secret<N>`, a comparison of secrets
+  `secure::constant_time_equal`, each always written qualified.
 - The constant-time lane's P-256 paths (`test/constant_time/paths.hpp`): BearSSL's ECDSA signing
   branches on its own verdicts, listed for memcheck in `bearssl_verdicts.supp`, which a later
   P-curve's signing joins; MemorySanitizer counts BearSSL's window selections public (masks of the

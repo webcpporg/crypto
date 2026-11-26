@@ -18,14 +18,14 @@
 
 #include <webcpp/crypto/config.hpp>
 
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
-#include <webcpp/crypto/detail/declassify.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/declassify.hpp>
+#include <webcpp/secure/secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -112,10 +112,10 @@ template <class Backend>
 template <class Backend = default_backend_t<families::p256>>
 [[nodiscard]] boost::system::result<basic_public_key<Backend>> decode_spki(
     std::span<std::uint8_t const> spki_bytes) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     constexpr std::size_t prefix_size = detail::p256_spki_prefix.size();
     if (spki_bytes.size() != max_spki_size ||
-        !constant_time_equal(spki_bytes.first(prefix_size), detail::p256_spki_prefix)) {
+        !secure::constant_time_equal(spki_bytes.first(prefix_size), detail::p256_spki_prefix)) {
         return error::invalid_encoding;
     }
     auto decoded_key = basic_public_key<Backend>::from_bytes(spki_bytes.subspan(prefix_size));
@@ -138,7 +138,7 @@ template <class Backend = default_backend_t<families::p256>>
  * @tparam Backend The key pair's backend.
  * @param key_pair The key pair.
  * @param output_bytes At least `max_pkcs8_size` bytes; nothing is written on an error. They hold
- * the secret scalar after the call: a `secret<max_pkcs8_size>`'s keeps them wiped.
+ * the secret scalar after the call: a `secure::secret<max_pkcs8_size>`'s keeps them wiped.
  * @return The number of bytes written, `max_pkcs8_size`; `invalid_state` moved from;
  * `invalid_input_size` when `output_bytes` is shorter than `max_pkcs8_size`.
  */
@@ -176,18 +176,18 @@ template <class Backend>
 template <class Backend = default_backend_t<families::p256>>
 [[nodiscard]] boost::system::result<basic_keypair<Backend>> decode_pkcs8(
     std::span<std::uint8_t const> pkcs8_bytes) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     constexpr std::size_t prefix_size = detail::p256_pkcs8_prefix.size();
     constexpr std::size_t infix_at = prefix_size + secret_key_size;
     constexpr std::size_t point_at = infix_at + detail::p256_pkcs8_infix.size();
     if (pkcs8_bytes.size() != max_pkcs8_size ||
-        !constant_time_equal(pkcs8_bytes.first(prefix_size), detail::p256_pkcs8_prefix) ||
-        !constant_time_equal(pkcs8_bytes.subspan(infix_at, detail::p256_pkcs8_infix.size()),
-                             detail::p256_pkcs8_infix)) {
+        !secure::constant_time_equal(pkcs8_bytes.first(prefix_size), detail::p256_pkcs8_prefix) ||
+        !secure::constant_time_equal(pkcs8_bytes.subspan(infix_at, detail::p256_pkcs8_infix.size()),
+                                     detail::p256_pkcs8_infix)) {
         return error::invalid_encoding;
     }
     // The scalar's copy is a secret, wiped when it goes, on every path.
-    secret<secret_key_size> scalar_bytes;
+    secure::secret<secret_key_size> scalar_bytes;
     std::ranges::copy(pkcs8_bytes.subspan(prefix_size, secret_key_size),
                       scalar_bytes.writable().begin());
     auto made_pair = basic_keypair<Backend>::from_secret(scalar_bytes.bytes());
@@ -202,11 +202,11 @@ template <class Backend = default_backend_t<families::p256>>
         return public_point.error();
     }
     // The point is d * G, computed from the secret; whether the input's is the same is public.
-    // Not const: the branch reads it again after the mark (detail/declassify.hpp's tip).
+    // Not const: the branch reads it again after the mark (secure::declassify's tip).
     // NOLINTNEXTLINE(misc-const-correctness): see above
-    bool is_same = constant_time_equal(public_point.unsafe_value().uncompressed(),
-                                       pkcs8_bytes.subspan(point_at));
-    WEBCPP_CRYPTO_DETAIL_DECLASSIFY(&is_same, sizeof is_same);
+    bool is_same = secure::constant_time_equal(public_point.unsafe_value().uncompressed(),
+                                               pkcs8_bytes.subspan(point_at));
+    secure::declassify(is_same);
     if (!is_same) {
         return error::invalid_encoding;
     }

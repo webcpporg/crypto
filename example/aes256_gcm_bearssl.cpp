@@ -11,13 +11,14 @@
 #include <webcpp/crypto/backends/bearssl.hpp>
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
-#include <webcpp/crypto/constant_time_equal.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
 
 #include <array>
 #include <cstdint>
 #include <cstdio>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 
 // The backend is part of the type: no default, no surprise.
 using aead_type = crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>;
@@ -43,7 +44,7 @@ int main() {
     }
     // Seal encrypts in place and returns the tag.
     auto const tag = aead->seal(nonce, {}, data);
-    if (!tag || data != expected_cipher || !crypto::constant_time_equal(*tag, expected_tag)) {
+    if (!tag || data != expected_cipher || !secure::constant_time_equal(*tag, expected_tag)) {
         return 1;
     }
     // Open decrypts in place and checks the tag; on a mismatch it zeroes data and returns

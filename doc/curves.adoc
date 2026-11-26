@@ -394,15 +394,15 @@ one from `random_device`, each giving `result<K>`
 key: `curves::ed25519::public_key`, `curves::x25519::public_key`,
 `curves::p256::public_key` or `curves::secp256k1::public_key`, whose value
 goes straight into `crypto::verify` or a peer's `agree`;
-* `secret()` gives `result<secret<N>>`, the bytes `from_secret` takes, in a
-`secret<N>` that wipes itself (<<crypto-secret>>): Ed25519's seed, X25519's
+* `secret()` gives `result<secure::secret<N>>`, the bytes `from_secret` takes, in a
+`secure::secret<N>` that wipes itself (<<crypto-secret>>): Ed25519's seed, X25519's
 secret key, P-256's scalar, secp256k1's secret key. It is the export a PKCS#8
 file or a backup takes.
 
 `crypto::signing_keypair` adds `sign(scheme, input)`, with every scheme its
 curve has, at least one, each giving the scheme's signature type
 (<<crypto-curves-signature-types>>). `crypto::agreement_keypair` adds
-`agree(peer)`, the peer a `K::public_key_type`, giving a `secret<N>`. Each
+`agree(peer)`, the peer a `K::public_key_type`, giving a `secure::secret<N>`. Each
 curve's header checks its row of the table with a `static_assert` each:
 
 .The key pairs and the concepts they meet
@@ -448,7 +448,7 @@ Ed25519's checks the size alone, whether the point is canonical and not of
 small order being its verification policy's judgment.
 
 ECDH is `agree(peer)` on every curve that has it, the peer a typed public key,
-and gives a `secret<32>`: X25519's gives RFC 7748's shared secret
+and gives a `secure::secret<32>`: X25519's gives RFC 7748's shared secret
 (<<crypto-x25519>>), and the others the shared point's raw x coordinate, as
 WebCrypto's `deriveBits` does: P-256's (<<crypto-p256-ecdh>>) and secp256k1's,
 whose two other forms keep names of their own, `agree_hashed` and

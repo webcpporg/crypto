@@ -9,33 +9,25 @@
 // the first thing an attacker looks for, so the copies are wiped as soon as they are not needed.
 // tag::program[]
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/secp256k1.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <boost/system/result.hpp>
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <span>
 #include <string_view>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
-
-// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
-// store: crypto wipes its own copies of keys this way, and the program wipes its own.
-void wipe(std::span<std::byte> secret) {
-    std::byte volatile* const bytes = secret.data();
-    for (std::size_t i = 0; i < secret.size(); ++i) {
-        bytes[i] = std::byte{0};
-    }
-}
 
 std::span<std::uint8_t const> bytes_of(std::string_view text) {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -88,12 +80,12 @@ int main() {
         return 1;
     }
     auto aead = crypto::ciphers::aes256_gcm::from_key(device_key);
-    wipe(std::as_writable_bytes(std::span(device_key)));
+    secure::erase_secret(device_key);
     if (!aead) {
         return 1;
     }
     auto stored = secret;
-    wipe(std::as_writable_bytes(std::span(secret)));
+    secure::erase_secret(secret);
     // "wallet v1" ties the ciphertext to its purpose and format version.
     auto const tag = aead->seal(nonce, bytes_of("wallet v1"), stored);
     if (!tag) {
@@ -106,7 +98,7 @@ int main() {
         return 1;
     }
     auto restored = secp256k1::keypair::from_secret(stored);
-    wipe(std::as_writable_bytes(std::span(stored)));
+    secure::erase_secret(stored);
     if (!restored) {
         return 1;
     }

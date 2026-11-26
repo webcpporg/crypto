@@ -17,19 +17,20 @@ bytes of a forged MAC are right; with enough requests the attacker builds a
 valid one byte by byte
 (link:https://cwe.mitre.org/data/definitions/208.html[CWE-208]).
 
-`constant_time_equal`, in `<webcpp/crypto/constant_time_equal.hpp>`, compares in
-constant time: it reads every byte, combines the differences without a branch,
-and its running time depends only on the length. It takes two Hash2 digests of
-one size, or two spans; spans of different sizes compare unequal without reading
-their contents, since a size is public. HMAC itself
-(link:https://www.rfc-editor.org/rfc/rfc2104[RFC 2104]) is Boost.Hash2's; crypto
-adds the comparison that makes it safe to check.
-
-include::generated/backends-constant_time_equal.adoc[]
+`secure::constant_time_equal`, webcpp::secure's, in
+`<webcpp/secure/constant_time_equal.hpp>`, compares in constant time: it reads
+every byte, combines the differences without a branch, and its running time
+depends only on the length. It takes any two byte sequences: two Hash2 digests,
+two spans, a `std::array`, a `std::string_view` or a `secure::secret<N>`;
+sequences of different sizes compare unequal without reading their contents,
+since a size is public. It needs no backend. HMAC itself
+(link:https://www.rfc-editor.org/rfc/rfc2104[RFC 2104]) is Boost.Hash2's;
+webcpp::secure adds the comparison that makes it safe to check, and crypto,
+which depends on it, compares its own tags and encodings with it.
 
 *Example.* A payment provider signs each webhook call with HMAC-SHA-256 under a
 shared secret. The program recomputes the MAC over the body and compares it with
-`constant_time_equal`; here the key, the body and the MAC are RFC 4231's test
+`secure::constant_time_equal`; here the key, the body and the MAC are RFC 4231's test
 case 2 (link:https://www.rfc-editor.org/rfc/rfc4231[RFC 4231]):
 
 [source,cpp]

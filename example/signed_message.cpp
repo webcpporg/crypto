@@ -12,18 +12,18 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/random_device.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <boost/hash2/sha2.hpp>
 #include <boost/system/result.hpp>
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <span>
 #include <string_view>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace secp256k1 = webcpp::crypto::curves::secp256k1;
 
 namespace {
@@ -39,15 +39,6 @@ std::array<std::uint8_t, 32> id_of(std::string_view text) {
 }
 
 // tag::keygen[]
-// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
-// store: crypto wipes its own copies of keys this way, and the program wipes its own.
-void wipe(std::span<std::byte> secret) {
-    std::byte volatile* const bytes = secret.data();
-    for (std::size_t i = 0; i < secret.size(); ++i) {
-        bytes[i] = std::byte{0};
-    }
-}
-
 boost::system::result<secp256k1::keypair> generate_key() {
     crypto::random_device device;
     std::array<std::uint8_t, 32> secret{};
@@ -61,7 +52,7 @@ boost::system::result<secp256k1::keypair> generate_key() {
         // draw again. Any other error is real.
         if (key || key.error() != crypto::error::invalid_secret_key) {
             // The key pair keeps its own copy, which it wipes; this one goes now.
-            wipe(std::as_writable_bytes(std::span(secret)));
+            secure::erase_secret(secret);
             return key;
         }
     }

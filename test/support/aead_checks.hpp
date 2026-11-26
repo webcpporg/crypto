@@ -29,8 +29,8 @@
 #endif
 
 #include <webcpp/crypto/ciphers/aead.hpp>
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
 
 #include <boost/core/lightweight_test.hpp>
 
@@ -252,7 +252,7 @@ void check_aead_cases(std::span<aead_case const> cases) {
         BOOST_TEST(sealed.has_value());
         BOOST_TEST_EQ(to_hex(data), c.ciphertext);
         BOOST_TEST(sealed &&
-                   crypto::constant_time_equal(*sealed, std::span<std::uint8_t const>(tag)));
+                   secure::constant_time_equal(*sealed, std::span<std::uint8_t const>(tag)));
         BOOST_TEST(Calls::open(*made, nonce, associated_data, data, tag).has_value());
         BOOST_TEST_EQ(to_hex(data), c.plaintext);
     }
@@ -492,7 +492,7 @@ void check_aead_empty(typename Calls::object& made, std::span<std::uint8_t const
         auto const only_additional =
             Calls::seal(made, nonce, associated_data, std::span<std::uint8_t>());
         BOOST_TEST(only_additional && empty &&
-                   !crypto::constant_time_equal(*only_additional, *empty));
+                   !secure::constant_time_equal(*only_additional, *empty));
         BOOST_TEST(only_additional && Calls::open(made, nonce, associated_data,
                                                   std::span<std::uint8_t>(), *only_additional)
                                           .has_value());

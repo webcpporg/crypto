@@ -10,7 +10,11 @@
 // --in <function> besides, only when a report's first frame is in that function: the planted
 // copy of P-256's scalar check.
 // Suppressed: libsodium's and BearSSL's own branches on a verdict (sodium_verdicts.supp,
-// bearssl_verdicts.supp), and OpenSSL's start-up frames (openssl.supp).
+// bearssl_verdicts.supp), and OpenSSL's start-up frames (openssl.supp). Valgrind is told not to
+// translate across a call (--vex-guest-chase=no), as webcpp::secure's driver is: on arm64, a check
+// in a leaf function the caller's translation ran into was reported at the call, in the caller's
+// frame (measured with Valgrind 3.22 on Linux arm64, 2026-11-25, in secure's lane), and every
+// report must name the function that ran the instruction, which --in reads.
 import {spawnSync} from 'node:child_process'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -21,7 +25,7 @@ const inAt = process.argv.indexOf('--in')
 const plantedIn = inAt === -1 ? undefined : process.argv[inAt + 1]
 const here = dirname(fileURLToPath(import.meta.url))
 const run = spawnSync('valgrind', ['--error-exitcode=99', '--track-origins=yes', '--quiet',
-    `--suppressions=${join(here, 'openssl.supp')}`,
+    '--vex-guest-chase=no', `--suppressions=${join(here, 'openssl.supp')}`,
     `--suppressions=${join(here, 'sodium_verdicts.supp')}`,
     `--suppressions=${join(here, 'bearssl_verdicts.supp')}`, program],
     {stdio: ['inherit', 'inherit', plantedIn === undefined ? 'inherit' : 'pipe'], encoding: 'utf8'})

@@ -71,7 +71,7 @@ test::t_statistic measure_agree(bool judged_case, std::array<std::uint8_t, 32>& 
             // inside the library's own guard, as a public operation's code would, so that DIT is
             // set over them where the CPU has it and the lane shows it does not hide a leak of
             // that size; the agreement's own guard then finds DIT set and leaves it so.
-            webcpp::crypto::detail::timing_guard const timing;
+            webcpp::secure::timing_guard const timing;
             for (int scan = 0; scan < 4; ++scan) {
                 for (auto const& byte : secret_key) {
                     if (*static_cast<std::uint8_t const volatile*>(&byte) != 0) {
@@ -148,17 +148,17 @@ int main(int argc, char** argv) {
         using keypair = crypto::curves::ed25519::basic_keypair<sodium>;
         std::array<std::uint8_t, 32> const zero{};
         std::array<std::uint8_t, 64> const message{};
-        std::optional<keypair> pair;
+        std::optional<keypair> signer;
         auto const sign_t = test::twice(
             count,
             [&](int which, auto& generator) {
                 test::choose(which, generator, zero, secret_key);
-                pair.emplace(*keypair::from_secret(secret_key));
+                signer.emplace(*keypair::from_secret(secret_key));
             },
-            [&] { static_cast<void>(pair->sign(crypto::eddsa, message)); });
+            [&] { static_cast<void>(signer->sign(crypto::eddsa, message)); });
         results.record(
             "ed25519_sign", "Ed25519 signing", sign_t, true,
-            {{"secret_key", secret_key.data()}, {"message", message.data()}, {"object", &*pair}});
+            {{"secret_key", secret_key.data()}, {"message", message.data()}, {"object", &*signer}});
     }
 
     if (selection->runs("x25519_agree_aa")) {

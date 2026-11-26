@@ -45,7 +45,7 @@ scalar, the nonce and the HMAC-DRBG state that derives the nonce in its own
 stack frame and returns without clearing them
 (link:https://www.bearssl.org/gitweb/?p=BearSSL;a=blob;f=src/ec/ecdsa_i31_sign_raw.c;hb=7bea48e5e850ab4cafbe68d3765cdaba13a86d6f#l45[ecdsa_i31_sign_raw.c,
 lines 45 to 51 and 115 to 135]). webcpp wipes what it owns, a key pair's state
-and every `secret<N>`, and cannot reach a callee's frame, which the program's
+and every `secure::secret<N>`, and cannot reach a callee's frame, which the program's
 next calls overwrite.
 
 BearSSL's P-256 code differs by target. Natively webcpp takes `br_ec_p256_m62`,
@@ -120,8 +120,8 @@ tag secret under Valgrind's memcheck, as
 link:https://github.com/agl/ctgrind[ctgrind] does, and, in a clang build, under
 MemorySanitizer, which only clang has (a gcc build runs memcheck alone): any
 branch or memory index that depends on them fails the run. The lane covers
-`constant_time_equal`, `is_all_zero`, `erase_secret` and the wipe of
-`secret<N>`; BearSSL's AES-GCM and ChaCha20-Poly1305 `from_key`, `seal` and
+`secure::constant_time_equal`, `is_all_zero`, `secure::erase_secret` and the wipe of
+`secure::secret<N>`; BearSSL's AES-GCM and ChaCha20-Poly1305 `from_key`, `seal` and
 `open`; OpenSSL's
 `from_key` and `seal` of both; ctaes's AES; libsodium's Ed25519 key pair and
 signature, X25519's public key, agreement and the key pair's wipe by a move, a
@@ -151,7 +151,7 @@ selects a window's points with masks of that form) and the bytes a destructor
 wiped are checked by memcheck alone. dudect's statistics
 (link:https://eprint.iacr.org/2016/1123[Reparaz, Balasch and Verbauwhede]) time
 BearSSL's two AEADs' seal and open, BearSSL's P-256 `sign` of a digest and
-`agree` against the key pair's scalar, ctaes, `constant_time_equal`, libsodium's
+`agree` against the key pair's scalar, ctaes, `secure::constant_time_equal`, libsodium's
 X25519 agreement and Ed25519 signing, and libsecp256k1's `agree` natively, on
 Linux and macOS, and under wasmtime.
 dudect's programs set nothing themselves: they measure what a program gets,
@@ -242,14 +242,21 @@ instructions Arm lists take a time independent of their data, and Apple
 requires it of constant-time code
 (link:https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms#Enable-DIT-for-constant-time-cryptographic-operations[Apple, enable DIT for constant-time cryptographic operations]).
 None of the C libraries sets it, so webcpp does: every public function that
-runs a backend's cryptographic code, and `constant_time_equal`, runs its whole
-body with DIT set on 64-bit ARM under macOS, iOS, Linux and Android where the
-CPU has FEAT_DIT (`hw.optional.arm.FEAT_DIT` on Apple's systems, `HWCAP_DIT` on
-Linux), and returns with the thread's DIT as it found it: clear when it was
-clear, set when the program set it itself (Apple's
-`timingsafe_enable_if_supported`, from macOS 15.2) or an outer call did. An
-error and an exception leave it as found too, and DIT is a thread's own
-state, so a call never changes another thread's. A program does nothing.
+runs a backend's cryptographic code, and `secure::constant_time_equal`, runs its
+whole body with DIT set on 64-bit ARM under macOS, iOS, Linux, Android and
+Windows where the CPU has FEAT_DIT (`hw.optional.arm.FEAT_DIT` on Apple's
+systems, `HWCAP_DIT` on Linux, one read of the register under structured
+exception handling on Windows), through webcpp::secure's guard,
+`webcpp::secure::timing_guard`, which webcpp's libraries share, and returns
+with the thread's DIT as it found it: clear when it was clear, set when the
+program set it itself (Apple's `timingsafe_enable_if_supported`, from macOS
+15.2) or an outer call did, a call of webcpp::hash's among them. An error
+leaves it as found too, and so does an exception, while it unwinds the call.
+After the catch, Windows on ARM64 clears DIT when it resumes the thread: a
+program there that set DIT itself and catches an exception from a call sets it
+again after the catch (webcpp::secure's guide, "Exceptions" of its guard).
+DIT is a thread's own state, so a call never changes another thread's.
+Otherwise a program does nothing.
 
 Elsewhere webcpp sets nothing:
 
@@ -258,9 +265,6 @@ mode), a model-specific register that only the kernel writes: it is the
 system's choice, out of webcpp's reach.
 * On WebAssembly, the engine that compiles the code decides, and the
 WebAssembly cannot set DIT: X25519 on wasip2 is the open finding above.
-* On Windows on ARM64, no documented way to ask Windows whether the CPU has
-FEAT_DIT was found, and DIT's instructions trap on a CPU without it: the
-guard is empty there, and untested.
 
 What the guard adds to a call, measured from a release build beside the
 shortest operation's time, is in <<crypto-performance-timing>>.

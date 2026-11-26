@@ -4,32 +4,30 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// detail::timing_guard, with no backend: its seam fires once per guard on every target and names
-// the function that holds the guard, which require_enters reads in the spellings of clang, GCC
-// and MSVC; where the CPU has DIT, a guard sets it for its scope and clears it after when it was
-// clear, leaves it set when it was set, and nests; constant_time_equal enters its own guard. Built
-// with WEBCPP_TEST_TIMING_THREADS (timing_threads, native, with threads), a guard on one thread
-// leaves another's DIT clear. P-256's normalize_low_s and is_low_s, which call no backend, enter no
-// guard: this program links none, and curves/p256.hpp needs none to declare them; nor does
-// erase_secret, which only stores zeroes.
+// webcpp::secure::timing_guard, secure's guard, as crypto's seam support sees it, with no backend:
+// its seam fires once per guard on every target and names the function that holds the guard, which
+// require_enters reads in the spellings of clang, GCC and MSVC; the own-library filter tells
+// crypto's guards by their file in the spellings of clang, GCC and MSVC; where the CPU has DIT, a
+// guard sets it for its scope and clears it after when it was clear, leaves it set when it was set,
+// and nests. Built with WEBCPP_TEST_TIMING_THREADS (timing_threads, native, with threads), a guard
+// on one thread leaves another's DIT clear. P-256's normalize_low_s and is_low_s, which call no
+// backend, enter no guard of crypto's: this program links none, and curves/p256.hpp needs none to
+// declare them; secure's erase_secret, which only stores zeroes, enters no guard at all.
 
-#include "support/timing_seam.hpp"
+#include "support/timing_dit.hpp"
 
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
-#include <webcpp/crypto/erase_secret.hpp>
+#include <webcpp/secure/erase_secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/p256_data.hpp"
 
 #include <boost/core/lightweight_test.hpp>
-#include <boost/hash2/digest.hpp>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <span>
 #include <string_view>
 
 #ifdef WEBCPP_TEST_TIMING_THREADS
@@ -39,13 +37,13 @@
 
 namespace {
 
-namespace detail = webcpp::crypto::detail;
+namespace secure = webcpp::secure;
 
 namespace seam_probe {
 
 /** Holds a guard, as a public function does, for seam_names_function. */
 void guarded_function() {
-    webcpp::crypto::detail::timing_guard const guard;
+    secure::timing_guard const guard;
 }
 
 /** Calls guarded_function and holds no guard of its own, as a function that forgot its own. */
@@ -55,27 +53,39 @@ void forwarding_function() {
 
 }  // namespace seam_probe
 
-/**
- * Sets or clears DIT for this thread, as a program can, so that a test starts from a known state;
- * only where the CPU has DIT, since the instruction traps on a CPU without it.
- */
-void force_dit([[maybe_unused]] bool set) {
-#ifdef WEBCPP_CRYPTO_DETAIL_TIMING_COVERED
-    if (!detail::cpu_has_dit()) {
-        return;
+using webcpp::test::force_dit;
+
+// Constructing a guard raises the count of every guard by exactly one, on every target, and not
+// crypto's: the guard is the test's own.
+void seam_fires() {
+    std::size_t const before = webcpp::test::timing_all_entries;
+    std::size_t const crypto_before = webcpp::test::timing_entries;
+    {
+        secure::timing_guard const guard;
+        BOOST_TEST_EQ(webcpp::test::timing_all_entries, before + 1);
     }
-    detail::write_dit(set ? detail::dit_bit : 0);
-#endif
+    BOOST_TEST_EQ(webcpp::test::timing_all_entries, before + 1);
+    BOOST_TEST_EQ(webcpp::test::timing_entries, crypto_before);
 }
 
-// Constructing a guard raises the seam's count by exactly one, on every target.
-void seam_fires() {
-    std::size_t const before = webcpp::test::timing_entries;
-    {
-        detail::timing_guard const guard;
-        BOOST_TEST_EQ(webcpp::test::timing_entries, before + 1);
-    }
-    BOOST_TEST_EQ(webcpp::test::timing_entries, before + 1);
+// The own-library filter reads the paths clang, GCC and MSVC give for crypto's headers, and no
+// near miss: another library's header, a test file, a directory whose name only begins with
+// crypto, and webcpp/crypto/ under a folder that is not an include root.
+void path_in_library_spellings() {
+    using webcpp::test::path_in_library;
+    constexpr std::string_view library = webcpp::test::timing_library;
+    BOOST_TEST(path_in_library("/w/libs/crypto/include/webcpp/crypto/curves/x25519.hpp", library));
+    BOOST_TEST(path_in_library("../include/webcpp/crypto/x.hpp", library));
+    BOOST_TEST(path_in_library("include/webcpp/crypto/x.hpp", library));
+    BOOST_TEST(path_in_library(R"(C:\t\a\libs\crypto\include\webcpp\crypto\x.hpp)", library));
+    BOOST_TEST(path_in_library(R"(C:\t\a\include\webcpp/crypto\backends\sodium.hpp)", library));
+    BOOST_TEST(!path_in_library("/w/libs/crypto/test/timing_test.cpp", library));
+    BOOST_TEST(!path_in_library("/w/include/webcpp/cryptox/x.hpp", library));
+    BOOST_TEST(!path_in_library("/w/myinclude/webcpp/crypto/x.hpp", library));
+    BOOST_TEST(!path_in_library("/w/include/webcpp/hash/hkdf.hpp", library));
+    BOOST_TEST(!path_in_library("/w/include/webcpp/secure/timing_guard.hpp", library));
+    BOOST_TEST(!path_in_library("/w/include/webcpp/crypto", library));
+    BOOST_TEST(path_in_library("/w/include/webcpp/secure/timing_guard.hpp", "secure"));
 }
 
 // The seam records the function that holds the first guard a call enters, as the compiler spells
@@ -231,59 +241,39 @@ void names_function_exception_specifications() {
 // From clear: set inside a guard, clear after it. Where the guard does not apply, never set.
 void guard_sets_and_clears() {
     force_dit(false);
-    BOOST_TEST(!detail::dit_is_set());
+    BOOST_TEST(!secure::dit_is_set());
     {
-        detail::timing_guard const guard;
-        BOOST_TEST_EQ(detail::dit_is_set(), detail::cpu_has_dit());
+        secure::timing_guard const guard;
+        BOOST_TEST_EQ(secure::dit_is_set(), secure::cpu_has_dit());
     }
-    BOOST_TEST(!detail::dit_is_set());
+    BOOST_TEST(!secure::dit_is_set());
 }
 
 // From set, as a program sets it: still set after a guard.
 void guard_leaves_set_bit() {
     force_dit(true);
-    BOOST_TEST_EQ(detail::dit_is_set(), detail::cpu_has_dit());
+    BOOST_TEST_EQ(secure::dit_is_set(), secure::cpu_has_dit());
     {
-        detail::timing_guard const guard;
-        BOOST_TEST_EQ(detail::dit_is_set(), detail::cpu_has_dit());
+        secure::timing_guard const guard;
+        BOOST_TEST_EQ(secure::dit_is_set(), secure::cpu_has_dit());
     }
-    BOOST_TEST_EQ(detail::dit_is_set(), detail::cpu_has_dit());
+    BOOST_TEST_EQ(secure::dit_is_set(), secure::cpu_has_dit());
     force_dit(false);
-    BOOST_TEST(!detail::dit_is_set());
+    BOOST_TEST(!secure::dit_is_set());
 }
 
 // From clear: set inside both guards and after the inner one, clear after the outer one.
 void nested_guards() {
     force_dit(false);
     {
-        detail::timing_guard const outer;
+        secure::timing_guard const outer;
         {
-            detail::timing_guard const inner;
-            BOOST_TEST_EQ(detail::dit_is_set(), detail::cpu_has_dit());
+            secure::timing_guard const inner;
+            BOOST_TEST_EQ(secure::dit_is_set(), secure::cpu_has_dit());
         }
-        BOOST_TEST_EQ(detail::dit_is_set(), detail::cpu_has_dit());
+        BOOST_TEST_EQ(secure::dit_is_set(), secure::cpu_has_dit());
     }
-    BOOST_TEST(!detail::dit_is_set());
-}
-
-// Both overloads of constant_time_equal enter a guard, and leave DIT as they found it.
-void constant_time_equal_enters() {
-    force_dit(false);
-    std::array<std::uint8_t, 16> const first{};
-    std::array<std::uint8_t, 16> const second{};
-    webcpp::test::require_enters(
-        "constant_time_equal(span, span)", "crypto::constant_time_equal(span", [&first, &second] {
-            BOOST_TEST(webcpp::crypto::constant_time_equal(std::span<std::uint8_t const>(first),
-                                                           std::span<std::uint8_t const>(second)));
-        });
-    boost::hash2::digest<16> const first_digest{};
-    boost::hash2::digest<16> const second_digest{};
-    webcpp::test::require_enters(
-        "constant_time_equal(digest, digest)", "crypto::constant_time_equal(digest",
-        [&first_digest, &second_digest] {
-            BOOST_TEST(webcpp::crypto::constant_time_equal(first_digest, second_digest));
-        });
-    BOOST_TEST(!detail::dit_is_set());
+    BOOST_TEST(!secure::dit_is_set());
 }
 
 // P-256's low-S functions are arithmetic on public bytes, with no backend: no guard.
@@ -302,15 +292,16 @@ void p256_low_s_unguarded() {
     webcpp::test::uncovered("p256::is_low_s", [&test] { BOOST_TEST(p256::is_low_s(*test)); });
 }
 
-// erase_secret calls no backend: it stores zeroes through detail::wipe, and holds no guard.
+// secure's erase_secret, which crypto's code calls to wipe, calls no backend: it stores zeroes, and
+// enters no guard at all.
 void erase_secret_unguarded() {
-    webcpp::test::uncovered("erase_secret", [] {
-        std::array<std::uint8_t, 16> const zero{};
-        std::array<std::uint8_t, 16> password{};
-        password.fill(0x5a);
-        webcpp::crypto::erase_secret(password);
-        BOOST_TEST(password == zero);
-    });
+    std::size_t const before = webcpp::test::timing_all_entries;
+    std::array<std::uint8_t, 16> const zero{};
+    std::array<std::uint8_t, 16> password{};
+    password.fill(0x5a);
+    secure::erase_secret(password);
+    BOOST_TEST(password == zero);
+    BOOST_TEST_EQ(webcpp::test::timing_all_entries, before);
 }
 
 #ifdef WEBCPP_TEST_TIMING_THREADS
@@ -323,16 +314,16 @@ void other_thread_untouched() {
     std::promise<bool> other_reading;
     std::thread other([entered = guard_entered.get_future(), &other_reading]() mutable {
         entered.wait();
-        other_reading.set_value(detail::dit_is_set());
+        other_reading.set_value(secure::dit_is_set());
     });
     {
-        detail::timing_guard const guard;
+        secure::timing_guard const guard;
         guard_entered.set_value();
         BOOST_TEST(!other_reading.get_future().get());
-        BOOST_TEST_EQ(detail::dit_is_set(), detail::cpu_has_dit());
+        BOOST_TEST_EQ(secure::dit_is_set(), secure::cpu_has_dit());
     }
     other.join();
-    BOOST_TEST(!detail::dit_is_set());
+    BOOST_TEST(!secure::dit_is_set());
 }
 #endif
 
@@ -340,6 +331,7 @@ void other_thread_untouched() {
 
 int main() {
     seam_fires();
+    path_in_library_spellings();
     seam_names_function();
     names_function_spellings();
     names_function_requires_clause();
@@ -349,7 +341,6 @@ int main() {
     guard_sets_and_clears();
     guard_leaves_set_bit();
     nested_guards();
-    constant_time_equal_enters();
     p256_low_s_unguarded();
     erase_secret_unguarded();
 #ifdef WEBCPP_TEST_TIMING_THREADS

@@ -196,7 +196,14 @@ into OpenSSL's null. It never returns null: the standard libraries of LLVM and
 GCC declare `allocate` never to return null, so the optimiser removes any check
 of its result, and a null is written through in a release build. Without
 exceptions, a resource that cannot allocate ends the process, as the resources
-of `std::pmr` do, and the failures above are not reached.
+of `std::pmr` do, and the failures above are not reached. With exceptions, a
+`deallocate` that throws is swallowed, since OpenSSL's `free` returns nothing,
+and OpenSSL goes on after either catch, inside the guarded call that reached
+it. Windows on ARM64 clears DIT when it resumes a thread after a catch
+(webcpp::secure's guide, "Exceptions" of its guard), so each adapter function
+holds a guard engaged only when DIT is set, which sets it again after its catch:
+OpenSSL continues with DIT as the call's guard wants, and DIT clear stays clear.
+The test `timing_adapter` checks it.
 * *Two allocations stay outside the resource,* because no hook of OpenSSL's
 reaches them: the C library's `FILE` and its buffer while OpenSSL reads its
 configuration file at initialisation (one or two blocks, by C library, freed

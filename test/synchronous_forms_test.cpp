@@ -62,6 +62,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 
 namespace {
 
@@ -113,7 +114,7 @@ std::array<std::uint8_t, 32> digest_of_message() {
 
 /** Whether two secrets hold the same bytes. */
 template <std::size_t N>
-bool same_secret(crypto::secret<N> const& left, crypto::secret<N> const& right) {
+bool same_secret(secure::secret<N> const& left, secure::secret<N> const& right) {
     return std::ranges::equal(left.bytes(), right.bytes());
 }
 

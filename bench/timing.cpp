@@ -4,26 +4,26 @@
 // accompanying file LICENSE_1_0.txt or copy at
 // https://www.boost.org/LICENSE_1_0.txt)
 
-// The cost of detail::timing_guard, the scope every public operation of crypto runs in, which sets
-// 64-bit ARM's DIT (data-independent timing) bit where the CPU has it and restores the thread's
-// state after it.
+// The cost of webcpp::secure::timing_guard, secure's guard, the scope every public operation of
+// crypto runs in, which sets 64-bit ARM's DIT (data-independent timing) bit where the CPU has it
+// and restores the thread's state after it.
 //
 // Run as `timing --measure`, it times, in one process, 10^7 iterations each of an empty loop body,
 // of a guard entered from a thread whose DIT is clear (it sets DIT and clears it again), and of a
-// guard entered with DIT already set (it reads DIT and leaves it; the program sets DIT for that
-// part with the same `msr` as the guard, and clears it after), five runs of each, interleaved, and
-// prints one JSON line: `{"dit": true|false, "clear": <ns>, "set": <ns>, ...}`, each cost the
-// median of its runs minus the empty loop's median, in nanoseconds per guard, then each part's
-// fastest and slowest run (minus the same median), the iterations, the runs, the target and the
-// compiler. "dit" says whether the guard sets DIT here (a target it covers, on a CPU that has it);
-// where it does not, the guard executes no instruction and both costs are the loop's noise. Both
-// modes fail when the process starts with DIT set, or when the thread's DIT is not as the guard
-// must leave it after a part. Run with no argument, it is the correctness test: the same
+// guard entered with DIT already set (it reads DIT, and again at its end; the program sets DIT
+// for that part with the same `msr` as the guard, and clears it after), five runs of each,
+// interleaved, and prints one JSON line: `{"dit": true|false, "clear": <ns>, "set": <ns>, ...}`,
+// each cost the median of its runs minus the empty loop's median, in nanoseconds per guard, then
+// each part's fastest and slowest run (minus the same median), the iterations, the runs, the
+// target and the compiler. "dit" says whether the guard sets DIT here (a target it covers, on a CPU
+// that has it); where it does not, the guard executes no instruction and both costs are the loop's
+// noise. Both modes fail when the process starts with DIT set, or when the thread's DIT is not as
+// the guard must leave it after a part. Run with no argument, it is the correctness test: the same
 // measurement at 10^3 iterations, whose line must also have that form, and whose "dit" must be
 // what the library reads. A measurement never fails on its time; bench/collect.py --timing runs
 // it and writes doc/performance.adoc.
 
-#include <webcpp/crypto/detail/timing.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <algorithm>
 #include <array>
@@ -36,7 +36,7 @@
 #include <span>
 #include <string_view>
 
-namespace detail = webcpp::crypto::detail;
+namespace secure = webcpp::secure;
 
 namespace {
 
@@ -70,8 +70,8 @@ constexpr std::size_t runs = 5;
 
 // Whether the guard sets DIT on this target and CPU.
 bool guard_sets_dit() noexcept {
-#ifdef WEBCPP_CRYPTO_DETAIL_TIMING_COVERED
-    return detail::cpu_has_dit();
+#ifdef WEBCPP_SECURE_TIMING_COVERED
+    return secure::cpu_has_dit();
 #else
     return false;
 #endif
@@ -79,9 +79,9 @@ bool guard_sets_dit() noexcept {
 
 // Sets or clears this thread's DIT where the guard would, as a program that asks for it does.
 void force_dit([[maybe_unused]] bool set) noexcept {
-#ifdef WEBCPP_CRYPTO_DETAIL_TIMING_COVERED
-    if (detail::cpu_has_dit()) {
-        detail::write_dit(set ? detail::dit_bit : 0);
+#ifdef WEBCPP_SECURE_TIMING_COVERED
+    if (secure::cpu_has_dit()) {
+        secure::detail::write_dit(set ? secure::detail::dit_bit : 0);
     }
 #endif
 }
@@ -127,24 +127,24 @@ result measure(std::uint64_t iterations) {
     std::array<double, runs> clear{};
     std::array<double, runs> set{};
     // A process that starts with DIT set would measure the set part twice.
-    bool restored = !detail::dit_is_set();
+    bool restored = !secure::dit_is_set();
     // Written by every iteration of every part, so that no loop is removed or merged.
     std::uint64_t volatile sink = 0;
     for (std::size_t run = 0; run < runs; ++run) {
         empty[run] = nanoseconds_per_iteration(iterations, [&sink](std::uint64_t i) { sink = i; });
         clear[run] = nanoseconds_per_iteration(iterations, [&sink](std::uint64_t i) {
-            detail::timing_guard const guard;
+            secure::timing_guard const guard;
             sink = i;
         });
-        restored = restored && !detail::dit_is_set();
+        restored = restored && !secure::dit_is_set();
         force_dit(true);
         set[run] = nanoseconds_per_iteration(iterations, [&sink](std::uint64_t i) {
-            detail::timing_guard const guard;
+            secure::timing_guard const guard;
             sink = i;
         });
-        restored = restored && detail::dit_is_set() == guard_sets_dit();
+        restored = restored && secure::dit_is_set() == guard_sets_dit();
         force_dit(false);
-        restored = restored && !detail::dit_is_set();
+        restored = restored && !secure::dit_is_set();
     }
     double const loop = summarise(empty, 0).median;
     return {.clear = summarise(clear, loop), .set = summarise(set, loop), .restored = restored};

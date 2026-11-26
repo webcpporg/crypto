@@ -5,10 +5,10 @@
 // https://www.boost.org/LICENSE_1_0.txt)
 
 // The constant-time comparison is constant_time_equal, a name that says what it guarantees, with
-// no alias left at the old name (design D10): a program that still calls crypto::equal stops at
-// the call, with that error alone, although the new header is included.
+// no alias left at the old name (design D10), now webcpp::secure's: a program that still calls
+// crypto::equal stops at the call, with that error alone, although a crypto header is included.
 
-#include <webcpp/crypto/constant_time_equal.hpp>
+#include <webcpp/crypto/error.hpp>
 
 #include <array>
 #include <cstdint>

@@ -1,7 +1,7 @@
 {
     "comment": "The data of crypto's generated tables and of llms.txt; doc/tables/generate.py reads it with the test Jamfiles, the message tests and the superproject's Jamfile fixtures, and writes doc/generated/, doc/llms.txt, include/webcpp/crypto/detail/capabilities.hpp, include/webcpp/crypto/detail/defaults.hpp and test/capabilities_test.cpp. The capability table is `families`: per family its algorithms, the targets on which each backend has it (each claimed only where a test of the family's operations on that backend runs), constant time per target where it differs from the backend's own `constant_time` (X25519 on wasip2, an open finding, and natively without arm64's DIT, the cause of both), with `constant_time_checker` naming the checker that measured it where that is not every checker of the target, and the default per target, one whatever the program links (design D32), with its reason and the tests that fix it (a row of some of `compilers` restates its target's default for them, with a reason of their own, and each compiler of a target has one row), from which come include/webcpp/crypto/detail/defaults.hpp and the refusal that says what a program whose default is not linked needs; a backend with `targets`, where it is built, is a tag of `backends`. A name in a text is written between backticks, as Markdown writes code: the tables show it as code and llms.txt keeps the backticks. A comparison table's cell {speed:<family>} or {constant_time:<family>} is written from doc/performance.json or from the family's `constant_time`, and each cell of a column a namespace lists in `cited` cites a source or begins with \"none\". Edit this file, then run python3 libs/crypto/doc/tables/generate.py; the doc build runs it with --check.",
     "page": "https://webcpporg.github.io/libs/crypto/",
-    "llms": "Cryptographic primitives for C++20 on native, wasip2, wasip3 and Emscripten: AES-GCM, the AES block cipher, secp256k1 (BIP 340 Schnorr, ECDSA and recoverable signatures, ECDH, tweaks, ElligatorSwift, MuSig2, silent payments), Ed25519 and Ed25519ph (RFC 8032), X25519 (RFC 7748), their keys in SPKI, PKCS#8 (RFC 8410) and PEM, P-256 key pairs, ECDSA and ECDH on BearSSL, libsodium's crypto_kx, the ChaCha20-Poly1305 AEADs, libsodium's secret boxes, boxes and sealed boxes, a random_device on the system's generator, a constant_time_equal and an erase_secret whose stores the optimiser keeps, each over a widely used, reviewed C library (BearSSL, OpenSSL, ctaes, libsecp256k1, libsodium) that the program names in its Jamfile. Hashing and HMAC are Boost.Hash2's; HKDF and password hashing are webcpp::hash's. Every failure is a boost::system::result value. Protocols (Bitcoin, Ethereum, Nostr) belong to domain libraries built on these primitives.",
+    "llms": "Cryptographic primitives for C++20 on native, wasip2, wasip3 and Emscripten: AES-GCM, the AES block cipher, secp256k1 (BIP 340 Schnorr, ECDSA and recoverable signatures, ECDH, tweaks, ElligatorSwift, MuSig2, silent payments), Ed25519 and Ed25519ph (RFC 8032), X25519 (RFC 7748), their keys in SPKI, PKCS#8 (RFC 8410) and PEM, P-256 key pairs, ECDSA and ECDH on BearSSL, libsodium's crypto_kx, the ChaCha20-Poly1305 AEADs, libsodium's secret boxes, boxes and sealed boxes, a random_device on the system's generator, each over a widely used, reviewed C library (BearSSL, OpenSSL, ctaes, libsecp256k1, libsodium) that the program names in its Jamfile. Hashing and HMAC are Boost.Hash2's; HKDF and password hashing are webcpp::hash's; the constant-time comparison, the erasure of a buffer and secret<N> are webcpp::secure's. Every failure is a boost::system::result value. Protocols (Bitcoin, Ethereum, Nostr) belong to domain libraries built on these primitives.",
     "targets": ["native", "wasip2", "wasip3", "emscripten"],
     "compilers": {"clang": "Clang", "gcc": "GCC", "msvc": "MSVC"},
     "checkers": {"memcheck": "Valgrind's memcheck (Linux)", "msan": "MemorySanitizer (Linux, clang)", "dudect": "dudect (judged; on a runner GitHub hosts, by two of three runs)"},
@@ -224,16 +224,16 @@
         "none": {
             "title": "no backend",
             "jamfile": "/webcpp/crypto//crypto",
-            "header": "<webcpp/crypto/constant_time_equal.hpp>, <webcpp/crypto/erase_secret.hpp>, <webcpp/crypto/error.hpp>",
+            "header": "<webcpp/crypto/error.hpp>",
             "library": "webcpp's own header-only code",
             "licence": "BSL-1.0",
             "own_api": "none",
             "allocation": "none",
-            "constant_time": "`constant_time_equal` is constant time in the contents: every byte is read, no branch and no index depends on one",
+            "constant_time": "webcpp::secure's `secure::constant_time_equal`, which crypto's code calls, is constant time in the contents: every byte is read, no branch and no index depends on one",
             "constant_time_sources": [],
             "lane_paths": [
-                {"what": "`constant_time_equal`", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}},
-                {"what": "`is_all_zero` and the wipe of `secret<N>`", "lane": {"native": ["memcheck", "msan"]}}
+                {"what": "`secure::constant_time_equal`", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}},
+                {"what": "`is_all_zero` and the wipe of `secure::secret<N>`", "lane": {"native": ["memcheck", "msan"]}}
             ]
         }
     },
@@ -303,26 +303,6 @@
             "backends": {
                 "bearssl": {"tests": ["async_p256"]}
             }
-        },
-        {
-            "id": "constant_time_equal",
-            "functions": ["constant_time_equal"],
-            "namespace": "root",
-            "api": "constant_time_equal",
-            "header": "<webcpp/crypto/constant_time_equal.hpp>",
-            "what": "Compares two tags or MACs in constant time.",
-            "section": "crypto-constant-time-equal",
-            "backends": {"none": {"tests": ["constant_time_equal"]}}
-        },
-        {
-            "id": "erase_secret",
-            "functions": ["erase_secret"],
-            "namespace": "root",
-            "api": "erase_secret",
-            "header": "<webcpp/crypto/erase_secret.hpp>",
-            "what": "Zeroes a buffer the program owns, a password, a key or a plaintext, with stores the optimiser keeps.",
-            "section": "crypto-erase-secret",
-            "backends": {"none": {"tests": ["erase_secret"]}}
         },
         {
             "id": "error",
@@ -502,7 +482,7 @@
             "namespace": "curves",
             "api": "curves::x25519::keypair",
             "header": "<webcpp/crypto/curves/x25519.hpp>",
-            "what": "An X25519 key pair (RFC 7748): made from its 32-byte secret key, which `secret()` gives back, or drawn from `random_device`; its public key, a `curves::x25519::public_key`, computed once; and `agree(peer)`, the 32-byte shared secret with a peer's public key, a `secret<32>`, refused with `weak_public_key` when it is all zero (a peer key of low order).",
+            "what": "An X25519 key pair (RFC 7748): made from its 32-byte secret key, which `secret()` gives back, or drawn from `random_device`; its public key, a `curves::x25519::public_key`, computed once; and `agree(peer)`, the 32-byte shared secret with a peer's public key, a `secure::secret<32>`, refused with `weak_public_key` when it is all zero (a peer key of low order).",
             "section": "crypto-x25519",
             "backends": {"sodium": {"tests": ["x25519_sodium", "x25519_wycheproof_sodium", "oracle_25519"]}}
         },
@@ -537,7 +517,7 @@
             "namespace": "curves",
             "api": "curves::x25519::encode_spki, decode_spki, encode_pkcs8, decode_pkcs8",
             "header": "<webcpp/crypto/curves/x25519/formats.hpp>",
-            "what": "RFC 8410's SPKI of an X25519 public key (44 bytes) and PKCS#8 of a secret key (version 1, 48 bytes), the forms OpenSSL and WebCrypto write, decoded strictly into a `secret<32>`: any other bytes are `invalid_encoding`.",
+            "what": "RFC 8410's SPKI of an X25519 public key (44 bytes) and PKCS#8 of a secret key (version 1, 48 bytes), the forms OpenSSL and WebCrypto write, decoded strictly into a `secure::secret<32>`: any other bytes are `invalid_encoding`.",
             "section": "crypto-key-formats",
             "backends": {"sodium": {"tests": ["formats_25519_sodium", "formats_25519_openssl_oracle", "formats_25519_webcrypto_oracle", "allocation_sodium"]}}
         },
@@ -560,7 +540,7 @@
             "namespace": "key_exchange",
             "api": "key_exchange::kx_keypair",
             "header": "<webcpp/crypto/key_exchange/kx.hpp>",
-            "what": "libsodium's `crypto_kx` on X25519's typed keys: a key pair that holds an X25519 key pair, taken as is, derived from a 32-byte seed as libsodium does (BLAKE2b-256 of the seed) or drawn from `random_device`, and the two session keys of a client or a server, each a `secret<32>`, from the peer's X25519 public key; a peer key of low order is refused with `weak_public_key`.",
+            "what": "libsodium's `crypto_kx` on X25519's typed keys: a key pair that holds an X25519 key pair, taken as is, derived from a 32-byte seed as libsodium does (BLAKE2b-256 of the seed) or drawn from `random_device`, and the two session keys of a client or a server, each a `secure::secret<32>`, from the peer's X25519 public key; a peer key of low order is refused with `weak_public_key`.",
             "section": "crypto-kx",
             "backends": {"sodium": {"tests": ["kx_sodium", "kx_wipe_sodium", "allocation_sodium"]}}
         },
@@ -767,7 +747,7 @@
             "namespace": "curves",
             "api": "curves::p256::keypair",
             "header": "<webcpp/crypto/curves/p256.hpp>",
-            "what": "A P-256 key pair: made from its 32-byte scalar, refused unless 0 < d < n, or drawn from `random_device`; its validated public key and its scalar, `secret()`, a `secret<32>`.",
+            "what": "A P-256 key pair: made from its 32-byte scalar, refused unless 0 < d < n, or drawn from `random_device`; its validated public key and its scalar, `secret()`, a `secure::secret<32>`.",
             "section": "crypto-p256-keys",
             "backends": {
                 "bearssl": {"tests": ["p256_keys_bearssl", "p256_openssl_oracle", "p256_webcrypto_oracle", "allocation_bearssl"]},
@@ -813,7 +793,7 @@
             "namespace": "curves",
             "api": "curves::p256::keypair::agree",
             "header": "<webcpp/crypto/curves/p256.hpp>",
-            "what": "ECDH with a validated public key: the shared point's raw x coordinate, 32 bytes in a `secret<32>`, as WebCrypto's `deriveBits` gives it; a protocol hashes it into its keys.",
+            "what": "ECDH with a validated public key: the shared point's raw x coordinate, 32 bytes in a `secure::secret<32>`, as WebCrypto's `deriveBits` gives it; a protocol hashes it into its keys.",
             "section": "crypto-p256-ecdh",
             "backends": {
                 "bearssl": {"tests": ["p256_ecdh_bearssl", "p256_openssl_oracle", "p256_webcrypto_oracle", "allocation_bearssl"]},
@@ -934,7 +914,7 @@
                 {"targets": ["native", "wasip2", "wasip3", "emscripten"], "backend": "sodium", "tests": ["x25519_sodium", "default_backend_none_linked"], "why": "the only backend in this version, on every target; it refuses an all-zero shared secret itself ({rfc7748})"}
             ],
             "backends": {
-                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}, "constant_time_checker": {"native": "dudect"}, "constant_time": {"native": "nothing found with arm64's DIT (data-independent timing) bit set, which webcpp sets around every call on 64-bit ARM under macOS, iOS, Linux and Android where the CPU has it, as Apple requires of constant-time code ({apple-dit}); the lane's dudect sets nothing itself and measures what a program gets: |t| 1.8 to 2.8 against the threshold 10 (2026-11-21, five runs), while its `dudect_planted`, an early-exit scan of the secret key run inside the same guard, reads |t| 66.72 and 65.53 (2026-11-21): DIT does not hide a leak. Without DIT, dudect times `agree` with an all-zero secret key against random ones at |t| 6.7 to 14.5 (2026-11-19) and 4.3 to 7.8 (2026-11-21, three runs): about one nanosecond in 15 µs. Each on an Apple M5 Max, from a release build. libsodium does not set DIT, and webcpp sets nothing on x86, WebAssembly or Windows on ARM64", "wasip2": "an open finding, its cause measured: dudect times `agree` with an all-zero secret key against random ones at |t| 13 to 32 (2026-11-18; a fixed key against another fixed key: 22.9) and 107 to 260 (2026-11-19), and 25.25 in the lane on 2026-11-21, against the threshold 10, under wasmtime 47 on an Apple M5 Max, from a release build. The cause is Apple silicon's DIT (data-independent timing), which wasmtime does not set ({apple-dit}): with DIT set in wasmtime's main thread, an experiment and not the lane, the same case reads |t| 1.5 to 2.1; no branch on a secret was found in the WebAssembly or in wasmtime's compiled code. The lane cannot set DIT from inside the WebAssembly, so it prints this value on wasip2 without judging it; the CI's x86-64 run measures it next"}}
+                "sodium": {"targets": "all", "lane": {"native": ["memcheck", "msan", "dudect"], "wasip2": ["dudect"]}, "constant_time_checker": {"native": "dudect"}, "constant_time": {"native": "nothing found with arm64's DIT (data-independent timing) bit set, which webcpp sets around every call on 64-bit ARM under macOS, iOS, Linux, Android and Windows where the CPU has it, as Apple requires of constant-time code ({apple-dit}); the lane's dudect sets nothing itself and measures what a program gets: |t| 1.8 to 2.8 against the threshold 10 (2026-11-21, five runs), while its `dudect_planted`, an early-exit scan of the secret key run inside the same guard, reads |t| 66.72 and 65.53 (2026-11-21): DIT does not hide a leak. Without DIT, dudect times `agree` with an all-zero secret key against random ones at |t| 6.7 to 14.5 (2026-11-19) and 4.3 to 7.8 (2026-11-21, three runs): about one nanosecond in 15 µs. Each on an Apple M5 Max, from a release build. libsodium does not set DIT, and webcpp sets nothing on x86 or WebAssembly", "wasip2": "an open finding, its cause measured: dudect times `agree` with an all-zero secret key against random ones at |t| 13 to 32 (2026-11-18; a fixed key against another fixed key: 22.9) and 107 to 260 (2026-11-19), and 25.25 in the lane on 2026-11-21, against the threshold 10, under wasmtime 47 on an Apple M5 Max, from a release build. The cause is Apple silicon's DIT (data-independent timing), which wasmtime does not set ({apple-dit}): with DIT set in wasmtime's main thread, an experiment and not the lane, the same case reads |t| 1.5 to 2.1; no branch on a secret was found in the WebAssembly or in wasmtime's compiled code. The lane cannot set DIT from inside the WebAssembly, so it prints this value on wasip2 without judging it; the CI's x86-64 run measures it next"}}
             }
         },
         {
@@ -1190,7 +1170,7 @@
         {"title": "ECDH's form", "section": "crypto-secp256k1-ecdh", "text": "`keypair::agree` returns the raw x coordinate of the shared point, which protocols such as Nostr's NIP-44 ({nip44}) take; `keypair::agree_hashed` returns libsecp256k1's hashed form, the SHA-256 of the compressed shared point. Both sides must use the same form, or they derive different keys. Derive keys with a KDF, never use a shared secret directly."},
         {"title": "The x-only tweak is not BIP 32", "section": "crypto-wallets-taproot", "text": "`tweak_xonly` is BIP 341's even-y arithmetic ({bip341}); BIP 32's child derivation tweaks the full key, with `secret_key_tweak_add` and `public_key_tweak_add`, and computes the tweak with HMAC-SHA-512, a domain library's ({bip32})."},
         {"title": "Ethereum", "section": "crypto-curves", "text": "this version signs Ethereum's recoverable ECDSA over Keccak-256 (`keypair::sign(crypto::ecdsa_keccak256_recoverable, input)`, a message hashed inside or the 32-byte digest a program builds), recovers a signer's public key from a signature and the same input (`recover`), and writes the uncompressed key ({ethereum}); the recovery id's `v` encoding, the digests Ethereum signs (EIP-191, EIP-712, a transaction's), transactions and addresses are a domain library's, which the guide shows over webcpp::hash."},
-        {"title": "Compare secrets in constant time", "section": "crypto-constant-time-equal", "text": "compare a tag, a MAC or a token with `constant_time_equal`, never `==` or `memcmp` ({cwe208})."},
+        {"title": "Compare secrets in constant time", "section": "crypto-constant-time-equal", "text": "compare a tag, a MAC or a token with `secure::constant_time_equal`, never `==` or `memcmp` ({cwe208})."},
         {"title": "Secrets come from random_device", "section": "crypto-entropy", "text": "keys, nonces and tokens are drawn from `random_device`, never `std::mt19937` or `rand` ({cwe338})."},
         {"title": "Never reuse a nonce under one ChaCha20-Poly1305 key", "section": "crypto-chacha", "text": "two messages under one key and one nonce reveal the XOR of their plaintexts and let an attacker forge tags ({rfc8439-nonce}). `xchacha20_poly1305` and the secret boxes: draw 24 bytes at random per message. `chacha20_poly1305`: number the 12-byte nonces with a counter that never repeats, a restart included, or draw them at random for at most 2^32 messages per key, AES-GCM's bound for random 12-byte nonces ({sp800-38d}). `chacha20_poly1305_original`: a counter only, its 8 bytes are too short to draw."},
         {"title": "A shared secret is not a key", "section": "crypto-x25519", "text": "derive keys from X25519's shared secret and both public keys with a KDF such as webcpp::hash's HKDF, never use its bytes as a cipher's key ({rfc7748-kdf}); `kx_keypair` and the boxes do this themselves."},
@@ -1215,9 +1195,9 @@
             "columns": ["Name", "What it is for", "Header", "Errors", "Standards and sources", "Choose it when"],
             "rows": [
                 ["`random_device`", "Keys, nonces, tokens: every secret a program draws", "`<webcpp/crypto/random_device.hpp>`", "`entropy_unavailable`, `errc::not_supported`", "{getentropy}, {bcryptgenrandom}, {getrandomvalues}, {wasi-random}", "you need a random number an attacker must not predict; never `std::mt19937` or `rand` ({cwe338}); <<crypto-protecting-secrets>>"],
-                ["`constant_time_equal`", "Checking a tag, a MAC or a token", "`<webcpp/crypto/constant_time_equal.hpp>`", "none: it returns `bool`", "{cwe208}", "you compare anything secret; never `==` or `memcmp` on a MAC; <<crypto-protecting-secrets>>"],
-                ["`erase_secret`", "Erasing a password, a key or a plaintext from a buffer the program owns", "`<webcpp/crypto/erase_secret.hpp>`", "none", "{cwe14}", "a secret sits in a `std::string`, a `std::vector` or an array of the program's and must not outlive its use; never `memset`, which the optimiser may drop; <<crypto-protecting-secrets>>"],
-                ["`secret<N>`", "Holding a secret crypto gives back: a key pair's `secret()`, a shared secret, a session key", "`<webcpp/crypto/secret.hpp>`", "none", "{cwe14}", "crypto returns a secret: it wipes itself when destroyed or moved from, is copied only by `clone()`, and gives its bytes with `bytes()`; keep it in one variable; <<crypto-protecting-secrets>>"],
+                ["`secure::constant_time_equal`", "Checking a tag, a MAC or a token", "`<webcpp/secure/constant_time_equal.hpp>`", "none: it returns `bool`", "{cwe208}", "you compare anything secret; never `==` or `memcmp` on a MAC; <<crypto-protecting-secrets>>"],
+                ["`secure::erase_secret`", "Erasing a password, a key or a plaintext from a buffer the program owns", "`<webcpp/secure/erase_secret.hpp>`", "none", "{cwe14}", "a secret sits in a `std::string`, a `std::vector` or an array of the program's and must not outlive its use; never `memset`, which the optimiser may drop; <<crypto-protecting-secrets>>"],
+                ["`secure::secret<N>`", "Holding a secret crypto gives back: a key pair's `secret()`, a shared secret, a session key", "`<webcpp/secure/secret.hpp>`", "none", "{cwe14}", "crypto returns a secret: it wipes itself when destroyed or moved from, is copied only by `clone()`, and gives its bytes with `bytes()`; keep it in one variable; <<crypto-protecting-secrets>>"],
                 ["`error`", "Telling failures apart", "`<webcpp/crypto/error.hpp>`", "its values are the errors", "none", "you branch on a failure: forged data, a wrong size, no entropy"],
                 ["`pem`", "A key's SPKI or PKCS#8 as text, to paste, store or exchange with OpenSSL", "`<webcpp/crypto/pem.hpp>`", "`invalid_encoding`, `invalid_input_size`", "{rfc7468}, {libsodium-base64}", "a key goes to or comes from a file, a form or a tool as `-----BEGIN PUBLIC KEY-----` text; with the `encode_spki` and `encode_pkcs8` of `curves::ed25519`, `curves::x25519`, `curves::secp256k1` or `curves::p256`"],
                 ["`openssl_memory_resource`", "Keeping every allocation of OpenSSL's in the program's own resource, natively", "`<webcpp/crypto/backends/openssl.hpp>`", "`memory_functions_refused`, `memory_functions_not_installed`", "{openssl-mem}", "a native program on OpenSSL must allocate only from its own arena; on WebAssembly, BearSSL allocates nothing"],
@@ -1283,7 +1263,7 @@
             "columns": ["Construction", "What it does", "Keys", "Output", "Standards and sources", "Choose it when"],
             "cited": ["Standards and sources"],
             "rows": [
-                ["`kx_keypair`: crypto_kx", "Session keys for a client and a server: X25519 agrees a secret, and BLAKE2b-512 of it and both public keys gives each side a key to receive with and one to transmit with", "a key pair that holds an X25519 key pair, taken as is, derived from a 32-byte seed or drawn, and the peer's X25519 public key", "two 32-byte `secret<32>` per side, the client's `transmit` the server's `receive`", "{libsodium-kx}", "a client and a server that swapped public keys need a key for each direction, as libsodium's `crypto_kx` gives them; a peer key of low order is refused; a protocol with a KDF of its own uses X25519's `agree` instead"]
+                ["`kx_keypair`: crypto_kx", "Session keys for a client and a server: X25519 agrees a secret, and BLAKE2b-512 of it and both public keys gives each side a key to receive with and one to transmit with", "a key pair that holds an X25519 key pair, taken as is, derived from a 32-byte seed or drawn, and the peer's X25519 public key", "two 32-byte `secure::secret<32>` per side, the client's `transmit` the server's `receive`", "{libsodium-kx}", "a client and a server that swapped public keys need a key for each direction, as libsodium's `crypto_kx` gives them; a peer key of low order is refused; a protocol with a KDF of its own uses X25519's `agree` instead"]
             ]
         }
     },
@@ -1292,7 +1272,7 @@
         {"need": "Sign and verify with Ed25519 in a coroutine", "namespace": "webcpp::crypto", "api": "`async_sign`, `async_verify`", "backend": "the default of Ed25519", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//ed25519-default /webcpp/asio//asio", "example": "async_sign", "section": "crypto-async", "operations": ["async_ed25519"]},
         {"need": "Generate a session token, a password-reset link or an API key", "namespace": "webcpp::crypto", "api": "`random_device::fill`", "backend": "the system's generator", "jamfile": "/webcpp/crypto//crypto", "example": "reset_token", "section": "crypto-entropy"},
         {"need": "Draw an unbiased number in a range, such as a six-digit code", "namespace": "webcpp::crypto", "api": "`random_device` with `std::uniform_int_distribution`", "backend": "the system's generator", "jamfile": "/webcpp/crypto//crypto", "example": "reset_token", "section": "crypto-entropy"},
-        {"need": "Check a webhook's or an API's HMAC signature", "namespace": "webcpp::crypto", "api": "`constant_time_equal`, with Boost.Hash2's `hmac`", "backend": "none", "jamfile": "/webcpp/crypto//crypto", "example": "constant_time_equal_hmac", "section": "crypto-constant-time-equal"},
+        {"need": "Check a webhook's or an API's HMAC signature", "namespace": "webcpp::crypto", "api": "`secure::constant_time_equal`, with Boost.Hash2's `hmac`", "backend": "none", "jamfile": "/webcpp/crypto//crypto", "example": "constant_time_equal_hmac", "section": "crypto-constant-time-equal"},
         {"need": "Encrypt a database field, a cookie or a token at rest", "namespace": "webcpp::crypto::ciphers", "api": "`aes256_gcm`", "backend": "the default: OpenSSL natively, BearSSL on WebAssembly", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//gcm-default", "example": "store_token", "section": "crypto-gcm"},
         {"need": "Encrypt a large file or a stream", "namespace": "webcpp::crypto::ciphers", "api": "`aes256_gcm`: records, or `begin_seal`, `update` and `result`", "backend": "the default", "jamfile": "/webcpp/crypto//crypto /webcpp/crypto//gcm-default", "example": "sealed_records", "section": "crypto-gcm-incremental"},
         {"need": "Tell a forged message from a malformed one", "namespace": "webcpp::crypto", "api": "`error`", "backend": "any", "jamfile": "/webcpp/crypto//crypto", "example": "failure_reasons", "section": "crypto-errors"},
@@ -1395,8 +1375,7 @@
         "chacha_header_not_included_on_emscripten": "A program for Emscripten that names BearSSL in ChaCha20-Poly1305's type without including BearSSL's header.",
         "chacha_unknown_backend_on_emscripten": "A program for Emscripten that names a type of its own as ChaCha20-Poly1305's backend.",
         "chacha_openssl_on_emscripten": "A program for Emscripten that names OpenSSL, which is not built there, in ChaCha20-Poly1305's type.",
-        "ed25519_unknown_policy_on_emscripten": "A program for Emscripten that names a policy of its own in Ed25519's `crypto::verify`.",
-        "secret_of_no_bytes_on_emscripten": "A program for Emscripten that names `secret<0>`."
+        "ed25519_unknown_policy_on_emscripten": "A program for Emscripten that names a policy of its own in Ed25519's `crypto::verify`."
     },
     "fixes": {
         "gcm_default_openssl_not_linked": "Natively the default is OpenSSL: add `/webcpp/crypto//gcm-default`, which links `/webcpp/crypto//openssl` there, or name BearSSL in the type, as in `gcm<aes256<backends::bearssl>>`.",
@@ -1536,10 +1515,12 @@
         "chacha_header_not_included": "Include the backend's header the message names, as `<webcpp/crypto/backends/bearssl.hpp>`, and add its library, as `/third_party//bearssl`.",
         "chacha_unknown_backend": "Name a backend of `webcpp::crypto::backends` that has the family, as `backends::bearssl`, or leave the backend out for the family's default: `chacha20_poly1305<>`.",
         "ed25519_unknown_policy": "Leave the policy out, as in `crypto::verify(crypto::eddsa, signature, message, public_key)`, or name `curves::ed25519::strict`.",
-        "secret_of_no_bytes": "Give `secret` the number of bytes it holds, at least one, as in `secret<32>`.",
-        "equal_header_removed": "Include `<webcpp/crypto/constant_time_equal.hpp>`, the header of `constant_time_equal`; `equal.hpp` is gone, with no header left at its path.",
-        "equal_removed": "Call `crypto::constant_time_equal`, the same comparison of two spans or two digests in constant time; `crypto::equal` is gone, with no alias.",
-        "wipe_removed": "Call `crypto::erase_secret`, which zeroes a contiguous range the program owns (a `std::string&`, a `std::span<std::byte>`) with stores the optimiser keeps; `crypto::wipe` is gone, with no alias.",
+        "equal_header_removed": "Include `<webcpp/secure/constant_time_equal.hpp>`, the header of `secure::constant_time_equal`; `equal.hpp` is gone, with no header left at its path.",
+        "equal_removed": "Call `webcpp::secure::constant_time_equal`, the same comparison of two byte sequences in constant time; `crypto::equal` is gone, with no alias.",
+        "wipe_removed": "Call `webcpp::secure::erase_secret`, which zeroes a contiguous range the program owns (a `std::string&`, a `std::span<std::byte>`) with stores the optimiser keeps; `crypto::wipe` is gone, with no alias.",
+        "constant_time_equal_moved": "Call `webcpp::secure::constant_time_equal`, from `<webcpp/secure/constant_time_equal.hpp>`, the same comparison in constant time; `crypto::constant_time_equal` moved to webcpp::secure, with no alias.",
+        "erase_secret_moved": "Call `webcpp::secure::erase_secret`, from `<webcpp/secure/erase_secret.hpp>`, the same erasure; `crypto::erase_secret` moved to webcpp::secure, with no alias.",
+        "secret_moved": "Name `webcpp::secure::secret<N>`, from `<webcpp/secure/secret.hpp>`, the type every secret crypto returns; `crypto::secret` moved to webcpp::secure, with no alias.",
         "x25519_free_functions_removed": "Make the key pair with `curves::x25519::keypair::from_secret(secret)`, then call its `public_key()`, and its `agree` with the peer's `curves::x25519::public_key` from `from_bytes`; the free functions over bytes are gone, with no alias. The `x25519::public_key(secret)` half pins clang's generic \"no matching conversion for functional-style cast\", since `public_key` now names the type.",
         "iv_size_removed": "Name nonce_size, max_nonce_size and error::invalid_nonce_size: crypto spells its names out.",
         "aead_template_removed": "Name `ciphers::basic_chacha20_poly1305<Family, Backend>`, or its aliases `chacha20_poly1305`, `chacha20_poly1305_original` and `xchacha20_poly1305`: the template is named for its algorithm, with no alias.",
@@ -1566,7 +1547,6 @@
         "seal_box_asynchronous_backend": "Name a native backend, such as `backends::sodium`, for the crypto_box: WebCrypto has no crypto_box, so neither its `seal` nor its `async_seal` completes on the browser's backend.",
         "async_seal_box_associated_data": "Call the box form, `secret_key_encryption::async_seal(executor, box, nonce, data, token)`, or the box's own `async_seal(executor, nonce, data, token)`: a secret box or a crypto_box takes no associated data.",
         "seal_removed_call_wasi": "As `seal_removed_call`: call crypto::secret_key_encryption::aead::seal and open; clang's offer of the C library's fopen is not the AEAD's open.",
-        "erase_secret_const_range": "Erase the buffer the secret was written to, through a non-const reference to it (`std::string&`, `std::span<std::byte>`): a const view cannot be erased. Its elements must be trivially copyable, bytes or integers; a range of `std::string` or of another type with its own storage cannot be erased as bytes, so erase each element's buffer instead.",
         "chacha_default_not_linked_on_emscripten": "As `chacha_default_not_linked`.",
         "box_default_not_linked_on_emscripten": "As `box_default_not_linked`.",
         "kx_default_not_linked_on_emscripten": "As `kx_default_not_linked`.",
@@ -1576,7 +1556,6 @@
         "chacha_header_not_included_on_emscripten": "As `chacha_header_not_included`.",
         "chacha_unknown_backend_on_emscripten": "As `chacha_unknown_backend`.",
         "chacha_openssl_on_emscripten": "Name a backend that has ChaCha20-Poly1305 on Emscripten, as in `chacha20_poly1305<backends::bearssl>`, or its default, `chacha20_poly1305<>`, and link its library.",
-        "ed25519_unknown_policy_on_emscripten": "As `ed25519_unknown_policy`.",
-        "secret_of_no_bytes_on_emscripten": "As `secret_of_no_bytes`."
+        "ed25519_unknown_policy_on_emscripten": "As `ed25519_unknown_policy`."
     }
 }

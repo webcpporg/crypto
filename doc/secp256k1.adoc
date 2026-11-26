@@ -200,7 +200,7 @@ way.
 (0x04, x, y; link:https://www.secg.org/sec1-v2.pdf[SEC 1, sections 2.3.3 and
 2.3.4]): both coordinates, of which the other two forms keep x alone.
 
-Each is returned as a `secret<N>`, which wipes its bytes when it is destroyed
+Each is returned as a `secure::secret<N>`, which wipes its bytes when it is destroyed
 or moved from: a program reads it with `bytes()` and makes no copy of its own
 to forget. Each takes the peer's `public_key`, a point the type guarantees
 (<<crypto-secp256k1-keys>>), and refuses a moved-from key pair with
@@ -470,7 +470,7 @@ key pair without the server ever holding a secret.
 keys, each function a call of libsecp256k1:
 
 * `secret_key_tweak_add` and `secret_key_tweak_mul`: a secret key plus or times
-a 32-byte tweak, modulo the group order, returned as a `secret<32>`;
+a 32-byte tweak, modulo the group order, returned as a `secure::secret<32>`;
 `public_key_tweak_add` and `public_key_tweak_mul`: P + tG and tP, the public
 keys of those two secrets;
 * `secret_key_negate` and `public_key_negate`: the negation of either, n - d and
@@ -514,7 +514,7 @@ links every derived key to the wallet: anyone who sees the public key computes
 the same tweaks and recognises each payment. Mix in a value only the two sides
 hold, as BIP 32's chain code is
 (link:https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki[BIP 32]).
-* A tweaked secret is a secret, which is why it is returned as a `secret<32>`:
+* A tweaked secret is a secret, which is why it is returned as a `secure::secret<32>`:
 whoever knows the tweak and the tweaked secret key computes the original. With
 BIP 32's public derivation, one leaked child secret key and the parent's
 extended public key give away the parent's secret key, and with it every key
@@ -615,7 +615,7 @@ it.
 * The PKCS#8 these functions write holds the secret key in clear, and so does
 its PEM text: base64 is an encoding, not encryption. Keep both where only the
 program reads them, out of source control, or seal them at rest
-(<<crypto-wallets-key>>), and wipe the buffers when done, as `secret<N>` does.
+(<<crypto-wallets-key>>), and wipe the buffers when done, as `secure::secret<N>` does.
 
 [#crypto-secp256k1-ellswift]
 ==== ElligatorSwift: keys that look like noise
@@ -645,7 +645,7 @@ apart; `ellswift_encode` encodes any `public_key`;
 * `ellswift_decode` returns the `public_key` of any 64 bytes: it never fails;
 * `ellswift_xdh` is the key exchange: the x coordinate of the shared point,
 hashed with both encodings as BIP 324 hashes it, a tagged SHA-256, into a
-`secret<32>`. It takes the initiator's encoding, then the responder's, and
+`secure::secret<32>`. It takes the initiator's encoding, then the responder's, and
 which of the two the key pair is (`ellswift_party`).
 
 A moved-from key pair is refused with `invalid_state`. The tests check BIP
@@ -846,7 +846,7 @@ the smallest outpoint's 36 bytes;
 * `make_previous_outputs_summary` sums the eligible inputs' public keys for the
 recipient, into a `previous_outputs_summary`, and `scan_outputs` scans a
 transaction's x-only outputs with the scan key pair and the spend key: each
-`found_output` holds the output's key, its `spend_tweak` (a `secret<32>`, which
+`found_output` holds the output's key, its `spend_tweak` (a `secure::secret<32>`, which
 `secret_key_tweak_add` adds to the spend secret key to spend the output,
 <<crypto-secp256k1-tweaks>>) and the label it was sent to;
 * `create_label` makes the scan key's `m`-th label, 0 being BIP 352's change

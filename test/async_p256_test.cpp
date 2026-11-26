@@ -55,9 +55,9 @@
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/factories.hpp>
 #include <webcpp/crypto/keypair.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/signing.hpp>
 #include <webcpp/hash/digest.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -93,6 +93,7 @@
 
 namespace asio = webcpp::asio;
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace p256 = webcpp::crypto::curves::p256;
 namespace data = webcpp::test::p256;
 namespace test = webcpp::test;
@@ -236,9 +237,9 @@ boost::system::error_code verify_async(asio::io_context& context, public_key con
     });
 }
 
-completed<crypto::secret<32>> agree_async(asio::io_context& context, keypair const& key,
+completed<secure::secret<32>> agree_async(asio::io_context& context, keypair const& key,
                                           public_key const& peer) {
-    return complete<crypto::secret<32>>(context, [&](auto const& executor, auto&& token) {
+    return complete<secure::secret<32>>(context, [&](auto const& executor, auto&& token) {
         return crypto::async_agree(executor, key, peer, std::forward<decltype(token)>(token));
     });
 }
@@ -563,7 +564,7 @@ void async_destroyed(asio::io_context& context) {
                                signature = done;
                            });
         crypto::async_agree(context.get_executor(), *key, *peer,
-                            [&](boost::system::error_code code, crypto::secret<32> done) {
+                            [&](boost::system::error_code code, secure::secret<32> done) {
                                 agree_code = code;
                                 std::ranges::copy(done.bytes(), shared.begin());
                             });
@@ -758,11 +759,11 @@ void check_four_agreements(asio::io_context& context, keypair const& key, public
     auto const member_sync = key.agree(peer);
     auto const free_sync = crypto::agree(key, peer);
     auto const member_async =
-        complete<crypto::secret<32>>(context, [&](auto const& executor, auto&& token) {
+        complete<secure::secret<32>>(context, [&](auto const& executor, auto&& token) {
             return key.async_agree(executor, peer, std::forward<decltype(token)>(token));
         });
     auto const free_async =
-        complete<crypto::secret<32>>(context, [&](auto const& executor, auto&& token) {
+        complete<secure::secret<32>>(context, [&](auto const& executor, auto&& token) {
             return crypto::async_agree(executor, key, peer, std::forward<decltype(token)>(token));
         });
     BOOST_TEST(member_async.code == expected_code);

@@ -19,8 +19,8 @@
 #include <webcpp/crypto/curves/x25519.hpp>
 #include <webcpp/crypto/error.hpp>
 #include <webcpp/crypto/key_exchange/kx.hpp>
-#include <webcpp/crypto/secret.hpp>
 #include <webcpp/crypto/supports.hpp>
+#include <webcpp/secure/secret.hpp>
 #include <webcpp/test/exit_status.hpp>
 
 #include "support/hex.hpp"
@@ -42,6 +42,7 @@
 #include <vector>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 namespace key_exchange = webcpp::crypto::key_exchange;
 namespace x25519 = webcpp::crypto::curves::x25519;
 namespace test = webcpp::test;
@@ -70,7 +71,7 @@ namespace {
 using kx_keypair = key_exchange::kx_keypair<>;
 
 /** The bytes of a session key, as a vector a test compares. */
-std::vector<std::uint8_t> bytes_of(crypto::secret<32> const& key) {
+std::vector<std::uint8_t> bytes_of(secure::secret<32> const& key) {
     auto const view = key.bytes();
     return {view.begin(), view.end()};
 }
@@ -487,8 +488,8 @@ static_assert(std::is_same_v<decltype(std::declval<kx_keypair const&>().keypair(
                              x25519::basic_keypair<crypto::backends::sodium> const&>);
 
 // The session keys are secret<32>, which wipe themselves; the key pair has one owner.
-static_assert(std::is_same_v<decltype(key_exchange::session_keys::receive), crypto::secret<32>>);
-static_assert(std::is_same_v<decltype(key_exchange::session_keys::transmit), crypto::secret<32>>);
+static_assert(std::is_same_v<decltype(key_exchange::session_keys::receive), secure::secret<32>>);
+static_assert(std::is_same_v<decltype(key_exchange::session_keys::transmit), secure::secret<32>>);
 static_assert(!std::is_copy_constructible_v<kx_keypair> && !std::is_copy_assignable_v<kx_keypair>);
 static_assert(std::is_nothrow_move_constructible_v<kx_keypair> &&
               std::is_nothrow_move_assignable_v<kx_keypair>);

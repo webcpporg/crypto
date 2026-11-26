@@ -144,7 +144,7 @@ enum class heavy_phase : std::uint8_t {
 
 /**
  * The value a heavy operation's state carries from its work to its completion: engaged by the
- * work on success, destroyed (a `secret<N>` or a key pair wipes itself) when a cancellation
+ * work on success, destroyed (a `secure::secret<N>` or a key pair wipes itself) when a cancellation
  * aborts the completion.
  *
  * @tparam T The value; `void` for an operation without one.
@@ -221,7 +221,7 @@ heavy_job_allocator_t<WorkExecutor> heavy_job_allocator(
  * starts, on the handler's executor, which completes with `operation_aborted` at once, the
  * value empty (every type is honoured then: nothing has happened yet). Once the work runs, only
  * `terminal` and `partial` are (no C library here can be interrupted: the work ends, then its
- * value is destroyed, which wipes a `secret<N>` or a key pair, and the completion is
+ * value is destroyed, which wipes a `secure::secret<N>` or a key pair, and the completion is
  * `operation_aborted` with the empty value, a side effect that `total` does not allow).
  *
  * The completion runs on the handler's associated executor (`work_executor` by default), where the

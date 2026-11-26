@@ -40,7 +40,7 @@
 |<<crypto-entropy,[.keep]`+reset_token.cpp+`>>
 
 |Check a webhook's or an API's HMAC signature
-|`+constant_time_equal+`, with Boost.Hash2's `+hmac+`
+|`+secure::constant_time_equal+`, with Boost.Hash2's `+hmac+`
 |none
 |`+/webcpp/crypto//crypto+`
 |<<crypto-constant-time-equal,[.keep]`+constant_time_equal_hmac.cpp+`>>

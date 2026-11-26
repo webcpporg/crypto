@@ -11,10 +11,10 @@
 // tag::program[]
 #include <webcpp/crypto/ciphers/aes256_gcm.hpp>
 #include <webcpp/crypto/error.hpp>
+#include <webcpp/secure/erase_secret.hpp>
 
 #include <algorithm>
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <span>
@@ -22,18 +22,10 @@
 #include <string_view>
 
 namespace crypto = webcpp::crypto;
+namespace secure = webcpp::secure;
 using aead_type = crypto::ciphers::aes256_gcm;
 
 namespace {
-
-// Overwrites a secret through a volatile pointer, which the optimiser cannot drop as a dead
-// store: crypto wipes its own copies of keys this way, and the program wipes its own.
-void wipe(std::span<std::byte> secret) {
-    std::byte volatile* const bytes = secret.data();
-    for (std::size_t i = 0; i < secret.size(); ++i) {
-        bytes[i] = std::byte{0};
-    }
-}
 
 bool all_zero(std::span<std::uint8_t const> bytes) {
     return std::ranges::all_of(bytes, [](std::uint8_t b) { return b == 0; });
@@ -53,7 +45,7 @@ int main() {
     std::ranges::copy(text, sealed.begin());
 
     auto aead = aead_type::from_key(key);
-    wipe(std::as_writable_bytes(std::span(key)));
+    secure::erase_secret(key);
     if (!aead) {
         return 1;
     }

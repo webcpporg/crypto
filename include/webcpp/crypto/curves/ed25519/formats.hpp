@@ -23,9 +23,9 @@
 #include <webcpp/crypto/curves/ed25519.hpp>
 #include <webcpp/crypto/detail/capabilities.hpp>
 #include <webcpp/crypto/detail/defaults.hpp>
-#include <webcpp/crypto/detail/timing.hpp>
 #include <webcpp/crypto/error.hpp>
-#include <webcpp/crypto/secret.hpp>
+#include <webcpp/secure/secret.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <boost/system/result.hpp>
 
@@ -133,7 +133,7 @@ template <class Backend = default_backend_t<families::ed25519>>
 template <class Backend = default_backend_t<families::ed25519>>
 [[nodiscard]] boost::system::result<public_key> decode_spki(
     std::span<std::uint8_t const> spki_bytes) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if (spki_bytes.size() != max_spki_size) {
         return error::invalid_encoding;
     }
@@ -186,11 +186,11 @@ template <class Backend = default_backend_t<families::ed25519>>
 template <class Backend = default_backend_t<families::ed25519>>
 [[nodiscard]] boost::system::result<basic_keypair<Backend>> decode_pkcs8(
     std::span<std::uint8_t const> pkcs8_bytes) noexcept {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     if (pkcs8_bytes.size() != max_pkcs8_size) {
         return error::invalid_encoding;
     }
-    secret<32> seed_secret;
+    secure::secret<32> seed_secret;
     auto const decoded_key =
         detail::ed25519_formats_engine<families::ed25519, Backend>::decode_pkcs8(
             pkcs8_bytes.first<max_pkcs8_size>(), seed_secret.writable());

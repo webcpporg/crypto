@@ -21,9 +21,9 @@
 #include <webcpp/crypto/ciphers/aes.hpp>
 #include <webcpp/crypto/ciphers/chacha20_poly1305.hpp>
 #include <webcpp/crypto/ciphers/gcm.hpp>
-#include <webcpp/crypto/constant_time_equal.hpp>
 #include <webcpp/crypto/curves/p256.hpp>
 #include <webcpp/crypto/signing.hpp>
+#include <webcpp/secure/constant_time_equal.hpp>
 
 #include <algorithm>
 #include <array>
@@ -196,6 +196,7 @@ int main(int argc, char** argv) {
     }
     test::report_machine();
     namespace crypto = webcpp::crypto;
+    namespace secure = webcpp::secure;
     using block_cipher = crypto::ciphers::aes256<crypto::backends::ctaes>;
     test::case_results results;
     measure_aead<crypto::ciphers::gcm<crypto::ciphers::aes256<crypto::backends::bearssl>>>(
@@ -228,7 +229,7 @@ int main(int argc, char** argv) {
         // The classes differ only in the second argument: equal to the first, against random.
         auto const compared_t = test::twice(
             count, [&](int which, auto& generator) { test::choose(which, generator, a, b); },
-            [&] { sink = crypto::constant_time_equal(a, b); });
+            [&] { sink = secure::constant_time_equal(a, b); });
         results.record("constant_time_equal", "constant_time_equal", compared_t, true,
                        {{"a", a.data()}, {"b", b.data()}});
     }

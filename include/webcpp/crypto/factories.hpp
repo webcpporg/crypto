@@ -22,7 +22,7 @@
 
 #include <webcpp/crypto/config.hpp>
 
-#include <webcpp/crypto/detail/timing.hpp>
+#include <webcpp/secure/timing_guard.hpp>
 
 #include <utility>
 
@@ -43,7 +43,7 @@ template <class Keypair, class... Arguments>
 [[nodiscard]] auto from_secret(Arguments&&... forwarded_arguments) noexcept(
     noexcept(Keypair::from_secret(std::forward<Arguments>(forwarded_arguments)...)))
     -> decltype(Keypair::from_secret(std::forward<Arguments>(forwarded_arguments)...)) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return Keypair::from_secret(std::forward<Arguments>(forwarded_arguments)...);
 }
 
@@ -83,7 +83,7 @@ template <class Cipher, class... Arguments>
 [[nodiscard]] auto from_key(Arguments&&... forwarded_arguments) noexcept(
     noexcept(Cipher::from_key(std::forward<Arguments>(forwarded_arguments)...)))
     -> decltype(Cipher::from_key(std::forward<Arguments>(forwarded_arguments)...)) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return Cipher::from_key(std::forward<Arguments>(forwarded_arguments)...);
 }
 
@@ -102,7 +102,7 @@ template <class Keypair, class... Arguments>
 [[nodiscard]] auto generate(Arguments&&... forwarded_arguments) noexcept(
     noexcept(Keypair::generate(std::forward<Arguments>(forwarded_arguments)...)))
     -> decltype(Keypair::generate(std::forward<Arguments>(forwarded_arguments)...)) {
-    detail::timing_guard const timing_scope;
+    secure::timing_guard const timing_scope;
     return Keypair::generate(std::forward<Arguments>(forwarded_arguments)...);
 }
 

@@ -10,15 +10,15 @@
 //
 // Run as `timing --measure`, it times, in one process, 10^7 iterations each of an empty loop body,
 // of a guard entered from a thread whose DIT is clear (it sets DIT and clears it again), and of a
-// guard entered with DIT already set (it reads DIT and leaves it; the program sets DIT for that
-// part with the same `msr` as the guard, and clears it after), five runs of each, interleaved, and
-// prints one JSON line: `{"dit": true|false, "clear": <ns>, "set": <ns>, ...}`, each cost the
-// median of its runs minus the empty loop's median, in nanoseconds per guard, then each part's
-// fastest and slowest run (minus the same median), the iterations, the runs, the target and the
-// compiler. "dit" says whether the guard sets DIT here (a target it covers, on a CPU that has it);
-// where it does not, the guard executes no instruction and both costs are the loop's noise. Both
-// modes fail when the process starts with DIT set, or when the thread's DIT is not as the guard
-// must leave it after a part. Run with no argument, it is the correctness test: the same
+// guard entered with DIT already set (it reads DIT, and again at its end; the program sets DIT
+// for that part with the same `msr` as the guard, and clears it after), five runs of each,
+// interleaved, and prints one JSON line: `{"dit": true|false, "clear": <ns>, "set": <ns>, ...}`,
+// each cost the median of its runs minus the empty loop's median, in nanoseconds per guard, then
+// each part's fastest and slowest run (minus the same median), the iterations, the runs, the
+// target and the compiler. "dit" says whether the guard sets DIT here (a target it covers, on a CPU
+// that has it); where it does not, the guard executes no instruction and both costs are the loop's
+// noise. Both modes fail when the process starts with DIT set, or when the thread's DIT is not as
+// the guard must leave it after a part. Run with no argument, it is the correctness test: the same
 // measurement at 10^3 iterations, whose line must also have that form, and whose "dit" must be
 // what the library reads. A measurement never fails on its time; bench/collect.py --timing runs
 // it and writes doc/performance.adoc.

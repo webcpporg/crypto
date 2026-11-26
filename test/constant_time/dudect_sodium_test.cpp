@@ -148,17 +148,17 @@ int main(int argc, char** argv) {
         using keypair = crypto::curves::ed25519::basic_keypair<sodium>;
         std::array<std::uint8_t, 32> const zero{};
         std::array<std::uint8_t, 64> const message{};
-        std::optional<keypair> pair;
+        std::optional<keypair> signer;
         auto const sign_t = test::twice(
             count,
             [&](int which, auto& generator) {
                 test::choose(which, generator, zero, secret_key);
-                pair.emplace(*keypair::from_secret(secret_key));
+                signer.emplace(*keypair::from_secret(secret_key));
             },
-            [&] { static_cast<void>(pair->sign(crypto::eddsa, message)); });
+            [&] { static_cast<void>(signer->sign(crypto::eddsa, message)); });
         results.record(
             "ed25519_sign", "Ed25519 signing", sign_t, true,
-            {{"secret_key", secret_key.data()}, {"message", message.data()}, {"object", &*pair}});
+            {{"secret_key", secret_key.data()}, {"message", message.data()}, {"object", &*signer}});
     }
 
     if (selection->runs("x25519_agree_aa")) {
